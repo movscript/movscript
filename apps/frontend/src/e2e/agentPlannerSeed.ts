@@ -1,6 +1,6 @@
-import type { E2EBootstrapSeed } from '@/lib/e2eBootstrap'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/lib/localAgentClient'
-import type { ChatMessage, Conversation } from '@/store/agentStore'
+import type { E2EBootstrapSeed } from '@/shared/infrastructure/e2eBootstrap'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import type { ChatMessage, Conversation } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 
@@ -357,7 +357,8 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
                   },
                 }],
                 tool_choice: 'auto',
-                stream: false,
+                stream: true,
+                stream_options: { include_usage: true },
               },
             },
           },
@@ -384,7 +385,8 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
                   function: { name: 'movscript_review_assets', parameters: { type: 'object', properties: { productionId: { type: 'number' } } } },
                 }],
                 tool_choice: 'auto',
-                stream: false,
+                stream: true,
+                stream_options: { include_usage: true },
               },
             },
             response: {

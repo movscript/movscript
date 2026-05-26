@@ -1,0 +1,13 @@
+.app-control-group {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--ms-space-1);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 50%, transparent);
+  padding: var(--ms-space-1);
+}
+
+.app-control-group[data-layout="grid"] {
+  display: grid;
+}

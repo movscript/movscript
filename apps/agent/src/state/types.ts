@@ -172,7 +172,7 @@ export type AgentInternalRunSignal =
     run?: AgentInternalRunSignalRun
   }
   | {
-    type: 'assistant_delta'
+    type: 'assistant_progress'
     runId: string
     traceEventId: string
     delta: string

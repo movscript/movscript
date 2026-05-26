@@ -1,0 +1,123 @@
+.detail-entity-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: 10px 16px;
+}
+
+.detail-entity-header[data-surface="workbench"] {
+  height: 44px;
+  background: var(--ms-color-background);
+  padding: 0 12px;
+}
+
+.detail-entity-header__lead {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-entity-header[data-surface="workbench"] .detail-entity-header__lead {
+  gap: 12px;
+}
+
+.detail-entity-header__icon {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-sm);
+}
+
+.detail-entity-header[data-surface="workbench"] .detail-entity-header__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.detail-entity-header__icon-glyph {
+  display: inline-flex;
+}
+
+.detail-entity-header__copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.detail-entity-header__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-entity-header__kind {
+  flex: 0 0 auto;
+  line-height: 16px;
+}
+
+.detail-entity-header__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-entity-header[data-surface="workbench"] .detail-entity-header__title {
+  font-size: var(--ms-text-body);
+  line-height: 20px;
+}
+
+.detail-entity-header:not([data-surface="workbench"]) .detail-entity-header__title {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.detail-entity-header__meta-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--ms-color-muted-foreground);
+}
+
+.detail-entity-header[data-surface="workbench"] .detail-entity-header__meta-row {
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.detail-entity-header:not([data-surface="workbench"]) .detail-entity-header__meta-row {
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.detail-entity-header__description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-entity-header__meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-entity-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}

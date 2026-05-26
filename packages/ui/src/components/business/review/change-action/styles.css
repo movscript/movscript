@@ -1,0 +1,31 @@
+.ms-change-action-badge {
+  padding: 2px 6px;
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  line-height: var(--ms-leading-tiny);
+}
+
+.ms-change-action-badge--compact {
+  padding: 0 4px;
+}
+
+.ms-change-action-row {
+  border-left: 2px solid var(--ms-color-success);
+  background: color-mix(in srgb, var(--ms-color-success) 5%, transparent);
+}
+
+.ms-change-action-row--success {
+  border-left-color: var(--ms-color-success);
+  background: color-mix(in srgb, var(--ms-color-success) 5%, transparent);
+}
+
+.ms-change-action-row--warning {
+  border-left-color: var(--ms-color-warning);
+  background: color-mix(in srgb, var(--ms-color-warning) 5%, transparent);
+}
+
+.ms-change-action-row--danger {
+  border-left-color: var(--ms-color-danger);
+  background: color-mix(in srgb, var(--ms-color-danger) 5%, transparent);
+}

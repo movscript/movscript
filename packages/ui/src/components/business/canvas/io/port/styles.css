@@ -1,0 +1,37 @@
+.canvas-io-port-row {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--ms-space-1);
+  padding: 0 var(--ms-space-2);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-io-port-row__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ms-color-foreground);
+}
+
+.canvas-io-port-row__required {
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-danger) 10%, transparent);
+  color: var(--ms-color-danger);
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.canvas-io-port-row__data-type {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  line-height: 1;
+}

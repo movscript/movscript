@@ -1,0 +1,20 @@
+.detail-entity-editor-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.detail-entity-editor-actions .ms-button {
+  flex-shrink: 0;
+}
+
+.detail-entity-editor-actions .ms-button__content {
+  gap: 8px;
+}
+
+.detail-entity-editor-actions--overlay .detail-entity-editor-actions__secondary {
+  background-color: color-mix(in srgb, var(--ms-color-background) 80%, transparent);
+}

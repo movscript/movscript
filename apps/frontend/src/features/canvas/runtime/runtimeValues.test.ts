@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasPortValue } from '@/types'
-import type { CanvasRuntimeOutputCache } from '@/lib/canvasRuntimeGraph'
+import type { CanvasRuntimeOutputCache } from '@/features/canvas/runtime/canvasRuntimeGraph'
 import type { CanvasRuntimeRun } from './runHistoryStore'
 import {
   buildRuntimeWorkflowOutputs,

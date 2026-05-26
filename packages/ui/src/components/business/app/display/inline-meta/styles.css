@@ -1,0 +1,20 @@
+.app-inline-meta {
+  gap: 6px;
+  border: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 40%, transparent);
+  padding: 2px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.app-inline-meta__icon {
+  flex-shrink: 0;
+}
+
+.app-inline-meta__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

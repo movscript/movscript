@@ -1,0 +1,5 @@
+.ms-agent-data-block {
+  min-width: 0;
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  padding: 8px;
+}

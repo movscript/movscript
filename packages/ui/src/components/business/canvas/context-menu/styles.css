@@ -1,0 +1,81 @@
+.canvas-context-menu {
+  position: fixed;
+  z-index: 1000;
+  width: 256px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding-block: var(--ms-space-1);
+}
+
+.canvas-context-menu__section-title {
+  margin: 0;
+  padding: var(--ms-space-2) var(--ms-space-3) var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: var(--ms-leading-tiny);
+  text-transform: uppercase;
+}
+
+.canvas-context-menu__item {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: var(--ms-space-2) var(--ms-space-3);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.canvas-context-menu__item .ms-button__content {
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.canvas-context-menu__item-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-context-menu__item-icon > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.canvas-context-menu__item[data-ms-tone="danger"] .canvas-context-menu__item-icon {
+  color: var(--ms-color-danger);
+}
+
+.canvas-context-menu__item-body {
+  min-width: 0;
+}
+
+.canvas-context-menu__item-label {
+  display: block;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-context-menu__item-description {
+  display: block;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-context-menu__separator {
+  margin-block: var(--ms-space-1);
+}

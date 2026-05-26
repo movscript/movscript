@@ -1,0 +1,64 @@
+.resource-media-thumb {
+  position: relative;
+}
+
+.resource-media-thumb[data-interactive="true"] {
+  cursor: pointer;
+}
+
+.resource-media-thumb[data-interactive="false"] {
+  cursor: default;
+}
+
+.resource-media-thumb > img,
+.resource-media-thumb > video,
+.resource-media-fill-frame > img,
+.resource-media-fill-frame > video {
+  width: 100%;
+  height: 100%;
+}
+
+.resource-media-thumb[data-fit="cover"] > img,
+.resource-media-thumb[data-fit="cover"] > video,
+.resource-media-fill-frame[data-fit="cover"] > img,
+.resource-media-fill-frame[data-fit="cover"] > video {
+  object-fit: cover;
+}
+
+.resource-media-thumb[data-fit="contain"] > img,
+.resource-media-thumb[data-fit="contain"] > video,
+.resource-media-fill-frame[data-fit="contain"] > img,
+.resource-media-fill-frame[data-fit="contain"] > video {
+  object-fit: contain;
+}
+
+.resource-media-fill-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resource-media-hover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0);
+  transition: background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.resource-media-thumb:hover .resource-media-hover-overlay {
+  background: rgb(0 0 0 / 0.2);
+}
+
+.resource-media-hover-overlay__icon {
+  color: white;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.35));
+  transition: opacity var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.resource-media-thumb:hover .resource-media-hover-overlay__icon {
+  opacity: 1;
+}

@@ -1,0 +1,9 @@
+.resource-script-reference-panel__selector {
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: 8px 12px;
+}
+
+.resource-script-reference-panel__select {
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}

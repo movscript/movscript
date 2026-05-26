@@ -1,0 +1,72 @@
+.app-window-header {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ms-space-2);
+  -webkit-app-region: drag;
+  height: 34px;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding-left: var(--ms-space-2);
+  padding-right: var(--ms-space-2);
+}
+
+.app-window-header--mac {
+  padding-left: 76px;
+}
+
+.app-window-header--controls-right {
+  padding-right: 138px;
+}
+
+.app-window-no-drag,
+.app-window-no-drag * {
+  -webkit-app-region: no-drag;
+}
+
+.app-window-controls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.app-window-header__left-controls {
+  display: flex;
+  height: 34px;
+  flex-shrink: 0;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.app-window-header__center,
+.app-window-header__spacer {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-window-brand-button {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  padding-inline: var(--ms-space-2);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-window-sidebar-toggle {
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+
+.app-window-sidebar-toggle svg {
+  display: block;
+}

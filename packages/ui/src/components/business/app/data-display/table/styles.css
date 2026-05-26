@@ -1,0 +1,21 @@
+.app-data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-data-table__header {
+  border-bottom: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 22%, transparent);
+}
+
+.app-data-table__row {
+  transition: background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.app-data-table__row[data-interactive="true"]:hover {
+  background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+}
+
+.app-data-table__row[data-tone="danger"] {
+  background: color-mix(in srgb, var(--ms-color-danger) 5%, transparent);
+}

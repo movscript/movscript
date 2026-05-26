@@ -1,7 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 
 import type { Canvas, CanvasNodeData, NodeType, RawResource } from '@/types'
-import type { ClientPluginManifest } from '@/lib/clientPlugins'
+import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import { createCanvasNodeData } from '@/features/canvas/domain/graph'
 import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
 import { edgeConnectionKey } from '@/features/canvas/domain/ports'

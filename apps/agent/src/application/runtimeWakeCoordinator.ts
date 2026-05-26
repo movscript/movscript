@@ -249,6 +249,7 @@ export class RuntimeWakeCoordinator {
     this.input.store.updateRuntimeWakeEvent({
       ...event,
       status: 'consumed',
+      payload: consumedWakePayload(event),
       consumedAt: now,
       updatedAt: now,
     })
@@ -300,6 +301,16 @@ function wakePayload(signal: RuntimeWakeSignal): unknown {
   if (signal.type === 'work.started' || signal.type === 'work.observed') return { work: signal.work }
   if (signal.type === 'run.settled') return { runId: signal.runId }
   return { threadId: signal.threadId }
+}
+
+function consumedWakePayload(event: RuntimeWakeEvent): unknown {
+  const summary: Record<string, unknown> = {
+    consumed: true,
+    kind: event.kind,
+  }
+  if (event.runId) summary.runId = event.runId
+  if (event.workId) summary.workId = event.workId
+  return summary
 }
 
 function workFromWakeEvent(event: RuntimeWakeEvent): RuntimeWork | undefined {

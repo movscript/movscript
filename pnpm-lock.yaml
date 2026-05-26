@@ -13,9 +13,9 @@ importers:
       '@movscript/drafts':
         specifier: workspace:*
         version: link:../../packages/drafts
-      '@movscript/tokens':
+      '@movscript/theme':
         specifier: workspace:*
-        version: link:../../packages/tokens
+        version: link:../../packages/theme
       '@movscript/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -143,9 +143,9 @@ importers:
       '@movscript/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@movscript/tokens':
+      '@movscript/theme':
         specifier: workspace:*
-        version: link:../../packages/tokens
+        version: link:../../packages/theme
       '@movscript/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -385,7 +385,11 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
-  packages/tokens:
+  packages/theme:
+    dependencies:
+      '@movscript/tokens':
+        specifier: workspace:*
+        version: link:../tokens
     devDependencies:
       tsup:
         specifier: ^8.5.0
@@ -393,6 +397,8 @@ importers:
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
+
+  packages/tokens: {}
 
   packages/ui:
     dependencies:
@@ -432,10 +438,10 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@18.3.1)
     devDependencies:
-      '@movscript/tokens':
-        specifier: workspace:*
-        version: link:../tokens
       '@types/react':
         specifier: ^18.3.17
         version: 18.3.28

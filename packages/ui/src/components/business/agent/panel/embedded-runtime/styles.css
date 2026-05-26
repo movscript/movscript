@@ -1,0 +1,52 @@
+.ai-agent-panel-shell .ms-agent-conversation,
+.ai-agent-panel-shell .ms-agent-run-card,
+.ai-agent-panel-shell .ms-agent-tool,
+.ai-agent-panel-shell details,
+.ai-agent-panel-shell pre {
+  max-width: 100%;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__header,
+.ai-agent-panel-shell .ms-agent-tool__header {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__title,
+.ai-agent-panel-shell .ms-agent-tool__title,
+.ai-agent-panel-shell .ms-agent-instruction__title,
+.ai-agent-panel-shell .ms-agent-rail-section__title {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-agent-panel-shell .ms-agent-run-card__meta {
+  min-width: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-agent-panel-shell .ms-agent-conversation {
+  min-height: 48px;
+}
+
+.ai-agent-panel-shell .ms-agent-empty {
+  padding-inline: 16px;
+}
+
+.ai-agent-panel-shell code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

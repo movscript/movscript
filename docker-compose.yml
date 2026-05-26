@@ -78,7 +78,7 @@ services:
       SERVER_PORT: "${SERVER_PORT:-8765}"
       ENCRYPTION_KEY: "${ENCRYPTION_KEY:-233e37b8dc5fb65011b8665844002fe1973c3c9fddbc7c72c8290d67d1dc0bce}"
       MCP_TOKEN: "${MCP_TOKEN:-}"
-      CACHE_BACKEND: "${CACHE_BACKEND:-noop}"
+      CACHE_BACKEND: "${CACHE_BACKEND:-redis}"
       CACHE_KEY_PREFIX: "${CACHE_KEY_PREFIX:-movscript}"
       REDIS_ADDR: redis:6379
       REDIS_DB: "${REDIS_DB:-0}"
@@ -89,6 +89,8 @@ services:
       MINIO_USE_SSL: "${MINIO_USE_SSL:-false}"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       createbuckets:
         condition: service_completed_successfully

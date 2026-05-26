@@ -1,0 +1,15 @@
+.app-disclosure__summary {
+  cursor: pointer;
+  padding: var(--ms-space-3) var(--ms-space-4);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.app-disclosure__body {
+  display: grid;
+  gap: var(--ms-space-3);
+  background: color-mix(in srgb, var(--ms-color-surface-raised) 60%, transparent);
+  padding: var(--ms-space-3);
+}

@@ -1,0 +1,44 @@
+.app-dashboard-stat {
+  min-width: 0;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding-bottom: var(--ms-space-3);
+}
+
+.app-dashboard-stat__row {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+}
+
+.app-dashboard-stat__copy {
+  min-width: 0;
+}
+
+.app-dashboard-stat__label,
+.app-dashboard-stat__detail {
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-dashboard-stat__value {
+  margin-top: 6px;
+  color: var(--ms-color-foreground);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 28px;
+}
+
+.app-dashboard-stat__detail {
+  margin-top: 2px;
+}
+
+.app-dashboard-stat__icon {
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}

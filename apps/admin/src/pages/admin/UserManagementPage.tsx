@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BarChart3, Pencil, Plus, RefreshCw, ScrollText, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { AppIconFrame, AppInlineError, Button, Input, Label, StatusBadge } from '@movscript/ui'
 import { runtimeCapabilities } from '@admin-runtime'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
@@ -319,9 +319,9 @@ export function UserManagementPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <AppIconFrame tone="info" className="mt-0.5">
             <UsersRound size={16} />
-          </div>
+          </AppIconFrame>
           <div>
             <h2 className="text-base font-semibold text-foreground">{t('admin.users.title')}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.users.description', { total })}</p>
@@ -372,15 +372,15 @@ export function UserManagementPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {error}
-        </div>
+        </AppInlineError>
       )}
 
       {queryError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(queryError)}
-        </div>
+        </AppInlineError>
       )}
 
       {showCreate && (
@@ -548,9 +548,9 @@ export function UserManagementPage() {
             <div className="max-h-[72vh] overflow-auto p-5">
               {userDetailQuery.isLoading && <div className="py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</div>}
               {userDetailQuery.error && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <AppInlineError>
                   {translateAPIRequestError(userDetailQuery.error)}
-                </div>
+                </AppInlineError>
               )}
               {userDetailQuery.data && (
                 <div className="space-y-5">
@@ -631,9 +631,9 @@ export function UserManagementPage() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-xs text-muted-foreground">#{session.ID}</span>
-                                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+                                <StatusBadge intent={active ? 'info' : 'neutral'} className="text-[10px]">
                                   {active ? t('admin.users.sessionActive') : t('admin.users.sessionInactive')}
-                                </span>
+                                </StatusBadge>
                               </div>
                               <div className="mt-1 truncate text-xs text-foreground">{session.user_agent || '-'}</div>
                               <div className="font-mono text-xs text-muted-foreground">{session.ip_address || '-'}</div>

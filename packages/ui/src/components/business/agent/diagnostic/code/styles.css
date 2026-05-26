@@ -1,0 +1,24 @@
+.ms-agent-diagnostic-code {
+  padding: 6px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-diagnostic-code[data-size="sm"] {
+  max-height: 8rem;
+  padding: 4px 6px;
+  font-size: var(--ms-text-tiny);
+}
+
+.ms-agent-diagnostic-code[data-size="md"] {
+  max-height: 11rem;
+}
+
+.ms-agent-diagnostic-code[data-size="lg"] {
+  max-height: 14rem;
+}
+
+.ms-agent-diagnostic-code[data-tone="default"] {
+  color: var(--ms-color-foreground);
+}

@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import '@/index.css'
-import { GenerationJobSummaryCard, GenerationProgressCard, GenerationTraceSummaryCard } from '@/components/agent/GenerationCards'
-import { GeneratedResultCard } from '@/components/agent/GeneratedResultCard'
-import { replayGenerationTrace } from '@/lib/agentGenerationMedia'
-import { generationTraceReplayFixtures } from '@/lib/agentGenerationTraceFixtures'
-import type { AgentAttachment } from '@/store/agentStore'
+import { GenerationJobSummaryCard, GenerationProgressCard, GenerationTraceSummaryCard } from '@/features/agent/components/GenerationCards'
+import { GeneratedResultCard } from '@/features/agent/components/GeneratedResultCard'
+import { replayGenerationTrace } from '@/features/agent/domain/agentGenerationMedia'
+import { generationTraceReplayFixtures } from '@/features/agent/domain/agentGenerationTraceFixtures'
+import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 const queryClient = new QueryClient({
   defaultOptions: {

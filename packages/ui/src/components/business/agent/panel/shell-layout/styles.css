@@ -1,0 +1,112 @@
+.ai-agent-panel-shell {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ai-agent-panel-shell .ms-agent-main {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-main {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  background: var(--ms-color-background);
+  padding: 0;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-content-card > .ms-agent-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 0;
+}
+
+.ai-agent-panel-shell > .ai-agent-panel-main > .ai-agent-panel-content-card {
+  flex: 1 1 auto;
+}
+
+.ai-agent-panel-shell > .ai-agent-panel-main > .ai-agent-panel-input-card {
+  flex: 0 0 auto;
+}
+
+.ai-agent-panel-shell .ms-agent-header {
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding: 0 8px;
+}
+
+.ai-agent-panel-shell .ms-agent-header__content {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-agent-panel-list-header-actions {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.ai-agent-panel-list-header {
+  justify-content: flex-end;
+}
+
+.ai-agent-panel-shell .ms-agent-header__actions {
+  min-width: 0;
+  max-width: 184px;
+  gap: 6px;
+  overflow: visible;
+}
+
+.ai-agent-panel-shell .ms-agent-title {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.ai-agent-panel-shell .ms-agent-subtitle,
+.ai-agent-panel-shell .ms-agent-status {
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.ai-agent-panel-shell .ms-agent-status {
+  min-width: 0;
+  max-width: 72px;
+  padding: 3px 7px;
+}
+
+.ai-agent-panel-shell .ms-agent-status > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,4 @@
+@import "./shell/styles.css";
+@import "./candidate/styles.css";
+@import "./controls/styles.css";
+@import "./target/styles.css";

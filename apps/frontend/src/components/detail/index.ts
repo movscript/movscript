@@ -1,1 +1,0 @@
-export { ScriptDetail } from './ScriptDetail'

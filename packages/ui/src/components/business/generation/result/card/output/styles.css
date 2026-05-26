@@ -1,0 +1,109 @@
+.generation-result-card__output {
+  min-height: 80px;
+}
+
+.generation-result-card__output--compact {
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+
+.generation-result-card__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  padding: 40px 0;
+}
+
+.generation-result-card__state--compact {
+  min-height: 80px;
+  padding: 16px 12px;
+}
+
+.generation-result-card__state--loading {
+  padding: 0;
+}
+
+.generation-result-card__state--compact.generation-result-card__state--loading {
+  height: 96px;
+}
+
+.generation-result-card__state-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.generation-result-card__state-content p,
+.generation-result-card__state--cancelled p {
+  margin: 0;
+}
+
+.generation-result-card__spin-icon {
+  width: 22px;
+  height: 22px;
+  animation: ms-generation-spin 1s linear infinite;
+}
+
+.generation-result-card--compact .generation-result-card__spin-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.generation-result-card__state-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.generation-result-card__error {
+  justify-content: center;
+  padding: 24px 12px;
+  font-size: var(--ms-text-body);
+  line-height: 24px;
+}
+
+.generation-result-card__error--compact {
+  min-height: 80px;
+  padding: 16px 12px;
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.generation-result-card__state--cancelled {
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 24px;
+}
+
+.generation-result-card__media {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  aspect-ratio: 4 / 3;
+}
+
+.generation-result-card__media--compact {
+  border-radius: var(--ms-radius-sm);
+  aspect-ratio: 16 / 9;
+}
+
+.generation-result-card__media--large {
+  height: 176px;
+  aspect-ratio: auto;
+}
+
+.generation-result-card__media > * {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes ms-generation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

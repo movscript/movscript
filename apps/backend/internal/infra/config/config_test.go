@@ -2,6 +2,14 @@ package config
 
 import "testing"
 
+func TestLoadDefaultCacheBackendIsMemory(t *testing.T) {
+	t.Setenv("CACHE_BACKEND", "")
+	cfg := Load()
+	if cfg.CacheBackend != "memory" {
+		t.Fatalf("default CacheBackend = %q, want memory", cfg.CacheBackend)
+	}
+}
+
 func TestValidateStartupRequiresStrongSecrets(t *testing.T) {
 	cfg := &Config{
 		DBHost:            "localhost",

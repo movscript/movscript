@@ -1,0 +1,47 @@
+.resource-library-picker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resource-library-picker__thumbnail {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.resource-library-picker__thumbnail > * {
+  width: 100%;
+  height: 100%;
+}
+
+.resource-library-picker__item-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.resource-library-picker__item-title,
+.resource-library-picker__item-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-library-picker__item-title {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.resource-library-picker__item-meta,
+.resource-library-picker__selected-label {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.resource-library-picker__selected-label {
+  flex-shrink: 0;
+  color: var(--ms-color-primary);
+}

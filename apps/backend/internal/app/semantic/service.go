@@ -82,4 +82,21 @@ func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
 		return
 	}
 	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
+	s.bumpGenerationContextVersion(ctx, projectID)
+}
+
+func (s *Service) generationContextCacheKey(ctx context.Context, projectID uint, targetType string, targetID uint, intent string) string {
+	version, _ := s.cache.GetVersion(ctx, generationContextCacheNamespace(projectID))
+	return fmt.Sprintf("project:%d:generation_context:v%d:%s:%d:%s", projectID, version, targetType, targetID, intent)
+}
+
+func (s *Service) bumpGenerationContextVersion(ctx context.Context, projectID uint) {
+	if projectID == 0 {
+		return
+	}
+	_, _ = s.cache.BumpVersion(ctx, generationContextCacheNamespace(projectID))
+}
+
+func generationContextCacheNamespace(projectID uint) string {
+	return fmt.Sprintf("project:%d:generation_context", projectID)
 }

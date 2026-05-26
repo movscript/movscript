@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, Settings, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { AppIconFrame, AppInlineError, Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
 import { cn } from '@/lib/utils'
@@ -91,9 +91,9 @@ export function SystemSettingsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-2">
-        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <AppIconFrame tone="info" className="mt-0.5">
           <Settings size={16} />
-        </div>
+        </AppIconFrame>
         <div>
           <h2 className="text-base font-semibold text-foreground">{t('admin.settings.title')}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.settings.description')}</p>
@@ -101,14 +101,14 @@ export function SystemSettingsPage() {
       </div>
 
       {authSettingsQuery.error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(authSettingsQuery.error)}
-        </div>
+        </AppInlineError>
       )}
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {error}
-        </div>
+        </AppInlineError>
       )}
 
       <section className="rounded-lg border border-border bg-card p-4">
@@ -166,9 +166,9 @@ export function SystemSettingsPage() {
       </section>
 
       {!canSave && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {t('admin.settings.registrationRequiresEmail')}
-        </div>
+        </AppInlineError>
       )}
       <div className="flex justify-end gap-2">
         {saved && <span className="self-center text-xs text-primary">{t('admin.settings.saved')}</span>}

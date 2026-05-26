@@ -1,0 +1,55 @@
+.ms-agent-activity-line-item {
+  padding: 6px 0;
+}
+
+.ms-agent-activity-line-item[data-expandable="true"] {
+  cursor: default;
+  user-select: text;
+}
+
+.ms-agent-activity-line-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ms-agent-activity-kind-label {
+  flex: 0 0 auto;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+}
+
+.ms-agent-activity-kind-label[data-kind="read"] {
+  color: var(--ms-color-info);
+}
+
+.ms-agent-activity-kind-label[data-kind="draft"] {
+  color: var(--ms-color-warning);
+}
+
+.ms-agent-activity-kind-label[data-kind="write"],
+.ms-agent-activity-kind-label[data-kind="error"] {
+  color: var(--ms-color-danger);
+}
+
+.ms-agent-activity-kind-label[data-kind="task"] {
+  color: var(--ms-color-success);
+}
+
+.ms-agent-activity-line-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-activity-duration {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 70%, transparent);
+  font-size: var(--ms-text-tiny);
+}

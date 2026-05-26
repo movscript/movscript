@@ -1,0 +1,108 @@
+.ms-agent-composer {
+  gap: 8px;
+  margin: 0 clamp(14px, 3.2vw, 40px) 16px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
+  padding: 9px;
+  box-shadow: var(--ms-shadow-md);
+}
+
+.ms-agent-shell--compact .ms-agent-composer {
+  margin: 0 12px 12px;
+  padding: 8px;
+}
+
+.ms-agent-composer:focus-within {
+  border-color: color-mix(in srgb, var(--ms-color-accent) 46%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ms-color-accent) 12%, transparent),
+    var(--ms-shadow-md);
+}
+
+.ms-agent-composer__field {
+  width: 100%;
+  min-width: 0;
+  max-height: 180px;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  color: var(--ms-color-foreground);
+  padding: 4px 2px;
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-body);
+  line-height: 22px;
+}
+
+.ms-agent-composer__field:focus {
+  outline: none;
+}
+
+.ms-agent-composer__toolbar {
+  gap: 8px;
+}
+
+.ms-agent-composer__drop-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed color-mix(in srgb, var(--ms-color-accent) 40%, transparent);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-accent) 8%, transparent);
+  color: var(--ms-color-accent);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.ms-agent-composer__action {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-agent-shell--compact .ms-agent-composer__action {
+  width: 28px;
+  height: 28px;
+}
+
+.ms-agent-composer__action:hover,
+.ms-agent-composer__action[data-active="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  background: var(--ms-color-muted);
+  color: var(--ms-color-foreground);
+}
+
+.ms-agent-composer__submit {
+  width: 32px;
+  height: 32px;
+  background: var(--ms-color-background);
+  color: var(--ms-color-foreground);
+  border-color: color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+}
+
+.ms-agent-shell--compact .ms-agent-composer__submit {
+  width: 30px;
+  height: 30px;
+}
+
+.ms-agent-composer__submit:hover {
+  background: var(--ms-color-muted);
+  transform: translateY(-1px);
+}
+
+.ms-agent-composer__submit[data-running="true"] {
+  background: var(--ms-color-foreground);
+  color: var(--ms-color-background);
+}
+
+.ms-agent-composer__action svg,
+.ms-agent-composer__submit svg {
+  width: 15px;
+  height: 15px;
+}

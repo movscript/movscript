@@ -1,0 +1,31 @@
+.app-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.app-avatar[data-size="xs"] {
+  width: 20px;
+  height: 20px;
+}
+
+.app-avatar[data-size="sm"] {
+  width: 28px;
+  height: 28px;
+}
+
+.app-avatar[data-size="lg"] {
+  width: 64px;
+  height: 64px;
+}
+
+.app-avatar .ms-avatar__fallback {
+  font-size: var(--ms-text-label);
+}
+
+.app-avatar[data-size="xs"] .ms-avatar__fallback {
+  font-size: var(--ms-text-tiny);
+}
+
+.app-avatar[data-size="lg"] .ms-avatar__fallback {
+  font-size: 18px;
+}

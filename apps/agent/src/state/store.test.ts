@@ -105,6 +105,41 @@ test('trace storage maintains a bounded debug ledger projection per run', () => 
   assert.ok((ledger?.budget.estimatedChars ?? Number.POSITIVE_INFINITY) <= 32_000)
 })
 
+test('runtime wake event storage prunes inactive history while preserving active events', () => {
+  const store = new InMemoryAgentStore()
+  for (let index = 1; index <= 505; index += 1) {
+    const minute = String(index).padStart(3, '0')
+    store.createRuntimeWakeEvent({
+      id: `wake_consumed_${index}`,
+      threadId: 'thread_1',
+      kind: 'thread.opened',
+      status: 'consumed',
+      payload: { consumed: true },
+      dedupeKey: `thread.opened:thread_1:${index}`,
+      createdAt: `2026-05-21T00:${minute}:00.000Z`,
+      updatedAt: `2026-05-21T00:${minute}:00.000Z`,
+      consumedAt: `2026-05-21T00:${minute}:00.000Z`,
+    })
+  }
+  store.createRuntimeWakeEvent({
+    id: 'wake_queued',
+    threadId: 'thread_1',
+    kind: 'thread.opened',
+    status: 'queued',
+    payload: { threadId: 'thread_1' },
+    dedupeKey: 'thread.opened:thread_1',
+    createdAt: '2026-05-21T00:000:00.000Z',
+    updatedAt: '2026-05-21T00:000:00.000Z',
+  })
+
+  const events = store.listRuntimeWakeEvents()
+
+  assert.equal(events.length, 500)
+  assert.ok(events.some((event) => event.id === 'wake_queued'))
+  assert.equal(store.getRuntimeWakeEvent('wake_consumed_1'), undefined)
+  assert.equal(store.getRuntimeWakeEvent('wake_consumed_505')?.status, 'consumed')
+})
+
 test('deleteThread physically removes thread-owned state and trace projections', () => {
   const store = new InMemoryAgentStore()
   store.createThread(buildThread('thread_1'))

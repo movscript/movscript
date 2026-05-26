@@ -1,0 +1,116 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { buildContentWorkbenchUnitHealth } from '@/features/content/domain/contentWorkbenchUnitHealth'
+
+test('content workbench unit health waits for selected unit', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: false,
+    hasPrompt: false,
+    assetSlotCount: 0,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+    generationContextReady: false,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    runningJobCount: 0,
+    completedJobCount: 0,
+  })
+
+  assert.equal(health.state, 'empty')
+  assert.equal(health.score, 0)
+  assert.deepEqual(health.checks, [])
+})
+
+test('content workbench unit health identifies hard generation blockers', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: true,
+    hasPrompt: false,
+    assetSlotCount: 2,
+    missingSlotCount: 1,
+    keyframeCount: 0,
+    generationContextReady: false,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 1,
+    runningJobCount: 0,
+    completedJobCount: 0,
+  })
+
+  assert.equal(health.state, 'blocked')
+  assert.equal(health.title, '下一步：补齐生成条件')
+  assert.equal(health.score, 0)
+  assert.deepEqual(health.checks.filter((check) => check.state === 'blocked').map((check) => check.key), [
+    'prompt',
+    'assets',
+    'keyframes',
+    'generation_context',
+  ])
+})
+
+test('content workbench unit health separates core readiness from preview delivery', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: true,
+    hasPrompt: true,
+    assetSlotCount: 2,
+    missingSlotCount: 0,
+    keyframeCount: 3,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    runningJobCount: 0,
+    completedJobCount: 1,
+    previewItemCount: 0,
+    deliveryVersionCount: 0,
+  })
+
+  assert.equal(health.state, 'ready')
+  assert.equal(health.title, '制作项可进入生产')
+  assert.equal(health.score, 95)
+  assert.equal(health.checks.find((check) => check.key === 'delivery')?.done, false)
+})
+
+test('content workbench unit health treats non-visual units as not requiring keyframes', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: true,
+    hasPrompt: true,
+    assetSlotCount: 0,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+    requiresKeyframe: false,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    runningJobCount: 0,
+    completedJobCount: 0,
+  })
+
+  const keyframeCheck = health.checks.find((check) => check.key === 'keyframes')
+  assert.equal(keyframeCheck?.done, true)
+  assert.equal(keyframeCheck?.value, '非画面项')
+  assert.equal(health.checks.filter((check) => check.state === 'blocked').length, 0)
+})
+
+test('content workbench unit health reports closed loop after delivery', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: true,
+    hasPrompt: true,
+    assetSlotCount: 2,
+    missingSlotCount: 0,
+    keyframeCount: 3,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    runningJobCount: 0,
+    completedJobCount: 1,
+    previewItemCount: 1,
+    deliveryVersionCount: 1,
+  })
+
+  assert.equal(health.state, 'done')
+  assert.equal(health.score, 100)
+  assert.equal(health.title, '制作项已闭环')
+})

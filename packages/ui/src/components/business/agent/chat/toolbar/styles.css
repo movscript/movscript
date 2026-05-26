@@ -1,0 +1,68 @@
+.ai-agent-panel-shell .ai-agent-panel-chat-header {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  min-height: 34px;
+  max-height: 34px;
+  align-items: stretch;
+  border-bottom: 0;
+  overflow: hidden;
+  padding-inline: 0;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-chat-header > .ai-agent-panel-chat-toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-chat-header > .ms-agent-header__content {
+  width: 100%;
+  flex-basis: 100%;
+  align-self: stretch;
+}
+
+.ai-agent-panel-chat-toolbar {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+.ai-agent-panel-chat-toolbar-tabs {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.ai-agent-panel-chat-toolbar-actions {
+  display: inline-flex;
+  min-width: max-content;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding-left: 4px;
+  padding-right: 6px;
+  white-space: nowrap;
+}
+
+.ai-agent-panel-chat-toolbar-actions > .ms-button {
+  flex: 0 0 auto;
+}
+
+.ai-agent-panel-chat-toolbar .ms-button:hover:not(:disabled),
+.ai-agent-panel-conversation-tab-main:hover:not(:disabled),
+.ai-agent-panel-conversation-tab-close:hover:not(:disabled) {
+  transform: none;
+}
+
+.project-agent-mode {
+  container-type: inline-size;
+}

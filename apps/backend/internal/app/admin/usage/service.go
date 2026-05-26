@@ -37,12 +37,14 @@ type Page struct {
 }
 
 type UsageTotals struct {
-	Records      int64   `json:"records"`
-	Cost         float64 `json:"cost"`
-	InputTokens  int64   `json:"input_tokens"`
-	OutputTokens int64   `json:"output_tokens"`
-	DurationSec  int64   `json:"duration_sec"`
-	ImageCount   int64   `json:"image_count"`
+	Records           int64   `json:"records"`
+	Cost              float64 `json:"cost"`
+	InputTokens       int64   `json:"input_tokens"`
+	OutputTokens      int64   `json:"output_tokens"`
+	CachedInputTokens int64   `json:"cached_input_tokens"`
+	ReasoningTokens   int64   `json:"reasoning_tokens"`
+	DurationSec       int64   `json:"duration_sec"`
+	ImageCount        int64   `json:"image_count"`
 }
 
 type OperationSummary struct {
@@ -96,6 +98,8 @@ type Log struct {
 	OperationType      string          `json:"operation_type"`
 	InputTokens        int             `json:"input_tokens"`
 	OutputTokens       int             `json:"output_tokens"`
+	CachedInputTokens  int             `json:"cached_input_tokens"`
+	ReasoningTokens    int             `json:"reasoning_tokens"`
 	DurationSec        int             `json:"duration_sec"`
 	ImageCount         int             `json:"image_count"`
 	Cost               float64         `json:"cost"`

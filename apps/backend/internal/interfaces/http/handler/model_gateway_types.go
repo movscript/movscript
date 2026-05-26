@@ -85,9 +85,11 @@ type responsesOutputContent struct {
 }
 
 type responsesUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-	TotalTokens  int `json:"total_tokens"`
+	InputTokens         int                     `json:"input_tokens"`
+	OutputTokens        int                     `json:"output_tokens"`
+	TotalTokens         int                     `json:"total_tokens"`
+	InputTokensDetails  tokenUsageInputDetails  `json:"input_tokens_details"`
+	OutputTokensDetails tokenUsageOutputDetails `json:"output_tokens_details"`
 }
 
 type anthropicMessagesRequest struct {
@@ -122,8 +124,10 @@ type anthropicContentBlock struct {
 }
 
 type anthropicMessagesUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 }
 
 type gatewayPrincipal struct {
@@ -175,9 +179,27 @@ type chatCompletionChoiceMessage struct {
 }
 
 type chatCompletionUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens            int                         `json:"prompt_tokens"`
+	CompletionTokens        int                         `json:"completion_tokens"`
+	TotalTokens             int                         `json:"total_tokens"`
+	PromptTokensDetails     tokenUsagePromptDetails     `json:"prompt_tokens_details"`
+	CompletionTokensDetails tokenUsageCompletionDetails `json:"completion_tokens_details"`
+}
+
+type tokenUsagePromptDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
+type tokenUsageCompletionDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens"`
+}
+
+type tokenUsageInputDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
+type tokenUsageOutputDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
 type chatCompletionStreamChunk struct {

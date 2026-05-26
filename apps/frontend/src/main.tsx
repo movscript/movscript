@@ -1,12 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from './lib/queryClient'
-import { initTheme } from './hooks/useTheme'
+import { queryClient } from './shared/infrastructure/queryClient'
+import { initTheme } from './features/app-shell/application/useTheme'
 import App from './App'
 import './index.css'
 import './i18n'
-import { applyE2EBootstrapSeedFromStorage } from './lib/e2eBootstrap'
+import { applyE2EBootstrapSeedFromStorage } from './shared/infrastructure/e2eBootstrap'
 
 initTheme()
 applyE2EBootstrapSeedFromStorage()

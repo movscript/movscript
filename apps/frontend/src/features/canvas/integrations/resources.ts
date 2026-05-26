@@ -1,16 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { api } from '@/lib/api'
-import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
-import { toast } from '@/store/toastStore'
+import { api } from '@/shared/infrastructure/api'
+import { toast } from '@/shared/ui/toastStore'
 import type { Canvas, NodeType, PaginatedResponse, RawResource, ResourceBinding } from '@/types'
-
-export interface CanvasPushTarget {
-  kind: 'asset_slot'
-  id: number
-  label: string
-}
 
 export function resourceToNodeType(resource: RawResource): NodeType | undefined {
   if (resource.type === 'image' || resource.type === 'video' || resource.type === 'text') {
@@ -77,29 +70,11 @@ export function useCanvasResourceIntegration({
     },
   })
 
-  async function pushResource(target: CanvasPushTarget, resourceId: number) {
-    if (!canvas?.project_id) return
-    if (target.kind === 'asset_slot') {
-      await api.post(`/projects/${canvas.project_id}/entities/asset-slot-candidates`, {
-        asset_slot_id: target.id,
-        resource_id: resourceId,
-        source_type: 'canvas',
-        source_id: Number(canvas.ID),
-        status: 'candidate',
-        note: `由 Canvas 推送加入候选：${target.label}`,
-      })
-      toast.success('已加入素材候选')
-      invalidateAssetCandidateConsumers(qc, canvas.project_id)
-      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'asset-slots', canvas.project_id] })
-    }
-  }
-
   return {
     dependencyBindings,
     nodeResources,
     nodeResourceById,
     removingRunResultResourceId,
     removeRunResultResource,
-    pushResource,
   }
 }

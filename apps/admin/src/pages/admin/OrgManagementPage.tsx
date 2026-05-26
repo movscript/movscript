@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BarChart3, Building2, Edit3, PlusCircle, RefreshCcw, RefreshCw, ScrollText, Search, Trash2, UserPlus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { AppFeedbackText, AppIconFrame, AppInlineError, AppStateMessage, Button, Input, Label, StatusBadge } from '@movscript/ui'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
@@ -294,9 +294,9 @@ export function OrgManagementPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <AppIconFrame tone="info" className="mt-0.5">
             <Building2 size={16} />
-          </div>
+          </AppIconFrame>
           <div>
             <h2 className="text-base font-semibold text-foreground">{t('admin.orgs.title')}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.orgs.description', { total })}</p>
@@ -341,15 +341,15 @@ export function OrgManagementPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {error}
-        </div>
+        </AppInlineError>
       )}
 
       {queryError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(queryError)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="overflow-hidden rounded-lg border border-border">
@@ -540,9 +540,9 @@ export function OrgManagementPage() {
             </div>
             <div className="max-h-[70vh] overflow-auto p-5">
               {orgDetailQuery.error && (
-                <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <AppInlineError className="mb-4">
                   {translateAPIRequestError(orgDetailQuery.error)}
-                </div>
+                </AppInlineError>
               )}
               {orgDetailQuery.isLoading && (
                 <div className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
@@ -608,8 +608,8 @@ export function OrgManagementPage() {
                   <tbody className="divide-y divide-border">
                     {membersQuery.error && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-3 text-xs text-destructive">
-                          {translateAPIRequestError(membersQuery.error)}
+                        <td colSpan={4} className="px-4 py-3">
+                          <AppFeedbackText>{translateAPIRequestError(membersQuery.error)}</AppFeedbackText>
                         </td>
                       </tr>
                     )}
@@ -637,20 +637,22 @@ export function OrgManagementPage() {
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(member.CreatedAt, i18n.language)}</td>
                         <td className="px-4 py-3 text-right">
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            intent="danger"
                             onClick={() => {
                               if (window.confirm(t('admin.orgs.confirmRemoveMember'))) {
                                 removeMember.mutate({ orgId: memberDialog.ID, userId: member.user_id })
                               }
                             }}
                             disabled={removeMember.isPending}
-                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
                             title={t('admin.orgs.removeMember')}
                             aria-label={t('admin.orgs.removeMember')}
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -666,9 +668,9 @@ export function OrgManagementPage() {
 
               <DetailSection title={t('admin.orgs.invitations')}>
                 {memberDialog.status === 'suspended' && (
-                  <div className="border-b border-border bg-amber-500/10 px-4 py-2 text-xs text-amber-700">
+                  <AppStateMessage tone="warning" className="rounded-none border-x-0 border-t-0 px-4 py-2 text-xs">
                     {t('admin.orgs.suspendedInvitationHint')}
-                  </div>
+                  </AppStateMessage>
                 )}
                 <div className="grid gap-2 border-b border-border bg-card/40 p-3 sm:grid-cols-[160px_minmax(0,1fr)_auto]">
                   <select
@@ -692,9 +694,7 @@ export function OrgManagementPage() {
                 </div>
                 <div className="divide-y divide-border">
                   {invitationsQuery.error && (
-                    <div className="px-4 py-3 text-xs text-destructive">
-                      {translateAPIRequestError(invitationsQuery.error)}
-                    </div>
+                    <AppFeedbackText as="div" className="px-4 py-3">{translateAPIRequestError(invitationsQuery.error)}</AppFeedbackText>
                   )}
                   {(invitationsQuery.data ?? []).map((invitation) => {
                     const status = invitationStatus(invitation)
@@ -704,12 +704,12 @@ export function OrgManagementPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs text-muted-foreground">#{invitation.ID}</span>
-                              <span className={cn(
-                                'rounded-full px-1.5 py-0.5 text-[10px]',
-                                status === 'active' ? 'bg-primary/10 text-primary' : status === 'expired' ? 'bg-amber-500/10 text-amber-600' : 'bg-muted text-muted-foreground'
-                              )}>
+                              <StatusBadge
+                                intent={status === 'active' ? 'info' : status === 'expired' ? 'warning' : 'neutral'}
+                                className="text-[10px]"
+                              >
                                 {t(`admin.orgs.invitationStatuses.${status}`)}
-                              </span>
+                              </StatusBadge>
                             </div>
                             <div className="mt-1 font-mono text-xs text-foreground break-all">{invitation.token}</div>
                             <div className="mt-1 text-xs text-muted-foreground">
@@ -717,20 +717,22 @@ export function OrgManagementPage() {
                             </div>
                           </div>
                           {status === 'active' && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              intent="danger"
                               onClick={() => {
                                 if (window.confirm(t('admin.orgs.confirmRevokeInvitation'))) {
                                   revokeInvitation.mutate({ orgId: memberDialog.ID, invitationId: invitation.ID })
                                 }
                               }}
                               disabled={revokeInvitation.isPending}
-                              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
                               title={t('admin.orgs.revokeInvitation')}
                               aria-label={t('admin.orgs.revokeInvitation')}
                             >
                               <Trash2 size={13} />
-                            </button>
+                            </Button>
                           )}
                         </div>
                         <div className="mt-2 grid gap-1 text-xs text-muted-foreground">

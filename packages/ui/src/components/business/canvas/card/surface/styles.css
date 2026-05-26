@@ -1,0 +1,8 @@
+.canvas-surface-item {
+  min-width: 0;
+  padding: 6px var(--ms-space-2);
+}
+
+.canvas-surface-item[data-density="compact"] {
+  padding: var(--ms-space-1) 6px;
+}

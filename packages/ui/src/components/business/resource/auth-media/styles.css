@@ -1,0 +1,13 @@
+.resource-auth-media-placeholder {
+  animation: resource-auth-media-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes resource-auth-media-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

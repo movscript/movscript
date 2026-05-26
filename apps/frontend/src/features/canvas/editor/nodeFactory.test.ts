@@ -8,7 +8,7 @@ import {
   readOnlyMediaPortPatch,
 } from './nodeFactory'
 import type { Canvas, RawResource } from '@/types'
-import type { ClientPluginManifest } from '@/lib/clientPlugins'
+import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 
 const t = (_key: string, options?: any) => options?.defaultValue ?? _key
 

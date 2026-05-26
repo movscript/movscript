@@ -74,23 +74,23 @@ test('EventStateStore rejects old protocol shapes instead of adapting them', () 
   assert.deepEqual(store.getConversationView('thread_1').messages, [])
 })
 
-test('EventStateStore keeps assistant deltas monotonic and hides them once the final assistant message arrives', () => {
+test('EventStateStore keeps assistant progress monotonic and hides it once the final assistant message arrives', () => {
   const store = createEventStateStore()
   store.ingestSnapshot(snapshot({ runs: [run({ id: 'run_1', status: 'in_progress' })] }))
   store.ingestEvent(event({
     id: 'evt_1',
     ordinal: 1,
-    kind: 'assistant.delta',
-    assistantDelta: { runId: 'run_1', traceId: 'trace_1', delta: 'Hel', accumulated: 'Hel', createdAt: '2026-05-23T00:00:02.000Z' },
+    kind: 'assistant.progress',
+    assistantProgress: { runId: 'run_1', traceId: 'trace_1', delta: 'Hel', accumulated: 'Hel', createdAt: '2026-05-23T00:00:02.000Z' },
   }))
   store.ingestEvent(event({
     id: 'evt_2',
     ordinal: 2,
-    kind: 'assistant.delta',
-    assistantDelta: { runId: 'run_1', traceId: 'trace_1', delta: '', accumulated: 'He', createdAt: '2026-05-23T00:00:03.000Z' },
+    kind: 'assistant.progress',
+    assistantProgress: { runId: 'run_1', traceId: 'trace_1', delta: '', accumulated: 'He', createdAt: '2026-05-23T00:00:03.000Z' },
   }))
   assert.deepEqual(store.getConversationView('thread_1').messages.map((item) => [item.id, item.content]), [
-    ['assistant-delta:run_1:trace_1', 'Hel'],
+    ['assistant-progress:run_1:trace_1', 'Hel'],
   ])
 
   store.ingestSnapshot(snapshot({ ordinal: 2, messages: [], runs: [run({ id: 'run_1', status: 'in_progress' })] }))
@@ -104,7 +104,7 @@ test('EventStateStore keeps assistant deltas monotonic and hides them once the f
   assert.deepEqual(store.getConversationView('thread_1').messages.map((item) => [item.id, item.content]), [
     ['msg_final', 'Hello'],
   ])
-  assert.ok(store.getDebugReport(scope).input.eventsDropped.some((item) => item.reason === 'delta_regression'))
+  assert.ok(store.getDebugReport(scope).input.eventsDropped.some((item) => item.reason === 'progress_regression'))
 })
 
 test('EventStateStore projects pending interactions without frontend inference', () => {
@@ -219,4 +219,3 @@ function interaction(overrides: Partial<RuntimeInteraction> = {}): RuntimeIntera
     ...overrides,
   }
 }
-

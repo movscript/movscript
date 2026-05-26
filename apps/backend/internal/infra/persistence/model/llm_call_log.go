@@ -25,9 +25,11 @@ type LLMCallLog struct {
 	Status        string `gorm:"not null;index;size:32" json:"status"`
 	Error         string `gorm:"type:text" json:"error,omitempty"`
 
-	LatencyMs    int64 `gorm:"default:0" json:"latency_ms"`
-	InputTokens  int   `gorm:"default:0" json:"input_tokens"`
-	OutputTokens int   `gorm:"default:0" json:"output_tokens"`
+	LatencyMs         int64 `gorm:"default:0" json:"latency_ms"`
+	InputTokens       int   `gorm:"default:0" json:"input_tokens"`
+	OutputTokens      int   `gorm:"default:0" json:"output_tokens"`
+	CachedInputTokens int   `gorm:"default:0" json:"cached_input_tokens"`
+	ReasoningTokens   int   `gorm:"default:0" json:"reasoning_tokens"`
 
 	RequestJSON      string        `gorm:"type:text" json:"request_json,omitempty"`
 	ResponseJSON     string        `gorm:"type:text" json:"response_json,omitempty"`

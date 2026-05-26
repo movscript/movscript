@@ -1,0 +1,22 @@
+.canvas-tool-action-card {
+  position: relative;
+  width: 320px;
+  overflow: hidden;
+  padding: 0;
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.canvas-tool-action-card:hover {
+  border-color: color-mix(in srgb, var(--ms-color-foreground) 20%, transparent);
+}
+
+.canvas-tool-action-card--selected {
+  border-color: var(--ms-color-primary);
+  box-shadow:
+    var(--ms-shadow-lg),
+    0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 15%, transparent);
+}

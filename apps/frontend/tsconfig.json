@@ -21,8 +21,10 @@
       "@movscript/event-state": ["../../packages/event-state/src/index.ts"],
       "@movscript/protocol": ["../../packages/protocol/src/index.ts"],
       "@movscript/drafts": ["../../packages/drafts/src/index.ts"],
-      "@movscript/tokens": ["../../packages/tokens/src/index.ts"],
+      "@movscript/theme": ["../../packages/theme/src/index.ts"],
+      "@movscript/ui/style-system": ["../../packages/ui/src/style-system.ts"],
       "@movscript/ui": ["../../packages/ui/src/index.ts"],
+      "@movscript/ui/*": ["../../packages/ui/src/*"],
       "@runtime": ["./src/runtime/community.tsx"],
       "@/*": ["./src/*"]
     }

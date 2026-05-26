@@ -259,6 +259,35 @@ test('runtime model config preserves base URL when only route flags change', () 
   }
 })
 
+test('runtime model config save is idempotent for unchanged input', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    const first = store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+      useForChat: true,
+      useForPlanner: true,
+    })
+    const second = store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+      useForChat: true,
+      useForPlanner: true,
+    })
+
+    assert.equal(second.updatedAt, first.updatedAt)
+    assert.equal(second.model, first.model)
+    assert.equal(second.apiKind, first.apiKind)
+    assert.equal(second.baseURL, first.baseURL)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime model config clears backend model config id when switching to a direct model id', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   try {

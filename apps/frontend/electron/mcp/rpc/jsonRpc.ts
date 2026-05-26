@@ -1,0 +1,57 @@
+import type {
+  JSONRPCRequest,
+  JSONRPCResponse,
+} from '../types'
+import { errorData } from '../backendClient'
+import {
+  makeError,
+  makeResult,
+} from './transport'
+import { listResources, readResource } from '../resources'
+import { getStringParam } from './params'
+import { callTool } from '../tools/router'
+import { listTools } from '../toolRegistry'
+
+const MCP_DEBUG = process.env.MOVSCRIPT_MCP_DEBUG === '1'
+
+export async function handleJSONRPC(req: JSONRPCRequest, httpRequestId?: number): Promise<JSONRPCResponse> {
+  const startedAt = Date.now()
+  const id = req.id ?? null
+  if (MCP_DEBUG) {
+    console.info(`[mcp] rpc start httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method ?? ''}`)
+  }
+  if (req.jsonrpc !== '2.0' || !req.method) {
+    return makeError(id, -32600, 'Invalid Request')
+  }
+
+  try {
+    switch (req.method) {
+      case 'initialize':
+        return makeResult(id, {
+          protocolVersion: '2025-06-18',
+          serverInfo: { name: 'movscript-frontend-mcp', version: '0.1.0' },
+          capabilities: {
+            resources: {},
+            tools: {},
+          },
+        })
+      case 'resources/list':
+        return makeResult(id, { resources: listResources() })
+      case 'resources/read':
+        return makeResult(id, await readResource(getStringParam(req.params, 'uri')))
+      case 'tools/list':
+        return makeResult(id, { tools: listTools() })
+      case 'tools/call':
+        return makeResult(id, await callTool(req.params))
+      default:
+        return makeError(id, -32601, `Method not found: ${req.method}`)
+    }
+  } catch (error) {
+    console.error(`[mcp] rpc error httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method} elapsedMs=${Date.now() - startedAt}`, error)
+    return makeError(id, -32000, error instanceof Error ? error.message : String(error), errorData(error))
+  } finally {
+    if (MCP_DEBUG) {
+      console.info(`[mcp] rpc finish httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method ?? ''} elapsedMs=${Date.now() - startedAt}`)
+    }
+  }
+}

@@ -1,0 +1,40 @@
+.ms-agent-plan-overview-disclosure {
+  margin-top: 4px;
+}
+
+.ms-agent-plan-overview-disclosure__summary {
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+}
+
+.ms-agent-plan-overview-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ms-agent-plan-overview-disclosure__body {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 60%, transparent);
+  padding: 4px 6px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-plan-overview-filter-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0;
+}

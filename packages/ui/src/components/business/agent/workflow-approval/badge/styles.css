@@ -1,0 +1,7 @@
+.ms-agent-workflow-approval-badge {
+  font-size: var(--ms-text-tiny);
+}
+
+.ms-agent-workflow-approval-badge__label {
+  color: color-mix(in srgb, var(--ms-color-foreground) 80%, transparent);
+}

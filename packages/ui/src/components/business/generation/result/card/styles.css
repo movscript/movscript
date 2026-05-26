@@ -1,0 +1,5 @@
+@import "./shell/styles.css";
+@import "./prompt/styles.css";
+@import "./context/styles.css";
+@import "./output/styles.css";
+@import "./debug/styles.css";

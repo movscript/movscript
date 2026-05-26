@@ -1,0 +1,53 @@
+.canvas-mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px;
+  padding: 1px 5px;
+  vertical-align: middle;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-muted);
+  color: var(--ms-color-foreground);
+  cursor: default;
+  font-size: var(--ms-text-caption);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.canvas-mention-chip__media {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-muted);
+  object-fit: cover;
+}
+
+.canvas-mention-chip__label {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-mention-menu-thumb {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-md);
+}
+
+.canvas-mention-attachment-thumb {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-background);
+}
+
+.canvas-mention-menu-thumb > *,
+.canvas-mention-attachment-thumb > * {
+  width: 100%;
+  height: 100%;
+}

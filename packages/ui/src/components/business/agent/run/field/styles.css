@@ -1,0 +1,18 @@
+.ms-agent-run-field {
+  gap: 3px;
+  background: color-mix(in srgb, var(--ms-color-muted) 24%, transparent);
+  padding: 8px;
+}
+
+.ms-agent-run-field__label {
+  font-size: var(--ms-text-tiny);
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.ms-agent-run-field__value {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: 17px;
+}

@@ -2,12 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, ScrollText, Settings, Settings2, ShieldCheck, Sun, UsersRound, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Palette, Route as RouteIcon, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { Button } from '@movscript/ui'
+import { AppFeedbackText, Button, UiDebugInspector } from '@movscript/ui'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
 import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
@@ -131,7 +131,7 @@ function LoginPage() {
                 />
               </label>
             )}
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {error && <AppFeedbackText>{error}</AppFeedbackText>}
             <button
               type="submit"
               disabled={loading || !username.trim() || !password || (bootstrapRequired && !confirmPassword)}
@@ -192,9 +192,8 @@ function resolveLoginRedirect(state: unknown): string {
 }
 
 function ThemeToggleButton() {
-  const { t } = useTranslation()
-  const { theme, toggleTheme } = useTheme()
-  const label = theme === 'dark' ? t('admin.shell.lightMode') : t('admin.shell.darkMode')
+  const { themeMeta, nextThemeMeta, toggleTheme } = useTheme()
+  const label = `${themeMeta.label} -> ${nextThemeMeta.label}`
 
   return (
     <Button
@@ -206,7 +205,7 @@ function ThemeToggleButton() {
       title={label}
       aria-label={label}
     >
-      {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+      <Palette size={14} />
     </Button>
   )
 }
@@ -392,6 +391,7 @@ function App() {
   return (
     <BrowserRouter basename={adminBasename}>
       <Toaster />
+      <UiDebugInspector />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />

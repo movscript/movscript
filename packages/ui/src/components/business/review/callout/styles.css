@@ -1,0 +1,43 @@
+.ms-review-callout {
+  border: 1px solid;
+  border-radius: var(--ms-radius-md);
+  padding: 12px;
+  color: var(--ms-tone-color);
+}
+
+.ms-review-callout--compact {
+  padding: 10px;
+}
+
+.ms-review-callout__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-review-callout__icon {
+  flex-shrink: 0;
+  color: var(--ms-tone-color);
+}
+
+.ms-review-callout__title {
+  color: var(--ms-tone-color);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: var(--ms-leading-label);
+}
+
+.ms-review-stat {
+  border-color: transparent;
+  padding: 4px 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.ms-review-decision-badge {
+  border-color: transparent;
+  padding: 2px 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  line-height: var(--ms-leading-tiny);
+}

@@ -1,0 +1,163 @@
+import type { useAgentChatComposerState } from '@/features/agent/presentation/useAgentChatComposerState'
+import type { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
+import type { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
+import type { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
+import { buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentConversationThreadItems'
+import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
+import { runtimeStatusLightFromActiveRun } from '@/features/agent/domain/agentRuntimeStatusLight'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { Conversation } from '@/features/agent/state/agentStore'
+import type { Project } from '@/types'
+
+interface BuildAgentChatViewLayoutPropsInput {
+  activeLocalRun: AgentRun | null
+  composer: ReturnType<typeof useAgentChatComposerState>
+  conv: Conversation
+  conversations: Conversation[]
+  archivedConversations: Conversation[]
+  currentProject: Project | null
+  interaction: ReturnType<typeof useAgentChatInteractionController>
+  planActionBusy: boolean
+  planDispatchSettings: PlanDispatchSettings
+  presentation: ReturnType<typeof useAgentChatPresentationState>
+  runtime: ReturnType<typeof useAgentChatRuntimeState>
+  onBack: () => void
+  onCloseConversation: (id: string) => void
+  onCloseConversations: (ids: string[]) => void
+  onCollapse: () => void
+  onNewConversation: () => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
+  onRestoreArchivedConversation?: (id: string) => void
+  onRestoreLocalThread: (threadId: string) => Promise<void>
+  onSelectConversation: (id: string) => void
+  showCollapse?: boolean
+  showConversationControls?: boolean
+  updateDraft: (patch: { input: string }) => void
+  updateTaskGraphDispatchSettings: (settings: PlanDispatchSettings) => void
+}
+
+export function buildAgentChatViewLayoutProps({
+  activeLocalRun,
+  composer,
+  conv,
+  conversations,
+  archivedConversations,
+  currentProject,
+  interaction,
+  planActionBusy,
+  planDispatchSettings,
+  presentation,
+  runtime,
+  onBack,
+  onCloseConversation,
+  onCloseConversations,
+  onCollapse,
+  onNewConversation,
+  onReorderConversation,
+  onRestoreArchivedConversation,
+  onRestoreLocalThread,
+  onSelectConversation,
+  showCollapse,
+  showConversationControls,
+  updateDraft,
+  updateTaskGraphDispatchSettings,
+}: BuildAgentChatViewLayoutPropsInput) {
+  return {
+    debugPreview: {
+      draft: runtime.pendingSendDraft,
+      sending: presentation.loading,
+      onCancel: () => runtime.setPendingSendDraft(null),
+      onConfirm: interaction.confirmPendingSendDraft,
+    },
+    header: {
+      activeConversation: conv,
+      conversations,
+      onBack,
+      onCloseConversation,
+      onCloseConversations,
+      onCollapse,
+      onNewConversation,
+      onReorderConversation,
+      onSelectConversation,
+      activeConversationRuntimeStatusLight: runtimeStatusLightFromActiveRun(activeLocalRun, runtime.runtimeStatusLight),
+      showCollapse,
+      showConversationControls,
+    },
+    runtimeHistory: {
+      archivedConversations,
+      onRestoreArchivedConversation,
+      onRestoreLocalThread,
+    },
+    thread: {
+      activePlanSnapshot: presentation.activePlanSnapshot,
+      activeRun: activeLocalRun,
+      approvingLocalRun: presentation.approvingLocalRun,
+      bottomRef: presentation.bottomRef,
+      conversationBlocks: presentation.conversationPresentation.blocks,
+      generationProgressStates: presentation.generationProgressStates,
+      messages: conv.messages,
+      planActionBusy,
+      planDispatchSettings,
+      projectId: currentProject?.ID,
+      showLocalWorkflow: presentation.showLocalWorkflow,
+      thinkingState: presentation.thinkingState,
+      threadRef: presentation.threadRef,
+      workflowAnswerEchoes: presentation.workflowAnswerEchoes,
+      workflowRunsByResultMessageId: presentation.workflowRunsByResultMessageId,
+      workflowRunsWithoutResultMessage: presentation.workflowRunsWithoutResultMessage,
+      onAcceptPlanReview: interaction.acceptPlanTaskReview,
+      onAnswerLocalRunInput: interaction.answerLocalRunInput,
+      onApproveLocalRun: interaction.approveLocalRun,
+      onCancelPlanTree: interaction.cancelActivePlanTree,
+      onDispatchTaskGraph: interaction.dispatchActiveTaskGraph,
+      onRejectLocalRun: interaction.rejectLocalRun,
+      onRejectPlanReview: interaction.rejectPlanTaskReview,
+      onRetaskGraph: interaction.replanActiveTaskGraph,
+      onReworkPlanReview: interaction.reworkPlanTaskReview,
+      onScroll: presentation.onThreadScroll,
+      onUpdatePlanDispatchSettings: updateTaskGraphDispatchSettings,
+    },
+    composer: {
+      answeringPendingInput: presentation.answeringPendingInput,
+      activePendingInputTitle: presentation.activePendingInputRequest?.title,
+      addMentionTrigger: composer.addMentionTrigger,
+      buildingSendDraft: presentation.buildingSendDraft,
+      canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
+      canSend: presentation.canSend,
+      canStopLocalRun: presentation.canStopLocalRun,
+      composerAttachmentEntries: composer.composerAttachmentEntries,
+      composerAttachmentsCount: composer.composerAttachments.length,
+      composerPlaceholder: presentation.composerPlaceholder,
+      debugBeforeSend: runtime.debugBeforeSend,
+      draggingFiles: composer.draggingFiles,
+      fileRef: runtime.fileRef,
+      inputRef: runtime.inputRef,
+      loading: presentation.loading,
+      mentionResults: composer.mentionResults,
+      mentionRangeActive: !!composer.mentionRange,
+      pendingRuntimeInputQueue: buildPendingRuntimeInputQueueItems(conv.messages),
+      stoppingLocalRun: presentation.stoppingLocalRun,
+      uploading: composer.uploading,
+      onAcceptMention: () => {
+        if (composer.mentionRange && composer.mentionResults.length > 0) {
+          composer.insertResourceMention(composer.mentionResults[0])
+          return true
+        }
+        return false
+      },
+      onComposerDragEnter: composer.handleComposerDragEnter,
+      onComposerDragLeave: composer.handleComposerDragLeave,
+      onComposerDragOver: composer.handleComposerDragOver,
+      onComposerDrop: composer.handleComposerDrop,
+      onDebugBeforeSendChange: runtime.setDebugBeforeSend,
+      onInputChange: (value: string) => updateDraft({ input: value }),
+      onMentionEscape: () => composer.setMentionRange(null),
+      onMentionSelect: composer.insertResourceMention,
+      onMentionState: composer.updateMentionState,
+      onRemoveAttachment: composer.removeAttachment,
+      onSend: interaction.send,
+      onStopLocalRun: interaction.stopActiveLocalRun,
+      onUploadFiles: composer.uploadFiles,
+    },
+  }
+}

@@ -1,0 +1,37 @@
+.canvas-tool-action-card__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.canvas-tool-action-card__stack {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.canvas-tool-action-card__detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 8px;
+}
+
+.canvas-tool-action-card__config-column,
+.canvas-tool-action-card__output-column {
+  min-width: 0;
+}
+
+.canvas-tool-action-card__output-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.canvas-tool-action-card__output-empty {
+  grid-column: 1 / -1;
+}
+
+.canvas-tool-action-card__spin-icon {
+  animation: ms-spin 700ms linear infinite;
+}

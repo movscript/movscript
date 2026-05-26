@@ -35,7 +35,12 @@ export async function prepareRuntimeRunExecutionPreflight(input: {
   input.throwIfRunCancelled(input.runId, input.signal)
   const thread = requireRuntimeThread(input.store, run.threadId)
   const titleUser = resolveRunTitleUser(run, thread)
-  await input.ensureThreadTitle(thread, titleUser, input.getAuth(run.id), input.signal, run.id)
+  setTimeout(() => {
+    void input.ensureThreadTitle(thread, titleUser, input.getAuth(run.id), input.signal, run.id)
+      .catch(() => {
+        // Title generation is auxiliary; never block or fail the run preflight.
+      })
+  }, 0)
   return {
     run,
     thread,

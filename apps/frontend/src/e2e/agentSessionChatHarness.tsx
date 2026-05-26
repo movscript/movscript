@@ -4,10 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import '@/index.css'
 import '@/i18n'
-import { AgentConversationThreadSection } from '@/components/agent/AgentConversationThreadSection'
-import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
-import type { AgentRun } from '@/lib/localAgentClient'
-import type { ChatMessage } from '@/store/agentStore'
+import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
+import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -16,6 +16,7 @@ export async function ensureRuntimeThreadTitle(input: {
   authInput?: { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
   signal?: AbortSignal
   now: () => string
+  getThread?: (threadId: string) => AgentThread | undefined
   updateThread: (thread: AgentThread) => void
   runId?: string
   emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
@@ -57,33 +58,36 @@ export async function ensureRuntimeThreadTitle(input: {
       signal: input.signal,
       retry: { maxAttempts: 1 },
     })
+    const targetThread = input.getThread?.(thread.id) ?? thread
     applyThreadTitleGenerationResult({
-      thread,
+      thread: targetThread,
       userMessage,
       modelTitle: result.content,
       now: input.now(),
     })
+    return persistGeneratedThreadTitle({
+      thread: targetThread,
+      runId: input.runId,
+      now: input.now,
+      updateThread: input.updateThread,
+      emitRunStreamEvent: input.emitRunStreamEvent,
+    })
   } catch (error) {
+    const targetThread = input.getThread?.(thread.id) ?? thread
     applyThreadTitleGenerationFallback({
-      thread,
+      thread: targetThread,
       userMessage,
       error,
       now: input.now(),
     })
-  }
-
-  thread.updatedAt = input.now()
-  input.updateThread(thread)
-  if (input.runId && thread.title?.trim()) {
-    input.emitRunStreamEvent?.(input.runId, {
-      type: 'thread_title',
+    return persistGeneratedThreadTitle({
+      thread: targetThread,
       runId: input.runId,
-      threadId: thread.id,
-      title: thread.title.trim(),
-      updatedAt: thread.updatedAt,
+      now: input.now,
+      updateThread: input.updateThread,
+      emitRunStreamEvent: input.emitRunStreamEvent,
     })
   }
-  return thread
 }
 
 export function applyRuntimeThreadTitleRequest(input: {
@@ -92,6 +96,7 @@ export function applyRuntimeThreadTitleRequest(input: {
   authInput?: { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
   signal?: AbortSignal
   now: () => string
+  getThread?: (threadId: string) => AgentThread | undefined
   updateThread: (thread: AgentThread) => void
   runId?: string
   emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
@@ -104,10 +109,32 @@ export function applyRuntimeThreadTitleRequest(input: {
     authInput: input.authInput ?? {},
     signal: input.signal,
     now: input.now,
+    ...(input.getThread ? { getThread: input.getThread } : {}),
     updateThread: input.updateThread,
     ...(input.runId ? { runId: input.runId } : {}),
     ...(input.emitRunStreamEvent ? { emitRunStreamEvent: input.emitRunStreamEvent } : {}),
     ...(input.resolveModelConfig ? { resolveModelConfig: input.resolveModelConfig } : {}),
     ...(input.callModel ? { callModel: input.callModel } : {}),
   })
+}
+
+function persistGeneratedThreadTitle(input: {
+  thread: AgentThread
+  runId?: string
+  now: () => string
+  updateThread: (thread: AgentThread) => void
+  emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
+}): AgentThread {
+  input.thread.updatedAt = input.now()
+  input.updateThread(input.thread)
+  if (input.runId && input.thread.title?.trim()) {
+    input.emitRunStreamEvent?.(input.runId, {
+      type: 'thread_title',
+      runId: input.runId,
+      threadId: input.thread.id,
+      title: input.thread.title.trim(),
+      updatedAt: input.thread.updatedAt,
+    })
+  }
+  return input.thread
 }

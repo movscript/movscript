@@ -1,0 +1,35 @@
+.canvas-tool-full-card {
+  width: 640px;
+  box-shadow: var(--ms-shadow-md);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-tool-full-card__header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.canvas-tool-full-card__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.canvas-tool-full-card__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-tool-full-card__content {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}

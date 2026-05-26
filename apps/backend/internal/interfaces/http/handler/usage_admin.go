@@ -102,7 +102,7 @@ func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
 
 func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "model_config_id", "model", "operation_type", "input_tokens", "output_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
+	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "model_config_id", "model", "operation_type", "input_tokens", "output_tokens", "cached_input_tokens", "reasoning_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
 	for _, row := range rows {
 		model := ""
 		if row.AIModelConfig != nil {
@@ -133,6 +133,8 @@ func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 			csvCell(row.OperationType),
 			strconv.Itoa(row.InputTokens),
 			strconv.Itoa(row.OutputTokens),
+			strconv.Itoa(row.CachedInputTokens),
+			strconv.Itoa(row.ReasoningTokens),
 			strconv.Itoa(row.DurationSec),
 			strconv.Itoa(row.ImageCount),
 			strconv.FormatFloat(row.Cost, 'f', -1, 64),

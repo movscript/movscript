@@ -1,0 +1,28 @@
+.generation-model-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.generation-model-selector__trigger {
+  min-width: 140px;
+}
+
+.generation-model-selector__refresh {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
+}
+
+.generation-model-selector__refresh:hover {
+  color: var(--ms-color-muted-foreground);
+}
+
+.generation-model-selector__refresh-icon--spinning {
+  animation: ms-generation-model-selector-spin 1s linear infinite;
+}
+
+@keyframes ms-generation-model-selector-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

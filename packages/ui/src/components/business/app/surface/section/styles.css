@@ -1,0 +1,39 @@
+.app-section {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ms-color-foreground) 3.5%, transparent);
+}
+
+.app-section__header {
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--ms-space-3);
+  padding: var(--ms-space-3) 14px;
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+}
+
+.app-section__heading {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.app-section__eyebrow {
+  margin-bottom: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.app-section__title {
+  font-size: var(--ms-text-body);
+  line-height: 20px;
+}
+
+.app-section__description {
+  margin-top: 2px;
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.app-section__body {
+  padding: 14px;
+}

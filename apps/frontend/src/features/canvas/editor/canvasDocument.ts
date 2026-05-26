@@ -1,6 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
-import { api } from '@/lib/api'
-import { publicModelId } from '@/lib/modelDisplay'
+import { api } from '@/shared/infrastructure/api'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { Canvas, CanvasNodeData, CanvasType, PublicModel } from '@/types'
 import { ensureFinalOutputNode } from '@/features/canvas/domain/graph'
 import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'

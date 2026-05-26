@@ -1,0 +1,28 @@
+.canvas-tool-action-card__footer-surface {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  padding: 10px 12px;
+}
+
+.canvas-tool-action-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-tool-action-card__primary-action {
+  flex: 1 1 auto;
+  justify-content: center;
+  border-radius: var(--ms-radius-full);
+}
+
+.canvas-tool-action-card__secondary-action {
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-full);
+}
+
+.canvas-tool-action-card__footer-extra {
+  margin-top: 8px;
+}

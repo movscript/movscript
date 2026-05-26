@@ -1,0 +1,49 @@
+.app-dashboard-hero-grid,
+.app-dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+}
+
+.app-dashboard-region,
+.app-dashboard-section {
+  min-width: 0;
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: var(--ms-space-4);
+}
+
+.app-dashboard-region--primary {
+  border-top-color: color-mix(in srgb, var(--ms-color-foreground) 38%, transparent);
+}
+
+.app-dashboard-section__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+  margin-bottom: var(--ms-space-3);
+}
+
+.app-dashboard-divider-block,
+.app-dashboard-meta-cell {
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: 10px;
+}
+
+.app-dashboard-divider-block {
+  margin-top: 18px;
+}
+
+.app-dashboard-meta-cell {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .app-dashboard-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 390px;
+  }
+
+  .app-dashboard-split {
+    grid-template-columns: minmax(0, 1fr) 430px;
+  }
+}

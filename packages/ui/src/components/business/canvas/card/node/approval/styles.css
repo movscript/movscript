@@ -1,0 +1,33 @@
+.canvas-node-approval-status {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--ms-space-1);
+  border-radius: var(--ms-radius-full);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: var(--ms-leading-tiny);
+  white-space: nowrap;
+}
+
+.canvas-node-approval-status[data-compact="true"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-node-approval-status svg {
+  flex-shrink: 0;
+}
+
+.canvas-node-approval-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.canvas-node-approval-action-button {
+  min-height: 22px;
+  padding-inline: 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}

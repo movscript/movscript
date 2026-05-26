@@ -1,0 +1,164 @@
+.app-settings-shell {
+  min-height: 100vh;
+  background: var(--ms-color-background);
+  color: var(--ms-color-foreground);
+}
+
+.app-settings-header {
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.app-settings-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, 768px);
+  height: 56px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+.app-settings-header__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: var(--ms-leading-body);
+}
+
+.app-settings-back-button {
+  gap: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.app-settings-back-button:hover {
+  color: var(--ms-color-foreground);
+}
+
+.app-settings-main {
+  width: min(100%, 768px);
+  margin-inline: auto;
+  padding: 32px 20px;
+}
+
+.app-settings-content-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.app-settings-intro__title {
+  color: var(--ms-color-foreground);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.app-settings-intro__description {
+  margin-top: var(--ms-space-2);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.app-settings-choice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ms-space-2);
+}
+
+.app-settings-choice-tile {
+  padding: var(--ms-space-3);
+}
+
+.app-settings-choice-tile__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: var(--ms-leading-body);
+}
+
+.app-settings-choice-tile__detail {
+  display: block;
+  margin-top: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.app-settings-field {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.app-settings-field__help,
+.app-settings-feedback,
+.app-settings-info-surface,
+.app-settings-footer-text {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.app-settings-info-surface {
+  margin-top: 20px;
+  padding: var(--ms-space-2) var(--ms-space-3);
+}
+
+.app-settings-admin-surface {
+  margin-top: var(--ms-space-3);
+}
+
+.app-settings-endpoint-value {
+  color: var(--ms-color-foreground);
+  font-family: var(--ms-font-mono);
+}
+
+.app-settings-admin-surface__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-space-2);
+}
+
+.app-settings-admin-surface__help {
+  margin-top: var(--ms-space-2);
+  line-height: 20px;
+}
+
+.app-settings-feedback {
+  margin-top: var(--ms-space-3);
+}
+
+.app-settings-feedback:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-settings-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-2);
+  margin-top: 24px;
+}
+
+.app-settings-action-button {
+  min-width: 0;
+}
+
+.app-settings-footer-text {
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .app-settings-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

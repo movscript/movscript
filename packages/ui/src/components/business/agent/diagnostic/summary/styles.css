@@ -1,0 +1,32 @@
+.ms-agent-diagnostic-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ms-agent-diagnostic-summary-item {
+  padding: 6px 8px;
+}
+
+.ms-agent-diagnostic-summary-item__label {
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 70%, transparent);
+  font-size: var(--ms-text-tiny);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ms-agent-diagnostic-summary-item__value {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .ms-agent-diagnostic-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

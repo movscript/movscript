@@ -2254,6 +2254,11 @@
       "conversationTabs": "Open conversation tabs",
       "conversationHistory": "Conversation history",
       "tabActions": "Right-click tab for actions",
+      "archiveConversation": "Archive to history",
+      "archiveOtherConversations": "Archive others",
+      "archiveRightConversations": "Archive tabs to the right",
+      "archiveAllConversations": "Archive all tabs",
+      "archivedConversation": "Archived conversation",
       "closeConversation": "Close tab",
       "closeOtherConversations": "Close others",
       "closeRightConversations": "Close tabs to the right",
@@ -2978,7 +2983,7 @@
         },
         "organization": {
           "title": "Organization",
-          "description": "Organize complex canvases with regions and semantic groups."
+          "description": "Organize complex canvases with regions and visual groups."
         },
         "plugins": {
           "title": "Local Plugins",
@@ -3221,10 +3226,6 @@
     "workflowInputTitle": "Fill Workflow Inputs",
     "inputContentPlaceholder": "Enter content...",
     "startRun": "Start Run",
-    "pushToEntity": "Push to Entity",
-    "pushHint": "Add this {{type}} to the following entity assets",
-    "noPushTargets": "No push targets yet. Select an asset, storyboard, or scene above first.",
-    "push": "Push",
     "runCanvas": "Run Canvas",
     "newCanvasDefaultName": "New Canvas",
     "canvasList": "Canvas List",
@@ -4011,8 +4012,15 @@
       "default": "Movscript"
     },
     "theme": {
+      "select": "Theme",
       "light": "Switch to light mode",
-      "dark": "Switch to dark mode"
+      "dark": "Switch to dark mode",
+      "options": {
+        "dark": "Dark",
+        "light": "Light",
+        "graphite": "Graphite",
+        "studio": "Studio"
+      }
     },
     "language": "Language"
   },

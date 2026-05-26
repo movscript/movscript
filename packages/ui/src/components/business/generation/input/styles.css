@@ -1,0 +1,6 @@
+@import "./prompt/styles.css";
+@import "./mention/styles.css";
+@import "./attachment/styles.css";
+@import "./slots/styles.css";
+@import "./params/styles.css";
+@import "./actions/styles.css";

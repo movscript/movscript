@@ -1,0 +1,28 @@
+@import "./panel/styles.css";
+@import "./page/styles.css";
+@import "./shell/styles.css";
+@import "./generated/styles.css";
+@import "./chat/styles.css";
+@import "./console/styles.css";
+@import "./activity-feed/styles.css";
+@import "./debug/styles.css";
+@import "./diagnostic/styles.css";
+@import "./plan-overview/styles.css";
+@import "./run-activity/styles.css";
+@import "./mode/styles.css";
+@import "./workflow-approval/styles.css";
+@import "./thread/styles.css";
+@import "./context/styles.css";
+@import "./run/styles.css";
+@import "./work/styles.css";
+@import "./composer/styles.css";
+@import "./settings/styles.css";
+@import "./performance/styles.css";
+@import "./pinned-status/styles.css";
+@import "./browser/styles.css";
+@import "./console-nav/styles.css";
+@import "./responsive/styles.css";
+
+.ms-agent-frame {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+}

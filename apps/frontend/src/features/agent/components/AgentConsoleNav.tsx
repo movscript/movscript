@@ -1,0 +1,96 @@
+import { NavLink } from 'react-router-dom'
+import { BarChart3, Blocks, ClipboardList, FileSearch, Gauge, ListTree, Settings, Terminal } from 'lucide-react'
+import {
+  AgentConsoleNavItem,
+  AgentConsoleNavLinkWrapper,
+  AgentConsoleNavList,
+  AgentConsoleNavMeta,
+  AgentConsoleNavMetaRow,
+  AgentConsoleNavShell,
+} from '@movscript/ui'
+import { ROUTES } from '@/routes/projectRoutes'
+
+const agentConsoleSections = [
+  {
+    to: ROUTES.agentConsole,
+    label: '概览',
+    description: '健康状态与待关注事项',
+    icon: BarChart3,
+    end: true,
+  },
+  {
+    to: ROUTES.agentSettings,
+    label: '模型与能力配置',
+    description: '模型、运行策略、Profile、Skills、Tools',
+    icon: Settings,
+  },
+  {
+    to: ROUTES.plugins,
+    label: '插件',
+    description: '应用插件、Agent Skills 与工具扩展',
+    icon: Blocks,
+  },
+  {
+    to: ROUTES.agentRuns,
+    label: '运行记录',
+    description: 'Run 列表与 trace 入口',
+    icon: ListTree,
+  },
+  {
+    to: ROUTES.agentPerformance,
+    label: '性能监控',
+    description: 'Metrics、Timeline、慢操作诊断',
+    icon: Gauge,
+  },
+  {
+    to: ROUTES.agentDebug,
+    label: '高级诊断',
+    description: 'Prompt、工具控制台、调试包',
+    icon: Terminal,
+  },
+  {
+    to: ROUTES.agentDrafts,
+    label: '草稿索引',
+    description: 'Agent 产物查询与业务审阅跳转',
+    icon: FileSearch,
+  },
+] as const
+
+export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
+  return (
+    <AgentConsoleNavShell compact={compact}>
+      <nav aria-label="Agent 控制台导航">
+        <AgentConsoleNavList>
+          {agentConsoleSections.map((section) => {
+            const Icon = section.icon
+            return (
+              <AgentConsoleNavLinkWrapper key={section.to}>
+                <NavLink to={section.to} end={'end' in section ? section.end : undefined}>
+                  {({ isActive }) => (
+                    <AgentConsoleNavItem
+                      active={isActive}
+                      compact={compact}
+                      icon={<Icon size={14} />}
+                      title={section.label}
+                      description={section.description}
+                    />
+                  )}
+                </NavLink>
+              </AgentConsoleNavLinkWrapper>
+            )
+          })}
+        </AgentConsoleNavList>
+        {!compact && (
+          <AgentConsoleNavMetaRow>
+            <AgentConsoleNavMeta icon={ClipboardList}>
+              业务审阅仍在各业务页面完成
+            </AgentConsoleNavMeta>
+            <AgentConsoleNavMeta>
+              控制台只负责配置、插件、状态、运行、诊断和索引
+            </AgentConsoleNavMeta>
+          </AgentConsoleNavMetaRow>
+        )}
+      </nav>
+    </AgentConsoleNavShell>
+  )
+}

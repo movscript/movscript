@@ -1,0 +1,61 @@
+.ms-agent-activity-card-item {
+  padding: 8px 0;
+}
+
+.ms-agent-activity-frame {
+  border-left-width: 2px;
+  border-left-color: color-mix(in srgb, var(--ms-color-muted-foreground) 40%, transparent);
+  padding: 6px 8px;
+}
+
+.ms-agent-activity-frame[data-kind="read"] {
+  border-left-color: var(--ms-color-info);
+}
+
+.ms-agent-activity-frame[data-kind="draft"] {
+  border-left-color: var(--ms-color-warning);
+}
+
+.ms-agent-activity-frame[data-kind="write"],
+.ms-agent-activity-frame[data-kind="error"] {
+  border-left-color: var(--ms-color-danger);
+}
+
+.ms-agent-activity-frame[data-kind="task"] {
+  border-left-color: var(--ms-color-success);
+}
+
+.ms-agent-activity-frame[data-expandable="true"] {
+  cursor: default;
+}
+
+.ms-agent-activity-frame__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ms-agent-activity-frame__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-activity-frame__lines {
+  margin-top: 4px;
+}
+
+.ms-agent-activity-frame__lines > * + * {
+  margin-top: 2px;
+}
+
+.ms-agent-activity-frame__line {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}

@@ -1,0 +1,43 @@
+.ms-control {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--ms-radius-md);
+  cursor: pointer;
+  transition:
+    transform var(--ms-duration-fast) var(--ms-easing-standard),
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.ms-control:focus-visible,
+.ms-field-control:focus-visible,
+.ms-tabs__trigger:focus-visible,
+.ms-select__trigger:focus-visible,
+.ms-dropdown__item:focus,
+.ms-dropdown__sub-trigger:focus,
+.ms-dialog__close:focus-visible,
+.ms-agent-conversation:focus-visible,
+.ms-agent-composer__field:focus-visible,
+.ms-agent-suggestion:focus-visible {
+  outline: 2px solid var(--ms-color-primary);
+  outline-offset: 2px;
+}
+
+.ms-control:disabled,
+.ms-control[aria-disabled="true"],
+.ms-field-control:disabled,
+.ms-field-control[data-disabled],
+.ms-agent-suggestion:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.ms-control svg {
+  flex: 0 0 auto;
+}

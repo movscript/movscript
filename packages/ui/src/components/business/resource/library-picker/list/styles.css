@@ -1,0 +1,19 @@
+.resource-library-picker__list {
+  display: grid;
+  max-height: 208px;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.resource-library-picker__list--prep-dialog {
+  max-height: none;
+  flex: 1;
+}
+
+.resource-library-picker__state {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}

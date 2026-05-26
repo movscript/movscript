@@ -1,0 +1,87 @@
+.onboarding-switch-guide {
+  position: relative;
+  width: 168px;
+  flex-shrink: 0;
+}
+
+.onboarding-switch-guide--compact {
+  width: 96px;
+}
+
+.onboarding-switch-guide__bar {
+  position: relative;
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--ms-color-muted) 56%, transparent)),
+    var(--ms-color-background);
+  padding: var(--ms-space-1);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ms-color-foreground) 4%, transparent);
+}
+
+.onboarding-switch-guide__button {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-sm);
+  color: var(--ms-color-muted-foreground);
+}
+
+.onboarding-switch-guide__button--current {
+  background: var(--ms-color-primary);
+  color: var(--ms-color-primary-foreground);
+}
+
+.onboarding-switch-guide__button--next {
+  border: 1px solid var(--ms-color-border);
+  background: var(--ms-color-surface-raised);
+}
+
+.onboarding-switch-guide__dot {
+  position: absolute;
+  top: -5px;
+  right: 12px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ms-color-background);
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-primary);
+  animation: onboarding-switch-pulse 1500ms ease-in-out infinite;
+}
+
+.onboarding-switch-guide__dot::after {
+  position: absolute;
+  inset: -8px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-primary) 28%, transparent);
+  border-radius: var(--ms-radius-full);
+  content: "";
+  animation: onboarding-switch-ring 1500ms ease-in-out infinite;
+}
+
+@keyframes onboarding-switch-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.72);
+  }
+}
+
+@keyframes onboarding-switch-ring {
+  0% {
+    opacity: 0.84;
+    transform: scale(0.72);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.38);
+  }
+}

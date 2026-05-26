@@ -1,0 +1,25 @@
+.ms-agent-generated-viewer-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.ms-agent-generated-viewer-panel__header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  padding: 12px;
+}
+
+.ms-agent-generated-viewer-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ms-agent-generated-viewer-panel__action,
+.ms-agent-generated-viewer-panel__badge {
+  min-width: 0;
+}

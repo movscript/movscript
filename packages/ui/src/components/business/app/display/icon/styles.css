@@ -1,0 +1,45 @@
+.app-icon-frame {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-background) 80%, transparent);
+  color: var(--ms-color-foreground);
+}
+
+.app-icon-frame[data-size="sm"] {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--ms-radius-sm);
+}
+
+.app-icon-frame[data-size="lg"] {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ms-radius-md);
+}
+
+.app-icon-frame[data-tone="info"] {
+  background: color-mix(in srgb, var(--ms-color-info) 10%, transparent);
+  color: var(--ms-color-info);
+}
+
+.app-icon-frame[data-tone="success"] {
+  background: color-mix(in srgb, var(--ms-color-success) 10%, transparent);
+  color: var(--ms-color-success);
+}
+
+.app-icon-frame[data-tone="warning"] {
+  background: color-mix(in srgb, var(--ms-color-warning) 10%, transparent);
+  color: var(--ms-color-warning);
+}
+
+.app-icon-frame[data-tone="danger"] {
+  background: color-mix(in srgb, var(--ms-color-danger) 10%, transparent);
+  color: var(--ms-color-danger);
+}
+
+.app-icon-frame[data-tone="neutral"] {
+  background: color-mix(in srgb, var(--ms-color-muted) 45%, transparent);
+  color: var(--ms-color-muted-foreground);
+}

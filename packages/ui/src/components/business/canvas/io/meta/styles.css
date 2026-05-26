@@ -1,0 +1,39 @@
+.canvas-io-meta-pill {
+  display: flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-io-meta-pill__label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-io-meta-pill__value {
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ms-color-foreground);
+}
+
+.canvas-io-empty-row {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  border-style: dashed;
+  padding: 0 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  color: var(--ms-color-muted-foreground);
+}

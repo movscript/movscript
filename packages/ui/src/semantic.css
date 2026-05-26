@@ -1,0 +1,244 @@
+.ms-tone-text--info,
+.ms-tone-surface--info,
+.ms-tone-dot--info {
+  --ms-tone-color: var(--ms-color-info);
+}
+
+.ms-tone-text--success,
+.ms-tone-surface--success,
+.ms-tone-dot--success {
+  --ms-tone-color: var(--ms-color-success);
+}
+
+.ms-tone-text--warning,
+.ms-tone-surface--warning,
+.ms-tone-dot--warning {
+  --ms-tone-color: var(--ms-color-warning);
+}
+
+.ms-tone-text--danger,
+.ms-tone-surface--danger,
+.ms-tone-dot--danger {
+  --ms-tone-color: var(--ms-color-danger);
+}
+
+.ms-tone-text {
+  color: var(--ms-tone-color);
+}
+
+.ms-tone-dot {
+  background: var(--ms-tone-color);
+}
+
+.ms-tone-text--neutral,
+.ms-tone-dot--neutral {
+  --ms-tone-color: var(--ms-color-muted-foreground);
+}
+
+.ms-tone-surface {
+  border-color: color-mix(in srgb, var(--ms-tone-color) 24%, transparent);
+  background: color-mix(in srgb, var(--ms-tone-color) 10%, transparent);
+}
+
+.ms-tone-surface--neutral {
+  --ms-tone-color: var(--ms-color-muted-foreground);
+
+  border-color: var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 72%, transparent);
+}
+
+.ms-accent-badge,
+.ms-accent-dot,
+.ms-accent-gradient,
+.ms-accent-text,
+.ms-accent-port,
+.ms-accent-soft,
+.ms-accent-surface {
+  --ui-accent-rgb: 113 113 122;
+}
+
+.ms-accent-badge {
+  background: rgb(var(--ui-accent-rgb) / 0.10);
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-accent-dot {
+  background: rgb(var(--ui-accent-rgb));
+}
+
+.ms-accent-port {
+  border-color: rgb(var(--ui-accent-rgb));
+  background: rgb(var(--ui-accent-rgb) / 0.90);
+}
+
+.ms-accent-gradient {
+  background-image: linear-gradient(to bottom right, rgb(var(--ui-accent-rgb) / 0.20), rgb(var(--ui-accent-rgb) / 0.08));
+}
+
+.ms-accent-text {
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-accent-soft {
+  background: rgb(var(--ui-accent-rgb) / 0.10);
+}
+
+.ms-accent-surface {
+  border-color: rgb(var(--ui-accent-rgb) / 0.20);
+  background: rgb(var(--ui-accent-rgb) / 0.04);
+}
+
+.ms-accent-surface--neutral {
+  border-color: var(--ms-color-border);
+  background: var(--ms-color-background);
+}
+
+.ms-accent-surface--amber,
+.ms-accent-surface--orange {
+  background: rgb(var(--ui-accent-rgb) / 0.05);
+}
+
+.ms-accent-badge--neutral,
+.ms-accent-dot--neutral,
+.ms-accent-gradient--neutral,
+.ms-accent-text--neutral,
+.ms-accent-port--neutral,
+.ms-accent-soft--neutral,
+.ms-accent-surface--neutral {
+  --ui-accent-rgb: 113 113 122;
+}
+
+.ms-accent-badge--sky,
+.ms-accent-dot--sky,
+.ms-accent-gradient--sky,
+.ms-accent-text--sky,
+.ms-accent-port--sky,
+.ms-accent-soft--sky,
+.ms-accent-surface--sky {
+  --ui-accent-rgb: 14 165 233;
+}
+
+.ms-accent-badge--cyan,
+.ms-accent-dot--cyan,
+.ms-accent-gradient--cyan,
+.ms-accent-text--cyan,
+.ms-accent-port--cyan,
+.ms-accent-soft--cyan,
+.ms-accent-surface--cyan {
+  --ui-accent-rgb: 6 182 212;
+}
+
+.ms-accent-badge--blue,
+.ms-accent-dot--blue,
+.ms-accent-gradient--blue,
+.ms-accent-text--blue,
+.ms-accent-port--blue,
+.ms-accent-soft--blue,
+.ms-accent-surface--blue {
+  --ui-accent-rgb: 59 130 246;
+}
+
+.ms-accent-badge--teal,
+.ms-accent-dot--teal,
+.ms-accent-gradient--teal,
+.ms-accent-text--teal,
+.ms-accent-port--teal,
+.ms-accent-soft--teal,
+.ms-accent-surface--teal {
+  --ui-accent-rgb: 20 184 166;
+}
+
+.ms-accent-badge--emerald,
+.ms-accent-dot--emerald,
+.ms-accent-gradient--emerald,
+.ms-accent-text--emerald,
+.ms-accent-port--emerald,
+.ms-accent-soft--emerald,
+.ms-accent-surface--emerald {
+  --ui-accent-rgb: 16 185 129;
+}
+
+.ms-accent-badge--lime,
+.ms-accent-dot--lime,
+.ms-accent-gradient--lime,
+.ms-accent-text--lime,
+.ms-accent-port--lime,
+.ms-accent-soft--lime,
+.ms-accent-surface--lime {
+  --ui-accent-rgb: 132 204 22;
+}
+
+.ms-accent-badge--amber,
+.ms-accent-dot--amber,
+.ms-accent-gradient--amber,
+.ms-accent-text--amber,
+.ms-accent-port--amber,
+.ms-accent-soft--amber,
+.ms-accent-surface--amber {
+  --ui-accent-rgb: 245 158 11;
+}
+
+.ms-accent-badge--orange,
+.ms-accent-dot--orange,
+.ms-accent-gradient--orange,
+.ms-accent-text--orange,
+.ms-accent-port--orange,
+.ms-accent-soft--orange,
+.ms-accent-surface--orange {
+  --ui-accent-rgb: 249 115 22;
+}
+
+.ms-accent-badge--rose,
+.ms-accent-dot--rose,
+.ms-accent-gradient--rose,
+.ms-accent-text--rose,
+.ms-accent-port--rose,
+.ms-accent-soft--rose,
+.ms-accent-surface--rose {
+  --ui-accent-rgb: 244 63 94;
+}
+
+.ms-accent-badge--violet,
+.ms-accent-dot--violet,
+.ms-accent-gradient--violet,
+.ms-accent-text--violet,
+.ms-accent-port--violet,
+.ms-accent-soft--violet,
+.ms-accent-surface--violet {
+  --ui-accent-rgb: 139 92 246;
+}
+
+.ms-accent-badge--indigo,
+.ms-accent-dot--indigo,
+.ms-accent-gradient--indigo,
+.ms-accent-text--indigo,
+.ms-accent-port--indigo,
+.ms-accent-soft--indigo,
+.ms-accent-surface--indigo {
+  --ui-accent-rgb: 99 102 241;
+}
+
+.ms-accent-badge--sky,
+.ms-accent-text--sky,
+.ms-accent-badge--cyan,
+.ms-accent-text--cyan,
+.ms-accent-badge--blue,
+.ms-accent-text--blue,
+.ms-accent-badge--teal,
+.ms-accent-text--teal,
+.ms-accent-badge--emerald,
+.ms-accent-text--emerald,
+.ms-accent-badge--lime,
+.ms-accent-text--lime,
+.ms-accent-badge--amber,
+.ms-accent-text--amber,
+.ms-accent-badge--orange,
+.ms-accent-text--orange,
+.ms-accent-badge--rose,
+.ms-accent-text--rose,
+.ms-accent-badge--violet,
+.ms-accent-text--violet,
+.ms-accent-badge--indigo,
+.ms-accent-text--indigo {
+  color: rgb(var(--ui-accent-rgb));
+}

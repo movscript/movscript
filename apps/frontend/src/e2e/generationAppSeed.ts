@@ -1,8 +1,8 @@
-import { generationTraceReplayFixtures } from '@/lib/agentGenerationTraceFixtures'
-import { replayGenerationTrace } from '@/lib/agentGenerationMedia'
-import type { E2EBootstrapSeed } from '@/lib/e2eBootstrap'
-import type { AgentAttachment, ChatGenerationJob, ChatMessage, Conversation } from '@/store/agentStore'
-import type { AgentRun } from '@/lib/localAgentClient'
+import { generationTraceReplayFixtures } from '@/features/agent/domain/agentGenerationTraceFixtures'
+import { replayGenerationTrace } from '@/features/agent/domain/agentGenerationMedia'
+import type { E2EBootstrapSeed } from '@/shared/infrastructure/e2eBootstrap'
+import type { AgentAttachment, ChatGenerationJob, ChatMessage, Conversation } from '@/features/agent/state/agentStore'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { Project } from '@/types'
 
 const USER_ID = 1001

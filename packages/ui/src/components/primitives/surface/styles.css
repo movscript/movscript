@@ -1,0 +1,269 @@
+.ms-surface-root {
+  --ui-surface-tone-color: var(--ms-color-muted-foreground);
+  --ui-surface-border: var(--ms-color-border);
+  --ui-surface-background: var(--ms-color-surface);
+  --ui-surface-radius: var(--ms-radius-md);
+  --ui-surface-shadow: none;
+
+  min-width: 0;
+  padding: 0;
+}
+
+.ms-surface-root[data-tone="brand"],
+.ms-surface-root[data-tone="info"] {
+  --ui-surface-tone-color: var(--ms-color-primary);
+}
+
+.ms-surface-root[data-tone="success"] {
+  --ui-surface-tone-color: var(--ms-color-success);
+}
+
+.ms-surface-root[data-tone="warning"] {
+  --ui-surface-tone-color: var(--ms-color-warning);
+}
+
+.ms-surface-root[data-tone="danger"] {
+  --ui-surface-tone-color: var(--ms-color-danger);
+}
+
+.ms-surface-root[data-kind="item"] {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 80%, transparent);
+  --ui-surface-radius: var(--ms-radius-sm);
+}
+
+.ms-surface-root[data-kind="metric"] {
+  --ui-surface-radius: var(--ms-radius-md);
+  --ui-surface-background: transparent;
+}
+
+.ms-surface-root[data-kind="media"] {
+  --ui-surface-radius: var(--ms-radius-sm);
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 42%, transparent);
+}
+
+.ms-surface-root[data-density="compact"] {
+  padding: 7px 8px;
+}
+
+.ms-surface-root[data-density="normal"] {
+  padding: 10px 12px;
+}
+
+.ms-surface-root[data-density="comfortable"] {
+  padding: 14px 16px;
+}
+
+.ms-surface-root[data-emphasis="plain"] {
+  --ui-surface-background: var(--ms-color-surface);
+}
+
+.ms-surface-root[data-kind="item"][data-emphasis="plain"] {
+  --ui-surface-background: var(--ms-color-background);
+}
+
+.ms-surface-root[data-emphasis="muted"] {
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+}
+
+.ms-surface-root[data-kind="media"][data-emphasis="muted"] {
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 42%, transparent);
+}
+
+.ms-surface-root[data-emphasis="soft"] {
+  --ui-surface-border: color-mix(in srgb, var(--ui-surface-tone-color) 24%, transparent);
+  --ui-surface-background: color-mix(in srgb, var(--ui-surface-tone-color) 8%, transparent);
+}
+
+.ms-surface-root[data-emphasis="outlined"] {
+  --ui-surface-background: transparent;
+}
+
+.ms-surface-root[data-emphasis="unframed"] {
+  --ui-surface-border: transparent;
+  --ui-surface-radius: 0;
+  --ui-surface-background: transparent;
+  --ui-surface-shadow: none;
+}
+
+.ms-surface-root[data-emphasis="raised"] {
+  --ui-surface-background: var(--ms-color-surface-raised);
+  --ui-surface-shadow: var(--ms-shadow-sm);
+}
+
+.ms-surface-root[data-kind="overlay"],
+.ms-surface-root[data-emphasis="raised"][data-kind="overlay"] {
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-background) 70%, transparent);
+  --ui-surface-shadow: var(--ms-shadow-sm);
+
+  backdrop-filter: blur(8px);
+}
+
+.ms-surface-root[data-interaction="hover"],
+.ms-surface-root[data-interaction="selectable"],
+.ms-surface-root[data-interaction="selected"] {
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.ms-surface-root[data-interaction="hover"]:hover,
+.ms-surface-root[data-interaction="selectable"]:hover {
+  --ui-surface-border: color-mix(in srgb, var(--ui-surface-tone-color) 50%, transparent);
+  --ui-surface-background: color-mix(in srgb, var(--ui-surface-tone-color) 4.5%, transparent);
+}
+
+.ms-surface-root[data-interaction="selected"] {
+  --ui-surface-border: color-mix(in srgb, var(--ui-surface-tone-color) 68%, transparent);
+  --ui-surface-background: color-mix(in srgb, var(--ui-surface-tone-color) 7%, transparent);
+  --ui-surface-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-surface-tone-color) 28%, transparent);
+}
+
+.ms-surface-root[data-interaction="disabled"] {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.ms-surface__header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.ms-surface__action {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.ms-surface__icon {
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-surface__title {
+  color: var(--ms-color-foreground);
+  font-weight: 650;
+}
+
+.ms-surface__description,
+.ms-key-value__label,
+.ms-stat-card__label,
+.ms-stat-card__detail,
+.ms-empty-state__icon {
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-key-value {
+  min-width: 0;
+  padding: 0;
+}
+
+.ms-key-value__label {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-key-value__value {
+  margin: var(--ms-space-1) 0 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 13px;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-stat-card {
+  min-width: 0;
+  padding: 0;
+}
+
+.ms-stat-card__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ms-space-2);
+  justify-content: space-between;
+}
+
+.ms-stat-card__label,
+.ms-stat-card__value,
+.ms-stat-card__detail,
+.ms-agent-text--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-stat-card__value {
+  color: var(--ms-color-foreground);
+  margin-top: var(--ms-space-1);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 28px;
+}
+
+.ms-stat-card__label {
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.ms-stat-card__detail {
+  margin-top: 6px;
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.ms-stat-card__icon {
+  flex-shrink: 0;
+  height: 30px;
+  width: 30px;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 62%, transparent);
+}
+
+.ms-empty-state {
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  text-align: center;
+}
+
+.ms-empty-state[data-border="dashed"] {
+  border-style: dashed;
+}
+
+.ms-empty-state__icon {
+  height: 34px;
+  width: 34px;
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-background);
+}
+
+.ms-empty-state__title {
+  margin-top: var(--ms-space-2);
+  color: var(--ms-color-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 19px;
+}
+
+.ms-empty-state__description {
+  max-width: 420px;
+  margin-top: 3px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 17px;
+}
+
+.ms-empty-state__action {
+  margin-top: var(--ms-space-4);
+}

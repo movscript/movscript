@@ -1,0 +1,54 @@
+.canvas-tool-action-card__header {
+  padding: 12px 12px 8px;
+}
+
+.canvas-tool-action-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.canvas-tool-action-card__icon-frame {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-md);
+}
+
+.canvas-tool-action-card__title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.canvas-tool-action-card__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-tool-action-card__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: var(--ms-leading-body);
+  color: var(--ms-color-foreground);
+}
+
+.canvas-tool-action-card__subtitle {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+  color: var(--ms-color-muted-foreground);
+}

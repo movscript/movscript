@@ -1,0 +1,18 @@
+.app-choice-tile {
+  height: auto;
+  justify-content: flex-start;
+  border: 1px solid var(--ms-color-border);
+  padding: var(--ms-space-2) var(--ms-space-3);
+  text-align: left;
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard), background-color var(--ms-duration-fast) var(--ms-easing-standard), color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.app-choice-tile[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 70%, var(--ms-color-border));
+}
+
+.app-choice-tile .ms-button__content {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}

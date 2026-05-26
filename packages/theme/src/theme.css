@@ -1,0 +1,109 @@
+@import "@movscript/tokens/theme.css";
+
+:root {
+  color-scheme: light;
+
+  --ms-color-background: #f5f6f2;
+  --ms-color-foreground: #13161b;
+  --ms-color-surface: #fbfbf8;
+  --ms-color-surface-raised: #ffffff;
+  --ms-color-border: #d8ddd4;
+  --ms-color-muted: #ecefeb;
+  --ms-color-muted-foreground: #646d76;
+
+  --ms-color-primary: #13161b;
+  --ms-color-primary-foreground: #ffffff;
+  --ms-color-accent: #13161b;
+  --ms-color-info: #2563eb;
+  --ms-color-danger: #bf3d3d;
+  --ms-color-danger-foreground: #ffffff;
+  --ms-color-success: #16784b;
+  --ms-color-success-foreground: #ffffff;
+  --ms-color-warning: #a86513;
+  --ms-color-warning-foreground: #13161b;
+
+  --ms-shadow-sm: 0 1px 2px rgb(19 22 27 / 6%), 0 1px 0 rgb(255 255 255 / 70%) inset;
+  --ms-shadow-md: 0 12px 30px rgb(19 22 27 / 10%);
+  --ms-shadow-lg: 0 28px 70px rgb(19 22 27 / 16%);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ms-color-background: #111412;
+  --ms-color-foreground: #f5f7f3;
+  --ms-color-surface: #181c1a;
+  --ms-color-surface-raised: #202620;
+  --ms-color-border: #343c35;
+  --ms-color-muted: #252b26;
+  --ms-color-muted-foreground: #a8b1aa;
+
+  --ms-color-primary: #f4f6fb;
+  --ms-color-primary-foreground: #111318;
+  --ms-color-accent: #f5f7f3;
+  --ms-color-info: #7db4ff;
+  --ms-color-danger: #ff7a7a;
+  --ms-color-danger-foreground: #180707;
+  --ms-color-success: #57c985;
+  --ms-color-success-foreground: #07150d;
+  --ms-color-warning: #ffc05a;
+  --ms-color-warning-foreground: #171006;
+
+  --ms-shadow-sm: 0 1px 2px rgb(0 0 0 / 20%);
+  --ms-shadow-md: 0 8px 24px rgb(0 0 0 / 28%);
+  --ms-shadow-lg: 0 18px 48px rgb(0 0 0 / 34%);
+}
+
+[data-theme="graphite"] {
+  color-scheme: dark;
+
+  --ms-color-background: #0d1117;
+  --ms-color-foreground: #f2f5f8;
+  --ms-color-surface: #131922;
+  --ms-color-surface-raised: #19212c;
+  --ms-color-border: #2d3848;
+  --ms-color-muted: #202a36;
+  --ms-color-muted-foreground: #9aa7b7;
+
+  --ms-color-primary: #8fbaff;
+  --ms-color-primary-foreground: #061120;
+  --ms-color-accent: #7dd3fc;
+  --ms-color-info: #7dd3fc;
+  --ms-color-danger: #ff9a9a;
+  --ms-color-danger-foreground: #210707;
+  --ms-color-success: #72e6aa;
+  --ms-color-success-foreground: #06170d;
+  --ms-color-warning: #ffd27a;
+  --ms-color-warning-foreground: #1d1304;
+
+  --ms-shadow-sm: 0 1px 2px rgb(0 0 0 / 20%);
+  --ms-shadow-md: 0 8px 24px rgb(0 0 0 / 28%);
+  --ms-shadow-lg: 0 18px 48px rgb(0 0 0 / 34%);
+}
+
+[data-theme="studio"] {
+  color-scheme: light;
+
+  --ms-color-background: #f7f8fb;
+  --ms-color-foreground: #171b22;
+  --ms-color-surface: #eef3f8;
+  --ms-color-surface-raised: #ffffff;
+  --ms-color-border: #d7dee8;
+  --ms-color-muted: #e8edf4;
+  --ms-color-muted-foreground: #626d7d;
+
+  --ms-color-primary: #1f5fbf;
+  --ms-color-primary-foreground: #ffffff;
+  --ms-color-accent: #0f766e;
+  --ms-color-info: #2563eb;
+  --ms-color-danger: #bf3d3d;
+  --ms-color-danger-foreground: #ffffff;
+  --ms-color-success: #16784b;
+  --ms-color-success-foreground: #ffffff;
+  --ms-color-warning: #a86513;
+  --ms-color-warning-foreground: #171b22;
+
+  --ms-shadow-sm: 0 1px 2px rgb(19 22 27 / 6%), 0 1px 0 rgb(255 255 255 / 70%) inset;
+  --ms-shadow-md: 0 12px 30px rgb(19 22 27 / 10%);
+  --ms-shadow-lg: 0 28px 70px rgb(19 22 27 / 16%);
+}

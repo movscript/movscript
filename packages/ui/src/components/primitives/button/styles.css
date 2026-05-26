@@ -1,0 +1,185 @@
+.ms-button {
+  flex-shrink: 0;
+  gap: var(--ms-space-2);
+  font-family: var(--ms-font-sans);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.ms-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ms-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ms-button--xs {
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--ms-radius-sm);
+  font-size: var(--ms-text-label);
+}
+
+.ms-button--sm {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
+.ms-button--md {
+  height: 34px;
+  padding: 0 13px;
+  font-size: var(--ms-text-body);
+}
+
+.ms-button--lg {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+.ms-button--icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
+.ms-button--icon-xs {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--ms-radius-sm);
+}
+
+.ms-button--icon-sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.ms-button--icon-lg {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
+.ms-button--solid.ms-button--tone-brand {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ms-color-primary) 92%, white 8%), var(--ms-color-primary));
+  color: var(--ms-color-primary-foreground);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 16%) inset, 0 10px 22px rgb(19 22 27 / 12%);
+}
+
+.ms-button--solid.ms-button--tone-brand:hover:not(:disabled) {
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.ms-button--solid.ms-button--tone-danger {
+  background: var(--ms-color-danger);
+  color: var(--ms-color-danger-foreground);
+}
+
+.ms-button--solid.ms-button--tone-neutral {
+  background: var(--ms-color-foreground);
+  color: var(--ms-color-background);
+}
+
+.ms-button--soft,
+.ms-button--outline {
+  border-color: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
+  background: color-mix(in srgb, var(--ms-color-surface) 92%, white 8%);
+  color: var(--ms-color-foreground);
+}
+
+.ms-button--soft:hover:not(:disabled),
+.ms-button--outline:hover:not(:disabled),
+.ms-button--ghost:hover:not(:disabled),
+.ms-menu-item:focus {
+  background: var(--ms-color-muted);
+}
+
+.ms-button--soft.ms-button--tone-brand {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 24%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-primary) 10%, var(--ms-color-surface));
+  color: var(--ms-color-primary);
+}
+
+.ms-button--soft.ms-button--tone-danger {
+  border-color: color-mix(in srgb, var(--ms-color-danger) 24%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-danger) 10%, var(--ms-color-surface));
+  color: var(--ms-color-danger);
+}
+
+.ms-button--outline.ms-button--tone-danger {
+  border-color: color-mix(in srgb, var(--ms-color-danger) 40%, var(--ms-color-border));
+  color: var(--ms-color-danger);
+}
+
+.ms-button--ghost {
+  background: transparent;
+  color: var(--ms-color-foreground);
+}
+
+.ms-button--ghost.ms-button--tone-brand,
+.ms-button--link.ms-button--tone-brand {
+  color: var(--ms-color-primary);
+}
+
+.ms-button--ghost.ms-button--tone-danger,
+.ms-button--link.ms-button--tone-danger {
+  color: var(--ms-color-danger);
+}
+
+.ms-button--link {
+  height: auto;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.ms-button__content {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+  white-space: nowrap;
+}
+
+.ms-button__content > svg {
+  flex-shrink: 0;
+}
+
+.ms-button__spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--ms-radius-full);
+  animation: ms-spin 700ms linear infinite;
+}
+
+.ms-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ms-button--xs .ms-button__spinner,
+.ms-button--icon-xs .ms-button__spinner,
+.ms-button--xs svg,
+.ms-button--icon-xs svg {
+  width: 11px;
+  height: 11px;
+}
+
+.ms-button--sm .ms-button__spinner,
+.ms-button--icon-sm .ms-button__spinner,
+.ms-button--sm svg,
+.ms-button--icon-sm svg {
+  width: 13px;
+  height: 13px;
+}

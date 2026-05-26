@@ -167,6 +167,8 @@ function hasSensitiveRuntimeModelURL(value: string | undefined): boolean {
 
 export class RuntimeModelConfigStore {
   readonly filePath: string
+  private cachedConfig: RuntimeModelConfig | undefined
+  private cacheLoaded = false
 
   constructor(filePath = resolveRuntimeModelConfigPath()) {
     this.filePath = filePath
@@ -195,31 +197,27 @@ export class RuntimeModelConfigStore {
         credentialStatus: describeRuntimeModelCredentialStatus(undefined),
       }
     }
-    return {
-      configured: true,
-      provider: 'backend-model-config',
-      ...(fileConfig.modelConfigId ? { modelConfigId: fileConfig.modelConfigId } : {}),
-      model: fileConfig.model,
-      apiKind: fileConfig.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
-      baseURL: fileConfig.baseURL,
-      apiKeyConfigured: Boolean(fileConfig.apiKey?.trim()),
-      useForChat: fileConfig.useForChat,
-      useForPlanner: fileConfig.useForPlanner,
-      updatedAt: fileConfig.updatedAt,
-      source: 'file',
-      credentialStatus: describeRuntimeModelCredentialStatus(fileConfig),
-    }
+    return this.publicConfigFromFileConfig(fileConfig)
   }
 
   save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
     const existing = this.readFileConfig()
-    const config = this.buildConfigFromInput(input, existing, new Date().toISOString())
+    const now = new Date().toISOString()
+    const candidate = this.buildConfigFromInput(input, existing, existing?.updatedAt ?? now)
+    if (existing && runtimeModelConfigsEquivalent(existing, candidate)) {
+      return this.publicConfigFromFileConfig(existing)
+    }
+    const config = { ...candidate, updatedAt: now }
     atomicWriteJSON(this.filePath, config)
-    return this.getPublicConfig()
+    this.cachedConfig = config
+    this.cacheLoaded = true
+    return this.publicConfigFromFileConfig(config)
   }
 
   clear(): RuntimeModelConfigPublic {
     if (existsSync(this.filePath)) unlinkSync(this.filePath)
+    this.cachedConfig = undefined
+    this.cacheLoaded = true
     return this.getPublicConfig()
   }
 
@@ -286,6 +284,8 @@ export class RuntimeModelConfigStore {
   }
 
   private readFileConfig(): RuntimeModelConfig | undefined {
+    if (this.cacheLoaded) return this.cachedConfig
+    this.cacheLoaded = true
     if (!existsSync(this.filePath)) return undefined
     let parsed: unknown
     try {
@@ -305,7 +305,7 @@ export class RuntimeModelConfigStore {
     const baseURL = normalizeNonEmptyString(parsed.baseURL)
     const apiKey = normalizeNonEmptyString(parsed.apiKey)
     if (hasSensitiveRuntimeModelURL(baseURL)) return undefined
-    return {
+    this.cachedConfig = {
       provider: 'backend-model-config',
       ...(modelConfigId ? { modelConfigId } : {}),
       model,
@@ -316,6 +316,24 @@ export class RuntimeModelConfigStore {
       useForPlanner,
       updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
     }
+    return this.cachedConfig
+  }
+
+  private publicConfigFromFileConfig(fileConfig: RuntimeModelConfig): RuntimeModelConfigPublic {
+    return {
+      configured: true,
+      provider: 'backend-model-config',
+      ...(fileConfig.modelConfigId ? { modelConfigId: fileConfig.modelConfigId } : {}),
+      model: fileConfig.model,
+      apiKind: fileConfig.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
+      baseURL: fileConfig.baseURL,
+      apiKeyConfigured: Boolean(fileConfig.apiKey?.trim()),
+      useForChat: fileConfig.useForChat,
+      useForPlanner: fileConfig.useForPlanner,
+      updatedAt: fileConfig.updatedAt,
+      source: 'file',
+      credentialStatus: describeRuntimeModelCredentialStatus(fileConfig),
+    }
   }
 }
 
@@ -323,6 +341,17 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
   if (process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH) return process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.model-config.json')
   return join(statePath, 'model-config.json')
+}
+
+function runtimeModelConfigsEquivalent(a: RuntimeModelConfig, b: RuntimeModelConfig): boolean {
+  return a.provider === b.provider
+    && a.modelConfigId === b.modelConfigId
+    && a.model === b.model
+    && (a.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND) === (b.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND)
+    && a.baseURL === b.baseURL
+    && a.apiKey === b.apiKey
+    && a.useForChat === b.useForChat
+    && a.useForPlanner === b.useForPlanner
 }
 
 export function describeRuntimeModelCredentialStatus(config: RuntimeModelConfig | undefined): RuntimeModelCredentialStatus {

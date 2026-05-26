@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
+import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 

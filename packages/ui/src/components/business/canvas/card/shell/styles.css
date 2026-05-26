@@ -1,0 +1,17 @@
+.canvas-card-shell {
+  min-width: 0;
+  overflow: visible;
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.canvas-card-shell[data-selected="true"] {
+  --ui-surface-border: var(--ms-color-primary);
+  --ui-surface-shadow: var(--ms-shadow-lg);
+
+  box-shadow:
+    var(--ui-surface-shadow),
+    0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 15%, transparent),
+    0 18px 46px color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
+}

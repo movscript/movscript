@@ -161,7 +161,7 @@ func TestOpenAIResponsesGeneratePostsResponsesEndpoint(t *testing.T) {
 			"object":"response",
 			"status":"completed",
 			"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"connection ok"}]}],
-			"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}
+			"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"reasoning_tokens":1}}
 		}`
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -188,7 +188,37 @@ func TestOpenAIResponsesGeneratePostsResponsesEndpoint(t *testing.T) {
 	if _, ok := gotBody["messages"]; ok {
 		t.Fatalf("request body used chat messages: %#v", gotBody)
 	}
-	if resp.Content != "connection ok" || resp.Usage.InputTokens != 7 || resp.Usage.OutputTokens != 2 {
+	if resp.Content != "connection ok" || resp.Usage.InputTokens != 7 || resp.Usage.OutputTokens != 2 || resp.Usage.CachedInputTokens != 3 || resp.Usage.ReasoningTokens != 1 {
 		t.Fatalf("response = %#v, want parsed content and usage", resp)
+	}
+}
+
+func TestOpenAITextGenerateParsesUsageDetails(t *testing.T) {
+	adapter := NewOpenAIAdapter("https://model.example/v1", "test-key")
+	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := `{
+			"id":"chatcmpl_test",
+			"object":"chat.completion",
+			"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],
+			"usage":{"prompt_tokens":11,"completion_tokens":4,"total_tokens":15,"prompt_tokens_details":{"cached_tokens":6},"completion_tokens_details":{"reasoning_tokens":2}}
+		}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})}
+
+	resp, err := adapter.TextGenerate(context.Background(), TextRequest{
+		Model:    "gpt-test",
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("TextGenerate() error = %v", err)
+	}
+	if resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 4 || resp.Usage.CachedInputTokens != 6 || resp.Usage.ReasoningTokens != 2 {
+		t.Fatalf("usage = %#v, want detailed usage", resp.Usage)
 	}
 }

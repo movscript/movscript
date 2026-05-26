@@ -1,0 +1,27 @@
+.generation-input-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.generation-input-actions__hint {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 18px;
+}
+
+.generation-input-actions__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.generation-input-actions__button,
+.generation-input-actions__generate {
+  min-width: 0;
+}

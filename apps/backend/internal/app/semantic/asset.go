@@ -369,6 +369,9 @@ func (s *Service) upsertAssetSlotRelations(ctx context.Context, item domainseman
 
 func (s *Service) upsertRelationEdge(ctx context.Context, input relationapp.EdgeInput) error {
 	_, err := s.relations.UpsertEdge(ctx, input)
+	if err == nil {
+		s.bumpGenerationContextVersion(ctx, input.ProjectID)
+	}
 	return err
 }
 

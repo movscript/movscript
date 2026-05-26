@@ -1,0 +1,67 @@
+.canvas-tool-full-history-item {
+  overflow: hidden;
+  padding: 0;
+  font-size: var(--ms-text-label);
+}
+
+.canvas-tool-full-history-item__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: 6px 12px;
+}
+
+.canvas-tool-full-history-item__status {
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+}
+
+.canvas-tool-full-history-item__timestamp {
+  margin-left: auto;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-tool-full-history {
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: 12px;
+}
+
+.canvas-tool-full-history__toggle {
+  width: 100%;
+  justify-content: space-between;
+  padding-right: 0;
+  padding-left: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+}
+
+.canvas-tool-full-history__toggle:hover {
+  color: var(--ms-color-foreground);
+}
+
+.canvas-tool-full-history__toggle > .ms-button__content {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.canvas-tool-full-history__toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.canvas-tool-full-history__count {
+  padding: 2px 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+}
+
+.canvas-tool-full-history__list {
+  display: grid;
+  max-height: 320px;
+  overflow-y: auto;
+  gap: 8px;
+  margin-top: 8px;
+}

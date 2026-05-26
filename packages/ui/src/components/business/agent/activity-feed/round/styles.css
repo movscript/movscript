@@ -1,0 +1,44 @@
+.ms-agent-activity-round {
+  padding: 6px 0;
+}
+
+.ms-agent-activity-round:first-child {
+  padding-top: 0;
+}
+
+.ms-agent-activity-round:last-child {
+  padding-bottom: 0;
+}
+
+.ms-agent-activity-round__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+}
+
+.ms-agent-activity-round__rule {
+  width: 16px;
+  height: 1px;
+  flex: 0 0 auto;
+  background: var(--ms-color-border);
+}
+
+.ms-agent-activity-round__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-activity-round__items > * + * {
+  border-top: 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 60%, transparent);
+}
+
+.ms-agent-activity-round__empty {
+  padding: 4px 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+}

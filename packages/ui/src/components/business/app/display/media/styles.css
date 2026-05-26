@@ -1,0 +1,44 @@
+.app-media-frame {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-muted) 50%, transparent);
+  color: var(--ms-color-foreground);
+}
+
+.app-media-frame[data-variant="thumb"] {
+  background: var(--ms-color-muted);
+}
+
+.app-media-frame[data-variant="stage"] {
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ms-color-muted) 40%, transparent);
+}
+
+.app-media-frame[data-variant="stage-dark"] {
+  border-radius: var(--ms-radius-md);
+  background: #000;
+  color: rgb(255 255 255 / 78%);
+}
+
+.app-media-frame[data-variant="placeholder"] {
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-muted);
+  color: var(--ms-color-muted-foreground);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-media-frame[data-variant="panel"] {
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  background: var(--ms-color-background);
+}
+
+.app-media-frame[data-variant="fill"] {
+  height: 100%;
+  width: 100%;
+  border-radius: 0;
+  color: var(--ms-color-muted-foreground);
+}

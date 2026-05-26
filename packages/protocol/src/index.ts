@@ -910,7 +910,7 @@ export type AgentRuntimeEventKind =
   | 'plan.upserted'
   | 'plan_revision.upserted'
   | 'task_graph.upserted'
-  | 'assistant.delta'
+  | 'assistant.progress'
   | 'scope.done'
 
 export interface AgentRuntimeEventCausalityV2 {
@@ -946,7 +946,7 @@ export type AgentRuntimeEventEntityV2 =
   | { type: 'plan_revision'; value: AgentPlanRevision }
   | { type: 'task_graph'; value: AgentTaskGraphSnapshot }
 
-export interface AgentRuntimeAssistantDeltaV2 {
+export interface AgentRuntimeAssistantProgressV2 {
   runId: string
   traceId: string
   delta: string
@@ -967,7 +967,7 @@ export interface AgentRuntimeEventV2 {
   kind: AgentRuntimeEventKind
   causality?: AgentRuntimeEventCausalityV2
   entity?: AgentRuntimeEventEntityV2
-  assistantDelta?: AgentRuntimeAssistantDeltaV2
+  assistantProgress?: AgentRuntimeAssistantProgressV2
 }
 
 export type EventStateDropReason =
@@ -978,7 +978,7 @@ export type EventStateDropReason =
   | 'ordinal_gap'
   | 'stale_entity'
   | 'kind_entity_mismatch'
-  | 'delta_regression'
+  | 'progress_regression'
 
 export interface EventStateDebugReportV1 {
   schema: typeof EVENT_STATE_DEBUG_V1_SCHEMA
@@ -1006,7 +1006,7 @@ export interface EventStateDebugReportV1 {
     plans: AgentPlan[]
     planRevisions: AgentPlanRevision[]
     taskGraphs: AgentTaskGraphSnapshot[]
-    assistantDeltas: AgentRuntimeAssistantDeltaV2[]
+    assistantProgresses: AgentRuntimeAssistantProgressV2[]
   }
   mergeDecisions: Array<{ entityType: string; entityId: string; decision: 'insert' | 'replace' | 'keep_existing' | 'drop'; reason: string; previousRevision?: string | number; nextRevision?: string | number }>
   projection: {

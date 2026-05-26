@@ -1,0 +1,57 @@
+.generation-input {
+  display: grid;
+  gap: 0;
+}
+
+.generation-input__prompt-area {
+  position: relative;
+}
+
+.generation-input__prompt-editor {
+  min-height: 80px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 1.625;
+  outline: none;
+}
+
+.generation-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 2px;
+  padding: 1px 5px;
+  vertical-align: middle;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-muted);
+  color: var(--ms-color-foreground);
+  cursor: default;
+  font-size: var(--ms-text-caption);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.generation-input-chip__media {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-color-muted);
+  object-fit: cover;
+}
+
+.generation-input-chip__label {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-input__hidden-input {
+  display: none;
+}

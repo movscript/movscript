@@ -1,0 +1,38 @@
+.ms-tabs__list {
+  height: 36px;
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-muted);
+  padding: var(--ms-space-1);
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-tabs__trigger {
+  white-space: nowrap;
+  border-radius: var(--ms-radius-sm);
+  padding: 6px 12px;
+  color: inherit;
+  font-family: var(--ms-font-sans);
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.ms-tabs__trigger[data-state="active"] {
+  background: var(--ms-color-surface);
+  color: var(--ms-color-foreground);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.ms-tabs__trigger:disabled,
+.ms-menu-item[data-disabled] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ms-tabs__content {
+  margin-top: var(--ms-space-2);
+}

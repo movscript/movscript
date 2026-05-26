@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import {
-  assistantDeltaFromTraceEvent,
+  assistantProgressFromTraceEvent,
   assistantMessageForRun,
   assistantMessageFromTraceEvent,
   toProductRun,
@@ -37,8 +37,8 @@ test('toProductRun strips trace events while preserving run data', () => {
   assert.equal(productRun.steps, run.steps)
 })
 
-test('assistantDeltaFromTraceEvent returns stream content deltas only', () => {
-  const delta = assistantDeltaFromTraceEvent({
+test('assistantProgressFromTraceEvent returns stream content progress only', () => {
+  const progress = assistantProgressFromTraceEvent({
     id: 'trace_1',
     runId: 'run_1',
     kind: 'model_call',
@@ -56,14 +56,14 @@ test('assistantDeltaFromTraceEvent returns stream content deltas only', () => {
     createdAt: '2026-05-16T00:00:01.000Z',
   })
 
-  assert.deepEqual(delta, {
-    type: 'assistant_delta',
+  assert.deepEqual(progress, {
+    type: 'assistant_progress',
     delta: ' world',
     accumulated: 'hello world',
     roundIndex: 2,
     roundLabel: 'Model turn 2',
   })
-  assert.equal(assistantDeltaFromTraceEvent({
+  assert.equal(assistantProgressFromTraceEvent({
     id: 'trace_2',
     runId: 'run_1',
     kind: 'model_call',

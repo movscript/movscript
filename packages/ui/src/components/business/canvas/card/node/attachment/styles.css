@@ -1,0 +1,54 @@
+.canvas-node-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: var(--ms-space-2);
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 50%, transparent);
+}
+
+.canvas-node-attachment-list[data-empty="true"] {
+  display: block;
+}
+
+.canvas-node-attachment-item {
+  max-width: 100%;
+  gap: 6px;
+  padding: var(--ms-space-1) var(--ms-space-2);
+}
+
+.canvas-node-attachment-item__label {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-node-attachment-remove {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-right: calc(var(--ms-space-1) * -1);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-node-attachment-remove:hover {
+  color: var(--ms-color-foreground);
+}
+
+.canvas-node-attachment-status {
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-node-attachment-hint {
+  padding-top: var(--ms-space-2);
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 50%, transparent);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}

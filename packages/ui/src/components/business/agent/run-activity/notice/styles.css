@@ -1,0 +1,4 @@
+.ms-agent-run-activity-notice {
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}

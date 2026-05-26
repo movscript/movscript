@@ -155,6 +155,8 @@ func usageSummarySelect(prefix string) string {
 		"COALESCE(SUM(" + prefix + ".cost), 0) as cost, " +
 		"COALESCE(SUM(" + prefix + ".input_tokens), 0) as input_tokens, " +
 		"COALESCE(SUM(" + prefix + ".output_tokens), 0) as output_tokens, " +
+		"COALESCE(SUM(" + prefix + ".cached_input_tokens), 0) as cached_input_tokens, " +
+		"COALESCE(SUM(" + prefix + ".reasoning_tokens), 0) as reasoning_tokens, " +
 		"COALESCE(SUM(" + prefix + ".duration_sec), 0) as duration_sec, " +
 		"COALESCE(SUM(CASE WHEN " + prefix + ".operation_type = 'image' THEN " + prefix + ".image_count ELSE 0 END), 0) as image_count"
 }
@@ -238,6 +240,8 @@ func usageLogFromModel(row persistencemodel.UsageLog) Log {
 		OperationType:      row.OperationType,
 		InputTokens:        row.InputTokens,
 		OutputTokens:       row.OutputTokens,
+		CachedInputTokens:  row.CachedInputTokens,
+		ReasoningTokens:    row.ReasoningTokens,
 		DurationSec:        row.DurationSec,
 		ImageCount:         row.ImageCount,
 		Cost:               row.Cost,

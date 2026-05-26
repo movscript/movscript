@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { BarChart3, Download, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { AppIconFrame, AppInlineError, Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { PaginationControls } from '@/components/admin/PaginationControls'
 import { downloadAdminCSV } from '@/lib/adminExport'
@@ -25,6 +25,8 @@ type UsageTotals = {
   cost: number
   input_tokens: number
   output_tokens: number
+  cached_input_tokens: number
+  reasoning_tokens: number
   duration_sec: number
   image_count: number
 }
@@ -55,8 +57,20 @@ function formatDate(value: string, locale: string): string {
 }
 
 function formatUsage(log: UsageLog): string {
-  if (log.input_tokens > 0 || log.output_tokens > 0) {
-    return `${log.input_tokens.toLocaleString()} / ${log.output_tokens.toLocaleString()}`
+  const inputTokens = log.input_tokens ?? 0
+  const outputTokens = log.output_tokens ?? 0
+  const cachedInputTokens = log.cached_input_tokens ?? 0
+  const reasoningTokens = log.reasoning_tokens ?? 0
+  if (inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0 || reasoningTokens > 0) {
+    const parts = [
+      `in ${inputTokens.toLocaleString()}`,
+      `out ${outputTokens.toLocaleString()}`,
+      `cache ${cachedInputTokens.toLocaleString()}`,
+    ]
+    if (reasoningTokens > 0) {
+      parts.push(`reason ${reasoningTokens.toLocaleString()}`)
+    }
+    return parts.join(' / ')
   }
   if (log.duration_sec > 0) return `${log.duration_sec}s`
   if (log.image_count > 0) return `x${log.image_count}`
@@ -181,9 +195,9 @@ export function UsageLogsPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <AppIconFrame tone="info" className="mt-0.5">
             <BarChart3 size={16} />
-          </div>
+          </AppIconFrame>
           <div>
             <h2 className="text-base font-semibold text-foreground">{t('admin.logs.title')}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.logs.description', { total })}</p>
@@ -208,15 +222,15 @@ export function UsageLogsPage() {
       </div>
 
       {exportError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {exportError}
-        </div>
+        </AppInlineError>
       )}
 
       {queryError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(queryError)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="rounded-lg border border-border bg-card p-3">
@@ -267,7 +281,7 @@ export function UsageLogsPage() {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <SummaryCard label={t('admin.logs.summary.records')} value={formatCost(summary?.totals.records, 0)} detail={t('admin.logs.summary.filtered')} />
         <SummaryCard label={t('admin.logs.summary.cost')} value={formatCost(summary?.totals.cost)} detail="credits" />
-        <SummaryCard label={t('admin.logs.summary.tokens')} value={`${formatCost(summary?.totals.input_tokens, 0)} / ${formatCost(summary?.totals.output_tokens, 0)}`} detail={t('admin.logs.summary.inputOutput')} />
+        <SummaryCard label={t('admin.logs.summary.tokens')} value={`${formatCost(summary?.totals.input_tokens, 0)} / ${formatCost(summary?.totals.output_tokens, 0)} / ${formatCost(summary?.totals.cached_input_tokens, 0)}`} detail="input / output / cache" />
         <SummaryCard label={t('admin.logs.summary.images')} value={formatCost(summary?.totals.image_count, 0)} detail={t('admin.logs.operations.image')} />
         <SummaryCard label={t('admin.logs.summary.duration')} value={`${formatCost(summary?.totals.duration_sec, 0)}s`} detail={t('admin.logs.operations.video')} />
       </div>

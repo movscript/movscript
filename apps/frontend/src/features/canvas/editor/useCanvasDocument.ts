@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Edge, Node } from '@xyflow/react'
-import { api } from '@/lib/api'
+import { api } from '@/shared/infrastructure/api'
 import type { Canvas, CanvasNodeData, CanvasType } from '@/types'
-import { toast } from '@/store/toastStore'
+import { toast } from '@/shared/ui/toastStore'
 import { canvasGraphSignature } from '@/features/canvas/domain/serialization'
 import { buildCanvasSavePayload, hydrateCanvasDocument } from './canvasDocument'
 

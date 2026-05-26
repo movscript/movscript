@@ -1,0 +1,42 @@
+.workbench-section {
+  min-width: 0;
+}
+
+.workbench-section__header {
+  min-width: 0;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+}
+
+.workbench-section__heading {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.workbench-section__title {
+  overflow: hidden;
+  font-size: var(--ms-text-body);
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-section__description {
+  margin-top: 2px;
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.workbench-section__body {
+  padding: 10px;
+}
+
+.workbench-section__icon {
+  margin-top: 2px;
+}
+
+.workbench-section__action {
+  gap: 6px;
+}

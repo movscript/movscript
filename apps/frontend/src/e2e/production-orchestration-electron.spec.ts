@@ -2,7 +2,7 @@ import { _electron as electron, expect, test } from '@playwright/test'
 import electronPath from 'electron'
 import { resolve } from 'node:path'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
+import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 

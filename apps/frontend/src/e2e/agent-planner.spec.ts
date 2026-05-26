@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
-import type { AgentTraceEvent } from '@/lib/localAgentClient'
+import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
+import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import {
   APPROVAL_WORKER_RUN_ID,
   INPUT_WORKER_RUN_ID,

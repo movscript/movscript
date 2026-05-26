@@ -1,0 +1,162 @@
+.canvas-flow {
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--ms-color-border) 16%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--ms-color-border) 16%, transparent) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+.canvas-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.canvas-flow .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.canvas-flow .react-flow__node-input,
+.canvas-flow .react-flow__node-output {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.canvas-flow .react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
+}
+
+.canvas-flow .react-flow__edges,
+.canvas-flow .react-flow__connectionline,
+.canvas-flow .react-flow__edgelabel-renderer {
+  z-index: 20;
+}
+
+.canvas-flow .react-flow__nodes {
+  z-index: 10;
+}
+
+.canvas-flow .react-flow__edge.selected .react-flow__edge-path,
+.canvas-flow .react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--ms-color-foreground);
+}
+
+.canvas-flow .react-flow__handle {
+  z-index: 30;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.canvas-flow .react-flow__handle:hover {
+  transform: translateY(-50%) scale(1.18);
+}
+
+.canvas-flow .react-flow__controls,
+.canvas-flow .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
+}
+
+.canvas-flow .react-flow__controls-button {
+  border-bottom: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-background) 92%, transparent);
+  color: var(--ms-color-foreground);
+}
+
+.canvas-flow .react-flow__controls-button:hover {
+  background: var(--ms-color-muted);
+}
+
+.canvas-selection-frame {
+  pointer-events: none;
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--ms-color-primary) 60%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ms-color-primary) 8%, transparent);
+}
+
+.canvas-drop-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed color-mix(in srgb, var(--ms-color-primary) 50%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+  color: var(--ms-color-primary);
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: var(--ms-leading-body);
+}
+
+.canvas-group-frame {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-background) 35%, transparent);
+  backdrop-filter: blur(1px);
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard), background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.canvas-group-frame:hover {
+  border-color: color-mix(in srgb, var(--ms-color-foreground) 25%, transparent);
+}
+
+.canvas-group-frame[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 70%, transparent);
+  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+}
+
+.canvas-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2) var(--ms-space-3);
+}
+
+.canvas-group-header__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-viewport-action-button {
+  pointer-events: auto;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  height: 32px;
+  gap: 6px;
+  background: color-mix(in srgb, var(--ms-color-background) 95%, transparent);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.canvas-resize-handle-button {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 10;
+  width: 8px;
+  height: auto;
+  cursor: ew-resize;
+  border-radius: 0;
+  padding: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-resize-handle-button__bar {
+  width: 2px;
+  height: 40px;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-border);
+}

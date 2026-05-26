@@ -12,7 +12,7 @@ import type {
   AgentPlanRevision,
   AgentRun,
   AgentRunStep,
-  AgentRuntimeAssistantDeltaV2,
+  AgentRuntimeAssistantProgressV2,
   AgentRuntimeEventEntityV2,
   AgentRuntimeEventV2,
   AgentRuntimeScopeRef,
@@ -74,7 +74,7 @@ interface EntityState {
   plans: EntityMap<AgentPlan>
   planRevisions: EntityMap<AgentPlanRevision>
   taskGraphs: EntityMap<AgentTaskGraphSnapshot>
-  assistantDeltas: EntityMap<AgentRuntimeAssistantDeltaV2>
+  assistantProgresses: EntityMap<AgentRuntimeAssistantProgressV2>
 }
 
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
@@ -98,7 +98,7 @@ export class EventStateStore {
     plans: new Map(),
     planRevisions: new Map(),
     taskGraphs: new Map(),
-    assistantDeltas: new Map(),
+    assistantProgresses: new Map(),
   }
   private readonly eventsRead: string[] = []
   private readonly eventsAccepted: string[] = []
@@ -176,20 +176,20 @@ export class EventStateStore {
     const messages = [...this.entities.messages.values()]
       .filter((message) => message.threadId === threadId && (message.role === 'user' || message.role === 'assistant'))
     const finalAssistantRunIds = new Set(messages.filter((message) => message.role === 'assistant' && message.runId).map((message) => message.runId as string))
-    const deltaMessages = [...this.entities.assistantDeltas.values()]
-      .filter((delta) => {
-        const run = this.entities.runs.get(delta.runId)
-        return run?.threadId === threadId && !finalAssistantRunIds.has(delta.runId)
+    const progressMessages = [...this.entities.assistantProgresses.values()]
+      .filter((progress) => {
+        const run = this.entities.runs.get(progress.runId)
+        return run?.threadId === threadId && !finalAssistantRunIds.has(progress.runId)
       })
-      .map((delta): AgentConversationProjectionMessage => {
-        const run = this.entities.runs.get(delta.runId)
+      .map((progress): AgentConversationProjectionMessage => {
+        const run = this.entities.runs.get(progress.runId)
         return {
-          id: 'assistant-delta:' + delta.runId + ':' + delta.traceId,
+          id: 'assistant-progress:' + progress.runId + ':' + progress.traceId,
           role: 'assistant',
-          content: delta.accumulated,
+          content: progress.accumulated,
           status: run?.status,
-          createdAt: delta.createdAt,
-          runtimeRefs: { threadId, runId: delta.runId, traceId: delta.traceId },
+          createdAt: progress.createdAt,
+          runtimeRefs: { threadId, runId: progress.runId, traceId: progress.traceId },
         }
       })
     const projectedMessages = [
@@ -201,7 +201,7 @@ export class EventStateStore {
         createdAt: message.createdAt,
         runtimeRefs: { threadId: message.threadId, messageId: message.id, runId: message.runId },
       })),
-      ...deltaMessages,
+      ...progressMessages,
     ].sort(compareProjectionMessages)
 
     return {
@@ -213,13 +213,13 @@ export class EventStateStore {
     }
   }
 
-  getRunActivityView(runId: string): { run?: AgentRun; steps: AgentRunStep[]; traces: AgentTraceEvent[]; interactions: RuntimeInteraction[]; assistantDeltas: AgentRuntimeAssistantDeltaV2[] } {
+  getRunActivityView(runId: string): { run?: AgentRun; steps: AgentRunStep[]; traces: AgentTraceEvent[]; interactions: RuntimeInteraction[]; assistantProgresses: AgentRuntimeAssistantProgressV2[] } {
     return {
       run: this.entities.runs.get(runId),
       steps: [...this.entities.steps.values()].filter((step) => step.runId === runId).sort(compareByCreatedAt),
       traces: [...this.entities.traces.values()].filter((trace) => trace.runId === runId).sort(compareByCreatedAt),
       interactions: [...this.entities.interactions.values()].filter((interaction) => interaction.runId === runId).sort(compareByCreatedAt),
-      assistantDeltas: [...this.entities.assistantDeltas.values()].filter((delta) => delta.runId === runId).sort(compareByCreatedAt),
+      assistantProgresses: [...this.entities.assistantProgresses.values()].filter((progress) => progress.runId === runId).sort(compareByCreatedAt),
     }
   }
 
@@ -258,7 +258,7 @@ export class EventStateStore {
         plans: [...this.entities.plans.values()],
         planRevisions: [...this.entities.planRevisions.values()],
         taskGraphs: [...this.entities.taskGraphs.values()],
-        assistantDeltas: [...this.entities.assistantDeltas.values()],
+        assistantProgresses: [...this.entities.assistantProgresses.values()],
       },
       mergeDecisions: [...this.mergeDecisions],
       projection: {
@@ -291,22 +291,22 @@ export class EventStateStore {
   }
 
   private applyEventPayload(event: AgentRuntimeEventV2): boolean {
-    if (event.kind === 'assistant.delta') {
-      if (!event.assistantDelta || event.entity) {
-        this.drop(event, 'kind_entity_mismatch', 'assistant.delta requires assistantDelta and must not include entity')
+    if (event.kind === 'assistant.progress') {
+      if (!event.assistantProgress || event.entity) {
+        this.drop(event, 'kind_entity_mismatch', 'assistant.progress requires assistantProgress and must not include entity')
         return false
       }
-      return this.mergeAssistantDelta(event.assistantDelta, event)
+      return this.mergeAssistantProgress(event.assistantProgress, event)
     }
     if (event.kind === 'scope.done') {
-      if (event.entity || event.assistantDelta) {
-        this.drop(event, 'kind_entity_mismatch', 'scope.done must not include entity or assistantDelta')
+      if (event.entity || event.assistantProgress) {
+        this.drop(event, 'kind_entity_mismatch', 'scope.done must not include entity or assistantProgress')
         return false
       }
       return true
     }
-    if (!event.entity || event.assistantDelta) {
-      this.drop(event, 'kind_entity_mismatch', 'upsert events require entity and must not include assistantDelta')
+    if (!event.entity || event.assistantProgress) {
+      this.drop(event, 'kind_entity_mismatch', 'upsert events require entity and must not include assistantProgress')
       return false
     }
     const expectedType = entityTypeForKind(event.kind)
@@ -318,26 +318,26 @@ export class EventStateStore {
     return true
   }
 
-  private mergeAssistantDelta(delta: AgentRuntimeAssistantDeltaV2, event: AgentRuntimeEventV2): boolean {
-    if (!delta.runId || !delta.traceId) {
-      this.drop(event, 'invalid_shape', 'assistant delta requires runId and traceId')
+  private mergeAssistantProgress(progress: AgentRuntimeAssistantProgressV2, event: AgentRuntimeEventV2): boolean {
+    if (!progress.runId || !progress.traceId) {
+      this.drop(event, 'invalid_shape', 'assistant progress requires runId and traceId')
       return false
     }
-    const key = assistantDeltaKey(delta)
-    const previous = this.entities.assistantDeltas.get(key)
-    if (previous && delta.accumulated.length < previous.accumulated.length) {
-      this.mergeDecisions.push({ entityType: 'assistant_delta', entityId: key, decision: 'drop', reason: 'delta_regression', previousRevision: previous.accumulated.length, nextRevision: delta.accumulated.length })
-      this.drop(event, 'delta_regression', 'assistant delta accumulated content cannot shrink')
+    const key = assistantProgressKey(progress)
+    const previous = this.entities.assistantProgresses.get(key)
+    if (previous && progress.accumulated.length < previous.accumulated.length) {
+      this.mergeDecisions.push({ entityType: 'assistant_progress', entityId: key, decision: 'drop', reason: 'progress_regression', previousRevision: previous.accumulated.length, nextRevision: progress.accumulated.length })
+      this.drop(event, 'progress_regression', 'assistant progress accumulated content cannot shrink')
       return false
     }
-    this.entities.assistantDeltas.set(key, delta)
+    this.entities.assistantProgresses.set(key, progress)
     this.mergeDecisions.push({
-      entityType: 'assistant_delta',
+      entityType: 'assistant_progress',
       entityId: key,
       decision: previous ? 'replace' : 'insert',
-      reason: previous ? 'longer_or_equal_accumulated_content' : 'new_delta',
+      reason: previous ? 'longer_or_equal_accumulated_content' : 'new_progress',
       previousRevision: previous?.accumulated.length,
-      nextRevision: delta.accumulated.length,
+      nextRevision: progress.accumulated.length,
     })
     return true
   }
@@ -434,7 +434,7 @@ export function runtimeRunFromEvent(event: AgentRuntimeEventV2): AgentRun | unde
 }
 
 export function runtimeRunIdFromEvent(event: AgentRuntimeEventV2): string | undefined {
-  return event.causality?.runId ?? runtimeRunFromEvent(event)?.id ?? event.assistantDelta?.runId
+  return event.causality?.runId ?? runtimeRunFromEvent(event)?.id ?? event.assistantProgress?.runId
 }
 
 export function runtimeThreadFromEvent(event: AgentRuntimeEventV2): AgentThread | undefined {
@@ -450,8 +450,8 @@ export function runtimeThreadTitleFromEvent(event: AgentRuntimeEventV2): string 
   return title || undefined
 }
 
-export function runtimeAssistantDeltaFromEvent(event: AgentRuntimeEventV2): AgentRuntimeAssistantDeltaV2 | undefined {
-  return event.kind === 'assistant.delta' ? event.assistantDelta : undefined
+export function runtimeAssistantProgressFromEvent(event: AgentRuntimeEventV2): AgentRuntimeAssistantProgressV2 | undefined {
+  return event.kind === 'assistant.progress' ? event.assistantProgress : undefined
 }
 
 export function runtimeThreadProjectionShouldRefresh(event: AgentRuntimeEventV2): boolean {
@@ -459,7 +459,7 @@ export function runtimeThreadProjectionShouldRefresh(event: AgentRuntimeEventV2)
     || event.kind === 'trace.upserted'
     || event.kind === 'message.upserted'
     || event.kind === 'thread.upserted'
-    || event.kind === 'assistant.delta'
+    || event.kind === 'assistant.progress'
     || event.kind === 'interaction.upserted'
     || event.kind === 'work.upserted'
     || event.kind === 'continuation.upserted'
@@ -554,8 +554,8 @@ function compareRevision(next: string | number | undefined, previous: string | n
   return 0
 }
 
-function assistantDeltaKey(delta: Pick<AgentRuntimeAssistantDeltaV2, 'runId' | 'traceId'>): string {
-  return delta.runId + ':' + delta.traceId
+function assistantProgressKey(progress: Pick<AgentRuntimeAssistantProgressV2, 'runId' | 'traceId'>): string {
+  return progress.runId + ':' + progress.traceId
 }
 
 function compareProjectionMessages(left: AgentConversationProjectionMessage, right: AgentConversationProjectionMessage): number {

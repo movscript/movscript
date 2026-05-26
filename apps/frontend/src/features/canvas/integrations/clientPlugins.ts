@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import type { Edge, Node } from '@xyflow/react'
 
-import { buildCanvasPluginArgsWithInputs } from '@/lib/canvasPluginArgs'
-import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
+import { buildCanvasPluginArgsWithInputs } from '@/features/canvas/integrations/canvasPluginArgs'
+import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import type { CanvasNodeData, RawResource } from '@/types'
 
 export function useCanvasClientPlugins({

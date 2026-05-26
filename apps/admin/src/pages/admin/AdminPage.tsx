@@ -11,6 +11,16 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
+import { AppDataTableRow } from '@movscript/ui'
+import { AppFeedbackText } from '@movscript/ui'
+import { AppIconFrame } from '@movscript/ui'
+import { AppInlineError } from '@movscript/ui'
+import { AppMarkerDot } from '@movscript/ui'
+import { AppRequiredMark } from '@movscript/ui'
+import { AppStateMessage } from '@movscript/ui'
+import { AppStatusSurface } from '@movscript/ui'
+import { AppStatusToggleButton } from '@movscript/ui'
+import { StatusBadge, type StatusBadgeProps } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
 import { ActiveOrgSelect } from '@/components/admin/ActiveOrgSelect'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
@@ -350,9 +360,9 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
     <div className="rounded-lg border border-border bg-background p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <AppIconFrame tone="info" className="mt-0.5">
             <KeyRound size={16} />
-          </div>
+          </AppIconFrame>
           <div>
             <p className="text-sm font-medium text-foreground">{t('admin.gatewayKeys.title')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.description')}</p>
@@ -392,15 +402,15 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
       )}
 
       {gatewayKeyError && (
-        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="mt-4">
           {gatewayKeyError}
-        </div>
+        </AppInlineError>
       )}
 
       {gatewayKeysQueryError && (
-        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="mt-4">
           {translateAPIRequestError(gatewayKeysQueryError)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="mt-4 overflow-hidden rounded-lg border border-border">
@@ -460,9 +470,9 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
                         type="button"
                         variant="ghost"
                         size="sm"
+                        intent="danger"
                         onClick={() => { if (window.confirm(t('admin.gatewayKeys.confirmDelete', { name: key.name }))) deleteKey.mutate(key.ID) }}
                         disabled={deleteKey.isPending}
-                        className="text-destructive hover:text-destructive"
                       >
                         {t('common.delete')}
                       </Button>
@@ -600,7 +610,7 @@ function CredentialForm({
       {baseURLField && (
         <div>
           <Label className="text-xs text-muted-foreground block mb-1">
-            {credentialFieldLabel(baseURLField.key, baseURLField.label, t)}{baseURLField.required && <span className="text-destructive ml-0.5">*</span>}
+            {credentialFieldLabel(baseURLField.key, baseURLField.label, t)}{baseURLField.required && <AppRequiredMark />}
           </Label>
           <Input
             placeholder={adapter.default_base_url || baseURLField.hint || ''}
@@ -613,7 +623,7 @@ function CredentialForm({
       {keyFields.map((field) => (
         <div key={field.key}>
           <Label className="text-xs text-muted-foreground block mb-1">
-            {credentialFieldLabel(field.key, field.label, t)}{field.required && <span className="text-destructive ml-0.5">*</span>}
+            {credentialFieldLabel(field.key, field.label, t)}{field.required && <AppRequiredMark />}
           </Label>
           <Input
             type="password"
@@ -625,14 +635,14 @@ function CredentialForm({
       ))}
 
       {create.isError && (
-        <p className="text-xs text-destructive">{translateApiError((create.error as any)?.response?.data)}</p>
+        <AppFeedbackText>{translateApiError((create.error as any)?.response?.data)}</AppFeedbackText>
       )}
       {testState.result && (
-        <p className={`text-xs ${testState.result.success ? 'text-foreground' : 'text-destructive'}`}>
+        <AppFeedbackText tone={testState.result.success ? 'neutral' : 'danger'}>
           {testState.result.success
             ? t('admin.credentials.connectionOk', { latency: testState.result.latency_ms })
             : `✗ ${testState.result.message}`}
-        </p>
+        </AppFeedbackText>
       )}
 
       {/* Files API — shown only for adapters that support it */}
@@ -908,9 +918,9 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
                 <Input className="text-xs font-mono" value={String(param.default ?? '')} onChange={(e) => update(index, { default: e.target.value })} />
               </div>
             )}
-            <button onClick={() => remove(index)} className="text-xs text-muted-foreground hover:text-destructive h-8 px-2">
+            <Button type="button" variant="ghost" size="sm" intent="danger" onClick={() => remove(index)} className="h-8 px-2 text-xs">
               {t('common.delete')}
-            </button>
+            </Button>
           </div>
         </div>
       ))}
@@ -1039,17 +1049,15 @@ function ParamConfigBuilder({
             <div className="flex flex-wrap gap-1.5">
               {adapterParams.length === 0 && <span className="text-xs text-muted-foreground/70">{t('admin.params.noAdapterDefaults')}</span>}
               {adapterParams.map((param) => (
-                <button
+                <AppStatusToggleButton
                   type="button"
                   key={param.key}
                   onClick={() => toggleDeny(param.key)}
-                  className={cn(
-                    'text-xs px-2 py-0.5 rounded border transition-colors',
-                    denied.has(param.key) ? 'border-destructive/60 bg-destructive/10 text-destructive' : 'border-border text-muted-foreground hover:border-ring/50'
-                  )}
+                  tone="danger"
+                  selected={denied.has(param.key)}
                 >
                   {paramTemplateLabel(param.key, param.label || param.key, t)}
-                </button>
+                </AppStatusToggleButton>
               ))}
             </div>
           </div>
@@ -1065,10 +1073,7 @@ function ParamConfigBuilder({
           </div>
         </div>
       )}
-      <div className={cn(
-        'rounded border px-3 py-2 text-xs space-y-1',
-        audit.errors.length > 0 ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-border bg-background text-muted-foreground'
-      )}>
+      <AppStatusSurface tone={audit.errors.length > 0 ? 'danger' : 'neutral'} className="space-y-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{t('admin.params.audit.params', { count: audit.params.length })}</span>
           <span>{t('admin.params.audit.rules', { count: audit.schemaRuleCount })}</span>
@@ -1096,12 +1101,9 @@ function ParamConfigBuilder({
         {hiddenAuditWarningCount > 0 && (
           <div className="text-muted-foreground">{t('admin.params.audit.moreWarnings', { count: hiddenAuditWarningCount })}</div>
         )}
-      </div>
+      </AppStatusSurface>
       {adapterType && capabilities.length > 0 && (
-        <div className={cn(
-          'rounded border px-3 py-2 text-xs space-y-1',
-          contractPreview.isError ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-border bg-background text-muted-foreground'
-        )}>
+        <AppStatusSurface tone={contractPreview.isError ? 'danger' : 'neutral'} className="space-y-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{t('admin.params.backendPreview.title')}</span>
             {backendPreviewSkipped && <span>{t('admin.params.backendPreview.skipped')}</span>}
@@ -1139,7 +1141,7 @@ function ParamConfigBuilder({
           {backendPreviewSkipped && (
             <div>{t('admin.params.backendPreview.skippedHint')}</div>
           )}
-        </div>
+        </AppStatusSurface>
       )}
     </div>
   )
@@ -1182,7 +1184,11 @@ function CopyCompactContractButton({ contract }: { contract: unknown }) {
       }}
       className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground"
     >
-      {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+      {copied ? (
+        <AppFeedbackText as="span" tone="success" className="inline-flex">
+          <Check size={11} />
+        </AppFeedbackText>
+      ) : <Copy size={11} />}
       {copied ? t('admin.params.backendPreview.copiedAgentContract') : t('admin.params.backendPreview.copyAgentContract')}
     </button>
   )
@@ -1513,17 +1519,17 @@ export function ModelManagementPage() {
       </div>
 
       {modelAdminError && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="flex items-start gap-2">
           <ShieldAlert size={14} className="mt-0.5 shrink-0" />
           <span>{modelAdminError}</span>
-        </div>
+        </AppInlineError>
       )}
 
       {modelQueryError && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="flex items-start gap-2">
           <ShieldAlert size={14} className="mt-0.5 shrink-0" />
           <span>{translateAPIRequestError(modelQueryError)}</span>
-        </div>
+        </AppInlineError>
       )}
 
       {viewMode === 'providers' && addStep === 'idle' && (
@@ -1655,24 +1661,22 @@ export function ModelManagementPage() {
                   {testingId === testKey ? t('admin.credentials.testing') : t('admin.models.connectionTest')}
                 </button>
                 {testRes && (
-                  <span className={cn('text-xs', testRes.success ? 'text-foreground' : 'text-destructive')}>
+                  <AppFeedbackText as="span" tone={testRes.success ? 'neutral' : 'danger'}>
                     {testRes.success ? `✓ ${testRes.latency_ms}ms` : t('admin.models.testFailedMark')}
-                  </span>
+                  </AppFeedbackText>
                 )}
 
-                <button
+                <AppStatusToggleButton
                   onClick={() => confirmToggleCredential(cred)}
                   title={cred.is_enabled ? t('admin.models.disableCredentialTitle') : t('admin.models.enableCredentialTitle')}
-                  className={cn('text-xs px-2 py-0.5 rounded-full border transition-colors',
-                    cred.is_enabled
-                      ? 'border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400'
-                      : 'border-border bg-muted text-muted-foreground hover:border-ring/50')}
+                  tone="neutral"
+                  selected={cred.is_enabled}
                 >
                   {cred.is_enabled ? t('admin.models.enabledMark') : t('admin.models.disabledMark')}
-                </button>
-                <button onClick={() => confirmDeleteCredential(cred)} className="text-muted-foreground hover:text-destructive">
+                </AppStatusToggleButton>
+                <Button type="button" variant="ghost" size="icon-xs" intent="danger" onClick={() => confirmDeleteCredential(cred)}>
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
 
               {/* Expanded: model configs + add panel */}
@@ -1722,9 +1726,9 @@ export function ModelManagementPage() {
                           </div>
                         ))}
                         {updateCredentialAuth.isError && (
-                          <p className="text-xs text-destructive">
+                          <AppFeedbackText>
                             {translateApiError((updateCredentialAuth.error as any)?.response?.data)}
-                          </p>
+                          </AppFeedbackText>
                         )}
                         <div className="flex gap-2">
                           <Button
@@ -1846,7 +1850,7 @@ export function ModelManagementPage() {
                           />
                         </div>
 
-                        {remoteError && <p className="text-xs text-destructive">{remoteError}</p>}
+                        {remoteError && <AppFeedbackText>{remoteError}</AppFeedbackText>}
 
                         {remoteModels.length > 0 && (
                           <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -2018,9 +2022,9 @@ export function ModelManagementPage() {
                           <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
                         </div>
                         {addInputLimitErrors.length > 0 && (
-                          <div className="space-y-0.5 text-xs text-destructive">
+                          <AppFeedbackText as="div" className="space-y-0.5">
                             {addInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
-                          </div>
+                          </AppFeedbackText>
                         )}
 
 	                        <ParamConfigBuilder
@@ -2037,7 +2041,7 @@ export function ModelManagementPage() {
                         <PriceFields def={{ pricing_mode: addEffectivePricingMode }} form={addPriceForm} onChange={setAddPriceForm} />
 
                         {addModel.isError && (
-                          <p className="text-xs text-destructive">{translateApiError((addModel.error as any)?.response?.data)}</p>
+                          <AppFeedbackText>{translateApiError((addModel.error as any)?.response?.data)}</AppFeedbackText>
                         )}
 
                         <div className="flex gap-2">
@@ -2112,9 +2116,9 @@ export function ModelManagementPage() {
                             {testingId === modelTestKey ? '…' : t('admin.models.test')}
                           </button>
                           {modelTestRes && (
-                            <span className={cn('text-xs', modelTestRes.success ? 'text-foreground' : 'text-destructive')}>
+                            <AppFeedbackText as="span" tone={modelTestRes.success ? 'neutral' : 'danger'}>
                               {modelTestRes.success ? '✓' : '✗'}
-                            </span>
+                            </AppFeedbackText>
                           )}
                           <button
                             onClick={() => navigator.clipboard.writeText(JSON.stringify(runtimeModelConfigFromAdmin(cred, cfg, adapter?.default_base_url), null, 2))}
@@ -2146,12 +2150,15 @@ export function ModelManagementPage() {
                           >
                             {t('admin.models.edit')}
                           </button>
-                          <button
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            intent="danger"
                             onClick={() => confirmDeleteModelConfig(cred, cfg)}
-                            className="text-muted-foreground/50 hover:text-destructive"
                           >
                             <Trash2 size={12} />
-                          </button>
+                          </Button>
                         </div>
 
                         {isEditing && (
@@ -2314,9 +2321,9 @@ export function ModelManagementPage() {
                               <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
                             </div>
                             {editInputLimitErrors.length > 0 && (
-                              <div className="space-y-0.5 text-xs text-destructive">
+                              <AppFeedbackText as="div" className="space-y-0.5">
                                 {editInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
-                              </div>
+                              </AppFeedbackText>
                             )}
 	                          <ParamConfigBuilder
 	                            value={editForm.supported_params}
@@ -2385,7 +2392,7 @@ export function ModelManagementPage() {
                         {!isEditing && (
                           <p className="text-xs text-muted-foreground">
                             {cred.files_api_enabled
-                              ? <span className="text-green-600 dark:text-green-400">{t('admin.models.enabledMark')}</span>
+                              ? <AppFeedbackText as="span" tone="success">{t('admin.models.enabledMark')}</AppFeedbackText>
                               : <span>{t('admin.credentials.notEnabledMark')}</span>
                             }
                           </p>
@@ -2529,7 +2536,7 @@ function RuntimeModelHealthSection({
       </div>
 
       {error ? (
-        <div className="px-4 py-3 text-xs text-destructive">{translateAPIRequestError(error)}</div>
+        <AppFeedbackText as="div" className="px-4 py-3">{translateAPIRequestError(error)}</AppFeedbackText>
       ) : isLoading ? (
         <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t('admin.models.runtimeHealthLoading')}</div>
       ) : sorted.length === 0 ? (
@@ -2576,9 +2583,9 @@ function RuntimeModelHealthSection({
                       <p>{formatFailureRate(item.failure_rate)}</p>
                     </td>
                     <td className="px-4 py-2">
-                      <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium', state.className)}>
+                      <StatusBadge {...state.statusProps} className="text-[11px]">
                         {state.label}
-                      </span>
+                      </StatusBadge>
                       {item.consecutive_failures > 0 && (
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           {t('admin.models.runtimeHealthConsecutiveFailures', { count: item.consecutive_failures })}
@@ -2604,20 +2611,23 @@ function runtimeHealthRank(item: RuntimeProviderHealth) {
   return 0
 }
 
-function runtimeHealthState(item: RuntimeProviderHealth, t: (key: string, options?: Record<string, unknown>) => string) {
+function runtimeHealthState(item: RuntimeProviderHealth, t: (key: string, options?: Record<string, unknown>) => string): {
+  label: string
+  statusProps: Pick<StatusBadgeProps, 'intent' | 'emphasis'>
+} {
   if (!item.is_enabled) {
-    return { label: t('admin.models.runtimeHealthDisabled'), className: 'border-border bg-muted text-muted-foreground' }
+    return { label: t('admin.models.runtimeHealthDisabled'), statusProps: { intent: 'neutral', emphasis: 'soft' } }
   }
   if (item.circuit_open) {
-    return { label: t('admin.models.runtimeHealthCircuitOpen'), className: 'border-destructive/30 bg-destructive/10 text-destructive' }
+    return { label: t('admin.models.runtimeHealthCircuitOpen'), statusProps: { intent: 'danger', emphasis: 'soft' } }
   }
   if (item.saturated) {
-    return { label: t('admin.models.runtimeHealthSaturated'), className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+    return { label: t('admin.models.runtimeHealthSaturated'), statusProps: { intent: 'warning', emphasis: 'soft' } }
   }
   if (item.failures > 0) {
-    return { label: t('admin.models.runtimeHealthDegraded'), className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+    return { label: t('admin.models.runtimeHealthDegraded'), statusProps: { intent: 'warning', emphasis: 'soft' } }
   }
-  return { label: t('admin.models.runtimeHealthHealthy'), className: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300' }
+  return { label: t('admin.models.runtimeHealthHealthy'), statusProps: { intent: 'success', emphasis: 'soft' } }
 }
 
 function formatFailureRate(value: number) {
@@ -2931,15 +2941,15 @@ export function ProjectOwnerManagementPage() {
       </div>
 
       {projectError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {projectError}
-        </div>
+        </AppInlineError>
       )}
 
       {projectsQueryError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(projectsQueryError)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="border border-border rounded-lg overflow-x-auto">
@@ -2960,11 +2970,13 @@ export function ProjectOwnerManagementPage() {
             {projects.map((project) => {
               const ownerName = project.owner?.username || (project.owner_id ? `#${project.owner_id}` : t('admin.projects.noOwner'))
               return (
-                <tr key={project.ID} className={cn('hover:bg-card', project.owner_id === 0 && 'bg-destructive/5')}>
+                <AppDataTableRow key={project.ID} interactive tone={project.owner_id === 0 ? 'danger' : undefined}>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">#{project.ID}</td>
                   <td className="px-4 py-3 font-medium">{project.name || t('common.emptyTitle')}</td>
-                  <td className={cn('px-4 py-3 text-xs', project.owner_id === 0 ? 'text-destructive font-medium' : 'text-muted-foreground')}>
-                    {ownerName}
+                  <td className="px-4 py-3">
+                    <AppFeedbackText as="span" tone={project.owner_id === 0 ? 'danger' : 'neutral'} className={project.owner_id === 0 ? 'font-medium' : undefined}>
+                      {ownerName}
+                    </AppFeedbackText>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{project.status ? t(`admin.projects.statuses.${project.status}`, { defaultValue: project.status }) : '-'}</td>
                   <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">{project.org_id ? `#${project.org_id}` : '-'}</td>
@@ -2997,18 +3009,21 @@ export function ProjectOwnerManagementPage() {
                     >
                       {t('admin.projects.changeOwner')}
                     </button>
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      intent="danger"
                       onClick={() => removeProject(project)}
                       disabled={deleteProject.isPending}
-                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
                       title={t('admin.projects.delete')}
                       aria-label={t('admin.projects.delete')}
                     >
                       <Trash2 size={13} />
-                    </button>
+                    </Button>
                     </div>
                   </td>
-                </tr>
+                </AppDataTableRow>
               )
             })}
             {!projectsQueryError && projects.length === 0 && (
@@ -3051,9 +3066,9 @@ export function ProjectOwnerManagementPage() {
             </div>
             <div className="border-b border-border px-5 py-4">
               {projectDetailQuery.error && (
-                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <AppInlineError className="mb-3">
                   {translateAPIRequestError(projectDetailQuery.error)}
-                </div>
+                </AppInlineError>
               )}
               {projectDetailQuery.isLoading && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
@@ -3135,8 +3150,8 @@ export function ProjectOwnerManagementPage() {
                 <tbody className="divide-y divide-border">
                   {projectMembersQuery.error && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-3 text-xs text-destructive">
-                        {translateAPIRequestError(projectMembersQuery.error)}
+                      <td colSpan={4} className="px-4 py-3">
+                        <AppFeedbackText>{translateAPIRequestError(projectMembersQuery.error)}</AppFeedbackText>
                       </td>
                     </tr>
                   )}
@@ -3181,7 +3196,7 @@ export function ProjectOwnerManagementPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {member.role !== 'owner' && (
-                          <button
+                          <Button
                             type="button"
                             onClick={() => {
                               if (window.confirm(t('admin.projects.confirmRemoveMember'))) {
@@ -3189,12 +3204,14 @@ export function ProjectOwnerManagementPage() {
                               }
                             }}
                             disabled={removeProjectMember.isPending}
-                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                            variant="ghost"
+                            size="icon-xs"
+                            intent="danger"
                             title={t('admin.projects.removeMember')}
                             aria-label={t('admin.projects.removeMember')}
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </Button>
                         )}
                       </td>
                     </tr>
@@ -3386,12 +3403,14 @@ const CAPABILITY_TRANSLATION_KEYS: Record<string, string> = {
   video_i2v: 'admin.capabilities.videoI2V',
   video_v2v: 'admin.capabilities.videoV2V',
 }
-const CAPABILITY_COLOR: Record<string, string> = {
-  text: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  reasoning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-  image: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  image_edit: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  video: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
+  text: 'info',
+  reasoning: 'warning',
+  image: 'neutral',
+  image_edit: 'neutral',
+  video: 'neutral',
+  video_i2v: 'neutral',
+  video_v2v: 'neutral',
 }
 
 function FeatureRow({
@@ -3498,9 +3517,9 @@ function FeatureRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-foreground">{featureDisplayName(feature, t)}</p>
-            <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', CAPABILITY_COLOR[feature.capability] ?? 'bg-muted text-muted-foreground')}>
+            <StatusBadge intent={CAPABILITY_STATUS_INTENT[feature.capability] ?? 'neutral'} className="text-xs">
               {CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability}
-            </span>
+            </StatusBadge>
             <span className="text-xs text-muted-foreground font-mono">{feature.feature_key}</span>
             {feature.max_tokens > 0 && (
               <span className="text-xs text-muted-foreground/60">max {feature.max_tokens}t</span>
@@ -3518,7 +3537,7 @@ function FeatureRow({
               title={t('admin.features.systemPrompt')}
             >
               {showPrompt ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              {t('admin.features.prompt')}{hasOverride && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+              {t('admin.features.prompt')}{hasOverride && <AppMarkerDot tone="warning" size="2xs" />}
             </button>
           )}
           <button
@@ -3576,7 +3595,8 @@ function FeatureRow({
                   value={maxTokensOverride}
                   onChange={(event) => setMaxTokensOverride(event.target.value)}
                   placeholder={feature.max_tokens > 0 ? String(feature.max_tokens) : '0'}
-                  className={cn('h-7 text-xs', !maxTokensOverrideValid && 'border-destructive')}
+                  invalid={!maxTokensOverrideValid}
+                  className="h-7 text-xs"
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">{t('admin.features.maxTokensOverrideHint')}</p>
               </div>
@@ -3722,7 +3742,7 @@ function FeatureRow({
                       </div>
                     </div>
                     {patchModel.isError && (
-                      <p className="text-xs text-destructive">{translateApiError((patchModel.error as any)?.response?.data)}</p>
+                      <AppFeedbackText>{translateApiError((patchModel.error as any)?.response?.data)}</AppFeedbackText>
                     )}
                   </div>
                 )}
@@ -3853,17 +3873,17 @@ export function FeatureConfigPage() {
       )}
 
       {featureError && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="flex items-start gap-2">
           <ShieldAlert size={14} className="mt-0.5 shrink-0" />
           <span>{featureError}</span>
-        </div>
+        </AppInlineError>
       )}
 
       {featuresQueryError && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="flex items-start gap-2">
           <ShieldAlert size={14} className="mt-0.5 shrink-0" />
           <span>{translateAPIRequestError(featuresQueryError)}</span>
-        </div>
+        </AppInlineError>
       )}
 
       <div className="space-y-3">
@@ -4013,9 +4033,9 @@ export function StoragePage() {
       </div>
 
       {storageQueryError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(storageQueryError)}
-        </div>
+        </AppInlineError>
       )}
 
       {/* Backend status */}
@@ -4026,13 +4046,13 @@ export function StoragePage() {
             <div key={b.name} className="flex items-center gap-2 border border-border rounded-lg px-4 py-2.5 text-sm">
               {b.name === 'local'
                 ? <span className="i-lucide-hard-drive text-muted-foreground" />
-                : <span className="i-lucide-cloud text-blue-400" />
+                : <span className="i-lucide-cloud text-info" />
               }
               <span className="font-medium capitalize">{b.name}</span>
               {b.name === backends?.default && (
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{t('admin.storage.default')}</span>
+                <StatusBadge intent="info">{t('admin.storage.default')}</StatusBadge>
               )}
-              <span className="text-xs text-green-500">{t('admin.storage.available')}</span>
+              <StatusBadge intent="success" emphasis="plain">{t('admin.storage.available')}</StatusBadge>
             </div>
           ))}
         </div>
@@ -4124,7 +4144,7 @@ export function StoragePage() {
             </Button>
           </div>
         </div>
-        {resourceError && <p className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{resourceError}</p>}
+        {resourceError && <AppInlineError className="mb-3">{resourceError}</AppInlineError>}
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/30">
@@ -4168,7 +4188,7 @@ export function StoragePage() {
                       size="sm"
                       onClick={() => { if (window.confirm(t('admin.storage.confirmDeleteResource', { name: resource.name }))) deleteResource.mutate(resource.ID) }}
                       disabled={deleteResource.isPending}
-                      className="text-destructive hover:text-destructive"
+                      intent="danger"
                     >
                       <Trash2 size={13} className="mr-1" />
                       {t('common.delete')}
@@ -4218,9 +4238,9 @@ export function StoragePage() {
             </div>
             <div className="max-h-[75vh] overflow-auto px-5 py-4">
               {resourceDetailQuery.error && (
-                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <AppInlineError className="mb-3">
                   {translateAPIRequestError(resourceDetailQuery.error)}
-                </div>
+                </AppInlineError>
               )}
               {resourceDetailQuery.isLoading && (
                 <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
@@ -4561,9 +4581,9 @@ export function CloudFileConfigPage() {
       </div>
 
       {(cloudFileError || cloudConfigsQueryError) && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {cloudFileError || translateAPIRequestError(cloudConfigsQueryError)}
-        </div>
+        </AppInlineError>
       )}
 
       {configs.length === 0 && !showForm && !cloudConfigsQueryError && (
@@ -4587,7 +4607,7 @@ export function CloudFileConfigPage() {
                     <span className="text-sm font-medium">{cfg.name}</span>
                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{CONFIG_TYPE_LABELS[cfg.config_type] ?? cfg.config_type}</span>
                     {cfg.is_enabled
-                      ? <span className="text-xs text-green-500">{t('admin.cloudFiles.enabledMark')}</span>
+                      ? <AppFeedbackText as="span" tone="success">{t('admin.cloudFiles.enabledMark')}</AppFeedbackText>
                       : <span className="text-xs text-muted-foreground">{t('admin.cloudFiles.disabledMark')}</span>
                     }
                   </div>
@@ -4607,14 +4627,14 @@ export function CloudFileConfigPage() {
                     {cfg.is_enabled ? t('admin.cloudFiles.disable') : t('admin.cloudFiles.enable')}
                   </button>
                   <button onClick={() => openEdit(cfg)} className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors">{t('admin.models.edit')}</button>
-                  <button onClick={() => deleteCfg(cfg.ID)} className="text-xs border border-destructive/30 rounded px-2 py-1 text-destructive/70 hover:text-destructive transition-colors">{t('common.delete')}</button>
+                  <Button type="button" variant="outline" size="sm" intent="danger" onClick={() => deleteCfg(cfg.ID)} className="h-7 text-xs">{t('common.delete')}</Button>
                 </div>
               </div>
               {testResult && (
-                <div className={cn(
-                  'border-t border-border px-4 py-2 text-xs',
-                  testResult.success ? 'bg-green-500/5 text-green-700 dark:text-green-400' : 'bg-destructive/5 text-destructive',
-                )}>
+                <AppStateMessage
+                  tone={testResult.success ? 'success' : 'danger'}
+                  className="rounded-none border-x-0 border-b-0 px-4 py-2 text-xs"
+                >
                   <span className="font-medium">
                     {testResult.success ? t('admin.cloudFiles.testSuccess') : t('admin.cloudFiles.testFailed')}
                   </span>
@@ -4627,7 +4647,7 @@ export function CloudFileConfigPage() {
                     </a>
                   )}
                   {!testResult.success && <span className="ml-2 break-all">{testResult.message}</span>}
-                </div>
+                </AppStateMessage>
               )}
             </div>
           )
@@ -4661,7 +4681,7 @@ export function CloudFileConfigPage() {
               <div key={f.key} className="space-y-1">
                 <Label className="text-xs">
                   {t(`admin.cloudFiles.fields.${f.key}`, { defaultValue: f.label })}
-                  {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                  {f.required && <AppRequiredMark />}
                 </Label>
                 <Input
                   type={f.secret ? 'password' : 'text'}
@@ -4956,7 +4976,7 @@ function AdminGenerationToolsPanel() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge variant={enabledCount > 0 ? 'success' : 'secondary'}>{enabledCount > 0 ? `${enabledCount} 个全局服务器已启用` : '未启用全局服务器'}</Badge>
+        <Badge tone={enabledCount > 0 ? 'success' : 'neutral'}>{enabledCount > 0 ? `${enabledCount} 个全局服务器已启用` : '未启用全局服务器'}</Badge>
         <label className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
           <input
             type="checkbox"
@@ -4968,11 +4988,11 @@ function AdminGenerationToolsPanel() {
       </div>
 
       {(settingsQuery.error || error || !canSave) && (
-        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="mt-3">
           {settingsQuery.error
             ? translateAPIRequestError(settingsQuery.error)
             : error || '启用服务器时 Base URL 必须以 http:// 或 https:// 开头，超时范围为 1000 到 600000 ms。'}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
@@ -5026,13 +5046,13 @@ function AdminGenerationToolServerCard({ server, isDefault, onPatch, onRemove, o
 }) {
   const invalid = !adminGenerationToolServerValid(server)
   return (
-    <div className={cn('rounded-md border bg-background p-3', invalid ? 'border-destructive/40' : 'border-border')}>
+    <AppStatusSurface tone={invalid ? 'danger' : 'neutral'} emphasis="outline" className="p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-foreground">{server.name || (server.type === 'comfyui' ? 'ComfyUI' : 'WebUI')}</p>
             <Badge variant="outline">{server.type === 'comfyui' ? 'ComfyUI' : 'WebUI'}</Badge>
-            {isDefault && <Badge variant="success">默认</Badge>}
+            {isDefault && <Badge tone="success">默认</Badge>}
           </div>
           <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{server.base_url}</p>
         </div>
@@ -5091,9 +5111,9 @@ function AdminGenerationToolServerCard({ server, isDefault, onPatch, onRemove, o
         />
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           {testResult && (
-            <span className={cn('mr-auto self-center text-xs', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
+            <AppFeedbackText as="span" tone={testResult.success ? 'success' : 'danger'} className="mr-auto self-center">
               {testResult.success ? `连接正常 ${testResult.latency_ms ?? 0}ms` : `连接失败 ${testResult.message ?? ''}`}
-            </span>
+            </AppFeedbackText>
           )}
           <Button type="button" size="sm" variant="outline" onClick={onTest} disabled={testing || !canTest}>
             {testing ? '测试中…' : canTest ? '测试已保存连接' : '保存后测试'}
@@ -5104,7 +5124,7 @@ function AdminGenerationToolServerCard({ server, isDefault, onPatch, onRemove, o
           <Button type="button" size="sm" variant="outline" onClick={onRemove}>删除</Button>
         </div>
       </div>
-    </div>
+    </AppStatusSurface>
   )
 }
 
@@ -5266,9 +5286,9 @@ export default function AdminPage() {
         {overviewCards.map((card) => (
           <Link key={card.label} to={card.href} className="group rounded-lg border border-border bg-card p-4 transition-colors hover:border-ring/70">
             <div className="mb-4 flex items-center justify-between">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <AppIconFrame size="lg" tone="info">
                 <card.icon size={18} />
-              </div>
+              </AppIconFrame>
               <ArrowUpRight size={15} className="text-muted-foreground transition-colors group-hover:text-foreground" />
             </div>
             <p className="text-xs font-medium text-muted-foreground">{card.label}</p>

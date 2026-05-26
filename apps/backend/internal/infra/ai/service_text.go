@@ -115,7 +115,7 @@ func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID
 			lastErr = err
 			continue
 		}
-		estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
+		estimate := estimateUsageCostWithDetails(cfg, def, "text", resp.Usage, 0, 1)
 		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
 			return TextResponse{}, err
 		}
@@ -180,7 +180,7 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 			lastErr = err
 			continue
 		}
-		estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
+		estimate := estimateUsageCostWithDetails(cfg, def, "text", resp.Usage, 0, 1)
 		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
 			return TextResponse{}, err
 		}
@@ -283,7 +283,7 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 		var content strings.Builder
 		finishReason := ""
 		for event := range upstream {
-			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
+			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
 				tokenUsage = event.Usage
 			}
 			if event.Error != "" {
@@ -313,7 +313,7 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 			Start:          attemptStart,
 			Err:            streamErr,
 		})
-		estimate := estimateUsageCost(attemptConfig, attemptDef, "text", tokenUsage.InputTokens, tokenUsage.OutputTokens, 0, 1)
+		estimate := estimateUsageCostWithDetails(attemptConfig, attemptDef, "text", tokenUsage, 0, 1)
 		_ = s.settleUsage(context.Background(), userID, attemptConfig.ID, estimate, usage)
 	}()
 	return out, nil

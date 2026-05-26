@@ -1,0 +1,7 @@
+@import "./core/styles.css";
+@import "./ports/styles.css";
+@import "./result/styles.css";
+@import "./prompt/styles.css";
+@import "./attachment/styles.css";
+@import "./approval/styles.css";
+@import "./params/styles.css";

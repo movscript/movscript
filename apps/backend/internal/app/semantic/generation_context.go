@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
@@ -15,6 +16,8 @@ const (
 	GenerationIntentKeyframe = "keyframe"
 	GenerationIntentVideo    = "video"
 )
+
+const generationContextCacheTTL = 30 * time.Second
 
 type GenerationContextRequest struct {
 	TargetType string `json:"target_type"`
@@ -91,6 +94,12 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 		}
 	}
 	intent := normalizeGenerationIntent(req.Intent)
+	cacheKey := s.generationContextCacheKey(ctx, projectID, req.TargetType, req.TargetID, intent)
+	var cached GenerationContext
+	if ok, err := s.cache.GetJSON(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
 	contentUnit, err := s.repo.LoadContentUnit(ctx, projectID, strconv.FormatUint(uint64(req.TargetID), 10))
 	if err != nil {
 		return GenerationContext{}, generationContextLoadError(projectID, "load_target", "content_unit", req.TargetID, err)
@@ -183,6 +192,7 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 		return GenerationContext{}, err
 	}
 	result.Keyframes = keyframes
+	_ = s.cache.SetJSON(ctx, cacheKey, result, generationContextCacheTTL)
 	return result, nil
 }
 

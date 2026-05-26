@@ -1,0 +1,11 @@
+.canvas-tool-full-card__model {
+  flex-shrink: 0;
+  font-size: var(--ms-text-caption);
+}
+
+.canvas-tool-full-card__mode {
+  flex-shrink: 0;
+  gap: 2px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+}

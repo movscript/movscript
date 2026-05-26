@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
+import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 

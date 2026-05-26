@@ -1,0 +1,61 @@
+.canvas-node-prompt-panel {
+  position: relative;
+  padding: var(--ms-space-2) 10px;
+}
+
+.canvas-node-prompt-editor {
+  min-height: 72px;
+  width: 100%;
+  background: transparent;
+  padding: var(--ms-space-1);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+  outline: 0;
+}
+
+.canvas-node-mention-menu {
+  position: absolute;
+  right: var(--ms-space-2);
+  bottom: 100%;
+  left: var(--ms-space-2);
+  z-index: 30;
+  max-height: 176px;
+  overflow-y: auto;
+  margin-bottom: var(--ms-space-1);
+  padding: var(--ms-space-1);
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.canvas-node-mention-menu-empty {
+  margin: 0;
+  padding: var(--ms-space-2) 10px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-node-mention-menu-item {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--ms-space-2);
+  padding-inline: 10px;
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.canvas-node-mention-menu-item__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-node-mention-menu-item__meta {
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}

@@ -1,0 +1,40 @@
+.ms-agent-generated-result-item {
+  padding: 6px 8px;
+}
+
+.ms-agent-generated-result-item__row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-agent-generated-result-item__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-color-muted-foreground);
+}
+
+.ms-agent-generated-result-item__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ms-agent-generated-result-item__name {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-agent-generated-result-item__meta {
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,35 @@
+.ms-agent-generated-media-preview {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-muted) 76%, transparent);
+}
+
+.ms-agent-generated-media-preview[data-surface="dark"] {
+  background: #000;
+}
+
+.ms-agent-generated-media-preview--button {
+  height: auto;
+  justify-content: flex-start;
+  padding: 0;
+  text-align: left;
+}
+
+.ms-agent-generated-media-preview--button > .ms-button__content {
+  display: block;
+  width: 100%;
+}
+
+.ms-agent-generated-media-preview > img,
+.ms-agent-generated-media-preview > video,
+.ms-agent-generated-media-preview > .ms-button__content > img,
+.ms-agent-generated-media-preview > .ms-button__content > video {
+  width: 100%;
+  height: 14rem;
+  max-height: 45vh;
+  object-fit: contain;
+}

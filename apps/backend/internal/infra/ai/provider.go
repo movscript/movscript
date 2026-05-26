@@ -77,8 +77,10 @@ type TextStreamEvent struct {
 }
 
 type TokenUsage struct {
-	InputTokens  int
-	OutputTokens int
+	InputTokens       int
+	OutputTokens      int
+	CachedInputTokens int
+	ReasoningTokens   int
 }
 
 type ImageRequest struct {

@@ -1,0 +1,17 @@
+.canvas-tool-full-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 12px;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-tool-full-state[data-tone="danger"] {
+  justify-content: flex-start;
+  color: var(--ms-color-danger);
+}
+
+.canvas-tool-full-state > span {
+  font-size: var(--ms-text-caption);
+}

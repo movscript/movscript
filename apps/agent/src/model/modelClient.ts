@@ -327,6 +327,8 @@ function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeMod
   const body: RuntimeModelRequestSnapshot['body'] = {
     model: modelIdentifier(input.config),
     messages: input.jsonMode ? ensureJSONModeMessages(input.messages) : input.messages,
+    stream: true,
+    stream_options: { include_usage: true },
     ...(typeof input.temperature === 'number' ? { temperature: input.temperature } : {}),
     ...(input.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     ...(input.tools && input.tools.length > 0 ? { tools: input.tools.map(toOpenAIChatCompletionsTool) } : {}),

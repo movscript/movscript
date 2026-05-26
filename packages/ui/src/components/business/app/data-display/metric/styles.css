@@ -1,0 +1,36 @@
+.app-metric-card {
+  background: var(--ms-color-background);
+  padding: 14px;
+}
+
+.app-metric-card__row {
+  align-items: center;
+  gap: var(--ms-space-3);
+}
+
+.app-metric-card__label {
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.app-metric-card__detail {
+  margin-top: var(--ms-space-2);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.app-metric-card__icon {
+  height: 36px;
+  width: 36px;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 72%, transparent);
+}
+
+.app-metric-card--compact {
+  padding: 10px;
+}
+
+.app-metric-card--compact .app-metric-card__value {
+  font-size: 15px;
+  line-height: 22px;
+}

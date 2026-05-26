@@ -1,0 +1,10 @@
+.canvas-io-port-kind-badge {
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  border: 1px solid transparent;
+  padding: 2px 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}

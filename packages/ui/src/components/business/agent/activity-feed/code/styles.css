@@ -1,0 +1,21 @@
+.ms-agent-activity-code-panel {
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.ms-agent-activity-code-panel__header {
+  border-bottom: 1px solid color-mix(in srgb, color-mix(in srgb, var(--ms-color-border) 78%, transparent) 60%, transparent);
+  padding: 4px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+}
+
+.ms-agent-activity-code-panel__body {
+  max-height: 14rem;
+  overflow: auto;
+  padding: 6px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-body);
+}

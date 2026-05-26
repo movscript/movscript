@@ -1,0 +1,106 @@
+.workbench-info-panel__rows,
+.workbench-action-rail__list {
+  display: grid;
+  gap: 8px;
+}
+
+.workbench-info-panel__row {
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 24px;
+}
+
+.workbench-decision-panel {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .workbench-decision-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.workbench-decision-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workbench-decision-panel__label,
+.workbench-action-rail__title {
+  margin: 0;
+}
+
+.workbench-decision-panel__label,
+.workbench-action-rail__output {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.workbench-decision-panel__value {
+  margin: 8px 0 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.workbench-action-rail {
+  width: 320px;
+  flex-shrink: 0;
+  overflow: auto;
+  border-left: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  padding: 16px;
+}
+
+.workbench-action-rail__section {
+  margin-bottom: 20px;
+}
+
+.workbench-action-rail__title {
+  margin-bottom: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: 18px;
+  text-transform: uppercase;
+}
+
+.workbench-action-rail__button {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.workbench-action-rail__button .ms-button__content {
+  justify-content: flex-start;
+}
+
+.workbench-action-rail__button--primary {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
+}
+
+.workbench-action-rail__button-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.workbench-action-rail__button-icon--primary {
+  color: var(--ms-color-primary);
+}
+
+.workbench-action-rail__output {
+  margin: 4px 0 0;
+  color: var(--ms-color-foreground);
+  line-height: 20px;
+}

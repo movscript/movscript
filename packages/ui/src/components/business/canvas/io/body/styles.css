@@ -1,0 +1,32 @@
+.canvas-io-body-block {
+  min-height: 48px;
+  padding: 6px var(--ms-space-2);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  color: var(--ms-color-foreground);
+}
+
+.canvas-io-body-block--empty {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ms-color-muted) 10%, transparent);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-io-body-block--failed {
+  border-color: color-mix(in srgb, var(--ms-color-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--ms-color-danger) 5%, transparent);
+  color: var(--ms-color-danger);
+}
+
+.canvas-io-body-block__value {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.canvas-io-body-block__empty {
+  font-style: italic;
+}

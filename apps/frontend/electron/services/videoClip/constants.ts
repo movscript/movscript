@@ -1,0 +1,14 @@
+export const MAX_CLIP_DURATION_MS = 10 * 60 * 1000
+export const MAX_CLIP_SOURCE_BYTES = 1024 * 1024 * 1024
+export const MAX_OUTPUT_BASENAME_LENGTH = 80
+export const OUTPUT_SUFFIX = '_clip'
+export const WINDOWS_RESERVED_BASENAME_PATTERN = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+export const FFMPEG_TIMEOUT_MS = 20 * 60 * 1000
+export const FFMPEG_STATUS_TIMEOUT_MS = 5000
+export const FFMPEG_STDERR_LIMIT = 64 * 1024
+export const MAX_TIMELINE_EXPORT_CLIPS = 100
+export const MAX_TIMELINE_EXPORT_CAPTIONS = 500
+export const MAX_TIMELINE_EXPORT_AUDIO_CLIPS = 50
+export const MAX_TIMELINE_EXPORT_OVERLAYS = 50
+export const MAX_TIMELINE_EXPORT_DURATION_MS = 30 * 60 * 1000
+export const MAX_TIMELINE_CAPTION_TEXT_LENGTH = 240

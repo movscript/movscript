@@ -104,6 +104,154 @@ test('file agent store persists runtime wake events', () => {
   }
 })
 
+test('file agent store compacts consumed runtime wake event payloads on load', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  try {
+    const statePath = join(dir, 'state.json')
+    writeFileSync(statePath, JSON.stringify({
+      version: 6,
+      sessions: [],
+      threads: [],
+      runs: [],
+      plans: [],
+      tasks: [],
+      runtimeWorks: [],
+      runtimeInteractions: [],
+      runtimeContinuations: [],
+      runtimeWakeEvents: [{
+        id: 'wake_1',
+        threadId: 'thread_1',
+        runId: 'run_1',
+        workId: 'work_1',
+        kind: 'work.observed',
+        status: 'consumed',
+        payload: { work: { id: 'work_1', result: 'x'.repeat(100_000) } },
+        dedupeKey: 'work.observed:work_1:completed:2026-05-21T00:00:00.000Z',
+        createdAt: '2026-05-21T00:00:00.000Z',
+        updatedAt: '2026-05-21T00:00:01.000Z',
+        consumedAt: '2026-05-21T00:00:01.000Z',
+      }],
+    }), 'utf8')
+
+    const store = new FileAgentStore(statePath)
+
+    assert.deepEqual(store.getRuntimeWakeEvent('wake_1')?.payload, {
+      consumed: true,
+      kind: 'work.observed',
+      runId: 'run_1',
+      workId: 'work_1',
+    })
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { runtimeWakeEvents?: Array<{ payload?: unknown }> }
+    assert.deepEqual(persisted.runtimeWakeEvents?.[0]?.payload, {
+      consumed: true,
+      kind: 'work.observed',
+      runId: 'run_1',
+      workId: 'work_1',
+    })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file agent store limits persisted runtime wake history while preserving queued events', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  const previousLimit = process.env.MOVSCRIPT_AGENT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS
+  process.env.MOVSCRIPT_AGENT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS = '3'
+  try {
+    const statePath = join(dir, 'state.json')
+    const store = new FileAgentStore(statePath)
+    for (let index = 1; index <= 5; index += 1) {
+      store.createRuntimeWakeEvent({
+        id: `wake_consumed_${index}`,
+        threadId: 'thread_1',
+        kind: 'thread.opened',
+        status: 'consumed',
+        payload: { threadId: 'thread_1' },
+        dedupeKey: `thread.opened:thread_1:${index}`,
+        createdAt: `2026-05-21T00:00:0${index}.000Z`,
+        updatedAt: `2026-05-21T00:00:0${index}.000Z`,
+        consumedAt: `2026-05-21T00:00:0${index}.000Z`,
+      })
+    }
+    store.createRuntimeWakeEvent({
+      id: 'wake_queued',
+      threadId: 'thread_1',
+      kind: 'thread.opened',
+      status: 'queued',
+      payload: { threadId: 'thread_1' },
+      dedupeKey: 'thread.opened:thread_1',
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:00:00.000Z',
+    })
+    store.flush()
+
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { runtimeWakeEvents?: Array<{ id?: string }> }
+    assert.deepEqual(persisted.runtimeWakeEvents?.map((event) => event.id), [
+      'wake_queued',
+      'wake_consumed_4',
+      'wake_consumed_5',
+    ])
+
+    const restored = new FileAgentStore(statePath)
+    assert.deepEqual(restored.listRuntimeWakeEvents().map((event) => event.id), [
+      'wake_queued',
+      'wake_consumed_4',
+      'wake_consumed_5',
+    ])
+  } finally {
+    if (previousLimit === undefined) {
+      delete process.env.MOVSCRIPT_AGENT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS
+    } else {
+      process.env.MOVSCRIPT_AGENT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS = previousLimit
+    }
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file agent store strips inactive runtime wake history before parsing oversized state', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  const previousLimit = process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES
+  process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES = '1'
+  try {
+    const statePath = join(dir, 'state.json')
+    writeFileSync(statePath, JSON.stringify({
+      version: 6,
+      sessions: [],
+      threads: [],
+      runs: [],
+      plans: [],
+      tasks: [],
+      runtimeWorks: [],
+      runtimeInteractions: [],
+      runtimeContinuations: [],
+      runtimeWakeEvents: [{
+        id: 'wake_1',
+        threadId: 'thread_1',
+        kind: 'thread.opened',
+        status: 'consumed',
+        payload: { threadId: 'thread_1', large: 'x'.repeat(10_000) },
+        dedupeKey: 'thread.opened:thread_1',
+        createdAt: '2026-05-21T00:00:00.000Z',
+        updatedAt: '2026-05-21T00:00:01.000Z',
+        consumedAt: '2026-05-21T00:00:01.000Z',
+      }],
+    }), 'utf8')
+
+    const store = new FileAgentStore(statePath)
+
+    assert.deepEqual(store.listRuntimeWakeEvents(), [])
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { runtimeWakeEvents?: unknown[] }
+    assert.deepEqual(persisted.runtimeWakeEvents, [])
+  } finally {
+    if (previousLimit === undefined) {
+      delete process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES
+    } else {
+      process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES = previousLimit
+    }
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('file agent store compacts oversized state files on load', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
   const previousLimit = process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES

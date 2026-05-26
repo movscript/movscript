@@ -23,6 +23,8 @@ import {
 import { isJSONValue } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
+const MAX_IN_MEMORY_RUNTIME_WAKE_EVENTS = 500
+
 export interface AgentStore {
   createSession(session: AgentSession): void
   updateSession(session: AgentSession): void
@@ -482,10 +484,12 @@ export class InMemoryAgentStore implements AgentStore {
 
   createRuntimeWakeEvent(event: RuntimeWakeEvent): void {
     this.runtimeWakeEvents.set(event.id, clone(event))
+    this.pruneRuntimeWakeEvents()
   }
 
   updateRuntimeWakeEvent(event: RuntimeWakeEvent): void {
     this.runtimeWakeEvents.set(event.id, clone(event))
+    this.pruneRuntimeWakeEvents()
   }
 
   listRuntimeWakeEvents(query: RuntimeWakeEventQuery = {}): RuntimeWakeEvent[] {
@@ -502,6 +506,22 @@ export class InMemoryAgentStore implements AgentStore {
   getRuntimeWakeEvent(id: string): RuntimeWakeEvent | undefined {
     const event = this.runtimeWakeEvents.get(id)
     return event ? clone(event) : undefined
+  }
+
+  private pruneRuntimeWakeEvents(): void {
+    const events = Array.from(this.runtimeWakeEvents.values())
+    if (events.length <= MAX_IN_MEMORY_RUNTIME_WAKE_EVENTS) return
+    const active = events.filter((event) => event.status === 'queued' || event.status === 'processing')
+    const activeIds = new Set(active.map((event) => event.id))
+    const inactive = events
+      .filter((event) => !activeIds.has(event.id))
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+    const inactiveKeepCount = Math.max(0, MAX_IN_MEMORY_RUNTIME_WAKE_EVENTS - active.length)
+    const keptInactive = inactiveKeepCount > 0 ? inactive.slice(-inactiveKeepCount) : []
+    const keptIds = new Set([...active, ...keptInactive].map((event) => event.id))
+    for (const id of this.runtimeWakeEvents.keys()) {
+      if (!keptIds.has(id)) this.runtimeWakeEvents.delete(id)
+    }
   }
 
   appendTraceEvent(event: AgentTraceEvent): void {

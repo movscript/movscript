@@ -1,0 +1,8 @@
+.ms-agent-generated-result-card {
+  margin-top: 8px;
+  padding: 8px;
+}
+
+.ms-agent-generated-result-card__list > * + * {
+  margin-top: 6px;
+}

@@ -1,0 +1,67 @@
+.user-profile {
+  display: grid;
+  gap: 24px;
+}
+
+.user-profile-header__title {
+  color: var(--ms-color-foreground);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+}
+
+.user-profile-header__description {
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.user-profile-card {
+  display: grid;
+  max-width: 24rem;
+  gap: 24px;
+}
+
+.user-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-4);
+}
+
+.user-profile-identity__copy {
+  display: grid;
+  min-width: 0;
+}
+
+.user-profile-identity__name {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-profile-identity__role {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.user-profile-actions {
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: 24px;
+}
+
+.user-profile-logout-button {
+  gap: var(--ms-space-2);
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.user-profile-logout-button__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}

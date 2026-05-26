@@ -1,0 +1,47 @@
+.canvas-port-dot {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-surface-raised);
+  box-shadow: var(--ms-shadow-sm);
+  transform: translateY(-50%);
+}
+
+.canvas-port-dot[data-compact="true"] {
+  width: 12px;
+  height: 12px;
+}
+
+.canvas-port-dot[data-side="left"] {
+  left: -6px;
+}
+
+.canvas-port-dot[data-side="right"] {
+  right: -6px;
+}
+
+.canvas-port-dot[data-compact="true"][data-side="left"] {
+  left: -5px;
+}
+
+.canvas-port-dot[data-compact="true"][data-side="right"] {
+  right: -5px;
+}
+
+.canvas-port-dot[data-tone="target"] {
+  border-color: var(--ms-color-primary);
+  background: var(--ms-color-background);
+}
+
+.canvas-port-dot[data-tone="source"] {
+  border-color: var(--ms-color-primary);
+  background: color-mix(in srgb, var(--ms-color-primary) 90%, transparent);
+}
+
+.canvas-port-dot[data-tone="muted"] {
+  background: var(--ms-color-muted);
+}

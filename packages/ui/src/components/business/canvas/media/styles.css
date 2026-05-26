@@ -1,0 +1,63 @@
+.canvas-media-fill {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-media-fill > * {
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-media-fill[data-fit="cover"] > * {
+  object-fit: cover;
+}
+
+.canvas-media-fill[data-fit="contain"] > * {
+  object-fit: contain;
+}
+
+.canvas-media-node-frame {
+  display: flex;
+  min-height: 80px;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom-right-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.canvas-media-node-frame[data-surface="dark"] {
+  background: var(--ms-color-foreground);
+}
+
+.canvas-media-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 20%, transparent);
+}
+
+.canvas-media-empty-icon[data-surface="dark"] {
+  color: color-mix(in srgb, var(--ms-color-background) 20%, transparent);
+}
+
+.canvas-resource-shelf-thumb-frame {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--ms-radius-md);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-resource-shelf-thumb-frame[data-compact="true"] {
+  width: 64px;
+  height: 64px;
+}
+
+.canvas-resource-shelf-thumb-frame[data-compact="false"] {
+  width: 82px;
+  height: 82px;
+}

@@ -1,99 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { existsSync } from 'fs'
-import { join } from 'path'
-import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
-import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
-import { getMCPServerStatus, setMCPAPIBaseURL, setMCPGenerationToolsSettings, startMCPServer, stopMCPServer, testMCPGenerationToolServer, updateMCPContextSnapshot } from './mcp/server'
-import type { MCPContextSnapshot } from './mcp/types'
-import type { GenerationToolServer, GenerationToolsSettings } from '../src/lib/generationTools'
-import { clipVideo, exportVideoTimeline, getVideoClipStatus, type VideoClipInput, type VideoTimelineExportInput } from './videoClip'
-import { resolveAdminConsoleURL } from './adminConsole'
-
-function resolvePreloadPath(): string {
-  const jsPath = join(__dirname, '../preload/index.js')
-  const mjsPath = join(__dirname, '../preload/index.mjs')
-  return existsSync(jsPath) ? jsPath : mjsPath
-}
-
-function resolveAppIconPath(): string {
-  const packagedIcon = join(process.resourcesPath || '', 'logo.png')
-  if (app.isPackaged && existsSync(packagedIcon)) return packagedIcon
-  return join(process.cwd(), '../../assets/logo.png')
-}
-
-function createWindow(): void {
-  const titleBarHeight = 34
-  const macTrafficLightVisualSize = 14
-  const isMacOS = process.platform === 'darwin'
-  const trafficLightPositionForZoom = (zoomFactor = 1) => ({
-    x: 14,
-    y: Math.max(0, Math.round((titleBarHeight * zoomFactor - macTrafficLightVisualSize) / 2))
-  })
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    icon: resolveAppIconPath(),
-    titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
-    ...(isMacOS
-      ? { trafficLightPosition: trafficLightPositionForZoom() }
-      : { titleBarOverlay: { height: titleBarHeight } }),
-    webPreferences: {
-      preload: resolvePreloadPath(),
-      sandbox: false
-    }
-  })
-
-  const syncTitlebarChromeWithZoom = () => {
-    const zoomFactor = win.webContents.getZoomFactor()
-    if (isMacOS) {
-      win.setWindowButtonPosition(trafficLightPositionForZoom(zoomFactor))
-      return
-    }
-    win.setTitleBarOverlay({ height: Math.max(1, Math.round(titleBarHeight * zoomFactor)) })
-  }
-
-  win.webContents.on('zoom-changed', () => {
-    setTimeout(syncTitlebarChromeWithZoom, 0)
-  })
-  win.webContents.once('did-finish-load', syncTitlebarChromeWithZoom)
-
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    void win.webContents.session.clearCache().finally(() => {
-      void win.loadURL(process.env['ELECTRON_RENDERER_URL']!)
-    })
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-
-  win.webContents.on('before-input-event', (_event, input) => {
-    if (input.type === 'keyDown' && input.key === 'F12') {
-      win.webContents.toggleDevTools()
-    }
-  })
-}
-
-function broadcastBackendStatus(status: BackendStatus): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('backend:status', status)
-  }
-}
-
-let shutdownCompleted = false
-let shutdownPromise: Promise<void> | null = null
-
-async function shutdownManagedServices(): Promise<void> {
-  if (shutdownPromise) return shutdownPromise
-  shutdownPromise = (async () => {
-    try {
-      await stopAgentRuntime()
-      await stopMCPServer()
-      await stopBackend(broadcastBackendStatus)
-    } finally {
-      shutdownCompleted = true
-    }
-  })()
-  return shutdownPromise
-}
+import { app, BrowserWindow } from 'electron'
+import { createWindow } from './appWindow'
+import {
+  bootstrapManagedServicesBeforeWindow,
+  broadcastBackendStatus,
+  ensureMCPServerReady,
+  hasManagedServicesShutdownCompleted,
+  shutdownManagedServices,
+} from './managedServices'
+import { registerIpcHandlers } from './ipc'
 
 async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
   await shutdownManagedServices()
@@ -101,47 +15,8 @@ async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
   app.exit(exitCode)
 }
 
-async function startAgentRuntimeOnAppReady(): Promise<void> {
-  if (getAgentRuntimeLaunchPolicy() === 'external') {
-    console.info('[agent] launch policy=external; not spawning local agent runtime')
-    return
-  }
-  await ensureMCPServerReady()
-  const status = await ensureAgentRuntimeRunning()
-  if (!status.ok) {
-    console.warn(`[agent] auto-start failed: ${status.error ?? 'unknown error'}`)
-    return
-  }
-  console.info(`[agent] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
-}
-
-async function ensureMCPServerReady(): Promise<void> {
-  const port = await startMCPServer()
-  console.info(`[bootstrap] MCP server ready at http://127.0.0.1:${port}/mcp`)
-}
-
-async function bootstrapBackendBeforeAgent(): Promise<boolean> {
-  const policy = getBackendLaunchPolicy()
-  console.info(`[bootstrap] backend policy=${policy}`)
-  const status = await startBackend(policy, broadcastBackendStatus)
-  if (policy !== 'spawn') return true
-
-  if (status.state !== 'ready') {
-    console.warn(`[backend] local bootstrap failed: ${status.message ?? status.state}`)
-    return false
-  }
-
-  console.info(`[bootstrap] local backend ready at ${LOCAL_BACKEND_URL}; starting agent after backend`)
-  setMCPAPIBaseURL(LOCAL_BACKEND_URL)
-  await setAgentRuntimeAPIBaseURL(LOCAL_BACKEND_URL)
-  return true
-}
-
 app.whenReady().then(async () => {
-  await ensureMCPServerReady()
-  if (await bootstrapBackendBeforeAgent()) {
-    void startAgentRuntimeOnAppReady()
-  }
+  await bootstrapManagedServicesBeforeWindow()
   createWindow()
 
   app.on('activate', () => {
@@ -158,7 +33,7 @@ app.on('window-all-closed', async () => {
 })
 
 app.on('before-quit', (event) => {
-  if (shutdownCompleted) return
+  if (hasManagedServicesShutdownCompleted()) return
   event.preventDefault()
   void shutdownManagedServices().finally(() => {
     app.exit(0)
@@ -173,71 +48,7 @@ process.once('SIGTERM', () => {
   void shutdownFromSignal('SIGTERM')
 })
 
-ipcMain.handle('dialog:openFile', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openFile'] })
-  return canceled ? null : filePaths[0]
-})
-
-ipcMain.handle('dialog:saveFile', async (_e, defaultPath?: string) => {
-  const { canceled, filePath } = await dialog.showSaveDialog({ defaultPath })
-  return canceled ? null : filePath
-})
-
-ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
-  updateMCPContextSnapshot(snapshot)
-})
-
-ipcMain.handle('mcp:get-status', () => {
-  return getMCPServerStatus()
-})
-
-ipcMain.handle('generation-tools:set-settings', (_e, settings?: GenerationToolsSettings) => {
-  setMCPGenerationToolsSettings(settings)
-})
-
-ipcMain.handle('generation-tools:test-server', (_e, server?: Partial<GenerationToolServer>) => {
-  return testMCPGenerationToolServer(server ?? {})
-})
-
-ipcMain.handle('backend:get-status', () => {
-  return getBackendStatus()
-})
-
-ipcMain.handle('app:open-admin-console', async (_e, input?: { baseURL?: string; path?: string }) => {
-  const url = resolveAdminConsoleURL(input)
-  await shell.openExternal(url)
-  return { url }
-})
-
-ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; launchMode?: 'cloud' | 'local' }) => {
-  if (settings?.launchMode === 'local') {
-    broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
-    await startBackend('spawn', broadcastBackendStatus)
-  } else if (settings?.launchMode === 'cloud') {
-    await stopBackend(broadcastBackendStatus, { terminate: true })
-  }
-  if (!settings?.apiBaseURL) return
-  setMCPAPIBaseURL(settings.apiBaseURL)
-  await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
-  if (getAgentRuntimeLaunchPolicy() !== 'external') {
-    await ensureMCPServerReady()
-    await ensureAgentRuntimeRunning()
-  }
-})
-
-ipcMain.handle('agent:ensure-running', async (_e, input?: { baseURL?: string }) => {
-  await ensureMCPServerReady()
-  return ensureAgentRuntimeRunning(input)
-})
-
-ipcMain.handle('video:clip', async (_e, input: VideoClipInput) => {
-  return clipVideo({ ...input, sourcePath: undefined })
-})
-
-ipcMain.handle('video:timeline-export', async (_e, input: VideoTimelineExportInput) => {
-  return exportVideoTimeline(input)
-})
-
-ipcMain.handle('video:clip-status', async () => {
-  return getVideoClipStatus()
+registerIpcHandlers({
+  broadcastBackendStatus,
+  ensureMCPServerReady,
 })

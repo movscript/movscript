@@ -1,0 +1,20 @@
+.script-library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 0;
+  color: var(--ms-color-muted-foreground);
+}
+
+.script-library-empty__icon {
+  display: inline-flex;
+  opacity: 0.3;
+}
+
+.script-library-empty__title {
+  margin: 0;
+  font-size: var(--ms-text-label);
+  line-height: 1.4;
+}

@@ -1,0 +1,41 @@
+.app-range-track {
+  position: relative;
+  height: 8px;
+  min-width: 0;
+  overflow: visible;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-muted);
+}
+
+.app-range-track__selection {
+  position: absolute;
+  inset-block: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--ms-color-primary) 20%, transparent);
+}
+
+.app-range-track__marker {
+  position: absolute;
+  top: 50%;
+  height: 16px;
+  width: 2px;
+  transform: translateY(-50%);
+  background: var(--ms-color-primary);
+}
+
+.app-waveform-bars {
+  position: absolute;
+  inset: var(--ms-space-1);
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0.7;
+}
+
+.app-waveform-bars__bar {
+  min-width: 1px;
+  height: 10%;
+  flex: 1 1 0;
+  border-radius: var(--ms-radius-full);
+  background: currentColor;
+}

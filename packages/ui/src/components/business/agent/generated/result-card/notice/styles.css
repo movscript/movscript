@@ -1,0 +1,14 @@
+.ms-agent-generated-result-missing-notice {
+  margin-top: 6px;
+  padding: 4px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-generated-result-card__helper {
+  margin-top: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}

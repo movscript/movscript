@@ -592,7 +592,7 @@ export interface Job {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
-export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
+export type SemanticEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
@@ -707,7 +707,7 @@ export interface EntitySemanticSchemaSection {
 }
 
 export interface EntitySemanticSchema {
-  kind: CanvasEntityKind
+  kind: SemanticEntityKind
   schemaVersion?: number
   projection?: string
   compatibility?: EntitySchemaCompatibility
@@ -746,7 +746,7 @@ export interface EntitySchemaActionHint {
 }
 
 export interface EntitySchemaMigrationReport {
-  kind: CanvasEntityKind
+  kind: SemanticEntityKind
   schemaVersion: number
   currentVersion: number
   minCompatibleVersion: number
@@ -757,7 +757,7 @@ export interface EntitySchemaMigrationReport {
 }
 
 export interface EntitySemanticValues {
-  kind: CanvasEntityKind
+  kind: SemanticEntityKind
   id: number
   schemaVersion: number
   values: Record<string, unknown>
@@ -799,7 +799,7 @@ export interface EntityWorkflowSchemaSection {
 }
 
 export interface EntityWorkflowSchema {
-  kind: CanvasEntityKind
+  kind: SemanticEntityKind
   schemaVersion?: number
   projection?: string
   compatibility?: EntitySchemaCompatibility
@@ -881,11 +881,6 @@ export interface CanvasNodeData {
   executableSpec?: CanvasExecutableSpec
   inputPorts?: CanvasPortDef[]
   outputPorts?: CanvasPortDef[]
-  // reusable project entity card fields
-  entityKind?: CanvasEntityKind
-  entityId?: number
-  entityTitle?: string
-  assetSlotKind?: string
   // injected at runtime by CanvasEditorPage (not persisted)
   canvasId?: string
   rfNodeId?: string
@@ -1050,7 +1045,7 @@ export interface CanvasEntityWriteAudit {
   canvas_run_id?: number
   canvas_node_id?: string
   port_id: string
-  entity_kind: CanvasEntityKind
+  entity_kind: SemanticEntityKind
   entity_id: number
   user_id?: number
   old_value_json?: string

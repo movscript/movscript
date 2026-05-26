@@ -82,8 +82,10 @@ func (a *OpenAIAdapter) TextGenerate(ctx context.Context, req TextRequest) (Text
 		ToolCalls:    choice.Message.ToolCalls,
 		FinishReason: choice.FinishReason,
 		Usage: TokenUsage{
-			InputTokens:  parsed.Usage.PromptTokens,
-			OutputTokens: parsed.Usage.CompletionTokens,
+			InputTokens:       parsed.Usage.PromptTokens,
+			OutputTokens:      parsed.Usage.CompletionTokens,
+			CachedInputTokens: parsed.Usage.PromptTokensDetails.CachedTokens,
+			ReasoningTokens:   parsed.Usage.CompletionTokensDetails.ReasoningTokens,
 		},
 		Debug: takeDebug(ctx),
 	}, nil
@@ -239,8 +241,10 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				)
 			}
 			event.Usage = TokenUsage{
-				InputTokens:  chunk.Usage.PromptTokens,
-				OutputTokens: chunk.Usage.CompletionTokens,
+				InputTokens:       chunk.Usage.PromptTokens,
+				OutputTokens:      chunk.Usage.CompletionTokens,
+				CachedInputTokens: chunk.Usage.PromptTokensDetails.CachedTokens,
+				ReasoningTokens:   chunk.Usage.CompletionTokensDetails.ReasoningTokens,
 			}
 			out <- event
 		}
@@ -273,8 +277,14 @@ type openAIChatCompletionResponse struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+		CompletionTokensDetails struct {
+			ReasoningTokens int `json:"reasoning_tokens"`
+		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -290,8 +300,14 @@ type openAIChatCompletionChunk struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+		CompletionTokensDetails struct {
+			ReasoningTokens int `json:"reasoning_tokens"`
+		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -312,9 +328,15 @@ type openAIResponsesResponse struct {
 	OutputText string `json:"output_text"`
 	Status     string `json:"status"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
-		TotalTokens  int `json:"total_tokens"`
+		InputTokens        int `json:"input_tokens"`
+		OutputTokens       int `json:"output_tokens"`
+		TotalTokens        int `json:"total_tokens"`
+		InputTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"input_tokens_details"`
+		OutputTokensDetails struct {
+			ReasoningTokens int `json:"reasoning_tokens"`
+		} `json:"output_tokens_details"`
 	} `json:"usage"`
 }
 
@@ -361,8 +383,10 @@ func (r openAIResponsesResponse) toTextResponse() TextResponse {
 		ToolCalls:    toolCalls,
 		FinishReason: finishReason,
 		Usage: TokenUsage{
-			InputTokens:  r.Usage.InputTokens,
-			OutputTokens: r.Usage.OutputTokens,
+			InputTokens:       r.Usage.InputTokens,
+			OutputTokens:      r.Usage.OutputTokens,
+			CachedInputTokens: r.Usage.InputTokensDetails.CachedTokens,
+			ReasoningTokens:   r.Usage.OutputTokensDetails.ReasoningTokens,
 		},
 	}
 }

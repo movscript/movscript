@@ -33,7 +33,7 @@ export function emitRuntimePlanRunStreamEvent(input: {
     ? input.event.run
     : 'run' in input.event && input.event.run
       ? input.event.run
-      : input.event.type === 'trace' || input.event.type === 'assistant_delta' || input.event.type === 'assistant_message' || input.event.type === 'thread_title'
+      : input.event.type === 'trace' || input.event.type === 'assistant_progress' || input.event.type === 'assistant_message' || input.event.type === 'thread_title'
         ? input.getRun(input.event.runId)
         : undefined
   if (!run?.taskGraphId) return

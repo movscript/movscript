@@ -473,6 +473,8 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
     assert.equal(capturedURL, 'https://openai.example/v1/chat/completions')
     assert.equal(capturedHeaders.authorization, 'Bearer direct-openai-chat-key')
     assert.equal(capturedBody?.model, 'gpt-chat-direct')
+    assert.equal(capturedBody?.stream, true)
+    assert.deepEqual(capturedBody?.stream_options, { include_usage: true })
     assert.equal(capturedBody?.response_format?.type, 'json_object')
     assert.equal(capturedBody?.tool_choice, 'auto')
     assert.deepEqual(capturedBody?.tools?.[0]?.function?.name, 'movscript_lookup')

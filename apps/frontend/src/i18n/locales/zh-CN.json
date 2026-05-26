@@ -2254,6 +2254,11 @@
       "conversationTabs": "当前会话标签",
       "conversationHistory": "会话历史",
       "tabActions": "右击标签打开操作",
+      "archiveConversation": "归档到历史",
+      "archiveOtherConversations": "归档其他标签",
+      "archiveRightConversations": "归档右侧标签",
+      "archiveAllConversations": "归档全部标签",
+      "archivedConversation": "已归档会话",
       "closeConversation": "关闭标签",
       "closeOtherConversations": "关闭其他",
       "closeRightConversations": "关闭右侧所有",
@@ -2862,7 +2867,7 @@
         },
         "organization": {
           "title": "组织",
-          "description": "整理复杂画布的区域与语义分组"
+          "description": "整理复杂画布的区域与视觉分组"
         },
         "plugins": {
           "title": "本机插件",
@@ -3105,10 +3110,6 @@
     "workflowInputTitle": "填写工作流输入",
     "inputContentPlaceholder": "输入内容…",
     "startRun": "开始运行",
-    "pushToEntity": "推送到实体",
-    "pushHint": "将该{{type}}添加到以下素材需求",
-    "noPushTargets": "暂无可推送目标（请先在上方选择素材需求）",
-    "push": "推送",
     "runCanvas": "运行画布",
     "newCanvasDefaultName": "新画布",
     "canvasList": "画布列表",
@@ -3895,8 +3896,15 @@
       "default": "Movscript"
     },
     "theme": {
+      "select": "主题",
       "light": "切换到浅色模式",
-      "dark": "切换到深色模式"
+      "dark": "切换到深色模式",
+      "options": {
+        "dark": "深色",
+        "light": "浅色",
+        "graphite": "石墨",
+        "studio": "工作室"
+      }
     },
     "language": "语言"
   },

@@ -1,0 +1,39 @@
+.creative-reference-card__visual {
+  height: 80px;
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.creative-reference-card__visual-inner {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.creative-reference-card__icon {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-md);
+}
+
+.creative-reference-card__usage {
+  text-align: right;
+}
+
+.creative-reference-card__version {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: var(--ms-leading-label);
+}
+
+.creative-reference-card__usage-count {
+  margin-top: 4px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}

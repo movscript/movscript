@@ -1,0 +1,45 @@
+.workbench-context-stack {
+  overflow: hidden;
+  padding: 0;
+}
+
+.workbench-context-stack__row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  padding: 8px 10px;
+}
+
+.workbench-context-stack__row:last-child {
+  border-bottom: 0;
+}
+
+.workbench-context-stack__label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.workbench-context-stack__icon {
+  flex-shrink: 0;
+}
+
+.workbench-context-stack__label-text,
+.workbench-context-stack__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-context-stack__value {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 20px;
+}

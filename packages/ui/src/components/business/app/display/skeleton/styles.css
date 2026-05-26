@@ -1,0 +1,13 @@
+.app-skeleton {
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-muted);
+}
+
+.app-skeleton[data-variant="block"] {
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 30%, transparent);
+}
+
+.app-skeleton[data-variant="line-muted"] {
+  background: color-mix(in srgb, var(--ms-color-muted) 70%, transparent);
+}

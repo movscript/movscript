@@ -1,0 +1,39 @@
+.ms-agent-diagnostic-card {
+  margin-top: 4px;
+  padding: 10px;
+  font-size: var(--ms-text-label);
+}
+
+.ms-agent-diagnostic-card > * + * {
+  margin-top: 8px;
+}
+
+.ms-agent-diagnostic-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ms-agent-diagnostic-card__header-body {
+  min-width: 0;
+}
+
+.ms-agent-diagnostic-card__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ms-color-foreground);
+  font-weight: 600;
+}
+
+.ms-agent-diagnostic-card__description {
+  margin-top: 2px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-body);
+}
+
+.ms-agent-diagnostic-card__action {
+  flex: 0 0 auto;
+}

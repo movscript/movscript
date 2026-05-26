@@ -1,0 +1,18 @@
+.ai-agent-panel-tab-context-menu-anchor {
+  position: fixed;
+  z-index: 1000;
+  width: 1px;
+  height: 1px;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ai-agent-panel-tab-context-dropdown {
+  width: 208px;
+}
+
+.ai-agent-panel-tab-context-menu-danger {
+  color: var(--ms-color-danger);
+}

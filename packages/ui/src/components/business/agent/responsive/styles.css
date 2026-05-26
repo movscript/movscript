@@ -1,0 +1,78 @@
+@keyframes ms-agent-pulse {
+  0%,
+  100% {
+    opacity: 0.46;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1024px) {
+  .ms-agent-shell:has(.ms-agent-context) {
+    grid-template-columns: minmax(198px, 240px) minmax(0, 1fr);
+  }
+
+  .ms-agent-context {
+    display: none;
+  }
+
+  .ms-agent-work-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ms-agent-work-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .ms-agent-shell,
+  .ms-agent-shell:has(.ms-agent-context) {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .ms-agent-sidebar {
+    display: none;
+  }
+
+  .ms-agent-header {
+    min-height: 58px;
+    padding: 10px 12px;
+  }
+
+  .ms-agent-thread {
+    gap: 14px;
+    padding: 16px 12px;
+  }
+
+  .ms-agent-message__body {
+    max-width: calc(100% - 40px);
+  }
+
+  .ms-agent-composer {
+    margin: 0 10px 10px;
+  }
+
+  .ms-agent-run-card__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ms-agent-work-surface {
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .ms-agent-work-header,
+  .ms-agent-commandbar {
+    padding-inline: 10px;
+  }
+
+  .ms-agent-work-lane {
+    padding: 10px;
+  }
+}

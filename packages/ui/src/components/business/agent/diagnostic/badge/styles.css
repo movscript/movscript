@@ -1,0 +1,5 @@
+.ms-agent-diagnostic-badge {
+  padding: 0 4px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}

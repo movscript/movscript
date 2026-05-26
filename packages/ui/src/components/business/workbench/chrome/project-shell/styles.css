@@ -1,0 +1,117 @@
+.workbench-project-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ms-color-background);
+}
+
+.workbench-project-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding: 12px 20px;
+}
+
+.workbench-project-header__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workbench-project-header__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.workbench-project-header__icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
+  color: var(--ms-color-primary);
+}
+
+.workbench-project-header__copy {
+  min-width: 0;
+}
+
+.workbench-project-header__kicker {
+  margin: 0 0 2px;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-project-header__title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-project-header__description {
+  max-width: 64rem;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-project-header__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.workbench-project-header__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.workbench-project-header__body {
+  margin-top: 12px;
+  border-top: 1px solid var(--ms-color-border);
+  padding-top: 12px;
+}
+
+.workbench-project-header__refresh-icon,
+.workbench-project-header__action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.workbench-project-header__refresh-icon.is-spinning {
+  animation: ms-workbench-spin 1s linear infinite;
+}
+
+@keyframes ms-workbench-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

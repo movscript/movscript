@@ -1,0 +1,73 @@
+.canvas-node-port-list {
+  padding: var(--ms-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 60%, transparent);
+  background: color-mix(in srgb, var(--ms-color-muted) 15%, transparent);
+}
+
+.canvas-node-port-list__items {
+  display: grid;
+  gap: var(--ms-space-1);
+}
+
+.canvas-node-port-row {
+  position: relative;
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--ms-space-3);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.canvas-node-port-row[data-alignment="end"] {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.canvas-node-port-row[data-alignment="center"] {
+  justify-content: center;
+  text-align: center;
+}
+
+.canvas-node-port-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-node-port-content[data-alignment="end"] {
+  justify-content: flex-end;
+}
+
+.canvas-node-port-content[data-alignment="center"] {
+  justify-content: center;
+  padding-inline: var(--ms-space-1);
+}
+
+.canvas-node-port-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-node-port-required-mark {
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-danger) 12%, transparent);
+  padding: 2px var(--ms-space-1);
+  color: var(--ms-color-danger);
+  line-height: 1;
+}
+
+.canvas-node-port-meta {
+  flex-shrink: 0;
+  padding: 2px var(--ms-space-1);
+  line-height: 1;
+}

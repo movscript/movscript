@@ -1,0 +1,32 @@
+.jobs-pager {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding: 12px 20px;
+}
+
+.jobs-pager__status {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+}
+
+.jobs-pager__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jobs-pager-button {
+  color: var(--ms-color-muted-foreground);
+}
+
+.jobs-pager-button:hover {
+  color: var(--ms-color-foreground);
+}
+
+.jobs-pager-button:disabled:hover {
+  color: var(--ms-color-muted-foreground);
+}

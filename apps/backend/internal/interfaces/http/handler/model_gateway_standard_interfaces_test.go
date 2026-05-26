@@ -50,6 +50,31 @@ func TestResponsesToolsNormalizeToChatCompletionsShape(t *testing.T) {
 	}
 }
 
+func TestGatewayUsageShapesIncludeTokenDetails(t *testing.T) {
+	usage := ai.TokenUsage{
+		InputTokens:       14110,
+		OutputTokens:      244,
+		CachedInputTokens: 12000,
+		ReasoningTokens:   19,
+	}
+
+	chatUsage := chatUsageFromTokenUsage(usage)
+	if chatUsage.PromptTokens != 14110 || chatUsage.CompletionTokens != 244 || chatUsage.TotalTokens != 14354 {
+		t.Fatalf("chat usage totals = %#v", chatUsage)
+	}
+	if chatUsage.PromptTokensDetails.CachedTokens != 12000 || chatUsage.CompletionTokensDetails.ReasoningTokens != 19 {
+		t.Fatalf("chat usage details = %#v", chatUsage)
+	}
+
+	responsesUsage := responsesUsageFromTokenUsage(usage)
+	if responsesUsage.InputTokens != 14110 || responsesUsage.OutputTokens != 244 || responsesUsage.TotalTokens != 14354 {
+		t.Fatalf("responses usage totals = %#v", responsesUsage)
+	}
+	if responsesUsage.InputTokensDetails.CachedTokens != 12000 || responsesUsage.OutputTokensDetails.ReasoningTokens != 19 {
+		t.Fatalf("responses usage details = %#v", responsesUsage)
+	}
+}
+
 func TestAnthropicMessagePartsNormalizeToolUseAndToolResult(t *testing.T) {
 	text, calls, results, err := anthropicMessageParts(json.RawMessage(`[
 		{"type":"text","text":"checking"},

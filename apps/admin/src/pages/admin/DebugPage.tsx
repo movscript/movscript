@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
+import { AppCodeBlock } from '@movscript/ui'
+import { AppFeedbackText } from '@movscript/ui'
+import { AppInlineError } from '@movscript/ui'
+import { AppStatusSurface } from '@movscript/ui'
+import { StatusBadge, type StatusBadgeProps } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { PaginationControls } from '@/components/admin/PaginationControls'
 import { useTranslation } from 'react-i18next'
@@ -124,7 +129,11 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
       onClick={copy}
       className={cn('flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors', className)}
     >
-      {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+      {copied ? (
+        <AppFeedbackText as="span" tone="success" className="inline-flex">
+          <Check size={11} />
+        </AppFeedbackText>
+      ) : <Copy size={11} />}
       {copied ? t('admin.debug.copied') : t('admin.debug.copy')}
     </button>
   )
@@ -353,14 +362,14 @@ function LLMCallLogsSection() {
       </div>
 
       {queryError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(queryError)}
-        </div>
+        </AppInlineError>
       )}
       {settingsMutation.error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(settingsMutation.error)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -431,10 +440,10 @@ function LLMCallLogsSection() {
                       <div className="text-muted-foreground">{item.operation_type}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <span className={cn('rounded-full px-2 py-0.5 font-medium', item.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300')}>
+                      <StatusBadge intent={item.status === 'error' ? 'danger' : 'success'}>
                         {item.status}
-                      </span>
-                      {item.error && <div className="mt-1 max-w-[220px] truncate text-destructive">{item.error}</div>}
+                      </StatusBadge>
+                      {item.error && <AppFeedbackText as="div" className="mt-1 max-w-[220px] truncate">{item.error}</AppFeedbackText>}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">{item.input_tokens.toLocaleString()} / {item.output_tokens.toLocaleString()}</td>
                     <td className="px-3 py-2 text-muted-foreground">{item.latency_ms}ms</td>
@@ -509,12 +518,16 @@ function DebugJSONPanel({ title, raw }: { title: string; raw: string }) {
   )
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  pending:   'bg-muted text-muted-foreground',
-  running:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  succeeded: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  failed:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  cancelled: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+const STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
+  pending: 'neutral',
+  running: 'info',
+  succeeded: 'success',
+  failed: 'danger',
+  cancelled: 'warning',
+}
+
+function debugHttpStatusIntent(status: number): StatusBadgeProps['intent'] {
+  return status < 400 ? 'success' : 'danger'
 }
 
 type HTTPMetricsSnapshot = {
@@ -697,23 +710,17 @@ function SystemOverviewSection() {
         </button>
       </div>
 
-      <div className={cn(
-        'rounded-lg border bg-card p-4',
-        health?.status === 'critical' ? 'border-destructive/40' : health?.status === 'warning' ? 'border-amber-500/40' : 'border-border',
-      )}>
+      <AppStatusSurface
+        tone={health?.status === 'critical' ? 'danger' : health?.status === 'warning' ? 'warning' : 'neutral'}
+        emphasis="outline"
+        className="bg-card p-4"
+      >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={cn(
-                'rounded-full px-2 py-0.5 text-xs font-medium',
-                health?.status === 'critical'
-                  ? 'bg-destructive/10 text-destructive'
-                  : health?.status === 'warning'
-                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                    : 'bg-green-500/10 text-green-600 dark:text-green-400',
-              )}>
-                {t(`admin.debug.system.healthStatus.${health?.status ?? 'ok'}`)}
-              </span>
+                <StatusBadge intent={health?.status === 'critical' ? 'danger' : health?.status === 'warning' ? 'warning' : 'success'} className="text-xs">
+                  {t(`admin.debug.system.healthStatus.${health?.status ?? 'ok'}`)}
+                </StatusBadge>
               <p className="text-sm font-medium text-foreground">{t('admin.debug.system.healthTitle')}</p>
             </div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -775,7 +782,7 @@ function SystemOverviewSection() {
             </div>
           </div>
         </div>
-      </div>
+      </AppStatusSurface>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -807,9 +814,9 @@ function SystemOverviewSection() {
       </div>
 
       {(metricsQuery.error || jobStatsQuery.error || healthQuery.error || healthSettingsQuery.error || healthSettingsMutation.error) && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(metricsQuery.error || jobStatsQuery.error || healthQuery.error || healthSettingsQuery.error || healthSettingsMutation.error)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
@@ -866,9 +873,9 @@ function SystemOverviewSection() {
                     className="block space-y-1 rounded-md px-2 py-1 transition-colors hover:bg-muted/60"
                   >
                     <div className="flex items-center justify-between gap-3 text-xs">
-                      <span className={cn('rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[status])}>
+                      <StatusBadge intent={STATUS_INTENT[status] ?? 'neutral'}>
                         {t(`pages.jobs.status.${status}`, { defaultValue: status })}
-                      </span>
+                      </StatusBadge>
                       <span className="font-mono text-muted-foreground">{formatCompactNumber(count)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted">
@@ -914,9 +921,9 @@ function SystemOverviewSection() {
           ) : jobStats?.recent_failed.map((job) => (
             <div key={job.ID} className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[80px_110px_minmax(0,1fr)_auto_auto] md:items-center">
               <span className="font-mono text-muted-foreground">#{job.ID}</span>
-              <span className={cn('w-fit rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
+              <StatusBadge intent={STATUS_INTENT[job.status] ?? 'neutral'} className="w-fit">
                 {t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })}
-              </span>
+              </StatusBadge>
               <span className="min-w-0 truncate text-foreground">{job.error_msg || job.prompt || t('admin.debug.noPrompt')}</span>
               <span className="font-mono text-muted-foreground">{formatDateTime(job.UpdatedAt || job.CreatedAt)}</span>
               <div className="flex flex-wrap justify-start gap-1 md:justify-end">
@@ -958,17 +965,16 @@ function HealthThresholdInput({ label, value, onChange, suffix }: { label: strin
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'default' }: { icon: LucideIcon; label: string; value: string; detail: string; tone?: 'default' | 'warning' | 'danger' }) {
   return (
-    <div className={cn(
-      'rounded-lg border bg-card p-4',
-      tone === 'danger' ? 'border-destructive/30' : tone === 'warning' ? 'border-amber-500/30' : 'border-border',
-    )}>
+    <AppStatusSurface tone={tone === 'default' ? 'neutral' : tone} emphasis="outline" className="bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <Icon size={15} className={cn(tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-amber-500' : 'text-muted-foreground')} />
+        <AppFeedbackText as="span" tone={tone === 'default' ? 'neutral' : tone} className="inline-flex">
+          <Icon size={15} />
+        </AppFeedbackText>
       </div>
       <p className="mt-2 text-2xl font-semibold tracking-normal text-foreground">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
+    </AppStatusSurface>
   )
 }
 
@@ -1009,7 +1015,9 @@ function StateTimeline({ trace }: { trace: JobStateTraceEntry[] }) {
         return (
           <div key={`${entry.state}-${index}`} className="grid grid-cols-[18px_1fr_auto] gap-2 text-xs">
             <div className="pt-0.5">
-              <Icon size={14} className={cn(isFailed ? 'text-red-500' : isRunning ? 'text-blue-500 animate-pulse' : 'text-green-500')} />
+              <AppFeedbackText as="span" tone={isFailed ? 'danger' : isRunning ? 'info' : 'success'} className={cn('inline-flex', isRunning && 'animate-pulse')}>
+                <Icon size={14} />
+              </AppFeedbackText>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 min-w-0">
@@ -1017,9 +1025,9 @@ function StateTimeline({ trace }: { trace: JobStateTraceEntry[] }) {
                 <span className="font-mono text-muted-foreground truncate">{entry.state}</span>
               </div>
               {(entry.message || entry.error) && (
-                <p className={cn('mt-0.5 break-all', entry.error ? 'text-destructive' : 'text-muted-foreground')}>
+                <AppFeedbackText tone={entry.error ? 'danger' : 'neutral'} className="mt-0.5 break-all">
                   {entry.error || entry.message}
-                </p>
+                </AppFeedbackText>
               )}
             </div>
             <div className="text-right text-muted-foreground font-mono">
@@ -1093,12 +1101,12 @@ function HttpExchange({ method, url, headers, body, promptName, systemPrompt, us
       {(responseStatus !== undefined || latencyMs !== undefined) && (
         <div className="flex items-center gap-2">
           {responseStatus !== undefined && responseStatus > 0 && (
-            <span className={cn('px-1.5 py-0.5 rounded font-medium', responseStatus < 400 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
+            <StatusBadge intent={debugHttpStatusIntent(responseStatus)}>
               HTTP {responseStatus}
-            </span>
+            </StatusBadge>
           )}
           {latencyMs !== undefined && <span className="text-muted-foreground">{latencyMs}ms</span>}
-          {error && <span className="text-destructive truncate">{error}</span>}
+          {error && <AppFeedbackText as="span" className="truncate">{error}</AppFeedbackText>}
         </div>
       )}
 
@@ -1128,7 +1136,7 @@ function HttpExchange({ method, url, headers, body, promptName, systemPrompt, us
             <p className="text-muted-foreground font-sans">{t('admin.debug.curlCommand')}</p>
             <CopyButton text={curlCmd} />
           </div>
-          <pre className="bg-zinc-900 text-zinc-100 dark:bg-zinc-950 rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
+          <pre className="bg-foreground text-background rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
             {curlCmd}
           </pre>
         </div>
@@ -1140,9 +1148,18 @@ function HttpExchange({ method, url, headers, body, promptName, systemPrompt, us
             <p className="text-muted-foreground font-sans">{t('admin.debug.responseBody')}</p>
             <CopyButton text={tryFormatJSON(responseBody)} />
           </div>
-          <pre className={cn('rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-60', (responseStatus ?? 0) < 400 ? 'bg-muted' : 'bg-red-50 dark:bg-red-900/10')}>
-            {tryFormatJSON(responseBody)}
-          </pre>
+          <AppCodeBlock
+            className={cn('rounded p-2 text-xs max-h-60', (responseStatus ?? 0) < 400 ? 'bg-muted' : 'bg-transparent')}
+            asChild={(responseStatus ?? 0) >= 400}
+          >
+            {(responseStatus ?? 0) >= 400 ? (
+              <AppStatusSurface tone="danger" className="p-2">
+                {tryFormatJSON(responseBody)}
+              </AppStatusSurface>
+            ) : (
+              tryFormatJSON(responseBody)
+            )}
+          </AppCodeBlock>
         </div>
       )}
 
@@ -1475,10 +1492,10 @@ function JobMonitorSection() {
       )}
 
       {jobActionError && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError className="flex items-start gap-2">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>{jobActionError}</span>
-        </div>
+        </AppInlineError>
       )}
 
       <div className="space-y-2">
@@ -1498,19 +1515,23 @@ function JobMonitorSection() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-mono text-muted-foreground">#{job.ID}</span>
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
+                    <StatusBadge intent={STATUS_INTENT[job.status] ?? 'neutral'} className="text-xs">
                       {t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })}
-                    </span>
+                    </StatusBadge>
                     {job.execution_state && (
                       <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">
                         {STATE_LABEL_KEYS[job.execution_state] ? t(STATE_LABEL_KEYS[job.execution_state]) : job.execution_state}
                       </span>
                     )}
                     <span className="text-xs px-1.5 py-0.5 rounded border border-border text-muted-foreground">{job.job_type}</span>
-                    {hasDebug && <span className="text-xs text-amber-500 flex items-center gap-0.5"><Bug size={10} /> {t('admin.debug.debugMark')}</span>}
+                    {hasDebug && (
+                      <AppFeedbackText as="span" tone="warning" className="flex items-center gap-0.5">
+                        <Bug size={10} /> {t('admin.debug.debugMark')}
+                      </AppFeedbackText>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">{job.prompt || t('admin.debug.noPrompt')}</p>
-                  {job.error_msg && <p className="text-xs text-destructive mt-0.5 truncate">{job.error_msg}</p>}
+                  {job.error_msg && <AppFeedbackText className="mt-0.5 truncate">{job.error_msg}</AppFeedbackText>}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-xs text-muted-foreground">{new Date(job.CreatedAt).toLocaleString()}</p>
@@ -1530,28 +1551,32 @@ function JobMonitorSection() {
                     </button>
                   )}
                   {canCancel && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      intent="danger"
                       onClick={(event) => runJobAction(event, job, 'cancel')}
                       disabled={jobAction.isPending}
-                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
                       title={t('admin.debug.jobs.cancel')}
                       aria-label={t('admin.debug.jobs.cancel')}
                     >
                       <XCircle size={13} />
-                    </button>
+                    </Button>
                   )}
                   {canDelete && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      intent="danger"
                       onClick={(event) => runJobAction(event, job, 'delete')}
                       disabled={jobAction.isPending}
-                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
                       title={t('admin.debug.jobs.delete')}
                       aria-label={t('admin.debug.jobs.delete')}
                     >
                       <Trash2 size={13} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {isExpanded ? <ChevronDown size={14} className="text-muted-foreground shrink-0" /> : <ChevronRight size={14} className="text-muted-foreground shrink-0" />}
@@ -1605,7 +1630,7 @@ function JobMonitorSection() {
                         <span className="font-mono">{job.output_resource.name}</span>
                         <span className="text-muted-foreground">{job.output_resource.type}</span>
                         {job.output_resource.url && (
-                          <a href={job.output_resource.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{t('admin.debug.view')}</a>
+                          <a href={job.output_resource.url} target="_blank" rel="noreferrer" className="text-info hover:underline">{t('admin.debug.view')}</a>
                         )}
                       </div>
                     </div>
@@ -1735,7 +1760,7 @@ function ModelConnectivitySection() {
         <p className="text-sm font-medium text-foreground">{t('admin.debug.connectivity.title')}</p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {t('admin.debug.connectivity.description')}
-          <span className="text-amber-600 dark:text-amber-400 ml-1">{t('admin.debug.connectivity.costWarning')}</span>
+          <AppFeedbackText as="span" tone="warning" className="ml-1">{t('admin.debug.connectivity.costWarning')}</AppFeedbackText>
         </p>
       </div>
 
@@ -1776,16 +1801,16 @@ function ModelConnectivitySection() {
               {isExpanded && state && !state.loading && state.result && (
                 <div className="border-t border-border px-4 py-3 bg-card">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', state.result.success ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
+                    <StatusBadge intent={state.result.success ? 'success' : 'danger'} className="text-xs">
                       {state.result.success ? t('admin.debug.success') : t('admin.debug.failed')}
-                    </span>
+                    </StatusBadge>
                     {state.result.response_status > 0 && (
-                      <span className={cn('text-xs px-1.5 py-0.5 rounded', state.result.response_status < 400 ? 'bg-muted' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
+                      <StatusBadge intent={debugHttpStatusIntent(state.result.response_status)} className="text-xs">
                         HTTP {state.result.response_status}
-                      </span>
+                      </StatusBadge>
                     )}
                     <span className="text-xs text-muted-foreground">{state.result.latency_ms}ms</span>
-                    {state.result.error && <span className="text-xs text-destructive truncate">{state.result.error}</span>}
+                    {state.result.error && <AppFeedbackText as="span" className="truncate">{state.result.error}</AppFeedbackText>}
                   </div>
                     <HttpExchange
                       method={state.result.method}
@@ -2155,7 +2180,7 @@ function ProviderSandboxSection() {
               <div>
                 <p className="text-muted-foreground font-sans text-xs mb-1">{t('admin.debug.sandbox.endpoint')}</p>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium text-xs font-sans">
+                  <span className="px-1.5 py-0.5 rounded bg-info/10 text-info font-medium text-xs font-sans">
                     {preview?.method || 'POST'}
                   </span>
                   <span className="text-foreground break-all">
@@ -2189,7 +2214,7 @@ function ProviderSandboxSection() {
                     <p className="text-muted-foreground font-sans text-xs">{t('admin.debug.curlCommand')}</p>
                     <CopyButton text={previewCurl} />
                   </div>
-                  <pre className="bg-zinc-900 text-zinc-100 dark:bg-zinc-950 rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
+                  <pre className="bg-foreground text-background rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-40">
                     {previewCurl}
                   </pre>
                 </div>
@@ -2201,16 +2226,13 @@ function ProviderSandboxSection() {
           {result && (
             <div className="border border-border rounded-lg bg-card overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/40">
-                <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
-                  result.success ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
+                <StatusBadge intent={result.success ? 'success' : 'danger'} className="text-xs">
                   {result.success ? t('admin.debug.success') : t('admin.debug.failed')}
-                </span>
+                </StatusBadge>
                 {result.response_status > 0 && (
-                  <span className={cn('text-xs px-1.5 py-0.5 rounded',
-                    result.response_status < 400 ? 'bg-muted' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300')}>
+                  <StatusBadge intent={debugHttpStatusIntent(result.response_status)} className="text-xs">
                     HTTP {result.response_status}
-                  </span>
+                  </StatusBadge>
                 )}
                 <span className="text-xs text-muted-foreground">{result.latency_ms}ms</span>
                 <span className="text-xs font-mono text-muted-foreground/70">{result.model_id}</span>

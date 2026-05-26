@@ -13,9 +13,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@movscript/drafts': resolve(__dirname, '../../packages/drafts/src/index.ts'),
-      '@movscript/tokens/theme.css': resolve(__dirname, '../../packages/tokens/src/theme.css'),
+      '@movscript/theme/theme.css': resolve(__dirname, '../../packages/theme/src/theme.css'),
       '@movscript/ui/styles.css': resolve(__dirname, '../../packages/ui/src/styles.css'),
-      '@movscript/tokens': resolve(__dirname, '../../packages/tokens/src/index.ts'),
+      '@movscript/theme': resolve(__dirname, '../../packages/theme/src/index.ts'),
       '@movscript/ui': resolve(__dirname, '../../packages/ui/src/index.ts'),
       '@': resolve(__dirname, 'src'),
       '@admin': resolve(__dirname, 'src'),

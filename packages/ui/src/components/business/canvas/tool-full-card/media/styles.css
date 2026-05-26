@@ -1,0 +1,22 @@
+.canvas-tool-full-output {
+  overflow: hidden;
+  border-radius: var(--ms-radius-md);
+}
+
+.canvas-tool-full-output > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.canvas-tool-full-output--history {
+  border-radius: 0;
+}
+
+.canvas-tool-full-output--history > * {
+  height: 128px;
+}
+
+.canvas-tool-full-output--current > * {
+  height: 288px;
+}

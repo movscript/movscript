@@ -1,0 +1,64 @@
+.ms-agent-tool {
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 36%, var(--ms-color-surface));
+}
+
+.ms-agent-tool__header {
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.ms-agent-tool__state {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: var(--ms-radius-full);
+  background: currentColor;
+}
+
+.ms-agent-tool__title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.ms-agent-tool__meta {
+  margin-left: auto;
+  font-size: var(--ms-text-label);
+  line-height: 16px;
+}
+
+.ms-agent-tool__content {
+  padding: 10px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.ms-agent-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ms-agent-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.ms-agent-step::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  margin-top: 6px;
+  border-radius: var(--ms-radius-full);
+  background: currentColor;
+}

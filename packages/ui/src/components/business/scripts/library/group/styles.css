@@ -1,0 +1,28 @@
+.script-library-group + .script-library-group {
+  margin-top: 16px;
+}
+
+.script-library-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 4px;
+}
+
+.script-library-group__label {
+  margin: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 600;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.script-library-group__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

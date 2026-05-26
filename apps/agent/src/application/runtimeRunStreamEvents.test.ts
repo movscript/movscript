@@ -34,12 +34,12 @@ test('recordRuntimeRunTraceEvent persists trace and emits derived assistant stre
 
   assert.equal(trace.id, 'trace_1')
   assert.equal(store.listRunTraceEvents(run.id).length, 1)
-  assert.deepEqual(events.map((event) => event.type), ['trace', 'assistant_delta', 'assistant_message'])
-  assert.equal(events[1]?.type === 'assistant_delta' ? events[1].delta : undefined, 'd')
+  assert.deepEqual(events.map((event) => event.type), ['trace', 'assistant_progress', 'assistant_message'])
+  assert.equal(events[1]?.type === 'assistant_progress' ? events[1].delta : undefined, 'd')
   assert.equal(events[2]?.type === 'assistant_message' ? events[2].message.id : undefined, assistant.id)
 })
 
-test('emitRuntimeVolatileTraceEvent emits transient tool traces and assistant deltas without persistence', () => {
+test('emitRuntimeVolatileTraceEvent emits transient tool traces and assistant progress without persistence', () => {
   const run = makeRun()
   const events: AgentInternalRunSignal[] = []
 
@@ -60,12 +60,12 @@ test('emitRuntimeVolatileTraceEvent emits transient tool traces and assistant de
     emitRunStreamEvent: (_runId, event) => events.push(event),
   })
 
-  assert.deepEqual(events.map((event) => event.type), ['trace', 'assistant_delta'])
+  assert.deepEqual(events.map((event) => event.type), ['trace', 'assistant_progress'])
   assert.equal(events[0]?.type === 'trace' ? events[0].event.id : undefined, 'trace_live_tool_a')
-  assert.equal(events[1]?.type === 'assistant_delta' ? events[1].accumulated : undefined, 'xy')
+  assert.equal(events[1]?.type === 'assistant_progress' ? events[1].accumulated : undefined, 'xy')
 })
 
-test('emitRuntimeVolatileTraceEvent emits transient reasoning traces without assistant content deltas', () => {
+test('emitRuntimeVolatileTraceEvent emits transient reasoning traces without assistant content progress', () => {
   const run = makeRun()
   const events: AgentInternalRunSignal[] = []
 
@@ -93,7 +93,7 @@ test('emitRuntimeVolatileTraceEvent emits transient reasoning traces without ass
   })
 })
 
-test('replayRuntimeRunStream replays snapshot, title, trace deltas, assistant message, and done', () => {
+test('replayRuntimeRunStream replays snapshot, title, trace progress, assistant message, and done', () => {
   const store = new InMemoryAgentStore()
   const run = { ...makeRun(), status: 'completed' as const, assistantMessageId: 'msg_assistant' }
   const assistant = makeMessage({ id: 'msg_assistant', role: 'assistant', content: 'complete', runId: run.id })
@@ -116,7 +116,7 @@ test('replayRuntimeRunStream replays snapshot, title, trace deltas, assistant me
 
   replayRuntimeRunStream({ run, store, listener: (event) => events.push(event) })
 
-  assert.deepEqual(events.map((event) => event.type), ['run', 'thread_title', 'trace', 'assistant_delta', 'assistant_message', 'done'])
+  assert.deepEqual(events.map((event) => event.type), ['run', 'thread_title', 'trace', 'assistant_progress', 'assistant_message', 'done'])
   assert.equal(events[1]?.type === 'thread_title' ? events[1].title : undefined, 'Thread title')
   assert.equal(events[4]?.type === 'assistant_message' ? events[4].message.id : undefined, assistant.id)
 })

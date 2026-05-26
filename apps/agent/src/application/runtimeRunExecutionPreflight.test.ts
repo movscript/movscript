@@ -84,12 +84,43 @@ test('prepareRuntimeRunExecutionPreflight checks cancellation, resolves title so
   assert.equal(result.titleUser?.content, 'frozen user request')
   assert.equal(result.catalogSnapshot?.id, 'catalog_1')
   assert.deepEqual(checked, ['run_1'])
+  await waitFor(() => titles.length === 1)
   assert.deepEqual(titles, [{
     threadId: 'thread_1',
     content: 'frozen user request',
     auth: 'token_1',
     runId: 'run_1',
   }])
+})
+
+test('prepareRuntimeRunExecutionPreflight schedules title generation without blocking execution', async () => {
+  const store = new InMemoryAgentStore()
+  const user = makeMessage({ id: 'msg_1', content: 'slow title source' })
+  const thread = makeThread({ messages: [user] })
+  const run = makeRun()
+  store.createThread(thread)
+  store.createRun(run)
+  let titleStarted = false
+  let finishTitle!: () => void
+
+  const result = await prepareRuntimeRunExecutionPreflight({
+    runId: run.id,
+    store,
+    catalogSnapshots: fakeCatalogSnapshots(),
+    getAuth: () => ({}),
+    throwIfRunCancelled: () => {},
+    ensureThreadTitle: async () => {
+      titleStarted = true
+      await new Promise<void>((resolve) => {
+        finishTitle = resolve
+      })
+    },
+  })
+
+  assert.equal(result.skipped, false)
+  await waitFor(() => titleStarted)
+  assert.equal(titleStarted, true)
+  finishTitle()
 })
 
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
@@ -136,6 +167,14 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function fakeCatalogSnapshots(snapshot = makeCatalogSnapshot('catalog_default')): { getForRun(runId: string): AgentRuntimeCatalogSnapshot } {
   return {
     getForRun: () => snapshot,
+  }
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1000
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('condition was not met')
+    await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }
 

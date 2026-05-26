@@ -1,36 +1,38 @@
 import { useState, useEffect, useCallback } from 'react'
-
-type Theme = 'dark' | 'light'
-
-const STORAGE_KEY = 'movscript-theme'
-const DEFAULT_THEME: Theme = 'dark'
-
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute('data-theme', theme)
-}
+import {
+  applyMovScriptTheme,
+  getMovScriptThemeMeta,
+  initMovScriptTheme,
+  nextMovScriptThemeName,
+  readMovScriptTheme,
+  setMovScriptTheme,
+  type MovScriptThemeName,
+} from '@movscript/theme'
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem(STORAGE_KEY) as Theme) ?? DEFAULT_THEME
-  })
+  const [theme, setThemeState] = useState<MovScriptThemeName>(() => readMovScriptTheme())
 
   useEffect(() => {
-    applyTheme(theme)
+    applyMovScriptTheme(theme)
   }, [theme])
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {
-      const next: Theme = prev === 'dark' ? 'light' : 'dark'
-      localStorage.setItem(STORAGE_KEY, next)
-      return next
+      return setMovScriptTheme(nextMovScriptThemeName(prev))
     })
   }, [])
 
-  return { theme, toggleTheme }
+  const nextTheme = nextMovScriptThemeName(theme)
+  return {
+    theme,
+    themeMeta: getMovScriptThemeMeta(theme),
+    nextTheme,
+    nextThemeMeta: getMovScriptThemeMeta(nextTheme),
+    toggleTheme,
+  }
 }
 
 /** Call once before React mounts to avoid flash of wrong theme */
 export function initTheme() {
-  const saved = localStorage.getItem(STORAGE_KEY) as Theme | null
-  applyTheme(saved ?? DEFAULT_THEME)
+  initMovScriptTheme()
 }

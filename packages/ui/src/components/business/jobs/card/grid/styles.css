@@ -1,0 +1,38 @@
+.job-grid-caption {
+  padding: 6px 8px;
+}
+
+.job-grid-title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-grid-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 2px 0 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 1.45;
+}
+
+.job-grid-caption .job-context-bar {
+  margin-top: 4px;
+  border-bottom: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.job-grid-caption .job-timestamp {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ms-text-tiny);
+}

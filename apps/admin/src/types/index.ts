@@ -240,6 +240,8 @@ export interface UsageLog {
   operation_type: string
   input_tokens: number
   output_tokens: number
+  cached_input_tokens: number
+  reasoning_tokens: number
   duration_sec: number
   image_count: number
   cost: number
@@ -268,6 +270,8 @@ export interface LLMCallLog {
   latency_ms: number
   input_tokens: number
   output_tokens: number
+  cached_input_tokens: number
+  reasoning_tokens: number
   request_json?: string
   response_json?: string
   payload_truncated?: boolean

@@ -1,0 +1,7 @@
+.app-code-block {
+  margin: 0;
+  font-family: var(--ms-font-mono);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,29 @@
+.ms-agent-activity-divider-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.group:hover .ms-agent-activity-divider-actions,
+.ms-agent-activity-divider-actions:focus-within {
+  opacity: 1;
+}
+
+.ms-agent-activity-menu-button {
+  width: 24px;
+  height: 20px;
+  color: var(--ms-color-muted-foreground);
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.ms-agent-activity-menu-content {
+  width: 10rem;
+}
+
+.ms-agent-activity-menu-icon {
+  display: inline-flex;
+  margin-right: 8px;
+}

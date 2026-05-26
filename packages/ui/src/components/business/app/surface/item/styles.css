@@ -1,0 +1,14 @@
+.app-surface-item {
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.app-surface-item[data-density="compact"] {
+  padding: 6px 8px;
+}
+
+.app-surface-item[data-variant="overlay"] {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-surface-raised) 50%, transparent);
+
+  padding: var(--ms-space-3);
+}

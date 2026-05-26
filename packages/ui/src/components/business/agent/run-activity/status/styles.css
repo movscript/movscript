@@ -1,0 +1,20 @@
+.ms-agent-run-activity-status {
+  flex: 0 0 auto;
+  border-radius: var(--ms-radius-sm);
+  padding: 2px 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: 1;
+}
+
+.ms-agent-run-activity-dot {
+  margin-top: 4px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+}
+
+.ms-agent-run-activity-chat-badge {
+  padding: 0 6px;
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}

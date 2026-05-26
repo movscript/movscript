@@ -1,0 +1,62 @@
+.app-progress-bar {
+  height: 6px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-muted);
+}
+
+.app-progress-bar[data-size="xs"] {
+  height: 2px;
+}
+
+.app-progress-bar[data-size="md"] {
+  height: 8px;
+}
+
+.app-progress-bar[data-tone="brand"] {
+  color: var(--ms-color-primary);
+}
+
+.app-progress-bar[data-tone="success"] {
+  color: var(--ms-color-success);
+}
+
+.app-progress-bar[data-tone="info"] {
+  color: var(--ms-color-info);
+}
+
+.app-progress-bar[data-tone="warning"] {
+  color: var(--ms-color-warning);
+}
+
+.app-progress-bar[data-tone="danger"] {
+  color: var(--ms-color-danger);
+}
+
+.app-progress-bar[data-tone="neutral"] {
+  color: var(--ms-color-muted-foreground);
+}
+
+.app-progress-bar__fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.app-progress-bar[data-indeterminate="true"] .app-progress-bar__fill {
+  width: 33.333%;
+  animation: app-progress-bar-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes app-progress-bar-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}

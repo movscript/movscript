@@ -1,0 +1,24 @@
+.ms-workbench-list {
+  display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
+  min-width: 0;
+}
+
+.workbench-list {
+  gap: 8px;
+}
+
+.ms-workbench-selectable {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.workbench-list-item {
+  padding: 10px;
+}
+
+.workbench-list-item[data-density="compact"] {
+  padding: 7px 8px;
+}

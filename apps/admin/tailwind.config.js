@@ -1,5 +1,10 @@
 import tailwindcssAnimate from 'tailwindcss-animate'
 
+const msColor = (variable) => ({ opacityValue }) => {
+  if (opacityValue === undefined) return `var(${variable})`
+  return `color-mix(in srgb, var(${variable}) calc(${opacityValue} * 100%), transparent)`
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['selector', '[data-theme="dark"]'],
@@ -10,50 +15,59 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        background: msColor('--ms-color-background'),
+        foreground: msColor('--ms-color-foreground'),
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: msColor('--ms-color-surface-raised'),
+          foreground: msColor('--ms-color-foreground'),
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: msColor('--ms-color-surface-raised'),
+          foreground: msColor('--ms-color-foreground'),
         },
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: msColor('--ms-color-primary'),
+          foreground: msColor('--ms-color-primary-foreground'),
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: msColor('--ms-color-muted'),
+          foreground: msColor('--ms-color-foreground'),
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: msColor('--ms-color-muted'),
+          foreground: msColor('--ms-color-muted-foreground'),
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: msColor('--ms-color-muted'),
+          foreground: msColor('--ms-color-foreground'),
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: msColor('--ms-color-danger'),
+          foreground: msColor('--ms-color-danger-foreground'),
         },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
+        info: {
+          DEFAULT: msColor('--ms-color-info'),
+        },
+        success: {
+          DEFAULT: msColor('--ms-color-success'),
+        },
+        warning: {
+          DEFAULT: msColor('--ms-color-warning'),
+        },
+        border: msColor('--ms-color-border'),
+        input: msColor('--ms-color-border'),
+        ring: msColor('--ms-color-primary'),
         sidebar: {
-          DEFAULT: 'hsl(var(--sidebar))',
-          border: 'hsl(var(--sidebar-border))',
-          foreground: 'hsl(var(--sidebar-foreground))',
-          muted: 'hsl(var(--sidebar-muted))',
+          DEFAULT: msColor('--ms-color-background'),
+          border: msColor('--ms-color-border'),
+          foreground: msColor('--ms-color-foreground'),
+          muted: msColor('--ms-color-muted-foreground'),
         },
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: '12px',
+        md: 'var(--ms-radius-md)',
+        sm: 'var(--ms-radius-sm)',
       },
       keyframes: {
         'accordion-down': {

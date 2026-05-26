@@ -86,7 +86,7 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnvCSV("MOVSCRIPT_CORS_ALLOWED_ORIGINS", defaultCORSAllowedOrigins()),
 		AdminStaticDir:     getEnv("MOVSCRIPT_ADMIN_DIR", "admin"),
 
-		CacheBackend:   getEnv("CACHE_BACKEND", "noop"),
+		CacheBackend:   getEnv("CACHE_BACKEND", "memory"),
 		CacheKeyPrefix: getEnv("CACHE_KEY_PREFIX", "movscript"),
 		RedisURL:       getEnv("REDIS_URL", ""),
 		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),

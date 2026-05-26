@@ -1,0 +1,21 @@
+.resource-candidate-attach__controls {
+  display: grid;
+  gap: 8px;
+}
+
+.resource-candidate-attach__controls:not([data-compact="true"]) {
+  grid-template-columns: 140px minmax(0, 1fr);
+}
+
+.resource-candidate-attach__target-select,
+.resource-candidate-attach__search {
+  min-width: 0;
+  height: 32px;
+  font-size: var(--ms-text-tiny);
+}
+
+@media (max-width: 639px) {
+  .resource-candidate-attach__controls:not([data-compact="true"]) {
+    grid-template-columns: 1fr;
+  }
+}

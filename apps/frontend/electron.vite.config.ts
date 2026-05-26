@@ -4,9 +4,10 @@ import { resolve } from 'path'
 
 const alias = {
   '@movscript/drafts': resolve('../../packages/drafts/src/index.ts'),
-  '@movscript/tokens/theme.css': resolve('../../packages/tokens/src/theme.css'),
+  '@movscript/theme/theme.css': resolve('../../packages/theme/src/theme.css'),
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
-  '@movscript/tokens': resolve('../../packages/tokens/src/index.ts'),
+  '@movscript/ui/style-system': resolve('../../packages/ui/src/style-system.ts'),
+  '@movscript/theme': resolve('../../packages/theme/src/index.ts'),
   '@movscript/ui': resolve('../../packages/ui/src/index.ts'),
   '@runtime': process.env.MOVSCRIPT_FRONTEND_RUNTIME_ENTRY
     ? resolve(process.env.MOVSCRIPT_FRONTEND_RUNTIME_ENTRY)

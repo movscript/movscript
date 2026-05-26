@@ -1,0 +1,38 @@
+.ms-agent-empty {
+  display: flex;
+  min-height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--ms-color-muted-foreground);
+  text-align: center;
+}
+
+.ms-agent-empty__icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-accent) 34%, color-mix(in srgb, var(--ms-color-border) 78%, transparent));
+  background: color-mix(in srgb, var(--ms-color-accent) 10%, var(--ms-color-surface));
+  color: var(--ms-color-accent);
+}
+
+.ms-agent-empty__icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.ms-agent-inline-empty {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ms-color-muted) 38%, transparent);
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: 1.25;
+  text-align: center;
+}

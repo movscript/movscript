@@ -1,0 +1,61 @@
+.jobs-filter-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding: 8px 20px;
+}
+
+.jobs-filter-group,
+.jobs-view-toggle {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.jobs-filter-divider {
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.jobs-view-toggle {
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-muted);
+  padding: 2px;
+}
+
+.jobs-filter-chip-button {
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-full);
+  white-space: nowrap;
+}
+
+.jobs-filter-chip-button[data-active="false"] {
+  color: var(--ms-color-muted-foreground);
+}
+
+.jobs-filter-chip-button[data-active="false"]:hover {
+  color: var(--ms-color-foreground);
+}
+
+.jobs-filter-chip-button__icon,
+.jobs-filter-chip-button__count {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.jobs-filter-chip-button__label {
+  min-width: 0;
+}
+
+.jobs-filter-chip-button__count {
+  color: inherit;
+  font-size: var(--ms-text-tiny);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}

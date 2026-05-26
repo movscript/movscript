@@ -1,0 +1,35 @@
+.work-mode-prompt {
+  width: 100%;
+}
+
+.work-mode-prompt__header {
+  max-width: 42rem;
+  margin-bottom: 32px;
+}
+
+.work-mode-prompt__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 38px;
+  letter-spacing: 0;
+}
+
+.work-mode-prompt__description {
+  margin: var(--ms-space-3) 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 24px;
+}
+
+.work-mode-prompt__grid {
+  display: grid;
+  gap: var(--ms-space-3);
+}
+
+@media (min-width: 768px) {
+  .work-mode-prompt__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,64 @@
+.project-page-action-button,
+.project-page-empty-state,
+.project-page-local-admin-prompt {
+  min-width: 0;
+}
+
+.project-page-local-admin-prompt {
+  margin-bottom: 20px;
+  display: block;
+  border-left-width: 2px;
+  padding: 12px 16px;
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
+}
+
+.project-page-local-admin-prompt__layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.project-page-local-admin-prompt__icon {
+  margin-top: 2px;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-color-primary);
+}
+
+.project-page-local-admin-prompt__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.project-page-local-admin-prompt__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-weight: 500;
+}
+
+.project-page-local-admin-prompt__description {
+  margin: 4px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 20px;
+}
+
+.project-page-local-admin-prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.project-page-local-admin-prompt__close {
+  color: var(--ms-color-muted-foreground);
+}
+
+.project-page-local-admin-prompt__close:hover {
+  color: var(--ms-color-foreground);
+}

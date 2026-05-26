@@ -3,11 +3,23 @@
   "version": "0.1.0",
   "description": "MovScript React UI primitives.",
   "sideEffects": [
-    "./src/styles.css"
+    "./src/base.css",
+    "./src/semantic.css",
+    "./src/styles.css",
+    "./src/components/primitives/styles.css",
+    "./src/components/primitives/**/*.css",
+    "./src/components/business/**/*.css",
+    "./src/components/layout/**/*.css"
   ],
   "files": [
     "dist",
-    "src/styles.css"
+    "src/base.css",
+    "src/semantic.css",
+    "src/styles.css",
+    "src/components/primitives/styles.css",
+    "src/components/primitives/**/*.css",
+    "src/components/business/**/*.css",
+    "src/components/layout/**/*.css"
   ],
   "exports": {
     ".": {
@@ -15,10 +27,14 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
+    "./style-system": {
+      "types": "./dist/style-system.d.mts",
+      "import": "./dist/style-system.mjs"
+    },
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --external react --external react-dom",
+    "build": "tsup src/index.ts src/style-system.ts --format esm,cjs --dts --clean --external react --external react-dom",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -33,14 +49,14 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "clsx": "^2.1.1"
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0"
   },
   "peerDependencies": {
     "react": ">=18.3 <20",
     "react-dom": ">=18.3 <20"
   },
   "devDependencies": {
-    "@movscript/tokens": "workspace:*",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "react": "^18.3.1",

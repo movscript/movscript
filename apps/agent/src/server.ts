@@ -28,8 +28,9 @@ installAgentLogTimestamps('server')
 
 const SERVER_MODULE_READY_AT = Date.now()
 const SERVER_CHILD_STARTED_AT = Number(process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || 0)
+const DESKTOP_SPAWN_STARTED_AT = Number(process.env.MOVSCRIPT_AGENT_DESKTOP_SPAWN_STARTED_AT || 0)
 if (SERVER_CHILD_STARTED_AT > 0) {
-  console.info(`[agent] server module ready after childStart=${SERVER_MODULE_READY_AT - SERVER_CHILD_STARTED_AT}ms`)
+  console.info(`[agent] server module ready after childStart=${SERVER_MODULE_READY_AT - SERVER_CHILD_STARTED_AT}ms${DESKTOP_SPAWN_STARTED_AT > 0 ? ` desktopSpawn=${SERVER_MODULE_READY_AT - DESKTOP_SPAWN_STARTED_AT}ms` : ''}`)
 }
 
 function installAgentLogTimestamps(scope: string): void {
@@ -156,22 +157,30 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/model-config') {
         const modelConfigStartedAt = Date.now()
+        telemetry.markPhase(requestOperationId, 'model_config_read_start')
         writeJSON(res, 200, {
           ...context.modelConfigStore.getPublicConfig(),
           capabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
         })
+        telemetry.markPhase(requestOperationId, 'model_config_read_done')
         logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/model-config') {
+        telemetry.markPhase(requestOperationId, 'model_config_body_read_start')
         const body = await readOptionalJSONObject(req, 'model config body')
+        telemetry.markPhase(requestOperationId, 'model_config_body_read_done')
         const modelConfigStartedAt = Date.now()
+        telemetry.markPhase(requestOperationId, 'model_config_save_start')
         const saved = context.modelConfigStore.save(body)
+        telemetry.markPhase(requestOperationId, 'model_config_save_done')
+        telemetry.markPhase(requestOperationId, 'response_write_start', { status: 200, requestPath: url.pathname })
         writeJSON(res, 200, {
           ...saved,
           capabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
         })
+        telemetry.markPhase(requestOperationId, 'response_write_done', { status: 200, requestPath: url.pathname })
         logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
@@ -572,11 +581,30 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             ? body.content
             : undefined
         if (!content) throw new AgentHTTPError(400, 'thread run message is required')
+        telemetry.markPhase(requestOperationId, 'thread_lookup_start', { threadId: threadRunMatch[1] })
         const thread = context.runtimeRouter.getThread(threadRunMatch[1])
         if (!thread) throw new AgentHTTPError(404, 'thread not found')
+        telemetry.markPhase(requestOperationId, 'thread_lookup_done', {
+          threadId: thread.id,
+          messageCount: thread.messages.length,
+          activeRunId: thread.activeRunId,
+        })
+        telemetry.markPhase(requestOperationId, 'active_run_lookup_start', {
+          threadId: threadRunMatch[1],
+          activeRunId: thread.activeRunId,
+        })
         const activeRun = thread.activeRunId ? context.runtimeRouter.getRun(thread.activeRunId) : undefined
         const activeRunPolicy = body.activeRunPolicy === 'new_run' ? 'new_run' : 'runtime_input'
+        telemetry.markPhase(requestOperationId, 'active_run_lookup_done', {
+          activeRunPolicy,
+          activeRunId: activeRun?.id,
+          activeRunStatus: activeRun?.status,
+        })
         if (activeRun && isActiveRunStatus(activeRun.status) && activeRunPolicy !== 'new_run') {
+          telemetry.markPhase(requestOperationId, 'runtime_input_add_message_start', {
+            threadId: threadRunMatch[1],
+            activeRunId: activeRun.id,
+          })
           const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
             ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
             role: 'user',
@@ -588,6 +616,17 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             }),
             ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
           })
+          telemetry.markPhase(requestOperationId, 'runtime_input_add_message_done', {
+            threadId: threadRunMatch[1],
+            activeRunId: activeRun.id,
+            messageId: message.id,
+          })
+          telemetry.markPhase(requestOperationId, 'response_write_start', {
+            status: 202,
+            threadId: threadRunMatch[1],
+            runId: activeRun.id,
+            messageId: message.id,
+          })
           writeJSON(res, 202, {
             run: activeRun,
             message,
@@ -597,6 +636,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
               messageId: message.id,
               status: 'accepted',
             },
+          })
+          telemetry.markPhase(requestOperationId, 'response_write_done', {
+            status: 202,
+            threadId: threadRunMatch[1],
+            runId: activeRun.id,
+            messageId: message.id,
           })
           return
         }
@@ -626,9 +671,22 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
           const message = updatedThread?.messages.find((item) => item.id === initialUserMessageId)
             ?? updatedThread?.messages.at(-1)
+          telemetry.markPhase(requestOperationId, 'response_write_start', {
+            status: 201,
+            threadId: threadRunMatch[1],
+            runId: run.id,
+            messageId: message?.id,
+          })
           writeJSON(res, 201, message ? { run, message } : { run })
+          telemetry.markPhase(requestOperationId, 'response_write_done', {
+            status: 201,
+            threadId: threadRunMatch[1],
+            runId: run.id,
+            messageId: message?.id,
+          })
           return
         }
+        telemetry.markPhase(requestOperationId, 'user_message_add_start', { threadId: threadRunMatch[1] })
         const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
           ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
           role: 'user',
@@ -663,7 +721,19 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           unit: 'count',
           labels: { role: run.role ?? 'unknown', status: run.status },
         })
+        telemetry.markPhase(requestOperationId, 'response_write_start', {
+          status: 201,
+          threadId: run.threadId,
+          runId: run.id,
+          messageId: message.id,
+        })
         writeJSON(res, 201, { run, message })
+        telemetry.markPhase(requestOperationId, 'response_write_done', {
+          status: 201,
+          threadId: run.threadId,
+          runId: run.id,
+          messageId: message.id,
+        })
         return
       }
 
@@ -1534,13 +1604,13 @@ function runtimeEventFromRunStream(input: {
       entity: { type: 'trace', value: input.event.event },
     }
   }
-  if (input.event.type === 'assistant_delta') {
+  if (input.event.type === 'assistant_progress') {
     const run = input.runtime.getRun(input.event.runId)
     return {
       ...base,
-      kind: 'assistant.delta',
+      kind: 'assistant.progress',
       causality: { threadId: run?.threadId, runId: input.event.runId, traceId: input.event.traceEventId, taskGraphId: run?.taskGraphId, taskId: run?.taskId },
-      assistantDelta: {
+      assistantProgress: {
         runId: input.event.runId,
         traceId: input.event.traceEventId,
         delta: input.event.delta,
@@ -1590,7 +1660,7 @@ function planStreamEventTime(event: AgentTaskGraphStreamEvent): string {
 }
 
 function runtimeStreamEventTime(event: AgentInternalRunSignal | AgentInternalThreadSignal): string {
-  if (event.type === 'assistant_delta') return event.createdAt
+  if (event.type === 'assistant_progress') return event.createdAt
   if (event.type === 'trace') return event.event.createdAt
   if (event.type === 'assistant_message') return event.message.createdAt
   if (event.type === 'thread_title') return event.updatedAt

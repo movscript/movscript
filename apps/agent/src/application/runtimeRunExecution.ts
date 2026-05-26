@@ -66,6 +66,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
         authInput: auth,
         signal: targetSignal,
         now: () => isoNow(),
+        getThread: (threadId) => input.store.getThread(threadId),
         updateThread: (targetThread) => input.store.updateThread(targetThread),
         ...(targetRunId ? { runId: targetRunId } : {}),
         emitRunStreamEvent: (targetRunId, event) => input.streams.emitRunStreamEvent(targetRunId, event),

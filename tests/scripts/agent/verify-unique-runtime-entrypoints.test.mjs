@@ -21,7 +21,7 @@ test('agent HTTP server keeps thread run route as the only public run creation p
 })
 
 test('frontend LocalAgentClient does not call removed direct run endpoints', async () => {
-  const source = await readProjectFile('apps/frontend/src/lib/localAgentClient.ts')
+  const source = await readProjectFile('apps/frontend/src/shared/infrastructure/localAgentClient.ts')
 
   assert.doesNotMatch(source, /postJSON\(\s*['"]\/runs['"]/, 'frontend must not create runs through POST /runs')
   assert.doesNotMatch(source, /postJSON\(\s*['"]\/runs\/tool['"]/, 'frontend must not create tool runs through POST /runs/tool')

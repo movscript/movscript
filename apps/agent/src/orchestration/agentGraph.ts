@@ -417,7 +417,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
             kind: isReasoningStream ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
             title: isReasoningStream
               ? 'Model reasoning delta'
-              : isToolCallStream ? 'Model tool call delta' : 'Model stream delta',
+              : isToolCallStream ? 'Model tool call delta' : 'Assistant progress update',
             summary: isToolCallStream
               ? formatToolCallStreamSummary(event.stream?.toolCall)
               : event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,

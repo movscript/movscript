@@ -1,0 +1,110 @@
+.canvas-io-action-card {
+  position: relative;
+  width: 260px;
+  overflow: visible;
+  border-radius: var(--ms-radius-md);
+  border: 1px solid var(--ms-color-border);
+  background: var(--ms-color-surface-raised);
+  box-shadow: var(--ms-shadow-sm);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  transition:
+    border-color var(--ms-duration-fast) var(--ms-easing-standard),
+    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.canvas-io-action-card--selected {
+  border-color: var(--ms-color-primary);
+  box-shadow:
+    var(--ms-shadow-lg),
+    0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 15%, transparent);
+}
+
+.canvas-io-action-card__header {
+  border-bottom: 1px solid var(--ms-color-border);
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  padding: 10px var(--ms-space-3);
+}
+
+.canvas-io-action-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--ms-space-2);
+}
+
+.canvas-io-action-card__title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.canvas-io-action-card__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvas-io-action-card__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: var(--ms-leading-body);
+  color: var(--ms-color-foreground);
+}
+
+.canvas-io-action-card__status,
+.canvas-io-action-card__menu-button {
+  flex-shrink: 0;
+}
+
+.canvas-io-action-card__subtitle {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-io-action-card__body {
+  display: grid;
+  gap: var(--ms-space-2);
+  padding: 10px var(--ms-space-3);
+}
+
+.canvas-io-action-card__metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 94px;
+  gap: var(--ms-space-2);
+}
+
+.canvas-io-action-card__meta-list {
+  display: grid;
+  min-width: 0;
+  gap: var(--ms-space-1);
+}
+
+.canvas-io-action-card__footer {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  padding: var(--ms-space-2) var(--ms-space-3);
+}
+
+.canvas-io-action-card__primary-action {
+  width: 100%;
+  justify-content: center;
+}
+
+.canvas-io-action-card__footer-extra {
+  margin-top: var(--ms-space-2);
+}
+
+.canvas-io-action-card__spin-icon {
+  animation: ms-spin 700ms linear infinite;
+}

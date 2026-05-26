@@ -1,0 +1,43 @@
+.workbench-key-value {
+  background: var(--ms-color-background);
+  padding: 10px;
+}
+
+.workbench-key-value__value--strong {
+  font-weight: 600;
+}
+
+.workbench-metric {
+  background: var(--ms-color-surface-raised);
+  padding: 12px;
+}
+
+.workbench-metric--compact {
+  padding: 9px 10px;
+}
+
+.workbench-metric--compact .workbench-metric__value {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.workbench-empty-state {
+  border-color: var(--ms-color-border);
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 24%, transparent);
+  min-height: 160px;
+  padding: 22px;
+}
+
+.workbench-empty-state__description {
+  max-width: 360px;
+}
+
+.workbench-empty-state--compact {
+  min-height: 88px;
+  padding: 14px;
+}
+
+.workbench-empty-state__action {
+  margin-top: 12px;
+}

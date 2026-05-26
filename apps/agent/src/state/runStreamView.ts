@@ -1,9 +1,9 @@
 import { isRecord } from '../jsonValue.js'
 import type { AgentMessage, AgentRun, AgentInternalRunSignal, AgentInternalRunSignalRun, AgentThread, AgentTraceEvent } from './types.js'
 
-export type AgentAssistantDeltaInternalSignal = Omit<Extract<AgentInternalRunSignal, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'>
+export type AgentAssistantProgressInternalSignal = Omit<Extract<AgentInternalRunSignal, { type: 'assistant_progress' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'>
 
-export function assistantDeltaFromTraceEvent(event: AgentTraceEvent): AgentAssistantDeltaInternalSignal | undefined {
+export function assistantProgressFromTraceEvent(event: AgentTraceEvent): AgentAssistantProgressInternalSignal | undefined {
   const data = isRecord(event.data) ? event.data : undefined
   const stream = isRecord(data?.stream) ? data.stream : undefined
   if (stream?.kind !== 'content') return undefined
@@ -11,7 +11,7 @@ export function assistantDeltaFromTraceEvent(event: AgentTraceEvent): AgentAssis
   if (!delta) return undefined
   const accumulated = typeof stream.accumulated === 'string' ? stream.accumulated : delta
   return {
-    type: 'assistant_delta',
+    type: 'assistant_progress',
     delta,
     accumulated,
     ...(typeof event.roundIndex === 'number' ? { roundIndex: event.roundIndex } : {}),

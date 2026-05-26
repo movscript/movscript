@@ -1,0 +1,15 @@
+.canvas-tool-full-section {
+  display: grid;
+  gap: 6px;
+}
+
+.canvas-tool-full-section__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 500;
+  line-height: 16px;
+}

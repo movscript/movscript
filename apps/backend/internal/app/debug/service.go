@@ -94,15 +94,17 @@ type LLMCallLogPage struct {
 }
 
 type LLMCallLogSummary struct {
-	Total        int64        `json:"total"`
-	Success      int64        `json:"success"`
-	Errors       int64        `json:"errors"`
-	ErrorRate    float64      `json:"error_rate"`
-	AvgLatencyMs float64      `json:"avg_latency_ms"`
-	InputTokens  int64        `json:"input_tokens"`
-	OutputTokens int64        `json:"output_tokens"`
-	RecentErrors []LLMCallLog `json:"recent_errors"`
-	GeneratedAt  time.Time    `json:"generated_at"`
+	Total             int64        `json:"total"`
+	Success           int64        `json:"success"`
+	Errors            int64        `json:"errors"`
+	ErrorRate         float64      `json:"error_rate"`
+	AvgLatencyMs      float64      `json:"avg_latency_ms"`
+	InputTokens       int64        `json:"input_tokens"`
+	OutputTokens      int64        `json:"output_tokens"`
+	CachedInputTokens int64        `json:"cached_input_tokens"`
+	ReasoningTokens   int64        `json:"reasoning_tokens"`
+	RecentErrors      []LLMCallLog `json:"recent_errors"`
+	GeneratedAt       time.Time    `json:"generated_at"`
 }
 
 type LLMCallLogUserRef struct {
@@ -121,33 +123,35 @@ type LLMCallLogModelConfigRef struct {
 }
 
 type LLMCallLog struct {
-	ID               uint                      `json:"ID"`
-	RequestID        string                    `json:"request_id,omitempty"`
-	UserID           uint                      `json:"user_id"`
-	User             *LLMCallLogUserRef        `json:"user,omitempty"`
-	OrgID            *uint                     `json:"org_id,omitempty"`
-	ProjectID        *uint                     `json:"project_id,omitempty"`
-	GatewayAPIKeyID  *uint                     `json:"gateway_api_key_id,omitempty"`
-	AIModelConfigID  uint                      `json:"ai_model_config_id"`
-	AIModelConfig    *LLMCallLogModelConfigRef `json:"ai_model_config,omitempty"`
-	CredentialID     uint                      `json:"credential_id"`
-	OperationType    string                    `json:"operation_type"`
-	PromptName       string                    `json:"prompt_name,omitempty"`
-	Provider         string                    `json:"provider,omitempty"`
-	RequestModel     string                    `json:"request_model,omitempty"`
-	ResponseModel    string                    `json:"response_model,omitempty"`
-	Status           string                    `json:"status"`
-	Error            string                    `json:"error,omitempty"`
-	LatencyMs        int64                     `json:"latency_ms"`
-	InputTokens      int                       `json:"input_tokens"`
-	OutputTokens     int                       `json:"output_tokens"`
-	RequestJSON      string                    `json:"request_json,omitempty"`
-	ResponseJSON     string                    `json:"response_json,omitempty"`
-	PayloadTruncated bool                      `json:"payload_truncated"`
-	ExpiresAt        *time.Time                `json:"expires_at,omitempty"`
-	RetentionDays    int                       `json:"retention_days"`
-	CreatedAt        time.Time                 `json:"CreatedAt"`
-	UpdatedAt        time.Time                 `json:"UpdatedAt"`
+	ID                uint                      `json:"ID"`
+	RequestID         string                    `json:"request_id,omitempty"`
+	UserID            uint                      `json:"user_id"`
+	User              *LLMCallLogUserRef        `json:"user,omitempty"`
+	OrgID             *uint                     `json:"org_id,omitempty"`
+	ProjectID         *uint                     `json:"project_id,omitempty"`
+	GatewayAPIKeyID   *uint                     `json:"gateway_api_key_id,omitempty"`
+	AIModelConfigID   uint                      `json:"ai_model_config_id"`
+	AIModelConfig     *LLMCallLogModelConfigRef `json:"ai_model_config,omitempty"`
+	CredentialID      uint                      `json:"credential_id"`
+	OperationType     string                    `json:"operation_type"`
+	PromptName        string                    `json:"prompt_name,omitempty"`
+	Provider          string                    `json:"provider,omitempty"`
+	RequestModel      string                    `json:"request_model,omitempty"`
+	ResponseModel     string                    `json:"response_model,omitempty"`
+	Status            string                    `json:"status"`
+	Error             string                    `json:"error,omitempty"`
+	LatencyMs         int64                     `json:"latency_ms"`
+	InputTokens       int                       `json:"input_tokens"`
+	OutputTokens      int                       `json:"output_tokens"`
+	CachedInputTokens int                       `json:"cached_input_tokens"`
+	ReasoningTokens   int                       `json:"reasoning_tokens"`
+	RequestJSON       string                    `json:"request_json,omitempty"`
+	ResponseJSON      string                    `json:"response_json,omitempty"`
+	PayloadTruncated  bool                      `json:"payload_truncated"`
+	ExpiresAt         *time.Time                `json:"expires_at,omitempty"`
+	RetentionDays     int                       `json:"retention_days"`
+	CreatedAt         time.Time                 `json:"CreatedAt"`
+	UpdatedAt         time.Time                 `json:"UpdatedAt"`
 }
 
 type RawCallInput struct {

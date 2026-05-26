@@ -53,36 +53,42 @@ func (s *AIService) logLLMCall(ctx context.Context, input llmCallLogInput) {
 	}
 	inputTokens := 0
 	outputTokens := 0
+	cachedInputTokens := 0
+	reasoningTokens := 0
 	if input.Response != nil {
 		inputTokens = input.Response.Usage.InputTokens
 		outputTokens = input.Response.Usage.OutputTokens
+		cachedInputTokens = input.Response.Usage.CachedInputTokens
+		reasoningTokens = input.Response.Usage.ReasoningTokens
 		if input.ResponseModel == "" {
 			input.ResponseModel = input.ResponseModelFromResponse()
 		}
 	}
 	entry := persistencemodel.LLMCallLog{
-		RequestID:        observability.RequestIDFromContext(ctx),
-		UserID:           input.UserID,
-		OrgID:            input.Usage.OrgID,
-		ProjectID:        input.Usage.ProjectID,
-		GatewayAPIKeyID:  input.Usage.GatewayAPIKeyID,
-		AIModelConfigID:  input.Config.ID,
-		CredentialID:     input.Config.CredentialID,
-		OperationType:    input.OperationType,
-		PromptName:       input.PromptName,
-		Provider:         input.Provider,
-		RequestModel:     input.RequestModel,
-		ResponseModel:    input.ResponseModel,
-		Status:           status,
-		Error:            errText,
-		LatencyMs:        time.Since(input.Start).Milliseconds(),
-		InputTokens:      inputTokens,
-		OutputTokens:     outputTokens,
-		RequestJSON:      requestJSON,
-		ResponseJSON:     responseJSON,
-		PayloadTruncated: requestTruncated || responseTruncated,
-		ExpiresAt:        &expiresAt,
-		RetentionDays:    retentionDays,
+		RequestID:         observability.RequestIDFromContext(ctx),
+		UserID:            input.UserID,
+		OrgID:             input.Usage.OrgID,
+		ProjectID:         input.Usage.ProjectID,
+		GatewayAPIKeyID:   input.Usage.GatewayAPIKeyID,
+		AIModelConfigID:   input.Config.ID,
+		CredentialID:      input.Config.CredentialID,
+		OperationType:     input.OperationType,
+		PromptName:        input.PromptName,
+		Provider:          input.Provider,
+		RequestModel:      input.RequestModel,
+		ResponseModel:     input.ResponseModel,
+		Status:            status,
+		Error:             errText,
+		LatencyMs:         time.Since(input.Start).Milliseconds(),
+		InputTokens:       inputTokens,
+		OutputTokens:      outputTokens,
+		CachedInputTokens: cachedInputTokens,
+		ReasoningTokens:   reasoningTokens,
+		RequestJSON:       requestJSON,
+		ResponseJSON:      responseJSON,
+		PayloadTruncated:  requestTruncated || responseTruncated,
+		ExpiresAt:         &expiresAt,
+		RetentionDays:     retentionDays,
 	}
 	if err := s.db.WithContext(ctx).Create(&entry).Error; err != nil {
 		observability.WithRequest(ctx).Warn("llm_call_log_write_failed", slog.String("error", err.Error()))

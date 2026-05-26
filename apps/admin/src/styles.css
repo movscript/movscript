@@ -1,4 +1,4 @@
-@import "@movscript/tokens/theme.css";
+@import "@movscript/theme/theme.css";
 @import "@movscript/ui/styles.css";
 
 @tailwind base;
@@ -9,7 +9,7 @@
   * {
     @apply border-border;
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: var(--ms-color-border) transparent;
   }
 
   *::-webkit-scrollbar {
@@ -22,7 +22,7 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
+    background: var(--ms-color-border);
     border-radius: 2px;
   }
 

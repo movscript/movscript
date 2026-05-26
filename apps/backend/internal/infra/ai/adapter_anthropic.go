@@ -95,8 +95,9 @@ func (a *AnthropicAdapter) TextGenerate(ctx context.Context, req TextRequest) (T
 		ToolCalls:    toolCalls,
 		FinishReason: string(resp.StopReason),
 		Usage: TokenUsage{
-			InputTokens:  int(resp.Usage.InputTokens),
-			OutputTokens: int(resp.Usage.OutputTokens),
+			InputTokens:       int(resp.Usage.InputTokens),
+			OutputTokens:      int(resp.Usage.OutputTokens),
+			CachedInputTokens: int(resp.Usage.CacheReadInputTokens),
 		},
 		Debug: takeDebug(ctx),
 	}, nil

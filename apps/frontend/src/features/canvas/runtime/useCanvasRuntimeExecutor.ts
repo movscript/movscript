@@ -11,13 +11,13 @@ import {
   runtimeResourceIdsForNode,
   topoSortCanvasNodes,
   type CanvasRuntimeOutputCache,
-} from '@/lib/canvasRuntimeGraph'
+} from '@/features/canvas/runtime/canvasRuntimeGraph'
 import {
   generateCanvasRuntimeMedia,
   generateCanvasRuntimeText,
   resolveCanvasRuntimeModel,
   uploadCanvasRuntimeTextResource,
-} from '@/lib/canvasRuntimeGeneration'
+} from '@/features/canvas/runtime/canvasRuntimeGeneration'
 import type { CanvasNodeData, CanvasPortValue, RawResource } from '@/types'
 import {
   buildRuntimeWorkflowOutputs,
@@ -25,7 +25,7 @@ import {
   textContentFromOutputs,
 } from './runtimeValues'
 import { useCanvasRuntimeStore } from './runHistoryStore'
-import { toast } from '@/store/toastStore'
+import { toast } from '@/shared/ui/toastStore'
 
 export function useCanvasRuntimeExecutor({
   canvasId,

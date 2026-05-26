@@ -1,0 +1,29 @@
+.tool-panel {
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+}
+
+.tool-panel__header,
+.tool-panel__section {
+  border-bottom: 1px solid var(--ms-color-border);
+}
+
+.tool-panel__header {
+  padding: 12px 16px;
+}
+
+.tool-panel__section {
+  padding: 12px;
+}
+
+.tool-panel__section:last-child {
+  border-bottom: 0;
+}
+
+.tool-panel__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: 1.4;
+}

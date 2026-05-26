@@ -1,0 +1,36 @@
+.app-info-block {
+  min-width: 0;
+}
+
+.app-info-block__label {
+  margin: 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.app-info-block__value {
+  margin: var(--ms-space-1) 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 24px;
+}
+
+.app-info-block__code-value {
+  max-height: 176px;
+  overflow: auto;
+  border: 1px solid var(--ui-surface-border, var(--ms-color-border));
+  border-radius: var(--ui-surface-radius, 6px);
+  background: var(--ui-surface-background, var(--ms-color-background));
+  padding: var(--ms-space-2);
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.app-info-block--prominent {
+  background: color-mix(in srgb, var(--ms-color-surface-raised) 80%, transparent);
+}

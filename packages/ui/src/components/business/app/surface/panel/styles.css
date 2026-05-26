@@ -1,0 +1,25 @@
+.app-panel {
+  scroll-margin-top: var(--ms-space-4);
+}
+
+.app-panel__header {
+  align-items: center;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2) var(--ms-space-3);
+}
+
+.app-panel__heading {
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.app-panel__title {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.app-panel__body {
+  padding: var(--ms-space-3);
+}

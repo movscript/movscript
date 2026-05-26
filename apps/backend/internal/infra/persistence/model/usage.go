@@ -13,6 +13,8 @@ type UsageLog struct {
 	OperationType      string        `gorm:"not null" json:"operation_type"`
 	InputTokens        int           `gorm:"default:0" json:"input_tokens"`
 	OutputTokens       int           `gorm:"default:0" json:"output_tokens"`
+	CachedInputTokens  int           `gorm:"default:0" json:"cached_input_tokens"`
+	ReasoningTokens    int           `gorm:"default:0" json:"reasoning_tokens"`
 	DurationSec        int           `gorm:"default:0" json:"duration_sec"`
 	ImageCount         int           `gorm:"default:1" json:"image_count"`
 	Cost               float64       `gorm:"default:0" json:"cost"`

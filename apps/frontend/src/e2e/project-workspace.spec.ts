@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
-import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
-import { PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA } from '@/lib/projectStandardsProposalDraft'
+import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
+import { PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA } from '@/features/project-standards/domain/projectStandardsProposalDraft'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 

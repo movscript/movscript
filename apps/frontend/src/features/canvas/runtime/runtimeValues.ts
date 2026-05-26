@@ -2,7 +2,7 @@ import type { Edge, Node } from '@xyflow/react'
 
 import type { CanvasNodeData, CanvasPortDef, CanvasPortValue, RawResource } from '@/types'
 import { fromUiHandleId, portsForNode } from '@/features/canvas/domain/ports'
-import type { CanvasRuntimeOutputCache } from '@/lib/canvasRuntimeGraph'
+import type { CanvasRuntimeOutputCache } from '@/features/canvas/runtime/canvasRuntimeGraph'
 import type { CanvasRuntimeRun } from './runHistoryStore'
 
 export interface WorkflowRunOutputItem {

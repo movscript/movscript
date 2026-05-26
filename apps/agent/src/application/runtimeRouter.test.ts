@@ -1264,7 +1264,7 @@ test('agent runtime owns thread run projection fields', async () => {
   assert.equal(summary?.activeRunId, undefined)
 })
 
-test('agent runtime generates a thread title before the first run loop', async () => {
+test('agent runtime generates a thread title during the first run', async () => {
   const originalFetch = globalThis.fetch
   const calls: string[] = []
   try {
@@ -1283,6 +1283,7 @@ test('agent runtime generates a thread title before the first run loop', async (
     const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个雨夜便利店短片' }] })
     const run = await createAndWaitForRun(runtime, thread.id)
+    await waitForThreadTitle(runtime, thread.id, '雨夜短片创作')
     const restoredThread = runtime.getThread(thread.id)
     const summary = runtime.listThreadSummaries().find((item) => item.id === thread.id)
 
@@ -1297,7 +1298,42 @@ test('agent runtime generates a thread title before the first run loop', async (
   }
 })
 
-test('agent runtime streams generated thread titles before run completion', async () => {
+test('agent runtime does not wait for slow thread title generation before running the model loop', async () => {
+  const originalFetch = globalThis.fetch
+  let finishTitle!: () => void
+  const calls: string[] = []
+  try {
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { messages?: Array<{ role: string; content: string | null }> }
+      const system = body.messages?.find((message) => message.role === 'system')?.content ?? ''
+      calls.push(String(system))
+      if (/short chat thread titles/i.test(String(system))) {
+        await new Promise<void>((resolve) => {
+          finishTitle = resolve
+        })
+        return new Response(JSON.stringify({ choices: [{ message: { content: '慢标题' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '正式回复' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个雨夜便利店短片' }] })
+    const run = await createAndWaitForRun(runtime, thread.id)
+
+    assert.equal(run.status, 'completed')
+    assert.equal(calls.some((system) => /short chat thread titles/i.test(system)), true)
+    assert.equal(calls.some((system) => !/short chat thread titles/i.test(system)), true)
+    assert.equal(runtime.getThread(thread.id)?.metadata?.titleGenerationStatus, 'pending')
+
+    finishTitle()
+    await waitForThreadTitle(runtime, thread.id, '慢标题')
+    assert.equal(runtime.getThread(thread.id)?.metadata?.titleGenerationStatus, 'completed')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('agent runtime persists generated thread titles asynchronously', async () => {
   const originalFetch = globalThis.fetch
   try {
     globalThis.fetch = (async (_url, init) => {
@@ -1311,16 +1347,10 @@ test('agent runtime streams generated thread titles before run completion', asyn
     const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个雨夜便利店短片' }] })
     const run = runtime.createRun({ threadId: thread.id })
-    const events: AgentInternalRunSignal[] = []
-    const unsubscribe = runtime.subscribeRunStream(run.id, (event) => events.push(event))
     const completed = await waitForRun(runtime, run.id)
-    unsubscribe()
+    await waitForThreadTitle(runtime, thread.id, '雨夜短片创作')
 
-    const titleIndex = events.findIndex((event) => event.type === 'thread_title' && event.title === '雨夜短片创作')
-    const doneIndex = events.findIndex((event) => event.type === 'done')
-    assert.notEqual(titleIndex, -1)
-    assert.notEqual(doneIndex, -1)
-    assert.equal(titleIndex < doneIndex, true)
+    assert.equal(runtime.getThread(thread.id)?.title, '雨夜短片创作')
     assert.equal(completed.status, 'completed')
   } finally {
     globalThis.fetch = originalFetch
@@ -1401,6 +1431,7 @@ test('agent runtime falls back to the user message when title generation fails',
     const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '这是一个非常长的用户请求，用来验证标题生成失败时可以截断回退' }] })
     await createAndWaitForRun(runtime, thread.id)
+    await waitForThreadTitle(runtime, thread.id, '这是一个非常长的用户请求，用来验证标题生成失败时可以截断回退')
     const restoredThread = runtime.getThread(thread.id)
 
     assert.equal(restoredThread?.title, '这是一个非常长的用户请求，用来验证标题生成失败时可以截断回退')
@@ -1807,7 +1838,7 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
   }
 })
 
-test('emits assistant_delta events from streamed model content', async () => {
+test('emits assistant_progress events from streamed model content', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-stream-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
@@ -1841,12 +1872,16 @@ test('emits assistant_delta events from streamed model content', async () => {
     const runtime = createTestRuntime({ mcpClient: client })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello stream' }] })
     const run = runtime.createRun({ threadId: thread.id, backendAuthToken: 'secret-token' })
-    const deltas: string[] = []
-    const accumulated: string[] = []
+    const progressChunks: string[] = []
+    const progressSnapshots: string[] = []
+    const finalAssistantMessages: string[] = []
     runtime.subscribeRunStream(run.id, (event) => {
-      if (event.type === 'assistant_delta') {
-        deltas.push(event.delta)
-        accumulated.push(event.accumulated)
+      if (event.type === 'assistant_progress') {
+        progressChunks.push(event.delta)
+        progressSnapshots.push(event.accumulated)
+      }
+      if (event.type === 'assistant_message') {
+        finalAssistantMessages.push(event.message.content)
       }
     })
 
@@ -1854,13 +1889,12 @@ test('emits assistant_delta events from streamed model content', async () => {
 
     assert.ok(completed.status === 'completed' || completed.status === 'completed_with_warnings')
     assert.deepEqual(completed.traceEvents ?? [], [])
-    assert.deepEqual(deltas, ['流式', '响应', '继续', '完成'])
-    assert.deepEqual(accumulated, ['流式', '流式响应', '流式响应继续', '流式响应继续完成'])
-    assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model stream delta'), false)
-    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === completed.assistantMessageId)
+    assert.deepEqual(progressChunks, ['流式', '响应', '继续', '完成'])
+    assert.deepEqual(progressSnapshots, ['流式', '流式响应', '流式响应继续', '流式响应继续完成'])
+    assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Assistant progress update'), false)
     const assistantTrace = runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER })
       .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
-    assert.equal((assistantTrace?.data as any)?.content, assistant?.content)
+    assert.equal((assistantTrace?.data as any)?.content, finalAssistantMessages.at(-1))
     assert.match(String((assistantTrace?.data as any)?.content ?? ''), /流式完成/)
   } finally {
     globalThis.fetch = originalFetch
@@ -4880,6 +4914,15 @@ async function waitForRun(runtime: AgentRuntimeRouter, runId: string): Promise<A
     const latest = runtime.getRun(runId)
     if (latest && latest.status !== 'queued' && latest.status !== 'in_progress') return latest
     if (Date.now() > deadline) throw new Error(`run ${runId} did not finish`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+async function waitForThreadTitle(runtime: AgentRuntimeRouter, threadId: string, title: string): Promise<void> {
+  const deadline = Date.now() + 1000
+  while (true) {
+    if (runtime.getThread(threadId)?.title === title) return
+    if (Date.now() > deadline) throw new Error(`thread ${threadId} title did not update`)
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }

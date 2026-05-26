@@ -24,7 +24,7 @@ function installAgentLogTimestamps(scope) {
   const key = Symbol.for(`movscript.agent.log-timestamps.${scope}`)
   if (globalThis[key]) return
   globalThis[key] = true
-  const startedAt = Date.now()
+  const startedAt = Number(process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || 0) || Date.now()
   for (const method of ['info', 'warn', 'error']) {
     const original = console[method].bind(console)
     console[method] = (...args) => {
@@ -39,17 +39,19 @@ function installAgentLogTimestamps(scope) {
 function startAgent() {
   if (stopped) return
   const serverCommand = process.env.MOVSCRIPT_AGENT_DEV_NODE_COMMAND || process.execPath
-  console.info(`[agent:dev] starting ${serverCommand} --import tsx src/server.ts (cwd=${process.cwd()} agentPort=${process.env.MOVSCRIPT_AGENT_PORT || 'unset'} mcpEndpoint=${process.env.MOVSCRIPT_MCP_ENDPOINT || 'unset'})`)
+  const parentStartedAt = Number(process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || 0)
+  console.info(`[agent:dev] starting ${serverCommand} --import tsx src/server.ts (cwd=${process.cwd()} agentPort=${process.env.MOVSCRIPT_AGENT_PORT || 'unset'} mcpEndpoint=${process.env.MOVSCRIPT_MCP_ENDPOINT || 'unset'} parentElapsed=${parentStartedAt > 0 ? `${Date.now() - parentStartedAt}ms` : 'unknown'})`)
   const startedAt = Date.now()
   child = spawn(serverCommand, ['--import', 'tsx', 'src/server.ts'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      MOVSCRIPT_AGENT_DESKTOP_SPAWN_STARTED_AT: process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || '',
       MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT: String(startedAt),
     },
     stdio: 'inherit',
   })
-  console.info(`[agent:dev] child pid=${child.pid ?? 'unknown'}`)
+  console.info(`[agent:dev] child pid=${child.pid ?? 'unknown'} spawnElapsed=${Date.now() - startedAt}ms parentElapsed=${parentStartedAt > 0 ? `${Date.now() - parentStartedAt}ms` : 'unknown'}`)
   child.on('exit', (code, signal) => {
     const elapsedMs = Date.now() - startedAt
     if (stopped) {

@@ -1,0 +1,119 @@
+.ms-agent-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  min-height: 560px;
+  height: min(760px, calc(100vh - 32px));
+  background: var(--ms-color-surface);
+}
+
+.ms-agent-shell:has(.ms-agent-context) {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(240px, 320px);
+}
+
+.ms-agent-shell > .ms-agent-main:first-child {
+  grid-column: 1 / -1;
+}
+
+.ms-agent-shell--compact {
+  grid-template-columns: minmax(192px, 248px) minmax(0, 1fr);
+  min-height: 480px;
+}
+
+.ms-agent-shell--compact:has(.ms-agent-context) {
+  grid-template-columns: minmax(192px, 248px) minmax(0, 1fr) minmax(216px, 284px);
+}
+
+.ms-agent-main {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--ms-color-accent) 8%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ms-color-background) 52%, var(--ms-color-surface)), var(--ms-color-surface) 34%);
+}
+
+.ms-agent-header {
+  min-height: 60px;
+  gap: 12px;
+  padding: 11px 16px;
+}
+
+.ms-agent-shell--compact .ms-agent-header {
+  min-height: 48px;
+  padding: 8px 12px;
+}
+
+.ms-agent-header__content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-agent-header__actions {
+  gap: 8px;
+}
+
+.ms-agent-title,
+.ms-agent-subtitle {
+  margin: 0;
+}
+
+.ms-agent-title {
+  color: var(--ms-color-foreground);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.ms-agent-subtitle,
+.ms-agent-run-card__title,
+.ms-agent-instruction__title {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ms-agent-container {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  border-radius: var(--ms-radius-md);
+  color: var(--ms-color-foreground);
+  box-shadow: var(--ms-shadow-lg);
+  font-family: var(--ms-font-sans);
+}
+
+.ms-agent-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+}
+
+.ms-agent-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.ms-agent-scrollarea {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  overflow: auto;
+}
+
+.ms-agent-stack {
+  display: grid;
+  min-width: 0;
+}
+
+.ms-agent-cluster--wrap {
+  flex-wrap: wrap;
+}
+
+.ms-agent-cluster--between {
+  justify-content: space-between;
+}

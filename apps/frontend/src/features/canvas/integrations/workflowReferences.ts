@@ -1,7 +1,7 @@
 import { useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import type { Node } from '@xyflow/react'
-import { api } from '@/lib/api'
+import { api } from '@/shared/infrastructure/api'
 import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef } from '@/types'
 
 function parseCanvasNodeData(raw?: string): CanvasNodeData {

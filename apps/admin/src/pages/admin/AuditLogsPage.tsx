@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Download, RefreshCw, Search, ScrollText, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button, Input, Label } from '@movscript/ui'
+import { AppIconFrame, AppInlineError, Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { PaginationControls } from '@/components/admin/PaginationControls'
 import { downloadAdminCSV } from '@/lib/adminExport'
@@ -153,9 +153,9 @@ export function AuditLogsPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <AppIconFrame tone="info" className="mt-0.5">
             <ScrollText size={16} />
-          </div>
+          </AppIconFrame>
           <div>
             <h2 className="text-base font-semibold text-foreground">{t('admin.auditLogs.title')}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.auditLogs.description', { total })}</p>
@@ -186,15 +186,15 @@ export function AuditLogsPage() {
       </div>
 
       {exportError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {exportError}
-        </div>
+        </AppInlineError>
       )}
 
       {queryError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(queryError)}
-        </div>
+        </AppInlineError>
       )}
 
       <div className="rounded-lg border border-border bg-card p-3">

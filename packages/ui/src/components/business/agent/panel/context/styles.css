@@ -1,0 +1,38 @@
+.ai-agent-panel-context-resize-handle {
+  display: flex;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: row-resize;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  color: var(--ms-color-muted-foreground);
+}
+
+.ai-agent-panel-context-resize-handle:hover {
+  background: color-mix(in srgb, var(--ms-color-primary) 8%, transparent);
+  color: var(--ms-color-primary);
+}
+
+.ai-agent-panel-context-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+}
+
+.ai-agent-panel-context-card {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+}
+
+.ai-agent-panel-context-stack {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 8px;
+  padding-right: 2px;
+}

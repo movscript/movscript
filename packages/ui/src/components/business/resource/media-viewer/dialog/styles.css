@@ -1,0 +1,110 @@
+.resource-media-dialog__overlay {
+  background: rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(8px);
+}
+
+.resource-media-dialog__content {
+  inset: 0;
+  display: flex;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  translate: 0 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 16px;
+  box-shadow: none;
+}
+
+.resource-media-dialog {
+  display: flex;
+  width: min(1120px, calc(100vw - 32px));
+  max-height: 90vh;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.resource-media-dialog--compact {
+  width: min(920px, calc(100vw - 32px));
+}
+
+.resource-media-dialog__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--ms-color-border);
+  padding: 12px 16px;
+}
+
+.resource-media-dialog__title-block {
+  min-width: 0;
+}
+
+.resource-media-dialog__title {
+  display: block;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-media-dialog__metadata {
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.resource-media-dialog__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.resource-media-dialog__body {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: 1fr;
+}
+
+.resource-media-stage {
+  display: flex;
+  min-height: 320px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.resource-media-stage > img,
+.resource-media-stage > video {
+  max-width: 100%;
+  max-height: 72vh;
+  border-radius: var(--ms-radius-md);
+  object-fit: contain;
+}
+
+.resource-media-dialog__side-panel {
+  min-height: 0;
+  border-top: 1px solid var(--ms-color-border);
+  padding: 0;
+}
+
+@media (min-width: 1024px) {
+  .resource-media-dialog__body[data-side-panel="true"] {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+
+  .resource-media-dialog__side-panel {
+    border-top: 0;
+    border-left: 1px solid var(--ms-color-border);
+  }
+}

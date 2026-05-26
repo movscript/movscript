@@ -1,0 +1,60 @@
+.canvas-io-state-tile {
+  display: flex;
+  min-width: 0;
+  height: 58px;
+  flex-direction: column;
+  padding: 0;
+  text-align: left;
+}
+
+.canvas-io-state-tile--empty {
+  border-style: dashed;
+}
+
+.canvas-io-state-tile--failed {
+  border-color: color-mix(in srgb, var(--ms-color-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--ms-color-danger) 5%, transparent);
+}
+
+.canvas-io-state-tile__media {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  border-top-left-radius: var(--ms-radius-md);
+  border-top-right-radius: var(--ms-radius-md);
+}
+
+.canvas-io-state-tile__pending-icon,
+.canvas-io-state-tile__ready-icon,
+.canvas-io-state-tile__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-io-state-tile__ready-icon {
+  color: var(--ms-color-success);
+}
+
+.canvas-io-state-tile__empty-icon--failed,
+.canvas-io-state-tile__label--failed {
+  color: var(--ms-color-danger);
+}
+
+.canvas-io-state-tile__body {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 60%, transparent);
+  padding: var(--ms-space-1) 6px;
+}
+
+.canvas-io-state-tile__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  line-height: var(--ms-leading-tiny);
+  color: var(--ms-color-foreground);
+}

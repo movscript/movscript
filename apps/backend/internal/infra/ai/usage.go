@@ -30,12 +30,14 @@ type UsageContext struct {
 }
 
 type UsageEstimate struct {
-	OperationType string
-	InputTokens   int
-	OutputTokens  int
-	DurationSec   int
-	ImageCount    int
-	Cost          float64
+	OperationType     string
+	InputTokens       int
+	OutputTokens      int
+	CachedInputTokens int
+	ReasoningTokens   int
+	DurationSec       int
+	ImageCount        int
+	Cost              float64
 }
 
 func (s *AIService) EstimateTextCost(modelConfigID uint, req TextRequest) (UsageEstimate, error) {
@@ -193,6 +195,8 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 			OperationType:      estimate.OperationType,
 			InputTokens:        estimate.InputTokens,
 			OutputTokens:       estimate.OutputTokens,
+			CachedInputTokens:  estimate.CachedInputTokens,
+			ReasoningTokens:    estimate.ReasoningTokens,
 			DurationSec:        estimate.DurationSec,
 			ImageCount:         estimate.ImageCount,
 			Cost:               estimate.Cost,
@@ -221,6 +225,8 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 		OperationType:      estimate.OperationType,
 		InputTokens:        estimate.InputTokens,
 		OutputTokens:       estimate.OutputTokens,
+		CachedInputTokens:  estimate.CachedInputTokens,
+		ReasoningTokens:    estimate.ReasoningTokens,
 		DurationSec:        estimate.DurationSec,
 		ImageCount:         estimate.ImageCount,
 		Cost:               estimate.Cost,
@@ -236,16 +242,22 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 }
 
 func estimateUsageCost(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {
+	return estimateUsageCostWithDetails(cfg, def, opType, TokenUsage{InputTokens: inputTokens, OutputTokens: outputTokens}, durationSec, imageCount)
+}
+
+func estimateUsageCostWithDetails(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, usage TokenUsage, durationSec, imageCount int) UsageEstimate {
 	if imageCount <= 0 {
 		imageCount = 1
 	}
 	return UsageEstimate{
-		OperationType: opType,
-		InputTokens:   inputTokens,
-		OutputTokens:  outputTokens,
-		DurationSec:   durationSec,
-		ImageCount:    imageCount,
-		Cost:          calcCost(cfg, def, inputTokens, outputTokens, durationSec, imageCount),
+		OperationType:     opType,
+		InputTokens:       usage.InputTokens,
+		OutputTokens:      usage.OutputTokens,
+		CachedInputTokens: usage.CachedInputTokens,
+		ReasoningTokens:   usage.ReasoningTokens,
+		DurationSec:       durationSec,
+		ImageCount:        imageCount,
+		Cost:              calcCost(cfg, def, usage.InputTokens, usage.OutputTokens, durationSec, imageCount),
 	}
 }
 

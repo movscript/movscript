@@ -1,0 +1,20 @@
+.app-key-value {
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  padding: 6px 8px;
+}
+
+.app-key-value__label {
+  font-size: var(--ms-text-tiny);
+  line-height: 16px;
+}
+
+.app-key-value__value {
+  margin-top: 2px;
+  font-size: var(--ms-text-label);
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.app-key-value__value--strong {
+  font-weight: 650;
+}

@@ -132,11 +132,7 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 			},
 			FinishReason: finishReason,
 		}},
-		Usage: chatCompletionUsage{
-			PromptTokens:     resp.Usage.InputTokens,
-			CompletionTokens: resp.Usage.OutputTokens,
-			TotalTokens:      resp.Usage.InputTokens + resp.Usage.OutputTokens,
-		},
+		Usage: chatUsageFromTokenUsage(resp.Usage),
 	})
 }
 
@@ -203,11 +199,7 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 		Model:      result.ResponseModel,
 		Output:     output,
 		OutputText: resp.Content,
-		Usage: responsesUsage{
-			InputTokens:  resp.Usage.InputTokens,
-			OutputTokens: resp.Usage.OutputTokens,
-			TotalTokens:  resp.Usage.InputTokens + resp.Usage.OutputTokens,
-		},
+		Usage:      responsesUsageFromTokenUsage(resp.Usage),
 	})
 }
 
@@ -268,8 +260,9 @@ func (h *ModelGatewayHandler) AnthropicMessages(c *gin.Context) {
 		StopReason:   anthropicStopReason(resp),
 		StopSequence: nil,
 		Usage: anthropicMessagesUsage{
-			InputTokens:  resp.Usage.InputTokens,
-			OutputTokens: resp.Usage.OutputTokens,
+			InputTokens:          resp.Usage.InputTokens,
+			OutputTokens:         resp.Usage.OutputTokens,
+			CacheReadInputTokens: resp.Usage.CachedInputTokens,
 		},
 	})
 }
@@ -305,12 +298,9 @@ func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, input modelg
 			FinishReason:   event.FinishReason,
 			Error:          event.Error,
 		}
-		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
-			streamEvent.Usage = &chatCompletionUsage{
-				PromptTokens:     event.Usage.InputTokens,
-				CompletionTokens: event.Usage.OutputTokens,
-				TotalTokens:      event.Usage.InputTokens + event.Usage.OutputTokens,
-			}
+		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 || event.Usage.CachedInputTokens > 0 || event.Usage.ReasoningTokens > 0 {
+			usage := chatUsageFromTokenUsage(event.Usage)
+			streamEvent.Usage = &usage
 		}
 		chunk := chatCompletionStreamChunk{
 			ID:      id,
@@ -346,6 +336,34 @@ func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, input modelg
 	fmt.Fprint(c.Writer, "data: [DONE]\n\n")
 	if flusher != nil {
 		flusher.Flush()
+	}
+}
+
+func chatUsageFromTokenUsage(usage ai.TokenUsage) chatCompletionUsage {
+	return chatCompletionUsage{
+		PromptTokens:     usage.InputTokens,
+		CompletionTokens: usage.OutputTokens,
+		TotalTokens:      usage.InputTokens + usage.OutputTokens,
+		PromptTokensDetails: tokenUsagePromptDetails{
+			CachedTokens: usage.CachedInputTokens,
+		},
+		CompletionTokensDetails: tokenUsageCompletionDetails{
+			ReasoningTokens: usage.ReasoningTokens,
+		},
+	}
+}
+
+func responsesUsageFromTokenUsage(usage ai.TokenUsage) responsesUsage {
+	return responsesUsage{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+		TotalTokens:  usage.InputTokens + usage.OutputTokens,
+		InputTokensDetails: tokenUsageInputDetails{
+			CachedTokens: usage.CachedInputTokens,
+		},
+		OutputTokensDetails: tokenUsageOutputDetails{
+			ReasoningTokens: usage.ReasoningTokens,
+		},
 	}
 }
 

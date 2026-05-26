@@ -1,0 +1,14 @@
+.canvas-io-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ms-text-tiny);
+  font-weight: 500;
+  line-height: var(--ms-leading-tiny);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-io-section-title svg {
+  width: 12px;
+  height: 12px;
+}

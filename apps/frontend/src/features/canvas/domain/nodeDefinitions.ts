@@ -25,7 +25,7 @@ export const CANVAS_NODE_CATEGORIES: Array<{
   { id: 'flow', title: 'Input / Output', titleKey: 'canvas.catalog.categories.flow.title', description: 'Define workflow entry, exit, and approval gates.', descriptionKey: 'canvas.catalog.categories.flow.description' },
   { id: 'media', title: 'Media', titleKey: 'canvas.catalog.categories.media.title', description: 'Hold text, image, and video assets.', descriptionKey: 'canvas.catalog.categories.media.description' },
   { id: 'ai', title: 'AI Processing', titleKey: 'canvas.catalog.categories.ai.title', description: 'Transform upstream input into generated results.', descriptionKey: 'canvas.catalog.categories.ai.description' },
-  { id: 'organization', title: 'Organization', titleKey: 'canvas.catalog.categories.organization.title', description: 'Organize complex canvases with regions and semantic groups.', descriptionKey: 'canvas.catalog.categories.organization.description' },
+  { id: 'organization', title: 'Organization', titleKey: 'canvas.catalog.categories.organization.title', description: 'Organize complex canvases with regions and visual groups.', descriptionKey: 'canvas.catalog.categories.organization.description' },
 ]
 
 const port = (id: string, type: CanvasPortDef['type'], extra?: Omit<CanvasPortDef, 'id' | 'type'>): CanvasPortDef => ({

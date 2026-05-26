@@ -20,7 +20,6 @@ export function serializableCanvasNodeData(data: Node['data']) {
     onUpdateParams,
     onApprove,
     onReject,
-    onPush,
     canvasId: _canvasId,
     rfNodeId: _rfNodeId,
     pendingRuntimeInputs: _pendingRuntimeInputs,

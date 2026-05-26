@@ -152,12 +152,14 @@ func (r *gormRepository) ListLLMCallLogs(ctx context.Context, filter LLMCallLogF
 
 func (r *gormRepository) LLMCallLogSummary(ctx context.Context, filter LLMCallLogFilter) (LLMCallLogSummary, error) {
 	var row struct {
-		Total        int64
-		Success      int64
-		Errors       int64
-		AvgLatencyMs float64
-		InputTokens  int64
-		OutputTokens int64
+		Total             int64
+		Success           int64
+		Errors            int64
+		AvgLatencyMs      float64
+		InputTokens       int64
+		OutputTokens      int64
+		CachedInputTokens int64
+		ReasoningTokens   int64
 	}
 	if err := r.filteredLLMCallLogQuery(ctx, filter).
 		Select("COUNT(*) as total, " +
@@ -165,7 +167,9 @@ func (r *gormRepository) LLMCallLogSummary(ctx context.Context, filter LLMCallLo
 			"COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0) as errors, " +
 			"COALESCE(AVG(latency_ms), 0) as avg_latency_ms, " +
 			"COALESCE(SUM(input_tokens), 0) as input_tokens, " +
-			"COALESCE(SUM(output_tokens), 0) as output_tokens").
+			"COALESCE(SUM(output_tokens), 0) as output_tokens, " +
+			"COALESCE(SUM(cached_input_tokens), 0) as cached_input_tokens, " +
+			"COALESCE(SUM(reasoning_tokens), 0) as reasoning_tokens").
 		Scan(&row).Error; err != nil {
 		return LLMCallLogSummary{}, err
 	}
@@ -185,14 +189,16 @@ func (r *gormRepository) LLMCallLogSummary(ctx context.Context, filter LLMCallLo
 		errorRate = float64(row.Errors) / float64(row.Total) * 100
 	}
 	return LLMCallLogSummary{
-		Total:        row.Total,
-		Success:      row.Success,
-		Errors:       row.Errors,
-		ErrorRate:    errorRate,
-		AvgLatencyMs: row.AvgLatencyMs,
-		InputTokens:  row.InputTokens,
-		OutputTokens: row.OutputTokens,
-		RecentErrors: llmCallLogsFromModels(recent),
+		Total:             row.Total,
+		Success:           row.Success,
+		Errors:            row.Errors,
+		ErrorRate:         errorRate,
+		AvgLatencyMs:      row.AvgLatencyMs,
+		InputTokens:       row.InputTokens,
+		OutputTokens:      row.OutputTokens,
+		CachedInputTokens: row.CachedInputTokens,
+		ReasoningTokens:   row.ReasoningTokens,
+		RecentErrors:      llmCallLogsFromModels(recent),
 	}, nil
 }
 
@@ -302,31 +308,33 @@ func llmCallLogsFromModels(rows []persistencemodel.LLMCallLog) []LLMCallLog {
 
 func llmCallLogFromModel(row persistencemodel.LLMCallLog) LLMCallLog {
 	item := LLMCallLog{
-		ID:               row.ID,
-		RequestID:        row.RequestID,
-		UserID:           row.UserID,
-		OrgID:            row.OrgID,
-		ProjectID:        row.ProjectID,
-		GatewayAPIKeyID:  row.GatewayAPIKeyID,
-		AIModelConfigID:  row.AIModelConfigID,
-		CredentialID:     row.CredentialID,
-		OperationType:    row.OperationType,
-		PromptName:       row.PromptName,
-		Provider:         row.Provider,
-		RequestModel:     row.RequestModel,
-		ResponseModel:    row.ResponseModel,
-		Status:           row.Status,
-		Error:            row.Error,
-		LatencyMs:        row.LatencyMs,
-		InputTokens:      row.InputTokens,
-		OutputTokens:     row.OutputTokens,
-		RequestJSON:      row.RequestJSON,
-		ResponseJSON:     row.ResponseJSON,
-		PayloadTruncated: row.PayloadTruncated,
-		ExpiresAt:        row.ExpiresAt,
-		RetentionDays:    row.RetentionDays,
-		CreatedAt:        row.CreatedAt,
-		UpdatedAt:        row.UpdatedAt,
+		ID:                row.ID,
+		RequestID:         row.RequestID,
+		UserID:            row.UserID,
+		OrgID:             row.OrgID,
+		ProjectID:         row.ProjectID,
+		GatewayAPIKeyID:   row.GatewayAPIKeyID,
+		AIModelConfigID:   row.AIModelConfigID,
+		CredentialID:      row.CredentialID,
+		OperationType:     row.OperationType,
+		PromptName:        row.PromptName,
+		Provider:          row.Provider,
+		RequestModel:      row.RequestModel,
+		ResponseModel:     row.ResponseModel,
+		Status:            row.Status,
+		Error:             row.Error,
+		LatencyMs:         row.LatencyMs,
+		InputTokens:       row.InputTokens,
+		OutputTokens:      row.OutputTokens,
+		CachedInputTokens: row.CachedInputTokens,
+		ReasoningTokens:   row.ReasoningTokens,
+		RequestJSON:       row.RequestJSON,
+		ResponseJSON:      row.ResponseJSON,
+		PayloadTruncated:  row.PayloadTruncated,
+		ExpiresAt:         row.ExpiresAt,
+		RetentionDays:     row.RetentionDays,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
 	}
 	if row.User.ID != 0 {
 		item.User = &LLMCallLogUserRef{ID: row.User.ID, Username: row.User.Username, SystemRole: row.User.SystemRole}

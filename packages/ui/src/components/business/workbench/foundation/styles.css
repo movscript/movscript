@@ -1,0 +1,27 @@
+.ms-workbench-row {
+  display: flex;
+  min-width: 0;
+}
+
+.ms-workbench-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.ms-workbench-wrap {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ms-workbench-side {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.ms-workbench-media-frame {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+}

@@ -1,0 +1,22 @@
+.canvas-decision-mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-surface-raised);
+  color: var(--ms-color-muted-foreground);
+}
+
+.canvas-decision-mark[data-tone="success"] {
+  border-color: transparent;
+  background: var(--ms-color-primary);
+  color: var(--ms-color-primary-foreground);
+}
+
+.canvas-decision-mark[data-tone="muted"] {
+  background: var(--ms-color-muted);
+}

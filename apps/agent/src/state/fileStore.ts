@@ -42,6 +42,7 @@ const DEFAULT_MAX_PERSISTED_RUN_STEP_RESULT_BYTES = 8 * 1024
 const DEFAULT_MAX_PERSISTED_ROLLBACK_RECORD_BYTES = 16 * 1024
 const DEFAULT_MAX_PERSISTED_ROLLBACK_RECORDS = 100
 const DEFAULT_MAX_PERSISTED_ROLLBACK_RECORDS_BYTES = 64 * 1024
+const DEFAULT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS = 500
 const MAX_COMPACT_SCALAR_STRING_CHARS = 500
 
 export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
@@ -244,11 +245,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       const oversizedBytes = readPositiveIntegerEnv('MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES', DEFAULT_COMPACT_LOAD_BYTES)
       const shouldCompact = statSync(this.filePath).size > oversizedBytes
       const stripStartedAt = Date.now()
-      const stateText = shouldCompact ? stripTopLevelArrayProperty(raw, 'traceEvents') : { text: raw, replaced: false }
+      const stateText = shouldCompact ? stripOversizedStateText(raw) : { text: raw, replaced: false, compactedProperties: [] }
       stripMs = Date.now() - stripStartedAt
       compactedOnLoad = stateText.replaced
       if (compactedOnLoad) {
-        console.warn(`[agent] state file exceeded ${oversizedBytes} bytes; loading without persisted traceEvents and rewriting compact state (${this.filePath})`)
+        console.warn(`[agent] state file exceeded ${oversizedBytes} bytes; loading compacted stateText=${stateText.compactedProperties.join(',') || '-'} and rewriting compact state (${this.filePath})`)
       }
       const parseStartedAt = Date.now()
       parsed = JSON.parse(stateText.text) as unknown
@@ -261,6 +262,8 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     let compactedRunCount = 0
     let migratedTraceEventCount = 0
     let debugLedgerCount = 0
+    let droppedRuntimeWakeEventCount = 0
+    let compactedRuntimeWakeEventCount = 0
     if (parsed.version !== 6) return false
     for (const session of arrayValue(parsed.sessions)) {
       if (!isRecord(session)) continue
@@ -297,7 +300,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       if (!isRecord(continuation)) continue
       super.createRuntimeContinuation(continuation as unknown as RuntimeContinuation)
     }
-    for (const event of arrayValue(parsed.runtimeWakeEvents)) {
+    const persistedWakeEvents = compactPersistedRuntimeWakeEvents(arrayValue(parsed.runtimeWakeEvents))
+    compactedOnLoad ||= persistedWakeEvents.compacted
+    droppedRuntimeWakeEventCount = persistedWakeEvents.droppedCount
+    compactedRuntimeWakeEventCount = persistedWakeEvents.compactedCount
+    for (const event of persistedWakeEvents.events) {
       if (!isRecord(event)) continue
       super.createRuntimeWakeEvent(event as unknown as RuntimeWakeEvent)
     }
@@ -328,6 +335,9 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       `compactedRuns=${compactedRunCount}`,
       `migratedTraceEvents=${migratedTraceEventCount}`,
       `debugLedgers=${debugLedgerCount}`,
+      `wakeEvents=${this.listRuntimeWakeEvents().length}`,
+      `wakeEventsDropped=${droppedRuntimeWakeEventCount}`,
+      `wakeEventsCompacted=${compactedRuntimeWakeEventCount}`,
     ].join(' '))
     return compactedOnLoad
   }
@@ -344,6 +354,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
 
   private persist(): void {
     const runs = this.listRuns().map((run) => compactPersistedRun(run).run)
+    const wakeEvents = compactPersistedRuntimeWakeEvents(this.listRuntimeWakeEvents()).events as RuntimeWakeEvent[]
     const state: AgentStateFile = {
       version: 6,
       sessions: this.listSessions(),
@@ -354,7 +365,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       runtimeWorks: this.listRuntimeWorks(),
       runtimeInteractions: this.listRuntimeInteractions(),
       runtimeContinuations: this.listRuntimeContinuations(),
-      runtimeWakeEvents: this.listRuntimeWakeEvents(),
+      runtimeWakeEvents: wakeEvents,
       debugLedgers: runs.flatMap((run) => this.getRunDebugLedger(run.id) ?? []),
     }
     atomicWriteJSON(this.filePath, state)
@@ -429,6 +440,56 @@ function compactPersistedRun(run: AgentRun): { run: AgentRun; compacted: boolean
     },
     compacted: compacted || (Array.isArray(run.traceEvents) && run.traceEvents.length > 0),
   }
+}
+
+function compactPersistedRuntimeWakeEvents(events: unknown[]): { events: RuntimeWakeEvent[]; compacted: boolean; compactedCount: number; droppedCount: number } {
+  const maxEvents = readPositiveIntegerEnv('MOVSCRIPT_AGENT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS', DEFAULT_MAX_PERSISTED_RUNTIME_WAKE_EVENTS)
+  const normalized = events
+    .filter(isRecord)
+    .map((event) => compactPersistedRuntimeWakeEvent(event as unknown as RuntimeWakeEvent))
+  const active = normalized.filter((entry) => entry.event.status === 'queued' || entry.event.status === 'processing')
+  const inactive = normalized
+    .filter((entry) => entry.event.status !== 'queued' && entry.event.status !== 'processing')
+    .sort((a, b) => a.event.updatedAt.localeCompare(b.event.updatedAt))
+  const inactiveKeepCount = Math.max(0, maxEvents - active.length)
+  const keptInactive = inactiveKeepCount > 0 ? inactive.slice(-inactiveKeepCount) : []
+  const keptIds = new Set([...active, ...keptInactive].map((entry) => entry.event.id))
+  const kept = normalized
+    .filter((entry) => keptIds.has(entry.event.id))
+    .map((entry) => entry.event)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  const compactedCount = normalized.filter((entry) => entry.compacted).length
+  const droppedCount = normalized.length - kept.length
+  return {
+    events: kept,
+    compacted: compactedCount > 0 || droppedCount > 0,
+    compactedCount,
+    droppedCount,
+  }
+}
+
+function compactPersistedRuntimeWakeEvent(event: RuntimeWakeEvent): { event: RuntimeWakeEvent; compacted: boolean } {
+  if (event.status === 'queued' || event.status === 'processing') return { event, compacted: false }
+  const payload = compactConsumedRuntimeWakePayload(event)
+  return {
+    event: {
+      ...event,
+      payload,
+    },
+    compacted: payload !== event.payload,
+  }
+}
+
+function compactConsumedRuntimeWakePayload(event: RuntimeWakeEvent): unknown {
+  const current = event.payload
+  if (isRecord(current) && current.consumed === true) return current
+  const summary: Record<string, JSONValue> = {
+    consumed: true,
+    kind: event.kind,
+  }
+  if (event.runId) summary.runId = event.runId
+  if (event.workId) summary.workId = event.workId
+  return summary
 }
 
 function compactPersistedRunStep(step: AgentRunStep): { step: AgentRunStep; compacted: boolean } {
@@ -596,7 +657,47 @@ function compactStringField(value: string): string {
     : value
 }
 
+function stripOversizedStateText(raw: string): { text: string; replaced: boolean; compactedProperties: string[] } {
+  let text = raw
+  const compactedProperties: string[] = []
+  const traceEvents = stripTopLevelArrayProperty(text, 'traceEvents')
+  if (traceEvents.replaced) {
+    text = traceEvents.text
+    compactedProperties.push('traceEvents')
+  }
+  const runtimeWakeEvents = stripInactiveRuntimeWakeEvents(text)
+  if (runtimeWakeEvents.replaced) {
+    text = runtimeWakeEvents.text
+    compactedProperties.push('runtimeWakeEvents')
+  }
+  return {
+    text,
+    replaced: compactedProperties.length > 0,
+    compactedProperties,
+  }
+}
+
 function stripTopLevelArrayProperty(text: string, property: string): { text: string; replaced: boolean } {
+  const range = findTopLevelArrayPropertyRange(text, property)
+  if (!range) return { text, replaced: false }
+  return {
+    text: `${text.slice(0, range.valueStart)}[]${text.slice(range.valueEnd + 1)}`,
+    replaced: true,
+  }
+}
+
+function stripInactiveRuntimeWakeEvents(text: string): { text: string; replaced: boolean } {
+  const range = findTopLevelArrayPropertyRange(text, 'runtimeWakeEvents')
+  if (!range) return { text, replaced: false }
+  const valueText = text.slice(range.valueStart, range.valueEnd + 1)
+  if (/"status"\s*:\s*"(queued|processing)"/.test(valueText)) return { text, replaced: false }
+  return {
+    text: `${text.slice(0, range.valueStart)}[]${text.slice(range.valueEnd + 1)}`,
+    replaced: true,
+  }
+}
+
+function findTopLevelArrayPropertyRange(text: string, property: string): { valueStart: number; valueEnd: number } | undefined {
   const key = JSON.stringify(property)
   let depth = 0
   let inString = false
@@ -615,15 +716,12 @@ function stripTopLevelArrayProperty(text: string, property: string): { text: str
     }
     if (depth === 1 && text.startsWith(key, i)) {
       const colonIndex = text.indexOf(':', i + key.length)
-      if (colonIndex < 0) return { text, replaced: false }
+      if (colonIndex < 0) return undefined
       const valueStart = findNextNonWhitespace(text, colonIndex + 1)
-      if (valueStart < 0 || text[valueStart] !== '[') return { text, replaced: false }
+      if (valueStart < 0 || text[valueStart] !== '[') return undefined
       const valueEnd = findMatchingBracket(text, valueStart)
-      if (valueEnd < 0) return { text, replaced: false }
-      return {
-        text: `${text.slice(0, valueStart)}[]${text.slice(valueEnd + 1)}`,
-        replaced: true,
-      }
+      if (valueEnd < 0) return undefined
+      return { valueStart, valueEnd }
     }
     if (char === '"') {
       inString = true
@@ -633,7 +731,7 @@ function stripTopLevelArrayProperty(text: string, property: string): { text: str
       depth -= 1
     }
   }
-  return { text, replaced: false }
+  return undefined
 }
 
 function findNextNonWhitespace(text: string, start: number): number {

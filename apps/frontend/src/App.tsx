@@ -5,15 +5,15 @@ import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_WIDTH_STORAGE_KEY,
   clampSidebarWidth,
-} from './components/layout/Sidebar'
-import { Header } from './components/layout/Header'
-import { AIAgentPanel } from './components/layout/AIAgentPanel'
-import { WorkspaceShell } from './components/layout/WorkspaceShell'
-import { Toaster } from './components/ui/Toaster'
-import { useProjectStore } from './store/projectStore'
-import { useUserStore } from './store/userStore'
-import { useAppSettingsStore } from './store/appSettingsStore'
-import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from './lib/backendBoot'
+} from './features/app-shell/components/Sidebar'
+import { Header } from './features/app-shell/components/Header'
+import { AIAgentPanel } from './features/agent/components/AIAgentPanel'
+import { WorkspaceShell } from '@movscript/ui'
+import { Toaster } from './shared/ui/Toaster'
+import { useProjectStore } from './shared/infrastructure/session/projectStore'
+import { useUserStore } from './shared/infrastructure/session/userStore'
+import { useAppSettingsStore } from './shared/infrastructure/appSettingsStore'
+import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from '@/shared/infrastructure/backendBoot'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import PreProductionPage from './pages/pre-production/PreProductionPage'
 import TasksPage from './pages/project/tasks/TasksPage'
@@ -28,10 +28,9 @@ import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import BrainstormPage from './pages/tools/BrainstormPage'
-import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
 import ProductionPage from './pages/project/production/ProductionPage'
 import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
-import ContentUnitsPage from './pages/project/content-units/ContentUnitsPage'
+import { ContentWorkbenchPage } from './features/content/components/ContentWorkbenchPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
 import InvitePage from './pages/auth/InvitePage'
@@ -41,11 +40,10 @@ import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
 import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
-import WorkbenchPage from './pages/workbench/WorkbenchPage'
-import ProjectAgentModePage, { ProjectAgentModeSidebar } from './pages/project/agent/ProjectAgentModePage'
+import { ProjectAgentModeSidebar } from './features/agent/components/ProjectAgentModePage'
+import AgentModePage from './pages/agent-mode/AgentModePage'
+import AgentModeCanvasListPage from './pages/agent-mode/AgentModeCanvasListPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
-import SegmentsPage from './pages/segments/SegmentsPage'
-import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import DeliveryPage from './pages/project/delivery/DeliveryPage'
 import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPage'
 import AIDraftsPage from './pages/agent/AIDraftsPage'
@@ -56,22 +54,22 @@ import AIAgentPerformancePage from './pages/agent/AIAgentPerformancePage'
 import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
 import i18n from './i18n'
-import { MCPContextBridge } from './mcp/MCPContextBridge'
-import { ArrowLeft, BriefcaseBusiness, ChevronsLeft, HardDrive, Loader2, Lightbulb, Minus, PanelLeftClose, PanelLeftOpen, Play, Plus, Save, Workflow, Zap } from 'lucide-react'
+import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
+import { AlertTriangle, ArrowLeft, BriefcaseBusiness, ChevronsLeft, HardDrive, Loader2, Lightbulb, Minus, PanelLeftClose, PanelLeftOpen, Play, Plus, Save, Workflow, Zap } from 'lucide-react'
 import { runtimeRoutes } from '@runtime'
-import { getProjectWorkbenchDefinition } from './pages/project/projectSurfaces'
-import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
-import { useCanvasHeaderStore } from './store/canvasHeaderStore'
-import { installAgentPerformanceObservers } from './store/agentPerformanceStore'
-import { Badge, Button } from '@movscript/ui'
+import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
+import { ROUTES } from './routes/projectRoutes'
+import { canvasBackPath, getAppRouteSurface } from './routes/appRouteModel'
+import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
+import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
+import { AppBackendBootActionButton, AppBackendBootOverlay, AppErrorFallback, AppWindowIconButton, Badge, Button, Input, UiDebugInspector } from '@movscript/ui'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
-const projectStandardsWorkbenchRoute = getProjectWorkbenchDefinition('project_standards').route
-const preProductionWorkbenchRoute = getProjectWorkbenchDefinition('pre_production').route
-const creativePlanWorkbenchRoute = getProjectWorkbenchDefinition('creative_taskGraph').route
 const contentOrchestrationWorkbenchRoute = getProjectWorkbenchDefinition('content_orchestration').route
-const deliveryWorkbenchRoute = getProjectWorkbenchDefinition('delivery').route
+if (contentOrchestrationWorkbenchRoute !== ROUTES.project.contentUnitWorkbench) {
+  throw new Error('content_orchestration workbench route must match ROUTES.project.contentUnitWorkbench')
+}
 
 interface EBState { error: Error | null }
 
@@ -86,21 +84,13 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
     const { error } = this.state
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-          <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-            <span className="text-destructive type-title">!</span>
-          </div>
-          <div>
-            <p className="type-body font-medium text-foreground mb-1">{i18n.t('errorBoundary.title')}</p>
-            <p className="type-label text-muted-foreground font-mono max-w-sm break-all">{error.message}</p>
-          </div>
-          <button
-            onClick={() => this.setState({ error: null })}
-            className="type-label border border-border text-muted-foreground px-4 py-2 rounded hover:bg-muted transition-colors"
-          >
-            {i18n.t('common.retry')}
-          </button>
-        </div>
+        <AppErrorFallback
+          icon={<AlertTriangle size={20} />}
+          title={i18n.t('errorBoundary.title')}
+          message={error.message}
+          retryLabel={i18n.t('common.retry')}
+          onRetry={() => this.setState({ error: null })}
+        />
       )
     }
     return this.props.children
@@ -172,40 +162,30 @@ function BackendBootOverlay() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
-        <div className={`mx-auto mb-4 flex size-11 items-center justify-center rounded-md ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-          {isError ? <span className="type-title-sm font-semibold">!</span> : <Loader2 size={24} className="animate-spin" />}
-        </div>
-        <h2 className="type-body font-semibold">
-          {isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
-        </h2>
-        <p className="mt-2 type-label leading-5 text-muted-foreground">
-          {isError ? (displayStatus.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
-        </p>
-        <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono type-label text-muted-foreground">
-          {displayStatus.baseURL}
-        </p>
-        {isError && (
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button
+    <AppBackendBootOverlay
+      tone={isError ? 'danger' : 'info'}
+      icon={isError ? <AlertTriangle size={20} /> : <Loader2 size={20} className="animate-spin" />}
+      title={isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
+      description={isError ? (displayStatus.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
+      baseURL={displayStatus.baseURL}
+      actions={isError ? (
+        <>
+            <AppBackendBootActionButton
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => void retryLocalBackend()}
               disabled={retrying}
-              className="inline-flex h-8 items-center rounded-md border border-border px-3 type-label font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              loading={retrying}
             >
               {retrying ? i18n.t('backendBoot.retrying') : i18n.t('backendBoot.retry')}
-            </button>
-            <Link
-              to={ROUTES.appSettings}
-              className="inline-flex h-8 items-center rounded-md border border-border px-3 type-label font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              {i18n.t('backendBoot.openSettings')}
-            </Link>
-          </div>
-        )}
-      </div>
-    </div>
+            </AppBackendBootActionButton>
+            <AppBackendBootActionButton asChild variant="outline" size="sm">
+              <Link to={ROUTES.appSettings}>{i18n.t('backendBoot.openSettings')}</Link>
+            </AppBackendBootActionButton>
+        </>
+      ) : null}
+    />
   )
 }
 
@@ -252,54 +232,17 @@ function Padded({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-auto p-5">{children}</div>
 }
 
-function LegacyDeliveryWorkbenchRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(deliveryWorkbenchRoute, search)} replace />
+function ProjectAgentModeRoute() {
+  return <AgentModePage />
 }
 
-function LegacyContentUnitOrchestrateRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(contentOrchestrationWorkbenchRoute, search)} replace />
-}
-
-function LegacyPreProductionRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(preProductionWorkbenchRoute, search)} replace />
-}
-
-function LegacyPreProductionSettingsRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={mergeSearch(preProductionWorkbenchRoute, search, { tab: 'settings' })} replace />
-}
-
-function LegacyPreProductionAssetsRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={mergeSearch(preProductionWorkbenchRoute, search, { tab: 'assets' })} replace />
-}
-
-function LegacyProjectOverviewRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.overview, search)} replace />
-}
-
-function LegacyProjectStandardsRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(projectStandardsWorkbenchRoute, search)} replace />
-}
-
-function LegacyProductionOrchestrationRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(creativePlanWorkbenchRoute, search)} replace />
-}
-
-function LegacyRedirect({ to }: { to: string }) {
-  const { search } = useLocation()
-  return <Navigate to={withSearch(to, search)} replace />
+function AgentModeRoute({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }
 
 function CanvasHeaderLeft() {
   const navigate = useNavigate()
-  const iconButtonClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
+  const { search } = useLocation()
   const canvasName = useCanvasHeaderStore((s) => s.canvasName)
   const canvasType = useCanvasHeaderStore((s) => s.canvasType)
   const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
@@ -310,18 +253,16 @@ function CanvasHeaderLeft() {
   const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
   return (
     <div className="flex min-w-0 max-w-[36vw] items-center gap-1.5 overflow-hidden">
-      <button
+      <AppWindowIconButton
         type="button"
-        className={iconButtonClass}
-        onClick={() => navigate(ROUTES.canvases)}
+        onClick={() => navigate(canvasBackPath(search))}
         title={i18n.t('header.titles.canvases', { defaultValue: 'Canvases' })}
         aria-label={i18n.t('header.titles.canvases', { defaultValue: 'Canvases' })}
       >
         <ArrowLeft size={12} />
-      </button>
-      <button
+      </AppWindowIconButton>
+      <AppWindowIconButton
         type="button"
-        className={iconButtonClass}
         onClick={onToggleLibrary}
         disabled={!onToggleLibrary}
         title={libraryCollapsed
@@ -332,12 +273,12 @@ function CanvasHeaderLeft() {
           : i18n.t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
       >
         {libraryCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-      </button>
+      </AppWindowIconButton>
       <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
         {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
         {i18n.t(`canvas.editor.canvasType.${canvasType}`)}
       </Badge>
-      <input
+      <Input
         className="app-window-no-drag min-w-[92px] flex-1 border-none bg-transparent type-label font-semibold text-foreground outline-none"
         value={canvasName}
         onChange={(event) => onNameChange?.(event.target.value)}
@@ -348,7 +289,7 @@ function CanvasHeaderLeft() {
         {i18n.t('canvas.editor.nodesCount', { count: nodeCount })}
       </Badge>
       {runningCount > 0 && (
-        <Badge variant="secondary" className="h-6 shrink-0 gap-1 type-tiny">
+        <Badge className="h-6 shrink-0 gap-1 type-tiny">
           <Loader2 size={12} className="animate-spin" />
           {i18n.t('canvas.editor.runningCount', { count: runningCount })}
         </Badge>
@@ -366,7 +307,6 @@ function CanvasHeaderActions() {
   const onSave = useCanvasHeaderStore((s) => s.onSave)
   const saving = useCanvasHeaderStore((s) => s.saving)
   const startingRun = useCanvasHeaderStore((s) => s.startingRun)
-  const iconButtonClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
   return (
     <div className="flex shrink-0 items-center gap-1">
       <Button onClick={onRun} disabled={!onRun || startingRun} size="sm" className="h-6 rounded-md px-2 type-tiny">
@@ -377,32 +317,30 @@ function CanvasHeaderActions() {
         {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
         <span className="hidden md:inline">{saving ? i18n.t('common.saving') : i18n.t('common.save')}</span>
       </Button>
-      <button
+      <AppWindowIconButton
         type="button"
-        className={iconButtonClass}
         onClick={() => navigate(ROUTES.resources)}
         title={i18n.t('header.titles.resources', { defaultValue: 'Resources' })}
         aria-label={i18n.t('header.titles.resources', { defaultValue: 'Resources' })}
       >
         <HardDrive size={12} />
-      </button>
-      <button
+      </AppWindowIconButton>
+      <AppWindowIconButton
         type="button"
-        className={iconButtonClass}
         onClick={() => navigate(ROUTES.jobs)}
         title={i18n.t('header.titles.jobs', { defaultValue: 'Jobs' })}
         aria-label={i18n.t('header.titles.jobs', { defaultValue: 'Jobs' })}
       >
         <BriefcaseBusiness size={12} />
-      </button>
+      </AppWindowIconButton>
     </div>
   )
 }
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { pathname } = useLocation()
-  const workMode = useAppSettingsStore((s) => s.settings.workMode)
-  const agentMode = workMode === 'agent'
+  const routeSurface = getAppRouteSurface(pathname)
+  const agentMode = routeSurface === 'agent'
   const projectsHomeMode = pathname === ROUTES.projects
   const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
   const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
@@ -435,51 +373,50 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       return next
     })
   }, [])
-  const headerSidebarButtonClass = 'app-window-sidebar-toggle flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
   const sidebarHeaderControl = (
     <div className="flex shrink-0 items-center gap-1">
       {!detailSidebarHidden && !detailSidebarCollapsed && (
         <>
-          <button
+          <AppWindowIconButton
             type="button"
-            className={headerSidebarButtonClass}
+            className="app-window-sidebar-toggle"
             onClick={() => adjustDetailSidebarWidth(-12)}
             title="缩窄左侧栏"
             aria-label="缩窄左侧栏"
           >
             <Minus size={12} />
-          </button>
-          <button
+          </AppWindowIconButton>
+          <AppWindowIconButton
             type="button"
-            className={headerSidebarButtonClass}
+            className="app-window-sidebar-toggle"
             onClick={() => adjustDetailSidebarWidth(12)}
             title="加宽左侧栏"
             aria-label="加宽左侧栏"
           >
             <Plus size={12} />
-          </button>
+          </AppWindowIconButton>
         </>
       )}
       {!detailSidebarHidden && (
-        <button
+        <AppWindowIconButton
           type="button"
-          className={headerSidebarButtonClass}
+          className="app-window-sidebar-toggle"
           onClick={toggleCollapsedDetailSidebar}
           title={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
           aria-label={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
         >
           {detailSidebarCollapsed ? <PanelLeftOpen size={12} /> : <ChevronsLeft size={12} />}
-        </button>
+        </AppWindowIconButton>
       )}
-      <button
+      <AppWindowIconButton
         type="button"
-        className={headerSidebarButtonClass}
+        className="app-window-sidebar-toggle"
         onClick={toggleHiddenDetailSidebar}
         title={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
         aria-label={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
       >
         {detailSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-      </button>
+      </AppWindowIconButton>
     </div>
   )
 
@@ -554,8 +491,9 @@ export default function App() {
     return (
       <ErrorBoundary>
         <AppRouter>
-          <MCPContextBridge />
+          <ElectronMCPContextBridge />
           <Toaster />
+          <UiDebugInspector />
           <BackendBootOverlay />
           <Routes>
             <Route path={ROUTES.invite} element={<InvitePage />} />
@@ -571,8 +509,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AppRouter>
-        <MCPContextBridge />
+        <ElectronMCPContextBridge />
         <Toaster />
+        <UiDebugInspector />
         <BackendBootOverlay />
         <Routes>
           <Route path={ROUTES.canvasEditor} element={
@@ -606,10 +545,6 @@ export default function App() {
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path={ROUTES.project.preProduction} element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.preProduction} element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.creativeReferences} element={<ProjectGuard><LegacyPreProductionSettingsRedirect /></ProjectGuard>} />
-              <Route path={ROUTES.project.referenceRelations} element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.assetSlots} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
 
               {/* 工具模块 */}
               <Route path={ROUTES.canvases} element={<Padded><CanvasListPage /></Padded>} />
@@ -624,43 +559,17 @@ export default function App() {
 
               {/* 工作模块 */}
               <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.scripts} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
-              <Route path={ROUTES.project.segments} element={<ProjectGuard><SegmentsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.segments} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.segments} /></ProjectGuard>} />
-              <Route path={ROUTES.project.sceneMoments} element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.sceneMoments} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.sceneMoments} /></ProjectGuard>} />
-              <Route path={ROUTES.project.contentUnits} element={<ProjectGuard><ContentUnitsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.contents} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.contentUnits} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.finalVideos} element={<LegacyRedirect to={ROUTES.project.delivery} />} />
 
               <Route path={ROUTES.project.production} element={<ProjectGuard><ProductionPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.production} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.production} /></ProjectGuard>} />
               <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.productionOrchestration} element={<ProjectGuard><LegacyProductionOrchestrationRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.collaboration} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.tasks} /></ProjectGuard>} />
               <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.delivery} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.delivery} /></ProjectGuard>} />
               <Route path={ROUTES.project.deliveryWorkbench} element={<ProjectGuard><DeliveryWorkbenchPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.deliveryWorkbench} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.deliveryWorkbenchFlat} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.overview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.agent} element={<ProjectGuard><ProjectAgentModePage embeddedInShell /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.projectHome} element={<ProjectGuard><LegacyProjectOverviewRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.agent} element={<ProjectGuard><ProjectAgentModeRoute /></ProjectGuard>} />
+              <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.projectWorkspace} element={<ProjectGuard><LegacyProjectStandardsRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.creativeWorkbench} element={<ProjectGuard><LegacyPreProductionSettingsRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.creation} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchCreative} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.preProduction} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchAssets} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
-              <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.contentUnitOrchestrate} element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchProduction} element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchDelivery} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchObject} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
-              <Route path={ROUTES.project.referenceRelationsWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchReferenceRelations} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.referenceRelationsWorkbench} /></ProjectGuard>} />
+              <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><ContentWorkbenchPage /></ProjectGuard>} />
 
               {/* 用户 */}
               <Route path={ROUTES.user} element={<Padded><UserProfilePage /></Padded>} />

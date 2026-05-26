@@ -1,0 +1,59 @@
+.app-marker-dot {
+  display: inline-flex;
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: var(--ms-radius-full);
+  background: var(--ms-color-muted-foreground);
+}
+
+.app-marker-dot[data-size="2xs"] {
+  width: 4px;
+  height: 4px;
+}
+
+.app-marker-dot[data-size="xs"] {
+  width: 6px;
+  height: 6px;
+}
+
+.app-marker-dot[data-size="sm"] {
+  width: 8px;
+  height: 8px;
+}
+
+.app-marker-dot[data-size="md"] {
+  width: 10px;
+  height: 10px;
+}
+
+.app-marker-dot[data-tone="brand"] {
+  background: var(--ms-color-primary);
+}
+
+.app-marker-dot[data-tone="border"] {
+  background: var(--ms-color-border);
+}
+
+.app-marker-dot[data-tone="muted"] {
+  background: var(--ms-color-muted-foreground);
+}
+
+.app-marker-dot.ms-tone-dot {
+  background: var(--ms-tone-color);
+}
+
+.app-marker-dot.ms-accent-dot {
+  background: rgb(var(--ui-accent-rgb));
+}
+
+.app-marker-dot[data-outlined="true"] {
+  border: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+}
+
+.app-marker-dot[data-outlined="true"][data-tone="brand"],
+.app-marker-dot[data-outlined="true"].ms-tone-dot,
+.app-marker-dot[data-outlined="true"].ms-accent-dot {
+  border-color: currentColor;
+}

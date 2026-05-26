@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/app/coregraph"
+	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
@@ -396,6 +397,50 @@ func TestBuildGenerationContextReturnsDebuggableNotFoundError(t *testing.T) {
 	}
 	if contextErr.Message == "" || contextErr.Cause == "" {
 		t.Fatalf("missing readable error fields: %+v", contextErr)
+	}
+}
+
+func TestBuildGenerationContextCachesUntilVersionBump(t *testing.T) {
+	db := newGenerationContextTestDB(t)
+	ctx := context.Background()
+	projectID := uint(1)
+	contentUnit := model.ContentUnit{
+		ProjectID: projectID,
+		Kind:      "shot",
+		Title:     "cached title",
+		Status:    "confirmed",
+	}
+	if err := db.Create(&contentUnit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+
+	service := NewService(db, cache.NewMemory())
+	req := GenerationContextRequest{TargetType: "content_unit", TargetID: contentUnit.ID, Intent: "video"}
+	first, err := service.BuildGenerationContext(ctx, projectID, req)
+	if err != nil {
+		t.Fatalf("first build generation context: %v", err)
+	}
+	if first.Target.ContentUnit.Title != "cached title" {
+		t.Fatalf("first title = %q", first.Target.ContentUnit.Title)
+	}
+	if err := db.Model(&model.ContentUnit{}).Where("id = ?", contentUnit.ID).Update("title", "updated title").Error; err != nil {
+		t.Fatalf("update content unit: %v", err)
+	}
+	second, err := service.BuildGenerationContext(ctx, projectID, req)
+	if err != nil {
+		t.Fatalf("second build generation context: %v", err)
+	}
+	if second.Target.ContentUnit.Title != "cached title" {
+		t.Fatalf("second title = %q, want cached title", second.Target.ContentUnit.Title)
+	}
+
+	service.bumpGenerationContextVersion(ctx, projectID)
+	third, err := service.BuildGenerationContext(ctx, projectID, req)
+	if err != nil {
+		t.Fatalf("third build generation context: %v", err)
+	}
+	if third.Target.ContentUnit.Title != "updated title" {
+		t.Fatalf("third title = %q, want updated title", third.Target.ContentUnit.Title)
 	}
 }
 

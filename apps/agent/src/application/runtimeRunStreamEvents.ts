@@ -1,7 +1,7 @@
 import type { JSONValue } from '../types.js'
 import { appendTraceEvent } from '../state/runTrace.js'
 import {
-  assistantDeltaFromTraceEvent,
+  assistantProgressFromTraceEvent,
   assistantMessageForRun,
   assistantMessageFromTraceEvent,
   toStreamRun,
@@ -104,7 +104,7 @@ export function emitRuntimeVolatileTraceEvent(input: {
   if (input.trace.kind === 'tool_call' || input.trace.kind === 'reasoning') {
     input.emitRunStreamEvent(input.run.id, { type: 'trace', runId: input.run.id, event })
   }
-  emitTraceDeltaEvent({
+  emitTraceProgressEvent({
     event,
     runId: input.run.id,
     emitRunStreamEvent: input.emitRunStreamEvent,
@@ -131,9 +131,9 @@ export function replayRuntimeRunStream(input: {
   const traceEvents = input.store.listRunTraceEvents(input.run.id, { limit: Number.MAX_SAFE_INTEGER })
   for (const event of traceEvents) {
     input.listener({ type: 'trace', runId: input.run.id, event })
-    const assistantDelta = assistantDeltaFromTraceEvent(event)
-    if (assistantDelta) {
-      input.listener({ ...assistantDelta, runId: input.run.id, traceEventId: event.id, createdAt: event.createdAt })
+    const assistantProgress = assistantProgressFromTraceEvent(event)
+    if (assistantProgress) {
+      input.listener({ ...assistantProgress, runId: input.run.id, traceEventId: event.id, createdAt: event.createdAt })
     }
   }
   const assistantMessage = assistantMessageForRun(thread, input.run)
@@ -172,7 +172,7 @@ function emitTraceDerivedRunStreamEvents(input: {
   getThread: (threadId: string) => ReturnType<AgentStore['getThread']>
   emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
-  emitTraceDeltaEvent({
+  emitTraceProgressEvent({
     event: input.event,
     runId: input.run.id,
     emitRunStreamEvent: input.emitRunStreamEvent,
@@ -188,15 +188,15 @@ function emitTraceDerivedRunStreamEvents(input: {
   }
 }
 
-function emitTraceDeltaEvent(input: {
+function emitTraceProgressEvent(input: {
   event: AgentTraceEvent
   runId: string
   emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
-  const assistantDelta = assistantDeltaFromTraceEvent(input.event)
-  if (assistantDelta) {
+  const assistantProgress = assistantProgressFromTraceEvent(input.event)
+  if (assistantProgress) {
     input.emitRunStreamEvent(input.runId, {
-      ...assistantDelta,
+      ...assistantProgress,
       runId: input.runId,
       traceEventId: input.event.id,
       createdAt: input.event.createdAt,
