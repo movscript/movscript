@@ -1,9 +1,10 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, HTMLAttributes, ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 
 import { toneTextClass } from "../../../../semantic";
 import { cn } from "../../../../lib/cn";
 import { Button, type ButtonProps } from "../../../primitives";
+import { OverlapPane, OverlapPaneGroup } from "../../../layout";
 import type { IconComponent } from "../../../primitives/types";
 import { AppCodeBlock, AppEmptyState, AppInlineMeta, AppPanel, AppSurfaceItem } from "../../app";
 import { ReviewCallout } from "../../review";
@@ -13,11 +14,29 @@ export function ToolDialogFrame({ className, ...props }: HTMLAttributes<HTMLDivE
 }
 
 export function ToolDialogBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("tool-dialog-body", className)} {...props} />;
+  return <OverlapPaneGroup className={cn("tool-dialog-body", className)} {...props} />;
 }
 
 export function ToolDialogMain({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("tool-dialog-main", className)} {...props} />;
+}
+
+export type ToolDialogResourcePaneProps = Omit<ComponentPropsWithoutRef<typeof OverlapPane>, "as" | "side">;
+
+export function ToolDialogResourcePane({
+  className,
+  resizeHandleSide = "left",
+  ...props
+}: ToolDialogResourcePaneProps) {
+  return (
+    <OverlapPane
+      as="aside"
+      side="left"
+      resizeHandleSide={resizeHandleSide}
+      className={cn("tool-dialog-resource-overlap", className)}
+      {...props}
+    />
+  );
 }
 
 export function ToolDialogPanel({

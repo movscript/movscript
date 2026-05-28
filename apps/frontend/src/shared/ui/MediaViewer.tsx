@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactEventHandler, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { X, Maximize2, Download, FileAudio, FileText, File, PlayCircle } from 'lucide-react'
@@ -33,6 +33,8 @@ interface MediaViewerProps {
   /** Controlled open state — when provided, the component acts as a pure lightbox (no thumbnail) */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onImageLoad?: ReactEventHandler<HTMLImageElement>
+  onVideoLoadedMetadata?: ReactEventHandler<HTMLVideoElement>
 }
 
 export function resolveResourceUrl(resource: RawResource): string {
@@ -62,7 +64,7 @@ async function loadTextResource(proxyUrl: string): Promise<string> {
 
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
-export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, diagnosticLabel, lightweightVideoThumb = false, thumbnailMaxSize, lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
+export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, diagnosticLabel, lightweightVideoThumb = false, thumbnailMaxSize, lightbox = true, open: controlledOpen, onOpenChange, onImageLoad, onVideoLoadedMetadata }: MediaViewerProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const proxyUrl = resolveResourceUrl(resource)
@@ -81,13 +83,13 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       {resource.type === 'video' ? (
         lightweightVideoThumb
           ? <VideoPlaceholderThumb name={resource.name} size={resource.size} />
-          : <VideoThumb proxyUrl={proxyUrl} fit={fit} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} />
+          : <VideoThumb proxyUrl={proxyUrl} fit={fit} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} onLoadedMetadata={onVideoLoadedMetadata} />
       ) : resource.type === 'audio' ? (
         <IconThumb icon={<FileAudio size={24} />} />
       ) : resource.type === 'text' ? (
         <TextThumb proxyUrl={proxyUrl} name={resource.name} />
       ) : resource.type === 'image' ? (
-        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} thumbnailMaxSize={thumbnailMaxSize} />
+        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} thumbnailMaxSize={thumbnailMaxSize} onLoad={onImageLoad} />
       ) : (
         <IconThumb icon={<File size={24} />} />
       )}
@@ -139,14 +141,14 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
   )
 }
 
-function ImageThumb({ proxyUrl, alt, diagnosticLabel, thumbnailMaxSize }: { proxyUrl: string; alt: string; diagnosticLabel?: string; thumbnailMaxSize?: number }) {
-  return <AuthedImage src={proxyUrl} alt={alt} diagnosticLabel={diagnosticLabel} thumbnailMaxSize={thumbnailMaxSize} />
+function ImageThumb({ proxyUrl, alt, diagnosticLabel, thumbnailMaxSize, onLoad }: { proxyUrl: string; alt: string; diagnosticLabel?: string; thumbnailMaxSize?: number; onLoad?: ReactEventHandler<HTMLImageElement> }) {
+  return <AuthedImage src={proxyUrl} alt={alt} diagnosticLabel={diagnosticLabel} thumbnailMaxSize={thumbnailMaxSize} onLoad={onLoad} />
 }
 
-function VideoThumb({ proxyUrl, fit, diagnosticLabel }: { proxyUrl: string; fit: 'cover' | 'contain'; diagnosticLabel?: string }) {
+function VideoThumb({ proxyUrl, fit, diagnosticLabel, onLoadedMetadata }: { proxyUrl: string; fit: 'cover' | 'contain'; diagnosticLabel?: string; onLoadedMetadata?: ReactEventHandler<HTMLVideoElement> }) {
   return (
     <ResourceMediaFillFrame fit={fit}>
-      <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} />
+      <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} onLoadedMetadata={onLoadedMetadata} />
     </ResourceMediaFillFrame>
   )
 }

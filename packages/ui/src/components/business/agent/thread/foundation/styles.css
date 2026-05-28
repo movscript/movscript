@@ -19,6 +19,11 @@
   padding: 14px;
 }
 
+.ai-agent-panel-thread-window-control {
+  display: flex;
+  justify-content: center;
+}
+
 .ms-agent-field {
   min-width: 0;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);

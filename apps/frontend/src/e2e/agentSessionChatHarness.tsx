@@ -25,6 +25,7 @@ function AgentSessionChatHarness() {
           activeRun={null}
           approvingLocalRun={false}
           bottomRef={createRef<HTMLDivElement>()}
+          conversationId="agent-session-chat-harness"
           conversationBlocks={[]}
           generationProgressStates={[]}
           messages={[

@@ -21,7 +21,28 @@ import {
 export { attachmentDisplayUrl, formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
 export { AgentMessageSection } from '@movscript/ui'
 
-export function AgentMarkdownContent({ text, attachments }: { text: string; attachments?: AgentAttachment[] }) {
+type MarkdownSegment =
+  | { type: 'code'; key: string; lang: string; code: string }
+  | { type: 'text'; key: string; text: string }
+
+type InlineResourcePart =
+  | { type: 'resource'; key: string; resourceId: number }
+  | { type: 'text'; key: string; text: string }
+
+type InlineTextPart =
+  | { type: 'code'; key: string; text: string }
+  | { type: 'strong'; key: string; text: string }
+  | { type: 'text'; key: string; text: string }
+
+const MARKDOWN_SEGMENT_CACHE_LIMIT = 160
+const INLINE_RESOURCE_CACHE_LIMIT = 320
+const INLINE_TEXT_CACHE_LIMIT = 640
+const TEXT_PARSE_CACHE_MAX_CHARS = 20_000
+const markdownSegmentCache = new Map<string, MarkdownSegment[]>()
+const inlineResourceCache = new Map<string, InlineResourcePart[]>()
+const inlineTextCache = new Map<string, InlineTextPart[]>()
+
+export const AgentMarkdownContent = React.memo(function AgentMarkdownContent({ text, attachments }: { text: string; attachments?: AgentAttachment[] }) {
   const attachmentsById = useMemo(() => {
     const map = new Map<number, AgentAttachment>()
     for (const attachment of attachments ?? []) {
@@ -29,29 +50,28 @@ export function AgentMarkdownContent({ text, attachments }: { text: string; atta
     }
     return map
   }, [attachments])
-  const segments = text.split(/(```[\w]*\n[\s\S]*?```)/g)
+  const segments = useMemo(() => parseMarkdownSegments(text), [text])
   return (
     <div>
-      {segments.map((seg, i) => {
-        const match = seg.match(/^```([\w]*)\n([\s\S]*?)```$/)
-        if (match) return <CodeBlock key={i} lang={match[1]} code={match[2].trimEnd()} />
-        return <span key={i}><InlineText text={seg} attachmentsById={attachmentsById} /></span>
+      {segments.map((segment) => {
+        if (segment.type === 'code') return <CodeBlock key={segment.key} lang={segment.lang} code={segment.code} />
+        return <span key={segment.key}><InlineText text={segment.text} attachmentsById={attachmentsById} /></span>
       })}
     </div>
   )
-}
+}, (prev, next) => prev.text === next.text && prev.attachments === next.attachments)
 
-export function AgentAttachmentPreview({ attachment, compact = false }: { attachment: AgentAttachment; compact?: boolean }) {
+export const AgentAttachmentPreview = React.memo(function AgentAttachmentPreview({ attachment, compact = false }: { attachment: AgentAttachment; compact?: boolean }) {
   const url = attachmentDisplayUrl(attachment)
   return (
     <AgentAttachmentPreviewCard density={compact ? 'compact' : 'default'}>
       {attachment.type === 'image' && url ? (
         <AgentAttachmentPreviewMedia>
-          <AuthedImage src={url} alt={attachment.name} />
+          <AuthedImage src={url} alt={attachment.name} loading="lazy" decoding="async" thumbnailMaxSize={compact ? 180 : 480} />
         </AgentAttachmentPreviewMedia>
-      ) : attachment.type === 'video' && url ? (
+      ) : attachment.type === 'video' && url && !compact ? (
         <AgentAttachmentPreviewMedia surface="dark">
-          <AuthedVideo src={url} muted controls />
+          <AuthedVideo src={url} muted controls preload="metadata" />
         </AgentAttachmentPreviewMedia>
       ) : (
         <AgentAttachmentPreviewFallback>
@@ -64,7 +84,7 @@ export function AgentAttachmentPreview({ attachment, compact = false }: { attach
       </AgentAttachmentPreviewBody>
     </AgentAttachmentPreviewCard>
   )
-}
+})
 
 export function AgentAttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; size?: number }) {
   if (type === 'image') return <Image size={size} />
@@ -74,7 +94,7 @@ export function AgentAttachmentIcon({ type, size = 12 }: { type: AgentAttachment
   return <File size={size} />
 }
 
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
+const CodeBlock = React.memo(function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false)
   function copy() {
     navigator.clipboard.writeText(code)
@@ -92,30 +112,27 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
       <AgentCodeBlockContent><code>{code}</code></AgentCodeBlockContent>
     </AgentCodeBlock>
   )
-}
+})
 
 function InlineText({ text, attachmentsById }: { text: string; attachmentsById?: Map<number, AgentAttachment> }) {
-  const parts = text.split(/(@\[resource:\d+\])/g)
+  const parts = useMemo(() => parseInlineResourceParts(text), [text])
   return (
     <>
-      {parts.map((part, i) => {
-        const match = part.match(/^@\[resource:(\d+)\]$/)
-        if (match) {
-          const attachment = attachmentsById?.get(Number(match[1])) ?? placeholderAttachment(Number(match[1]))
-          return <InlineResourceMention key={i} attachment={attachment} />
+      {parts.map((part) => {
+        if (part.type === 'resource') {
+          const attachment = attachmentsById?.get(part.resourceId) ?? placeholderAttachment(part.resourceId)
+          return <InlineResourceMention key={part.key} attachment={attachment} />
         }
-        return <React.Fragment key={i}>{renderInlineText(part)}</React.Fragment>
+        return <React.Fragment key={part.key}>{renderInlineText(part.text)}</React.Fragment>
       })}
     </>
   )
 }
 
-function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) {
+const InlineResourceMention = React.memo(function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) {
   const url = attachmentDisplayUrl(attachment)
   const media = attachment.type === 'image' && url ? (
-    <AuthedImage src={url} alt={attachment.name} />
-  ) : attachment.type === 'video' && url ? (
-    <AuthedVideo src={url} muted playsInline preload="metadata" />
+    <AuthedImage src={url} alt={attachment.name} loading="lazy" decoding="async" thumbnailMaxSize={96} />
   ) : (
     <span className="ms-center">
       <AgentAttachmentIcon type={attachment.type} size={10} />
@@ -130,17 +147,82 @@ function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) 
       <span className="max-w-[96px] truncate">{attachment.name}</span>
     </AgentInlineResource>
   )
-}
+})
 
 function renderInlineText(text: string) {
-  const parts = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <AgentInlineCode key={i}>{part.slice(1, -1)}</AgentInlineCode>
+  return parseInlineTextParts(text).map((part) => {
+    if (part.type === 'code') {
+      return <AgentInlineCode key={part.key}>{part.text}</AgentInlineCode>
     }
-    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={i}>{part.slice(2, -2)}</strong>
-    return part.split('\n').map((line, j, arr) => (
-      <React.Fragment key={`${i}-${j}`}>{line}{j < arr.length - 1 && <br />}</React.Fragment>
-    ))
+    if (part.type === 'strong') return <strong key={part.key}>{part.text}</strong>
+    return renderTextLines(part.text, part.key)
   })
+}
+
+function renderTextLines(text: string, keyPrefix: string) {
+  return text.split('\n').map((line, index, lines) => (
+    <React.Fragment key={`${keyPrefix}-${index}`}>{line}{index < lines.length - 1 && <br />}</React.Fragment>
+  ))
+}
+
+function parseMarkdownSegments(text: string): MarkdownSegment[] {
+  const cacheable = isCacheableParsedText(text)
+  const cached = cacheable ? readCached(markdownSegmentCache, text) : undefined
+  if (cached) return cached
+  const segments = text.split(/(```[\w]*\n[\s\S]*?```)/g).map((segment, index): MarkdownSegment => {
+    const match = segment.match(/^```([\w]*)\n([\s\S]*?)```$/)
+    if (match) return { type: 'code', key: `code-${index}`, lang: match[1], code: match[2].trimEnd() }
+    return { type: 'text', key: `text-${index}`, text: segment }
+  })
+  if (cacheable) remember(markdownSegmentCache, text, segments, MARKDOWN_SEGMENT_CACHE_LIMIT)
+  return segments
+}
+
+function parseInlineResourceParts(text: string): InlineResourcePart[] {
+  const cacheable = isCacheableParsedText(text)
+  const cached = cacheable ? readCached(inlineResourceCache, text) : undefined
+  if (cached) return cached
+  const parts = text.split(/(@\[resource:\d+\])/g).map((part, index): InlineResourcePart => {
+    const match = part.match(/^@\[resource:(\d+)\]$/)
+    if (match) return { type: 'resource', key: `resource-${index}-${match[1]}`, resourceId: Number(match[1]) }
+    return { type: 'text', key: `text-${index}`, text: part }
+  })
+  if (cacheable) remember(inlineResourceCache, text, parts, INLINE_RESOURCE_CACHE_LIMIT)
+  return parts
+}
+
+function parseInlineTextParts(text: string): InlineTextPart[] {
+  const cacheable = isCacheableParsedText(text)
+  const cached = cacheable ? readCached(inlineTextCache, text) : undefined
+  if (cached) return cached
+  const parts = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g).map((part, index): InlineTextPart => {
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return { type: 'code', key: `code-${index}`, text: part.slice(1, -1) }
+    }
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return { type: 'strong', key: `strong-${index}`, text: part.slice(2, -2) }
+    }
+    return { type: 'text', key: `text-${index}`, text: part }
+  })
+  if (cacheable) remember(inlineTextCache, text, parts, INLINE_TEXT_CACHE_LIMIT)
+  return parts
+}
+
+function isCacheableParsedText(text: string) {
+  return text.length <= TEXT_PARSE_CACHE_MAX_CHARS
+}
+
+function remember<T>(cache: Map<string, T>, key: string, value: T, limit: number) {
+  cache.set(key, value)
+  if (cache.size <= limit) return
+  const firstKey = cache.keys().next().value
+  if (firstKey !== undefined) cache.delete(firstKey)
+}
+
+function readCached<T>(cache: Map<string, T>, key: string): T | undefined {
+  const value = cache.get(key)
+  if (value === undefined) return undefined
+  cache.delete(key)
+  cache.set(key, value)
+  return value
 }

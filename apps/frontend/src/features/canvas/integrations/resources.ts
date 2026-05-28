@@ -19,6 +19,31 @@ export function resourceMatchesSearch(resource: RawResource, query: string) {
     .some((value) => String(value ?? '').toLowerCase().includes(term))
 }
 
+export function fileToCanvasResourceNodeType(file: Pick<File, 'name' | 'type'>): NodeType | undefined {
+  const mime = file.type.toLowerCase()
+  if (mime.startsWith('image/')) return 'image'
+  if (mime.startsWith('video/')) return 'video'
+  if (mime.startsWith('text/')) return 'text'
+  const ext = file.name.toLowerCase().split('.').pop() ?? ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif'].includes(ext)) return 'image'
+  if (['mp4', 'mov', 'avi', 'webm'].includes(ext)) return 'video'
+  if (['txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html', 'xml', 'yaml', 'yml', 'log'].includes(ext)) return 'text'
+  return undefined
+}
+
+export async function uploadCanvasResourceFile(file: File): Promise<RawResource> {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+}
+
+export async function uploadCanvasTextResource(name: string, content: string): Promise<RawResource> {
+  const trimmedName = name.trim() || 'canvas-text'
+  const filename = trimmedName.toLowerCase().endsWith('.txt') ? trimmedName : `${trimmedName}.txt`
+  const file = new File([content], filename, { type: 'text/plain' })
+  return uploadCanvasResourceFile(file)
+}
+
 export function useCanvasResourceIntegration({
   canvas,
   canvasId,

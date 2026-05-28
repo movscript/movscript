@@ -8,7 +8,19 @@
   display: grid;
   min-width: 0;
   gap: 8px;
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 18%, transparent);
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 56%, transparent);
   padding: 10px;
+}
+
+.generation-input-slot[data-state="required"] {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-warning) 36%, var(--ms-color-border));
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-warning) 7%, transparent);
+}
+
+.generation-input-slot[data-state="filled"] {
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-primary) 28%, var(--ms-color-border));
+  --ui-surface-background: color-mix(in srgb, var(--ms-color-primary) 5%, var(--ms-color-muted) 14%);
 }
 
 .generation-input-slot__header {

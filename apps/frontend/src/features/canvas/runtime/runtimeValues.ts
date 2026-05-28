@@ -1,9 +1,21 @@
 import type { Edge, Node } from '@xyflow/react'
 
 import type { CanvasNodeData, CanvasPortDef, CanvasPortValue, RawResource } from '@/types'
+import { compareWorkflowIoNodes, workflowIoOrder } from '@/features/canvas/domain/graph'
 import { fromUiHandleId, portsForNode } from '@/features/canvas/domain/ports'
 import type { CanvasRuntimeOutputCache } from '@/features/canvas/runtime/canvasRuntimeGraph'
 import type { CanvasRuntimeRun } from './runHistoryStore'
+
+const TOOL_CARD_NODE_TYPES = new Set([
+  'text_gen',
+  'ai_gen',
+  'ref_image_gen',
+  'ref_video_gen',
+  'multi_angle',
+  'style_transfer',
+  'motion_imitation',
+  'video_edit',
+])
 
 export interface WorkflowRunOutputItem {
   key: string
@@ -50,13 +62,13 @@ export function textContentFromOutputs(outputs: Record<string, CanvasPortValue>)
 }
 
 export function resourceTypeForPortValue(value: CanvasPortValue): RawResource['type'] {
-  if (value.type === 'image' || value.type === 'video') return value.type
+  if (value.type === 'image' || value.type === 'video' || value.type === 'audio') return value.type
   return 'text'
 }
 
 export function resourceNameForOutput(label: string, value: CanvasPortValue) {
   const safeLabel = label.trim() || 'workflow-output'
-  const ext = value.type === 'json' ? 'json' : value.type === 'image' ? 'png' : value.type === 'video' ? 'mp4' : 'txt'
+  const ext = value.type === 'json' ? 'json' : value.type === 'image' ? 'png' : value.type === 'video' ? 'mp4' : value.type === 'audio' ? 'mp3' : 'txt'
   return `${safeLabel}.${ext}`
 }
 
@@ -90,7 +102,7 @@ export function workflowRunOutputItems(run: CanvasRuntimeRun | undefined, nodes:
     items.push({ key, label, value, resource: resourceFromOutputValue(label, value) })
   }
 
-  nodes.filter((node) => node.type === 'output').forEach((node) => {
+  nodes.filter((node) => node.type === 'output').sort(compareWorkflowIoNodes).forEach((node) => {
     const data = node.data as Partial<CanvasNodeData>
     const label = data.paramName || (data as any).label || node.id
     const candidateKeys = [node.id, data.paramName, ...(data.outputPorts ?? []).map((port) => port.id)].filter(Boolean) as string[]
@@ -158,7 +170,11 @@ export function connectedInputPortIds(nodeId: string, edges: Edge[]) {
 export function runtimeInputPortsForNode(node: Node | undefined, edges: Edge[]) {
   if (!node) return []
   const connected = connectedInputPortIds(node.id, edges)
-  return portsForNode(node, 'target').filter((port) => port.required && !connected.has(port.id))
+  return portsForNode(node, 'target').filter((port) => (
+    port.required
+    && !connected.has(port.id)
+    && !isToolCardResourceInput(node, port)
+  ))
 }
 
 export function defaultRuntimeValueForPort(port: CanvasPortDef) {
@@ -189,6 +205,7 @@ export function encodeRuntimePortValue(port: CanvasPortDef, raw: string): Canvas
     }
     case 'image':
     case 'video':
+    case 'audio':
     case 'resource': {
       const id = Number(raw)
       return Number.isInteger(id) && id > 0 ? { type: port.type, resource_id: id } : null
@@ -199,12 +216,20 @@ export function encodeRuntimePortValue(port: CanvasPortDef, raw: string): Canvas
   }
 }
 
+function isToolCardResourceInput(node: Node, port: CanvasPortDef) {
+  if (port.type !== 'image' && port.type !== 'video' && port.type !== 'audio' && port.type !== 'resource') return false
+  const data = node.data as Partial<CanvasNodeData>
+  if (TOOL_CARD_NODE_TYPES.has(String(node.type))) return true
+  return data.source === 'ai' && node.type !== 'input' && node.type !== 'output' && node.type !== 'resource_sink'
+}
+
 export function portForWorkflowInputNode(node: Node): CanvasPortDef {
   const data = node.data as Partial<CanvasNodeData> & { label?: string }
   return {
     id: 'value',
     label: data.paramName || data.label || node.id,
     type: data.paramType ?? 'text',
+    order: workflowIoOrder(node),
     required: true,
   }
 }

@@ -286,6 +286,13 @@ func RegisteredMigrations() []Migration {
 				return removeProductionOrchestrateFeatureConfig(db)
 			},
 		},
+		{
+			Version: "000030",
+			Name:    "backfill_cached_input_token_columns",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.UsageLog{}, &persistencemodel.LLMCallLog{})
+			},
+		},
 	}
 	return core
 }

@@ -19,6 +19,7 @@ test('runtime port values encode typed dialog input', () => {
   assert.deepEqual(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{"a":1}'), { type: 'json', json: { a: 1 } })
   assert.equal(encodeRuntimePortValue({ id: 'payload', type: 'json' }, '{'), null)
   assert.deepEqual(encodeRuntimePortValue({ id: 'asset', type: 'resource' }, '7'), { type: 'resource', resource_id: 7 })
+  assert.deepEqual(encodeRuntimePortValue({ id: 'voice', type: 'audio' }, '8'), { type: 'audio', resource_id: 8 })
   assert.equal(defaultRuntimeValueForPort({ id: 'payload', type: 'json' }), '{}')
 })
 
@@ -38,6 +39,23 @@ test('runtimeInputPortsForNode returns required unconnected ports only', () => {
   const edges = [{ id: 'e1', source: 'a', target: 'target', targetHandle: 'in:image' }] as Edge[]
 
   assert.deepEqual(runtimeInputPortsForNode(node, edges).map((port) => port.id), ['prompt'])
+})
+
+test('runtimeInputPortsForNode does not request raw resource ids for tool card resource inputs', () => {
+  const node = {
+    id: 'target',
+    type: 'ref_image_gen',
+    position: { x: 0, y: 0 },
+    data: {
+      source: 'ai',
+      inputPorts: [
+        { id: 'references', type: 'image', required: true },
+        { id: 'prompt', type: 'text', required: true },
+      ],
+    },
+  } as Node
+
+  assert.deepEqual(runtimeInputPortsForNode(node, []).map((port) => port.id), ['prompt'])
 })
 
 test('runtime output helpers prefer explicit output nodes and preview text', () => {

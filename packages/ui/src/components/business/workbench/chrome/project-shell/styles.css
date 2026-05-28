@@ -10,7 +10,6 @@
 
 .workbench-project-header {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--ms-color-border);
   background: var(--ms-color-background);
   padding: 12px 20px;
 }

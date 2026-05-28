@@ -15,8 +15,9 @@ export function CanvasToolActionCardBody({
   outputs = [],
   inputPanel,
   resultPanel,
+  labels,
   renderPortHandle,
-}: Pick<CanvasToolActionCardProps, "inputs" | "configs" | "outputs" | "inputPanel" | "resultPanel" | "renderPortHandle">) {
+}: Pick<CanvasToolActionCardProps, "inputs" | "configs" | "outputs" | "inputPanel" | "resultPanel" | "labels" | "renderPortHandle">) {
   const visibleInputs = inputs.slice(0, 3);
   const visibleConfigs = configs?.slice(0, 5) ?? [];
   const visibleOutputs = outputs.slice(0, 2);
@@ -25,7 +26,7 @@ export function CanvasToolActionCardBody({
   return (
     <div className="canvas-tool-action-card__body">
       <div>
-        <CanvasToolSectionTitle icon={<TextIcon size={12} />} label="输入" />
+        <CanvasToolSectionTitle icon={<TextIcon size={12} />} label={labels?.inputs ?? "输入"} />
         <div className="canvas-tool-action-card__stack">
           {visibleInputs.length > 0 ? (
             visibleInputs.map((slot) => (
@@ -40,7 +41,7 @@ export function CanvasToolActionCardBody({
               />
             ))
           ) : (
-            <CanvasToolEmptyRow label="等待上游输入" />
+            <CanvasToolEmptyRow label={labels?.emptyInputs ?? "等待上游输入"} />
           )}
         </div>
       </div>
@@ -49,19 +50,19 @@ export function CanvasToolActionCardBody({
 
       {showConfigSection ? (
         <div className="canvas-tool-action-card__config-column">
-          <CanvasToolSectionTitle icon={<SettingsIcon size={12} />} label="配置" />
+          <CanvasToolSectionTitle icon={<SettingsIcon size={12} />} label={labels?.configs ?? "配置"} />
           <div className="canvas-tool-action-card__stack">
             {visibleConfigs.length > 0 ? (
               visibleConfigs.map((item) => <CanvasToolConfigPill key={item.id} item={item} />)
             ) : (
-              <CanvasToolEmptyRow label="默认参数" />
+              <CanvasToolEmptyRow label={labels?.defaultConfig ?? "默认参数"} />
             )}
           </div>
         </div>
       ) : null}
 
       <div className="canvas-tool-action-card__output-section">
-        <CanvasToolSectionTitle icon={<ImageIcon size={12} />} label="输出" />
+        <CanvasToolSectionTitle icon={<ImageIcon size={12} />} label={labels?.outputs ?? "输出"} />
         <div className="canvas-tool-action-card__output-grid">
           {visibleOutputs.length > 0 ? (
             visibleOutputs.map((slot) => (
@@ -77,7 +78,7 @@ export function CanvasToolActionCardBody({
             ))
           ) : (
             <div className="canvas-tool-action-card__output-empty">
-              <CanvasToolEmptyRow label="未生成" />
+              <CanvasToolEmptyRow label={labels?.emptyOutputs ?? "未生成"} />
             </div>
           )}
         </div>

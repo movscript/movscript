@@ -1,8 +1,10 @@
 .script-detail-header {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
-  padding: 16px 20px;
+  border-bottom: 0;
+  background: transparent;
+  margin: 0 auto;
+  width: min(100%, 1080px);
+  padding: 22px var(--script-workbench-content-x, 40px) 8px;
 }
 
 .script-detail-header__top {
@@ -28,9 +30,9 @@
 .script-detail-header__title {
   margin: 8px 0 0;
   color: var(--ms-color-foreground);
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .script-detail-header__description {

@@ -7,8 +7,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
-  padding: 0 4px;
+  margin-bottom: 4px;
+  padding: 0 2px 0 15px;
 }
 
 .script-library-group__label {
@@ -19,6 +19,20 @@
   line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.script-library-group__count {
+  display: inline-flex;
+  min-width: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  color: color-mix(in srgb, var(--ms-color-muted-foreground) 82%, transparent);
+  font-size: var(--ms-text-tiny);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .script-library-group__items {

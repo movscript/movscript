@@ -119,7 +119,10 @@ export function useAIAgentPanelDockController() {
         panelResizeFrameRef.current = null
         const latest = panelResizeStateRef.current
         if (!latest) return
-        panelRef.current?.style.setProperty('--ui-agent-panel-width', `${latest.latestWidth}px`)
+        const latestWidth = latest.latestWidth
+        panelRef.current?.style.setProperty('--ui-agent-panel-width', `${latestWidth}px`)
+        setDetailAgentPanelWidth(latestWidth)
+        setPanelWidth(latestWidth)
       })
     }
 
@@ -130,6 +133,7 @@ export function useAIAgentPanelDockController() {
         panelResizeFrameRef.current = null
       }
       panelRef.current?.style.setProperty('--ui-agent-panel-width', `${finalWidth}px`)
+      setDetailAgentPanelWidth(finalWidth)
       setPanelWidth(finalWidth)
       panelResizeStateRef.current = null
       document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
@@ -141,7 +145,7 @@ export function useAIAgentPanelDockController() {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
-  }, [open, panelWidth])
+  }, [open, panelWidth, setDetailAgentPanelWidth, setOpen])
 
   return {
     dockLayout,

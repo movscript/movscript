@@ -44,7 +44,9 @@ export {
   ToolDialogMain,
   ToolDialogPanel,
   ToolDialogPanelHeader,
-  ToolDialogWarningCallout
+  ToolDialogResourcePane,
+  ToolDialogWarningCallout,
+  type ToolDialogResourcePaneProps
 } from "./dialog";
 export {
   ToolTimelineClipButton,

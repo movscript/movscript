@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { buildAgentConversationPresentation } from '@/features/agent/domain/agentConversationPresentation'
+import { buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentConversationThreadItems'
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import { isRuntimeAsyncWorkHandoffRun } from '@/features/agent/domain/agentRuntimeStatusMessage'
@@ -55,13 +56,17 @@ export function useAgentChatDerivedState({
   const buildingSendDraft = runtimeBuilding
   const asyncWorkHandoffRun = isRuntimeAsyncWorkHandoffRun(activeLocalRun)
   const inputBlockingLoading = loading && !asyncWorkHandoffRun
-  const thinkingState: ThinkingBubbleState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, visibleActivityEvents)
-  const generationProgressStates = generationProgressStatesForPinnedStatus({
+  const thinkingState: ThinkingBubbleState = useMemo(
+    () => pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, visibleActivityEvents),
+    [activeLocalRun, pendingAssistantState, visibleActivityEvents],
+  )
+  const generationProgressStates = useMemo(() => generationProgressStatesForPinnedStatus({
     messages,
     run: activeLocalRun,
     visibleActivityEvents,
-  })
+  }), [activeLocalRun, messages, visibleActivityEvents])
   const generationProgressState = generationProgressStates.at(-1) ?? null
+  const pendingRuntimeInputQueue = useMemo(() => buildPendingRuntimeInputQueueItems(messages), [messages])
   const conversationPresentation = useMemo(() => buildAgentConversationPresentation({
     streamingAssistantMessageId,
     streamingAssistantText,
@@ -118,6 +123,7 @@ export function useAgentChatDerivedState({
     generationProgressStates,
     hasStreamingAssistantContent: conversationPresentation.hasStreamingAssistantContent,
     loading: inputBlockingLoading,
+    pendingRuntimeInputQueue,
     stoppingLocalRun: runtimeStopping,
     stopRequestedBeforeRun: runtimeStopRequested,
     thinkingState,

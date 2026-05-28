@@ -1,5 +1,6 @@
 import { ToolDialog } from './ToolDialog'
 import { useTranslation } from 'react-i18next'
+import { ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
 
 export default function RefVideoGenPage() {
   const { t } = useTranslation()
@@ -13,6 +14,9 @@ export default function RefVideoGenPage() {
       inputType="image+video"
       outputType="video"
       promptPlaceholder={t('tools.defs.refVideoGen.promptPlaceholder')}
+      layout="reference-workbench"
+      showHistory={false}
+      resourcePane={<ResourceLibraryView variant="pane" />}
     />
   )
 }

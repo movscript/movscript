@@ -9,6 +9,7 @@ export interface ScriptLibraryItemProps {
   statusProps?: StatusDotProps;
   title: ReactNode;
   meta: ReactNode;
+  tag?: ReactNode;
   onSelect?: () => void;
 }
 
@@ -17,23 +18,26 @@ export function ScriptLibraryItem({
   statusProps,
   title,
   meta,
+  tag,
   onSelect,
 }: ScriptLibraryItemProps) {
   const { className: statusClassName, ...statusVisualProps } = statusProps ?? {};
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      data-active={active ? "true" : undefined}
-      onClick={onSelect}
-      className="script-library-item"
-    >
-      <StatusDot className={cn("script-library-item__dot", statusClassName)} {...statusVisualProps} />
-      <span className="script-library-item__copy">
-        <span className="script-library-item__title">{title}</span>
-        <span className="script-library-item__meta">{meta}</span>
-      </span>
-    </Button>
+    <div data-active={active ? "true" : undefined} className="script-library-item">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onSelect}
+        className="script-library-item__select"
+      >
+        <StatusDot className={cn("script-library-item__dot", statusClassName)} {...statusVisualProps} />
+        <span className="script-library-item__copy">
+          <span className="script-library-item__title">{title}</span>
+          <span className="script-library-item__meta">{meta}</span>
+        </span>
+      </Button>
+      {tag ? <div className="script-library-item__tag">{tag}</div> : null}
+    </div>
   );
 }

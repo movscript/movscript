@@ -233,7 +233,7 @@ export default function ProjectAgentModePage({
         <AgentModeFullscreenLayout>
           <ProjectAgentModeSidebar />
           <ProjectAgentModeWorkspace userId={userId} />
-          {!contentPanelCollapsed ? <ProjectAgentContentPanel manageOwnWidth /> : null}
+          <ProjectAgentContentPanel manageOwnWidth collapsed={contentPanelCollapsed} />
         </AgentModeFullscreenLayout>
       )}
       {(!fullscreen || embeddedInShell) && (
@@ -847,9 +847,11 @@ function ProjectAgentModeWorkspace({ userId }: { userId: string }) {
 
 export function ProjectAgentContentPanel({
   manageOwnWidth = false,
+  collapsed = false,
   onWidthChange,
 }: {
   manageOwnWidth?: boolean
+  collapsed?: boolean
   onWidthChange?: (width: number) => void
 } = {}) {
   const setCollapsed = useAgentPanelUiStore((s) => s.setAgentModeContentPanelCollapsed)
@@ -924,36 +926,44 @@ export function ProjectAgentContentPanel({
   return (
     <AgentModeContentPanel
       resizing={resizing}
-      style={manageOwnWidth ? {
-        width: panelWidth,
-        flexBasis: panelWidth,
-        minWidth: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
-      } : undefined}
+      collapsed={collapsed}
+      style={manageOwnWidth ? (
+        collapsed
+          ? { width: 0, flexBasis: 0, minWidth: 0 }
+          : {
+            width: panelWidth,
+            flexBasis: panelWidth,
+            minWidth: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
+          }
+      ) : undefined}
       aria-label="Agent 内容区"
+      aria-hidden={collapsed ? true : undefined}
     >
       <AgentBrowserPanel />
-      <AgentModeResizeHandle
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整对话区宽度"
-        aria-valuemin={AGENT_MODE_CONTENT_PANEL_MIN_WIDTH}
-        aria-valuemax={AGENT_MODE_CONTENT_PANEL_MAX_WIDTH}
-        aria-valuenow={panelWidth}
-        tabIndex={0}
-        side="left"
-        active={resizing}
-        onPointerDown={startResize}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') {
-            event.preventDefault()
-            adjustPanelWidth(event.shiftKey ? 32 : 12)
-          }
-          if (event.key === 'ArrowRight') {
-            event.preventDefault()
-            adjustPanelWidth(event.shiftKey ? -32 : -12)
-          }
-        }}
-      />
+      {!collapsed ? (
+        <AgentModeResizeHandle
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整对话区宽度"
+          aria-valuemin={AGENT_MODE_CONTENT_PANEL_MIN_WIDTH}
+          aria-valuemax={AGENT_MODE_CONTENT_PANEL_MAX_WIDTH}
+          aria-valuenow={panelWidth}
+          tabIndex={0}
+          side="left"
+          active={resizing}
+          onPointerDown={startResize}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              adjustPanelWidth(event.shiftKey ? 32 : 12)
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              adjustPanelWidth(event.shiftKey ? -32 : -12)
+            }
+          }}
+        />
+      ) : null}
     </AgentModeContentPanel>
   )
 }

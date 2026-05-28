@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  canvasTextNodeEditState,
   createCanvasEdgeId,
+  createPaletteCanvasNode,
   createPluginCanvasNode,
   createResourceCanvasNode,
   createWorkflowReferenceCanvasNode,
+  isPaletteNodeTypeAvailable,
   readOnlyMediaPortPatch,
 } from './nodeFactory'
 import type { Canvas, RawResource } from '@/types'
@@ -15,6 +18,31 @@ const t = (_key: string, options?: any) => options?.defaultValue ?? _key
 test('readOnlyMediaPortPatch preserves AI defaults and locks uploaded media inputs', () => {
   assert.deepEqual(readOnlyMediaPortPatch('ai'), { inputPorts: undefined })
   assert.deepEqual(readOnlyMediaPortPatch('upload'), { inputPorts: [] })
+})
+
+test('canvasTextNodeEditState only allows manual non-resource text editing', () => {
+  const textResource: RawResource = {
+    ID: 14,
+    owner_id: 1,
+    type: 'text',
+    name: 'Brief.txt',
+    url: '/api/v1/resources/14/file',
+    size: 32,
+    mime_type: 'text/plain',
+  }
+
+  assert.deepEqual(canvasTextNodeEditState({ source: 'manual', textContent: 'draft' }), {
+    editable: true,
+    resourceBacked: false,
+  })
+  assert.deepEqual(canvasTextNodeEditState({ source: 'upload', resourceId: 14, resource: textResource }), {
+    editable: false,
+    resourceBacked: true,
+  })
+  assert.deepEqual(canvasTextNodeEditState({ source: 'ai', textContent: 'generated' }), {
+    editable: false,
+    resourceBacked: false,
+  })
 })
 
 test('createResourceCanvasNode creates a read-only uploaded media node', () => {
@@ -67,12 +95,36 @@ test('createWorkflowReferenceCanvasNode persists referencedCanvasId and derived 
   assert.equal(node.type, 'canvas')
   assert.equal((node.data as any).source, 'ai')
   assert.equal((node.data as any).referencedCanvasId, 7)
+  assert.equal((node.data as any).referencedCanvasName, 'Referenced Workflow')
   assert.deepEqual((node.data as any).inputPorts, [{
     id: 'prompt',
     label: 'prompt',
     type: 'text',
+    order: 1,
     required: true,
   }])
+})
+
+test('createPaletteCanvasNode auto-numbers workflow input and output nodes', () => {
+  const existing = [
+    { id: 'in-1', type: 'input', position: { x: 0, y: 0 }, data: { source: 'manual', paramOrder: 1 } },
+    { id: 'out-1', type: 'output', position: { x: 0, y: 0 }, data: { source: 'manual', paramOrder: 1 } },
+  ] as any
+
+  const input = createPaletteCanvasNode({ type: 'input', position: { x: 0, y: 0 }, t, existingNodes: existing })
+  const output = createPaletteCanvasNode({ type: 'output', position: { x: 0, y: 0 }, t, existingNodes: existing })
+
+  assert.equal((input.data as any).paramName, 'input_2')
+  assert.equal((input.data as any).paramOrder, 2)
+  assert.equal((output.data as any).paramName, 'output_2')
+  assert.equal((output.data as any).paramOrder, 2)
+})
+
+test('isPaletteNodeTypeAvailable limits workflow IO and hides resource sink', () => {
+  assert.equal(isPaletteNodeTypeAvailable('input', 'workflow'), true)
+  assert.equal(isPaletteNodeTypeAvailable('input', 'inspiration'), false)
+  assert.equal(isPaletteNodeTypeAvailable('output', 'workflow'), true)
+  assert.equal(isPaletteNodeTypeAvailable('resource_sink', 'workflow'), false)
 })
 
 test('createPluginCanvasNode keeps contribution defaults and ports', () => {

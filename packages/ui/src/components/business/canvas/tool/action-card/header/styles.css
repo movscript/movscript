@@ -1,5 +1,5 @@
 .canvas-tool-action-card__header {
-  padding: 12px 12px 8px;
+  padding: 12px var(--canvas-card-content-x) 8px;
 }
 
 .canvas-tool-action-card__heading {

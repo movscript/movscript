@@ -287,7 +287,7 @@
   display: flex;
   height: 100%;
   flex-direction: column;
-  background: var(--ms-color-background);
+  background: var(--ms-color-page-background);
 }
 
 .plugin-tool-native-layout {
@@ -300,15 +300,15 @@
 .plugin-tool-main {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: var(--ms-space-4);
+  padding: 18px;
 }
 
 .plugin-tool-form-stack {
   width: 100%;
-  max-width: 42rem;
+  max-width: 46rem;
   margin-inline: auto;
   display: grid;
-  gap: var(--ms-space-4);
+  gap: 12px;
 }
 
 .plugin-tool-field {
@@ -332,7 +332,9 @@
 
 .plugin-tool-surface,
 .plugin-tool-muted-surface {
-  padding: var(--ms-space-4);
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 64%, transparent);
+  --ui-surface-background: var(--ms-color-surface);
+  padding: 12px;
 }
 
 .plugin-tool-info-header {
@@ -340,7 +342,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--ms-space-3);
-  margin-bottom: var(--ms-space-3);
+  margin-bottom: 12px;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 16%, transparent);
+  padding: 10px;
 }
 
 .plugin-tool-info-copy {
@@ -363,13 +368,15 @@
 
 .plugin-tool-field-stack {
   display: grid;
-  gap: var(--ms-space-3);
+  gap: 10px;
 }
 
 .plugin-tool-action-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--ms-space-4);
+  margin-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 42%, transparent);
+  padding-top: 10px;
 }
 
 .plugin-tool-inline-resource {

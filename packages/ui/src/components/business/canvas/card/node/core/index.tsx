@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
 } from "react";
@@ -207,9 +208,15 @@ export type CanvasTextNodeViewProps = {
   runIcon?: ReactNode;
   onRun?: () => void;
   ports?: ReactNode;
+  meta?: ReactNode;
   manual: boolean;
+  editable?: boolean;
+  previewing?: boolean;
+  actions?: ReactNode;
+  note?: ReactNode;
   textValue: string;
   textPlaceholder: string;
+  textLoadingLabel?: ReactNode;
   onTextChange?: (value: string) => void;
   preview?: ReactNode;
   emptyLabel: ReactNode;
@@ -224,28 +231,42 @@ export function CanvasTextNodeView({
   runIcon,
   onRun,
   ports,
+  meta,
   manual,
+  editable,
+  previewing,
+  actions,
+  note,
   textValue,
   textPlaceholder,
+  textLoadingLabel,
   onTextChange,
   preview,
   emptyLabel,
 }: CanvasTextNodeViewProps) {
   const isRunning = status === "pending" || status === "running";
+  const canEdit = editable ?? manual;
   return (
-    <CanvasNodeCard selected={selected}>
-      <CanvasNodeCardHeader
-        icon={icon}
-        label={label}
-        status={<CanvasNodeStatusPipView status={status} {...statusIcons} />}
-        actions={!isRunning && onRun ? (
+    <CanvasNodeCard selected={selected} className="canvas-text-node-card">
+      {ports}
+      <CanvasMediaNodeInfo>
+        {meta ?? (
+          <div className="canvas-media-node-info__crumbs">
+            <span className="canvas-media-node-info__crumb canvas-media-node-info__name">{label}</span>
+            <span className="canvas-media-node-info__crumb">{icon}</span>
+          </div>
+        )}
+      </CanvasMediaNodeInfo>
+      <div className="canvas-media-node-card__controls">
+        <CanvasNodeStatusPipView status={status} {...statusIcons} />
+        {actions}
+        {!isRunning && onRun ? (
           <CanvasNodeCardActionButton onClick={onRun}>
             {runIcon}
           </CanvasNodeCardActionButton>
-        ) : undefined}
-      />
-      {ports}
-      {manual ? (
+        ) : null}
+      </div>
+      {canEdit && !previewing ? (
         <CanvasNodeCardTextarea
           placeholder={textPlaceholder}
           value={textValue}
@@ -255,12 +276,15 @@ export function CanvasTextNodeView({
       ) : (
         <CanvasNodeCardBody scrollable>
           {preview ? (
-            <CanvasNodeCardPreviewText clampLines={4}>{preview}</CanvasNodeCardPreviewText>
+            <CanvasNodeCardPreviewText>{preview}</CanvasNodeCardPreviewText>
+          ) : textLoadingLabel ? (
+            <CanvasNodeCardPreviewText empty>{textLoadingLabel}</CanvasNodeCardPreviewText>
           ) : (
             <CanvasNodeCardPreviewText empty>{emptyLabel}</CanvasNodeCardPreviewText>
           )}
         </CanvasNodeCardBody>
       )}
+      {note ? <div className="canvas-text-node-card__note">{note}</div> : null}
     </CanvasNodeCard>
   );
 }
@@ -269,6 +293,8 @@ export type CanvasMediaNodeViewProps = {
   selected?: boolean;
   icon: ReactNode;
   label: ReactNode;
+  meta?: ReactNode;
+  aspectRatio?: number;
   status: CanvasNodeStatusPipViewStatus;
   statusIcons: CanvasNodeStatusIcons;
   runIcon?: ReactNode;
@@ -283,6 +309,8 @@ export function CanvasMediaNodeView({
   selected,
   icon,
   label,
+  meta,
+  aspectRatio,
   status,
   statusIcons,
   runIcon,
@@ -294,17 +322,11 @@ export function CanvasMediaNodeView({
 }: CanvasMediaNodeViewProps) {
   const isRunning = status === "pending" || status === "running";
   return (
-    <CanvasNodeCard selected={selected}>
-      <CanvasNodeCardHeader
-        icon={icon}
-        label={label}
-        status={<CanvasNodeStatusPipView status={status} {...statusIcons} />}
-        actions={!isRunning && onRun ? (
-          <CanvasNodeCardActionButton onClick={onRun}>
-            {runIcon}
-          </CanvasNodeCardActionButton>
-        ) : undefined}
-      />
+    <CanvasNodeCard
+      selected={selected}
+      className="canvas-media-node-card"
+      style={aspectRatio ? { "--canvas-media-node-aspect-ratio": String(aspectRatio) } as CSSProperties : undefined}
+    >
       {ports}
       <CanvasMediaNodeFrame surface={surface}>
         {media ? (
@@ -313,12 +335,42 @@ export function CanvasMediaNodeView({
           <CanvasMediaEmptyIcon surface={surface}>{emptyIcon}</CanvasMediaEmptyIcon>
         )}
       </CanvasMediaNodeFrame>
+      <CanvasMediaNodeInfo>
+        {meta ?? (
+          <div className="canvas-media-node-info__crumbs">
+            <span className="canvas-media-node-info__crumb canvas-media-node-info__name">{label}</span>
+            <span className="canvas-media-node-info__crumb">{icon}</span>
+          </div>
+        )}
+      </CanvasMediaNodeInfo>
+      <div className="canvas-media-node-card__controls">
+        <CanvasNodeStatusPipView status={status} {...statusIcons} />
+        {!isRunning && onRun ? (
+          <CanvasNodeCardActionButton onClick={onRun}>
+            {runIcon}
+          </CanvasNodeCardActionButton>
+        ) : null}
+      </div>
     </CanvasNodeCard>
   );
 }
 
 export const CanvasImageNodeView = CanvasMediaNodeView;
 export const CanvasVideoNodeView = CanvasMediaNodeView;
+
+export function CanvasMediaNodeInfo({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("canvas-media-node-info", className)} {...props}>
+      {children}
+    </div>
+  );
+}
 
 export function CanvasNodeFooterText({
   tone = "neutral",

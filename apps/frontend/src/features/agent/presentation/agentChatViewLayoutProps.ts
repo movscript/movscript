@@ -2,7 +2,6 @@ import type { useAgentChatComposerState } from '@/features/agent/presentation/us
 import type { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
 import type { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
 import type { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
-import { buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentConversationThreadItems'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 import { runtimeStatusLightFromActiveRun } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
@@ -93,6 +92,7 @@ export function buildAgentChatViewLayoutProps({
       activeRun: activeLocalRun,
       approvingLocalRun: presentation.approvingLocalRun,
       bottomRef: presentation.bottomRef,
+      conversationId: conv.id,
       conversationBlocks: presentation.conversationPresentation.blocks,
       generationProgressStates: presentation.generationProgressStates,
       messages: conv.messages,
@@ -135,7 +135,7 @@ export function buildAgentChatViewLayoutProps({
       loading: presentation.loading,
       mentionResults: composer.mentionResults,
       mentionRangeActive: !!composer.mentionRange,
-      pendingRuntimeInputQueue: buildPendingRuntimeInputQueueItems(conv.messages),
+      pendingRuntimeInputQueue: presentation.pendingRuntimeInputQueue,
       stoppingLocalRun: presentation.stoppingLocalRun,
       uploading: composer.uploading,
       onAcceptMention: () => {

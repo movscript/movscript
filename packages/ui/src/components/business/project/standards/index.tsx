@@ -34,7 +34,7 @@ export function ProjectStandardsContentLayout({
       variant="contained"
       width="full"
       padding="compact"
-      scroll="hidden"
+      scroll="auto"
       className={cn("project-standards-content-layout", className)}
       contentClassName={cn("project-standards-content-layout__content", contentClassName)}
       {...props}

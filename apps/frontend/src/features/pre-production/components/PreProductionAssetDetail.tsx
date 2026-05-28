@@ -1,4 +1,4 @@
-import { Database, Image, Upload, Video } from 'lucide-react'
+import { Database, Upload } from 'lucide-react'
 
 import { EmptyPreview, SlotStatusBadge, SlotThumb } from '@/features/pre-production/components/PreProductionAssetBoard'
 import {
@@ -33,11 +33,8 @@ import {
   type AssetSlotCandidateRecord,
   type AssetSlotViewModel,
 } from '@/features/pre-production/domain/preProductionAssetRows'
-import type { PreProductionCandidateGenerationKind } from '@/features/pre-production/domain/preProductionAssetCandidateWrite'
 import { assetSlotAction } from '@/shared/domain/productionTerminology'
 import { preProductionCandidateAvailabilityRecipe } from '@/features/pre-production/presentation/preProductionSemanticUi'
-
-type CandidateGenerationKind = PreProductionCandidateGenerationKind
 
 export function AssetSlotDetail({
   row,
@@ -45,7 +42,6 @@ export function AssetSlotDetail({
   onReject,
   onUploadCandidate,
   onOpenResourceLibrary,
-  onGenerateMediaCandidate,
   busy,
   uploading,
 }: {
@@ -54,13 +50,8 @@ export function AssetSlotDetail({
   onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
   onOpenResourceLibrary: () => void
-  onGenerateCandidate: (kind: CandidateGenerationKind) => void
-  onGenerateMediaCandidate: (kind: CandidateGenerationKind) => void
-  onOpenAssistant: () => void
-  onOpenCanvas: () => void
   busy: boolean
   uploading: boolean
-  generatingKind?: CandidateGenerationKind
 }) {
   if (!row) {
     return (
@@ -70,8 +61,6 @@ export function AssetSlotDetail({
     )
   }
   const slot = row.slot
-  const preferredKind: CandidateGenerationKind = row.kind === 'video' ? 'video' : 'image'
-  const canGenerate = row.kind === 'image' || row.kind === 'video'
   const nextAction = assetSlotAction({ status: normalizeSlotStatus(slot.status), candidateCount: row.candidates.length, hasResource: row.hasResource })
   return (
     <ResourceAssetDetailRoot>
@@ -94,12 +83,6 @@ export function AssetSlotDetail({
         <ResourceAssetCandidateToolbar>
           <ResourceAssetDetailTitle>候选列表</ResourceAssetDetailTitle>
           <ResourceAssetCandidateToolbarActions>
-            {canGenerate ? (
-              <ResourceAssetCandidateToolbarButton variant="soft" disabled={busy} onClick={() => onGenerateMediaCandidate(preferredKind)}>
-                {preferredKind === 'video' ? <Video size={14} /> : <Image size={14} />}
-                生成候选
-              </ResourceAssetCandidateToolbarButton>
-            ) : null}
             <ResourceAssetCandidateToolbarButton variant="outline" disabled={busy} onClick={onUploadCandidate}>
               <Upload size={14} />
               {uploading ? '上传中' : '上传'}
@@ -111,7 +94,7 @@ export function AssetSlotDetail({
           </ResourceAssetCandidateToolbarActions>
         </ResourceAssetCandidateToolbar>
         <ResourceAssetCandidateList>
-          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '可以生成候选、上传已有素材，或从资源库选择。' : '可以上传已有素材，或从资源库选择。'} /> : null}
+          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description="可以上传已有素材，或从资源库选择。" /> : null}
           {row.candidates.map((candidate) => (
             <CandidateRow
               key={candidate.ID}

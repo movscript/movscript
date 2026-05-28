@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
+import type { ChangeEvent, CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { buildCommandFirstClientInput } from '@/features/agent/domain/agentCommandInput'
@@ -8,10 +9,11 @@ import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel, RawResource } from '@/types'
 import {
   Wand2, Loader2, Bot,
-  History,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
-import { ResourcePanel } from '@/shared/ui/ResourcePanel'
+import { ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
 import {
   Button,
   Textarea,
@@ -24,9 +26,6 @@ import {
   ToolBrainstormEmptyFooter,
   ToolBrainstormEmptyState,
   ToolBrainstormFrame,
-  ToolBrainstormHistoryDrawer,
-  ToolBrainstormHistoryList,
-  ToolBrainstormHistoryToggle,
   ToolBrainstormMain,
   ToolBrainstormMentionButton,
   ToolBrainstormMentionList,
@@ -34,11 +33,17 @@ import {
   ToolBrainstormPanelHeader,
   ToolBrainstormResultCard,
   ToolBrainstormSectionHeader,
+  ToolDialogResourcePane,
+  useResizableOverlapPane,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import {
+  TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH,
+  TOOL_RESOURCE_PANE_MAX_WIDTH,
+  TOOL_RESOURCE_PANE_MIN_WIDTH,
+  usePersistentToolResourcePaneWidth,
+} from './toolResourcePaneWidth'
 
-const HISTORY_KEY = 'tool_history_brainstorm'
-const MAX_HISTORY = 50
 const AI_SYSTEM_PROMPT = `你是头脑风暴助手，专注于把用户的模糊想法整理成可执行的创意方向。
 请用中文回答，输出要具体、可继续追问，并尽量给出可直接复用的素材或结构。`
 
@@ -50,18 +55,6 @@ interface BrainstormEntry {
   timestamp: number
   status: 'done' | 'failed' | 'pending'
   error?: string
-}
-
-function loadHistory(): BrainstormEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function saveHistory(entries: BrainstormEntry[]) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)))
 }
 
 // ── BrainstormResultCard ──────────────────────────────────────────────────────
@@ -101,9 +94,28 @@ export default function BrainstormPage() {
   const [attachments, setAttachments] = useState<RawResource[]>([])
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
-  const [history, setHistory] = useState<BrainstormEntry[]>(loadHistory)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [latestEntry, setLatestEntry] = useState<BrainstormEntry | null>(null)
   const [isRunning, setIsRunning] = useState(false)
+  const [resourcePaneCollapsed, setResourcePaneCollapsed] = useState(false)
+  const [resourcePaneExpanded, setResourcePaneExpanded] = useState(false)
+  const [resourcePaneWidth, setResourcePaneWidth] = usePersistentToolResourcePaneWidth()
+  const resourcePaneResize = useResizableOverlapPane({
+    size: resourcePaneWidth,
+    onSizeChange: setResourcePaneWidth,
+    minSize: TOOL_RESOURCE_PANE_MIN_WIDTH,
+    maxSize: (rect) => Math.max(
+      TOOL_RESOURCE_PANE_MIN_WIDTH,
+      Math.min(TOOL_RESOURCE_PANE_MAX_WIDTH, rect.width - TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH),
+    ),
+    resizeEdge: 'left',
+    collapsed: resourcePaneCollapsed,
+    onCollapsedChange: setResourcePaneCollapsed,
+    collapseMode: 'after-min',
+    expanded: resourcePaneExpanded,
+    onExpandedChange: setResourcePaneExpanded,
+    expandMode: 'after-max',
+    ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
+  })
 
   // @ mention state
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -114,16 +126,15 @@ export default function BrainstormPage() {
     queryFn: () => api.get('/resources').then((r) => r.data),
   })
 
-  const displayHistory = [...history].reverse()
-  const latestEntry = displayHistory[0]
-  const historyEntries = displayHistory.slice(1)
-
   const canGenerate = !isRunning && !!prompt.trim() && !!selectedModelId
 
-  // Persist history whenever it changes
-  useEffect(() => {
-    saveHistory(history)
-  }, [history])
+  function addAttachment(resource: RawResource) {
+    setAttachments((current) => (
+      current.some((attachment) => attachment.ID === resource.ID)
+        ? current
+        : [...current, resource]
+    ))
+  }
 
   async function generate() {
     if (!canGenerate) return
@@ -138,7 +149,7 @@ export default function BrainstormPage() {
       status: 'pending',
     }
 
-    setHistory((prev) => [...prev, newEntry])
+    setLatestEntry(newEntry)
     setPrompt('')
     setAttachments([])
     setIsRunning(true)
@@ -168,28 +179,24 @@ export default function BrainstormPage() {
       })
       const resp = formatLocalAgentAssistantContent(run, thread)
 
-      setHistory((prev) =>
-        prev.map((e) =>
-          e.id === entryId
-            ? { ...e, status: 'done', result: resp }
-            : e
-        )
+      setLatestEntry((entry) =>
+        entry?.id === entryId
+          ? { ...entry, status: 'done', result: resp }
+          : entry
       )
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err)
-      setHistory((prev) =>
-        prev.map((e) =>
-          e.id === entryId
-            ? { ...e, status: 'failed', error: msg }
-            : e
-        )
+      setLatestEntry((entry) =>
+        entry?.id === entryId
+          ? { ...entry, status: 'failed', error: msg }
+          : entry
       )
     } finally {
       setIsRunning(false)
     }
   }
 
-  function handleTextareaChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+  function handleTextareaChange(e: ChangeEvent<HTMLTextAreaElement>) {
     const val = e.target.value
     setPrompt(val)
     // Auto-resize
@@ -213,7 +220,7 @@ export default function BrainstormPage() {
     const after = prompt.slice(textareaRef.current?.selectionStart ?? mentionPos)
     const inserted = `@${resource.name} `
     setPrompt(before + inserted + after)
-    setAttachments((a) => (a.find((x) => x.ID === resource.ID) ? a : [...a, resource]))
+    addAttachment(resource)
     setMentionQuery(null)
     setTimeout(() => textareaRef.current?.focus(), 0)
   }
@@ -227,16 +234,12 @@ export default function BrainstormPage() {
 
   return (
     <ToolBrainstormFrame>
-      {/* Body */}
-      <ToolBrainstormBody>
-        {/* Left: resource panel */}
-        <ResourcePanel
-          inputType="image"
-          selectedIds={attachments.map((a) => a.ID)}
-          onSelect={(r) => setAttachments((a) => [...a, r])}
-        />
-
-        {/* Right: main card */}
+      <ToolBrainstormBody
+        className="tool-dialog-body--reference-workbench"
+        data-resource-pane-collapsed={resourcePaneCollapsed ? 'true' : undefined}
+        data-resource-pane-expanded={resourcePaneExpanded ? 'true' : undefined}
+        style={{ '--tool-dialog-resource-pane-width': `${resourcePaneWidth}px` } as CSSProperties}
+      >
         <ToolBrainstormMain
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
@@ -244,7 +247,7 @@ export default function BrainstormPage() {
             const id = Number(e.dataTransfer.getData('application/resource-id'))
             if (!id) return
             const r = resources.find((r) => r.ID === id)
-            if (r && !attachments.find((a) => a.ID === id)) setAttachments((a) => [...a, r])
+            if (r) addAttachment(r)
           }}
         >
           <ToolBrainstormPanel>
@@ -253,18 +256,36 @@ export default function BrainstormPage() {
                   <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
                   <p className="type-tiny text-muted-foreground">{t('tools.brainstorm.inputHint')}</p>
                 </div>
-                <ModelSelector
-                  capability="text"
-                  value={selectedModelId}
-                  onChange={setSelectedModelId}
-                  onModelChange={setSelectedModel}
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                  {!resourcePaneCollapsed ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title={t('common.hide', { defaultValue: '隐藏' })}
+                      aria-label={t('common.hide', { defaultValue: '隐藏' })}
+                      onClick={() => {
+                        setResourcePaneExpanded(false)
+                        setResourcePaneCollapsed(true)
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <PanelRightClose size={14} />
+                    </Button>
+                  ) : null}
+                  <ModelSelector
+                    capability="text"
+                    value={selectedModelId}
+                    onChange={setSelectedModelId}
+                    onModelChange={setSelectedModel}
+                  />
+                </div>
               </ToolBrainstormPanelHeader>
 
               {/* Latest result */}
               {latestEntry && (
                 <div className="space-y-1.5">
-                  <ToolBrainstormSectionHeader icon={History}>
+                  <ToolBrainstormSectionHeader icon={Bot}>
                     {t('tools.brainstorm.latestResult')}
                   </ToolBrainstormSectionHeader>
                   <BrainstormResultCard
@@ -288,7 +309,7 @@ export default function BrainstormPage() {
                     {attachments.map((a, i) => (
                       <ToolBrainstormAttachmentChip
                         key={a.ID}
-                        removeLabel="移除附件"
+                        removeLabel={t('common.remove', { defaultValue: '移除' })}
                         onRemove={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
                       >
                         {a.name}
@@ -352,30 +373,7 @@ export default function BrainstormPage() {
                 </ToolBrainstormActionRow>
               </div>
 
-            {historyEntries.length > 0 && (
-              <ToolBrainstormHistoryDrawer>
-                <ToolBrainstormHistoryToggle
-                  expanded={historyExpanded}
-                  count={historyEntries.length}
-                  label={t('tools.brainstorm.history')}
-                  onClick={() => setHistoryExpanded((e) => !e)}
-                />
-
-                {historyExpanded && (
-                  <ToolBrainstormHistoryList>
-                    {historyEntries.map((entry) => (
-                      <BrainstormResultCard
-                        key={entry.id}
-                        entry={entry}
-                        onReuse={() => setPrompt(entry.prompt)}
-                      />
-                    ))}
-                  </ToolBrainstormHistoryList>
-                )}
-              </ToolBrainstormHistoryDrawer>
-            )}
-
-            {history.length === 0 && (
+            {!latestEntry && (
               <ToolBrainstormEmptyFooter>
                 <ToolBrainstormEmptyState
                   icon={Bot}
@@ -386,6 +384,44 @@ export default function BrainstormPage() {
             )}
           </ToolBrainstormPanel>
         </ToolBrainstormMain>
+        {!resourcePaneCollapsed ? (
+          <ToolDialogResourcePane
+            resizeHandleProps={{
+              ...resourcePaneResize.resizeHandleProps,
+            }}
+          >
+            <ResourceLibraryView variant="pane" />
+          </ToolDialogResourcePane>
+        ) : null}
+        {resourcePaneCollapsed ? (
+          <Button
+            type="button"
+            variant="soft"
+            size="icon-sm"
+            className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
+            title={t('common.show', { defaultValue: '显示' })}
+            aria-label={t('common.show', { defaultValue: '显示' })}
+            onClick={() => {
+              setResourcePaneExpanded(false)
+              setResourcePaneCollapsed(false)
+            }}
+          >
+            <PanelRightOpen size={14} />
+          </Button>
+        ) : null}
+        {resourcePaneExpanded ? (
+          <Button
+            type="button"
+            variant="soft"
+            size="icon-sm"
+            className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
+            title={t('common.restore', { defaultValue: '还原' })}
+            aria-label={t('common.restore', { defaultValue: '还原' })}
+            onClick={() => setResourcePaneExpanded(false)}
+          >
+            <PanelRightClose size={14} />
+          </Button>
+        ) : null}
       </ToolBrainstormBody>
     </ToolBrainstormFrame>
   )

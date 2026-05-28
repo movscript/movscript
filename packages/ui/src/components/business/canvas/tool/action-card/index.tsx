@@ -21,6 +21,7 @@ export function CanvasToolActionCard({
   primaryAction,
   secondaryAction,
   footer,
+  labels,
   className,
   renderPortHandle,
 }: CanvasToolActionCardProps) {
@@ -36,6 +37,7 @@ export function CanvasToolActionCard({
         outputs={outputs}
         inputPanel={inputPanel}
         resultPanel={resultPanel}
+        labels={labels}
         renderPortHandle={renderPortHandle}
       />
       <CanvasToolActionCardFooter primaryAction={primaryAction} secondaryAction={secondaryAction} footer={footer} />

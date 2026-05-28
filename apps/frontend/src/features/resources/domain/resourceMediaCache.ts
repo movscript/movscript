@@ -17,9 +17,11 @@ interface CacheEntry {
   variants: Map<string, ObjectUrlEntry>
   refCount: number
   lastAccessed: number
+  byteSize?: number
 }
 
 const MAX_RESOURCE_MEDIA_CACHE_ENTRIES = 128
+const MAX_RESOURCE_MEDIA_CACHE_BYTES = 256 * 1024 * 1024
 
 const mediaCache = new Map<string, CacheEntry>()
 
@@ -66,7 +68,8 @@ export async function acquireCachedResourceMediaUrl(
   entry.lastAccessed = Date.now()
 
   try {
-    await entry.blobPromise
+    const blob = await entry.blobPromise
+    entry.byteSize = blob.size
   } catch (error) {
     releaseCacheReference(key)
     mediaCache.delete(key)
@@ -81,6 +84,7 @@ export async function acquireCachedResourceMediaUrl(
   const objectUrl = await getOrCreateObjectUrl(activeEntry, options?.variantKey, options?.transformBlob)
 
   activeEntry.lastAccessed = Date.now()
+  pruneResourceMediaCache()
   return {
     url: objectUrl,
     release: () => releaseCacheReference(key),
@@ -134,20 +138,28 @@ function revokeObjectUrlEntry(entry: ObjectUrlEntry) {
 }
 
 function pruneResourceMediaCache() {
-  if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES) return
+  if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES && totalCachedBytes() <= MAX_RESOURCE_MEDIA_CACHE_BYTES) return
 
   const releasable = [...mediaCache.entries()]
     .filter(([, entry]) => entry.refCount === 0)
     .sort(([, a], [, b]) => a.lastAccessed - b.lastAccessed)
 
   for (const [key, entry] of releasable) {
-    if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES) break
+    if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES && totalCachedBytes() <= MAX_RESOURCE_MEDIA_CACHE_BYTES) break
     revokeObjectUrlEntry(entry.full)
     for (const variant of entry.variants.values()) {
       revokeObjectUrlEntry(variant)
     }
     mediaCache.delete(key)
   }
+}
+
+function totalCachedBytes() {
+  let total = 0
+  for (const entry of mediaCache.values()) {
+    total += entry.byteSize ?? 0
+  }
+  return total
 }
 
 function isResourceFilePath(pathname: string): boolean {

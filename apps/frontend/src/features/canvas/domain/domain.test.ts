@@ -3,8 +3,16 @@ import test from 'node:test'
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasNodeData } from '@/types'
 import {
+  canvasGroupAncestorIds,
+  canvasGroupDescendantIds,
   canvasGroupSelectionBounds,
+  canvasNodeWithGroupId,
+  commonCanvasGroupId,
+  findCanvasGroupDropTarget,
+  resizeCanvasGroupsToFitMembers,
+  isCanvasNodeOutsideGroupBounds,
   normalizedCanvasNodeStyle,
+  resolveCanvasGroupPromotionId,
   topLevelSelectedCanvasNodes,
 } from './layout'
 import {
@@ -16,7 +24,7 @@ import {
   uniqueEdgesByConnection,
 } from './ports'
 import { canvasGraphSignature, serializableCanvasNodeData } from './serialization'
-import { ensureFinalOutputNode, isFinalOutputNode } from './graph'
+import { compareWorkflowIoNodes, ensureFinalOutputNode, isFinalOutputNode, normalizeWorkflowIoNodeOrders } from './graph'
 
 test('canvas port handles normalize UI and persisted handle forms', () => {
   assert.equal(fromUiHandleId('in:prompt'), 'prompt')
@@ -64,6 +72,124 @@ test('canvas layout computes selected bounds and ignores selected descendants', 
   assert.equal(bounds?.height, 220)
 })
 
+test('canvas layout treats logical group membership as selection ancestry', () => {
+  const group = canvasNode('group', 'group', { source: 'manual' }, { x: 100, y: 100 }, { width: 300, height: 200 })
+  const child = canvasNode('child', 'text', { source: 'manual', groupId: 'group' }, { x: 120, y: 130 }, { width: 100, height: 40 })
+  const sibling = canvasNode('sibling', 'image', { source: 'upload' }, { x: 260, y: 180 }, { width: 120, height: 80 })
+  const nodes = [{ ...group, selected: true }, { ...child, selected: true }, { ...sibling, selected: true }]
+
+  assert.deepEqual(topLevelSelectedCanvasNodes(nodes, nodes).map((node) => node.id), ['group', 'sibling'])
+
+  const bounds = canvasGroupSelectionBounds(nodes, [group, sibling], 10)
+  assert.equal(bounds?.x, 90)
+  assert.equal(bounds?.y, 90)
+  assert.equal(bounds?.width, 320)
+  assert.equal(bounds?.height, 220)
+})
+
+test('canvas layout collects nested logical group descendants', () => {
+  const group = canvasNode('group', 'group', { source: 'manual' })
+  const childGroup = canvasNode('child-group', 'group', { source: 'manual', groupId: 'group' })
+  const child = canvasNode('child', 'text', { source: 'manual', groupId: 'child-group' })
+  const sibling = canvasNode('sibling', 'text', { source: 'manual' })
+
+  assert.deepEqual(
+    [...canvasGroupDescendantIds([group, childGroup, child, sibling], 'group')].sort(),
+    ['child', 'child-group'],
+  )
+})
+
+test('canvas layout resolves the deepest containing group as drop target', () => {
+  const parent = canvasNode('parent', 'group', { source: 'manual' }, { x: 0, y: 0 }, { width: 500, height: 400 })
+  const childGroup = canvasNode('child-group', 'group', { source: 'manual', groupId: 'parent' }, { x: 100, y: 100 }, { width: 220, height: 180 })
+  const node = canvasNode('node', 'text', { source: 'manual' }, { x: 150, y: 140 }, { width: 80, height: 40 })
+
+  assert.equal(findCanvasGroupDropTarget(node, [parent, childGroup, node])?.id, 'child-group')
+})
+
+test('canvas layout can exclude current group ancestors while dragging inside a nested group', () => {
+  const parent = canvasNode('parent', 'group', { source: 'manual' }, { x: 0, y: 0 }, { width: 500, height: 400 })
+  const childGroup = canvasNode('child-group', 'group', { source: 'manual', groupId: 'parent' }, { x: 100, y: 100 }, { width: 220, height: 180 })
+  const node = canvasNode('node', 'text', { source: 'manual', groupId: 'child-group' }, { x: 150, y: 140 }, { width: 80, height: 40 })
+
+  assert.deepEqual(canvasGroupAncestorIds([parent, childGroup, node], 'child-group'), ['parent'])
+  assert.equal(
+    findCanvasGroupDropTarget(node, [parent, childGroup, node], {
+      excludedGroupIds: canvasGroupAncestorIds([parent, childGroup, node], 'child-group'),
+    }),
+    undefined,
+  )
+})
+
+test('canvas layout promotes a node to its parent group when dragged out of a nested group', () => {
+  const parent = canvasNode('parent', 'group', { source: 'manual' }, { x: 0, y: 0 }, { width: 500, height: 400 })
+  const childGroup = canvasNode('child-group', 'group', { source: 'manual', groupId: 'parent' }, { x: 100, y: 100 }, { width: 220, height: 180 })
+  const node = canvasNode('node', 'text', { source: 'manual', groupId: 'child-group' }, { x: 350, y: 140 }, { width: 80, height: 40 })
+
+  assert.equal(findCanvasGroupDropTarget(node, [parent, childGroup, node])?.id, 'parent')
+})
+
+test('canvas layout promotes nested groups to the nearest surviving parent', () => {
+  const selectedGroupParents = new Map<string, string | undefined>([
+    ['parent', undefined],
+    ['child', 'parent'],
+    ['grandchild', 'child'],
+  ])
+
+  assert.equal(resolveCanvasGroupPromotionId('parent', selectedGroupParents), undefined)
+  assert.equal(resolveCanvasGroupPromotionId('child', selectedGroupParents), undefined)
+  assert.equal(resolveCanvasGroupPromotionId('grandchild', selectedGroupParents), undefined)
+
+  const partiallySelectedGroupParents = new Map<string, string | undefined>([
+    ['child', 'parent'],
+    ['grandchild', 'child'],
+  ])
+
+  assert.equal(resolveCanvasGroupPromotionId('grandchild', partiallySelectedGroupParents), 'parent')
+})
+
+test('canvas layout updates logical group membership without parent nesting', () => {
+  const child = canvasNode('child', 'text', { source: 'manual' }, { x: 120, y: 130 }, { width: 100, height: 40 }, 'legacy-parent')
+  const grouped = canvasNodeWithGroupId(child, 'group')
+  const ungrouped = canvasNodeWithGroupId(grouped, undefined)
+
+  assert.equal(grouped.parentId, undefined)
+  assert.equal((grouped.data as Partial<CanvasNodeData>).groupId, 'group')
+  assert.equal(ungrouped.parentId, undefined)
+  assert.equal((ungrouped.data as Partial<CanvasNodeData>).groupId, undefined)
+})
+
+test('canvas layout resolves common logical group membership', () => {
+  const first = canvasNode('first', 'text', { source: 'manual', groupId: 'group' })
+  const second = canvasNode('second', 'text', { source: 'manual', groupId: 'group' })
+  const topLevel = canvasNode('top-level', 'text', { source: 'manual' })
+
+  assert.equal(commonCanvasGroupId([first, second]), 'group')
+  assert.equal(commonCanvasGroupId([first, topLevel]), undefined)
+  assert.equal(commonCanvasGroupId([]), undefined)
+})
+
+test('canvas layout detects nodes dragged outside logical group bounds', () => {
+  const group = canvasNode('group', 'group', { source: 'manual' }, { x: 100, y: 100 }, { width: 300, height: 200 })
+  const inside = canvasNode('inside', 'text', { source: 'manual', groupId: 'group' }, { x: 130, y: 140 }, { width: 100, height: 40 })
+  const outside = canvasNode('outside', 'text', { source: 'manual', groupId: 'group' }, { x: 20, y: 140 }, { width: 100, height: 40 })
+
+  assert.equal(isCanvasNodeOutsideGroupBounds(inside, group), false)
+  assert.equal(isCanvasNodeOutsideGroupBounds(outside, group), true)
+})
+
+test('canvas layout resizes groups to fit confirmed members', () => {
+  const group = canvasNode('group', 'group', { source: 'manual' }, { x: 100, y: 100 }, { width: 200, height: 160 })
+  const first = canvasNode('first', 'text', { source: 'manual', groupId: 'group' }, { x: 120, y: 130 }, { width: 100, height: 40 })
+  const second = canvasNode('second', 'text', { source: 'manual', groupId: 'group' }, { x: 340, y: 260 }, { width: 100, height: 40 })
+  const resized = resizeCanvasGroupsToFitMembers([group, first, second], ['group'], 10)
+  const resizedGroup = resized.find((node) => node.id === 'group')
+
+  assert.deepEqual(resizedGroup?.position, { x: 110, y: 120 })
+  assert.equal(resizedGroup?.style?.width, 340)
+  assert.equal(resizedGroup?.style?.height, 190)
+})
+
 test('canvas serialization strips transient node data and ensures workflow output', () => {
   const node = canvasNode('text-1', 'text', {
     source: 'manual',
@@ -84,7 +210,6 @@ test('canvas serialization strips transient node data and ensures workflow outpu
   assert.equal(nodes.some(isFinalOutputNode), true)
 
   const signature = canvasGraphSignature({
-    canvasName: 'Workflow',
     canvasType: 'workflow',
     nodes: [node],
     edges: [],
@@ -92,6 +217,16 @@ test('canvas serialization strips transient node data and ensures workflow outpu
   })
   const parsed = JSON.parse(signature) as { nodes: Array<{ id: string }> }
   assert.equal(parsed.nodes.some((item) => item.id === 'final-output'), true)
+})
+
+test('workflow IO nodes normalize and sort by explicit order', () => {
+  const second = canvasNode('second', 'input', { source: 'manual', paramOrder: 2 }, { x: 0, y: 0 })
+  const missing = canvasNode('missing', 'input', { source: 'manual' }, { x: 0, y: 10 })
+  const first = canvasNode('first', 'input', { source: 'manual', paramOrder: 1 }, { x: 0, y: 20 })
+  const normalized = normalizeWorkflowIoNodeOrders([second, missing, first])
+
+  assert.deepEqual([second, missing, first].sort(compareWorkflowIoNodes).map((node) => node.id), ['first', 'second', 'missing'])
+  assert.equal((normalized.find((node) => node.id === 'missing')?.data as Partial<CanvasNodeData>).paramOrder, 3)
 })
 
 test('canvas node style normalizes minimum card width', () => {

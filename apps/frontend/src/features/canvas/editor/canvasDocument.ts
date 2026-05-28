@@ -2,8 +2,8 @@ import type { Edge, Node } from '@xyflow/react'
 import { api } from '@/shared/infrastructure/api'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { Canvas, CanvasNodeData, CanvasType, PublicModel } from '@/types'
-import { ensureFinalOutputNode } from '@/features/canvas/domain/graph'
-import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
+import { ensureFinalOutputNode, normalizeWorkflowIoNodeOrders } from '@/features/canvas/domain/graph'
+import { canvasNodeAbsolutePosition, normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
 import { canvasGraphSignature, serializableCanvasNodeData } from '@/features/canvas/domain/serialization'
 import {
   defaultHandleForNode,
@@ -37,9 +37,22 @@ export function hydrateCanvasDocument(
     }
     return node
   })
-  const groupNodes = loadedNodes.filter((node) => node.type === 'group')
-  const childNodes = loadedNodes.filter((node) => node.type !== 'group')
-  const loadedNodeById = new Map(loadedNodes.map((node) => [node.id, node]))
+  const nodeById = new Map(loadedNodes.map((node) => [node.id, node]))
+  const flattenedNodes = loadedNodes.map((node) => {
+    if (!node.parentId) return node
+    return {
+      ...node,
+      parentId: undefined,
+      position: canvasNodeAbsolutePosition(node, nodeById),
+      data: {
+        ...node.data,
+        groupId: (node.data as Partial<CanvasNodeData>).groupId ?? node.parentId,
+      },
+    }
+  })
+  const groupNodes = flattenedNodes.filter((node) => node.type === 'group')
+  const childNodes = flattenedNodes.filter((node) => node.type !== 'group')
+  const loadedNodeById = new Map(flattenedNodes.map((node) => [node.id, node]))
   const edges: Edge[] = uniqueEdgesByConnection((canvas.edges ?? []).map((edge) => ({
     id: edge.edge_id,
     source: edge.source,
@@ -48,13 +61,12 @@ export function hydrateCanvasDocument(
     targetHandle: toUiHandleId(edge.target_handle ?? defaultHandleForNode(loadedNodeById.get(edge.target), 'target'), 'target'),
   })))
   const nodes = (canvas.canvas_type ?? 'inspiration') === 'workflow'
-    ? ensureFinalOutputNode([...groupNodes, ...childNodes], t)
+    ? normalizeWorkflowIoNodeOrders(ensureFinalOutputNode([...groupNodes, ...childNodes], t))
     : [...groupNodes, ...childNodes]
   return {
     nodes,
     edges,
     signature: canvasGraphSignature({
-      canvasName: canvas.name,
       canvasType: canvas.canvas_type ?? 'inspiration',
       nodes,
       edges,
@@ -64,22 +76,21 @@ export function hydrateCanvasDocument(
 }
 
 export async function buildCanvasSavePayload({
-  canvasName,
   canvasType,
   nodes,
   edges,
   t,
 }: {
-  canvasName: string
   canvasType: CanvasType
   nodes: Node[]
   edges: Edge[]
   t: (key: string, options?: any) => string
 }) {
-  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
+  const nodesToSave = canvasType === 'workflow'
+    ? normalizeWorkflowIoNodeOrders(ensureFinalOutputNode(nodes, t))
+    : nodes
   const defaultModels = await defaultModelsForCanvasSave(nodesToSave)
   return {
-    name: canvasName,
     nodes: nodesToSave.map((node) => {
       const { label, data: rest } = serializableCanvasNodeData(node.data)
       const request = modelFeatureForCanvasNode(node.type, rest)
@@ -99,7 +110,6 @@ export async function buildCanvasSavePayload({
         pos_y: node.position.y,
         data: JSON.stringify({
           ...dataToSave,
-          _parentId: node.parentId ?? undefined,
           _style: node.style,
         }),
       }

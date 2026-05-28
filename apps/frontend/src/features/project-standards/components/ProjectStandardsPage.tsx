@@ -2,17 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  BookOpen,
   Eye,
   GitBranch,
   ImagePlus,
   Loader2,
-  PackageCheck,
   Pencil,
   Plus,
-  Route,
   Save,
-  Sparkles,
   Trash2,
   Upload,
   Wand2,
@@ -20,13 +16,13 @@ import {
 } from 'lucide-react'
 import {
   ProjectStandardsActionButton,
+  ProjectStandardsAppSurface,
   ProjectStandardsBadge,
   ProjectStandardsBodyText,
   ProjectStandardsCheckboxField,
   ProjectStandardsCodeBlock,
   ProjectStandardsColumn,
   ProjectStandardsContentLayout,
-  ProjectStandardsCoreGrid,
   ProjectStandardsDescription,
   ProjectStandardsDialog,
   ProjectStandardsDialogBody,
@@ -42,12 +38,9 @@ import {
   ProjectStandardsImageFrame,
   ProjectStandardsImageGrid,
   ProjectStandardsImageMeta,
-  ProjectStandardsInlineMeta,
   ProjectStandardsInput,
   ProjectStandardsLoadingState,
   ProjectStandardsMain,
-  ProjectStandardsMetric,
-  ProjectStandardsMetricGrid,
   ProjectStandardsPreviewAside,
   ProjectStandardsPreviewSurface,
   ProjectStandardsRuleActions,
@@ -62,7 +55,6 @@ import {
   ProjectStandardsSelectItem,
   ProjectStandardsSelectTrigger,
   ProjectStandardsSelectValue,
-  ProjectStandardsStatusBadge,
   ProjectStandardsSurfaceItem,
   ProjectStandardsTextarea,
   ProjectStandardsTinyText,
@@ -109,21 +101,82 @@ import {
   type ProjectPromptRuleForm,
   type PromptRole,
 } from '@/features/project-standards/application/projectStandardsModel'
-import { uploadProjectStandardsStyleReferenceImages } from '@/features/project-standards/application/projectStandardsStyleReferenceUpload'
+import {
+  buildProjectStandardsStyleReferenceRemovalPatch,
+  uploadProjectStandardsStyleReferenceImages,
+} from '@/features/project-standards/application/projectStandardsStyleReferenceUpload'
 import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { RawResource } from '@/types'
-import {
-  projectStandardsEnabledRuleRecipe,
-  projectStandardsReadyRecipe,
-  projectStandardsRequiredRuleRecipe,
-} from '@/features/project-standards/presentation/projectStandardsSemanticUi'
-
 const PROJECT_STANDARDS_AI_PROMPT = '请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。如果需要用图片固定画风，请新增 prompt_role="style" 的 custom_rules，在 value 中记录参考图 resource#ID 或 reference_resource_ids，并说明后续图片/视频生成要把这些 ID 作为 reference_resource_ids 用于画风参考。不要创建设定资料或素材需求。'
 
+type StandardWorkbenchCard =
+  | { type: 'core'; def: CoreStandardDef }
+  | { type: 'custom'; rule: ProjectPromptRule }
+
+interface StandardWorkbenchGroup {
+  id: string
+  title: string
+  description: string
+  cards: StandardWorkbenchCard[]
+}
+
+const CORE_STANDARD_GROUPS = [
+  {
+    id: 'foundation',
+    title: '基础规范',
+    description: '决定项目默认画幅、整体质感和生成任务的基础语境。',
+    coreKeys: ['aspect_ratio', 'visual_style'],
+  },
+  {
+    id: 'camera',
+    title: '镜头规范',
+    description: '统一镜头尺度、运动方式、构图和视角表达。',
+    coreKeys: ['shot_size_system', 'camera_language'],
+  },
+  {
+    id: 'look',
+    title: '画风规范',
+    description: '控制灯光、色彩、画面观感和视觉连续性。',
+    coreKeys: ['lighting_style', 'color_palette'],
+  },
+  {
+    id: 'constraints',
+    title: '节奏与约束',
+    description: '约束剪辑节奏、禁止项和必须遵守的项目规则。',
+    coreKeys: ['pacing_rules', 'negative_rules'],
+  },
+] as const
+
+function coreCards(keys: readonly string[]): StandardWorkbenchCard[] {
+  return keys.flatMap((key) => {
+    const def = CORE_STANDARD_DEFS.find((item) => item.key === key)
+    return def ? [{ type: 'core' as const, def }] : []
+  })
+}
+
 export default function ProjectStandardsPage() {
+  const project = useProjectStore((s) => s.current)
+  const workbenchShellProps = useProjectWorkbenchShellProps({
+    workbenchId: 'project_standards',
+    projectName: project?.name,
+    kicker: '项目规范',
+    title: '项目规范工作台',
+    description: '集中查看和调整项目会遵守的制作规范，并预览最终注入模型的提示词与风格参考。',
+  })
+
+  return (
+    <WorkbenchProjectShell {...workbenchShellProps}>
+      <WorkbenchProjectBody padding="none" scroll="auto" tone="muted">
+        <ProjectStandardsContent />
+      </WorkbenchProjectBody>
+    </WorkbenchProjectShell>
+  )
+}
+
+export function ProjectStandardsContent() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const orchestrationToolCleanupRef = useRef<(() => void) | null>(null)
@@ -141,6 +194,7 @@ export default function ProjectStandardsPage() {
   const [savingRule, setSavingRule] = useState(false)
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
   const [uploadingStyleReferences, setUploadingStyleReferences] = useState(false)
+  const [deletingStyleReferenceId, setDeletingStyleReferenceId] = useState<number | null>(null)
   const [lastUploadedStyleReferences, setLastUploadedStyleReferences] = useState<RawResource[]>([])
   const openedDraftId = searchParams.get('draftId')?.trim() || ''
 
@@ -334,12 +388,31 @@ export default function ProjectStandardsPage() {
   const filledStandardCount = projectStandardFilledCount(data.project)
   const missingStandardLabels = projectStandardMissingLabels(data.project)
   const customRules = useMemo(() => projectPromptRules(data.project), [data.project])
-  const enabledCustomRules = customRules.filter((rule) => rule.enabled)
+  const visibleCustomRules = customRules.filter((rule) => rule.key !== STYLE_REFERENCE_RULE_KEY)
+  const enabledCustomRules = visibleCustomRules.filter((rule) => rule.enabled)
   const enabledRuleCount = filledStandardCount + enabledCustomRules.length
   const promptPreview = useMemo(() => buildProjectPromptPreview(data.project), [data.project])
   const styleReferenceRule = customRules.find((rule) => rule.key === STYLE_REFERENCE_RULE_KEY)
   const styleReferenceIds = useMemo(() => extractResourceIds(styleReferenceRule?.value ?? ''), [styleReferenceRule?.value])
   const uploadedStyleReferencesById = useMemo(() => new Map(lastUploadedStyleReferences.map((resource) => [resource.ID, resource])), [lastUploadedStyleReferences])
+  const standardGroups = useMemo<StandardWorkbenchGroup[]>(() => {
+    const groups: StandardWorkbenchGroup[] = CORE_STANDARD_GROUPS.map((group) => ({
+      id: group.id,
+      title: group.title,
+      description: group.description,
+      cards: coreCards(group.coreKeys),
+    }))
+    if (visibleCustomRules.length > 0) {
+      groups.push({
+        id: 'custom',
+        title: '自定义规范',
+        description: '补充角色、台词、平台禁忌、审核口径等项目级规则。',
+        cards: visibleCustomRules.map((rule) => ({ type: 'custom' as const, rule })),
+      })
+    }
+    return groups
+  }, [visibleCustomRules])
+  const statusSummary = `${filledStandardCount}/8 项核心 · ${visibleCustomRules.length} 条自定义 · ${styleReferenceIds.length} 张风格图 · ${draftCounts.draft} 个待审阅草稿`
 
   async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
     if (!projectId) return
@@ -469,46 +542,27 @@ export default function ProjectStandardsPage() {
     }
   }
 
-  const workbenchShellProps = useProjectWorkbenchShellProps({
-    workbenchId: 'project_standards',
-    projectName: project?.name,
-    kicker: '项目规范',
-    title: '项目规范库',
-    description: '核心规范必填，扩展规范按需进入提示词；AI 生成的项目规范提案在审阅区应用。',
-    badges: (
-      <>
-        <ProjectStandardsBadge className="h-6 px-2 type-tiny">
-          backend apply
-        </ProjectStandardsBadge>
-        {isFetching ? <ProjectStandardsBadge variant="outline" className="h-6 px-2 type-tiny">同步中</ProjectStandardsBadge> : null}
-      </>
-    ),
-    onRefresh: refreshAll,
-    refreshing: isFetching || draftsQuery.isFetching,
-    refreshLabel: '刷新',
-    actions: (
-      <>
-        <ProjectStandardsActionButton size="sm" variant="outline" className="h-8 w-32" onClick={() => setReviewDialogOpen(true)} disabled={!projectId}>
-          <GitBranch size={14} />
-          审阅草稿
-          {draftCounts.draft > 0 ? (
-            <ProjectStandardsInlineMeta asChild>
-              <span>{draftCounts.draft}</span>
-            </ProjectStandardsInlineMeta>
-          ) : null}
-        </ProjectStandardsActionButton>
-        <ProjectStandardsActionButton size="sm" className="h-8 w-32" onClick={() => startProjectOrchestration(PROJECT_STANDARDS_AI_PROMPT)} loading={launching} disabled={!projectId}>
-          <Wand2 size={14} />
-          AI 制定规范
-        </ProjectStandardsActionButton>
-      </>
-    ),
-  })
+  async function removeStyleReferenceImage(resourceId: number) {
+    if (!projectId || !styleReferenceRule) return
+    setDeletingStyleReferenceId(resourceId)
+    try {
+      const { patch } = buildProjectStandardsStyleReferenceRemovalPatch({
+        customRules,
+        styleReferenceRule,
+        resourceId,
+      })
+      await saveProjectStylePatch(patch, '风格图片已移出项目规范')
+      setLastUploadedStyleReferences((current) => current.filter((resource) => resource.ID !== resourceId))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '移除风格图片失败')
+    } finally {
+      setDeletingStyleReferenceId(null)
+    }
+  }
 
   return (
-    <WorkbenchProjectShell {...workbenchShellProps}>
-      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
-        <ProjectStandardsMain>
+    <>
+      <ProjectStandardsMain>
           {isLoading ? (
             <ProjectStandardsLoadingState>
               <Loader2 size={16} className="animate-spin" />
@@ -516,133 +570,38 @@ export default function ProjectStandardsPage() {
             </ProjectStandardsLoadingState>
           ) : (
             <ProjectStandardsContentLayout>
-              <ProjectStandardsMetricGrid>
-                <ProjectStandardsMetric label="核心规范完成度" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `缺失 ${missingStandardLabels.length} 项必选规范` : '固定规范已覆盖'} icon={Route} />
-                <ProjectStandardsMetric label="启用规范" value={enabledRuleCount} detail={`${enabledCustomRules.length} 条扩展规范会进入提示词`} icon={BookOpen} />
-                <ProjectStandardsMetric label="扩展规范" value={customRules.length} detail="支持任意 key/value、分类和提示词角色" icon={Sparkles} />
-                <ProjectStandardsMetric label="待审阅提案" value={draftCounts.draft} detail="AI 生成的规范变更在审阅区应用" icon={PackageCheck} />
-              </ProjectStandardsMetricGrid>
+              <ProjectStandardsAppSurface className="project-standards-status-strip">
+                <ProjectStandardsTinyText className="text-foreground">{statusSummary}</ProjectStandardsTinyText>
+                <ProjectStandardsTinyText>
+                  {missingStandardLabels.length > 0 ? `待补充：${missingStandardLabels.join('、')}` : '核心规范已覆盖，预览会随编辑实时更新。'}
+                </ProjectStandardsTinyText>
+              </ProjectStandardsAppSurface>
 
               <ProjectStandardsWorkspaceGrid>
                   <ProjectStandardsColumn>
-                    <ProjectStandardsSection border>
-                      <div className="min-w-0">
-                        <ProjectStandardsTitle>核心规范</ProjectStandardsTitle>
-                        <ProjectStandardsDescription>固定 8 项为必选规范，直接写入 Project 全局字段和 project_style。</ProjectStandardsDescription>
-                      </div>
-
-                        <ProjectStandardsCoreGrid>
-                          {CORE_STANDARD_DEFS.map((def) => {
-                            const value = coreStandardText(data.project, def.key)
-                            const editing = editingCoreKey === def.key
-                            return (
-                              <ProjectStandardsSurfaceItem
-                                key={def.key}
-                                tone={value ? 'neutral' : 'warning'}
-                                className="px-3 py-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <p className="type-label font-medium text-foreground">{def.label}</p>
-                                      <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{def.category}</ProjectStandardsBadge>
-                                      <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">{PROMPT_ROLE_LABELS[def.promptRole]}</ProjectStandardsBadge>
-                                      <ProjectStandardsStatusBadge {...projectStandardsReadyRecipe(Boolean(value))} className="h-5 px-1.5 type-tiny">{value ? '已设置' : '缺失'}</ProjectStandardsStatusBadge>
-                                    </div>
-                                    <p className="mt-1 type-tiny leading-4 text-muted-foreground">{def.helper}</p>
-                                  </div>
-                                  <ProjectStandardsIconButton size="icon-sm" variant="ghost" onClick={() => editing ? setEditingCoreKey(null) : openCoreEditor(def.key)}>
-                                    {editing ? <X size={14} /> : <Pencil size={14} />}
-                                  </ProjectStandardsIconButton>
-                                </div>
-                                {editing ? (
-                                  <div className="mt-2 space-y-2">
-                                    {def.multiline ? (
-                                      <ProjectStandardsTextarea value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="min-h-24 type-label" placeholder={def.helper} />
-                                    ) : (
-                                      <ProjectStandardsInput value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="h-8 type-label" placeholder={def.helper} />
-                                    )}
-                                    <div className="flex justify-end gap-1.5">
-                                      <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setEditingCoreKey(null)}>取消</ProjectStandardsActionButton>
-                                      <ProjectStandardsActionButton size="sm" className="type-label" loading={savingCoreKey === def.key} onClick={() => saveCoreStandard(def)}>
-                                        <Save size={12} />
-                                        保存
-                                      </ProjectStandardsActionButton>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <p className="mt-2 whitespace-pre-wrap type-label leading-5 text-foreground">{value || '未设置'}</p>
-                                )}
-                              </ProjectStandardsSurfaceItem>
-                            )
-                          })}
-                        </ProjectStandardsCoreGrid>
-                    </ProjectStandardsSection>
-
-                    <ProjectStandardsSection border>
+                    <ProjectStandardsSection className="project-standards-board-heading">
                       <ProjectStandardsSectionHeader>
                         <div className="min-w-0">
-                          <ProjectStandardsTitleRow><ImagePlus size={14} />全局画风参考图</ProjectStandardsTitleRow>
-                          <ProjectStandardsDescription>上传后会写入 style_reference_images 规则，后续图片/视频生成可作为 reference_resource_ids 使用。</ProjectStandardsDescription>
+                          <ProjectStandardsTitle>规范工作板</ProjectStandardsTitle>
+                          <ProjectStandardsDescription>按创作语境查看规范；点击卡片右上角即可编辑，启用的内容会进入右侧预览。</ProjectStandardsDescription>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <ProjectStandardsInput
-                            ref={styleReferenceInputRef}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={(event) => uploadStyleReferenceImages(event.target.files)}
-                          />
-                          <ProjectStandardsActionButton size="sm" className="type-label" onClick={() => styleReferenceInputRef.current?.click()} loading={uploadingStyleReferences} disabled={!projectId}>
-                            <Upload size={12} />
-                            上传参考图
+                        <div className="project-standards-board-actions">
+                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={refreshAll} loading={isFetching || draftsQuery.isFetching}>
+                            刷新
+                          </ProjectStandardsActionButton>
+                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setReviewDialogOpen(true)} disabled={!projectId}>
+                            <GitBranch size={12} />
+                            草稿{draftCounts.draft > 0 ? ` ${draftCounts.draft}` : ''}
+                          </ProjectStandardsActionButton>
+                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => startProjectOrchestration(PROJECT_STANDARDS_AI_PROMPT)} loading={launching} disabled={!projectId}>
+                            <Wand2 size={12} />
+                            AI 制定
+                          </ProjectStandardsActionButton>
+                          <ProjectStandardsActionButton size="sm" className="type-label" onClick={openNewRuleForm}>
+                            <Plus size={12} />
+                            新增规范
                           </ProjectStandardsActionButton>
                         </div>
-                      </ProjectStandardsSectionHeader>
-
-                      <div className="mt-3">
-                        {styleReferenceIds.length === 0 ? (
-                          <ProjectStandardsEmptyText className="type-label">
-                            尚未设置画风参考图。上传图片后会自动生成全局画风规则。
-                          </ProjectStandardsEmptyText>
-                        ) : (
-                          <ProjectStandardsImageGrid>
-                            {styleReferenceIds.map((id) => {
-                              const uploaded = uploadedStyleReferencesById.get(id)
-                              return (
-                                <ProjectStandardsImageCard key={id}>
-                                  <ProjectStandardsImageFrame>
-                                    <AuthedImage src={`/api/v1/resources/${id}/file`} alt={uploaded?.name ?? `resource#${id}`} className="h-full w-full object-cover" />
-                                  </ProjectStandardsImageFrame>
-                                  <ProjectStandardsImageMeta>
-                                    <p className="min-w-0 truncate type-tiny text-foreground">{uploaded?.name ?? `resource#${id}`}</p>
-                                    <ProjectStandardsBadge className="shrink-0 type-tiny">#{id}</ProjectStandardsBadge>
-                                  </ProjectStandardsImageMeta>
-                                </ProjectStandardsImageCard>
-                              )
-                            })}
-                          </ProjectStandardsImageGrid>
-                        )}
-                      </div>
-
-                      {styleReferenceRule ? (
-                        <ProjectStandardsSurfaceItem className="mt-3 bg-muted/20 p-2">
-                          <ProjectStandardsTinyText>{styleReferenceRule.value}</ProjectStandardsTinyText>
-                        </ProjectStandardsSurfaceItem>
-                      ) : null}
-                    </ProjectStandardsSection>
-
-                    <ProjectStandardsSection>
-                      <ProjectStandardsSectionHeader>
-                        <div className="min-w-0">
-                          <ProjectStandardsTitle>扩展规范</ProjectStandardsTitle>
-                          <ProjectStandardsDescription>用任意 key/value 补充角色、台词、平台禁忌、审核口径等项目规则。</ProjectStandardsDescription>
-                        </div>
-                        <ProjectStandardsActionButton size="sm" className="type-label" onClick={openNewRuleForm}>
-                          <Plus size={12} />
-                          新增规范
-                        </ProjectStandardsActionButton>
                       </ProjectStandardsSectionHeader>
 
                       {ruleForm && (
@@ -705,53 +664,177 @@ export default function ProjectStandardsPage() {
                           </ProjectStandardsFieldActions>
                         </ProjectStandardsRuleForm>
                       )}
-
-                      <ProjectStandardsRuleList>
-                        {customRules.length === 0 ? (
-                          <ProjectStandardsEmptyState compact title="暂无扩展规范" description="新增一条规范后，它会按启用状态进入提示词预览。" />
-                        ) : customRules.map((rule) => (
-                          <ProjectStandardsRuleCard key={rule.id} disabled={!rule.enabled}>
-                            <ProjectStandardsRuleCardHeader>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <p className="type-label font-semibold text-foreground">{rule.label}</p>
-                                  <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{rule.category}</ProjectStandardsBadge>
-                                  <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">{PROMPT_ROLE_LABELS[rule.prompt_role]}</ProjectStandardsBadge>
-                                  {rule.required ? <ProjectStandardsStatusBadge {...projectStandardsRequiredRuleRecipe()} className="h-5 px-1.5 type-tiny">必选</ProjectStandardsStatusBadge> : null}
-                                  <ProjectStandardsStatusBadge {...projectStandardsEnabledRuleRecipe(rule.enabled)} className="h-5 px-1.5 type-tiny">{rule.enabled ? '启用' : '停用'}</ProjectStandardsStatusBadge>
-                                </div>
-                                <ProjectStandardsTinyText mono className="mt-1">{rule.key}</ProjectStandardsTinyText>
-                                <ProjectStandardsBodyText className="mt-2">{rule.value || '未填写'}</ProjectStandardsBodyText>
-                              </div>
-                              <ProjectStandardsRuleActions>
-                                <ProjectStandardsActionButton size="sm" variant="outline" className="px-2 type-tiny" onClick={() => toggleRule(rule)}>{rule.enabled ? '停用' : '启用'}</ProjectStandardsActionButton>
-                                <ProjectStandardsIconButton size="icon-sm" variant="ghost" onClick={() => openEditRuleForm(rule)} title="编辑规范"><Pencil size={14} /></ProjectStandardsIconButton>
-                                <ProjectStandardsIconButton size="icon-sm" variant="ghost" tone="danger" loading={deletingRuleId === rule.id} onClick={() => deleteRule(rule)} title="删除规范"><Trash2 size={14} /></ProjectStandardsIconButton>
-                              </ProjectStandardsRuleActions>
-                            </ProjectStandardsRuleCardHeader>
-                          </ProjectStandardsRuleCard>
-                        ))}
-                      </ProjectStandardsRuleList>
                     </ProjectStandardsSection>
+
+                    {standardGroups.map((group) => (
+                      <ProjectStandardsSection key={group.id} className="project-standards-standard-group">
+                        <ProjectStandardsSectionHeader>
+                          <div className="min-w-0">
+                            <ProjectStandardsTitle>{group.title}</ProjectStandardsTitle>
+                            <ProjectStandardsDescription>{group.description}</ProjectStandardsDescription>
+                          </div>
+                          <ProjectStandardsBadge variant="outline" className="type-tiny">{group.cards.length} 项</ProjectStandardsBadge>
+                        </ProjectStandardsSectionHeader>
+
+                        <ProjectStandardsRuleList className="project-standards-standard-list">
+                          {group.cards.map((card) => {
+                            if (card.type === 'core') {
+                              const { def } = card
+                              const value = coreStandardText(data.project, def.key)
+                              const editing = editingCoreKey === def.key
+                              return (
+                                <ProjectStandardsSurfaceItem
+                                  key={def.key}
+                                  tone={value ? 'neutral' : 'warning'}
+                                  className="project-standards-standard-card"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <p className="type-label font-semibold text-foreground">{def.label}</p>
+                                        <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{def.category}</ProjectStandardsBadge>
+                                        {!value ? <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">待补充</ProjectStandardsBadge> : null}
+                                      </div>
+                                      <p className="mt-1 type-tiny leading-4 text-muted-foreground">{def.helper}</p>
+                                    </div>
+                                    <ProjectStandardsIconButton size="icon-sm" variant="ghost" onClick={() => editing ? setEditingCoreKey(null) : openCoreEditor(def.key)} title={editing ? '收起编辑' : '编辑规范'}>
+                                      {editing ? <X size={14} /> : <Pencil size={14} />}
+                                    </ProjectStandardsIconButton>
+                                  </div>
+                                  {editing ? (
+                                    <div className="mt-2 space-y-2">
+                                      {def.multiline ? (
+                                        <ProjectStandardsTextarea value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="min-h-24 type-label" placeholder={def.helper} />
+                                      ) : (
+                                        <ProjectStandardsInput value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="h-8 type-label" placeholder={def.helper} />
+                                      )}
+                                      <div className="flex justify-end gap-1.5">
+                                        <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setEditingCoreKey(null)}>取消</ProjectStandardsActionButton>
+                                        <ProjectStandardsActionButton size="sm" className="type-label" loading={savingCoreKey === def.key} onClick={() => saveCoreStandard(def)}>
+                                          <Save size={12} />
+                                          保存
+                                        </ProjectStandardsActionButton>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 whitespace-pre-wrap type-label leading-5 text-foreground">{value || '点击编辑补充这条规范。'}</p>
+                                  )}
+                                </ProjectStandardsSurfaceItem>
+                              )
+                            }
+
+                            const { rule } = card
+                            return (
+                              <ProjectStandardsRuleCard key={rule.id} disabled={!rule.enabled} className="project-standards-standard-card">
+                                <ProjectStandardsRuleCardHeader>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <p className="type-label font-semibold text-foreground">{rule.label}</p>
+                                      <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{rule.category}</ProjectStandardsBadge>
+                                      <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">{PROMPT_ROLE_LABELS[rule.prompt_role]}</ProjectStandardsBadge>
+                                      {!rule.enabled ? <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">未进入预览</ProjectStandardsBadge> : null}
+                                    </div>
+                                    <ProjectStandardsBodyText className="mt-2">{rule.value || '未填写'}</ProjectStandardsBodyText>
+                                  </div>
+                                  <ProjectStandardsRuleActions>
+                                    <ProjectStandardsActionButton size="sm" variant="outline" className="px-2 type-tiny" onClick={() => toggleRule(rule)}>{rule.enabled ? '停用' : '启用'}</ProjectStandardsActionButton>
+                                    <ProjectStandardsIconButton size="icon-sm" variant="ghost" onClick={() => openEditRuleForm(rule)} title="编辑规范"><Pencil size={14} /></ProjectStandardsIconButton>
+                                    <ProjectStandardsIconButton size="icon-sm" variant="ghost" tone="danger" loading={deletingRuleId === rule.id} onClick={() => deleteRule(rule)} title="删除规范"><Trash2 size={14} /></ProjectStandardsIconButton>
+                                  </ProjectStandardsRuleActions>
+                                </ProjectStandardsRuleCardHeader>
+                              </ProjectStandardsRuleCard>
+                            )
+                          })}
+                        </ProjectStandardsRuleList>
+                      </ProjectStandardsSection>
+                    ))}
+
+                    {visibleCustomRules.length === 0 ? (
+                      <ProjectStandardsSection className="project-standards-standard-group">
+                        <ProjectStandardsEmptyState compact title="暂无自定义规范" description="常见的平台禁忌、角色一致性和审核口径，可以从这里补充。" />
+                      </ProjectStandardsSection>
+                    ) : null}
                   </ProjectStandardsColumn>
 
                   <ProjectStandardsPreviewAside>
                     <ProjectStandardsSectionHeader>
                       <div className="min-w-0">
-                        <ProjectStandardsTitleRow><Eye size={14} />提示词预览</ProjectStandardsTitleRow>
-                        <ProjectStandardsDescription>这里展示最终会注入模型的项目规范片段。</ProjectStandardsDescription>
+                        <ProjectStandardsTitleRow><Eye size={14} />输出预览</ProjectStandardsTitleRow>
+                        <ProjectStandardsDescription>这里展示最终会交给模型的提示词片段和风格参考图。</ProjectStandardsDescription>
                       </div>
                       <ProjectStandardsBadge className="type-tiny">{enabledRuleCount} 条启用</ProjectStandardsBadge>
                     </ProjectStandardsSectionHeader>
                     <ProjectStandardsPreviewSurface>
                       <ProjectStandardsCodeBlock>{promptPreview}</ProjectStandardsCodeBlock>
                     </ProjectStandardsPreviewSurface>
+
+                    <ProjectStandardsSectionHeader className="project-standards-preview-subheader">
+                      <div className="min-w-0">
+                        <ProjectStandardsTitleRow><ImagePlus size={14} />风格图片</ProjectStandardsTitleRow>
+                        <ProjectStandardsDescription>这些图片会作为项目画风、质感、色彩和光影的参考。</ProjectStandardsDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ProjectStandardsInput
+                          ref={styleReferenceInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(event) => uploadStyleReferenceImages(event.target.files)}
+                        />
+                        <ProjectStandardsActionButton size="sm" className="type-label" onClick={() => styleReferenceInputRef.current?.click()} loading={uploadingStyleReferences} disabled={!projectId}>
+                          <Upload size={12} />
+                          上传
+                        </ProjectStandardsActionButton>
+                      </div>
+                    </ProjectStandardsSectionHeader>
+
+                    <div className="mt-3">
+                      {styleReferenceIds.length === 0 ? (
+                        <ProjectStandardsEmptyText className="type-label">
+                          尚未设置风格图片。上传后会自动加入提示词预览。
+                        </ProjectStandardsEmptyText>
+                      ) : (
+                        <ProjectStandardsImageGrid>
+                          {styleReferenceIds.map((id) => {
+                            const uploaded = uploadedStyleReferencesById.get(id)
+                            return (
+                              <ProjectStandardsImageCard key={id}>
+                                <ProjectStandardsImageFrame>
+                                  <AuthedImage src={`/api/v1/resources/${id}/file`} alt={uploaded?.name ?? `resource#${id}`} className="h-full w-full object-cover" />
+                                  <ProjectStandardsIconButton
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    tone="danger"
+                                    className="project-standards-image-remove"
+                                    loading={deletingStyleReferenceId === id}
+                                    onClick={() => { void removeStyleReferenceImage(id) }}
+                                    title="移除风格图片"
+                                  >
+                                    <Trash2 size={14} />
+                                  </ProjectStandardsIconButton>
+                                </ProjectStandardsImageFrame>
+                                <ProjectStandardsImageMeta>
+                                  <p className="min-w-0 truncate type-tiny text-foreground">{uploaded?.name ?? `resource#${id}`}</p>
+                                  <ProjectStandardsBadge className="shrink-0 type-tiny">#{id}</ProjectStandardsBadge>
+                                </ProjectStandardsImageMeta>
+                              </ProjectStandardsImageCard>
+                            )
+                          })}
+                        </ProjectStandardsImageGrid>
+                      )}
+                    </div>
+
+                    {styleReferenceRule ? (
+                      <ProjectStandardsSurfaceItem className="project-standards-style-reference-note">
+                        <ProjectStandardsTinyText>{styleReferenceRule.value}</ProjectStandardsTinyText>
+                      </ProjectStandardsSurfaceItem>
+                    ) : null}
                   </ProjectStandardsPreviewAside>
               </ProjectStandardsWorkspaceGrid>
             </ProjectStandardsContentLayout>
           )}
-        </ProjectStandardsMain>
-      </WorkbenchProjectBody>
+      </ProjectStandardsMain>
 
       <ProjectStandardsDialog open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
         <ProjectStandardsDialogContent>
@@ -768,6 +851,6 @@ export default function ProjectStandardsPage() {
         </ProjectStandardsDialogContent>
       </ProjectStandardsDialog>
 
-    </WorkbenchProjectShell>
+    </>
   )
 }

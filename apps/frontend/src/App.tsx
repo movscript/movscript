@@ -65,6 +65,7 @@ import { getProjectWorkbenchDefinition } from './features/project-workbenches/do
 import { ROUTES } from './routes/projectRoutes'
 import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
+import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { useAgentStore } from './features/agent/state/agentStore'
@@ -441,14 +442,36 @@ function CanvasHeaderLeft() {
 function CanvasHeaderTitle() {
   const canvasName = useCanvasHeaderStore((s) => s.canvasName)
   const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
+  const titleEditor = useInlineTitleEditor({
+    value: canvasName,
+    onCommit: (name) => onNameChange?.(name),
+  })
+  const displayName = canvasName.trim() || i18n.t('canvas.editor.untitled')
+  if (titleEditor.editing) {
+    return (
+      <Input
+        ref={titleEditor.inputRef}
+        className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
+        value={titleEditor.draft}
+        onChange={(event) => titleEditor.setDraft(event.target.value)}
+        onBlur={titleEditor.commitEditing}
+        onKeyDown={titleEditor.handleInputKeyDown}
+        placeholder={i18n.t('canvas.editor.untitled')}
+        aria-label={i18n.t('canvas.editor.untitled')}
+      />
+    )
+  }
   return (
-    <Input
-      className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
-      value={canvasName}
-      onChange={(event) => onNameChange?.(event.target.value)}
-      placeholder={i18n.t('canvas.editor.untitled')}
-      aria-label={i18n.t('canvas.editor.untitled')}
-    />
+    <button
+      type="button"
+      className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 truncate rounded-sm border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none hover:bg-muted focus-visible:bg-muted"
+      onDoubleClick={titleEditor.startEditing}
+      onKeyDown={titleEditor.handleDisplayKeyDown}
+      title={i18n.t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
+      aria-label={i18n.t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
+    >
+      {displayName}
+    </button>
   )
 }
 
@@ -571,6 +594,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const agentModeContentPanelOpen = !agentModeContentPanelCollapsed
   const detailAgentPanelOpen = useAgentPanelUiStore((s) => s.open)
+  const detailAgentPanelWidth = useAgentPanelUiStore((s) => s.detailAgentPanelWidth)
   const detailHeaderActions = useAgentPanelUiStore((s) => s.detailHeaderActions)
   const [agentModeContentPanelWidth, setAgentModeContentPanelWidth] = React.useState(AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
   const handleAgentModeContentPanelWidthChange = React.useCallback((width: number) => {
@@ -672,6 +696,16 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     minWidth: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
     flexBasis: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
   }
+  const detailLeftSlotStyle = {
+    width: detailSidebarHidden ? 0 : detailSidebarWidth,
+    minWidth: detailSidebarHidden ? 0 : detailSidebarWidth,
+    flexBasis: detailSidebarHidden ? 0 : detailSidebarWidth,
+  }
+  const detailRightSlotStyle = {
+    width: detailRightPaneOpen ? detailAgentPanelWidth : 0,
+    minWidth: detailRightPaneOpen ? detailAgentPanelWidth : 0,
+    flexBasis: detailRightPaneOpen ? detailAgentPanelWidth : 0,
+  }
 
   const shellSurface: AppRouteSurface = agentMode ? 'agent' : 'detail'
   const shell = (
@@ -680,18 +714,20 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       {agentMode ? (
         <WorkspaceShell
           surface={shellSurface}
-          sidebar={agentModeSidebarCollapsed ? undefined : (
+          sidebar={(
             <ProjectAgentModeSidebar />
           )}
           leftHeader={agentLeftHeader}
           centerHeader={agentCenterHeader}
           rightHeader={agentRightHeader}
           rightSlotStyle={agentRightSlotStyle}
-          assistantPanel={!agentModeContentPanelCollapsed ? (
+          rightPaneCollapsed={agentModeContentPanelCollapsed}
+          assistantPanel={(
             <ProjectAgentContentPanel
+              collapsed={agentModeContentPanelCollapsed}
               onWidthChange={handleAgentModeContentPanelWidthChange}
             />
-          ) : undefined}
+          )}
         >
           <AppRouteViewport scroll="auto">
             <RouteErrorBoundary>{children}</RouteErrorBoundary>
@@ -700,18 +736,21 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       ) : (
         <WorkspaceShell
           surface={shellSurface}
-          sidebar={!detailSidebarHidden ? (
+          sidebar={(
             <Sidebar
               width={detailSidebarWidth}
               onWidthChange={setDetailSidebarWidth}
               onHide={hideDetailSidebar}
             />
-          ) : undefined}
+          )}
           leftHeader={detailLeftHeader}
           centerHeader={detailCenterHeader}
           rightHeader={detailRightHeader}
-          assistantPanel={detailRightPaneOpen ? <AIAgentPanel /> : undefined}
+          leftSlotStyle={detailLeftSlotStyle}
+          rightSlotStyle={detailRightSlotStyle}
+          assistantPanel={hasOpenConversations ? <AIAgentPanel /> : undefined}
           leftPaneHidden={detailSidebarHidden}
+          rightPaneCollapsed={!detailRightPaneOpen}
         >
           <AppRouteViewport scroll="auto">
             <RouteErrorBoundary>{children}</RouteErrorBoundary>
@@ -835,6 +874,7 @@ export default function App() {
 
               {/* 工作模块 */}
               <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
+              <Route path={ROUTES.project.legacyScripts} element={<Navigate to={ROUTES.project.scripts} replace />} />
 
               <Route path={ROUTES.project.production} element={<ProjectGuard><ProductionPage /></ProjectGuard>} />
               <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />

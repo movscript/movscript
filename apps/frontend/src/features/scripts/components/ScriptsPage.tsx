@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type CSSProperties, type SyntheticEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { createScriptVersion, listScriptVersionLines, listScriptVersions, type ScriptVersion, type ScriptVersionLine } from '@/shared/infrastructure/api/scriptVersions'
@@ -9,34 +9,30 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
   AlertTriangle,
-  Bot,
-  BookOpenCheck,
   CheckCircle2,
-  Clapperboard,
+  Check,
   Clock3,
   FileText,
   GitBranch,
   Layers,
-  ListChecks,
+  Pencil,
   Plus,
-  Route,
   ScrollText,
-  Sparkles,
-  Wand2,
+  X,
 } from 'lucide-react'
 import { ScriptCreateForm } from '@/shared/ui/EntityCreateForms'
 import {
   Badge,
   Button,
-  ScriptAgentAssistPanel,
+  PanelResizeHandle,
+  ScriptEditorFieldLabel,
+  ScriptEditorInput,
   ScriptBlockCard,
   ScriptBlockGrid,
   ScriptBlockSelectField,
   ScriptBlockUsageEmpty,
   ScriptBlockUsageOverflowBadge,
   ScriptBlockUsageStrip as ScriptBlockUsageStripUi,
-  ScriptCollaborationEmpty,
-  ScriptCollaborationStack,
   ScriptCreateDialog,
   ScriptDetailHeader,
   ScriptDetailTabs,
@@ -44,44 +40,36 @@ import {
   ScriptLibraryGroup,
   ScriptLibraryItem,
   ScriptLibraryRail,
-  ScriptMetricBox,
-  ScriptPipelineMetric,
-  ScriptPipelinePanel,
-  ScriptProductionNotice,
-  ScriptProductionPanel,
-  ScriptReadinessPanel,
-  ScriptReadinessRow as ScriptReadinessRowUi,
+  useResizableOverlapPane,
   ScriptVersionBlockShell,
   ScriptVersionCard,
   ScriptVersionEmptyState,
   ScriptVersionHistoryPanel,
   ScriptVersionLineEditor,
-  ScriptWorkflowPanel,
-  ScriptWorkflowStep as ScriptWorkflowStepUi,
   ScriptWorkspaceEmptySelection,
   ScriptWorkspaceDetailContent,
-  ScriptWorkspaceInspector,
   ScriptWorkspaceLayout,
   ScriptWorkspaceMain,
   ScriptWorkspaceShell,
-  ScriptWorkspaceStat,
   StatusBadge,
+  WorkbenchProjectBody,
+  WorkbenchProjectShell,
 } from '@movscript/ui'
 import { ScriptForm } from '@/features/scripts/components/ScriptForm'
-import { ProjectSurfaceHeader } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
-import { buildCommandFirstClientInput } from '@/features/agent/domain/agentCommandInput'
-import { openAgentPanelDraft } from '@/features/agent/application/agentPanelBridge'
 import {
   scriptLibraryStatusRecipe,
-  scriptReadinessItemRecipe,
-  scriptReadinessRecipe,
   scriptStageRecipe,
   scriptVersionStatusRecipe,
 } from '@/features/scripts/presentation/scriptsSemanticUi'
 
-type ScriptDetailTab = 'edit' | 'versions' | 'production'
+type ScriptDetailTab = 'edit' | 'versions'
+
+const SCRIPT_RAIL_MIN_WIDTH = 240
+const SCRIPT_RAIL_MAX_WIDTH = 380
+const SCRIPT_RAIL_DEFAULT_WIDTH = 300
+const SCRIPT_RAIL_WIDTH_STORAGE_KEY = 'movscript.scriptWorkbench.railWidth'
 
 type ScriptBlockRecord = SemanticEntityRecord & {
   script_id?: number
@@ -126,11 +114,23 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detailTab, setDetailTab] = useState<ScriptDetailTab>('edit')
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
   const [scriptTextSelection, setScriptTextSelection] = useState<ScriptTextSelection>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingScriptTypeId, setEditingScriptTypeId] = useState<number | null>(null)
+  const [scriptTypeDraft, setScriptTypeDraft] = useState('')
+  const [railWidth, setRailWidth] = useState(() => readScriptRailWidth())
+  const railResize = useResizableOverlapPane({
+    size: railWidth,
+    onSizeChange: setRailWidth,
+    minSize: SCRIPT_RAIL_MIN_WIDTH,
+    maxSize: SCRIPT_RAIL_MAX_WIDTH,
+    resizeEdge: 'right',
+    ariaLabel: '调整稿件列表宽度',
+  })
   const [draft, setDraft] = useState<Partial<Script>>({})
   const scriptBlockConfig = useMemo(() => semanticEntityConfig('scriptBlocks'), [])
 
@@ -165,6 +165,13 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     () => scripts.slice().sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID),
     [scripts],
   )
+
+  useEffect(() => {
+    const scriptId = Number(searchParams.get('script_id'))
+    if (!scriptId || scripts.length === 0) return
+    if (scripts.some((script) => script.ID === scriptId)) setSelectedId(scriptId)
+  }, [scripts, searchParams])
+
   const scriptGroups = useMemo(() => groupScriptsByCategory(sortedScripts), [sortedScripts])
   const selected = scripts.find((s) => s.ID === selectedId) ?? sortedScripts[0] ?? null
   const versionsForSelected = useMemo(() => {
@@ -178,7 +185,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const draftSourceText = selected ? scriptDraftSourceText(draft, selected) : ''
   const latestVersionSourceText = latestVersion ? scriptVersionSourceText(latestVersion) : ''
   const hasDraftBody = draftSourceText.trim().length > 0
-  const lockedBodyText = latestVersionSourceText.trim()
   const isDraftPublished = Boolean(latestVersion && normalizeComparableScriptText(draftSourceText) === normalizeComparableScriptText(latestVersionSourceText))
   const versionStateLabel = latestVersion
     ? isDraftPublished
@@ -190,7 +196,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const latestVersionLabel = latestVersion
     ? `最新版本 v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}`
     : undefined
-  const canCreateProduction = versionsForSelected.length > 0 && lockedBodyText.length > 0
 
   useEffect(() => {
     if (selected) setDraft({ ...selected })
@@ -202,6 +207,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     setScriptTextSelection(null)
   }, [selected?.ID])
 
+  useEffect(() => {
+    window.localStorage.setItem(SCRIPT_RAIL_WIDTH_STORAGE_KEY, String(railWidth))
+  }, [railWidth])
+
   const updateScript = useMutation({
     mutationFn: (data: Partial<Script>) =>
       api.put(`/projects/${projectId}/scripts/${selected?.ID}`, data).then((r) => r.data),
@@ -212,6 +221,19 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       toast.success('已保存')
     },
     onError: () => toast.error('保存失败，请重试'),
+  })
+
+  const updateScriptCategory = useMutation({
+    mutationFn: ({ scriptId, scriptType }: { scriptId: number; scriptType: string }) => {
+      return api.patch<Script>(`/scripts/${scriptId}`, { script_type: scriptType }).then((r) => r.data)
+    },
+    onSuccess: (updated: Script) => {
+      if (updated.ID === selected?.ID) setDraft((current) => ({ ...current, script_type: updated.script_type }))
+      qc.invalidateQueries({ queryKey: ['scripts', projectId] })
+      setEditingScriptTypeId(null)
+      toast.success('分类标签已保存')
+    },
+    onError: () => toast.error('分类标签保存失败，请重试'),
   })
 
   const createVersion = useMutation({
@@ -243,27 +265,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       setDetailTab('versions')
     },
     onError: () => toast.error('创建版本失败'),
-  })
-
-  const createProduction = useMutation({
-    mutationFn: async () => {
-      if (!selected || !latestVersion) throw new Error('请先创建一个剧本版本')
-      const record = await createSemanticEntity(projectId, semanticEntityConfig('productions'), {
-        name: `${selected.title} 制作`,
-        description: selected.summary || selected.description || `${selected.title} 的制作`,
-        source_type: 'script',
-        status: 'planning',
-        owner_label: '导演组',
-        progress: 0,
-        script_version_id: latestVersion.ID,
-      })
-      return record
-    },
-    onSuccess: (record) => {
-      qc.invalidateQueries({ queryKey: ['production-frame', projectId] })
-      navigate(`/production?productionId=${record.ID}&created=1`)
-    },
-    onError: () => toast.error('创建制作失败'),
   })
 
   const createScriptBlock = useMutation({
@@ -354,70 +355,35 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     if (!selected) return []
     return scriptBlocks.filter((block) => Number(block.script_id) === selected.ID || selectedVersionIds.has(Number(block.script_version_id)))
   }, [scriptBlocks, selected, selectedVersionIds])
-  const selectedScriptBlockIds = useMemo(() => new Set(selectedScriptBlocks.map((block) => block.ID)), [selectedScriptBlocks])
-  const linkedSegments = useMemo(
-    () => segments.filter((segment) => selectedScriptBlockIds.has(Number(segment.script_block_id))),
-    [segments, selectedScriptBlockIds],
-  )
-  const linkedSceneMoments = useMemo(
-    () => sceneMoments.filter((moment) => selectedScriptBlockIds.has(Number(moment.script_block_id))),
-    [sceneMoments, selectedScriptBlockIds],
-  )
-  const selectedReadiness = selected ? scriptReadiness(selected, versionsForSelected.length, draftSourceText.trim().length) : 0
-
-  function launchScriptAgent(mode: 'diagnose' | 'rewrite' | 'breakdown') {
-    if (!selected) return
-    const requestId = `script_workbench_${mode}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-    const title = selected.title || `剧本 #${selected.ID}`
-    const body = draftSourceText.trim()
-    const prompts = {
-      diagnose: `请作为影视创意编排搭档，审阅剧本《${title}》。重点指出结构、人物动机、情景拆分、道具证据和制作可执行性问题，并给出可执行修改建议。当前正文如下：\n\n${body || '当前剧本正文为空，请先给出创作 brief 和结构提纲建议。'}`,
-      rewrite: `请协助完善剧本《${title}》。保持现有核心设定，优先提升冲突、动作可视化、对白克制程度和镜头可拍性。请输出修改建议和可直接替换的片段。当前正文如下：\n\n${body || '当前剧本正文为空，请先根据标题和摘要起草一个可拍摄的短片段。'}`,
-      breakdown: `请把剧本《${title}》拆解为专业创作编排方案。输出情景、编排段、关键画面、人物/地点/道具设定资料、素材缺口和下游制作风险。当前正文如下：\n\n${body || '当前剧本正文为空，请先列出需要补齐的信息清单。'}`,
-    }
-    openAgentPanelDraft({
-      requestId,
-      taskType: `script_${mode}`,
-      message: mode === 'diagnose' ? `审阅剧本: ${title}` : mode === 'rewrite' ? `完善剧本: ${title}` : `拆解编排: ${title}`,
-      title: mode === 'diagnose' ? `剧本审阅: ${title}` : mode === 'rewrite' ? `剧本完善: ${title}` : `剧本编排: ${title}`,
-      newConversation: true,
-      autoSend: true,
-      projectId,
-      clientInput: buildCommandFirstClientInput({
-        message: prompts[mode],
-        labels: ['script-workbench', 'creative-orchestration', 'human-ai-collaboration'],
-        hints: {
-          projectId,
-          route: { pathname: ROUTES.project.scripts },
-          selection: { entityType: 'script', entityId: selected.ID, label: title },
-        },
-      }),
-      timeoutMs: 240_000,
-      renderMode: 'page',
-    })
-    toast.info('已把剧本上下文发送到 AI 协作面板')
+  function beginScriptTypeEdit(script: Script) {
+    setEditingScriptTypeId(script.ID)
+    setScriptTypeDraft(script.script_type === 'uncategorized' ? '' : script.script_type ?? '')
   }
-
+  function cancelScriptTypeEdit() {
+    setEditingScriptTypeId(null)
+    setScriptTypeDraft('')
+  }
+  function saveScriptType(script: Script) {
+    const nextType = scriptTypeDraft.trim() || 'uncategorized'
+    const currentType = script.script_type || 'uncategorized'
+    if (nextType !== currentType) updateScriptCategory.mutate({ scriptId: script.ID, scriptType: nextType })
+    else cancelScriptTypeEdit()
+  }
   return (
-    <ScriptWorkspaceShell>
-        <ProjectSurfaceHeader
-          icon={Clapperboard}
-          title="剧本协作与制作拆解"
-          description="管理剧本、版本和下游拆解对象，把文本来源稳定传递到编排段、情景与制作项。"
-          actions={(
-            <div className="grid grid-cols-3 gap-2">
-              <ScriptWorkspaceStat icon={ScrollText} label="剧本" value={String(scripts.length)} />
-              <ScriptWorkspaceStat icon={GitBranch} label="版本" value={String(scriptVersions.length)} />
-              <ScriptWorkspaceStat icon={Route} label="下游" value={String(segments.length + sceneMoments.length)} />
-            </div>
-          )}
-        />
-
-        <ScriptWorkspaceLayout>
+    <WorkbenchProjectShell
+      workbenchId="scripts"
+      icon={ScrollText}
+      kicker="剧本"
+      title="剧本编辑工作台"
+      description="集中维护项目稿件、正文工作稿和定稿记录。"
+    >
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
+        <ScriptWorkspaceShell>
+        <ScriptWorkspaceLayout style={{ '--script-workbench-rail-width': `${railWidth}px` } as CSSProperties}>
           <ScriptLibraryRail
             className="script-workbench-rail"
             icon={<ScrollText size={14} />}
-            title="剧本库"
+            title="剧本编辑"
             action={(
               <Button size="icon-sm" onClick={() => setShowCreate(true)} aria-label="新建剧本">
                 <Plus size={14} />
@@ -444,13 +410,68 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       const vers = scriptVersions.filter((v) => v.script_id === script.ID)
                       const bodyLength = String(script.content || script.raw_source || '').trim().length
                       const hasVersions = vers.length > 0
+                      const scriptTypeLabel = categoryLabel(script.script_type)
+                      const isEditingType = editingScriptTypeId === script.ID
                       return (
                         <ScriptLibraryItem
                           key={script.ID}
                           active={selected?.ID === script.ID}
                           statusProps={scriptLibraryStatusRecipe(hasVersions, bodyLength)}
                           title={script.title}
-                          meta={`${vers.length} 版本 · ${bodyLength} 字 · ${hasVersions ? '可制作' : '待锁定'}`}
+                          meta={`${bodyLength} 字 · ${hasVersions ? `v${vers[0]?.version_number || vers[0]?.ID}` : '工作稿'}`}
+                          tag={isEditingType ? (
+                            <div className="script-library-item__tag-editor" onClick={(event) => event.stopPropagation()}>
+                              <ScriptEditorFieldLabel htmlFor={`script-library-category-${script.ID}`} className="sr-only">分类标签</ScriptEditorFieldLabel>
+                              <ScriptEditorInput
+                                id={`script-library-category-${script.ID}`}
+                                placeholder="未分类"
+                                value={scriptTypeDraft}
+                                autoFocus
+                                onChange={(event) => setScriptTypeDraft(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    event.preventDefault()
+                                    saveScriptType(script)
+                                  }
+                                  if (event.key === 'Escape') {
+                                    cancelScriptTypeEdit()
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                aria-label="保存分类标签"
+                                disabled={updateScriptCategory.isPending}
+                                onClick={() => saveScriptType(script)}
+                              >
+                                <Check size={13} />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="取消编辑分类标签"
+                                onClick={cancelScriptTypeEdit}
+                              >
+                                <X size={13} />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              className="script-library-item__tag-button"
+                              aria-label={`编辑分类标签：${scriptTypeLabel}`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                beginScriptTypeEdit(script)
+                              }}
+                            >
+                              <span className="script-library-item__tag-label">{scriptTypeLabel}</span>
+                            </Button>
+                          )}
                           onSelect={() => setSelectedId(script.ID)}
                         />
                       )
@@ -459,13 +480,18 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 ))}
               </>
             )}
+            <PanelResizeHandle
+              side="right"
+              className="script-workbench-rail__resize-handle"
+              {...railResize.resizeHandleProps}
+            />
           </ScriptLibraryRail>
 
           <ScriptWorkspaceMain>
         {!selected ? (
           <ScriptWorkspaceEmptySelection
             icon={ScrollText}
-            title="选择左侧剧本开始编辑"
+            title="选择一份稿件开始创作"
             action={(
               <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
                 <Plus size={14} className="mr-1.5" />
@@ -488,34 +514,20 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 </>
               )}
               title={selected.title}
-              description={selected.summary || selected.description}
               actions={(
                 <>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => launchScriptAgent('diagnose')}>
-                    <Bot size={14} />
-                    AI 审阅
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDetailTab('versions')}>
+                    <GitBranch size={14} />
+                    定稿记录
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => launchScriptAgent('breakdown')}>
-                    <Wand2 size={14} />
-                    拆解编排
-                  </Button>
-                </>
-              )}
-              metrics={(
-                <>
-                <ScriptMetricBox icon={ScrollText} label="工作稿字数" value={`${draftSourceText.trim().length}`} />
-                <ScriptMetricBox icon={Layers} label="版本总数" value={`${versionsForSelected.length}`} />
-                <ScriptMetricBox icon={ListChecks} label="剧本块" value={`${selectedScriptBlocks.length}`} />
-                <ScriptMetricBox icon={BookOpenCheck} label="完整度" value={`${selectedReadiness}%`} />
                 </>
               )}
             />
 
             <ScriptDetailTabs
               tabs={[
-                { key: 'edit', label: '编辑正文' },
-                { key: 'versions', label: `版本管理 (${versionsForSelected.length})` },
-                { key: 'production', label: '创建制作' },
+                { key: 'edit', label: '正文' },
+                { key: 'versions', label: `定稿记录 ${versionsForSelected.length}` },
               ]}
               activeKey={detailTab}
               onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
@@ -540,8 +552,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
               {detailTab === 'versions' && (
                 <ScriptVersionHistoryPanel
-                  title="版本历史"
-                  description="版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。"
+                  title="定稿记录"
+                  description="把当前正文保存成一份稳定稿，后续制作引用这份文本。"
                   action={(
                     <Button
                       variant="outline"
@@ -551,16 +563,16 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       onClick={() => createVersion.mutate()}
                     >
                       <Plus size={14} />
-                      快照当前正文
+                      保存为定稿
                     </Button>
                   )}
                 >
                   {versionsForSelected.length === 0 ? (
                     <ScriptVersionEmptyState
                       icon={Layers}
-                      title="暂无版本"
-                      detail="填写正文后，点击「快照当前正文」创建第一个稳定版本。"
-                      action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>前往编辑正文</Button>}
+                      title="还没有定稿"
+                      detail="正文稳定后，可以保存成第一份定稿。"
+                      action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>回到正文</Button>}
                     />
                   ) : (
                     <div>
@@ -610,216 +622,18 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   )}
                 </ScriptVersionHistoryPanel>
               )}
-
-              {detailTab === 'production' && (
-                <ScriptProductionPanel
-                  title="创建制作项目"
-                  description="基于最新的剧本版本创建制作，制作将锁定该版本作为来源。"
-                >
-                  <div className="space-y-2">
-                    <ReadinessRow label="剧本分类已设置" done={categoryLabel(selected.script_type) !== '未分类'} />
-                    <ReadinessRow label="已有剧本版本" done={versionsForSelected.length > 0} />
-                    <ReadinessRow label="最新版本有正文" done={lockedBodyText.length > 0} />
-                  </div>
-                  {canCreateProduction ? (
-                    <Button
-                      className="mt-5 w-full justify-center gap-2"
-                      loading={createProduction.isPending}
-                      onClick={() => createProduction.mutate()}
-                    >
-                      <Clapperboard size={14} />
-                      创建制作项目
-                    </Button>
-                  ) : (
-                    <div className="mt-5 space-y-2">
-                      <Button className="w-full justify-center gap-2" disabled>
-                        <Clapperboard size={14} />
-                        创建制作项目
-                      </Button>
-                      {versionsForSelected.length === 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-1.5"
-                          onClick={() => setDetailTab('edit')}
-                        >
-                          前往编辑正文 → 保存并创建版本
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {latestVersion && (
-                    <ScriptProductionNotice title="将使用最新版本">
-                      <p>
-                        v{latestVersion.version_number || latestVersion.ID} · {latestVersion.title} · {formatDate(latestVersion.UpdatedAt)}
-                      </p>
-                    </ScriptProductionNotice>
-                  )}
-                </ScriptProductionPanel>
-              )}
             </ScriptWorkspaceDetailContent>
           </>
         )}
           </ScriptWorkspaceMain>
-
-          <ScriptWorkspaceInspector>
-            <ScriptCollaborationPanel
-              canCreateProduction={canCreateProduction}
-              hasDraftBody={hasDraftBody}
-              isDraftPublished={isDraftPublished}
-              latestVersion={latestVersion}
-              linkedSceneMomentCount={linkedSceneMoments.length}
-              linkedSegmentCount={linkedSegments.length}
-              readiness={selectedReadiness}
-              script={selected}
-              scriptBlockCount={selectedScriptBlocks.length}
-              versionCount={versionsForSelected.length}
-              onCreateVersion={() => createVersion.mutate()}
-              onLaunchAgent={launchScriptAgent}
-              onSetTab={setDetailTab}
-            />
-          </ScriptWorkspaceInspector>
         </ScriptWorkspaceLayout>
+        </ScriptWorkspaceShell>
+      </WorkbenchProjectBody>
 
       <ScriptCreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.createTitle')}>
         <ScriptCreateForm projectId={projectId} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </ScriptCreateDialog>
-    </ScriptWorkspaceShell>
-  )
-}
-
-function ScriptCollaborationPanel({
-  canCreateProduction,
-  hasDraftBody,
-  isDraftPublished,
-  latestVersion,
-  linkedSceneMomentCount,
-  linkedSegmentCount,
-  readiness,
-  script,
-  scriptBlockCount,
-  versionCount,
-  onCreateVersion,
-  onLaunchAgent,
-  onSetTab,
-}: {
-  canCreateProduction: boolean
-  hasDraftBody: boolean
-  isDraftPublished: boolean
-  latestVersion: ScriptVersion | null
-  linkedSceneMomentCount: number
-  linkedSegmentCount: number
-  readiness: number
-  script: Script | null
-  scriptBlockCount: number
-  versionCount: number
-  onCreateVersion: () => void
-  onLaunchAgent: (mode: 'diagnose' | 'rewrite' | 'breakdown') => void
-  onSetTab: (tab: ScriptDetailTab) => void
-}) {
-  if (!script) {
-    return (
-      <ScriptCollaborationEmpty icon={Sparkles} title="选择剧本后查看协作状态" />
-    )
-  }
-  const readinessUi = scriptReadinessRecipe(readiness)
-
-  return (
-    <ScriptCollaborationStack>
-      <ScriptAgentAssistPanel
-        icon={Bot}
-        title="AI 创意搭档"
-        description="围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。"
-        primaryAction={(
-          <Button size="sm" className="justify-start gap-2" onClick={() => onLaunchAgent('rewrite')}>
-            <Sparkles size={14} />
-            协作完善剧本
-          </Button>
-        )}
-        secondaryActions={(
-          <>
-            <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('diagnose')}>
-              <BookOpenCheck size={14} />
-              审阅
-            </Button>
-            <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('breakdown')}>
-              <Route size={14} />
-              拆解
-            </Button>
-          </>
-        )}
-      />
-
-      <ScriptReadinessPanel
-        title="制作就绪"
-        value={readiness}
-        status={<StatusBadge {...readinessUi}>{readiness}%</StatusBadge>}
-        tone={readinessUi.intent}
-        rows={(
-          <>
-            <ReadinessRow label="有可审正文" done={hasDraftBody} />
-            <ReadinessRow label="已锁定版本" done={versionCount > 0} />
-            <ReadinessRow label="可创建制作" done={canCreateProduction} />
-          </>
-        )}
-        actions={(
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-start gap-1.5"
-              disabled={!hasDraftBody || isDraftPublished}
-              onClick={onCreateVersion}
-            >
-              <GitBranch size={14} />
-              锁定当前版本
-            </Button>
-            <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onSetTab('production')}>
-              <Clapperboard size={14} />
-              查看制作入口
-            </Button>
-          </div>
-        )}
-      />
-
-      <ScriptPipelinePanel
-        title="剧本到制作链路"
-        metrics={(
-          <>
-            <ScriptPipelineMetric label="版本" value={versionCount} />
-            <ScriptPipelineMetric label="剧本块" value={scriptBlockCount} />
-            <ScriptPipelineMetric label="编排段" value={linkedSegmentCount} />
-            <ScriptPipelineMetric label="情景" value={linkedSceneMomentCount} />
-          </>
-        )}
-        sourceLabel="当前锁定源"
-        sourceValue={latestVersion ? `v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}` : '尚无可用于制作的锁定版本'}
-      />
-
-      <ScriptWorkflowPanel title="专业工作流">
-        <ScriptWorkflowStepUi index="01" title="完善正文" active={!hasDraftBody || !isDraftPublished} />
-        <ScriptWorkflowStepUi index="02" title="锁定版本" active={hasDraftBody && versionCount === 0} />
-        <ScriptWorkflowStepUi index="03" title="选择文本生成剧本块" active={versionCount > 0 && scriptBlockCount === 0} />
-        <ScriptWorkflowStepUi index="04" title="拆成编排段和情景" active={scriptBlockCount > 0 && linkedSceneMomentCount === 0} />
-        <ScriptWorkflowStepUi index="05" title="进入制作提案" active={canCreateProduction} />
-      </ScriptWorkflowPanel>
-    </ScriptCollaborationStack>
-  )
-}
-
-function ReadinessRow({ label, done }: { label: string; done: boolean }) {
-  return (
-    <ScriptReadinessRowUi
-      done={done}
-      label={label}
-      status={(
-        <StatusBadge {...scriptReadinessItemRecipe(done)} className="gap-1">
-          {done ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
-          {done ? '就绪' : '待处理'}
-        </StatusBadge>
-      )}
-    />
+    </WorkbenchProjectShell>
   )
 }
 
@@ -1294,13 +1108,14 @@ function categoryLabel(value?: string) {
   return normalized
 }
 
-function scriptReadiness(script: Script, versionCount: number, bodyLength: number) {
-  let score = 0
-  if (script.title.trim()) score += 20
-  if (bodyLength > 0) score += 35
-  if (versionCount > 0) score += 25
-  if (script.summary || script.description || script.plot_summary) score += 20
-  return Math.min(100, score)
+function clampScriptRailWidth(width: number) {
+  return Math.min(SCRIPT_RAIL_MAX_WIDTH, Math.max(SCRIPT_RAIL_MIN_WIDTH, Math.round(width)))
+}
+
+function readScriptRailWidth() {
+  if (typeof window === 'undefined') return SCRIPT_RAIL_DEFAULT_WIDTH
+  const stored = Number(window.localStorage.getItem(SCRIPT_RAIL_WIDTH_STORAGE_KEY))
+  return Number.isFinite(stored) ? clampScriptRailWidth(stored) : SCRIPT_RAIL_DEFAULT_WIDTH
 }
 
 async function saveScriptDraft(projectId: number, scriptId: number, draft: Partial<Script>) {

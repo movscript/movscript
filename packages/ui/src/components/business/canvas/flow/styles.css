@@ -70,6 +70,15 @@
   transform: translateY(-50%) scale(1.18);
 }
 
+.canvas-flow .ms-frame,
+.canvas-flow .ms-surface-root {
+  --ui-surface-backdrop-filter: none;
+}
+
+.canvas-flow .canvas-tool-action-card--selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 18%, transparent);
+}
+
 .canvas-flow .react-flow__controls,
 .canvas-flow .react-flow__minimap {
   overflow: hidden;

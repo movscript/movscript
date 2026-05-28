@@ -1,5 +1,10 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasNodeData, CanvasPortDef, RawResource } from '@/types'
+import {
+  canvasNodeOutputValue,
+  outputResourceIdsFromUnknown,
+  resourceIdsFromCanvasPrompt,
+} from '@/features/canvas/runtime/canvasRuntimeGraph'
 
 export interface CanvasPluginArgsInput {
   targetNodeId: string
@@ -23,19 +28,33 @@ export function buildCanvasPluginArgsWithInputs(input: CanvasPluginArgsInput): R
     const handle = normalizedHandle(edge.targetHandle) || 'input'
     const source = input.nodes.find((node) => node.id === edge.source)
     if (!source) continue
-    const value = readableNodeOutput(source, input.resourceById)
-    if (value.resourceId) {
-      appendMapValue(resourceInputs, handle, value.resourceId)
+    const sourceData = source.data as Partial<CanvasNodeData>
+    const pluginOutputResourceIds = outputResourceIdsFromUnknown(sourceData.pluginResultData)
+    if (pluginOutputResourceIds.length > 0) {
+      appendMapValues(resourceInputs, handle, pluginOutputResourceIds)
       continue
     }
-    if (value.text) {
+    const sourceHandle = normalizedHandle(edge.sourceHandle)
+    const value = canvasNodeOutputValue(source, sourceHandle, { resourceById: input.resourceById })
+    if (value?.resource_id) {
+      appendMapValue(resourceInputs, handle, value.resource_id)
+      continue
+    }
+    if (value?.text) {
       appendMapValue(textInputs, handle, value.text)
     }
   }
 
-  if (targetData?.inputResourceIds?.length) {
+  const directResourceIds = uniqueNumbers([
+    ...resourceIdsFromCanvasPrompt([
+      targetData?.prompt,
+      ...Object.values(targetData?.pluginArgs ?? {}).filter((value): value is string => typeof value === 'string'),
+    ].join('\n')),
+    ...(targetData?.inputResourceIds ?? []),
+  ])
+  if (directResourceIds.length > 0) {
     const referencePort = input.inputPorts?.find((port) => isReferencePort(port)) ?? input.inputPorts?.find((port) => isResourcePort(port))
-    appendMapValues(resourceInputs, referencePort?.id ?? 'references', targetData.inputResourceIds)
+    appendMapValues(resourceInputs, referencePort?.id ?? 'references', directResourceIds)
   }
 
   for (const port of input.inputPorts ?? []) {
@@ -60,16 +79,6 @@ function normalizedHandle(handle: string | null | undefined) {
   return handle.replace(/^:+/, '')
 }
 
-function readableNodeOutput(node: Node, resourceById?: Map<number, RawResource>) {
-  const data = node.data as Partial<CanvasNodeData>
-  const resourceId = data.resource?.ID ?? (data.resourceId ? resourceById?.get(data.resourceId)?.ID : undefined) ?? data.resourceId
-  if (resourceId && Number.isInteger(resourceId) && resourceId > 0) {
-    return { resourceId }
-  }
-  const text = data.textContent ?? data.inputValue ?? data.prompt
-  return { text }
-}
-
 function appendMapValue<T>(map: Map<string, T[]>, key: string, value: T) {
   map.set(key, [...(map.get(key) ?? []), value])
 }
@@ -83,7 +92,7 @@ function uniqueNumbers(values: number[]) {
 }
 
 function isResourcePort(port: CanvasPortDef) {
-  return port.type === 'resource' || port.type === 'image' || port.type === 'video'
+  return port.type === 'resource' || port.type === 'image' || port.type === 'video' || port.type === 'audio'
 }
 
 function isTextPort(port: CanvasPortDef) {

@@ -3,7 +3,7 @@ import type { ComponentPropsWithoutRef, CSSProperties, HTMLAttributes, ReactNode
 
 import { cn } from "../../../../lib/cn";
 import { accentTextClass, toneTextClass } from "../../../../semantic";
-import { AppContentLayout } from "../../../layout";
+import { AppContentLayout, OverlapPane, OverlapPaneGroup } from "../../../layout";
 import { AppControlGroup, AppIconFrame, AppMediaFrame, AppRangeTrack, type AppRangeTrackProps } from "../../app/display";
 import { AppStateMessage, AppTextEmptyState } from "../../app/state";
 import { AppSurfaceItem } from "../../app/surface";
@@ -702,6 +702,91 @@ export function ResourcePrepWorkspaceGrid({
 
 export function ResourcePrepBoardSlot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("resource-prep-workspace-board", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("resource-prep-workbench-shell", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchLayout({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <OverlapPaneGroup className={cn("resource-prep-workbench-layout", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchRail({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <aside className={cn("resource-prep-workbench-rail", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchRailHeader({
+  title,
+  detail,
+  icon,
+  action,
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  title: ReactNode;
+  detail?: ReactNode;
+  icon?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className={cn("resource-prep-workbench-rail__header", className)} {...props}>
+      <div className="resource-prep-workbench-rail__title-row">
+        <span className="resource-prep-workbench-rail__title">
+          {icon}
+          {title}
+        </span>
+        {action}
+      </div>
+      {detail ? <p className="resource-prep-workbench-rail__detail">{detail}</p> : null}
+      {children}
+    </div>
+  );
+}
+
+export function ResourcePrepWorkbenchRailList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("resource-prep-workbench-rail__list", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchRailItem({
+  active,
+  media,
+  title,
+  meta,
+  status,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<"button"> & {
+  active?: boolean;
+  media?: ReactNode;
+  title: ReactNode;
+  meta?: ReactNode;
+  status?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-active={active ? "true" : undefined}
+      className={cn("resource-prep-workbench-rail-item", className)}
+      {...props}
+    >
+      {media ? <span className="resource-prep-workbench-rail-item__media">{media}</span> : null}
+      <span className="resource-prep-workbench-rail-item__body">
+        <span className="resource-prep-workbench-rail-item__title">{title}</span>
+        {meta ? <span className="resource-prep-workbench-rail-item__meta">{meta}</span> : null}
+      </span>
+      {status ? <span className="resource-prep-workbench-rail-item__status">{status}</span> : null}
+    </button>
+  );
+}
+
+export function ResourcePrepWorkbenchMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <OverlapPane as="main" side="left" className={cn("resource-prep-workbench-main", className)} {...props} />;
+}
+
+export function ResourcePrepWorkbenchDetailContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("resource-prep-workbench-detail", className)} {...props} />;
 }
 
 export function ResourcePrepContextMenu({

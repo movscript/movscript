@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type React from 'react'
+import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
@@ -7,14 +8,25 @@ import {
   Wand2,
   Bug, History, ChevronLeft, ChevronRight,
   AlertTriangle,
+  PanelRightClose,
+  PanelRightOpen,
+  RefreshCw,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
-import { JobContextSummary, GenResultCard } from '@/shared/ui/GenResultCard'
+import { JobContextSummary, GenResultCard, formatGenTime } from '@/shared/ui/GenResultCard'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
 import type { InputSlotDef } from '@/shared/ui/GenInputCard'
 import { GenInputCard } from '@/shared/ui/GenInputCard'
 import {
   Button,
+  JobCardShell,
+  JobCardState,
+  JobGridCaption,
+  JobGridDescription,
+  JobGridMediaArea,
+  JobGridMediaPreview,
+  JobGridTitle,
   ToolDialogBody,
   ToolDialogCopyButton,
   ToolDialogDebugEndpoint,
@@ -36,11 +48,19 @@ import {
   ToolDialogMain,
   ToolDialogPanel,
   ToolDialogPanelHeader,
+  ToolDialogResourcePane,
   ToolDialogWarningCallout,
+  useResizableOverlapPane,
 } from '@movscript/ui'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
 import { useTranslation } from 'react-i18next'
+import {
+  TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH,
+  TOOL_RESOURCE_PANE_MAX_WIDTH,
+  TOOL_RESOURCE_PANE_MIN_WIDTH,
+  usePersistentToolResourcePaneWidth,
+} from './toolResourcePaneWidth'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 
@@ -233,6 +253,72 @@ function GenerationCard({
   )
 }
 
+function GenerationHistoryGridItem({
+  job,
+  onReuse,
+}: {
+  job: Job
+  onReuse: () => void
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const isActive = job.status === 'pending' || job.status === 'running'
+  const normalizedStatus = job.status === 'succeeded' ? 'done' : job.status as 'pending' | 'running' | 'failed' | 'cancelled'
+  const statusLabel: Record<typeof normalizedStatus, string> = {
+    pending: t('pages.jobs.status.pending'),
+    running: t('pages.jobs.status.running'),
+    done: t('canvas.status.done'),
+    failed: t('canvas.status.failed'),
+    cancelled: t('pages.jobs.status.cancelled'),
+  }
+  const timestampLabel = job.CreatedAt ? formatGenTime(job.CreatedAt, t, locale) : undefined
+
+  return (
+    <JobCardShell layout="grid" className="tool-dialog-history-grid-item">
+      <JobGridMediaArea>
+        {isActive ? (
+          <JobCardState
+            layout="stack"
+            text={statusLabel[normalizedStatus]}
+          />
+        ) : null}
+        {!isActive && normalizedStatus === 'failed' ? (
+          <JobCardState tone="danger" layout="stack" text={statusLabel[normalizedStatus]} />
+        ) : null}
+        {!isActive && normalizedStatus === 'cancelled' ? (
+          <JobCardState layout="stack" text={statusLabel[normalizedStatus]} />
+        ) : null}
+        {!isActive && normalizedStatus === 'done' && job.output_resource ? (
+          <JobGridMediaPreview>
+            <MediaViewer resource={job.output_resource as RawResource} lightbox />
+          </JobGridMediaPreview>
+        ) : null}
+        <Button
+          type="button"
+          variant="soft"
+          size="icon-xs"
+          className="tool-dialog-history-grid-item__reuse"
+          title={t('shared.genResult.reusePrompt')}
+          onClick={onReuse}
+        >
+          <RefreshCw size={12} />
+        </Button>
+      </JobGridMediaArea>
+      <JobGridCaption>
+        <JobGridTitle>{job.title || statusLabel[normalizedStatus]}</JobGridTitle>
+        {job.prompt ? (
+          <JobGridDescription>
+            {job.prompt}
+          </JobGridDescription>
+        ) : null}
+        {timestampLabel ? (
+          <span className="tool-dialog-history-grid-item__timestamp">{timestampLabel}</span>
+        ) : null}
+      </JobGridCaption>
+    </JobCardShell>
+  )
+}
+
 // ── ToolDialog ────────────────────────────────────────────────────────────────
 
 export interface ToolDialogDef {
@@ -243,6 +329,9 @@ export interface ToolDialogDef {
   inputType: 'image' | 'video' | 'image+video'
   outputType: 'image' | 'video'
   promptPlaceholder?: string
+  layout?: 'default' | 'reference-workbench'
+  resourcePane?: ReactNode
+  showHistory?: boolean
 }
 
 export function ToolDialog({
@@ -253,6 +342,9 @@ export function ToolDialog({
   inputType,
   outputType,
   promptPlaceholder,
+  layout = 'default',
+  resourcePane,
+  showHistory = true,
 }: ToolDialogDef) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -264,8 +356,28 @@ export function ToolDialog({
   const [uploading, setUploading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [resourcePaneCollapsed, setResourcePaneCollapsed] = useState(false)
+  const [resourcePaneExpanded, setResourcePaneExpanded] = useState(false)
+  const [resourcePaneWidth, setResourcePaneWidth] = usePersistentToolResourcePaneWidth()
+  const resourcePaneResize = useResizableOverlapPane({
+    size: resourcePaneWidth,
+    onSizeChange: setResourcePaneWidth,
+    minSize: TOOL_RESOURCE_PANE_MIN_WIDTH,
+    maxSize: (rect) => Math.max(
+      TOOL_RESOURCE_PANE_MIN_WIDTH,
+      Math.min(TOOL_RESOURCE_PANE_MAX_WIDTH, rect.width - TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH),
+    ),
+    resizeEdge: 'left',
+    collapsed: resourcePaneCollapsed,
+    onCollapsedChange: setResourcePaneCollapsed,
+    collapseMode: 'after-min',
+    expanded: resourcePaneExpanded,
+    onExpandedChange: setResourcePaneExpanded,
+    expandMode: 'after-max',
+    ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
+  })
   const [historyPage, setHistoryPage] = useState(1)
-  const historyPageSize = 10
+  const historyPageSize = layout === 'reference-workbench' ? 6 : 10
 
   // Fetch feature definition to get authoritative input slot requirements.
   const { data: featureDef } = useQuery<FeatureConfig>({
@@ -446,137 +558,157 @@ export function ToolDialog({
   const canGenerate = !isRunning && !!prompt.trim() && !!selectedModel &&
     (requiredSlots.length > 0 ? slotsAreFilled : (!fallbackInputRequired || attachments.length > 0))
   const supportedParams = selectedModel?.supported_params ?? []
+  const selectedResourceIds = attachments.map((a) => a.ID)
+  const resourcePaneNode = resourcePane ?? (
+      <ResourcePanel
+        inputType={
+          inputSlots
+            ? 'image+video'
+            : inputType === 'image+video'
+            ? 'image+video'
+            : (showImageInput ? 'image' : outputType)
+        }
+        selectedIds={selectedResourceIds}
+        onSelect={addAttachment}
+      />
+    )
 
-  return (
-    <ToolDialogFrame>
-      {/* ── Body ────────────────────────────────────────────────────────────── */}
-      <ToolDialogBody>
-        {/* Left: resource panel — filter by the type needed for the next unfilled slot */}
-        <ResourcePanel
-          inputType={
-            inputSlots
-              ? 'image+video'
-              : inputType === 'image+video'
-              ? 'image+video'
-              : (showImageInput ? 'image' : outputType)
-          }
-          selectedIds={attachments.map((a) => a.ID)}
-          onSelect={addAttachment}
-        />
+  const mainPane = (
+    <ToolDialogMain
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault()
+        const id = Number(e.dataTransfer.getData('application/resource-id'))
+        if (!id) return
+        const r = resources.find((r) => r.ID === id)
+        if (r) addAttachment(r)
+      }}
+    >
+      {/* ── Section 1: Generation input ─────────────────────────────────── */}
+      <ToolDialogPanel>
+          <ToolDialogPanelHeader>
+            <div className="min-w-0">
+              <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
+              <p className="type-tiny text-muted-foreground">{toolDescription}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {layout === 'reference-workbench' && !resourcePaneCollapsed ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title={t('common.hide', { defaultValue: '隐藏' })}
+                  aria-label={t('common.hide', { defaultValue: '隐藏' })}
+                  onClick={() => {
+                    setResourcePaneExpanded(false)
+                    setResourcePaneCollapsed(true)
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <PanelRightClose size={14} />
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant={debugMode ? 'soft' : 'outline'}
+                size="icon-sm"
+                onClick={() => setDebugMode((d) => !d)}
+                title={t('tools.debug.mode')}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Bug size={14} />
+              </Button>
+              <ModelSelector
+                capability={capability}
+                feature={_nodeType}
+                value={selectedModelId}
+                onChange={setSelectedModelId}
+                onModelChange={setSelectedModel}
+              />
+            </div>
+          </ToolDialogPanelHeader>
+          {attachmentMismatchWarnings.length > 0 && (
+            <div className="mb-3 space-y-1.5">
+              {attachmentMismatchWarnings.map((w, i) => (
+                <ToolDialogWarningCallout key={i} icon={AlertTriangle}>
+                  <span>{w}</span>
+                </ToolDialogWarningCallout>
+              ))}
+            </div>
+          )}
+          <GenInputCard
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            attachments={attachments}
+            onRemoveAttachment={(i) => setAttachments((a) => a.filter((_, j) => j !== i))}
+            inputSlots={inputSlots}
+            params={supportedParams}
+            paramValues={extraParams}
+            onParamChange={(key, val) => setExtraParams((p) => ({ ...p, [key]: val }))}
+            onGenerate={generate}
+            onUpload={uploadFile}
+            isRunning={isRunning}
+            canGenerate={canGenerate}
+            selectedModelId={selectedModelId}
+            inputType={inputType === 'image+video' ? 'image+video' : showImageInput ? 'image' : outputType}
+            promptPlaceholder={promptPlaceholder}
+            uploading={uploading}
+            imageEditRequired={modelAcceptsImageInput}
+          />
+      </ToolDialogPanel>
 
-        {/* Right: scrollable content — drop zone for resources */}
-        <ToolDialogMain
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            const id = Number(e.dataTransfer.getData('application/resource-id'))
-            if (!id) return
-            const r = resources.find((r) => r.ID === id)
-            if (r) addAttachment(r)
-          }}
-        >
-          {/* ── Section 1: Generation input ─────────────────────────────────── */}
-          <ToolDialogPanel>
-              <ToolDialogPanelHeader>
-                <div className="min-w-0">
-                  <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
-                  <p className="type-tiny text-muted-foreground">{toolDescription}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={debugMode ? 'soft' : 'outline'}
-                    size="icon-sm"
-                    onClick={() => setDebugMode((d) => !d)}
-                    title={t('tools.debug.mode')}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <Bug size={14} />
-                  </Button>
-                  <ModelSelector
-                    capability={capability}
-                    feature={_nodeType}
-                    value={selectedModelId}
-                    onChange={setSelectedModelId}
-                    onModelChange={setSelectedModel}
+      {showHistory ? (
+        <ToolDialogHistoryShell>
+          <ToolDialogHistoryHeader>
+            <ToolDialogHistoryTitle icon={<History size={14} className="text-muted-foreground" />}>
+              {t('shared.toolNode.generationHistory')}
+            </ToolDialogHistoryTitle>
+            {historyTotal > 0 && (
+              <ToolDialogHistoryCount>
+                {historyTotal}
+              </ToolDialogHistoryCount>
+            )}
+            <div className="flex-1" />
+            <ToolDialogHistoryPager>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="上一页"
+                disabled={historyPage <= 1}
+                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              <span className="tabular-nums">{historyPage}/{historyPageCount}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="下一页"
+                disabled={historyPage >= historyPageCount}
+                onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
+              >
+                <ChevronRight size={14} />
+              </Button>
+            </ToolDialogHistoryPager>
+          </ToolDialogHistoryHeader>
+
+          {jobs.length === 0 ? (
+            <ToolDialogEmptyState
+              icon={Wand2}
+              title={t('pages.jobs.empty')}
+            />
+          ) : (
+            <ToolDialogHistoryList>
+              {jobs.map((job) => (
+                layout === 'reference-workbench' ? (
+                  <GenerationHistoryGridItem
+                    key={job.ID}
+                    job={job}
+                    onReuse={() => setPrompt(job.prompt)}
                   />
-                </div>
-              </ToolDialogPanelHeader>
-              {attachmentMismatchWarnings.length > 0 && (
-                <div className="mb-3 space-y-1.5">
-                  {attachmentMismatchWarnings.map((w, i) => (
-                    <ToolDialogWarningCallout key={i} icon={AlertTriangle}>
-                      <span>{w}</span>
-                    </ToolDialogWarningCallout>
-                  ))}
-                </div>
-              )}
-              <GenInputCard
-                prompt={prompt}
-                onPromptChange={setPrompt}
-                attachments={attachments}
-                onRemoveAttachment={(i) => setAttachments((a) => a.filter((_, j) => j !== i))}
-                inputSlots={inputSlots}
-                params={supportedParams}
-                paramValues={extraParams}
-                onParamChange={(key, val) => setExtraParams((p) => ({ ...p, [key]: val }))}
-                onGenerate={generate}
-                onUpload={uploadFile}
-                isRunning={isRunning}
-                canGenerate={canGenerate}
-                selectedModelId={selectedModelId}
-                inputType={inputType === 'image+video' ? 'image+video' : showImageInput ? 'image' : outputType}
-                promptPlaceholder={promptPlaceholder}
-                uploading={uploading}
-                imageEditRequired={modelAcceptsImageInput}
-              />
-          </ToolDialogPanel>
-
-          {/* ── Section 2: Generation history ───────────────────────────────── */}
-          <ToolDialogHistoryShell>
-            <ToolDialogHistoryHeader>
-              <ToolDialogHistoryTitle icon={<History size={14} className="text-muted-foreground" />}>
-                {t('shared.toolNode.generationHistory')}
-              </ToolDialogHistoryTitle>
-              {historyTotal > 0 && (
-                <ToolDialogHistoryCount>
-                  {historyTotal}
-                </ToolDialogHistoryCount>
-              )}
-              <div className="flex-1" />
-              <ToolDialogHistoryPager>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="上一页"
-                  disabled={historyPage <= 1}
-                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft size={14} />
-                </Button>
-                <span className="tabular-nums">{historyPage}/{historyPageCount}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="下一页"
-                  disabled={historyPage >= historyPageCount}
-                  onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
-                >
-                  <ChevronRight size={14} />
-                </Button>
-              </ToolDialogHistoryPager>
-            </ToolDialogHistoryHeader>
-
-            {jobs.length === 0 ? (
-              <ToolDialogEmptyState
-                icon={Wand2}
-                title={t('pages.jobs.empty')}
-              />
-            ) : (
-              <ToolDialogHistoryList>
-                {jobs.map((job) => (
+                ) : (
                   <GenerationCard
                     key={job.ID}
                     job={job}
@@ -584,11 +716,77 @@ export function ToolDialog({
                     onReuse={() => setPrompt(job.prompt)}
                     debugMode={debugMode}
                   />
-                ))}
-              </ToolDialogHistoryList>
-            )}
-          </ToolDialogHistoryShell>
-        </ToolDialogMain>
+                )
+              ))}
+            </ToolDialogHistoryList>
+          )}
+        </ToolDialogHistoryShell>
+      ) : null}
+    </ToolDialogMain>
+  )
+
+  if (layout === 'reference-workbench') {
+    return (
+      <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
+        <ToolDialogBody
+          className="tool-dialog-body--reference-workbench"
+          data-resource-pane-collapsed={resourcePaneCollapsed ? 'true' : undefined}
+          data-resource-pane-expanded={resourcePaneExpanded ? 'true' : undefined}
+          style={{ '--tool-dialog-resource-pane-width': `${resourcePaneWidth}px` } as React.CSSProperties}
+        >
+          {mainPane}
+          {!resourcePaneCollapsed ? (
+            <ToolDialogResourcePane
+              resizeHandleProps={{
+                ...resourcePaneResize.resizeHandleProps,
+              }}
+            >
+              {resourcePaneNode}
+            </ToolDialogResourcePane>
+          ) : null}
+          {resourcePaneCollapsed ? (
+            <Button
+              type="button"
+              variant="soft"
+              size="icon-sm"
+              className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
+              title={t('common.show', { defaultValue: '显示' })}
+              aria-label={t('common.show', { defaultValue: '显示' })}
+              onClick={() => {
+                setResourcePaneExpanded(false)
+                setResourcePaneCollapsed(false)
+              }}
+            >
+              <PanelRightOpen size={14} />
+            </Button>
+          ) : null}
+          {resourcePaneExpanded ? (
+            <Button
+              type="button"
+              variant="soft"
+              size="icon-sm"
+              className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
+              title={t('common.restore', { defaultValue: '还原' })}
+              aria-label={t('common.restore', { defaultValue: '还原' })}
+              onClick={() => setResourcePaneExpanded(false)}
+            >
+              <PanelRightClose size={14} />
+            </Button>
+          ) : null}
+        </ToolDialogBody>
+      </ToolDialogFrame>
+    )
+  }
+
+  return (
+    <ToolDialogFrame>
+      {/* ── Body ────────────────────────────────────────────────────────────── */}
+      <ToolDialogBody>
+        {/* Left: resource panel — filter by the type needed for the next unfilled slot */}
+        {resourcePaneNode}
+
+        {/* Right: scrollable content — drop zone for resources */}
+        {mainPane}
       </ToolDialogBody>
     </ToolDialogFrame>
   )

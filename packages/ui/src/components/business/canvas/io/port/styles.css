@@ -6,6 +6,7 @@
   align-items: center;
   gap: 6px;
   margin-top: var(--ms-space-1);
+  overflow: visible;
   padding: 0 var(--ms-space-2);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
@@ -34,4 +35,12 @@
   flex-shrink: 0;
   padding: 2px 4px;
   line-height: 1;
+}
+
+.canvas-port-dot.canvas-io-port-row__dot[data-compact="true"][data-side="left"] {
+  left: calc(-1 * (var(--canvas-card-content-x) + var(--canvas-card-port-dot-gap) + var(--canvas-card-port-dot-size)));
+}
+
+.canvas-port-dot.canvas-io-port-row__dot[data-compact="true"][data-side="right"] {
+  right: calc(-1 * (var(--canvas-card-content-x) + var(--canvas-card-port-dot-gap) + var(--canvas-card-port-dot-size)));
 }

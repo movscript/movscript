@@ -39,6 +39,15 @@ export type CanvasToolAction = {
   disabled?: boolean;
 };
 
+export type CanvasToolActionCardLabels = {
+  inputs?: string;
+  emptyInputs?: string;
+  configs?: string;
+  defaultConfig?: string;
+  outputs?: string;
+  emptyOutputs?: string;
+};
+
 export interface CanvasToolActionCardProps {
   source: CanvasToolSource;
   tone?: CanvasToolTone;
@@ -55,6 +64,7 @@ export interface CanvasToolActionCardProps {
   primaryAction?: CanvasToolAction;
   secondaryAction?: CanvasToolAction;
   footer?: ReactNode;
+  labels?: CanvasToolActionCardLabels;
   className?: string;
   renderPortHandle?: CanvasToolPortHandleRenderer;
 }

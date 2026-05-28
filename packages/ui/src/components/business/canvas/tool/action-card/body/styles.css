@@ -1,7 +1,8 @@
 .canvas-tool-action-card__body {
   display: grid;
   gap: 8px;
-  padding: 0 12px 12px;
+  overflow: visible;
+  padding: 0 var(--canvas-card-content-x) 12px;
 }
 
 .canvas-tool-action-card__stack {
@@ -20,10 +21,6 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   margin-top: 4px;
-}
-
-.canvas-tool-action-card__output-grid:has(.canvas-tool-output-tile:nth-child(2)) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .canvas-tool-action-card__output-empty {

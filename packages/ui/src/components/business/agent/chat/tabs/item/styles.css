@@ -1,14 +1,18 @@
 .ai-agent-panel-conversation-tab {
+  --ai-agent-conversation-tab-min-width: 124px;
   position: relative;
   display: flex;
-  min-width: 0;
-  width: clamp(124px, 42%, 168px);
-  flex: 0 0 clamp(124px, 42%, 168px);
+  min-width: var(--ai-agent-conversation-tab-min-width);
+  height: 100%;
+  width: auto;
+  flex: 1 1 0;
   align-items: center;
   overflow: hidden;
   border: 0;
-  border-right: 1px solid transparent;
-  border-radius: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 76%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--ms-color-border) 76%, transparent);
+  border-bottom: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-sm) var(--ms-radius-sm) 0 0;
   background: transparent;
   color: color-mix(in srgb, var(--ms-color-muted-foreground) 68%, transparent);
   font-size: var(--ms-text-tiny);
@@ -30,10 +34,10 @@
 }
 
 .ai-agent-panel-conversation-tabs[data-density="scroll"] .ai-agent-panel-conversation-tab {
-  width: clamp(124px, 42%, 168px);
-  min-width: 124px;
+  width: clamp(var(--ai-agent-conversation-tab-min-width), 42%, 168px);
+  min-width: var(--ai-agent-conversation-tab-min-width);
   max-width: 168px;
-  flex-basis: clamp(124px, 42%, 168px);
+  flex: 0 0 clamp(var(--ai-agent-conversation-tab-min-width), 42%, 168px);
 }
 
 .ai-agent-panel-conversation-tab:hover {
@@ -42,8 +46,10 @@
 }
 
 .ai-agent-panel-conversation-tab[data-active="true"] {
-  border-color: var(--ms-color-border);
-  background: color-mix(in srgb, var(--ms-color-muted) 16%, var(--ms-color-background));
+  border-top-color: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
+  border-right-color: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
+  border-bottom-color: transparent;
+  background: var(--ms-color-background);
   color: var(--ms-color-foreground);
 }
 
@@ -83,7 +89,7 @@
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 7px 27px 6px 8px;
+  padding: 4px 27px 4px 8px;
   text-align: left;
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
@@ -184,4 +190,9 @@
 .ai-agent-panel-conversation-tab-close:focus-visible {
   background: var(--ms-color-muted);
   color: var(--ms-color-foreground);
+}
+
+.ai-agent-panel-conversation-tab-close:hover:not(:disabled),
+.ai-agent-panel-conversation-tab-close:active:not(:disabled) {
+  transform: translateY(-50%);
 }

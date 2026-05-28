@@ -8,15 +8,9 @@ import {
   ScriptEditorErrorText,
   ScriptEditorFieldLabel,
   ScriptEditorFormShell,
-  ScriptEditorHelperText,
   ScriptEditorHiddenFileInput,
   ScriptEditorInlineMeta,
-  ScriptEditorInput,
   ScriptEditorMainField,
-  ScriptEditorSidePanel,
-  ScriptEditorSideRail,
-  ScriptEditorStrongText,
-  ScriptEditorSummaryTextarea,
   ScriptEditorToolbar,
   ScriptEditorToolbarGroup,
   ScriptEditorVersionState,
@@ -121,34 +115,6 @@ export function ScriptForm({
             onChange={(event) => updateRawSource(event.target.value)}
           />
         </ScriptEditorMainField>
-
-        <ScriptEditorSideRail>
-          <ScriptEditorSidePanel>
-            <ScriptEditorFieldLabel>分类标签</ScriptEditorFieldLabel>
-            <ScriptEditorInput
-              placeholder="未分类"
-              value={draft.script_type === 'uncategorized' ? '' : draft.script_type ?? ''}
-              onChange={(event) => onChange({ ...draft, script_type: event.target.value })}
-            />
-            <ScriptEditorHelperText>自由标签，如：第一集、广告脚本、拍摄版。</ScriptEditorHelperText>
-          </ScriptEditorSidePanel>
-
-          <ScriptEditorSidePanel>
-            <ScriptEditorFieldLabel>摘要</ScriptEditorFieldLabel>
-            <ScriptEditorSummaryTextarea
-              placeholder="剧本简介或备注…"
-              value={draft.summary ?? ''}
-              onChange={(event) => onChange({ ...draft, summary: event.target.value })}
-            />
-          </ScriptEditorSidePanel>
-
-          <ScriptEditorSidePanel variant="muted">
-            <ScriptEditorHelperText>
-              <ScriptEditorStrongText>保存</ScriptEditorStrongText> — 更新剧本正文草稿。<br />
-              <ScriptEditorStrongText>保存为版本</ScriptEditorStrongText> — 基于当前正文创建锁定快照，可直接用于制作。
-            </ScriptEditorHelperText>
-          </ScriptEditorSidePanel>
-        </ScriptEditorSideRail>
       </ScriptEditorBodyGrid>
     </ScriptEditorFormShell>
   )

@@ -2,19 +2,21 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 0;
-  border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
-  padding: 0 16px;
+  gap: 6px;
+  margin: 0 auto;
+  width: min(100%, 1080px);
+  border-bottom: 0;
+  background: transparent;
+  padding: 0 var(--script-workbench-content-x, 34px) 8px;
 }
 
 .script-detail-tabs__trigger {
   height: auto;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-body);
+  font-size: var(--ms-text-label);
   line-height: 1.4;
 }
 
@@ -23,7 +25,8 @@
 }
 
 .script-detail-tabs__trigger[data-active="true"] {
-  border-bottom-color: var(--ms-color-foreground);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ms-color-muted) 60%, transparent);
   color: var(--ms-color-foreground);
   font-weight: 500;
 }

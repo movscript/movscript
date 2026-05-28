@@ -7,6 +7,7 @@ import { AppKeyValue, AppMetricCard } from "../../app/data-display";
 import { AppProgressBar } from "../../app/display";
 import { AppEmptyState, AppStateMessage } from "../../app/state";
 import { AppPanel, AppSurfaceItem } from "../../app/surface";
+import { OverlapPane, OverlapPaneGroup } from "../../../layout";
 import { Badge, Button, Input, Label, NativeSelect, Textarea, type StatusBadgeProps } from "../../../primitives";
 import type { IconComponent } from "../../../primitives/types";
 
@@ -29,17 +30,17 @@ export function ScriptWorkspaceShell({
 
 export function ScriptWorkspaceLayout({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("script-workbench-layout", className)} {...props}>
+    <OverlapPaneGroup className={cn("script-workbench-layout", className)} {...props}>
       {children}
-    </div>
+    </OverlapPaneGroup>
   );
 }
 
 export function ScriptWorkspaceMain({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
-    <main className={cn("script-workbench-main", className)} {...props}>
+    <OverlapPane as="main" side="left" className={cn("script-workbench-main", className)} {...props}>
       {children}
-    </main>
+    </OverlapPane>
   );
 }
 

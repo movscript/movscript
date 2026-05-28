@@ -1,6 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 
-import type { Canvas, CanvasNodeData, NodeType, RawResource } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasType, NodeType, RawResource } from '@/types'
 import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import { createCanvasNodeData } from '@/features/canvas/domain/graph'
 import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
@@ -19,21 +19,66 @@ export function readOnlyMediaPortPatch(source: CanvasNodeData['source']): Partia
   return source === 'ai' ? { inputPorts: undefined } : { inputPorts: [] }
 }
 
+export function canvasTextNodeEditState(data: Partial<CanvasNodeData>) {
+  const resourceBacked = Boolean(data.resourceId || data.resource)
+  return {
+    resourceBacked,
+    editable: data.source === 'manual' && !resourceBacked,
+  }
+}
+
+export function nextWorkflowParamOrder(nodes: Node[], type: 'input' | 'output') {
+  const usedOrders = nodes
+    .filter((node) => node.type === type)
+    .map((node) => Number((node.data as Partial<CanvasNodeData>).paramOrder))
+    .filter((value) => Number.isInteger(value) && value > 0)
+  return usedOrders.length > 0 ? Math.max(...usedOrders) + 1 : 1
+}
+
+export function isPaletteNodeTypeAvailable(type: NodeType, canvasType: CanvasType) {
+  if (type === 'resource_sink') return false
+  if ((type === 'input' || type === 'output') && canvasType !== 'workflow') return false
+  return true
+}
+
+function workflowIoDataPatch({
+  type,
+  existingNodes,
+  t,
+}: {
+  type: NodeType
+  existingNodes?: Node[]
+  t: (key: string, options?: any) => string
+}): Partial<CanvasNodeData> & { label?: string } {
+  if (type !== 'input' && type !== 'output') return {}
+  const ioType = type === 'input' ? 'input' : 'output'
+  const order = nextWorkflowParamOrder(existingNodes ?? [], ioType)
+  const baseName = ioType
+  const label = `${t(`canvas.nodeLabels.${type}`)} ${order}`
+  return {
+    label,
+    paramName: `${baseName}_${order}`,
+    paramOrder: order,
+  }
+}
+
 export function createPaletteCanvasNode({
   type,
   position,
   t,
+  existingNodes,
 }: {
   type: NodeType
   position: { x: number; y: number }
   t: (key: string, options?: any) => string
+  existingNodes?: Node[]
 }): Node {
   const baseData = createCanvasNodeData(type, t)
   return {
     id: createCanvasNodeId(),
     type,
     position,
-    data: { ...baseData },
+    data: { ...baseData, ...workflowIoDataPatch({ type, existingNodes, t }) },
     ...(type === 'group'
       ? { style: { width: 320, height: 240 }, zIndex: -1 }
       : { style: normalizedCanvasNodeStyle(type) }),
@@ -89,6 +134,7 @@ export function createWorkflowReferenceCanvasNode({
       label: workflowCanvas.name,
       source: 'ai',
       referencedCanvasId: workflowCanvas.ID,
+      referencedCanvasName: workflowCanvas.name,
       inputPorts: ports.inputs,
       outputPorts: ports.outputs,
     },

@@ -11,6 +11,8 @@ export const CONTENT_FILTER_KEYS = [
   'content_unit_id',
   'production_id',
   'selected',
+  'prep_view',
+  'prep_detail',
 ] as const
 
 export type ContentFilterKey = typeof CONTENT_FILTER_KEYS[number]

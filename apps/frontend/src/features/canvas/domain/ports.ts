@@ -52,8 +52,11 @@ export function portsForNode(node: Node | undefined, side: 'source' | 'target'):
       : []
   }
   if (node.type === 'output') {
+    const outputType = data.paramType === 'text' || data.paramType === 'image' || data.paramType === 'video' || data.paramType === 'audio'
+      ? data.paramType
+      : 'image'
     return side === 'target'
-      ? [{ id: 'value', label: data.paramName || (data as any).label || node.id, type: data.paramType ?? 'resource', required: true }]
+      ? [{ id: 'value', label: data.paramName || (data as any).label || node.id, type: outputType, required: true }]
       : []
   }
   if (node.type === 'resource_sink') {

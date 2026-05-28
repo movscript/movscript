@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 import type { Edge, Node } from '@xyflow/react'
 
 import { buildCanvasPluginArgsWithInputs } from '@/features/canvas/integrations/canvasPluginArgs'
+import {
+  outputResourceFromUnknown,
+  outputResourceIdsFromUnknown,
+} from '@/features/canvas/runtime/canvasRuntimeGraph'
 import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import type { CanvasNodeData, RawResource } from '@/types'
 
@@ -66,6 +70,11 @@ export function useCanvasClientPlugins({
       const result = await runClientPlugin(plugin, pluginArgs)
       const resultText = result.content?.map((item) => item.text ?? '').filter(Boolean).join('\n')
         || JSON.stringify(result.data ?? '')
+      const outputResourceIds = result.isError ? [] : outputResourceIdsFromUnknown(result.data)
+      const outputResourceId = outputResourceIds[0]
+      const outputResource = outputResourceId
+        ? outputResourceFromUnknown(result.data, outputResourceId) ?? resourceById.get(outputResourceId)
+        : undefined
       setNodes((prev) => prev.map((n) => n.id === nodeId
         ? {
             ...n,
@@ -77,6 +86,8 @@ export function useCanvasClientPlugins({
               pluginResultData: result.data,
               pluginLastRunAt: new Date().toISOString(),
               executableSpec,
+              resourceId: outputResourceId ?? (n.data as Partial<CanvasNodeData>).resourceId,
+              resource: outputResource ?? (n.data as Partial<CanvasNodeData>).resource,
             },
           }
         : n

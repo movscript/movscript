@@ -1,23 +1,28 @@
 .project-standards-main {
   display: flex;
-  min-height: 0;
+  min-height: 100%;
   flex: 1 1 auto;
-  overflow: hidden;
+  overflow: visible;
   background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
 }
 
 .project-standards-content-layout {
   width: 100%;
-  min-height: 0;
-  height: 100%;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
   background: transparent;
+}
+
+.project-standards-content-layout[data-scroll="auto"] {
+  overflow: visible;
 }
 
 .project-standards-content-layout__content {
   display: flex;
-  min-height: 0;
+  min-height: 100%;
   flex-direction: column;
-  gap: var(--ms-space-4);
+  gap: var(--ms-space-3);
 }
 
 .project-standards-dialog-body {
@@ -27,28 +32,19 @@
   padding: var(--ms-space-4);
 }
 
-.project-standards-metric-grid {
-  flex-shrink: 0;
-  display: grid;
-  gap: var(--ms-space-3);
-}
-
 .project-standards-workspace-grid {
   display: grid;
   min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
+  align-items: start;
   gap: var(--ms-space-4);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .project-standards-column {
   min-width: 0;
-  min-height: 0;
   display: grid;
   align-content: start;
-  gap: var(--ms-space-4);
-  overflow-y: auto;
+  gap: var(--ms-space-3);
   padding-right: var(--ms-space-1);
 }
 
@@ -57,8 +53,7 @@
 }
 
 .project-standards-section--border {
-  padding-bottom: var(--ms-space-4);
-  border-bottom: 1px solid var(--ms-color-border);
+  padding-bottom: var(--ms-space-3);
 }
 
 .project-standards-section-header {
@@ -91,6 +86,36 @@
   line-height: var(--ms-leading-label);
 }
 
+.project-standards-status-strip {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2) var(--ms-space-3);
+  background: color-mix(in srgb, var(--ms-color-background) 82%, transparent);
+}
+
+.project-standards-board-heading {
+  padding: var(--ms-space-3);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-background) 64%, transparent);
+}
+
+.project-standards-board-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ms-space-2);
+}
+
+.project-standards-standard-group {
+  padding: var(--ms-space-3);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-background) 54%, transparent);
+}
+
 .project-standards-body-text {
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-label);
@@ -116,6 +141,16 @@
 
 .project-standards-surface-item {
   min-width: 0;
+}
+
+.project-standards-standard-list {
+  margin-top: var(--ms-space-3);
+}
+
+.project-standards-standard-card {
+  padding: var(--ms-space-3);
+  border-color: color-mix(in srgb, var(--ms-color-border) 62%, transparent);
+  background: color-mix(in srgb, var(--ms-color-background) 88%, transparent);
 }
 
 .project-standards-badge,
@@ -149,6 +184,7 @@
 }
 
 .project-standards-image-frame {
+  position: relative;
   aspect-ratio: 16 / 9;
   background: var(--ms-color-muted);
 }
@@ -157,6 +193,20 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.project-standards-image-remove {
+  position: absolute;
+  top: var(--ms-space-1);
+  right: var(--ms-space-1);
+  width: 28px;
+  height: 28px;
+  background: color-mix(in srgb, var(--ms-color-background) 88%, transparent);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--ms-color-foreground) 12%, transparent);
+}
+
+.project-standards-image-remove:hover {
+  background: color-mix(in srgb, var(--ms-color-danger) 12%, var(--ms-color-background));
 }
 
 .project-standards-image-meta {
@@ -170,8 +220,8 @@
 .project-standards-rule-form {
   margin-top: var(--ms-space-3);
   padding: var(--ms-space-3);
-  border-color: color-mix(in srgb, var(--ms-color-primary) 30%, var(--ms-color-border));
-  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+  border-color: color-mix(in srgb, var(--ms-color-primary) 24%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-primary) 4%, var(--ms-color-background));
 }
 
 .project-standards-form-grid {
@@ -227,22 +277,32 @@
 }
 
 .project-standards-preview-aside {
-  min-height: 0;
   display: flex;
   flex-direction: column;
   align-self: flex-start;
-  overflow: hidden;
-  padding-top: var(--ms-space-4);
-  border-top: 1px solid var(--ms-color-border);
+  overflow: visible;
+  padding: var(--ms-space-3);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-background) 72%, transparent);
 }
 
 .project-standards-preview-surface {
   min-height: 0;
   max-height: none;
   margin-top: var(--ms-space-3);
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   overflow: auto;
   padding: var(--ms-space-3);
+}
+
+.project-standards-preview-subheader {
+  margin-top: var(--ms-space-4);
+}
+
+.project-standards-style-reference-note {
+  margin-top: var(--ms-space-3);
+  padding: var(--ms-space-2);
+  background: color-mix(in srgb, var(--ms-color-muted) 22%, transparent);
 }
 
 .project-standards-code-block {
@@ -278,7 +338,6 @@
 }
 
 @media (min-width: 640px) {
-  .project-standards-metric-grid,
   .project-standards-image-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -292,12 +351,8 @@
 }
 
 @media (min-width: 1280px) {
-  .project-standards-metric-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .project-standards-image-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .project-standards-workspace-grid {
@@ -307,10 +362,5 @@
   .project-standards-preview-aside {
     position: sticky;
     top: var(--ms-space-4);
-    height: 100%;
-    padding-top: 0;
-    padding-left: var(--ms-space-4);
-    border-top: 0;
-    border-left: 1px solid var(--ms-color-border);
   }
 }

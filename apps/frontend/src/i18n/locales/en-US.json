@@ -667,6 +667,7 @@
       },
       "gridTitle": "Grid",
       "listTitle": "List",
+      "selectMode": "Select",
       "editFolder": "Edit Folder",
       "newFolder": "New Folder",
       "folderNamePlaceholder": "Folder name",
@@ -711,6 +712,7 @@
       "noMatchedFiles": "No matching files",
       "noResourcesUpload": "No resources. Click upload.",
       "pageStatus": "Page {{page}} / {{pageCount}}",
+      "pageSize": "Per page",
       "previousPage": "Previous",
       "nextPage": "Next",
       "edit": "Edit",
@@ -2917,6 +2919,7 @@
       "text": "Text",
       "image": "Image",
       "video": "Video",
+      "audio": "Audio",
       "json": "JSON",
       "number": "Number",
       "boolean": "Boolean",
@@ -3137,7 +3140,14 @@
       "nodeRuntimeInputTitle": "Runtime Inputs",
       "nodeRuntimeInputDescription": "Provide values for unconnected input ports before running this node.",
       "booleanEnabled": "Enabled",
-      "resourceIdPlaceholder": "Resource ID"
+      "resourceIdPlaceholder": "Resource ID",
+      "textNode": {
+        "edit": "Edit",
+        "preview": "Preview",
+        "applyToCanvas": "Apply to canvas",
+        "convertToCanvasText": "Convert to canvas text",
+        "resourceReadonly": "Resource text is read-only. Convert it to canvas text before editing."
+      }
     },
     "unset": "Not set",
     "textInputPlaceholder": "Enter text here...",
@@ -4071,7 +4081,7 @@
       "projectProduction": "Production Overview",
       "productionOrchestration": "Orchestration",
       "contentAreaProduction": "Production Orchestration",
-      "script": "Script",
+      "script": "Script Editing",
       "segments": "Orchestration Segments",
       "sceneMoments": "Plot Beats",
       "references": "Creative References",

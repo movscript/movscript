@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { File, HardDrive, Image, Search, Video } from 'lucide-react'
+import { File, FileText, HardDrive, Image, Search, Video } from 'lucide-react'
 
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { AuthedImage } from '@/shared/ui/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { api } from '@/shared/infrastructure/api'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@movscript/ui'
 import type { PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
 
 const RESOURCE_SHELF_THUMB_MAX_SIZE = 160
 
@@ -21,13 +22,11 @@ export function CanvasResourceShelf({
   projectId,
   dependencyBindings = [],
   variant = 'floating',
-  activeCanvasResourceIds,
   disablePreviews = false,
 }: {
   projectId?: number
   dependencyBindings?: ResourceBinding[]
   variant?: 'floating' | 'panel' | 'side'
-  activeCanvasResourceIds?: ReadonlySet<number>
   disablePreviews?: boolean
 }) {
   const { t } = useTranslation()
@@ -44,10 +43,10 @@ export function CanvasResourceShelf({
     id: resource.ID,
     type: resource.type,
     name: resource.name,
-    description: side ? undefined : (resource.mime_type || resource.type),
+    description: side ? undefined : <ResourceDetailMeta resource={resource} />,
     footerMeta: formatBytes(resource.size),
     selected: dependencyBindings.some((binding) => binding.resource_id === resource.ID),
-    media: <ResourceThumb resource={resource} suppressPreview={activeCanvasResourceIds?.has(resource.ID) ?? false} disablePreview={disablePreviews} />,
+    media: <ResourceThumb resource={resource} disablePreview={disablePreviews} />,
   }))
 
   function dragResource(event: DragEvent<HTMLDivElement>, item: CanvasResourceShelfItem) {
@@ -78,15 +77,15 @@ export function CanvasResourceShelf({
   )
 }
 
-function ResourceThumb({ resource, suppressPreview, disablePreview }: { resource: RawResource; suppressPreview?: boolean; disablePreview?: boolean }) {
+function ResourceThumb({ resource, disablePreview }: { resource: RawResource; disablePreview?: boolean }) {
   const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
   useEffect(() => {
-    if ((!suppressPreview && !disablePreview) || !mediaDiagnosticsEnabled()) return
-    console.info(`[canvas:media] ${resource.type} suppressed label=canvas-shelf:${resource.ID} reason=${disablePreview ? 'debug-disabled' : 'already-on-canvas'}`)
-  }, [disablePreview, suppressPreview, resource.ID, resource.type])
+    if (!disablePreview || !mediaDiagnosticsEnabled()) return
+    console.info(`[canvas:media] ${resource.type} suppressed label=canvas-shelf:${resource.ID} reason=debug-disabled`)
+  }, [disablePreview, resource.ID, resource.type])
 
   if (resource.type === 'image') {
-    if (suppressPreview || disablePreview) {
+    if (disablePreview) {
       return <CanvasMediaEmptyIcon><Image size={14} /></CanvasMediaEmptyIcon>
     }
     return <LazyResourcePreview fallback={<CanvasMediaEmptyIcon><File size={14} /></CanvasMediaEmptyIcon>}>
@@ -96,18 +95,83 @@ function ResourceThumb({ resource, suppressPreview, disablePreview }: { resource
     </LazyResourcePreview>
   }
   if (resource.type === 'video') {
-    if (suppressPreview || disablePreview) {
+    if (disablePreview) {
       return <CanvasMediaEmptyIcon><Video size={14} /></CanvasMediaEmptyIcon>
     }
-    return <LazyResourcePreview fallback={<CanvasMediaEmptyIcon><File size={14} /></CanvasMediaEmptyIcon>}>
-      <CanvasMediaFill>
-        {resource.direct_url
-          ? <video src={resource.direct_url} muted playsInline preload="metadata" />
-          : <AuthedVideo src={url} muted playsInline preload="metadata" diagnosticLabel={`canvas-shelf:${resource.ID}`} />}
-      </CanvasMediaFill>
+    return <LazyResourcePreview fallback={<CanvasMediaEmptyIcon><Video size={14} /></CanvasMediaEmptyIcon>}>
+      <MediaViewer
+        resource={resource}
+        fit="cover"
+        lightbox={false}
+        diagnosticLabel={`canvas-shelf:${resource.ID}`}
+      />
+    </LazyResourcePreview>
+  }
+  if (resource.type === 'text') {
+    return <LazyResourcePreview fallback={<CanvasMediaEmptyIcon><FileText size={14} /></CanvasMediaEmptyIcon>}>
+      <MediaViewer
+        resource={resource}
+        fit="cover"
+        lightbox={false}
+        diagnosticLabel={`canvas-shelf:${resource.ID}`}
+      />
     </LazyResourcePreview>
   }
   return <CanvasMediaEmptyIcon><File size={14} /></CanvasMediaEmptyIcon>
+}
+
+function ResourceDetailMeta({ resource }: { resource: RawResource }) {
+  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
+  const [detail, setDetail] = useState(() => fallbackResourceDetail(resource))
+
+  if (resource.type === 'image' && url) {
+    return (
+      <>
+        <span>{detail}</span>
+        <AuthedImage
+          src={url}
+          alt=""
+          aria-hidden
+          className="canvas-resource-shelf__metadata-probe"
+          onLoad={(event) => {
+            const image = event.currentTarget
+            if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
+          }}
+        />
+      </>
+    )
+  }
+
+  if (resource.type === 'video' && url) {
+    return (
+      <>
+        <span>{detail}</span>
+        <MediaViewer
+          resource={resource}
+          lightbox={false}
+          className="canvas-resource-shelf__metadata-probe"
+          onVideoLoadedMetadata={(event) => {
+            const video = event.currentTarget
+            const parts = [
+              video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
+              Number.isFinite(video.duration) ? formatDuration(video.duration) : undefined,
+            ].filter(Boolean)
+            if (parts.length > 0) setDetail(parts.join(' · '))
+          }}
+        />
+      </>
+    )
+  }
+
+  return <span>{detail}</span>
+}
+
+function fallbackResourceDetail(resource: RawResource) {
+  if (resource.type === 'image') return '读取像素'
+  if (resource.type === 'video') return '读取时长'
+  if (resource.type === 'text') return '文本'
+  if (resource.type === 'audio') return '音频'
+  return resource.mime_type || resource.type
 }
 
 function LazyResourcePreview({ children, fallback }: { children: ReactNode; fallback: ReactNode }) {
@@ -143,4 +207,12 @@ function formatBytes(value: number | undefined) {
   if (value < 1024) return `${value} B`
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function formatDuration(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  const total = Math.round(value)
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : `${seconds}s`
 }

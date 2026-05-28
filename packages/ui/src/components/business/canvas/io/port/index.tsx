@@ -4,15 +4,13 @@ import type { CanvasIOPort, CanvasIOPortHandleRenderer, CanvasIOState } from "..
 
 export function CanvasIOPortRow({
   port,
-  state,
   renderPortHandle,
 }: {
   port: CanvasIOPort;
   state: CanvasIOState;
   renderPortHandle?: CanvasIOPortHandleRenderer;
 }) {
-  const isReady = state === "ready";
-  const tone = port.type === "source" ? (isReady ? "source" : "neutral") : isReady ? "target" : "neutral";
+  const tone = port.type === "source" ? "source" : "target";
 
   return (
     <AppSurfaceItem
@@ -24,6 +22,7 @@ export function CanvasIOPortRow({
         side={port.side}
         tone={tone}
         label={port.label}
+        className="canvas-io-port-row__dot"
         compact
         handleId={port.id}
         handleType={port.type}

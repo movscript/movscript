@@ -1,4 +1,4 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../../../../lib/cn";
 import { AppEmptyState, AppIconFrame, AppMarkerDot, AppSurfaceItem } from "../../app";
@@ -70,6 +70,14 @@ export const CanvasEditorNameInput = forwardRef<HTMLInputElement, InputProps>(
 );
 
 CanvasEditorNameInput.displayName = "CanvasEditorNameInput";
+
+export const CanvasEditorNameButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ className, type = "button", ...props }, ref) => (
+    <button ref={ref} type={type} className={cn("canvas-editor-chrome__name-button", className)} {...props} />
+  )
+);
+
+CanvasEditorNameButton.displayName = "CanvasEditorNameButton";
 
 export function CanvasEditorTypeBadge({
   icon,

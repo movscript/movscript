@@ -28,7 +28,9 @@
   border-radius: inherit;
   background: var(--app-shell-slot-left-background, var(--ms-color-app-background));
   box-shadow: none;
-  transition: width 260ms var(--ms-easing-standard);
+  transition:
+    width 0.26s var(--ms-easing-standard),
+    opacity 0.26s var(--ms-easing-standard);
 }
 
 .app-shell[data-layout="stacked"] .agent-mode-sidebar {
@@ -47,6 +49,8 @@
   width: 0;
   border-color: transparent;
   box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .agent-mode-sidebar::after,
@@ -493,11 +497,23 @@
   border: 0;
   border-radius: inherit;
   background: inherit;
-  transition: none;
+  transition:
+    width 0.26s var(--ms-easing-standard),
+    min-width 0.26s var(--ms-easing-standard),
+    flex-basis 0.26s var(--ms-easing-standard),
+    opacity 0.26s var(--ms-easing-standard);
 }
 
 .agent-mode-content-panel--resizing {
   transition: none;
+}
+
+.agent-mode-content-panel[data-collapsed="true"] {
+  width: 0;
+  min-width: 0;
+  flex-basis: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .agent-mode-content-panel::before {

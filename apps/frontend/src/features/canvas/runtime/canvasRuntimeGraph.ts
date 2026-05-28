@@ -1,6 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasNodeData, CanvasPortType, CanvasPortValue, RawResource } from '@/types'
-import { defaultHandleForNode, normalizeCanvasHandle } from '@/features/canvas/domain/ports'
+import { defaultHandleForNode, normalizeCanvasHandle, portsForNode } from '@/features/canvas/domain/ports'
 
 export type CanvasRuntimeInputValues = Record<string, CanvasPortValue | CanvasPortValue[]>
 export type CanvasRuntimeOutputValues = Record<string, CanvasPortValue>
@@ -20,6 +20,7 @@ export interface CanvasRuntimeCollectedInputs {
 }
 
 const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
+const MEDIA_PORT_TYPES = new Set<CanvasPortType>(['image', 'video', 'audio', 'text', 'resource'])
 
 export function collectCanvasNodeInputs(input: CanvasRuntimeGraphInput & { nodeId: string }): CanvasRuntimeCollectedInputs {
   const target = input.nodes.find((node) => node.id === input.nodeId)
@@ -108,14 +109,70 @@ export function canvasNodeOutputValue(
     ?? data.resourceId
   if (resourceId && Number.isInteger(resourceId) && resourceId > 0) {
     const resource = data.resource ?? input.resourceById?.get(resourceId)
-    const type = (resource?.type === 'image' || resource?.type === 'video' || resource?.type === 'text')
-      ? resource.type
-      : mediaTypeForNode(node.type)
+    const type = canvasOutputValueType(node, port, resource)
     return { type, resource_id: resourceId, resource }
+  }
+
+  const pluginOutputResourceId = outputResourceIdsFromUnknown(data.pluginResultData)[0]
+  if (pluginOutputResourceId) {
+    const resource = outputResourceFromUnknown(data.pluginResultData, pluginOutputResourceId)
+      ?? input.resourceById?.get(pluginOutputResourceId)
+    return {
+      type: canvasOutputValueType(node, port, resource),
+      resource_id: pluginOutputResourceId,
+      resource,
+    }
   }
 
   const text = data.textContent ?? data.inputValue
   if (text !== undefined) return { type: 'text', text }
+  return undefined
+}
+
+export function reusableCanvasNodeOutputValues(
+  node: Node,
+  input: Pick<CanvasRuntimeGraphInput, 'resourceById' | 'outputCache'> = {},
+): CanvasRuntimeOutputValues | undefined {
+  const primary = canvasNodeOutputValue(node, undefined, input)
+  if (!primary || !isReusablePersistedCanvasOutput(node, primary)) return undefined
+
+  const outputs: CanvasRuntimeOutputValues = {}
+  for (const port of portsForNode(node, 'source')) {
+    const value = canvasNodeOutputValue(node, port.id, input)
+    if (value) outputs[port.id] = value
+  }
+
+  const defaultPort = defaultHandleForNode(node, 'source')
+  if (defaultPort) outputs[defaultPort] = outputs[defaultPort] ?? primary
+  outputs[primary.type] = outputs[primary.type] ?? primary
+  outputs.result = outputs.result ?? primary
+  outputs.value = outputs.value ?? primary
+  outputs[node.id] = outputs[node.id] ?? primary
+  return outputs
+}
+
+export function outputResourceIdsFromUnknown(value: unknown): number[] {
+  const ids: number[] = []
+  collectOutputResourceIds(value, ids)
+  return uniquePositiveNumbers(ids)
+}
+
+export function outputResourceFromUnknown(value: unknown, resourceId?: number): RawResource | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const resource = outputResourceFromUnknown(item, resourceId)
+      if (resource) return resource
+    }
+    return undefined
+  }
+  if (!isRecord(value)) return undefined
+  const candidates = [value.output_resource, value.outputResource, value.resource]
+  for (const candidate of candidates) {
+    if (!isRawResourceLike(candidate)) continue
+    const id = positiveInteger((candidate as { ID?: unknown; id?: unknown }).ID ?? (candidate as { id?: unknown }).id)
+    if (resourceId && id !== resourceId) continue
+    return candidate as RawResource
+  }
   return undefined
 }
 
@@ -196,6 +253,78 @@ function appendValues(target: Record<string, CanvasPortValue[]>, handle: string,
 function mediaTypeForNode(type: string | undefined): CanvasPortType {
   if (type === 'image' || type === 'ref_image_gen' || type === 'multi_angle' || type === 'style_transfer') return 'image'
   if (type === 'video' || type === 'ref_video_gen' || type === 'motion_imitation') return 'video'
+  if (type === 'audio') return 'audio'
   if (type === 'text' || type === 'text_gen') return 'text'
   return 'resource'
+}
+
+function canvasOutputValueType(node: Node, portId: string, resource: RawResource | undefined): CanvasPortType {
+  if (resource?.type === 'image' || resource?.type === 'video' || resource?.type === 'audio' || resource?.type === 'text') return resource.type
+  const data = node.data as Partial<CanvasNodeData>
+  const portType = data.outputPorts?.find((port) => port.id === portId)?.type
+  if (portType && MEDIA_PORT_TYPES.has(portType)) return portType
+  return mediaTypeForNode(node.type)
+}
+
+function isReusablePersistedCanvasOutput(node: Node, value: CanvasPortValue) {
+  const data = node.data as Partial<CanvasNodeData>
+  if (node.type === 'plugin_card') {
+    return value.resource_id !== undefined || value.text !== undefined || value.json !== undefined
+  }
+  if (data.source !== 'ai') return false
+  return value.resource_id !== undefined || value.text !== undefined
+}
+
+function collectOutputResourceIds(value: unknown, ids: number[]) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectOutputResourceIds(item, ids)
+    return
+  }
+  if (!isRecord(value)) return
+  appendPositiveNumber(ids, value.output_resource_id)
+  appendPositiveNumber(ids, value.outputResourceId)
+  appendPositiveNumbers(ids, value.output_resource_ids)
+  appendPositiveNumbers(ids, value.outputResourceIds)
+  for (const candidate of [value.output_resource, value.outputResource]) {
+    if (!isRecord(candidate)) continue
+    appendPositiveNumber(ids, candidate.ID)
+    appendPositiveNumber(ids, candidate.id)
+  }
+}
+
+function appendPositiveNumbers(ids: number[], value: unknown) {
+  if (!Array.isArray(value)) return
+  for (const item of value) appendPositiveNumber(ids, item)
+}
+
+function appendPositiveNumber(ids: number[], value: unknown) {
+  const id = positiveInteger(value)
+  if (id) ids.push(id)
+}
+
+function positiveInteger(value: unknown) {
+  const numberValue = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : NaN
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined
+}
+
+function uniquePositiveNumbers(values: number[]) {
+  const seen = new Set<number>()
+  return values.filter((value) => {
+    if (!Number.isInteger(value) || value <= 0 || seen.has(value)) return false
+    seen.add(value)
+    return true
+  })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object')
+}
+
+function isRawResourceLike(value: unknown): value is RawResource {
+  if (!isRecord(value)) return false
+  return Boolean(positiveInteger(value.ID ?? value.id))
 }

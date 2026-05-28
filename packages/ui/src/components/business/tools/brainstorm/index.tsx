@@ -5,6 +5,7 @@ import { toneTextClass } from "../../../../semantic";
 import { cn } from "../../../../lib/cn";
 import { Button, type ButtonProps } from "../../../primitives";
 import type { IconComponent } from "../../../primitives/types";
+import { OverlapPaneGroup } from "../../../layout";
 import { AppEmptyState, AppInlineMeta, AppPanel, AppSurfaceItem } from "../../app";
 
 export interface ToolBrainstormAttachment {
@@ -31,7 +32,7 @@ export function ToolBrainstormFrame({ className, ...props }: HTMLAttributes<HTML
 }
 
 export function ToolBrainstormBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("tool-brainstorm-body", className)} {...props} />;
+  return <OverlapPaneGroup className={cn("tool-brainstorm-body", className)} {...props} />;
 }
 
 export function ToolBrainstormMain({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

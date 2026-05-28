@@ -1,7 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { CanvasType } from '@/types'
 import { fromUiHandleId, uniqueEdgesByConnection } from './ports'
-import { ensureFinalOutputNode } from './graph'
+import { ensureFinalOutputNode, normalizeWorkflowIoNodeOrders } from './graph'
 
 export function serializableCanvasNodeData(data: Node['data']) {
   const {
@@ -29,21 +29,20 @@ export function serializableCanvasNodeData(data: Node['data']) {
 }
 
 export function canvasGraphSignature({
-  canvasName,
   canvasType,
   nodes,
   edges,
   t,
 }: {
-  canvasName: string
   canvasType: CanvasType
   nodes: Node[]
   edges: Edge[]
   t: (key: string, options?: any) => string
 }) {
-  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
+  const nodesToSave = canvasType === 'workflow'
+    ? normalizeWorkflowIoNodeOrders(ensureFinalOutputNode(nodes, t))
+    : nodes
   return JSON.stringify({
-    name: canvasName,
     canvasType,
     nodes: nodesToSave.map((node) => {
       const { label, data } = serializableCanvasNodeData(node.data)

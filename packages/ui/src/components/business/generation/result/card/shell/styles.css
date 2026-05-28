@@ -1,6 +1,8 @@
 .generation-result-card {
   overflow: hidden;
-  box-shadow: var(--ms-shadow-sm);
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-border) 64%, transparent);
+  --ui-surface-background: var(--ms-color-surface);
+  box-shadow: none;
 }
 
 .generation-result-card--compact {
@@ -10,5 +12,5 @@
 }
 
 .generation-result-card--compact:hover {
-  --ui-surface-border: color-mix(in srgb, var(--ms-color-foreground) 25%, transparent);
+  --ui-surface-border: color-mix(in srgb, var(--ms-color-primary) 38%, transparent);
 }

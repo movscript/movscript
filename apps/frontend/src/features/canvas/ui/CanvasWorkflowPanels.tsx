@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Node } from '@xyflow/react'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   CheckCircle2,
@@ -11,13 +12,18 @@ import {
   History,
   ListFilter,
   Loader2,
+  Plus,
+  Search,
   Trash2,
+  Workflow,
   XCircle,
 } from 'lucide-react'
 
 import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
+import { api } from '@/shared/infrastructure/api'
 import {
+  Button,
   CanvasMediaFill,
   CanvasResizeHandleButton,
   CanvasRunStatusBadge,
@@ -31,11 +37,15 @@ import {
   type CanvasWorkflowHistoryItem,
   type CanvasWorkflowHistoryStatusFilter,
   type CanvasWorkflowRunResultsItem,
+  Input,
 } from '@movscript/ui'
-import type { CanvasRunStatus, ResourceBinding } from '@/types'
+import type { Canvas, CanvasRunStatus, ResourceBinding } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
 import { canvasPortValuePreviewText, workflowRunOutputItems } from '@/features/canvas/runtime/runtimeValues'
+import { deriveCanvasReferencePorts } from '@/features/canvas/integrations/workflowReferences'
 import { CanvasResourceShelf } from './CanvasResourceShelf'
+
+type WorkflowPanelTab = 'resources' | 'workflows' | 'history'
 
 function formatRunTime(value: string | undefined, language: string) {
   if (!value) return '-'
@@ -165,10 +175,121 @@ function WorkflowRunHistory({
   )
 }
 
+function WorkflowReferencePicker({
+  projectId,
+  currentCanvasId,
+  onAddWorkflowReference,
+}: {
+  projectId?: number
+  currentCanvasId?: number
+  onAddWorkflowReference: (workflowCanvas: Canvas) => void
+}) {
+  const { t } = useTranslation()
+  const [search, setSearch] = useState('')
+  const { data: canvases = [], isLoading } = useQuery<Canvas[]>({
+    queryKey: ['canvas-reference-workflows', projectId],
+    queryFn: () => {
+      const params: Record<string, string> = { type: 'workflow' }
+      if (projectId) params.project_id = String(projectId)
+      return api.get('/canvases', { params }).then((r) => r.data as Canvas[])
+    },
+  })
+  const workflowDetails = useQueries({
+    queries: canvases
+      .filter((canvas) => canvas.ID !== currentCanvasId)
+      .map((canvas) => ({
+        queryKey: ['canvas', canvas.ID],
+        queryFn: () => api.get(`/canvases/${canvas.ID}`).then((r) => r.data as Canvas),
+        enabled: !!canvas.ID,
+      })),
+  })
+  const workflowDetailById = useMemo(() => {
+    const map = new Map<number, Canvas>()
+    workflowDetails.forEach((query) => {
+      if (query.data?.ID) map.set(query.data.ID, query.data)
+    })
+    return map
+  }, [workflowDetails])
+  const term = search.trim().toLowerCase()
+  const workflows = canvases
+    .filter((canvas) => canvas.ID !== currentCanvasId)
+    .filter((canvas) => !term || canvas.name.toLowerCase().includes(term) || String(canvas.ID).includes(term))
+
+  function dragWorkflow(event: React.DragEvent<HTMLDivElement>, canvas: Canvas) {
+    event.dataTransfer.setData('application/canvas-workflow', JSON.stringify(canvas))
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+
+  return (
+    <div className="canvas-workflow-reference-picker">
+      <div className="canvas-workflow-reference-picker__search">
+        <Search size={12} />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={t('canvas.editor.workflowReferences.search', { defaultValue: 'Search workflows' })}
+        />
+      </div>
+      <div className="canvas-workflow-reference-picker__body">
+        {isLoading ? (
+          <div className="canvas-workflow-reference-picker__state">
+            <Loader2 size={14} />
+            {t('common.loadingShort')}
+          </div>
+        ) : workflows.length === 0 ? (
+          <div className="canvas-workflow-reference-picker__state">
+            {t('canvas.editor.workflowReferences.empty', { defaultValue: 'No workflow canvases available.' })}
+          </div>
+        ) : (
+          <div className="canvas-workflow-reference-picker__list">
+            {workflows.map((canvas) => {
+              const detailedCanvas = workflowDetailById.get(canvas.ID) ?? canvas
+              const ports = deriveCanvasReferencePorts(detailedCanvas)
+              return (
+                <div
+                  key={canvas.ID}
+                  draggable
+                  onDragStart={(event) => dragWorkflow(event, detailedCanvas)}
+                  className="canvas-workflow-reference-picker__card"
+                >
+                  <div className="canvas-workflow-reference-picker__card-main">
+                    <span className="canvas-workflow-reference-picker__card-icon">
+                      <Workflow size={14} />
+                    </span>
+                    <div className="canvas-workflow-reference-picker__card-text">
+                      <div className="canvas-workflow-reference-picker__card-title">{canvas.name}</div>
+                      <div className="canvas-workflow-reference-picker__card-meta">
+                        {t('canvas.editor.workflowReferences.portSummary', { inputs: ports.inputs.length, outputs: ports.outputs.length, defaultValue: `${ports.inputs.length} inputs · ${ports.outputs.length} outputs` })}
+                      </div>
+                    </div>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      title={t('canvas.editor.workflowReferences.add', { defaultValue: 'Add workflow reference' })}
+                      aria-label={t('canvas.editor.workflowReferences.add', { defaultValue: 'Add workflow reference' })}
+                      onClick={() => onAddWorkflowReference(detailedCanvas)}
+                    >
+                      <Plus size={13} />
+                    </Button>
+                  </div>
+                  <div className="canvas-workflow-reference-picker__chips">
+                    {ports.inputs.slice(0, 3).map((port) => <span key={`in-${port.id}`}>in:{port.label ?? port.id}</span>)}
+                    {ports.outputs.slice(0, 2).map((port) => <span key={`out-${port.id}`}>out:{port.label ?? port.id}</span>)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function WorkflowSidePanel({
   projectId,
+  currentCanvasId,
   dependencyBindings,
-  activeCanvasResourceIds,
   disableResourcePreviews = false,
   activeTab,
   collapsed,
@@ -184,12 +305,13 @@ export function WorkflowSidePanel({
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
+  onAddWorkflowReference,
 }: {
   projectId?: number
+  currentCanvasId?: number
   dependencyBindings: ResourceBinding[]
-  activeCanvasResourceIds?: ReadonlySet<number>
   disableResourcePreviews?: boolean
-  activeTab: 'resources' | 'history'
+  activeTab: WorkflowPanelTab
   collapsed: boolean
   runs: CanvasRuntimeRun[]
   total: number
@@ -198,11 +320,12 @@ export function WorkflowSidePanel({
   statusFilter: 'all' | CanvasRunStatus
   activeRunId: string | null
   isLoading: boolean
-  onTabChange: (tab: 'resources' | 'history') => void
+  onTabChange: (tab: WorkflowPanelTab) => void
   onCollapsedChange: (collapsed: boolean) => void
   onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: string) => void
+  onAddWorkflowReference: (workflowCanvas: Canvas) => void
 }) {
   const { t } = useTranslation()
   const [width, setWidth] = useState(300)
@@ -237,6 +360,17 @@ export function WorkflowSidePanel({
         </CanvasWorkflowSideIconButton>
         <CanvasWorkflowSideIconButton
           onClick={() => {
+            onTabChange('workflows')
+            onCollapsedChange(false)
+          }}
+          data-active={!collapsed && activeTab === 'workflows' ? 'true' : undefined}
+          title={t('canvas.editor.workflowReferences.title', { defaultValue: 'Workflow references' })}
+          aria-label={t('canvas.editor.workflowReferences.title', { defaultValue: 'Workflow references' })}
+        >
+          <Workflow size={14} />
+        </CanvasWorkflowSideIconButton>
+        <CanvasWorkflowSideIconButton
+          onClick={() => {
             onTabChange('history')
             onCollapsedChange(false)
           }}
@@ -255,7 +389,9 @@ export function WorkflowSidePanel({
           />
           <CanvasWorkflowSideBody>
             {activeTab === 'resources' ? (
-              <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} activeCanvasResourceIds={activeCanvasResourceIds} disablePreviews={disableResourcePreviews} variant="side" />
+              <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} disablePreviews={disableResourcePreviews} variant="side" />
+            ) : activeTab === 'workflows' ? (
+              <WorkflowReferencePicker projectId={projectId} currentCanvasId={currentCanvasId} onAddWorkflowReference={onAddWorkflowReference} />
             ) : (
               <WorkflowRunHistory
                 embedded

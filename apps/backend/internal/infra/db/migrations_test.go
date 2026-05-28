@@ -349,3 +349,69 @@ func TestMigration000024BackfillsAIModelCapacityConfigColumns(t *testing.T) {
 		t.Fatalf("capacity_weight = %d, want 1", cfg.CapacityWeight)
 	}
 }
+
+func TestMigration000030BackfillsCachedInputTokenColumns(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000030_cached_input_tokens.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE usage_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		operation_type text not null,
+		input_tokens integer default 0,
+		output_tokens integer default 0,
+		reasoning_tokens integer default 0
+	)`).Error; err != nil {
+		t.Fatalf("create usage_logs: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE llm_call_logs (
+		id integer primary key,
+		created_at datetime,
+		updated_at datetime,
+		deleted_at datetime,
+		user_id integer not null,
+		ai_model_config_id integer not null,
+		credential_id integer not null,
+		operation_type text not null,
+		status text not null,
+		input_tokens integer default 0,
+		output_tokens integer default 0,
+		reasoning_tokens integer default 0
+	)`).Error; err != nil {
+		t.Fatalf("create llm_call_logs: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000030" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.UsageLog{}, "cached_input_tokens") {
+		t.Fatal("usage_logs.cached_input_tokens exists before migration")
+	}
+	if db.Migrator().HasColumn(&model.LLMCallLog{}, "cached_input_tokens") {
+		t.Fatal("llm_call_logs.cached_input_tokens exists before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	if !db.Migrator().HasColumn(&model.UsageLog{}, "cached_input_tokens") {
+		t.Fatal("expected usage_logs.cached_input_tokens to be backfilled")
+	}
+	if !db.Migrator().HasColumn(&model.LLMCallLog{}, "cached_input_tokens") {
+		t.Fatal("expected llm_call_logs.cached_input_tokens to be backfilled")
+	}
+}

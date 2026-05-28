@@ -1,17 +1,19 @@
 .script-workbench-shell {
   height: 100%;
   overflow: auto;
-  background: var(--ms-color-page-background);
+  background: transparent;
 }
 
 .script-workbench-frame {
   min-height: 100%;
-  padding: var(--ms-space-4);
+  padding: 0;
 }
 
 .script-workbench-layout {
+  --script-workbench-content-x: clamp(72px, 7vw, 112px);
+  --overlap-pane-radius: var(--ms-radius-lg, 14px);
   min-height: 0;
-  background: var(--ms-color-page-background);
+  background: transparent;
 }
 
 .script-workbench-main {
@@ -22,12 +24,14 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  background: var(--ms-color-background);
+  box-shadow: none;
 }
 
 .script-workbench-inspector {
   display: flex;
   min-height: 0;
-  border-left: 1px solid var(--ms-color-border);
+  border-left: 0;
 }
 
 .script-workbench-inspector__body {
@@ -48,6 +52,7 @@
   display: flex;
   height: 100%;
   flex-direction: column;
+  background: transparent;
 }
 
 .script-editor-form__toolbar {
@@ -56,11 +61,12 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--ms-space-3);
-  border-top: 0;
-  border-right: 0;
-  border-left: 0;
+  border: 0;
   border-radius: 0;
-  padding: var(--ms-space-2) var(--ms-space-4);
+  background: transparent;
+  margin: 0 auto;
+  width: min(100%, 1080px);
+  padding: var(--ms-space-3) var(--script-workbench-content-x) var(--ms-space-2);
 }
 
 .script-editor-form__toolbar-group {
@@ -120,7 +126,9 @@
   min-height: 0;
   flex: 1 1 auto;
   gap: var(--ms-space-4);
-  padding: var(--ms-space-4);
+  margin: 0 auto;
+  width: min(100%, 1080px);
+  padding: var(--ms-space-3) var(--script-workbench-content-x) var(--ms-space-5);
 }
 
 .script-editor-form__main-field {
@@ -141,9 +149,14 @@
   min-height: 400px;
   flex: 1 1 auto;
   resize: none;
-  font-family: var(--ms-font-mono);
-  font-size: var(--ms-text-body);
-  line-height: 1.625;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--ms-font-sans);
+  font-size: 16px;
+  line-height: 1.85;
+  padding: 18px 0 34px;
 }
 
 .script-editor-form__side-rail {
@@ -153,7 +166,11 @@
 }
 
 .script-editor-form__side-panel {
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ms-color-muted) 46%, transparent);
   padding: var(--ms-space-3);
+  box-shadow: none;
 }
 
 .script-editor-form__input {
@@ -188,7 +205,7 @@
 
 @media (min-width: 1024px) {
   .script-editor-form__body-grid {
-    grid-template-columns: minmax(0, 1fr) 220px;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -215,7 +232,12 @@
 
 .script-version-history-panel,
 .script-production-panel {
-  padding: 20px;
+  margin: 0 auto;
+  width: min(100%, 1080px);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--ms-space-3) var(--script-workbench-content-x) var(--ms-space-5);
+  box-shadow: none;
 }
 
 .script-version-history-panel__header {
@@ -395,8 +417,8 @@
 }
 
 .script-version-block-shell {
-  border-top: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
+  border-top: 0;
+  background: color-mix(in srgb, var(--ms-color-background) 94%, var(--ms-color-muted));
   padding: var(--ms-space-3) var(--ms-space-4);
 }
 

@@ -22,7 +22,7 @@
   z-index: 10;
   background: color-mix(in srgb, var(--ms-color-background) 95%, transparent);
   box-shadow: var(--ms-shadow-lg);
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
 }
 
 .canvas-resource-shelf__header {
@@ -165,6 +165,22 @@
   line-height: var(--ms-leading-caption);
 }
 
+.canvas-resource-shelf__actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.canvas-resource-shelf__metadata-probe {
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
 .canvas-resource-shelf__header[data-variant="side"] .canvas-resource-shelf__hint {
   display: none;
 }
@@ -186,8 +202,8 @@
 
 .canvas-resource-shelf__grid {
   display: grid;
-  grid-auto-rows: 150px;
-  grid-template-columns: repeat(auto-fill, 236px);
+  grid-auto-rows: 178px;
+  grid-template-columns: repeat(auto-fill, 172px);
   gap: var(--ms-space-3);
 }
 
@@ -216,8 +232,8 @@
 }
 
 .canvas-resource-shelf-card[data-compact="false"] {
-  width: 236px;
-  height: 150px;
+  width: 172px;
+  height: 178px;
 }
 
 .canvas-resource-shelf-card[data-compact="true"] {
@@ -240,22 +256,29 @@
 }
 
 .canvas-resource-shelf-card__body {
-  display: flex;
+  display: grid;
   min-height: 0;
   flex: 1;
-  gap: var(--ms-space-3);
-  padding: var(--ms-space-3);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2);
 }
 
 .canvas-resource-shelf-card[data-compact="true"] .canvas-resource-shelf-card__body {
+  display: flex;
   align-items: center;
   gap: var(--ms-space-2);
   padding: var(--ms-space-2);
 }
 
+.canvas-resource-shelf-card[data-compact="true"] .canvas-resource-shelf-thumb-frame {
+  order: -1;
+}
+
 .canvas-resource-shelf-card__content {
+  display: grid;
   min-width: 0;
-  flex: 1;
+  gap: 3px;
 }
 
 .canvas-resource-shelf-card__meta-row {
@@ -281,16 +304,16 @@
 }
 
 .canvas-resource-shelf-card__name {
-  display: -webkit-box;
-  min-height: 36px;
+  display: block;
+  min-height: 0;
   overflow: hidden;
-  margin: var(--ms-space-2) 0 0;
+  margin: 0;
   color: var(--ms-color-foreground);
-  font-size: var(--ms-text-body);
+  font-size: var(--ms-text-label);
   font-weight: 650;
-  line-height: 18px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  line-height: var(--ms-leading-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .canvas-resource-shelf-card[data-compact="true"] .canvas-resource-shelf-card__name {
@@ -306,14 +329,23 @@
 }
 
 .canvas-resource-shelf-card__description {
-  display: -webkit-box;
+  position: relative;
+  display: flex;
+  min-width: 0;
   overflow: hidden;
-  margin: var(--ms-space-1) 0 0;
+  margin: 0;
+  align-items: center;
+  gap: 6px;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  white-space: nowrap;
+}
+
+.canvas-resource-shelf-card__description > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .canvas-resource-shelf-card__footer {

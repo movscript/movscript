@@ -4,6 +4,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 42%, transparent);
+  padding-top: 10px;
 }
 
 .generation-input-actions__hint {

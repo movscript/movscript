@@ -10,7 +10,6 @@ import { buildCanvasSavePayload, hydrateCanvasDocument } from './canvasDocument'
 interface UseCanvasDocumentInput {
   canvasId: string
   canvas: Canvas | undefined
-  canvasName: string
   canvasType: CanvasType
   nodes: Node[]
   edges: Edge[]
@@ -26,7 +25,6 @@ interface UseCanvasDocumentInput {
 export function useCanvasDocument({
   canvasId,
   canvas,
-  canvasName,
   canvasType,
   nodes,
   edges,
@@ -75,14 +73,12 @@ export function useCanvasDocument({
 
   const persistCanvasGraph = useCallback(async (nextNodes: Node[], nextEdges: Edge[]) => {
     const savedSignature = canvasGraphSignature({
-      canvasName,
       canvasType,
       nodes: nextNodes,
       edges: nextEdges,
       t,
     })
     const payload = await buildCanvasSavePayload({
-      canvasName,
       canvasType,
       nodes: nextNodes,
       edges: nextEdges,
@@ -93,7 +89,7 @@ export function useCanvasDocument({
     setHasUnsavedChanges(latestGraphSignatureRef.current !== savedSignature)
     setAutoSaveState('saved')
     qc.invalidateQueries({ queryKey: ['canvas', canvasId] })
-  }, [canvasId, canvasName, canvasType, qc, t])
+  }, [canvasId, canvasType, qc, t])
 
   const save = useMutation({
     mutationFn: () => persistCanvasGraph(nodes, edges),
@@ -102,7 +98,7 @@ export function useCanvasDocument({
 
   useEffect(() => {
     if (!canvas || hydratingCanvasRef.current) return
-    const signature = canvasGraphSignature({ canvasName, canvasType, nodes, edges, t })
+    const signature = canvasGraphSignature({ canvasType, nodes, edges, t })
     latestGraphSignatureRef.current = signature
     const dirty = signature !== lastSavedSignatureRef.current
     setHasUnsavedChanges(dirty)
@@ -132,7 +128,7 @@ export function useCanvasDocument({
         autoSaveTimerRef.current = null
       }
     }
-  }, [canvas, canvasName, canvasType, edges, nodes, persistCanvasGraph, runtimeStarting, t])
+  }, [canvas, canvasType, edges, nodes, persistCanvasGraph, runtimeStarting, t])
 
   return {
     hasUnsavedChanges,

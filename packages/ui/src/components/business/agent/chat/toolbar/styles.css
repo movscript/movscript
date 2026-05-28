@@ -3,8 +3,8 @@
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  min-height: 38px;
-  max-height: 38px;
+  min-height: 34px;
+  max-height: 34px;
   align-items: stretch;
   border-bottom: 0;
   background: transparent;
@@ -27,7 +27,7 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  height: 38px;
+  height: 34px;
   align-items: stretch;
   border: 0;
   border-radius: 0;
@@ -68,9 +68,8 @@
   color: var(--ms-color-primary);
 }
 
-.ai-agent-panel-chat-toolbar .ms-button:hover:not(:disabled),
-.ai-agent-panel-conversation-tab-main:hover:not(:disabled),
-.ai-agent-panel-conversation-tab-close:hover:not(:disabled) {
+.ai-agent-panel-chat-toolbar .ms-button:not(.ai-agent-panel-conversation-tab-close):hover:not(:disabled),
+.ai-agent-panel-conversation-tab-main:hover:not(:disabled) {
   transform: none;
 }
 

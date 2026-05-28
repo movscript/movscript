@@ -29,6 +29,7 @@ export type CanvasResourceShelfViewProps = {
   searchPlaceholder?: string;
   onSearchChange: ChangeEventHandler<HTMLInputElement>;
   hint: ReactNode;
+  actions?: ReactNode;
   emptyTitle: ReactNode;
   items: CanvasResourceShelfItem[];
   selectedLabel?: ReactNode;
@@ -48,10 +49,10 @@ export function CanvasResourceShelfView({
   searchPlaceholder,
   onSearchChange,
   hint,
+  actions,
   emptyTitle,
   items,
   selectedLabel,
-  dragMetaLabel,
   idPrefix = "#",
   onItemDragStart,
 }: CanvasResourceShelfViewProps) {
@@ -75,6 +76,7 @@ export function CanvasResourceShelfView({
           placeholder={searchPlaceholder}
         />
         <CanvasResourceShelfHint>{hint}</CanvasResourceShelfHint>
+        {actions ? <div className="canvas-resource-shelf__actions">{actions}</div> : null}
       </CanvasResourceShelfHeader>
       <CanvasResourceShelfBody>
         {items.length > 0 ? (
@@ -85,7 +87,6 @@ export function CanvasResourceShelfView({
                 item={item}
                 compact={side}
                 selectedLabel={selectedLabel}
-                dragMetaLabel={dragMetaLabel}
                 idPrefix={idPrefix}
                 onDragStart={onItemDragStart ? (event) => onItemDragStart(event, item) : undefined}
               />
@@ -103,14 +104,12 @@ export function CanvasResourceShelfResourceCard({
   item,
   compact = false,
   selectedLabel,
-  dragMetaLabel,
   idPrefix = "#",
   onDragStart,
 }: {
   item: CanvasResourceShelfItem;
   compact?: boolean;
   selectedLabel?: ReactNode;
-  dragMetaLabel?: ReactNode;
   idPrefix?: ReactNode;
   onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
 }) {
@@ -129,9 +128,6 @@ export function CanvasResourceShelfResourceCard({
       title={typeof item.name === "string" ? item.name : undefined}
     >
       <CanvasResourceShelfCardBody>
-        <CanvasResourceShelfThumbFrame compact={compact}>
-          {item.media}
-        </CanvasResourceShelfThumbFrame>
         <CanvasResourceShelfCardContent>
           {!compact ? (
             <CanvasResourceShelfCardMetaRow>
@@ -140,20 +136,20 @@ export function CanvasResourceShelfResourceCard({
             </CanvasResourceShelfCardMetaRow>
           ) : null}
           <CanvasResourceShelfResourceName>{item.name}</CanvasResourceShelfResourceName>
-          {item.description ? (
+          {!compact ? (
             <CanvasResourceShelfResourceDescription>
+              <span>{item.footerMeta}</span>
               {item.description}
             </CanvasResourceShelfResourceDescription>
+          ) : item.description ? (
+            <CanvasResourceShelfResourceDescription>{item.description}</CanvasResourceShelfResourceDescription>
           ) : null}
           {compactMeta}
         </CanvasResourceShelfCardContent>
+        <CanvasResourceShelfThumbFrame compact={compact}>
+          {item.media}
+        </CanvasResourceShelfThumbFrame>
       </CanvasResourceShelfCardBody>
-      {!compact ? (
-        <CanvasResourceShelfCardFooter
-          idLabel={<>{idPrefix}{item.id}</>}
-          meta={item.selected && dragMetaLabel ? dragMetaLabel : item.footerMeta}
-        />
-      ) : null}
     </CanvasResourceShelfCard>
   );
 }

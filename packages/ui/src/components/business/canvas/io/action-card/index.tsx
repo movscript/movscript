@@ -2,7 +2,10 @@ import { accentSoftClass, accentTextClass } from "../../../../../semantic";
 import { cn } from "../../../../../lib/cn";
 import { AppIconFrame, AppInlineMeta } from "../../../app";
 import { Button } from "../../../../primitives/button";
+import { Input } from "../../../../primitives/input";
 import { CheckIcon, CircleIcon, LoaderIcon, MoreHorizontalIcon, PlayIcon } from "../../../../primitives/icons";
+import { NativeSelect } from "../../../../primitives/select";
+import { CanvasCardShell } from "../../card";
 import { CanvasIOBodyBlock } from "../body";
 import { CanvasIOPortKindBadge } from "../badge";
 import { CanvasIOEmptyRow, CanvasIOMetaPill } from "../meta";
@@ -25,6 +28,7 @@ export function CanvasIOActionCard({
   bodyLabel,
   bodyValue,
   emptyLabel,
+  editableFields,
   primaryAction,
   footer,
   className,
@@ -34,7 +38,7 @@ export function CanvasIOActionCard({
   const isPending = state === "pending";
 
   return (
-    <div className={cn("canvas-io-action-card", selected && "canvas-io-action-card--selected", className)}>
+    <CanvasCardShell selected={selected} className={cn("canvas-io-action-card", className)}>
       <header className={cn("canvas-io-action-card__header", accentSoftClass(tone))}>
         <div className="canvas-io-action-card__heading">
           <AppIconFrame>
@@ -59,6 +63,54 @@ export function CanvasIOActionCard({
           <CanvasIOSectionTitle icon={<Icon size={12} />} label={bodyLabel} />
           <CanvasIOPortRow port={port} state={state} renderPortHandle={renderPortHandle} />
         </div>
+
+        {editableFields ? (
+          <div className="canvas-io-action-card__editable-fields nodrag nopan">
+            <label className="canvas-io-action-card__editable-field">
+              <span>{editableFields.nameLabel}</span>
+              <Input
+                controlSize="sm"
+                variant="subtle"
+                value={editableFields.nameValue}
+                placeholder={editableFields.namePlaceholder}
+                onChange={editableFields.onNameChange}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              />
+            </label>
+            <label className="canvas-io-action-card__editable-field canvas-io-action-card__editable-field--order">
+              <span>{editableFields.orderLabel}</span>
+              <Input
+                controlSize="sm"
+                variant="subtle"
+                type="number"
+                min={1}
+                step={1}
+                value={editableFields.orderValue ?? ""}
+                onChange={editableFields.onOrderChange}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              />
+            </label>
+            {editableFields.typeOptions?.length ? (
+              <label className="canvas-io-action-card__editable-field canvas-io-action-card__editable-field--type">
+                <span>{editableFields.typeLabel}</span>
+                <NativeSelect
+                  controlSize="sm"
+                  variant="subtle"
+                  value={editableFields.typeValue}
+                  onChange={editableFields.onTypeChange}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {editableFields.typeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </NativeSelect>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="canvas-io-action-card__metrics">
           <div className="canvas-io-action-card__meta-list">
@@ -100,6 +152,6 @@ export function CanvasIOActionCard({
           {footer ? <div className={primaryAction ? "canvas-io-action-card__footer-extra" : undefined}>{footer}</div> : null}
         </footer>
       ) : null}
-    </div>
+    </CanvasCardShell>
   );
 }

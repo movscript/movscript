@@ -1,9 +1,9 @@
 import { CanvasPortDot } from "../../../card";
 import type { CanvasToolPortHandleRenderer } from "../../types";
+import { cn } from "../../../../../../lib/cn";
 
 export function CanvasToolPortHandle({
   side,
-  tone,
   label,
   className,
   handleId,
@@ -19,8 +19,9 @@ export function CanvasToolPortHandle({
   renderPortHandle?: CanvasToolPortHandleRenderer;
 }) {
   if (!handleId || !handleType || !renderPortHandle) return null;
+  const resolvedTone = handleType === "target" ? "target" : "source";
   return (
-    <CanvasPortDot title={label} className={className} aria-hidden="true" side={side} tone={tone} compact>
+    <CanvasPortDot title={label} className={cn("canvas-tool-port-dot", className)} aria-hidden="true" side={side} tone={resolvedTone} compact>
       {renderPortHandle({ id: handleId, type: handleType, side, label })}
     </CanvasPortDot>
   );

@@ -49,6 +49,7 @@
 }
 
 .canvas-editor-chrome__name-input {
+  height: 32px;
   min-width: 0;
   flex: 1;
   border: 0;
@@ -58,6 +59,31 @@
   font-weight: 650;
   line-height: var(--ms-leading-body);
   outline: 0;
+}
+
+.canvas-editor-chrome__name-button {
+  min-width: 0;
+  height: 32px;
+  flex: 1;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ms-radius-sm);
+  background: transparent;
+  color: var(--ms-color-foreground);
+  cursor: text;
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: var(--ms-leading-body);
+  outline: 0;
+  padding-inline: var(--ms-space-1);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-editor-chrome__name-button:hover,
+.canvas-editor-chrome__name-button:focus-visible {
+  background: color-mix(in srgb, var(--ms-color-muted) 64%, transparent);
 }
 
 .canvas-editor-chrome__type-badge,
@@ -183,6 +209,7 @@
 .canvas-viewport-bounds-layer {
   pointer-events: none;
   position: absolute;
+  z-index: 80;
 }
 
 .canvas-viewport-empty-overlay {
@@ -200,7 +227,7 @@
   border-style: dashed;
   background: color-mix(in srgb, var(--ms-color-background) 80%, transparent);
   box-shadow: var(--ms-shadow-sm);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 .canvas-viewport-status {
@@ -216,7 +243,7 @@
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
   box-shadow: var(--ms-shadow-sm);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 .canvas-viewport-status__icon {

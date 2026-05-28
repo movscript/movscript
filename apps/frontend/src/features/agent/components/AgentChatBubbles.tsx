@@ -1,5 +1,4 @@
 import React, { type ReactNode, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
 import {
@@ -25,8 +24,6 @@ import {
   AgentRuntimeStatusSuccessIcon,
   Button,
 } from '@movscript/ui'
-import { buildAgentMessagePresentation } from '@/features/agent/domain/agentMessagePresentation'
-import { hydrateHistoricalGeneratedAttachments } from '@/features/agent/domain/agentMessageViewModel'
 import { agentMessageDividerLabel, formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
 import { toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'
 import { type ThinkingBubbleState } from '@/features/agent/presentation/agentThinkingBubbleState'
@@ -48,6 +45,8 @@ import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFee
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import { localAgentApprovalDetails } from '@/features/agent/components/AgentWorkflowBubble'
+import { shallowReferenceArrayEqual } from '@/features/agent/presentation/agentMessageRenderMemo'
+import { useAgentMessagePresentationModel } from '@/features/agent/presentation/useAgentMessagePresentationModel'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentWorkflowInteraction'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
@@ -111,16 +110,7 @@ export function GenerationProgressBubble({ state }: { state: GenerationProgressS
   )
 }
 
-export function MessageBubble({
-  msg,
-  projectId,
-  liveWorkflowRun,
-  liveWorkflowEvents = [],
-  approvingLocalRun = false,
-  onApproveLocalRun,
-  onRejectLocalRun,
-  onAnswerLocalRunInput,
-}: {
+interface MessageBubbleProps {
   msg: ChatMessage
   projectId?: number
   liveWorkflowRun?: AgentRun | null
@@ -129,24 +119,25 @@ export function MessageBubble({
   onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
   onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
   onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
-}) {
+}
+
+export const MessageBubble = React.memo(function MessageBubble({
+  msg,
+  projectId,
+  liveWorkflowRun,
+  liveWorkflowEvents = [],
+  approvingLocalRun = false,
+  onApproveLocalRun,
+  onRejectLocalRun,
+  onAnswerLocalRunInput,
+}: MessageBubbleProps) {
   const { t, i18n } = useTranslation()
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const [copied, setCopied] = useState(false)
   const isUser = msg.role === 'user'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const time = new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-  const initialPresentation = useMemo(() => buildAgentMessagePresentation(msg), [msg])
-  const { data: historicalGeneratedAttachments = [] } = useQuery({
-    queryKey: ['agent-historical-generated-attachments', msg.id, initialPresentation.missingTextOutputResourceIds],
-    queryFn: () => hydrateHistoricalGeneratedAttachments(msg.content, msg.attachments ?? []),
-    enabled: !isUser && initialPresentation.missingTextOutputResourceIds.length > 0,
-    staleTime: 60_000,
-  })
-  const presentation = useMemo(
-    () => buildAgentMessagePresentation(msg, historicalGeneratedAttachments),
-    [historicalGeneratedAttachments, msg],
-  )
+  const time = useMemo(() => new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }), [locale, msg.timestamp])
+  const presentation = useAgentMessagePresentationModel(msg)
   const runtimeInput = msg.meta?.runtimeInput
   const planRevision = msg.meta?.planRevision
   const runtimeInputStatus = runtimeInput?.status
@@ -176,11 +167,11 @@ export function MessageBubble({
     hasDiagnosticSection,
   } = presentation
   const activityFeedRun = !isUser ? liveWorkflowRun ?? null : null
-  const hasActivityContent = !isUser && (
+  const hasActivityContent = useMemo(() => !isUser && (
     activityFeedRun
       ? runActivityHasVisibleContent(undefined, activityFeedRun, liveWorkflowEvents)
       : !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
-  )
+  ), [activityFeedRun, isUser, liveWorkflowEvents, localRunActivity])
   const hasMessageBody = isUser
     ? !!displayContent.trim() || compactAttachments.length > 0
     : hasActivityContent
@@ -318,6 +309,17 @@ export function MessageBubble({
       )}
     </AgentChatMessage>
   )
+}, areMessageBubblePropsEqual)
+
+function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
+  return prev.msg === next.msg
+    && prev.projectId === next.projectId
+    && prev.liveWorkflowRun === next.liveWorkflowRun
+    && shallowReferenceArrayEqual(prev.liveWorkflowEvents, next.liveWorkflowEvents)
+    && prev.approvingLocalRun === next.approvingLocalRun
+    && prev.onApproveLocalRun === next.onApproveLocalRun
+    && prev.onRejectLocalRun === next.onRejectLocalRun
+    && prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput
 }
 
 function runActivityHasVisibleContent(activity?: NonNullable<ChatMessage['meta']>['localRunActivity'], run?: AgentRun | null, events?: ChatRunActivityEvent[]): boolean {
@@ -373,8 +375,21 @@ export function StreamingAssistantBubble({ content }: { content: string }) {
         </AgentChatFooterBadges>
       )}
     >
-      <MarkdownContent text={content} />
+      <StreamingAssistantText text={content} />
     </AgentChatMessage>
+  )
+}
+
+function StreamingAssistantText({ text }: { text: string }) {
+  return (
+    <div>
+      {text.split('\n').map((line, index, lines) => (
+        <React.Fragment key={index}>
+          {line}
+          {index < lines.length - 1 && <br />}
+        </React.Fragment>
+      ))}
+    </div>
   )
 }
 

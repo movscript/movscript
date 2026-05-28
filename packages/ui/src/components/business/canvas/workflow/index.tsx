@@ -22,7 +22,7 @@ import type { StatusIntent } from "../../../primitives";
 type DivAttributesWithoutTitle = Omit<HTMLAttributes<HTMLDivElement>, "title">;
 
 export type CanvasWorkflowRunStatus = "pending" | "running" | "done" | "failed";
-export type CanvasWorkflowPanelTab = "resources" | "history";
+export type CanvasWorkflowPanelTab = "resources" | "workflows" | "history";
 
 export type CanvasWorkflowHistoryStatusFilter = "all" | CanvasWorkflowRunStatus;
 

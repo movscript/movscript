@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
@@ -25,7 +25,7 @@ import {
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/shared/infrastructure/api'
-import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, RawResource } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, RawResource } from '@/types'
 import {
 	TextNode, ImageNode, VideoNode, ToolNode,
 	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode,
@@ -33,7 +33,9 @@ import {
 import { ContextMenu } from '@/features/canvas/ui/ContextMenu'
 import { useCanvasWorkflowReferencePorts } from '@/features/canvas/integrations/workflowReferences'
 import {
+  fileToCanvasResourceNodeType,
   resourceToNodeType,
+  uploadCanvasResourceFile,
   useCanvasResourceIntegration,
 } from '@/features/canvas/integrations/resources'
 import { useCanvasClientPlugins } from '@/features/canvas/integrations/clientPlugins'
@@ -46,13 +48,19 @@ import {
   CANVAS_NODE_META,
 } from '@/features/canvas/presentation/nodeCatalog'
 import {
+  canvasGroupAncestorIds,
+  canvasGroupDescendantIds,
   canvasGroupSelectionBounds,
-  canvasNodeAbsolutePosition,
-  canvasNodeDimensions,
-  commonParentId,
+  canvasNodeGroupId,
+  canvasNodeWithGroupId,
+  commonCanvasGroupId,
+  findCanvasGroupDropTarget,
+  isCanvasNodeOutsideGroupBounds,
+  resizeCanvasGroupsToFitMembers,
+  resolveCanvasGroupPromotionId,
   topLevelSelectedCanvasNodes,
 } from '@/features/canvas/domain/layout'
-import { isFinalOutputNode } from '@/features/canvas/domain/graph'
+import { compareWorkflowIoNodes, isFinalOutputNode } from '@/features/canvas/domain/graph'
 import {
   arePortTypesCompatible,
   defaultHandleForNode,
@@ -70,6 +78,7 @@ import {
   createPluginCanvasNode,
   createResourceCanvasNode,
   createWorkflowReferenceCanvasNode,
+  isPaletteNodeTypeAvailable,
 } from '@/features/canvas/editor/nodeFactory'
 import { CanvasResourceShelf } from '@/features/canvas/ui/CanvasResourceShelf'
 import { WorkflowRunResultsDialog, WorkflowSidePanel } from '@/features/canvas/ui/CanvasWorkflowPanels'
@@ -90,6 +99,7 @@ import {
   CanvasEditorIconButton,
   CanvasEditorMain,
   CanvasEditorMetricBadge,
+  CanvasEditorNameButton,
   CanvasEditorNameInput,
   CanvasEditorRunningBadge,
   CanvasEditorShell,
@@ -138,6 +148,7 @@ import {
 } from '@movscript/ui'
 import { cn } from '@/shared/ui/cn'
 import { canvasBackPath } from '@/routes/appRouteModel'
+import { useInlineTitleEditor } from '@/features/canvas/presentation/useInlineTitleEditor'
 import {
   ArrowLeft,
   GripVertical,
@@ -179,9 +190,16 @@ const nodeTypes = {
 }
 
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
+const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval', 'resource_sink', 'canvas'])
 const CANVAS_GRID_MIN_ZOOM = 0.65
+const CANVAS_MINIMAP_NODE_LIMIT = 120
 const CANVAS_DEBUG_STORAGE_KEY = 'movscript.canvasDebug'
+
+type CanvasGroupDragSnapshot = {
+  nodeId: string
+  position: { x: number; y: number }
+  memberPositions: Map<string, { x: number; y: number }>
+}
 
 type CanvasDebugBooleanKey = 'nodes' | 'grid' | 'media' | 'images' | 'videos' | 'shelf' | 'edges' | 'shadows' | 'controls' | 'minimap' | 'visibleOnly'
 
@@ -341,6 +359,7 @@ interface CanvasWorkspaceProps {
 export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = false, onClose }: CanvasWorkspaceProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { search } = useLocation()
   const { screenToFlowPosition, fitView } = useReactFlow()
   const id = String(canvasId)
@@ -357,6 +376,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const viewportZoomRef = useRef(1)
+  const groupDragSnapshotRef = useRef<CanvasGroupDragSnapshot | null>(null)
   const [gridZoomEligible, setGridZoomEligible] = useState(true)
   const renderDiagnosticsTimerRef = useRef<number | null>(null)
 
@@ -368,7 +388,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	  const [activeRunId, setActiveRunId] = useState<string | null>(null)
 	  const [runHistoryPage, setRunHistoryPage] = useState(1)
 	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
-	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
+	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'workflows' | 'history'>('resources')
   const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(false)
   const toggleWorkflowPanelCollapsed = useCallback(() => setWorkflowPanelCollapsed((value) => !value), [])
 	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
@@ -387,6 +407,32 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     queryFn: () => api.get(`/canvases/${id}`).then((r) => r.data),
     enabled: !!id
   })
+  const renameCanvas = useMutation({
+    mutationFn: (name: string) => api.patch(`/canvases/${id}`, { name }).then((response) => response.data as Canvas),
+    onMutate: async (name) => {
+      const nextName = name.trim()
+      await queryClient.cancelQueries({ queryKey: ['canvas', id] })
+      const previousCanvas = queryClient.getQueryData<Canvas>(['canvas', id])
+      setCanvasName(nextName)
+      if (previousCanvas) {
+        queryClient.setQueryData<Canvas>(['canvas', id], { ...previousCanvas, name: nextName })
+      }
+      return { previousCanvas }
+    },
+    onError: (err: any, _name, context) => {
+      if (context?.previousCanvas) {
+        queryClient.setQueryData(['canvas', id], context.previousCanvas)
+        setCanvasName(context.previousCanvas.name)
+      }
+      toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.renameFailed', { defaultValue: '重命名失败' }))
+    },
+    onSuccess: (nextCanvas) => {
+      queryClient.setQueryData<Canvas>(['canvas', id], (current) => current ? { ...current, name: nextCanvas.name } : nextCanvas)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['canvases'] })
+    },
+  })
   const {
     hasUnsavedChanges,
     autoSaveState,
@@ -396,7 +442,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   } = useCanvasDocument({
     canvasId: id,
     canvas,
-    canvasName,
     canvasType,
     nodes,
     edges,
@@ -450,6 +495,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     t,
   })
   useCanvasWorkflowReferencePorts({ nodes, setNodes })
+  const titleEditor = useInlineTitleEditor({
+    value: canvasName,
+    onCommit: (name) => renameCanvas.mutate(name),
+  })
 
 	  const workflowRunsAll = runtimeRunsByCanvasId[id] ?? []
 	  const workflowRunsFiltered = runStatusFilter === 'all'
@@ -487,7 +536,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       setNodeRunDialog({ nodeId, ports: [port] })
       return
     }
-    const ports = runtimeInputPortsForNode(node, edges)
+    const workflowInputKeys = new Set<string>()
+    nodes.forEach((item) => {
+      if (item.type !== 'input') return
+      const data = item.data as Partial<CanvasNodeData>
+      if (data.inputValue === undefined) return
+      workflowInputKeys.add(item.id)
+      if (data.paramName) workflowInputKeys.add(data.paramName)
+    })
+    const ports = runtimeInputPortsForNode(node, edges).filter((port) => {
+      if (node?.type !== 'canvas') return true
+      return !workflowInputKeys.has(port.id) && !workflowInputKeys.has(port.label ?? '')
+    })
     if (ports.length > 0) {
       setNodeRunValues(Object.fromEntries(ports.map((port) => [port.id, defaultRuntimeValueForPort(port)])))
       setNodeRunDialog({ nodeId, ports })
@@ -579,6 +639,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }
 
   const addNodeAt = useCallback((type: NodeType, clientPosition?: { x: number; y: number }) => {
+    if (!isPaletteNodeTypeAvailable(type, canvasType) || SIDEBAR_HIDDEN_NODE_TYPES.has(type)) return
     const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
     const screenPosition = clientPosition ?? (
       fallbackRect
@@ -586,9 +647,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     )
     const position = screenToFlowPosition(screenPosition)
-    const newNode = createPaletteCanvasNode({ type, position, t })
-    setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition, t])
+    setNodes((prev) => [...prev, createPaletteCanvasNode({ type, position, t, existingNodes: prev })])
+  }, [canvasType, screenToFlowPosition, t])
 
   const addResourceNodeAt = useCallback((resource: RawResource, clientPosition: { x: number; y: number }) => {
     const type = resourceToNodeType(resource)
@@ -600,6 +660,17 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const newNode = createResourceCanvasNode({ resource, type, position, t })
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes, t])
+
+  const addResourceNodeAtFlowPosition = useCallback((resource: RawResource, position: { x: number; y: number }) => {
+    const type = resourceToNodeType(resource)
+    if (!type) {
+      toast.error('暂不支持将该素材加入画布')
+      return false
+    }
+    const newNode = createResourceCanvasNode({ resource, type, position, t })
+    setNodes((prev) => [...prev, newNode])
+    return true
+  }, [setNodes, t])
 
   const addWorkflowReferenceNodeAt = useCallback(async (workflowCanvas: Canvas, clientPosition: { x: number; y: number }) => {
     if (String(workflowCanvas.ID) === id) {
@@ -637,23 +708,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     addNodeAt(type, { x: menu.x, y: menu.y })
   }, [addNodeAt, menu])
 
-  // Delete selected nodes and their connected edges (also removes children of deleted groups)
-	  const deleteSelectedNodes = useCallback(() => {
-	    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
-	    if (directSelected.size === 0) return
-	    const toDelete = new Set(directSelected)
-	    let changed = true
-	    while (changed) {
-	      changed = false
-	      nodes.forEach((node) => {
-	        if (!node.parentId || !toDelete.has(node.parentId) || toDelete.has(node.id)) return
-	        toDelete.add(node.id)
-	        changed = true
-	      })
-	    }
-	    setNodes(prev => prev.filter(n => !toDelete.has(n.id)))
-	    setEdges(prev => prev.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)))
-	    setSelectedNodeIds([])
+  // Delete selected nodes. Lightweight groups are removed as containers while members are promoted.
+  const deleteSelectedNodes = useCallback(() => {
+    const selectedGroups = nodes.filter(n => n.selected && n.type === 'group')
+    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
+    if (directSelected.size === 0) return
+    const selectedGroupParentById = new Map<string, string | undefined>(
+      selectedGroups.map((node): [string, string | undefined] => [node.id, canvasNodeGroupId(node)]),
+    )
+    setNodes(prev => prev.flatMap((node) => {
+      if (directSelected.has(node.id)) return []
+      const groupId = canvasNodeGroupId(node)
+      if (!groupId || !selectedGroupParentById.has(groupId)) return node
+      return canvasNodeWithGroupId(node, resolveCanvasGroupPromotionId(groupId, selectedGroupParentById))
+    }))
+    setEdges(prev => prev.filter(e => !directSelected.has(e.source) && !directSelected.has(e.target)))
+    setSelectedNodeIds([])
   }, [nodes, setNodes, setEdges])
 
   // Group selected nodes into a new group node
@@ -662,97 +732,122 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const bounds = canvasGroupSelectionBounds(nodes, selected)
     if (!bounds) return
     const groupId = createCanvasNodeId()
-    const nodeById = new Map(nodes.map((node) => [node.id, node]))
-    const parentId = commonParentId(selected)
-    const parent = parentId ? nodeById.get(parentId) : undefined
-    const parentPosition = parent ? canvasNodeAbsolutePosition(parent, nodeById) : { x: 0, y: 0 }
+    const parentGroupId = commonCanvasGroupId(selected)
     const groupNode: Node = {
       id: groupId,
       type: 'group',
-      position: { x: bounds.x - parentPosition.x, y: bounds.y - parentPosition.y },
+      position: { x: bounds.x, y: bounds.y },
       style: { width: bounds.width, height: bounds.height },
       zIndex: -1,
-      data: { source: 'manual', label: t('canvas.nodeLabels.group'), isGroup: true },
+      data: {
+        source: 'manual',
+        label: t('canvas.nodeLabels.group'),
+        isGroup: true,
+        ...(parentGroupId ? { groupId: parentGroupId } : {}),
+      },
       selected: true,
-      ...(parentId ? { parentId } : {}),
     }
     const selectedIds = new Set(selected.map((node) => node.id))
     setNodes((prev) => {
       const nextNodes = prev.map((n) => {
         if (!selectedIds.has(n.id)) return n
         const absolutePosition = bounds.absolutePositionByNodeId.get(n.id) ?? n.position
-        // Convert to relative position, no extent:'parent' so nodes can be dragged out
-        return {
+        return canvasNodeWithGroupId({
           ...n,
-          parentId: groupId,
-          position: { x: absolutePosition.x - bounds.x, y: absolutePosition.y - bounds.y },
+          position: absolutePosition,
           selected: false,
-        }
+        }, groupId)
       })
-      const insertIndex = parentId
-        ? Math.max(0, nextNodes.findIndex((node) => node.id === parentId) + 1)
-        : 0
       return [
-        ...nextNodes.slice(0, insertIndex),
         groupNode,
-        ...nextNodes.slice(insertIndex),
+        ...nextNodes,
       ]
     })
     setSelectedNodeIds([groupId])
-  }, [nodes, t])
+  }, [nodes, setNodes, t])
 
   const ungroupSelectedGroups = useCallback(() => {
     const selectedGroups = topLevelSelectedCanvasNodes(nodes, nodes.filter((node) => node.selected && node.type === 'group'))
     if (selectedGroups.length === 0) return
     const selectedGroupIds = new Set(selectedGroups.map((node) => node.id))
-    const groupById = new Map(selectedGroups.map((node) => [node.id, node]))
+    const groupParentById = new Map<string, string | undefined>(
+      selectedGroups.map((node): [string, string | undefined] => [node.id, canvasNodeGroupId(node)]),
+    )
     const promotedNodeIds = nodes
-      .filter((node) => node.parentId && selectedGroupIds.has(node.parentId))
+      .filter((node) => selectedGroupIds.has(canvasNodeGroupId(node) ?? ''))
       .map((node) => node.id)
-    setNodes((prev) => prev.flatMap((node) => {
-      if (selectedGroupIds.has(node.id)) return []
-      if (!node.parentId || !selectedGroupIds.has(node.parentId)) return node
-      const group = groupById.get(node.parentId)
-      if (!group) return node
-      return [{
-        ...node,
-        parentId: group.parentId,
-        position: {
-          x: group.position.x + node.position.x,
-          y: group.position.y + node.position.y,
-        },
-        selected: true,
-      }]
-    }))
+    setNodes((prev) => {
+      const nextNodes = prev.flatMap((node) => {
+        if (selectedGroupIds.has(node.id)) return []
+        const groupId = canvasNodeGroupId(node)
+        if (!groupId || !selectedGroupIds.has(groupId)) return node
+        return [{ ...canvasNodeWithGroupId(node, resolveCanvasGroupPromotionId(groupId, groupParentById)), selected: true }]
+      })
+      return resizeCanvasGroupsToFitMembers(nextNodes, nextNodes.filter((node) => node.type === 'group').map((node) => node.id))
+    })
     setSelectedNodeIds(promotedNodeIds)
   }, [nodes, setNodes])
 
-  // Drag node out of group → detach it
+  // Drag group containers by moving their lightweight members in batch.
   const onNodeDragStop = useCallback((_: React.MouseEvent, draggedNode: Node) => {
-    if (!draggedNode.parentId) return
-    const parent = nodes.find(n => n.id === draggedNode.parentId)
-    if (!parent) return
-    const gw = (parent.style as any)?.width ?? 320
-    const gh = (parent.style as any)?.height ?? 240
-    const { x: nx, y: ny } = draggedNode.position
-    const { width: nw, height: nh } = canvasNodeDimensions(draggedNode)
-    // If the node's center is outside the group bounds, detach it
-    const cx = nx + nw / 2
-    const cy = ny + nh / 2
-    if (cx < 0 || cy < 0 || cx > gw || cy > gh) {
-      setNodes(prev => prev.map(n => {
-        if (n.id !== draggedNode.id) return n
-        return {
-          ...n,
-          parentId: undefined,
-          position: {
-            x: parent.position.x + draggedNode.position.x,
-            y: parent.position.y + draggedNode.position.y,
-          },
-        }
-      }))
+    const dragSnapshot = groupDragSnapshotRef.current
+    groupDragSnapshotRef.current = null
+    let nextNodes = nodes.map((node) => node.id === draggedNode.id ? draggedNode : node)
+    if (draggedNode.type === 'group' && dragSnapshot?.nodeId === draggedNode.id) {
+      const dx = draggedNode.position.x - dragSnapshot.position.x
+      const dy = draggedNode.position.y - dragSnapshot.position.y
+      if (dx !== 0 || dy !== 0) {
+        nextNodes = nextNodes.map((node) => {
+          const startPosition = dragSnapshot.memberPositions.get(node.id)
+          if (!startPosition) return node
+          return {
+            ...node,
+            position: {
+              x: startPosition.x + dx,
+              y: startPosition.y + dy,
+            },
+          }
+        })
+      }
     }
-  }, [nodes])
+
+    const currentDraggedNode = nextNodes.find((node) => node.id === draggedNode.id) ?? draggedNode
+    const currentGroupId = canvasNodeGroupId(currentDraggedNode)
+    const currentGroup = currentGroupId ? nextNodes.find((node) => node.id === currentGroupId) : undefined
+    const outsideCurrentGroup = currentGroup ? isCanvasNodeOutsideGroupBounds(currentDraggedNode, currentGroup) : false
+    const excludedGroupIds = currentGroupId && currentGroup && !outsideCurrentGroup
+      ? canvasGroupAncestorIds(nextNodes, currentGroupId)
+      : []
+    const targetGroup = findCanvasGroupDropTarget(currentDraggedNode, nextNodes, { excludedGroupIds })
+
+    if (targetGroup) {
+      const ok = window.confirm(t('canvas.editor.confirmAddToGroup', {
+        defaultValue: '节点已移动到分组内，是否加入该分组？',
+      }))
+      if (ok) {
+        setNodes(resizeCanvasGroupsToFitMembers(
+          nextNodes.map((node) => node.id === currentDraggedNode.id ? canvasNodeWithGroupId(node, targetGroup.id) : node),
+          [targetGroup.id, currentGroupId],
+        ))
+        return
+      }
+    }
+
+    if (currentGroup && outsideCurrentGroup) {
+      const ok = window.confirm(t('canvas.editor.confirmRemoveFromGroup', {
+        defaultValue: '节点已移出当前分组，是否从分组中移除？',
+      }))
+      setNodes(ok
+        ? resizeCanvasGroupsToFitMembers(
+          nextNodes.map((node) => node.id === currentDraggedNode.id ? canvasNodeWithGroupId(node, undefined) : node),
+          [currentGroupId],
+        )
+        : resizeCanvasGroupsToFitMembers(nextNodes, [currentGroupId]))
+      return
+    }
+
+    if (nextNodes !== nodes) setNodes(nextNodes)
+  }, [nodes, setNodes, t])
 
   // Cmd+S to save
   useEffect(() => {
@@ -862,9 +957,39 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     setMenu({ x: e.clientX, y: e.clientY })
   }, [])
 
+  const uploadDroppedFilesToCanvas = useCallback(async (files: File[], clientPosition: { x: number; y: number }) => {
+    const supportedFiles = files.filter((file) => fileToCanvasResourceNodeType(file))
+    if (supportedFiles.length === 0) {
+      toast.error(t('canvas.editor.errors.unsupportedDropFiles', { defaultValue: 'No supported image, video, or text files found.' }))
+      return
+    }
+    const basePosition = screenToFlowPosition(clientPosition)
+    let addedCount = 0
+    for (const [index, file] of supportedFiles.entries()) {
+      try {
+        const resource = await uploadCanvasResourceFile(file)
+        const placed = addResourceNodeAtFlowPosition(resource, {
+          x: basePosition.x + index * 28,
+          y: basePosition.y + index * 28,
+        })
+        if (placed) addedCount += 1
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.errors.fileUploadFailed', { name: file.name, defaultValue: `Failed to upload ${file.name}` }))
+      }
+    }
+    if (addedCount > 0) {
+      toast.success(t('canvas.editor.uploadedFilesToCanvas', { count: addedCount, defaultValue: `Added ${addedCount} file(s) to canvas` }))
+    }
+  }, [addResourceNodeAtFlowPosition, screenToFlowPosition, t])
+
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDropActive(false)
+    const droppedFiles = Array.from(e.dataTransfer.files ?? [])
+    if (droppedFiles.length > 0) {
+      void uploadDroppedFilesToCanvas(droppedFiles, { x: e.clientX, y: e.clientY })
+      return
+    }
     const resourcePayload = e.dataTransfer.getData('application/canvas-resource')
     if (resourcePayload) {
       try {
@@ -899,10 +1024,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt])
+  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow')) {
+    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -915,7 +1040,19 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
     setDraggingNodeId(node.id)
-  }, [])
+    if (node.type !== 'group') {
+      groupDragSnapshotRef.current = null
+      return
+    }
+    const memberIds = canvasGroupDescendantIds(nodes, node.id)
+    groupDragSnapshotRef.current = {
+      nodeId: node.id,
+      position: { ...node.position },
+      memberPositions: new Map(nodes
+        .filter((candidate) => memberIds.has(candidate.id))
+        .map((candidate) => [candidate.id, { ...candidate.position }])),
+    }
+  }, [nodes])
 
   const handleNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
     setDraggingNodeId(null)
@@ -931,21 +1068,26 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const nodesWithHandlers = useMemo(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
     const pluginById = new Map(clientPlugins.map((plugin) => [plugin.id, plugin]))
+    const incomingEdgesByTarget = new Map<string, Edge[]>()
+    for (const edge of edges) {
+      const incoming = incomingEdgesByTarget.get(edge.target)
+      if (incoming) incoming.push(edge)
+      else incomingEdgesByTarget.set(edge.target, [edge])
+    }
     return nodes.map((n) => {
       const data = n.data as unknown as CanvasNodeData
       const referenceResources: RawResource[] = []
       const seenReferenceResourceIds = new Set<number>()
-      edges.forEach((edge) => {
-        if (edge.target !== n.id) return
+      for (const edge of incomingEdgesByTarget.get(n.id) ?? []) {
         const targetPort = portForHandle(n, 'target', edge.targetHandle)
-        if (!targetPort || !['resource', 'image', 'video'].includes(targetPort.type)) return
+        if (!targetPort || !['resource', 'image', 'video', 'audio'].includes(targetPort.type)) continue
         const sourceNode = nodeById.get(edge.source)
         const sourceData = sourceNode?.data as Partial<CanvasNodeData> | undefined
         const resource = sourceData?.resource ?? (sourceData?.resourceId ? canvasNodeResourceById.get(sourceData.resourceId) : undefined)
-        if (!resource || seenReferenceResourceIds.has(resource.ID)) return
+        if (!resource || seenReferenceResourceIds.has(resource.ID)) continue
         seenReferenceResourceIds.add(resource.ID)
         referenceResources.push(resource)
-      })
+      }
       const plugin = n.type === 'plugin_card' && data.pluginId
         ? pluginById.get(data.pluginId)
         : undefined
@@ -960,12 +1102,28 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           canvasDebug,
           ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
           onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
-          onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
+          onUpdateContent: (content: string) => {
+            const currentData = n.data as Partial<CanvasNodeData>
+            if (n.type === 'text' && (currentData.resourceId || currentData.resource)) {
+              updateNodeData(n.id, {
+                textContent: content,
+                resourceId: undefined,
+                resource: undefined,
+                source: 'manual',
+                status: content.trim() ? 'done' : 'idle',
+              })
+              return
+            }
+            updateNodeData(n.id, { textContent: content })
+          },
           onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
           onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
           onUpdateModelId: (modelId: string, modelDbId?: number) => updateNodeData(n.id, { modelId, modelDbId }),
           onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
           onUpdateParams: (params: Record<string, unknown>) => updateNodeData(n.id, { params }),
+          onUpdateParamName: (paramName: string) => updateNodeData(n.id, { paramName }),
+          onUpdateParamOrder: (paramOrder: number) => updateNodeData(n.id, { paramOrder }),
+          onUpdateParamType: (paramType: CanvasParamType) => updateNodeData(n.id, { paramType }),
           onApprove: () => handleApprove(n.id),
           onReject: () => handleReject(n.id),
         }
@@ -987,7 +1145,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   const selectedUngroupBounds = useMemo(() => canvasGroupSelectionBounds(nodes, topLevelSelectedGroups, 0, 1), [nodes, topLevelSelectedGroups])
 
-  const inputNodes = nodes.filter((n) => n.type === 'input')
+  const inputNodes = useMemo(() => nodes.filter((n) => n.type === 'input').sort(compareWorkflowIoNodes), [nodes])
   const selectedNode = selectedNodeIds.length > 0
     ? nodes.find((n) => n.id === selectedNodeIds[selectedNodeIds.length - 1])
     : undefined
@@ -1005,21 +1163,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const activeRunStatusLabel = activeRun ? t(`canvas.runStatus.${activeRun.status}`) : undefined
   const workflowRunningCount = workflowRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
-  const savingCanvas = save.isPending || autoSaveState === 'saving'
+  const savingCanvas = save.isPending || autoSaveState === 'saving' || renameCanvas.isPending
   const shouldBlockCanvasExit = hasUnsavedChanges || savingCanvas || runtimeStarting || runningCount > 0
   const showCanvasGrid = canvasDebug.grid && gridZoomEligible
+  const showCanvasMinimap = canvasDebug.minimap && nodes.length <= CANVAS_MINIMAP_NODE_LIMIT
   const renderedNodes = useMemo(() => canvasDebug.nodes ? nodesWithHandlers : [], [canvasDebug.nodes, nodesWithHandlers])
   const visibleEdges = useMemo(() => canvasDebug.nodes && canvasDebug.edges ? edges : [], [canvasDebug.edges, canvasDebug.nodes, edges])
-  const activeCanvasResourceIds = useMemo(() => {
-    const ids = new Set<number>()
-    nodes.forEach((node) => {
-      const data = node.data as Partial<CanvasNodeData>
-      if (data.resource?.ID) ids.add(data.resource.ID)
-      if (data.resourceId) ids.add(data.resourceId)
-    })
-    return ids
-  }, [nodes])
-
+  const visiblePaletteSections = useMemo(() => SIDEBAR_NODE_CATEGORIES
+    .map((category) => ({
+      category,
+      items: CANVAS_NODE_CATALOG.filter((item) => (
+        item.category === category.id
+        && !SIDEBAR_HIDDEN_NODE_TYPES.has(item.type)
+        && isPaletteNodeTypeAvailable(item.type, canvasType)
+      )),
+    }))
+    .filter((section) => section.items.length > 0), [canvasType])
   useEffect(() => {
     if (!canvasRenderDiagnosticsEnabled(canvasDebug)) return
     if (renderDiagnosticsTimerRef.current !== null) {
@@ -1075,6 +1234,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           `workflowCollapsed=${workflowPanelCollapsed}`,
           `zoom=${viewportZoomRef.current.toFixed(3)}`,
           `grid=${showCanvasGrid ? 'on' : 'off'}`,
+          `minimap=${showCanvasMinimap ? 'on' : 'off'}`,
           `debug=${compactCanvasDebugOptions(canvasDebug)}`,
           `transform=${viewportTransform}`,
         ].join(' '),
@@ -1090,7 +1250,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         renderDiagnosticsTimerRef.current = null
       }
     }
-  }, [canvasDebug, canvasId, canvasNodeResources.length, canvasType, edges.length, id, libraryCollapsed, nodes, renderedNodes.length, runningCount, selectedNodeIds.length, showCanvasGrid, visibleEdges.length, workflowPanelCollapsed])
+  }, [canvasDebug, canvasId, canvasNodeResources.length, canvasType, edges.length, id, libraryCollapsed, nodes, renderedNodes.length, runningCount, selectedNodeIds.length, showCanvasGrid, showCanvasMinimap, visibleEdges.length, workflowPanelCollapsed])
 
   const requestCanvasExit = useCallback(async (leave: () => void) => {
     if (runningCount > 0 || runtimeStarting) {
@@ -1146,13 +1306,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	      startingRun: runtimeStarting,
       libraryCollapsed,
       workflowPanelCollapsed,
-      onNameChange: setCanvasName,
+      onNameChange: (name) => renameCanvas.mutate(name),
       onToggleLibrary: toggleLibraryCollapsed,
       onToggleWorkflowPanel: toggleWorkflowPanelCollapsed,
       onRun: handleRunWorkflow,
       onSave: () => save.mutate(),
     })
-  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, toggleWorkflowPanelCollapsed, useAppHeader, workflowPanelCollapsed, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
+  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, renameCanvas, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, toggleWorkflowPanelCollapsed, useAppHeader, workflowPanelCollapsed, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
 
   useEffect(() => {
     if (!useAppHeader) return
@@ -1188,11 +1348,27 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
           <CanvasEditorTitleArea>
             <CanvasEditorTitleRow>
-              <CanvasEditorNameInput
-                value={canvasName}
-                onChange={(e) => setCanvasName(e.target.value)}
-                placeholder={t('canvas.editor.untitled')}
-              />
+              {titleEditor.editing ? (
+                <CanvasEditorNameInput
+                  ref={titleEditor.inputRef}
+                  value={titleEditor.draft}
+                  onChange={(e) => titleEditor.setDraft(e.target.value)}
+                  onBlur={titleEditor.commitEditing}
+                  onKeyDown={titleEditor.handleInputKeyDown}
+                  placeholder={t('canvas.editor.untitled')}
+                  aria-label={t('canvas.editor.untitled')}
+                  disabled={renameCanvas.isPending}
+                />
+              ) : (
+                <CanvasEditorNameButton
+                  onDoubleClick={titleEditor.startEditing}
+                  onKeyDown={titleEditor.handleDisplayKeyDown}
+                  title={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
+                  aria-label={t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
+                >
+                  {canvasName.trim() || t('canvas.editor.untitled')}
+                </CanvasEditorNameButton>
+              )}
               <CanvasEditorMetricBadge icon={<Workflow size={12} />}>
                 {t('canvas.editor.nodesCount', { count: nodes.length })}
               </CanvasEditorMetricBadge>
@@ -1278,8 +1454,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
             {libraryCollapsed ? (
               <CanvasPaletteCollapsedBody>
-                {SIDEBAR_NODE_CATEGORIES.map((category, index) => {
-                  const items = CANVAS_NODE_CATALOG.filter((item) => item.category === category.id && !SIDEBAR_HIDDEN_NODE_TYPES.has(item.type))
+                {visiblePaletteSections.map(({ category, items }, index) => {
                   return (
                     <CanvasPaletteCollapsedGroup key={category.id} separated={index > 0}>
                       <CanvasPaletteCollapsedItems>
@@ -1335,8 +1510,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                   {t('canvas.editor.nodeLibraryHint')}
                 </CanvasPaletteHint>
                 <CanvasPaletteSections>
-                  {SIDEBAR_NODE_CATEGORIES.map((category) => {
-                    const items = CANVAS_NODE_CATALOG.filter((item) => item.category === category.id && !SIDEBAR_HIDDEN_NODE_TYPES.has(item.type))
+                  {visiblePaletteSections.map(({ category, items }) => {
                     return (
                       <CanvasPaletteSection key={category.id}>
                         <CanvasPaletteSectionHeader>
@@ -1483,7 +1657,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               )}
               {showCanvasGrid && <Background gap={24} size={1} color={canvasFlowBackgroundColor} />}
               {canvasDebug.controls && <Controls position="bottom-left" />}
-              {canvasDebug.minimap && <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />}
+              {showCanvasMinimap && <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />}
             </ReactFlow>
 
             {nodes.length === 0 && (
@@ -1516,7 +1690,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             <WorkflowSidePanel
               projectId={canvas?.project_id}
               dependencyBindings={canvasDependencyBindings}
-              activeCanvasResourceIds={activeCanvasResourceIds}
               disableResourcePreviews={!canvasDebug.media}
               activeTab={workflowPanelTab}
               collapsed={workflowPanelCollapsed}
@@ -1532,6 +1705,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               onStatusFilterChange={setRunStatusFilter}
               onPageChange={setRunHistoryPage}
               onSelectRun={setActiveRunId}
+              currentCanvasId={Number(id)}
+              onAddWorkflowReference={(workflowCanvas) => {
+                const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
+                const screenPosition = fallbackRect
+                  ? { x: fallbackRect.left + fallbackRect.width / 2, y: fallbackRect.top + fallbackRect.height / 2 }
+                  : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+                void addWorkflowReferenceNodeAt(workflowCanvas, screenPosition)
+              }}
             />
           )}
         </CanvasEditorContent>
@@ -1552,6 +1733,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         <ContextMenu
           x={menu.x}
           y={menu.y}
+          canvasType={canvasType}
           onAdd={addNode}
           onClose={() => setMenu(null)}
           selectedCount={topLevelSelectedNodes.length}

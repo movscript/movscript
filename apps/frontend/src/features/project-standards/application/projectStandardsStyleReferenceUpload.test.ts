@@ -4,7 +4,10 @@ import test from 'node:test'
 import type { RawResource } from '@/types'
 
 import type { ProjectPromptRule } from './projectStandardsModel'
-import { buildProjectStandardsStyleReferencePatch } from './projectStandardsStyleReferenceUpload'
+import {
+  buildProjectStandardsStyleReferencePatch,
+  buildProjectStandardsStyleReferenceRemovalPatch,
+} from './projectStandardsStyleReferenceUpload'
 
 function resource(id: number): RawResource {
   return {
@@ -64,4 +67,43 @@ test('project standards style reference upload creates the rule when missing', (
 
   assert.equal(result.nextRules[0]?.key, 'style_reference_images')
   assert.equal(result.patch.custom_rules[0]?.value.includes('resource#101'), true)
+})
+
+test('project standards style reference removal updates only the style rule', () => {
+  const existing = rule({})
+  const otherRule = rule({
+    id: 'rule_platform',
+    key: 'platform',
+    label: '平台规则',
+    category: '通用',
+    value: '竖屏封面',
+    prompt_role: 'constraint',
+    order: 20,
+  })
+
+  const result = buildProjectStandardsStyleReferenceRemovalPatch({
+    customRules: [existing, otherRule],
+    styleReferenceRule: existing,
+    resourceId: 91,
+  })
+
+  assert.deepEqual(result.nextRules.map((item) => item.id), ['rule_style_reference_images', 'rule_platform'])
+  assert.equal(result.patch.custom_rules[0].value.includes('resource#91'), false)
+  assert.equal(result.patch.custom_rules[0].value.includes('reference_resource_ids=[92]'), true)
+  assert.equal(result.patch.custom_rules[1].key, 'platform')
+})
+
+test('project standards style reference removal deletes the style rule when empty', () => {
+  const existing = rule({
+    value: '画风参考图片：resource#91；reference_resource_ids=[91]。',
+  })
+
+  const result = buildProjectStandardsStyleReferenceRemovalPatch({
+    customRules: [existing],
+    styleReferenceRule: existing,
+    resourceId: 91,
+  })
+
+  assert.deepEqual(result.nextRules, [])
+  assert.deepEqual(result.patch.custom_rules, [])
 })

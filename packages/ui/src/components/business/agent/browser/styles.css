@@ -218,6 +218,23 @@
   background: color-mix(in srgb, var(--ms-color-background) 10%, transparent);
 }
 
+.agent-browser-resource-pane {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ms-color-page-background);
+}
+
+.agent-browser-internal-pane {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--ms-color-page-background);
+}
+
 .agent-browser-blank-form {
   display: flex;
   height: 100%;

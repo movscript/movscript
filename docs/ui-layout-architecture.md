@@ -55,7 +55,7 @@ Layout should be discussed by nesting level first, then by visual treatment. Eac
 | App shell | Window frame, top header, primary sidebar, assistant dock, route surface selection | Page header, page scroll, feature cards | `WorkspaceShell`, `Header`, `Sidebar`, `AIAgentPanel` | Route surface |
 | Route surface | Whether the route behaves as `agent`, `detail`, or `canvas`; maps business mode to chrome | Business pane internals | `getAppRouteSurface`, `WorkspaceShell surface` | Page shell |
 | Page shell | Page header/body split, page scroll mode, page padding, max width | App sidebar, assistant panel, feature-specific pane borders | `AppContentLayout`, `AgentPageShell`, `AppPageShell` | Workbench or section |
-| Workbench layout | Business structure: master/detail, grid, editor/inspector, upstream/downstream, timeline | App-level rounded frame, duplicated page padding | `ContentWorkspaceLayout`, `ProductionPageLayout`, `ResourcePageLayout`, `JobsPageShell`, `WorkbenchProjectShell` | Pane |
+| Workbench layout | Business structure: master/detail, grid, editor/inspector, upstream/downstream, timeline, pane overlap | App-level rounded frame, duplicated page padding | `ContentWorkspaceLayout`, `ProductionPageLayout`, `ResourcePageLayout`, `JobsPageShell`, `WorkbenchProjectShell`, `OverlapPane` | Pane |
 | Pane / panel | Local scroll, local header, one edge divider, toolbars, inspector boundaries | Another full-page card boundary | `MasterDetail`, `AgentPanelShell`, resource panels, canvas inspectors | `flush` section |
 | Section | A named content block inside a page or pane | Route-level scroll or app chrome | `AppSection`, `AppSurfaceItem`, feature summary blocks | Item/card |
 | Item / card | Repeated list items, selectable records, metrics, media tiles, small result cards | Page or pane structure | `Card`, `Surface kind="item"`, job cards, asset cards | N/A |
@@ -78,6 +78,7 @@ Use this question order before changing a layout:
 - `AppPageShell` is the lower-level page primitive used by business-specific shells, not a route-level choice in app code. Page title, route-level status, and primary actions belong in `AppPageShellHeader` or the corresponding workbench/header component; `AppPageShellBody` is the default scrolling content region.
 - `WorkbenchProjectShell` owns the project workbench header; `WorkbenchProjectBody` owns the workbench body scroll, padding, and background tone; `WorkbenchProjectViewport` and `WorkbenchProjectPane` own the first internal full-height split/flex layer.
 - `ContentWorkspaceLayout` owns content-style workbench overview, filter, list/detail, preview, and related-section column behavior.
+- `OverlapPane` owns workbench-internal overlap chrome when a main pane visually slides over a neighboring rail or inspector; business components should set semantic class names and local sizing variables, not duplicate the overlap shadow, radius, or border rules.
 - Resource preparation uses `WorkbenchProjectBody` for route-level body behavior and keeps only its resource-specific responsive grid in `ResourcePrepWorkspaceGrid`.
 - `MasterDetail` owns list/detail split lines and accepts `chrome="split" | "flush"`.
 - `AgentPanelShell` owns AI side-panel chrome and accepts `chrome="dock" | "floating"`.

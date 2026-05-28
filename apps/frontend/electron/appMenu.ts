@@ -17,7 +17,7 @@ const navigationGroups: NavigationMenuGroup[] = [
     items: [
       { label: 'Projects', route: '/projects', accelerator: 'CmdOrCtrl+1' },
       { label: 'Home', route: '/project/overview' },
-      { label: 'Script', route: '/project/scripts' },
+      { label: 'Script Workbench', route: '/project/scripts/workbench' },
       { label: 'Production Overview', route: '/project/production' },
       { label: 'Production Tasks', route: '/project/tasks' },
       { label: 'Delivery', route: '/project/delivery' },

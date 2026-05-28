@@ -55,9 +55,9 @@ export const CANVAS_NODE_DEFINITIONS: CanvasNodeDefinition[] = [
     descriptionKey: 'canvas.catalog.nodes.output.description',
     defaultLabelKey: 'canvas.nodeLabels.output',
     category: 'flow',
-    inputs: [port('value', 'resource')],
+    inputs: [port('value', 'image')],
     outputs: [],
-    defaultData: { source: 'manual', label: 'Output', paramName: 'output', paramType: 'resource' },
+    defaultData: { source: 'manual', label: 'Output', paramName: 'output', paramType: 'image' },
   },
   {
     type: 'resource_sink',

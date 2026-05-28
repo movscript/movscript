@@ -30,6 +30,23 @@ export function buildProjectStandardsStyleReferencePatch(input: ProjectStandards
   }
 }
 
+export function buildProjectStandardsStyleReferenceRemovalPatch(input: {
+  customRules: ProjectPromptRule[]
+  styleReferenceRule: ProjectPromptRule
+  resourceId: number
+}) {
+  const { customRules, styleReferenceRule, resourceId } = input
+  const nextIds = extractResourceIds(styleReferenceRule.value).filter((id) => id !== resourceId)
+  const nextRules = nextIds.length > 0
+    ? customRules.map((rule) => rule.id === styleReferenceRule.id ? buildStyleReferenceRule(nextIds, styleReferenceRule) : rule)
+    : customRules.filter((rule) => rule.id !== styleReferenceRule.id)
+
+  return {
+    nextRules,
+    patch: { custom_rules: projectPromptRulePayload(nextRules) },
+  }
+}
+
 export async function uploadProjectStandardsStyleReferenceResources(files: File[]) {
   const uploaded: RawResource[] = []
   for (const file of files) {

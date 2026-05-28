@@ -588,7 +588,7 @@ export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNo
 export type NodeSource = 'upload' | 'ai' | 'manual'
 export type CanvasTaskStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 export type CanvasType = 'inspiration' | 'workflow'
-export type CanvasParamType = 'text' | 'image' | 'video' | 'json' | 'number' | 'boolean' | 'resource'
+export type CanvasParamType = 'text' | 'image' | 'video' | 'audio' | 'json' | 'number' | 'boolean' | 'resource'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
 export type CanvasPortType = CanvasParamType
 
@@ -631,6 +631,7 @@ export interface CanvasPortDef {
   label?: string
   labelKey?: string
   type: CanvasPortType
+  order?: number
   required?: boolean
   maxCount?: number
   deprecated?: boolean
@@ -836,6 +837,7 @@ export interface CanvasNodeData {
   modelId?: string      // public logical model ID preferred for routing
   modelDbId?: number    // legacy AIModelConfig primary key kept for old canvases/audit
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
+  referencedCanvasName?: string                          // denormalized workflow name for reference card display
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards
   params?: Record<string, unknown>                        // generation parameters for canvas AI nodes
   status?: CanvasTaskStatus
@@ -846,6 +848,7 @@ export interface CanvasNodeData {
   inputValue?: string                                      // input nodes
   paramName?: string                                       // input/output parameter name
   paramType?: CanvasParamType                              // input/output parameter type
+  paramOrder?: number                                      // input/output parameter order
   approvalStatus?: 'waiting' | 'approved' | 'rejected'    // approval nodes
   // ai_gen node fields
   refNodeIds?: string[]                                    // referenced node IDs for @mentions

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ChangeEventHandler, ReactNode } from "react";
 
 import type { AccentTone } from "../../../../semantic";
 import type { IconComponent } from "../../../primitives/types";
@@ -20,6 +20,25 @@ export type CanvasIOMetaItem = {
   id: string;
   label: string;
   value: string;
+};
+
+export type CanvasIOParamTypeOption = {
+  value: string;
+  label: string;
+};
+
+export type CanvasIOEditableFields = {
+  nameLabel: string;
+  nameValue: string;
+  namePlaceholder?: string;
+  orderLabel: string;
+  orderValue?: number;
+  typeLabel?: string;
+  typeValue?: string;
+  typeOptions?: CanvasIOParamTypeOption[];
+  onNameChange?: ChangeEventHandler<HTMLInputElement>;
+  onOrderChange?: ChangeEventHandler<HTMLInputElement>;
+  onTypeChange?: ChangeEventHandler<HTMLSelectElement>;
 };
 
 export type CanvasIOPortHandleRenderer = CanvasPortHandleRenderer;
@@ -46,6 +65,7 @@ export interface CanvasIOActionCardProps {
   bodyLabel: string;
   bodyValue?: string;
   emptyLabel?: string;
+  editableFields?: CanvasIOEditableFields;
   primaryAction?: CanvasIOAction;
   footer?: ReactNode;
   className?: string;

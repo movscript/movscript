@@ -1,30 +1,21 @@
 .canvas-io-action-card {
+  --canvas-card-content-x: var(--ms-space-3);
+  --canvas-card-port-dot-gap: 4px;
+  --canvas-card-port-dot-size: 12px;
+
   position: relative;
   width: 260px;
   overflow: visible;
-  border-radius: var(--ms-radius-md);
-  border: 1px solid var(--ms-color-border);
-  background: var(--ms-color-surface-raised);
-  box-shadow: var(--ms-shadow-sm);
+  padding: 0;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
-  transition:
-    border-color var(--ms-duration-fast) var(--ms-easing-standard),
-    box-shadow var(--ms-duration-fast) var(--ms-easing-standard);
-}
-
-.canvas-io-action-card--selected {
-  border-color: var(--ms-color-primary);
-  box-shadow:
-    var(--ms-shadow-lg),
-    0 0 0 2px color-mix(in srgb, var(--ms-color-primary) 15%, transparent);
 }
 
 .canvas-io-action-card__header {
   border-bottom: 1px solid var(--ms-color-border);
   border-top-left-radius: inherit;
   border-top-right-radius: inherit;
-  padding: 10px var(--ms-space-3);
+  padding: 10px var(--canvas-card-content-x);
 }
 
 .canvas-io-action-card__heading {
@@ -76,7 +67,40 @@
 .canvas-io-action-card__body {
   display: grid;
   gap: var(--ms-space-2);
-  padding: 10px var(--ms-space-3);
+  padding: 10px var(--canvas-card-content-x);
+}
+
+.canvas-io-action-card__editable-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: var(--ms-space-2);
+}
+
+.canvas-io-action-card__editable-field {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.canvas-io-action-card__editable-field > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-io-action-card__editable-field .ms-input,
+.canvas-io-action-card__editable-field .ms-native-select {
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  font-size: var(--ms-text-tiny);
+}
+
+.canvas-io-action-card__editable-field--type {
+  grid-column: 1 / -1;
 }
 
 .canvas-io-action-card__metrics {
@@ -93,7 +117,7 @@
 
 .canvas-io-action-card__footer {
   border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
-  padding: var(--ms-space-2) var(--ms-space-3);
+  padding: var(--ms-space-2) var(--canvas-card-content-x);
 }
 
 .canvas-io-action-card__primary-action {

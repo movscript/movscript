@@ -2,11 +2,18 @@ import { useCallback, type Dispatch, type SetStateAction } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Edge, Node } from '@xyflow/react'
 
+import { api } from '@/shared/infrastructure/api'
 import { nodeAcceptsTextResult } from '@/features/canvas/domain/graph'
+import { hydrateCanvasDocument } from '@/features/canvas/editor/canvasDocument'
+import {
+  workflowInputValuesForReferenceNode,
+  workflowReferenceOutputsForNode,
+} from '@/features/canvas/integrations/workflowReferences'
 import {
   canvasRuntimeOrderForNode,
   collectCanvasNodeInputs,
   firstRuntimeValue,
+  reusableCanvasNodeOutputValues,
   runtimePromptForNode,
   runtimeResourceIdsForNode,
   topoSortCanvasNodes,
@@ -18,10 +25,12 @@ import {
   resolveCanvasRuntimeModel,
   uploadCanvasRuntimeTextResource,
 } from '@/features/canvas/runtime/canvasRuntimeGeneration'
-import type { CanvasNodeData, CanvasPortValue, RawResource } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasPortValue, RawResource } from '@/types'
 import {
   buildRuntimeWorkflowOutputs,
   canvasPortValuePreviewText,
+  encodeRuntimePortValue,
+  portForWorkflowInputNode,
   textContentFromOutputs,
 } from './runtimeValues'
 import { useCanvasRuntimeStore } from './runHistoryStore'
@@ -58,6 +67,7 @@ export function useCanvasRuntimeExecutor({
   const executeCanvasRuntimeNode = useCallback(async (
     node: Node,
     inputs: Record<string, CanvasPortValue[]>,
+    context: { ambientInputs?: Record<string, CanvasPortValue>; referenceStack?: number[] } = {},
   ): Promise<Record<string, CanvasPortValue>> => {
     const data = node.data as Partial<CanvasNodeData>
     const first = firstRuntimeValue(inputs, ['value', 'input', 'prompt', 'reference', 'image', 'video', 'text'])
@@ -93,7 +103,59 @@ export function useCanvasRuntimeExecutor({
       return resultText ? { result: { type: 'text', text: resultText }, text: { type: 'text', text: resultText } } : {}
     }
     if (node.type === 'canvas') {
-      throw new Error(t('canvas.editor.errors.referenceWorkflowFrontendRuntime', { defaultValue: '引用工作流节点需要改造成前端子流程后再运行。' }))
+      if (!data.referencedCanvasId) {
+        throw new Error(t('canvas.editor.errors.referenceWorkflowMissing', { defaultValue: 'Referenced workflow is missing' }))
+      }
+      if ((context.referenceStack ?? []).includes(data.referencedCanvasId)) {
+        throw new Error(t('canvas.editor.errors.referenceWorkflowCycle', { defaultValue: 'Referenced workflow contains a cycle' }))
+      }
+      const referencedCanvas = await api.get(`/canvases/${data.referencedCanvasId}`).then((response) => response.data as Canvas)
+      if ((referencedCanvas.canvas_type ?? 'inspiration') !== 'workflow') {
+        throw new Error(t('canvas.editor.errors.referenceWorkflowInvalid', { defaultValue: 'Referenced canvas is not a workflow' }))
+      }
+      const referencedDocument = hydrateCanvasDocument(referencedCanvas, t)
+      const childInputs = workflowInputValuesForReferenceNode({
+        referencedCanvas,
+        inputs: mergeAmbientInputs(inputs, context.ambientInputs),
+      })
+      const childOutputCache: CanvasRuntimeOutputCache = {}
+      const childNodes = referencedDocument.nodes.filter((item) => item.type !== 'group')
+      const childOrder = topoSortCanvasNodes(childNodes, referencedDocument.edges)
+      for (const childNode of childOrder) {
+        const childData = childNode.data as Partial<CanvasNodeData>
+        const childInputValue = childNode.type === 'input'
+          ? (childInputs[childNode.id] ?? (childData.paramName ? childInputs[childData.paramName] : undefined))
+          : undefined
+        const childInputPatch = childInputValue
+          ? {
+              value: childInputValue,
+              [childNode.id]: childInputValue,
+              ...(childData.paramName ? { [childData.paramName]: childInputValue } : {}),
+            }
+          : undefined
+        const collected = collectCanvasNodeInputs({
+          nodeId: childNode.id,
+          nodes: referencedDocument.nodes,
+          edges: referencedDocument.edges,
+          resourceById,
+          outputCache: childOutputCache,
+          runtimeInputs: childInputPatch,
+        })
+        const reusableOutputs = reusableCanvasNodeOutputValues(childNode, { resourceById, outputCache: childOutputCache })
+        if (reusableOutputs) {
+          childOutputCache[childNode.id] = reusableOutputs
+          continue
+        }
+        childOutputCache[childNode.id] = await executeCanvasRuntimeNode(childNode, collected.values, {
+          ambientInputs: childInputs,
+          referenceStack: [...(context.referenceStack ?? []), data.referencedCanvasId],
+        })
+      }
+      return workflowReferenceOutputsForNode({
+        referenceNode: node,
+        referencedCanvas,
+        workflowOutputs: buildRuntimeWorkflowOutputs(childOrder, childOutputCache),
+      })
     }
 
     const outputType = node.type === 'text_gen' ? 'text'
@@ -142,6 +204,7 @@ export function useCanvasRuntimeExecutor({
     const run = startRuntimeRun({ canvasId, nodeIds: runnable.map((node) => node.id), snapshotNodeCount: nodes.length, snapshotEdgeCount: edges.length })
     onRunStarted?.({ runId: run.id, targetNodeId })
     const outputCache: CanvasRuntimeOutputCache = {}
+    const ambientInputs = ambientWorkflowInputValues(nodes, values)
     try {
       for (const node of runnable) {
         const inputValue = node.type === 'input' ? (values?.[node.id] ?? values?.value) : undefined
@@ -149,6 +212,9 @@ export function useCanvasRuntimeExecutor({
           ? { value: inputValue, [node.id]: inputValue }
           : node.id === targetNodeId ? values : undefined
         const collected = collectCanvasNodeInputs({ nodeId: node.id, nodes, edges, resourceById, outputCache, runtimeInputs: inputPatch })
+        const reusableOutputs = targetNodeId && node.id !== targetNodeId
+          ? reusableCanvasNodeOutputValues(node, { resourceById, outputCache })
+          : undefined
         startRuntimeTask({
           runId: run.id,
           canvasId,
@@ -157,9 +223,37 @@ export function useCanvasRuntimeExecutor({
           nodeLabel: (node.data as any)?.label || node.id,
           inputValues: collected.values,
         })
+        if (reusableOutputs) {
+          outputCache[node.id] = reusableOutputs
+          const outputValue = reusableOutputs.result ?? reusableOutputs.value ?? Object.values(reusableOutputs)[0]
+          completeRuntimeTask(canvasId, run.id, node.id, {
+            outputValues: reusableOutputs,
+            resourceId: outputValue?.resource_id,
+            resource: outputValue?.resource,
+            jobId: (outputValue?.json as any)?.jobId,
+          })
+          const nextRuntimeNodes = runtimeNodes.map((item) => {
+            if (item.id !== node.id) return item
+            const currentData = item.data as Partial<CanvasNodeData>
+            return {
+              ...item,
+              data: {
+                ...item.data,
+                status: 'done',
+                error: undefined,
+                resourceId: outputValue?.resource_id ?? currentData.resourceId,
+                resource: outputValue?.resource ?? currentData.resource,
+                textContent: nodeAcceptsTextResult(item, currentData) ? (textContentFromOutputs(reusableOutputs) ?? currentData.textContent) : currentData.textContent,
+              },
+            }
+          })
+          runtimeNodes = nextRuntimeNodes
+          setNodes(nextRuntimeNodes)
+          continue
+        }
         setNodes((prev) => prev.map((item) => item.id === node.id ? { ...item, data: { ...item.data, status: 'running', error: undefined } } : item))
         try {
-          const outputs = await executeCanvasRuntimeNode(node, collected.values)
+          const outputs = await executeCanvasRuntimeNode(node, collected.values, { ambientInputs })
           outputCache[node.id] = outputs
           const outputValue = outputs.result ?? outputs.value ?? Object.values(outputs)[0]
           completeRuntimeTask(canvasId, run.id, node.id, {
@@ -213,4 +307,34 @@ export function useCanvasRuntimeExecutor({
     executeCanvasRuntime,
     submitRunNode,
   }
+}
+
+function mergeAmbientInputs(
+  inputs: Record<string, CanvasPortValue[]>,
+  ambientInputs: Record<string, CanvasPortValue> | undefined,
+) {
+  if (!ambientInputs) return inputs
+  const merged: Record<string, CanvasPortValue[]> = { ...inputs }
+  for (const [key, value] of Object.entries(ambientInputs)) {
+    if (merged[key]?.length) continue
+    merged[key] = [value]
+  }
+  return merged
+}
+
+function ambientWorkflowInputValues(nodes: Node[], values: Record<string, CanvasPortValue> | undefined) {
+  const ambient: Record<string, CanvasPortValue> = { ...(values ?? {}) }
+  for (const node of nodes) {
+    if (node.type !== 'input') continue
+    const data = node.data as Partial<CanvasNodeData>
+    const explicitValue = values?.[node.id] ?? (data.paramName ? values?.[data.paramName] : undefined)
+    const encodedValue = data.inputValue !== undefined
+      ? encodeRuntimePortValue(portForWorkflowInputNode(node), data.inputValue)
+      : undefined
+    const value = explicitValue ?? encodedValue ?? undefined
+    if (!value) continue
+    ambient[node.id] = value
+    if (data.paramName) ambient[data.paramName] = value
+  }
+  return ambient
 }

@@ -1,16 +1,23 @@
 .generation-input {
   display: grid;
-  gap: 0;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 68%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  padding: 10px;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ms-color-foreground) 4%, transparent);
 }
 
 .generation-input__prompt-area {
   position: relative;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-muted) 16%, transparent);
 }
 
 .generation-input__prompt-editor {
-  min-height: 80px;
+  min-height: 96px;
   width: 100%;
-  padding: 4px;
+  padding: 10px 12px;
   border: 0;
   background: transparent;
   color: var(--ms-color-foreground);

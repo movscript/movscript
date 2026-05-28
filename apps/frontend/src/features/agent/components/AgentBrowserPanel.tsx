@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
-  ArrowLeft,
   ArrowRight,
+  ArrowLeft,
+  Boxes,
+  Clapperboard,
+  FileText,
   FolderOpen,
   Globe2,
+  HardDrive,
   Home,
   LayoutTemplate,
   Loader2,
+  PackageSearch,
+  PenLine,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -20,17 +27,12 @@ import {
   AgentBrowserBadge,
   AgentBrowserBlankContent,
   AgentBrowserBlankForm,
-  AgentBrowserDataBlock,
-  AgentBrowserDataBlockDescription,
-  AgentBrowserDataBlockTitle,
   AgentBrowserDividerSection,
   AgentBrowserHeader,
   AgentBrowserIconButton,
   AgentBrowserInlineError,
   AgentBrowserInput,
   AgentBrowserInputRow,
-  AgentBrowserKeyValue,
-  AgentBrowserKeyValueGrid,
   AgentBrowserLauncherForm,
   AgentBrowserLauncherIcon,
   AgentBrowserLauncherSubmitButton,
@@ -63,8 +65,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@movscript/ui'
+import type { LucideIcon } from 'lucide-react'
+import { CanvasListView } from '@/features/canvas/components/CanvasListView'
+import { ProjectStandardsContent } from '@/features/project-standards/components/ProjectStandardsPage'
+import { ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
+import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
+import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
+import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
-import { ROUTES } from '@/routes/projectRoutes'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+import type { Script } from '@/types'
 
 type BrowserBounds = {
   x: number
@@ -98,6 +108,42 @@ type AgentBrowserTab =
     url?: string
     createdAt: number
   }
+  | {
+    id: string
+    kind: 'resources'
+    title: string
+    createdAt: number
+  }
+  | {
+    id: string
+    kind: 'canvas_list'
+    title: string
+    createdAt: number
+  }
+  | {
+    id: string
+    kind: 'project_standards'
+    title: string
+    createdAt: number
+  }
+
+interface ProjectNavigationGroup {
+  key: string
+  title: string
+  description: string
+  icon: LucideIcon
+  items: ProjectNavigationLink[]
+  loading: boolean
+}
+
+interface ProjectNavigationLink {
+  id: number
+  title: string
+  description: string
+  to?: string
+  onClick?: () => void
+  status?: string
+}
 
 const EMPTY_WEB_STATE: WebTabState = {
   tabId: '',
@@ -114,7 +160,6 @@ function createTabId(prefix: string) {
 }
 
 export function AgentBrowserPanel() {
-  const navigate = useNavigate()
   const project = useProjectStore((state) => state.current)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [tabs, setTabs] = useState<AgentBrowserTab[]>(() => [{
@@ -247,9 +292,53 @@ export function AgentBrowserPanel() {
     void window.api?.agentBrowserHide?.()
   }
 
-  function navigateInternalRoute(pathname: string) {
+  function openInternalTab(kind: 'resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
+    const replaceActiveBlank = options?.replaceActiveBlank && activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url
+    if (replaceActiveBlank && activeTab?.kind === 'web') {
+      setTabs((current) => current.map((tab) => (
+        tab.id === activeTab.id && tab.kind === 'web'
+          ? { id: tab.id, kind, title, createdAt: tab.createdAt }
+          : tab
+      )))
+      setActiveTabId(activeTab.id)
+      setLauncherOpen(false)
+      void window.api?.agentBrowserHide?.()
+      return
+    }
+
+    const existing = tabs.find((tab) => tab.kind === kind)
+    if (existing) {
+      setActiveTabId(existing.id)
+      setLauncherOpen(false)
+      void window.api?.agentBrowserHide?.()
+      return
+    }
+
+    const id = createTabId(kind)
+    setTabs((current) => [...current, { id, kind, title, createdAt: Date.now() }])
+    setActiveTabId(id)
+    setLauncherOpen(false)
     void window.api?.agentBrowserHide?.()
-    navigate(pathname)
+  }
+
+  function openResourceLibraryTab() {
+    openInternalTab('resources', '资源库')
+  }
+
+  function openResourceLibraryInCurrentTab() {
+    openInternalTab('resources', '资源库', { replaceActiveBlank: true })
+  }
+
+  function openCanvasListInCurrentTab() {
+    openInternalTab('canvas_list', '画布列表', { replaceActiveBlank: true })
+  }
+
+  function openCanvasListTab() {
+    openInternalTab('canvas_list', '画布列表')
+  }
+
+  function openProjectStandardsTab() {
+    openInternalTab('project_standards', '项目规范')
   }
 
   async function openWebFromLauncher(event: FormEvent<HTMLFormElement>) {
@@ -347,7 +436,7 @@ export function AgentBrowserPanel() {
             {tabs.map((tab) => {
               const active = tab.id === activeTabId
               const webState = tab.kind === 'web' ? webStates[tab.id] : undefined
-              const Icon = tab.kind === 'project_home' ? Home : Globe2
+              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : Globe2
               return (
                 <AgentBrowserTabSurface
                   key={tab.id}
@@ -376,6 +465,9 @@ export function AgentBrowserPanel() {
           <AgentBrowserIconButton title="新建网页标签" aria-label="新建网页标签" onClick={openBlankWebTab}>
             <Plus size={14} />
           </AgentBrowserIconButton>
+          <AgentBrowserIconButton title="打开资源库" aria-label="打开资源库" onClick={openResourceLibraryTab}>
+            <HardDrive size={14} />
+          </AgentBrowserIconButton>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <AgentBrowserIconButton title="浏览器操作" aria-label="浏览器操作">
@@ -394,6 +486,24 @@ export function AgentBrowserPanel() {
                   <Home size={13} />
                 </AgentBrowserMenuItemIcon>
                 打开项目首页
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openResourceLibraryTab}>
+                <AgentBrowserMenuItemIcon>
+                  <HardDrive size={13} />
+                </AgentBrowserMenuItemIcon>
+                打开资源库
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openCanvasListTab}>
+                <AgentBrowserMenuItemIcon>
+                  <LayoutTemplate size={13} />
+                </AgentBrowserMenuItemIcon>
+                打开画布列表
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openProjectStandardsTab}>
+                <AgentBrowserMenuItemIcon>
+                  <PenLine size={13} />
+                </AgentBrowserMenuItemIcon>
+                打开项目规范
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={openBlankWebTab}>
@@ -461,10 +571,23 @@ export function AgentBrowserPanel() {
       </AgentBrowserHeader>
       <AgentBrowserViewport ref={viewportRef}>
         {activeTab?.kind === 'project_home' ? (
-          <ProjectHomeBrowserPage />
+          <ProjectHomeBrowserPage onOpenProjectStandards={openProjectStandardsTab} />
+        ) : activeTab?.kind === 'resources' ? (
+          <div className="agent-browser-resource-pane">
+            <ResourceLibraryView variant="pane" />
+          </div>
+        ) : activeTab?.kind === 'canvas_list' ? (
+          <div className="agent-browser-internal-pane">
+            <CanvasListView source="agent" className="agent-browser-canvas-list-view" />
+          </div>
+        ) : activeTab?.kind === 'project_standards' ? (
+          <div className="agent-browser-internal-pane">
+            <ProjectStandardsContent />
+          </div>
         ) : activeTab?.kind === 'web' && !(activeWebState?.url || activeTab.url) ? (
           <BlankWebTab
-            onOpenCanvasList={() => navigateInternalRoute(ROUTES.project.agentCanvases)}
+            onOpenResourceLibrary={openResourceLibraryInCurrentTab}
+            onOpenCanvasList={openCanvasListInCurrentTab}
             onSubmit={(url) => {
               setAddressDraft(url)
               void navigateWebTab(activeTab.id, url)
@@ -480,18 +603,29 @@ export function AgentBrowserPanel() {
 
 function tabTitle(tab: AgentBrowserTab, webState: WebTabState | undefined, projectName?: string) {
   if (tab.kind === 'project_home') return projectName ? `${projectName}` : '项目首页'
+  if (tab.kind === 'resources') return tab.title
+  if (tab.kind === 'canvas_list') return tab.title
+  if (tab.kind === 'project_standards') return tab.title
   return webState?.title || tab.title || webState?.url || tab.url || '空白页'
 }
 
 function BlankWebTab({
+  onOpenResourceLibrary,
   onOpenCanvasList,
   onSubmit,
 }: {
+  onOpenResourceLibrary: () => void
   onOpenCanvasList: () => void
   onSubmit: (url: string) => void
 }) {
   const [value, setValue] = useState('')
   const navItems = [
+    {
+      title: '资源库',
+      description: '搜索、上传和预览可引用资源',
+      icon: HardDrive,
+      action: onOpenResourceLibrary,
+    },
     {
       title: '画布列表',
       description: '查看、创建和打开项目画布',
@@ -541,23 +675,167 @@ function BlankWebTab({
   )
 }
 
-function ProjectHomeBrowserPage() {
+function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStandards: () => void }) {
   const project = useProjectStore((state) => state.current)
+  const projectId = project?.ID
+  const scriptsQuery = useQuery<Script[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'scripts'],
+    queryFn: () => api.get(`/projects/${projectId}/scripts`).then((response) => response.data as Script[]),
+    enabled: !!projectId,
+  })
+  const referencesQuery = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'creativeReferences'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('creativeReferences')),
+    enabled: !!projectId,
+  })
+  const assetSlotsQuery = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'assetSlots'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')),
+    enabled: !!projectId,
+  })
+  const productionsQuery = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'productions'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')),
+    enabled: !!projectId,
+  })
+  const sceneMomentsQuery = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'sceneMoments'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')),
+    enabled: !!projectId,
+  })
+  const contentUnitsQuery = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['agent-browser-navigation', projectId, 'contentUnits'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')),
+    enabled: !!projectId,
+  })
+
   if (!project) {
     return (
       <AgentBrowserProjectEmpty
         icon={<FolderOpen size={21} />}
-        title="项目首页"
-        description="当前还没有选中的项目。这个标签会作为内部页面测试入口。"
+        title="内容导航"
+        description="当前还没有选中的项目。选择项目后可从这里进入剧本、设定、素材、制作、情节和内容。"
       />
     )
   }
 
-  const rows = [
-    ['项目状态', project.status || '未设置'],
-    ['总集数', project.total_episodes ? `${project.total_episodes}` : '未设置'],
-    ['画幅', project.aspect_ratio || '未设置'],
-    ['更新时间', formatProjectTime(project.UpdatedAt)],
+  const groups: ProjectNavigationGroup[] = [
+    {
+      key: 'standards',
+      title: '项目规范',
+      description: '项目级画幅、视觉风格、镜头语言、节奏和负面约束。',
+      icon: Home,
+      loading: false,
+      items: [{
+        id: project.ID,
+        title: '项目规范',
+        description: firstText(
+          recordField(project, 'visual_style'),
+          recordField(project, 'project_style'),
+          project.description,
+          '查看和维护当前项目规范',
+        ),
+        status: firstText(recordField(project, 'aspect_ratio'), project.status, '规范'),
+        onClick: onOpenProjectStandards,
+      }],
+    },
+    {
+      key: 'scripts',
+      title: '剧本列表',
+      description: '剧本文本、分块和后续编排引用。',
+      icon: FileText,
+      loading: scriptsQuery.isLoading,
+      items: (scriptsQuery.data ?? [])
+        .slice()
+        .sort((a, b) => (a.order || 0) - (b.order || 0) || a.ID - b.ID)
+        .map((script) => ({
+          id: script.ID,
+          title: script.title || `剧本 #${script.ID}`,
+          description: firstText(script.summary, script.description, script.script_type, '暂无摘要'),
+          status: script.script_type,
+          to: withRouteParams(ROUTES.project.scripts, { script_id: script.ID }),
+        })),
+    },
+    {
+      key: 'references',
+      title: '设定列表',
+      description: '角色、世界观、风格和可复用创作约束。',
+      icon: PenLine,
+      loading: referencesQuery.isLoading,
+      items: visibleRecords(referencesQuery.data).map((record) => ({
+        id: record.ID,
+        title: titleOfRecord(record, '设定'),
+        description: firstText(record.description, record.content, record.kind, '暂无描述'),
+        status: stringField(record.status ?? record.kind),
+        to: withRouteParams(ROUTES.project.preProduction, { reference_id: record.ID }),
+      })),
+    },
+    {
+      key: 'assets',
+      title: '素材列表',
+      description: '素材需求、候选资源和锁定状态。',
+      icon: PackageSearch,
+      loading: assetSlotsQuery.isLoading,
+      items: visibleRecords(assetSlotsQuery.data).map((record) => ({
+        id: record.ID,
+        title: titleOfRecord(record, '素材'),
+        description: firstText(record.description, record.prompt_hint, record.kind, '暂无描述'),
+        status: stringField(record.status ?? record.kind),
+        to: withRouteParams(ROUTES.project.preProduction, {
+          asset_slot_id: record.ID,
+          reference_id: numberField(record.creative_reference_id),
+        }),
+      })),
+    },
+    {
+      key: 'productions',
+      title: '制作列表',
+      description: '制作方案、制作任务和整体进度。',
+      icon: Clapperboard,
+      loading: productionsQuery.isLoading,
+      items: visibleRecords(productionsQuery.data).map((record) => ({
+        id: record.ID,
+        title: titleOfRecord(record, '制作'),
+        description: firstText(record.description, record.summary, record.kind, '暂无描述'),
+        status: stringField(record.status),
+        to: withRouteParams(ROUTES.project.production, { productionId: record.ID }),
+      })),
+    },
+    {
+      key: 'moments',
+      title: '情节列表',
+      description: '编排段、情节点和上下游引用关系。',
+      icon: Boxes,
+      loading: sceneMomentsQuery.isLoading,
+      items: visibleRecords(sceneMomentsQuery.data).map((record) => ({
+        id: record.ID,
+        title: titleOfRecord(record, '情节'),
+        description: firstText(record.description, record.action_text, record.location_text, record.mood, '暂无描述'),
+        status: stringField(record.status),
+        to: withRouteParams(ROUTES.project.productionOrchestration, {
+          productionId: numberField(record.production_id),
+          scene_moment_id: record.ID,
+        }),
+      })),
+    },
+    {
+      key: 'content',
+      title: '内容列表',
+      description: '内容单元、关键帧、生成上下文和预览挂载。',
+      icon: LayoutTemplate,
+      loading: contentUnitsQuery.isLoading,
+      items: visibleRecords(contentUnitsQuery.data).map((record) => ({
+        id: record.ID,
+        title: titleOfRecord(record, '内容'),
+        description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
+        status: stringField(record.status ?? record.kind),
+        to: withRouteParams(ROUTES.project.contentUnitWorkbench, {
+          productionId: numberField(record.production_id),
+          scene_moment_id: numberField(record.scene_moment_id),
+          content_unit_id: record.ID,
+        }),
+      })),
+    },
   ]
 
   return (
@@ -567,38 +845,120 @@ function ProjectHomeBrowserPage() {
           <AgentBrowserProjectMetaLabel icon={<Home size={14} />}>
             内部页面
           </AgentBrowserProjectMetaLabel>
-          <AgentBrowserProjectTitle>{project.name}</AgentBrowserProjectTitle>
+          <AgentBrowserProjectTitle>内容导航</AgentBrowserProjectTitle>
           <AgentBrowserProjectDescription>
-            {project.description || '暂无项目简介。'}
+            {project.name} 的核心内容入口。
           </AgentBrowserProjectDescription>
         </AgentBrowserProjectHeaderCopy>
-        <AgentBrowserBadge>测试</AgentBrowserBadge>
+        <AgentBrowserBadge>导航</AgentBrowserBadge>
       </AgentBrowserProjectHeader>
-      <AgentBrowserKeyValueGrid>
-        {rows.map(([label, value]) => (
-          <AgentBrowserKeyValue key={label} label={label} value={value} />
+      <div className="flex flex-col gap-3">
+        {groups.map((group, index) => (
+          <ProjectNavigationGroupSection key={group.key} group={group} index={index} />
         ))}
-      </AgentBrowserKeyValueGrid>
-      <AgentBrowserDataBlock>
-        <AgentBrowserDataBlockTitle>Agent Browser Page</AgentBrowserDataBlockTitle>
-        <AgentBrowserDataBlockDescription>
-          这是右侧浏览器的内部页面 MVP。后续情节、设定、草案、生成结果都可以按这种方式作为独立 tab 挂进来。
-        </AgentBrowserDataBlockDescription>
-      </AgentBrowserDataBlock>
+      </div>
     </AgentBrowserProjectPage>
   )
 }
 
-function formatProjectTime(value?: string) {
-  if (!value) return '未记录'
-  try {
-    return new Intl.DateTimeFormat('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(value))
-  } catch {
-    return '未记录'
+function ProjectNavigationGroupSection({ group, index }: { group: ProjectNavigationGroup; index: number }) {
+  const Icon = group.icon
+
+  return (
+    <section className="border border-border bg-background">
+      <div className="grid min-h-[66px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2">
+        <span className="flex h-9 w-9 items-center justify-center border border-border bg-muted/45 text-muted-foreground">
+          <Icon size={17} />
+        </span>
+        <span className="min-w-0">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="type-caption text-muted-foreground tabular-nums">{index + 1}</span>
+            <span className="truncate type-label font-semibold text-foreground">{group.title}</span>
+          </span>
+          <span className="mt-1 block truncate type-caption text-muted-foreground">{group.description}</span>
+        </span>
+        <AgentBrowserBadge>{group.loading ? '加载中' : `${group.items.length}`}</AgentBrowserBadge>
+      </div>
+      <div className="flex flex-col">
+        {group.loading ? (
+          <div className="px-3 py-3 type-caption text-muted-foreground">正在读取当前项目数据...</div>
+        ) : group.items.length === 0 ? (
+          <div className="px-3 py-3 type-caption text-muted-foreground">暂无数据</div>
+        ) : (
+          group.items.map((item) => (
+            item.to ? (
+              <Link
+                key={`${group.key}-${item.id}`}
+                to={item.to}
+                className="grid min-h-[54px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 text-left outline-none last:border-b-0 hover:bg-muted/55 focus-visible:bg-muted"
+              >
+                <ProjectNavigationItemContent item={item} />
+              </Link>
+            ) : (
+              <button
+                key={`${group.key}-${item.id}`}
+                type="button"
+                onClick={item.onClick}
+                className="grid min-h-[54px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 text-left outline-none last:border-b-0 hover:bg-muted/55 focus-visible:bg-muted"
+              >
+                <ProjectNavigationItemContent item={item} />
+              </button>
+            )
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ProjectNavigationItemContent({ item }: { item: ProjectNavigationLink }) {
+  return (
+    <>
+      <span className="min-w-0">
+        <span className="block truncate type-label font-medium text-foreground">{item.title}</span>
+        <span className="mt-1 block truncate type-caption text-muted-foreground">{item.description}</span>
+      </span>
+      <span className="flex items-center gap-2">
+        {item.status ? <span className="hidden max-w-[72px] truncate type-caption text-muted-foreground sm:block">{item.status}</span> : null}
+        <ArrowRight size={14} className="text-muted-foreground" />
+      </span>
+    </>
+  )
+}
+
+function visibleRecords(records?: SemanticEntityRecord[]) {
+  return (records ?? [])
+    .filter(isActiveSemanticEntityRecord)
+    .slice()
+    .sort(compareRecordOrder)
+}
+
+function compareRecordOrder(a: SemanticEntityRecord, b: SemanticEntityRecord) {
+  return (numberField(a.order) ?? a.ID) - (numberField(b.order) ?? b.ID) || a.ID - b.ID
+}
+
+function titleOfRecord(record: SemanticEntityRecord, fallback: string) {
+  return firstText(record.title, record.name, record.label, `${fallback} #${record.ID}`)
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   }
+  return ''
+}
+
+function stringField(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberField(value: unknown) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined
+}
+
+function recordField(record: unknown, key: string) {
+  if (!record || typeof record !== 'object') return undefined
+  return (record as Record<string, unknown>)[key]
 }

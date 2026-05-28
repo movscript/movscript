@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { NodeType } from '@/types'
+import type { CanvasType, NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '@/features/canvas/presentation/nodeCatalog'
+import { isPaletteNodeTypeAvailable } from '@/features/canvas/editor/nodeFactory'
 import { Boxes, Trash2, Ungroup } from 'lucide-react'
 import {
   CanvasContextMenuView,
@@ -9,12 +10,13 @@ import {
   type CanvasContextMenuSection,
 } from '@movscript/ui'
 
-const CONTEXT_MENU_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
+const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval', 'resource_sink', 'canvas'])
+const CONTEXT_MENU_MEDIA_NODE_TYPES = new Set<NodeType>(['text'])
 
 interface Props {
   x: number
   y: number
+  canvasType: CanvasType
   onAdd: (type: NodeType) => void
   onClose: () => void
   selectedCount?: number
@@ -25,7 +27,7 @@ interface Props {
   hasSelection?: boolean
 }
 
-export function ContextMenu({ x, y, onAdd, onClose, selectedCount, selectedGroupCount, onGroupSelected, onUngroupSelected, onDeleteSelected, hasSelection }: Props) {
+export function ContextMenu({ x, y, canvasType, onAdd, onClose, selectedCount, selectedGroupCount, onGroupSelected, onUngroupSelected, onDeleteSelected, hasSelection }: Props) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
@@ -58,19 +60,26 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, selectedGroup
         }]
       : []),
   ]
-  const sections: CanvasContextMenuSection[] = CONTEXT_MENU_NODE_CATEGORIES.map((category) => ({
-    key: category.id,
-    title: t(category.titleKey),
-    items: CANVAS_NODE_CATALOG
-      .filter((node) => node.category === category.id && !CONTEXT_MENU_HIDDEN_NODE_TYPES.has(node.type))
-      .map(({ type, labelKey, descriptionKey, icon: Icon }) => ({
-        key: type,
-        icon: <Icon size={14} />,
-        label: t(labelKey),
-        description: t(descriptionKey),
-        onSelect: () => { onAdd(type); onClose() },
-      })),
-  }))
+  const sections: CanvasContextMenuSection[] = CANVAS_NODE_CATEGORIES
+    .map((category) => ({
+      key: category.id,
+      title: t(category.titleKey),
+      items: CANVAS_NODE_CATALOG
+        .filter((node) => (
+          node.category === category.id
+          && (node.category !== 'media' || CONTEXT_MENU_MEDIA_NODE_TYPES.has(node.type))
+          && !CONTEXT_MENU_HIDDEN_NODE_TYPES.has(node.type)
+          && isPaletteNodeTypeAvailable(node.type, canvasType)
+        ))
+        .map(({ type, labelKey, descriptionKey, icon: Icon }) => ({
+          key: type,
+          icon: <Icon size={14} />,
+          label: t(labelKey),
+          description: t(descriptionKey),
+          onSelect: () => { onAdd(type); onClose() },
+        })),
+    }))
+    .filter((section) => section.items.length > 0)
 
   useLayoutEffect(() => {
     const el = ref.current
