@@ -6,14 +6,13 @@ import { cn } from "../../../../lib/cn";
 import { AppControlGroup, AppProgressBar } from "../../app";
 import { Badge, Button } from "../../../primitives";
 import { AgentInlineEmpty } from "../shell/primitives";
-import { AgentSurfaceBlock } from "../surface-block";
 
 export function AgentPinnedStatusRoot({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return <header className={cn("agent-pinned-status-root", className)} {...props} />;
 }
 
-export function AgentPinnedStatusSurface({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock asChild className={cn("agent-pinned-status-surface", className)} {...props} />;
+export function AgentPinnedStatusSurface({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-pinned-status-surface", className)} {...props} />;
 }
 
 export function AgentPinnedStatusHeader({

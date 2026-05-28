@@ -371,9 +371,9 @@
   width: 3rem;
   flex-shrink: 0;
   color: var(--ms-color-foreground);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--ms-leading-section);
   font-variant-numeric: tabular-nums;
 }
 

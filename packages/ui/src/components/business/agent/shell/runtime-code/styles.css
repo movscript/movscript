@@ -18,7 +18,7 @@
 
 .ms-agent-runtime-status__detail {
   color: var(--ms-color-muted-foreground);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   line-height: var(--ms-leading-body);
 }
 

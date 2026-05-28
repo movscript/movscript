@@ -123,6 +123,12 @@
   min-width: 0;
 }
 
+.project-task-publish-panel,
+.project-task-list-panel,
+.project-task-detail-panel {
+  min-width: 0;
+}
+
 .project-task-surface-item {
   min-width: 0;
 }
@@ -434,10 +440,10 @@
 .project-task-metric-card__value {
   margin-top: var(--ms-space-2);
   font-family: var(--ms-font-mono);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 30px;
+  line-height: 28px;
 }
 
 .project-task-detail-block__header {

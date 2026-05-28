@@ -272,14 +272,14 @@ export function LiveRunActivityBubble({
         <AgentChatMessage
           role="assistant"
           avatar={<Bot size={14} />}
-          data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
+          head={<span className="ms-agent-message__head-label">{formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}</span>}
+          actions={feed.activity ? <AgentActivityDividerMenu activity={feed.activity} /> : undefined}
           footer={(
             <AgentRunActivityChatBadge>
               {runStatusText}
             </AgentRunActivityChatBadge>
           )}
         >
-          {feed.activity && <AgentActivityDividerMenu activity={feed.activity} />}
           <AgentActivityFeedView
             run={run}
             events={events}

@@ -80,8 +80,8 @@ import {
   ResourcePrepSelect,
   ResourcePrepShellBadge,
   ResourcePrepShellStatusBadge,
-  ResourcePrepWorkspaceMain,
-  ResourcePrepWorkspaceRoot,
+  ResourcePrepWorkspaceGrid,
+  WorkbenchProjectBody,
   WorkbenchProjectShell,
 } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -541,7 +541,9 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   if (compact) {
     return (
       <>
-        {mainWorkspace}
+        <WorkbenchProjectBody scroll="responsive" className="resource-prep-page-body">
+          {mainWorkspace}
+        </WorkbenchProjectBody>
         {resourceLibraryDialog}
         {reviewDialog}
         {createDialogs}
@@ -552,7 +554,9 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      {mainWorkspace}
+      <WorkbenchProjectBody scroll="responsive" className="resource-prep-page-body">
+        {mainWorkspace}
+      </WorkbenchProjectBody>
       {resourceLibraryDialog}
       {reviewDialog}
       {createDialogs}
@@ -753,8 +757,8 @@ function PreProductionWorkspace({
   const detailOpen = Boolean(selected || selectedReference || newReferenceEditKey)
 
   return (
-    <ResourcePrepWorkspaceRoot>
-      <ResourcePrepWorkspaceMain detailOpen={detailOpen}>
+    <>
+      <ResourcePrepWorkspaceGrid detailOpen={detailOpen}>
         <ResourcePrepBoardSlot>
           <PreProductionAssetBoard
             clusters={clusters}
@@ -801,7 +805,7 @@ function PreProductionWorkspace({
           editRequest={editRequest}
           onClose={() => setFilter({ reference_id: null, asset_slot_id: null, selected: null })}
         />
-      </ResourcePrepWorkspaceMain>
+      </ResourcePrepWorkspaceGrid>
       {cardContextMenu ? (
         <PreProductionCardContextMenu
           x={cardContextMenu.x}
@@ -810,7 +814,7 @@ function PreProductionWorkspace({
           onDelete={() => deleteCardTarget(cardContextMenu.target)}
         />
       ) : null}
-    </ResourcePrepWorkspaceRoot>
+    </>
   )
 }
 
@@ -1014,6 +1018,7 @@ function PreProductionInspector({
           <ResourcePrepInspectorTabs>
             <ResourcePrepInspectorTabButton
               active={mode === 'asset'}
+              variant={mode === 'asset' ? 'soft' : 'ghost'}
               disabled={!selected}
               onClick={() => onModeChange('asset')}
             >
@@ -1022,6 +1027,7 @@ function PreProductionInspector({
             </ResourcePrepInspectorTabButton>
             <ResourcePrepInspectorTabButton
               active={mode === 'reference'}
+              variant={mode === 'reference' ? 'soft' : 'ghost'}
               disabled={!canShowReference}
               onClick={() => onModeChange('reference')}
             >

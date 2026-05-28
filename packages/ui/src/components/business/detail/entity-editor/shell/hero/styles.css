@@ -70,7 +70,7 @@
 }
 
 .detail-entity-editor-hero--compact .detail-entity-editor-hero__title {
-  font-size: 16px;
+  font-size: var(--ms-text-section);
 }
 
 .detail-entity-editor-hero__subtitle {

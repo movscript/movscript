@@ -3386,7 +3386,7 @@ function ProjectDetailMetric({ label, value, detail }: { label: string; value: s
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
+      <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
       {detail && <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>}
     </div>
   )
@@ -5277,7 +5277,7 @@ export default function AdminPage() {
       <div className="flex items-center gap-2">
         <ShieldAlert size={18} className="text-muted-foreground" />
         <div>
-          <h1 className="text-lg font-semibold text-foreground">{t('admin.title')}</h1>
+          <h1 className="text-base font-semibold text-foreground">{t('admin.title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.subtitle')}</p>
         </div>
       </div>
@@ -5292,7 +5292,7 @@ export default function AdminPage() {
               <ArrowUpRight size={15} className="text-muted-foreground transition-colors group-hover:text-foreground" />
             </div>
             <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{card.value}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{card.value}</p>
             <p className="mt-1 text-xs text-muted-foreground">{card.detail}</p>
           </Link>
         ))}

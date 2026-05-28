@@ -2,6 +2,13 @@
 .content-page-panel__body,
 .content-page-surface-item {
   min-width: 0;
+  min-height: 0;
+}
+
+.content-page-section,
+.content-page-panel {
+  min-width: 0;
+  min-height: 0;
 }
 
 .content-page-section__body--padded {
@@ -14,11 +21,13 @@
 
 .content-page-empty-state,
 .content-page-key-value,
+.content-page-metric-card,
 .content-page-tone-text {
   min-width: 0;
 }
 
 .content-page-detail-panel {
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -147,6 +156,7 @@
 
 .content-page-stack {
   display: grid;
+  min-height: 0;
   gap: var(--ms-space-3);
 }
 
@@ -191,6 +201,15 @@
 
 .content-page-section-heading__count {
   flex-shrink: 0;
+}
+
+.content-page-metric-card {
+  padding: 10px 12px;
+}
+
+.content-page-metric-card .app-metric-card__icon {
+  width: 32px;
+  height: 32px;
 }
 
 .content-page-disclosure__body,

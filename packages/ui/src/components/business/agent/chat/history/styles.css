@@ -1,15 +1,68 @@
 .ai-agent-panel-empty-history {
-  flex: 0 1 min(42%, 260px);
-  min-height: 0;
+  position: relative;
+  display: flex;
+  order: 3;
+  flex: 0 0 calc(100% / 3);
+  min-height: 120px;
+  flex-direction: column;
   overflow: hidden;
   margin: 0 8px 8px;
-  border-top: 1px solid var(--ms-color-border);
   border-radius: 0;
   background: var(--ms-color-background);
 }
 
+.ai-agent-panel-empty-history-divider {
+  position: relative;
+  height: 14px;
+  flex: 0 0 14px;
+  cursor: row-resize;
+}
+
+.ai-agent-panel-empty-history-divider::before {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--ms-color-border);
+  content: "";
+}
+
+.ai-agent-panel-empty-history-divider::after {
+  position: absolute;
+  top: 5px;
+  right: 40%;
+  left: 40%;
+  height: 3px;
+  border-radius: var(--ms-radius-full);
+  background: color-mix(in srgb, var(--ms-color-border) 86%, transparent);
+  content: "";
+  opacity: 0;
+  transition:
+    background-color var(--ms-duration-fast) var(--ms-easing-standard),
+    opacity var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.ai-agent-panel-empty-history-divider:hover::after,
+.ai-agent-panel-empty-history-divider:focus-visible::after,
+.ai-agent-panel-main[data-history-resizing="true"] .ai-agent-panel-empty-history-divider::after {
+  opacity: 1;
+}
+
+.ai-agent-panel-empty-history-divider:hover::after,
+.ai-agent-panel-empty-history-divider:focus-visible::after {
+  background: var(--ms-color-accent);
+}
+
+.ai-agent-panel-main[data-history-resizing="true"],
+.ai-agent-panel-main[data-history-resizing="true"] * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
 .ai-agent-panel-empty-history-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -21,7 +74,8 @@
 
 .ai-agent-panel-empty-history-list {
   display: grid;
-  max-height: calc(100% - 29px);
+  min-height: 0;
+  flex: 1 1 auto;
   gap: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;

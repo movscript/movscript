@@ -36,9 +36,9 @@
 .ms-agent-sidebar__title {
   margin: 0;
   color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-caption);
-  font-weight: 700;
-  line-height: 16px;
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: var(--ms-leading-label);
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -55,8 +55,8 @@
   background: transparent;
   color: var(--ms-color-muted-foreground);
   padding: 6px 8px;
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
   text-align: left;
   cursor: pointer;
   transition:
@@ -68,8 +68,8 @@
   min-height: 24px;
   gap: 6px;
   padding: 4px 8px;
-  font-size: var(--ms-text-caption);
-  line-height: 16px;
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
 }
 
 .ms-agent-nav-item:hover {
@@ -170,9 +170,9 @@
 
 .ms-agent-conversation__title {
   color: var(--ms-color-foreground);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 18px;
+  font-size: var(--ms-text-item);
+  font-weight: 550;
+  line-height: var(--ms-leading-item);
 }
 
 .ms-agent-conversation__description,

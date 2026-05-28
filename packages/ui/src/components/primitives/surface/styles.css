@@ -1,9 +1,10 @@
 .ms-surface-root {
   --ui-surface-tone-color: var(--ms-color-muted-foreground);
-  --ui-surface-border: var(--ms-color-border);
-  --ui-surface-background: var(--ms-color-surface);
+  --ui-surface-border: var(--ms-surface-border, var(--ms-color-border));
+  --ui-surface-background: var(--ms-surface-background, var(--ms-color-surface));
   --ui-surface-radius: var(--ms-radius-md);
   --ui-surface-shadow: none;
+  --ui-surface-backdrop-filter: var(--ms-surface-backdrop-filter, none);
 
   min-width: 0;
   padding: 0;
@@ -54,7 +55,7 @@
 }
 
 .ms-surface-root[data-emphasis="plain"] {
-  --ui-surface-background: var(--ms-color-surface);
+  --ui-surface-background: var(--ms-surface-background, var(--ms-color-surface));
 }
 
 .ms-surface-root[data-kind="item"][data-emphasis="plain"] {
@@ -62,7 +63,7 @@
 }
 
 .ms-surface-root[data-emphasis="muted"] {
-  --ui-surface-background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+  --ui-surface-background: var(--ms-surface-muted-background, color-mix(in srgb, var(--ms-color-muted) 20%, transparent));
 }
 
 .ms-surface-root[data-kind="media"][data-emphasis="muted"] {
@@ -86,16 +87,15 @@
 }
 
 .ms-surface-root[data-emphasis="raised"] {
-  --ui-surface-background: var(--ms-color-surface-raised);
+  --ui-surface-background: var(--ms-surface-raised-background, var(--ms-color-surface-raised));
   --ui-surface-shadow: var(--ms-shadow-sm);
 }
 
 .ms-surface-root[data-kind="overlay"],
 .ms-surface-root[data-emphasis="raised"][data-kind="overlay"] {
-  --ui-surface-background: color-mix(in srgb, var(--ms-color-background) 70%, transparent);
+  --ui-surface-background: var(--ms-surface-overlay-background, color-mix(in srgb, var(--ms-color-background) 70%, transparent));
   --ui-surface-shadow: var(--ms-shadow-sm);
-
-  backdrop-filter: blur(8px);
+  --ui-surface-backdrop-filter: var(--ms-surface-backdrop-filter, blur(8px));
 }
 
 .ms-surface-root[data-interaction="hover"],
@@ -172,8 +172,8 @@
   margin: var(--ms-space-1) 0 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -202,7 +202,7 @@
 .ms-stat-card__value {
   color: var(--ms-color-foreground);
   margin-top: var(--ms-space-1);
-  font-size: 22px;
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   line-height: 28px;
@@ -251,9 +251,9 @@
 .ms-empty-state__title {
   margin-top: var(--ms-space-2);
   color: var(--ms-color-foreground);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   font-weight: 600;
-  line-height: 19px;
+  line-height: var(--ms-leading-item);
 }
 
 .ms-empty-state__description {

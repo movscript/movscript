@@ -30,8 +30,10 @@
 }
 
 .canvas-context-menu__item .ms-button__content {
+  width: 100%;
   min-width: 0;
   justify-content: flex-start;
+  text-align: left;
 }
 
 .canvas-context-menu__item-icon {
@@ -56,6 +58,8 @@
 
 .canvas-context-menu__item-body {
   min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
 }
 
 .canvas-context-menu__item-label {

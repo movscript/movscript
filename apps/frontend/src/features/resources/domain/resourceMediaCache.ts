@@ -4,10 +4,17 @@ export interface CachedMediaUrl {
 }
 
 type BlobLoader = () => Promise<Blob>
+type BlobTransformer = (blob: Blob) => Promise<Blob>
+
+interface ObjectUrlEntry {
+  objectUrl?: string
+  objectUrlPromise?: Promise<string>
+}
 
 interface CacheEntry {
   blobPromise: Promise<Blob>
-  objectUrl?: string
+  full: ObjectUrlEntry
+  variants: Map<string, ObjectUrlEntry>
   refCount: number
   lastAccessed: number
 }
@@ -28,28 +35,27 @@ export function isResourceFileUrl(src: string): boolean {
 export function resourceMediaCacheKey(src: string): string {
   try {
     const url = new URL(src, globalThis.location?.origin ?? 'http://movscript.local')
-    if (!isResourceFilePath(url.pathname)) return src
     return `${url.origin}${url.pathname}${url.search}`
   } catch {
     return src
   }
 }
 
-export async function acquireCachedResourceMediaUrl(src: string, loadBlob: BlobLoader): Promise<CachedMediaUrl> {
-  if (!isResourceFileUrl(src)) {
-    const blob = await loadBlob()
-    const url = URL.createObjectURL(blob)
-    return {
-      url,
-      release: () => URL.revokeObjectURL(url),
-    }
-  }
-
+export async function acquireCachedResourceMediaUrl(
+  src: string,
+  loadBlob: BlobLoader,
+  options?: {
+    variantKey?: string
+    transformBlob?: BlobTransformer
+  },
+): Promise<CachedMediaUrl> {
   const key = resourceMediaCacheKey(src)
   let entry = mediaCache.get(key)
   if (!entry) {
     entry = {
       blobPromise: loadBlob(),
+      full: {},
+      variants: new Map(),
       refCount: 0,
       lastAccessed: Date.now(),
     }
@@ -69,24 +75,24 @@ export async function acquireCachedResourceMediaUrl(src: string, loadBlob: BlobL
 
   const activeEntry = mediaCache.get(key)
   if (!activeEntry) {
-    return acquireCachedResourceMediaUrl(src, loadBlob)
+    return acquireCachedResourceMediaUrl(src, loadBlob, options)
   }
 
-  if (!activeEntry.objectUrl) {
-    const blob = await activeEntry.blobPromise
-    activeEntry.objectUrl = URL.createObjectURL(blob)
-  }
+  const objectUrl = await getOrCreateObjectUrl(activeEntry, options?.variantKey, options?.transformBlob)
 
   activeEntry.lastAccessed = Date.now()
   return {
-    url: activeEntry.objectUrl,
+    url: objectUrl,
     release: () => releaseCacheReference(key),
   }
 }
 
 export function __resetResourceMediaCacheForTests() {
   for (const entry of mediaCache.values()) {
-    if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
+    revokeObjectUrlEntry(entry.full)
+    for (const variant of entry.variants.values()) {
+      revokeObjectUrlEntry(variant)
+    }
   }
   mediaCache.clear()
 }
@@ -99,6 +105,34 @@ function releaseCacheReference(key: string) {
   pruneResourceMediaCache()
 }
 
+function getOrCreateObjectUrl(entry: CacheEntry, variantKey?: string, transformBlob?: BlobTransformer): Promise<string> {
+  const objectUrlEntry = getObjectUrlEntry(entry, variantKey)
+  if (objectUrlEntry.objectUrl) return Promise.resolve(objectUrlEntry.objectUrl)
+  if (!objectUrlEntry.objectUrlPromise) {
+    objectUrlEntry.objectUrlPromise = entry.blobPromise
+      .then((blob) => transformBlob ? transformBlob(blob) : blob)
+      .then((blob) => {
+        if (!objectUrlEntry.objectUrl) objectUrlEntry.objectUrl = URL.createObjectURL(blob)
+        return objectUrlEntry.objectUrl
+      })
+  }
+  return objectUrlEntry.objectUrlPromise
+}
+
+function getObjectUrlEntry(entry: CacheEntry, variantKey: string | undefined): ObjectUrlEntry {
+  if (!variantKey) return entry.full
+  let variant = entry.variants.get(variantKey)
+  if (!variant) {
+    variant = {}
+    entry.variants.set(variantKey, variant)
+  }
+  return variant
+}
+
+function revokeObjectUrlEntry(entry: ObjectUrlEntry) {
+  if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
+}
+
 function pruneResourceMediaCache() {
   if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES) return
 
@@ -108,7 +142,10 @@ function pruneResourceMediaCache() {
 
   for (const [key, entry] of releasable) {
     if (mediaCache.size <= MAX_RESOURCE_MEDIA_CACHE_ENTRIES) break
-    if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl)
+    revokeObjectUrlEntry(entry.full)
+    for (const variant of entry.variants.values()) {
+      revokeObjectUrlEntry(variant)
+    }
     mediaCache.delete(key)
   }
 }

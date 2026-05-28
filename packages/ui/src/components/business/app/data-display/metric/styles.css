@@ -31,6 +31,6 @@
 }
 
 .app-metric-card--compact .app-metric-card__value {
-  font-size: 15px;
-  line-height: 22px;
+  font-size: var(--ms-text-body);
+  line-height: var(--ms-leading-body);
 }

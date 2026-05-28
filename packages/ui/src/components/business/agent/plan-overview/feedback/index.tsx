@@ -3,7 +3,6 @@
 import * as React from "react";
 import { AppCodeBlock } from "../../../app";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
 export interface AgentPlanOverviewCodeDisclosureProps extends Omit<React.DetailsHTMLAttributes<HTMLDetailsElement>, "title"> {
   title: React.ReactNode;
@@ -16,18 +15,16 @@ export function AgentPlanOverviewCodeDisclosure({
   ...props
 }: AgentPlanOverviewCodeDisclosureProps) {
   return (
-    <AgentSurfaceBlock asChild variant="subtle" className={cn("ms-agent-plan-overview-code", className)}>
-      <details {...props}>
-        <summary className="ms-agent-plan-overview-code__summary">{title}</summary>
-        <AppCodeBlock className="ms-agent-plan-overview-code__content">{children}</AppCodeBlock>
-      </details>
-    </AgentSurfaceBlock>
+    <details className={cn("ms-agent-plan-overview-code", className)} {...props}>
+      <summary className="ms-agent-plan-overview-code__summary">{title}</summary>
+      <AppCodeBlock className="ms-agent-plan-overview-code__content">{children}</AppCodeBlock>
+    </details>
   );
 }
 
-export const AgentPlanOverviewNotice = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} variant={variant} className={cn("ms-agent-plan-overview-notice", className)} {...props} />;
+export const AgentPlanOverviewNotice = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-plan-overview-notice", className)} {...props} />;
   }
 );
 

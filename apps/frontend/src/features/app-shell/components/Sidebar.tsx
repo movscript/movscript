@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
@@ -8,11 +8,8 @@ import {
   Atom,
   Bot,
   BrainCircuit,
-  Building2,
   Cable,
   CirclePlay,
-  CircleUserRound,
-  ExternalLink,
   Component,
   Factory,
   FlaskConical,
@@ -24,7 +21,6 @@ import {
   Images,
   ListChecks,
   ListTodo,
-  LogOut,
   Move,
   Palette,
   Plug,
@@ -40,38 +36,25 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
-import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { api } from '@/shared/infrastructure/api'
 import {
   APP_SIDEBAR_DEFAULT_WIDTH,
   APP_SIDEBAR_MAX_WIDTH,
   APP_SIDEBAR_MIN_WIDTH,
   APP_SIDEBAR_WIDTH_STORAGE_KEY,
-  AppSidebarActionItem,
   AppSidebarDivider,
-  AppSidebarFooter,
   AppSidebarHeader,
-  AppSidebarMenuLeadingIcon,
   AppSidebarNav,
   AppSidebarNavItemFrame,
   AppSidebarNavItemContent,
   AppSidebarProjectCurrent,
-  AppSidebarProjectLinkContent,
   AppSidebarProjectRow,
-  AppSidebarProjectSwitch,
   AppSidebarSection,
   AppSidebarShell,
-  AppSidebarTitle,
-  AppSidebarUserButton,
-  AppSidebarUserButtonContent,
-  AppSidebarUserMenuContent,
+  PanelResizeHandle,
   clampAppSidebarWidth,
 } from '@movscript/ui'
-import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/features/plugins/application/clientPlugins'
-import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { runtimeNavItems } from '@runtime'
 import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -135,26 +118,86 @@ function NavItem({
 interface SidebarProps {
   collapsed?: boolean
   width?: number
+  headerActions?: ReactNode
+  reserveHeader?: boolean
+  onWidthChange?: (width: number) => void
+  onHide?: () => void
 }
 
 export function Sidebar({
   collapsed = false,
   width = SIDEBAR_DEFAULT_WIDTH,
+  headerActions,
+  reserveHeader = false,
+  onWidthChange,
+  onHide,
 }: SidebarProps) {
   const { t } = useTranslation()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
-  const currentUser = useUserStore((s) => s.currentUser)
-  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
-  const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const orgMemberships = useUserStore((s) => s.orgMemberships)
-  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
-  const navigate = useNavigate()
   const { pathname } = useLocation()
-  const currentMembership = orgMemberships.find((m) => m.org_id === currentOrgID)
+  const resizeStart = useRef({ x: 0, width })
+  const [resizing, setResizing] = useState(false)
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/features/plugins/application/clientPlugins').ClientPluginManifest[]>([])
   useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
+
+  useEffect(() => {
+    if (!resizing || !onWidthChange) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const nextWidth = resizeStart.current.width + event.clientX - resizeStart.current.x
+      if (nextWidth < SIDEBAR_MIN_WIDTH) {
+        if (resizeStart.current.width <= SIDEBAR_MIN_WIDTH) {
+          onHide?.()
+          setResizing(false)
+          return
+        }
+        onWidthChange(SIDEBAR_MIN_WIDTH)
+        return
+      }
+      onWidthChange(clampSidebarWidth(nextWidth))
+    }
+    const handlePointerUp = () => setResizing(false)
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+
+    return () => {
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [onHide, onWidthChange, resizing])
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (collapsed || !onWidthChange || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    resizeStart.current = { x: event.clientX, width }
+    setResizing(true)
+  }
+
+  const adjustSidebarWidth = (delta: number) => {
+    if (!onWidthChange) return
+    const nextWidth = width + delta
+    if (nextWidth < SIDEBAR_MIN_WIDTH) {
+      if (width <= SIDEBAR_MIN_WIDTH) {
+        onHide?.()
+        return
+      }
+      onWidthChange(SIDEBAR_MIN_WIDTH)
+      return
+    }
+    onWidthChange(clampSidebarWidth(nextWidth))
+  }
 
 
   const { isError: projectNotFound } = useQuery({
@@ -170,59 +213,37 @@ export function Sidebar({
 
   return (
     <AppSidebarShell collapsed={collapsed} width={width}>
-      {!collapsed && (
-        <AppSidebarHeader>
-          <AppSidebarTitle>
-            {t('sidebar.title', { defaultValue: '导航' })}
-          </AppSidebarTitle>
+      {(reserveHeader || headerActions) ? (
+        <AppSidebarHeader className="app-sidebar__header--actions">
+          {headerActions}
         </AppSidebarHeader>
-      )}
+      ) : null}
       <AppSidebarNav collapsed={collapsed}>
 
-        {/* Project */}
-        <AppSidebarSection title={t('sidebar.sections.project')} collapsed={collapsed}>
-          {collapsed ? (
-            <NavItem
-              to={ROUTES.projects}
-              icon={FolderOpen}
-              label={current ? current.name : t('common.selectProject')}
-              collapsed
-            />
-          ) : (
-            <AppSidebarProjectRow>
-              {current ? (
-                <AppSidebarProjectCurrent
-                  icon={FolderOpen}
-                  name={current.name}
-                  switchControl={(
-                  <NavLink
-                    to={ROUTES.projects}
-                  >
-                    <AppSidebarProjectSwitch>{t('common.switch')}</AppSidebarProjectSwitch>
-                  </NavLink>
-                  )}
-                />
+        {current && (
+          <>
+            {/* Project */}
+            <AppSidebarSection title={t('sidebar.sections.project')} collapsed={collapsed}>
+              {collapsed ? (
+                <AppSidebarNavItemFrame collapsed>
+                  <AppSidebarNavItemContent icon={FolderOpen} label={current.name} collapsed />
+                </AppSidebarNavItemFrame>
               ) : (
-                <NavLink to={ROUTES.projects}>
-                  <AppSidebarProjectLinkContent icon={FolderOpen}>{t('common.selectProject')}</AppSidebarProjectLinkContent>
-                </NavLink>
+                <AppSidebarProjectRow>
+                  <AppSidebarProjectCurrent
+                    icon={FolderOpen}
+                    name={current.name}
+                    switchControl={null}
+                  />
+                </AppSidebarProjectRow>
               )}
-            </AppSidebarProjectRow>
-          )}
-
-          {current && (
-            <>
               <NavItem to={ROUTES.project.overview} icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.scripts} icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.production} icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} end />
               <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.delivery} icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} end />
-            </>
-          )}
-        </AppSidebarSection>
+            </AppSidebarSection>
 
-        {current && (
-          <>
             <AppSidebarDivider collapsed={collapsed} />
             <AppSidebarSection title={t('sidebar.sections.workspace')} collapsed={collapsed}>
               {projectWorkbenchDefinitions.map((item) => (
@@ -232,7 +253,7 @@ export function Sidebar({
           </>
         )}
 
-        <AppSidebarDivider collapsed={collapsed} />
+        {current ? <AppSidebarDivider collapsed={collapsed} /> : null}
 
         {/* Tools */}
         <AppSidebarSection title={t('sidebar.sections.tools')} collapsed={collapsed}>
@@ -256,55 +277,32 @@ export function Sidebar({
           <NavItem to={ROUTES.jobs} icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </AppSidebarSection>
 
-        <AppSidebarDivider collapsed={collapsed} />
-
-        {/* Manage */}
-        <AppSidebarSection title={t('sidebar.sections.manage')} collapsed={collapsed}>
-          <NavItem to={ROUTES.orgSelect} icon={Building2} label={t('sidebar.items.workspace')} collapsed={collapsed} />
-          <NavItem to={ROUTES.agentConsole} icon={Bot} label={t('sidebar.items.agentConsole')} collapsed={collapsed} />
-          {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => (
-            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={collapsed} />
-          ))}
-          {currentUser?.system_role === 'super_admin' && (
-            <AppSidebarActionItem
-              icon={ExternalLink}
-              label={t('sidebar.items.adminConsole')}
-              collapsed={collapsed}
-              onClick={() => void openAdminConsole(apiBaseURL)}
-            />
-          )}
-        </AppSidebarSection>
-
       </AppSidebarNav>
 
-      {/* User footer */}
-      {currentUser && (
-        <AppSidebarFooter collapsed={collapsed}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <AppSidebarUserButton collapsed={collapsed}>
-                <AppSidebarUserButtonContent
-                  collapsed={collapsed}
-                  username={currentUser.username}
-                  role={currentMembership?.org_name
-                    ?? (currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user'))}
-                />
-              </AppSidebarUserButton>
-            </DropdownMenuTrigger>
-            <AppSidebarUserMenuContent>
-              <DropdownMenuItem onClick={() => navigate(ROUTES.user)}>
-                <AppSidebarMenuLeadingIcon icon={CircleUserRound} />
-                {t('header.titles.user')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setCurrentUser(null)}>
-                <AppSidebarMenuLeadingIcon icon={LogOut} />
-                {t('sidebar.logout')}
-              </DropdownMenuItem>
-            </AppSidebarUserMenuContent>
-          </DropdownMenu>
-        </AppSidebarFooter>
-      )}
+      {!collapsed && onWidthChange ? (
+        <PanelResizeHandle
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整左侧栏宽度"
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          aria-valuenow={width}
+          tabIndex={0}
+          side="right"
+          active={resizing}
+          onPointerDown={startResize}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              adjustSidebarWidth(event.shiftKey ? -32 : -12)
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              adjustSidebarWidth(event.shiftKey ? 32 : 12)
+            }
+          }}
+        />
+      ) : null}
     </AppSidebarShell>
   )
 }

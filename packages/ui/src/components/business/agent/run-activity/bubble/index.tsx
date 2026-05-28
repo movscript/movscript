@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Button, type ButtonProps } from "../../../../primitives/button";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
 export const AgentRunActivityBubble = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
@@ -13,9 +12,9 @@ export const AgentRunActivityBubble = React.forwardRef<HTMLDivElement, React.HTM
 
 AgentRunActivityBubble.displayName = "AgentRunActivityBubble";
 
-export const AgentRunActivityBubbleFrame = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentRunActivityBubbleFrame = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} className={cn("ms-agent-run-activity-bubble__frame", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-run-activity-bubble__frame", className)} {...props} />;
   }
 );
 

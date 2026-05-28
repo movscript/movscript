@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
-export const AgentRunActivityItem = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentRunActivityItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} className={cn("ms-agent-run-activity-item", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-run-activity-item", className)} {...props} />;
   }
 );
 

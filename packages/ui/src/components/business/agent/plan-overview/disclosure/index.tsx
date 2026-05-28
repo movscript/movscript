@@ -2,15 +2,10 @@
 
 import * as React from "react";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock } from "../../surface-block";
 
 export const AgentPlanOverviewDisclosure = React.forwardRef<HTMLDetailsElement, React.DetailsHTMLAttributes<HTMLDetailsElement>>(
   ({ className, ...props }, ref) => {
-    return (
-      <AgentSurfaceBlock asChild variant="subtle" className={cn("ms-agent-plan-overview-disclosure", className)}>
-        <details ref={ref} {...props} />
-      </AgentSurfaceBlock>
-    );
+    return <details ref={ref} className={cn("ms-agent-plan-overview-disclosure", className)} {...props} />;
   }
 );
 

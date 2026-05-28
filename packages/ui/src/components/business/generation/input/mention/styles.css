@@ -3,7 +3,8 @@
   z-index: 20;
   bottom: 100%;
   left: 0;
-  width: 224px;
+  width: min(420px, calc(100vw - 32px));
+  max-width: 100%;
   overflow: hidden;
   margin-bottom: 6px;
   padding: 0;
@@ -19,8 +20,9 @@
 }
 
 .generation-input-mention-menu__list {
-  max-height: 192px;
+  max-height: min(360px, calc(100vh - 160px));
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .generation-input-mention-menu__item {

@@ -52,7 +52,6 @@ type UpdateSpec struct {
 	MimeType             *string
 	Size                 *int64
 	OrgID                *uint
-	IsShared             *bool
 	FolderID             *uint
 	ClearFolder          bool
 	VerificationStatus   *string
@@ -76,7 +75,6 @@ type RawResource struct {
 	MimeType             string     `json:"mime_type"`
 	StorageBackend       string     `json:"storage_backend"`
 	StorageKey           string     `json:"storage_key"`
-	IsShared             bool       `json:"is_shared"`
 	DirectURL            string     `json:"direct_url,omitempty"`
 	VerificationStatus   string     `json:"verification_status,omitempty"`
 	VerificationRef      string     `json:"verification_ref,omitempty"`
@@ -107,7 +105,6 @@ func (spec UpdateSpec) Empty() bool {
 		spec.MimeType == nil &&
 		spec.Size == nil &&
 		spec.OrgID == nil &&
-		spec.IsShared == nil &&
 		spec.FolderID == nil &&
 		!spec.ClearFolder &&
 		spec.VerificationStatus == nil &&
@@ -142,9 +139,6 @@ func (resource *RawResource) ApplyUpdate(spec UpdateSpec) {
 	if spec.OrgID != nil {
 		orgID := *spec.OrgID
 		resource.OrgID = &orgID
-	}
-	if spec.IsShared != nil {
-		resource.IsShared = *spec.IsShared
 	}
 	if spec.ClearFolder {
 		resource.FolderID = nil

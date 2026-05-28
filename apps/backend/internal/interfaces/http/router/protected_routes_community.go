@@ -65,9 +65,6 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/resource-folders", h.resourceFolders.Create)
 	protected.PUT("/resource-folders/:id", h.resourceFolders.Update)
 	protected.DELETE("/resource-folders/:id", h.resourceFolders.Delete)
-	protected.GET("/resource-folders/:id/permissions", h.resourceFolders.ListPermissions)
-	protected.POST("/resource-folders/:id/permissions", h.resourceFolders.GrantPermission)
-	protected.DELETE("/resource-folders/:id/permissions/:userId", h.resourceFolders.RevokePermission)
 }
 
 func registerJobRoutes(protected *gin.RouterGroup, h handlers) {

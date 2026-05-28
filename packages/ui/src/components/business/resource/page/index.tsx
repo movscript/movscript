@@ -53,6 +53,16 @@ export function ResourcePageSidebar({ className, ...props }: HTMLAttributes<HTML
   return <aside className={cn("resource-page__sidebar", className)} {...props} />;
 }
 
+export function ResourcePageSidebarSection({
+  grow = false,
+  className,
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  grow?: boolean;
+}) {
+  return <section data-grow={grow ? "true" : undefined} className={cn("resource-page__sidebar-section", className)} {...props} />;
+}
+
 export function ResourcePageSidebarHeader({
   title,
   icon: Icon,
@@ -76,13 +86,12 @@ export function ResourcePageSidebarHeader({
 }
 
 export function ResourcePageFolderList({
-  grow = false,
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   grow?: boolean;
 }) {
-  return <div className={cn("resource-page__folder-list", grow && "resource-page__folder-list--grow", className)} {...props} />;
+  return <div className={cn("resource-page__folder-list", className)} {...props} />;
 }
 
 export function ResourcePageFolderEmpty({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
@@ -681,22 +690,18 @@ export function ResourcePrepSelect({
   );
 }
 
-export function ResourcePrepWorkspaceRoot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("resource-prep-workspace", className)} {...props} />;
-}
-
-export function ResourcePrepWorkspaceMain({
+export function ResourcePrepWorkspaceGrid({
   detailOpen,
   className,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   detailOpen?: boolean;
 }) {
-  return <main data-detail-open={detailOpen ? "true" : undefined} className={cn("resource-prep-workspace__main", className)} {...props} />;
+  return <main data-detail-open={detailOpen ? "true" : undefined} className={cn("resource-prep-workspace-grid", className)} {...props} />;
 }
 
 export function ResourcePrepBoardSlot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("resource-prep-workspace__board", className)} {...props} />;
+  return <div className={cn("resource-prep-workspace-board", className)} {...props} />;
 }
 
 export function ResourcePrepContextMenu({

@@ -27,8 +27,8 @@
 .ms-field-control[data-size="sm"] {
   height: 30px;
   padding: 0 9px;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
 }
 
 .ms-field-control[data-variant="subtle"] {
@@ -161,9 +161,9 @@
   gap: var(--ms-space-1);
   color: var(--ms-color-foreground);
   font-family: var(--ms-font-sans);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   font-weight: 600;
-  line-height: 18px;
+  line-height: var(--ms-leading-item);
 }
 
 .ms-label__required {

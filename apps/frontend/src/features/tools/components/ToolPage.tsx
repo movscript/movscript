@@ -14,7 +14,6 @@ import {
   Textarea,
   ToolActionBar,
   ToolHiddenFileInput,
-  ToolHeader,
   ToolOutputDownloadAction,
   ToolOutputMediaShell,
   ToolOutputPanel,
@@ -83,7 +82,6 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
 
   return (
     <ToolPageFrame
-      header={<ToolHeader title={def.name} description={def.description} icon={Wand2} />}
       sidebar={(
         <ResourcePanel
           inputType={def.inputType}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Loader2, Play, Plug, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Loader2, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   loadClientPlugins,
@@ -15,12 +15,16 @@ import type { PublicModel, RawResource } from '@/types'
 import {
   PluginToolActionButton,
   PluginToolCodeBlock,
+  PluginToolActionRow,
   PluginToolField,
   PluginToolFieldDescription,
   PluginToolFieldLabel,
+  PluginToolFieldStack,
   PluginToolFormStack,
   PluginToolIframe,
   PluginToolIconButton,
+  PluginToolInfoCopy,
+  PluginToolInfoHeader,
   PluginToolInput,
   PluginToolInlineResource,
   PluginToolLoadingState,
@@ -34,8 +38,9 @@ import {
   PluginToolStateMessage,
   PluginToolSurface,
   PluginToolTextarea,
+  PluginToolVersionMeta,
+  PluginToolResourceList,
   PluginToolWebviewFrame,
-  ToolHeader,
 } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -270,19 +275,19 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
         <PluginToolFormStack>
           {/* Plugin info */}
           <PluginToolSurface>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
+            <PluginToolInfoHeader>
+              <PluginToolInfoCopy>
                 <p className="type-body font-semibold text-foreground">{plugin.name}</p>
                 {plugin.description && (
                   <p className="type-label text-muted-foreground mt-0.5">{plugin.description}</p>
                 )}
-              </div>
-              <span className="type-label text-muted-foreground shrink-0">v{plugin.version}</span>
-            </div>
+              </PluginToolInfoCopy>
+              <PluginToolVersionMeta>v{plugin.version}</PluginToolVersionMeta>
+            </PluginToolInfoHeader>
 
             {/* Selected resources badge */}
             {hasRefField && selectedResources.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-3">
+              <PluginToolResourceList>
                 {selectedResources.map((r) => (
                   <PluginToolInlineResource
                     key={r.ID}
@@ -299,11 +304,11 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
                     </PluginToolIconButton>
                   </PluginToolInlineResource>
                 ))}
-              </div>
+              </PluginToolResourceList>
             )}
 
             {/* Param fields */}
-            <div className="space-y-3">
+            <PluginToolFieldStack>
               {Object.entries(properties).map(([name, prop]) => {
                 if (name === 'reference_resource_ids') return null
                 const isModelSelector = prop['x-widget'] === 'model-selector' || name === 'model_config_id'
@@ -330,16 +335,16 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
                   />
                 )
               })}
-            </div>
+            </PluginToolFieldStack>
 
-            <div className="mt-4 flex justify-end">
+            <PluginToolActionRow>
               <PluginToolActionButton onClick={handleRun} disabled={!canRun} size="sm">
                 {running
                   ? <><Loader2 size={14} className="mr-1.5 animate-spin" />{t('plugins.running')}</>
                   : <><Play size={14} className="mr-1.5" />{t('plugins.run')}</>
                 }
               </PluginToolActionButton>
-            </div>
+            </PluginToolActionRow>
           </PluginToolSurface>
 
           {/* Result */}
@@ -380,7 +385,7 @@ export default function PluginToolPage() {
   const [plugin, setPlugin] = useState<ClientPluginManifest | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [iframeKey, setIframeKey] = useState(0)
+  const [iframeKey] = useState(0)
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
   usePluginBridge(iframeRef)
@@ -425,18 +430,6 @@ export default function PluginToolPage() {
 
   return (
     <PluginToolRoot>
-      <ToolHeader
-        title={plugin.name}
-        description={plugin.description}
-        icon={Plug}
-        metadata={plugin.version ? <span className="shrink-0 type-label text-muted-foreground">v{plugin.version}</span> : null}
-        actions={isWebview ? (
-          <PluginToolIconButton size="icon-sm" variant="ghost" onClick={() => setIframeKey((k) => k + 1)} title="Reload">
-            <RefreshCw size={14} />
-          </PluginToolIconButton>
-        ) : null}
-      />
-
       {isWebview ? (
         <PluginToolWebviewFrame>
           <PluginToolIframe

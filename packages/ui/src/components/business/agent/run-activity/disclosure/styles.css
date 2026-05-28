@@ -1,7 +1,6 @@
 .ms-agent-run-activity {
   margin-top: 8px;
   font-size: var(--ms-text-label);
-  box-shadow: var(--ms-shadow-sm);
 }
 
 .ms-agent-run-activity__summary {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 import { AppPanel, AppSurfaceItem } from "../../../../app";
 import { Button } from "../../../../../primitives";
@@ -10,6 +10,7 @@ export function DetailEntityHorizontalRail({
   expandLabel,
   onExpand,
   className,
+  ...props
 }: {
   title: ReactNode;
   subtitle: ReactNode;
@@ -17,9 +18,9 @@ export function DetailEntityHorizontalRail({
   expandLabel: string;
   onExpand: () => void;
   className?: string;
-}) {
+} & Omit<ComponentPropsWithoutRef<typeof AppPanel>, "icon">) {
   return (
-    <AppPanel className={className} bodyClassName="detail-entity-rail">
+    <AppPanel className={className} bodyClassName="detail-entity-rail" {...props}>
       <Button
         type="button"
         variant="ghost"

@@ -106,9 +106,9 @@ export const AgentWorkflowStack = React.forwardRef<HTMLDivElement, React.HTMLAtt
 
 AgentWorkflowStack.displayName = "AgentWorkflowStack";
 
-export const AgentWorkflowApprovalCard = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} variant={variant} className={cn("ms-agent-workflow-approval-card", className)} {...props} />;
+export const AgentWorkflowApprovalCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-workflow-approval-card", className)} {...props} />;
   }
 );
 

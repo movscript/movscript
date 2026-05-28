@@ -60,7 +60,7 @@ export function LocalAgentWorkflowBubble({
     <AgentChatMessage
       role="assistant"
       avatar={<Bot size={14} />}
-      data-agent-divider-label={formatAgentDividerTime(interactions[0]?.createdAt)}
+      head={<span className="ms-agent-message__head-label">{formatAgentDividerTime(interactions[0]?.createdAt)}</span>}
     >
       <AgentActivityFeedView
         run={run}

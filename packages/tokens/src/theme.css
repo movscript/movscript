@@ -8,12 +8,21 @@
   --ms-leading-caption: 16px;
   --ms-text-label: 12px;
   --ms-leading-label: 16px;
+  --ms-text-item: 13px;
+  --ms-leading-item: 18px;
   --ms-text-body: 14px;
   --ms-leading-body: 20px;
+  --ms-text-section: 16px;
+  --ms-leading-section: 22px;
 
   --ms-radius-sm: 5px;
   --ms-radius-md: 8px;
   --ms-radius-full: 999px;
+
+  --ms-blur-frosted-sm: 16px;
+  --ms-blur-frosted-md: 24px;
+  --ms-blur-frosted-lg: 36px;
+  --ms-saturate-frosted: 1.18;
 
   --ms-space-1: 4px;
   --ms-space-2: 8px;

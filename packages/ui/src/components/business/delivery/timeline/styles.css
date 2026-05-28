@@ -1,4 +1,6 @@
 .production-delivery-timeline-track {
+  min-width: 0;
+  min-height: 0;
   border-top: 1px solid var(--ms-color-border);
   padding: var(--ms-space-3);
 }
@@ -162,10 +164,13 @@
 }
 
 .production-delivery-timeline-viewport {
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .production-delivery-timeline-canvas {
+  min-width: 0;
   border-bottom: 1px solid var(--ms-color-border);
   background: var(--ms-color-background);
   padding: var(--ms-space-3);
@@ -316,6 +321,8 @@
 }
 
 .production-delivery-timeline-schedule {
+  min-width: 0;
+  overflow: hidden;
   border-top: 1px solid var(--ms-color-border);
 }
 

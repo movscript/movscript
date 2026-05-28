@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { AgentBuiltinChatShell } from '@/features/agent/components/AgentBuiltinChatShell'
 import { useAIAgentPanelDockController } from '@/features/agent/presentation/useAIAgentPanelDockController'
 import { useAgentStore } from '@/features/agent/state/agentStore'
@@ -18,10 +19,30 @@ export function AIAgentPanel() {
     startPanelResize,
     toggleOpen,
   } = useAIAgentPanelDockController()
+  const [renderPanel, setRenderPanel] = useState(open)
+  const [animatedOpen, setAnimatedOpen] = useState(open)
 
-  if (!open) return null
+  useEffect(() => {
+    if (open) {
+      setRenderPanel(true)
+      const frame = window.requestAnimationFrame(() => setAnimatedOpen(true))
+      return () => window.cancelAnimationFrame(frame)
+    }
+    setAnimatedOpen(false)
+    const timeout = window.setTimeout(() => setRenderPanel(false), 260)
+    return () => window.clearTimeout(timeout)
+  }, [open])
 
-  if (!hasOpenConversations) {
+  useEffect(() => {
+    if (!renderPanel) {
+      setAnimatedOpen(false)
+      return
+    }
+  }, [renderPanel])
+
+  if (!renderPanel) return null
+
+  if (!hasOpenConversations && open) {
     return (
       <div className="hidden">
         <AgentBuiltinChatShell
@@ -36,15 +57,19 @@ export function AIAgentPanel() {
 
   return (
     <AgentPanelShell
-      open={open}
+      open={renderPanel}
       dockLayout={dockLayout}
+      chrome={dockLayout ? 'dock' : 'floating'}
+      collapsed={!animatedOpen}
       panelRef={panelRef}
-      panelWidth={panelWidth}
+      panelWidth={animatedOpen ? panelWidth : 0}
       onResizeStart={startPanelResize}
     >
       <AgentBuiltinChatShell
         userId={userId}
         onCollapse={toggleOpen}
+        showCollapse={false}
+        host={dockLayout ? 'dock-panel' : 'floating-panel'}
         pendingThreadIdToOpen={pendingThreadIdToOpen}
         onPendingThreadHandled={handlePendingThreadHandled}
       />

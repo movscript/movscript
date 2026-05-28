@@ -3,14 +3,12 @@
 import * as React from "react";
 
 import { cn } from "../../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../../surface-block";
 
-export const AgentGeneratedResultCard = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "surface", ...props }, ref) => {
+export const AgentGeneratedResultCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
     return (
-      <AgentSurfaceBlock
+      <div
         ref={ref}
-        variant={variant}
         className={cn("ms-agent-generated-result-card", className)}
         {...props}
       />

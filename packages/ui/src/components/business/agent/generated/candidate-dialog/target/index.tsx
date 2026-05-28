@@ -2,15 +2,13 @@
 
 import * as React from "react";
 import { cn } from "../../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../../surface-block";
 import { WorkbenchList, WorkbenchListItem } from "../../../../workbench/list";
 
-export const AgentGeneratedCandidateTargetListFrame = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "surface", ...props }, ref) => {
+export const AgentGeneratedCandidateTargetListFrame = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
     return (
-      <AgentSurfaceBlock
+      <div
         ref={ref}
-        variant={variant}
         className={cn("ms-agent-generated-candidate-target-list", className)}
         {...props}
       />
@@ -89,12 +87,11 @@ export const AgentGeneratedCandidateTargetDescription = React.forwardRef<HTMLPar
 
 AgentGeneratedCandidateTargetDescription.displayName = "AgentGeneratedCandidateTargetDescription";
 
-export const AgentGeneratedCandidateSelectedTarget = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
+export const AgentGeneratedCandidateSelectedTarget = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
     return (
-      <AgentSurfaceBlock
+      <div
         ref={ref}
-        variant={variant}
         className={cn("ms-agent-generated-candidate-selected-target", className)}
         {...props}
       />

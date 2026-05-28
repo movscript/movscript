@@ -25,6 +25,10 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  NativeSelect,
   ProjectTaskActionButton,
   ProjectTaskActionStack,
   ProjectTaskAvatar,
@@ -36,10 +40,7 @@ import {
   ProjectTaskDialog,
   ProjectTaskDialogBody,
   ProjectTaskDialogBodyInner,
-  ProjectTaskDialogContent,
   ProjectTaskDialogDescription,
-  ProjectTaskDialogFooter,
-  ProjectTaskDialogHeader,
   ProjectTaskDialogTitle,
   ProjectTaskDividerStack,
   ProjectTaskEmptyState,
@@ -66,6 +67,9 @@ import {
   ProjectTaskMetricGrid,
   ProjectTaskPageLayout,
   ProjectTaskPanel,
+  ProjectTaskDetailPanel,
+  ProjectTaskListPanel,
+  ProjectTaskPublishPanel,
   ProjectTaskPurposeButton,
   ProjectTaskPurposeGrid,
   ProjectTaskReviewRecord,
@@ -955,14 +959,15 @@ function TaskCreateDialog({
 
   return (
     <ProjectTaskDialog open={open} onOpenChange={onOpenChange}>
-      <ProjectTaskDialogContent>
-        <ProjectTaskDialogHeader>
+      <DialogContent className="flex max-h-[88vh] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
           <ProjectTaskDialogTitle>新建任务</ProjectTaskDialogTitle>
           <ProjectTaskDialogDescription>
             选择任务目的和关联对象，系统会自动生成完成后的实体动作。
           </ProjectTaskDialogDescription>
-        </ProjectTaskDialogHeader>
+        </DialogHeader>
 
+        <div className="min-h-0 flex-1 overflow-y-auto">
         <ProjectTaskDialogBody>
           <ProjectTaskDialogBodyInner>
             <ProjectTaskStack>
@@ -1078,7 +1083,8 @@ function TaskCreateDialog({
                 {resultType === 'lock_asset_candidate' && (
                   <ProjectTaskField>
                     <ProjectTaskFieldLabel>候选素材</ProjectTaskFieldLabel>
-                    <ProjectTaskSelect
+                    <NativeSelect
+                      className="project-task-select"
                       value={selectedCandidate ? String(selectedCandidate.ID) : ''}
                       onChange={(event) => setCandidateID(event.target.value)}
                       disabled={!candidateOptions.length}
@@ -1087,7 +1093,7 @@ function TaskCreateDialog({
                       {candidateOptions.map((candidate) => (
                         <option key={candidate.ID} value={candidate.ID}>{candidateOptionLabel(candidate)}</option>
                       ))}
-                    </ProjectTaskSelect>
+                    </NativeSelect>
                     {!candidateOptions.length && (
                       <ProjectTaskFeedbackText tone="danger">
                         {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
@@ -1102,7 +1108,8 @@ function TaskCreateDialog({
                 {resultType === 'accept_keyframe' && (
                   <ProjectTaskField>
                     <ProjectTaskFieldLabel>候选画面锚点</ProjectTaskFieldLabel>
-                    <ProjectTaskSelect
+                    <NativeSelect
+                      className="project-task-select"
                       value={selectedKeyframeCandidate ? String(selectedKeyframeCandidate.ID) : ''}
                       onChange={(event) => setCandidateID(event.target.value)}
                       disabled={!keyframeCandidateOptions.length}
@@ -1111,7 +1118,7 @@ function TaskCreateDialog({
                       {keyframeCandidateOptions.map((candidate) => (
                         <option key={candidate.ID} value={candidate.ID}>{keyframeCandidateOptionLabel(candidate)}</option>
                       ))}
-                    </ProjectTaskSelect>
+                    </NativeSelect>
                     {!keyframeCandidateOptions.length && (
                       <ProjectTaskFeedbackText tone={requestedKeyframeCandidateUnavailable ? 'danger' : 'neutral'}>
                         {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
@@ -1168,12 +1175,13 @@ function TaskCreateDialog({
             </ProjectTaskFormGrid>
           </ProjectTaskDialogBodyInner>
         </ProjectTaskDialogBody>
+        </div>
 
-        <ProjectTaskDialogFooter>
+        <DialogFooter className="shrink-0 border-t border-border bg-card px-5 py-4">
           <ProjectTaskActionButton variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>取消</ProjectTaskActionButton>
           <ProjectTaskActionButton onClick={submit} disabled={!canSubmit || isSubmitting} loading={isSubmitting}>发布任务</ProjectTaskActionButton>
-        </ProjectTaskDialogFooter>
-      </ProjectTaskDialogContent>
+        </DialogFooter>
+      </DialogContent>
     </ProjectTaskDialog>
   )
 }
@@ -1722,7 +1730,7 @@ export default function TasksPage() {
 
         <ProjectTaskMainGrid>
           <ProjectTaskSidebar>
-            <ProjectTaskPanel title="任务发布" icon={Plus}>
+            <ProjectTaskPublishPanel title="任务发布" icon={Plus}>
               <ProjectTaskSurfaceItem>
                 <ProjectTaskStack>
                 <ProjectTaskText variant="label" tone="muted">
@@ -1734,7 +1742,7 @@ export default function TasksPage() {
                 </ProjectTaskActionButton>
                 </ProjectTaskStack>
               </ProjectTaskSurfaceItem>
-            </ProjectTaskPanel>
+            </ProjectTaskPublishPanel>
 
             <ManagementTab
               members={members}
@@ -1744,7 +1752,7 @@ export default function TasksPage() {
             />
           </ProjectTaskSidebar>
 
-          <ProjectTaskPanel
+          <ProjectTaskListPanel
             title="任务列表"
             icon={ListTodo}
             action={(
@@ -1829,9 +1837,9 @@ export default function TasksPage() {
                 />
               )}
             </ProjectTaskStack>
-          </ProjectTaskPanel>
+          </ProjectTaskListPanel>
 
-          <ProjectTaskPanel
+          <ProjectTaskDetailPanel
             title="任务详情"
             icon={ClipboardCheck}
           >
@@ -2047,7 +2055,7 @@ export default function TasksPage() {
               </>
             )}
             </ProjectTaskStack>
-          </ProjectTaskPanel>
+          </ProjectTaskDetailPanel>
         </ProjectTaskMainGrid>
     </ProjectTaskPageLayout>
   )

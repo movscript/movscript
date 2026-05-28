@@ -4846,7 +4846,8 @@ test('generic tool pages use package form controls', () => {
 
   assert.match(toolPageSource, /\bNativeSelect\b/)
   assert.match(toolPageSource, /\bButton\b/)
-  assert.match(toolPageSource, /\bToolHeader\b/)
+  assert.doesNotMatch(toolPageSource, /\bToolHeader\b/)
+  assert.doesNotMatch(brainstormSource, /\bToolHeader\b/)
   for (const exportName of [
     'ToolActionBar',
     'ToolHiddenFileInput',
@@ -4868,7 +4869,7 @@ test('generic tool pages use package form controls', () => {
   }
   assert.match(toolPageSource, /from '@movscript\/ui'/)
   assert.match(toolDialogSource, /\bButton\b/)
-  assert.match(toolDialogSource, /\bToolHeader\b/)
+  assert.doesNotMatch(toolDialogSource, /\bToolHeader\b/)
   for (const exportName of [
     'ToolDialogBody',
     'ToolDialogCopyButton',
@@ -4904,7 +4905,7 @@ test('generic tool pages use package form controls', () => {
   assert.match(toolDialogSource, /function DebugPanel[\s\S]*?<ToolDialogDebugPanel/)
   assert.match(brainstormSource, /\bTextarea\b/)
   assert.match(brainstormSource, /\bButton\b/)
-  assert.match(brainstormSource, /\bToolHeader\b/)
+  assert.doesNotMatch(brainstormSource, /\bToolHeader\b/)
   for (const exportName of [
     'ToolBrainstormActionRow',
     'ToolBrainstormAttachmentChip',
@@ -5105,7 +5106,7 @@ test('top app controls use package form controls', () => {
   assert.match(appShellSidebarCss, /\.app-sidebar-nav-item\s*\{/)
   assert.match(appShellWindowCss, /\.app-window-brand-button\s*\{/)
   assert.match(headerSource, /DropdownMenuTrigger asChild[\s\S]*?<AppTopControlButton/)
-  assert.match(headerSource, /<AppWindowBrandButton>[\s\S]*?<NavLink to=\{ROUTES\.projects\}/)
+  assert.match(headerSource, /<AppWindowBrandButton>[\s\S]*?<span>Movscript<\/span>/)
   assert.match(sidebarSource, /function NavItem[\s\S]*?<AppSidebarNavItemFrame/)
   assert.match(sidebarSource, /<AppSidebarActionItem[\s\S]*?openAdminConsole/)
   assert.match(sidebarSource, /DropdownMenuTrigger asChild[\s\S]*?<AppSidebarUserButton/)
@@ -8451,16 +8452,17 @@ test('jobs status badges use package semantic status contracts', () => {
     'JobsEmptyState',
     'JobsFilterBar',
     'JobsFilterChipButton',
-    'JobsHeader',
     'JobsHeaderStatus',
     'JobsLoadingState',
     'JobsPageShell',
     'JobsPager',
     'JobsPagerButton',
+    'JobsViewToggle',
     'JobSpinIcon',
   ]) {
     assert.match(jobsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by jobs page`)
   }
+  assert.doesNotMatch(jobsSource, /\bJobsHeader\b/)
   assert.match(jobsPackageSource, /export function JobsPageShell/)
   assert.match(jobsPackageSource, /export function JobsActionButton/)
   assert.match(jobsPackageSource, /export function JobsLoadingState/)
@@ -9631,9 +9633,7 @@ test('page content layouts avoid fixed horizontal page widths', () => {
   const agentConsoleNavPackageSource = readProjectFile('packages/ui/src/components/business/agent/console-nav/index.tsx')
   const canvasResourceShelfSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx')
   const productionProposalSemanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalSemanticDiffPanel.tsx')
-  assert.match(agentModeSource, /AGENT_CONTENT_PANEL_RATIO_STORAGE_KEY/)
-  assert.match(agentModeSource, /ResizeObserver/)
-  assert.doesNotMatch(agentModeSource, /AGENT_CONTENT_PANEL_WIDTH_STORAGE_KEY/)
+  assert.match(agentModeSource, /AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY/)
   assert.doesNotMatch(agentBrowserSource, /overflow-x-auto/)
   assert.match(agentConsoleNavSource, /\bAgentConsoleNavShell\b/)
   assert.match(agentConsoleNavSource, /\bAgentConsoleNavItem\b/)

@@ -5,9 +5,9 @@
   color: var(--ms-color-foreground);
   padding: 7px 11px;
   font-family: var(--ms-font-sans);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   font-weight: 600;
-  line-height: 18px;
+  line-height: var(--ms-leading-item);
 }
 
 .ms-agent-suggestion:hover {

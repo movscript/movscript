@@ -36,19 +36,25 @@ import { buildPlanOverviewStats, buildPlanTaskViews } from '@/features/agent/dom
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/shared/infrastructure/localAgentClient'
 
-interface AgentPinnedStatusShelfProps {
+export interface AgentPinnedStatusShelfProps {
   plan?: AgentPlan
   generationProgressStates?: GenerationProgressState[]
   planSnapshot?: AgentTaskGraphSnapshot
+  expanded?: boolean
+  defaultExpanded?: boolean
+  onExpandedChange?: (expanded: boolean) => void
 }
 
 const ACTIVE_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 type PinnedStatusView = 'generation' | 'subagent' | 'plan'
 
 export function AgentPinnedStatusShelf({
+  defaultExpanded = true,
+  expanded,
   plan,
   generationProgressStates = [],
   planSnapshot,
+  onExpandedChange,
 }: AgentPinnedStatusShelfProps) {
   const { t } = useTranslation()
   const liveGenerationStates = generationProgressStates.filter((state) => !state.terminal)
@@ -74,7 +80,12 @@ export function AgentPinnedStatusShelf({
     { id: 'plan' as const, label: t('agents.chat.pinnedStatus.tabs.plan'), count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
   ]
   const [activeView, setActiveView] = useState<PinnedStatusView>(hasGeneration ? 'generation' : hasSubagents ? 'subagent' : hasPlan ? 'plan' : 'generation')
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(!defaultExpanded)
+  const isExpanded = expanded ?? !collapsed
+  const setExpanded = (nextExpanded: boolean) => {
+    if (expanded === undefined) setCollapsed(!nextExpanded)
+    onExpandedChange?.(nextExpanded)
+  }
   const activeCount = [
     liveGenerationStates.length > 0 ? liveGenerationStates.length : 0,
     activeWorkerViews.length,
@@ -91,24 +102,24 @@ export function AgentPinnedStatusShelf({
           <AgentPinnedStatusHeader
             role="button"
             tabIndex={0}
-            aria-expanded={!collapsed}
+            aria-expanded={isExpanded}
             aria-controls="agent-pinned-status-shelf-body"
-            expanded={!collapsed}
-            onClick={() => setCollapsed((value) => !value)}
+            expanded={isExpanded}
+            onClick={() => setExpanded(!isExpanded)}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget) return
               if (event.key !== 'Enter' && event.key !== ' ') return
               event.preventDefault()
-              setCollapsed((value) => !value)
+              setExpanded(!isExpanded)
             }}
-            title={collapsed ? t('agents.chat.pinnedStatus.expand') : t('agents.chat.pinnedStatus.collapse')}
+            title={isExpanded ? t('agents.chat.pinnedStatus.collapse') : t('agents.chat.pinnedStatus.expand')}
           >
             <AgentPinnedStatusHeaderCopy>
               <AgentPinnedStatusTitleRow>
                 <span>{t('agents.chat.pinnedStatus.title')}</span>
-                {!collapsed && activeCount > 0 && <AgentPinnedStatusActiveCount>{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</AgentPinnedStatusActiveCount>}
+                {isExpanded && activeCount > 0 && <AgentPinnedStatusActiveCount>{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</AgentPinnedStatusActiveCount>}
               </AgentPinnedStatusTitleRow>
-              {!collapsed && (
+              {isExpanded && (
                 <AgentPinnedStatusSummaryRow>
                   {hasGeneration && <span>{t('agents.chat.pinnedStatus.generationTasksCount', { count: liveGenerationStates.length || generationProgressStates.length })}</span>}
                   {planStats && <span>{t('agents.chat.pinnedStatus.planProgress', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>}
@@ -118,7 +129,7 @@ export function AgentPinnedStatusShelf({
               )}
             </AgentPinnedStatusHeaderCopy>
             <AgentPinnedStatusHeaderActions>
-              {!collapsed && (
+              {isExpanded && (
                 <AgentPinnedStatusTabGroup>
                   {views.map((view) => (
                     <AgentPinnedStatusTabButton
@@ -136,13 +147,13 @@ export function AgentPinnedStatusShelf({
                 </AgentPinnedStatusTabGroup>
               )}
               <AgentPinnedStatusCollapseIcon>
-                {collapsed
-                  ? <ChevronDown size={14} aria-hidden="true" />
-                  : <ChevronUp size={14} aria-hidden="true" />}
+                {isExpanded
+                  ? <ChevronUp size={14} aria-hidden="true" />
+                  : <ChevronDown size={14} aria-hidden="true" />}
               </AgentPinnedStatusCollapseIcon>
             </AgentPinnedStatusHeaderActions>
           </AgentPinnedStatusHeader>
-        {!collapsed && (
+        {isExpanded && (
           <AgentPinnedStatusBody id="agent-pinned-status-shelf-body">
             {activeView === 'generation' && (
               hasGeneration ? (
@@ -181,6 +192,14 @@ export function AgentPinnedStatusShelf({
       </AgentPinnedStatusSurface>
     </AgentPinnedStatusRoot>
   )
+}
+
+export function hasAgentPinnedStatus({
+  plan,
+  generationProgressStates = [],
+  planSnapshot,
+}: Pick<AgentPinnedStatusShelfProps, 'plan' | 'generationProgressStates' | 'planSnapshot'>) {
+  return Boolean((plan && plan.items.length > 0) || planSnapshot || generationProgressStates.length > 0)
 }
 
 function pinnedGenerationProgressIntent(state: ReturnType<typeof generationJobBadge>['state'], terminal: boolean) {

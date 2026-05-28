@@ -10,7 +10,7 @@ import {
   UserProfileShell,
 } from '@movscript/ui'
 
-function ProfileTab() {
+export function UserProfilePanel() {
   const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
@@ -41,7 +41,7 @@ export default function UserProfilePage() {
     <UserProfileShell>
       <UserProfileHeader title={t('user.title')} description={t('user.subtitle')} />
 
-      <ProfileTab />
+      <UserProfilePanel />
     </UserProfileShell>
   )
 }

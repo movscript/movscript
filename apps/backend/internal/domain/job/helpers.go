@@ -83,7 +83,6 @@ type RawResource struct {
 	MimeType             string     `json:"mime_type"`
 	StorageBackend       string     `json:"storage_backend"`
 	StorageKey           string     `json:"storage_key"`
-	IsShared             bool       `json:"is_shared"`
 	DirectURL            string     `json:"direct_url,omitempty"`
 	VerificationStatus   string     `json:"verification_status,omitempty"`
 	VerificationRef      string     `json:"verification_ref,omitempty"`

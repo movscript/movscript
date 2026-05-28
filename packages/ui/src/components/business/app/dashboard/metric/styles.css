@@ -27,7 +27,7 @@
 .app-dashboard-stat__value {
   margin-top: 6px;
   color: var(--ms-color-foreground);
-  font-size: 22px;
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   line-height: 28px;

@@ -470,19 +470,9 @@ export interface ResourceFolder {
   name: string
   parent_id?: number
   storage_backend: string // "" = system default, "local", "tos", …
-  is_shared: boolean
   resource_count: number
   CreatedAt: string
   UpdatedAt: string
-}
-
-export interface ResourceFolderPermission {
-  ID: number
-  folder_id: number
-  user_id: number
-  user?: { ID: number; username: string }
-  permission: 'read' | 'write'
-  CreatedAt: string
 }
 
 export interface RawResource {
@@ -497,7 +487,6 @@ export interface RawResource {
   mime_type: string
   storage_backend?: string
   storage_key?: string
-  is_shared?: boolean
   direct_url?: string // presigned URL for cloud-stored resources
   owner?: { ID: number; username: string }
 }

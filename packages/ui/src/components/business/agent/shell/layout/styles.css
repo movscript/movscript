@@ -27,6 +27,7 @@
   display: grid;
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
   grid-template-rows: auto minmax(0, 1fr) auto;
   background:
     radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--ms-color-accent) 8%, transparent), transparent 28%),
@@ -61,16 +62,16 @@
 
 .ms-agent-title {
   color: var(--ms-color-foreground);
-  font-size: 16px;
+  font-size: var(--ms-text-section);
   font-weight: 700;
-  line-height: 22px;
+  line-height: var(--ms-leading-section);
 }
 
 .ms-agent-subtitle,
 .ms-agent-run-card__title,
 .ms-agent-instruction__title {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
 }
 
 .ms-agent-container {
@@ -103,6 +104,11 @@
   min-height: 0;
   align-content: start;
   overflow: auto;
+}
+
+.ms-agent-thread--fill {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .ms-agent-stack {

@@ -96,17 +96,18 @@ export function AppTopControlsRoot({
   return <div data-density={density} className={cn("app-top-controls", extraClassName, className)} {...props} />;
 }
 
-export function AppTopControlButton({
+export const AppTopControlButton = forwardRef<HTMLButtonElement, ButtonProps & {
+  density?: "default" | "compact";
+  active?: boolean;
+}>(({
   density = "default",
   active = false,
   className,
   ...props
-}: ButtonProps & {
-  density?: "default" | "compact";
-  active?: boolean;
-}) {
+}, ref) => {
   return (
     <Button
+      ref={ref}
       size={density === "compact" ? "icon-xs" : "icon-sm"}
       data-density={density}
       data-active={active ? "true" : "false"}
@@ -114,7 +115,9 @@ export function AppTopControlButton({
       {...props}
     />
   );
-}
+});
+
+AppTopControlButton.displayName = "AppTopControlButton";
 
 export function AppTopLanguageLabel({ className, ...props }: LabelProps) {
   return <Label className={cn("app-top-controls__sr-label", className)} {...props} />;

@@ -89,7 +89,6 @@ import {
   ProductionOrchestrationHeaderAction,
   ProductionOrchestrationHeaderBadge,
   ProductionOrchestrationHeaderMetaBadge,
-  ProductionOrchestrationMain,
   ProductionOrchestrationProposalBanner,
   ProductionOrchestrationProductionSelectTrigger,
   ProductionOrchestrationReviewDialogContent,
@@ -97,14 +96,14 @@ import {
   ProductionOrchestrationReviewEmptyNotice,
   ProductionOrchestrationRevisionDialogContent,
   ProductionOrchestrationSkeleton,
-  ProductionOrchestrationViewport,
-  ProductionOrchestrationWorkspaceBody,
-  ProductionOrchestrationWorkspaceFrame,
   Select,
   SelectContent,
   SelectItem,
   SelectValue,
+  WorkbenchProjectBody,
+  WorkbenchProjectPane,
   WorkbenchProjectShell,
+  WorkbenchProjectViewport,
 } from '@movscript/ui'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -620,7 +619,9 @@ export default function ProductionOrchestrationPage() {
     projectName: project?.name,
     kicker: selectedProduction ? `${String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`)} · 创作编排` : '创作编排',
     title: '创作编排工作台',
-    description: '把剧本、设定和素材约束组织成 production 级创作蓝图，并通过 production proposal 审阅后落地。',
+    description: proposalModeActive
+      ? '正式项目当前只读，先在 production proposal draft 中调整提案，再通过审核应用到项目。'
+      : '把剧本、设定和素材约束组织成 production 级创作蓝图，并通过 production proposal 审阅后落地。',
     badges: (
       <>
         {proposalModeActive ? <ProductionOrchestrationHeaderBadge statusProps={productionProposalModeRecipe(proposalModeActive)}>提案模式</ProductionOrchestrationHeaderBadge> : null}
@@ -681,9 +682,10 @@ export default function ProductionOrchestrationPage() {
           onClick={proposalModeActive ? () => setProposalRevisionDialogOpen(true) : () => launchController.handleAnalyzeTarget({ scope: 'production' })}
           loading={proposalModeActive ? launchingProposalRevision : launchController.orchestrationStage !== 'idle'}
           disabled={!projectId || !effectiveProductionId || (proposalModeActive ? !openedDraftQuery.data || launchingProposalRevision : launchController.orchestrationStage !== 'idle')}
+          title={proposalModeActive ? 'Agent 会读取并编辑当前 production proposal draft 文件' : undefined}
         >
           <Wand2 size={14} />
-          {proposalModeActive ? 'Agent 调整提案' : '生成编排提案'}
+          {proposalModeActive ? '让 Agent 调整提案' : '生成编排提案'}
         </ProductionOrchestrationHeaderAction>
       </>
     ),
@@ -691,72 +693,70 @@ export default function ProductionOrchestrationPage() {
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <ProductionOrchestrationViewport>
-        <ProductionOrchestrationMain>
-          {isLoading ? (
-            <ProductionOrchestrationSkeleton />
-          ) : (
-            <ProductionOrchestrationWorkspaceFrame>
-              {proposalModeActive ? (
-                <ProductionOrchestrationProposalBanner
-                  saving={savingProposalDraft}
-                  reviewDisabled={!proposalPreviewDraft}
-                  discardDisabled={!openedDraftId}
-                  onReview={() => setProposalReviewOpen(true)}
-                  onExit={exitProposalMode}
-                  onDiscard={() => { void discardProposalDraft() }}
-                />
-              ) : null}
-              {launchController.orchestrationStage !== 'idle' ? (
-                <ProductionOrchestrationGenerationNotice />
-              ) : null}
-              <ProductionOrchestrationWorkspaceBody>
-                <ProductionOrchestrationWorkspace
-                  scriptSourceText={scriptSourceText}
-                  creativeReferences={allCreativeReferences}
-                  assetSlots={workspaceAssetSlots}
-                  segments={workspaceSegments}
-                  sceneMoments={workspaceSceneMoments}
-                  writingExpressions={workspaceWritingExpressions}
-                  scriptBlocks={allScriptBlocks}
-                  selectedMomentId={proposalModeActive ? proposalSelectedMomentId : pageController.selectedWritingMomentId}
-                  isBindingSceneMomentScriptBlock={proposalModeActive ? savingProposalDraft : bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
-                  allowCreateAndBindSceneMomentScriptBlock={!proposalModeActive}
-                  lookup={workspaceLookup}
-                  onCreateSegment={proposalModeActive ? createProposalSegment : pageController.createSegment}
-                  onCreateSceneMoment={proposalModeActive ? createProposalSceneMoment : pageController.createSceneMoment}
-                  onSelectSceneMoment={proposalModeActive ? setProposalSelectedMomentId : pageController.selectSceneMoment}
-                  onSaveSegment={proposalModeActive ? saveProposalSegment : (segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
-                  onDeleteSegment={proposalModeActive ? deleteProposalSegment : (segmentId) => deleteSegmentMutation.mutate(segmentId)}
-                  onBindSceneMomentScriptBlock={proposalModeActive ? bindProposalSceneMomentScriptBlock : (momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
-                  onCreateAndBindSceneMomentScriptBlock={proposalModeActive ? (momentId, _startLine, _endLine) => bindProposalSceneMomentScriptBlock(momentId, null) : (momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
-                  onSaveSceneMoment={proposalModeActive ? saveProposalSceneMoment : (momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
-                  onDeleteSceneMoment={proposalModeActive ? deleteProposalSceneMoment : (momentId) => deleteSceneMomentMutation.mutate(momentId)}
-                  onLinkReferenceToSceneMoment={proposalModeActive ? linkProposalReferenceToSceneMoment : (momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
-                  onUnlinkReferenceFromSceneMoment={proposalModeActive ? unlinkProposalReferenceFromSceneMoment : (usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
-                  onSaveExpressionLine={proposalModeActive ? saveProposalExpressionLine : (target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
-                  onDeleteExpressionLine={(target) => {
-                    if (proposalModeActive) {
-                      deleteProposalExpressionLine(target)
-                      return
-                    }
-                    if (target.kind === 'writingExpressions') deleteWritingExpressionMutation.mutate(target.id)
-                  }}
-                  onAddExpressionLine={proposalModeActive ? addProposalExpressionLine : (momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
-                  canDeleteFallbackContentUnits={proposalModeActive}
-                  isSavingSegment={proposalModeActive ? savingProposalDraft : updateSegmentMutation.isPending}
-                  isDeletingSegment={proposalModeActive ? savingProposalDraft : deleteSegmentMutation.isPending}
-                  isSavingSceneMoment={proposalModeActive ? savingProposalDraft : updateSceneMomentMutation.isPending}
-                  isDeletingSceneMoment={proposalModeActive ? savingProposalDraft : deleteSceneMomentMutation.isPending}
-                  isLinkingSceneMomentReference={proposalModeActive ? savingProposalDraft : linkSceneMomentReferenceMutation.isPending}
-                  isDeletingSceneMomentReference={proposalModeActive ? savingProposalDraft : unlinkSceneMomentReferenceMutation.isPending}
-                  isSavingExpressionLine={proposalModeActive ? savingProposalDraft : updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending || deleteWritingExpressionMutation.isPending}
-                />
-              </ProductionOrchestrationWorkspaceBody>
-            </ProductionOrchestrationWorkspaceFrame>
-          )}
-        </ProductionOrchestrationMain>
-      </ProductionOrchestrationViewport>
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
+        {isLoading ? (
+          <ProductionOrchestrationSkeleton />
+        ) : (
+          <WorkbenchProjectViewport direction="column">
+            {proposalModeActive ? (
+              <ProductionOrchestrationProposalBanner
+                saving={savingProposalDraft}
+                reviewDisabled={!proposalPreviewDraft}
+                discardDisabled={!openedDraftId}
+                onReview={() => setProposalReviewOpen(true)}
+                onExit={exitProposalMode}
+                onDiscard={() => { void discardProposalDraft() }}
+              />
+            ) : null}
+            {launchController.orchestrationStage !== 'idle' ? (
+              <ProductionOrchestrationGenerationNotice />
+            ) : null}
+            <WorkbenchProjectPane>
+              <ProductionOrchestrationWorkspace
+                scriptSourceText={scriptSourceText}
+                creativeReferences={allCreativeReferences}
+                assetSlots={workspaceAssetSlots}
+                segments={workspaceSegments}
+                sceneMoments={workspaceSceneMoments}
+                writingExpressions={workspaceWritingExpressions}
+                scriptBlocks={allScriptBlocks}
+                selectedMomentId={proposalModeActive ? proposalSelectedMomentId : pageController.selectedWritingMomentId}
+                isBindingSceneMomentScriptBlock={proposalModeActive ? savingProposalDraft : bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
+                allowCreateAndBindSceneMomentScriptBlock={!proposalModeActive}
+                lookup={workspaceLookup}
+                onCreateSegment={proposalModeActive ? createProposalSegment : pageController.createSegment}
+                onCreateSceneMoment={proposalModeActive ? createProposalSceneMoment : pageController.createSceneMoment}
+                onSelectSceneMoment={proposalModeActive ? setProposalSelectedMomentId : pageController.selectSceneMoment}
+                onSaveSegment={proposalModeActive ? saveProposalSegment : (segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
+                onDeleteSegment={proposalModeActive ? deleteProposalSegment : (segmentId) => deleteSegmentMutation.mutate(segmentId)}
+                onBindSceneMomentScriptBlock={proposalModeActive ? bindProposalSceneMomentScriptBlock : (momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
+                onCreateAndBindSceneMomentScriptBlock={proposalModeActive ? (momentId, _startLine, _endLine) => bindProposalSceneMomentScriptBlock(momentId, null) : (momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
+                onSaveSceneMoment={proposalModeActive ? saveProposalSceneMoment : (momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
+                onDeleteSceneMoment={proposalModeActive ? deleteProposalSceneMoment : (momentId) => deleteSceneMomentMutation.mutate(momentId)}
+                onLinkReferenceToSceneMoment={proposalModeActive ? linkProposalReferenceToSceneMoment : (momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
+                onUnlinkReferenceFromSceneMoment={proposalModeActive ? unlinkProposalReferenceFromSceneMoment : (usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
+                onSaveExpressionLine={proposalModeActive ? saveProposalExpressionLine : (target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
+                onDeleteExpressionLine={(target) => {
+                  if (proposalModeActive) {
+                    deleteProposalExpressionLine(target)
+                    return
+                  }
+                  if (target.kind === 'writingExpressions') deleteWritingExpressionMutation.mutate(target.id)
+                }}
+                onAddExpressionLine={proposalModeActive ? addProposalExpressionLine : (momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
+                canDeleteFallbackContentUnits={proposalModeActive}
+                isSavingSegment={proposalModeActive ? savingProposalDraft : updateSegmentMutation.isPending}
+                isDeletingSegment={proposalModeActive ? savingProposalDraft : deleteSegmentMutation.isPending}
+                isSavingSceneMoment={proposalModeActive ? savingProposalDraft : updateSceneMomentMutation.isPending}
+                isDeletingSceneMoment={proposalModeActive ? savingProposalDraft : deleteSceneMomentMutation.isPending}
+                isLinkingSceneMomentReference={proposalModeActive ? savingProposalDraft : linkSceneMomentReferenceMutation.isPending}
+                isDeletingSceneMomentReference={proposalModeActive ? savingProposalDraft : unlinkSceneMomentReferenceMutation.isPending}
+                isSavingExpressionLine={proposalModeActive ? savingProposalDraft : updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending || deleteWritingExpressionMutation.isPending}
+              />
+            </WorkbenchProjectPane>
+          </WorkbenchProjectViewport>
+        )}
+      </WorkbenchProjectBody>
 
       <Dialog open={proposalReviewOpen} onOpenChange={setProposalReviewOpen}>
         <ProductionOrchestrationReviewDialogContent>

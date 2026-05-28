@@ -35,9 +35,9 @@ import {
   AgentRunsStateMessage,
   AgentRunsStatusBadge,
   AgentRunsToolbar,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { agentRunPath } from '@/routes/projectRoutes'
@@ -91,8 +91,8 @@ export default function AgentRunsPage() {
   const summaryRecipe = agentAttentionStatusRecipe(summary.requiresAction, summary.failed)
 
   return (
-    <AppPageShell data-testid="agent-runs-page">
-      <AppPageShellHeader>
+    <AgentPageShell data-testid="agent-runs-page">
+      <AgentPageShellHeader>
         <AgentRunsPageHeader>
           <AgentRunsPageHeaderCopy>
             <AgentRunsPageTitleRow>
@@ -111,11 +111,11 @@ export default function AgentRunsPage() {
             刷新
           </AgentRunsRefreshButton>
         </AgentRunsPageHeader>
-      </AppPageShellHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      <AppPageShellBody>
+      <AgentPageShellBody>
         <AgentRunsMetricGrid>
           <RunMetric title="运行中" value={summary.active} tone="neutral" icon={<Clock size={14} />} />
           <RunMetric title="等待处理" value={summary.requiresAction} tone={summary.requiresAction > 0 ? 'warning' : 'neutral'} icon={<AlertTriangle size={14} />} />
@@ -159,8 +159,8 @@ export default function AgentRunsPage() {
             )}
           </AgentRunsPanelBody>
         </AgentRunsPanel>
-      </AppPageShellBody>
-    </AppPageShell>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

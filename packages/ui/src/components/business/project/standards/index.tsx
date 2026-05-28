@@ -46,10 +46,6 @@ export function ProjectStandardsMain({ className, ...props }: HTMLAttributes<HTM
   return <main className={cn("project-standards-main", className)} {...props} />;
 }
 
-export function ProjectStandardsRoot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("project-standards-root", className)} {...props} />;
-}
-
 export function ProjectStandardsMetricGrid({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return <section className={cn("project-standards-metric-grid", className)} {...props} />;
 }
@@ -317,6 +313,10 @@ export function ProjectStandardsDialogContent({
   ...props
 }: ComponentPropsWithoutRef<typeof DialogContent>) {
   return <DialogContent className={cn("project-standards-dialog-content", className)} {...props} />;
+}
+
+export function ProjectStandardsDialogBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("project-standards-dialog-body", className)} {...props} />;
 }
 
 export function ProjectStandardsDialogTitle(props: ComponentPropsWithoutRef<typeof DialogTitle>) {

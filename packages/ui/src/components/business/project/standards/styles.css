@@ -1,30 +1,34 @@
-.project-standards-root {
+.project-standards-main {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
-}
-
-.project-standards-main {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: auto;
   background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
 }
 
 .project-standards-content-layout {
-  min-height: 100%;
-  height: auto;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
   background: transparent;
 }
 
 .project-standards-content-layout__content {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   gap: var(--ms-space-4);
 }
 
+.project-standards-dialog-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--ms-space-4);
+}
+
 .project-standards-metric-grid {
+  flex-shrink: 0;
   display: grid;
   gap: var(--ms-space-3);
 }
@@ -32,13 +36,20 @@
 .project-standards-workspace-grid {
   display: grid;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   gap: var(--ms-space-4);
+  overflow: hidden;
 }
 
 .project-standards-column {
   min-width: 0;
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: var(--ms-space-4);
+  overflow-y: auto;
+  padding-right: var(--ms-space-1);
 }
 
 .project-standards-section {
@@ -217,6 +228,8 @@
 
 .project-standards-preview-aside {
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   align-self: flex-start;
   overflow: hidden;
   padding-top: var(--ms-space-4);
@@ -224,8 +237,10 @@
 }
 
 .project-standards-preview-surface {
-  max-height: 620px;
+  min-height: 0;
+  max-height: none;
   margin-top: var(--ms-space-3);
+  flex: 1 1 auto;
   overflow: auto;
   padding: var(--ms-space-3);
 }
@@ -292,6 +307,7 @@
   .project-standards-preview-aside {
     position: sticky;
     top: var(--ms-space-4);
+    height: 100%;
     padding-top: 0;
     padding-left: var(--ms-space-4);
     border-top: 0;

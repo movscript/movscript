@@ -22,9 +22,9 @@
   margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: 15px;
+  font-size: var(--ms-text-section);
   font-weight: 750;
-  line-height: 20px;
+  line-height: var(--ms-leading-section);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -98,7 +98,7 @@
 .ms-agent-instruction__body {
   padding: 11px 12px 12px 14px;
   color: var(--ms-color-foreground);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   line-height: 20px;
 }
 

@@ -1,8 +1,25 @@
+.review-proposal-shell--contained-scroll {
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: var(--ms-shadow-sm);
+}
+
+.review-proposal-shell--contained-scroll .review-proposal-shell__body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .review-proposal-draft-list {
   display: grid;
   min-width: 0;
   gap: 12px;
   margin-top: 12px;
+}
+
+.review-proposal-draft-list--scroll {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .review-proposal-draft-panel__badges,

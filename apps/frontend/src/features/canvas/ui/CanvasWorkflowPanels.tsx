@@ -25,13 +25,9 @@ import {
   CanvasWorkflowHistoryView,
   CanvasWorkflowRunResultsView,
   CanvasWorkflowSideBody,
-  CanvasWorkflowSideHeader,
   CanvasWorkflowSideIconButton,
   CanvasWorkflowSidePanel,
   CanvasWorkflowSideRail,
-  CanvasWorkflowSideTabButton,
-  CanvasWorkflowSideTabGroup,
-  CanvasWorkflowSideTabLabel,
   type CanvasWorkflowHistoryItem,
   type CanvasWorkflowHistoryStatusFilter,
   type CanvasWorkflowRunResultsItem,
@@ -172,7 +168,10 @@ function WorkflowRunHistory({
 export function WorkflowSidePanel({
   projectId,
   dependencyBindings,
+  activeCanvasResourceIds,
+  disableResourcePreviews = false,
   activeTab,
+  collapsed,
   runs,
   total,
   page,
@@ -181,13 +180,17 @@ export function WorkflowSidePanel({
   activeRunId,
   isLoading,
   onTabChange,
+  onCollapsedChange,
   onStatusFilterChange,
   onPageChange,
   onSelectRun,
 }: {
   projectId?: number
   dependencyBindings: ResourceBinding[]
+  activeCanvasResourceIds?: ReadonlySet<number>
+  disableResourcePreviews?: boolean
   activeTab: 'resources' | 'history'
+  collapsed: boolean
   runs: CanvasRuntimeRun[]
   total: number
   page: number
@@ -196,19 +199,19 @@ export function WorkflowSidePanel({
   activeRunId: string | null
   isLoading: boolean
   onTabChange: (tab: 'resources' | 'history') => void
+  onCollapsedChange: (collapsed: boolean) => void
   onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
   onPageChange: (page: number) => void
   onSelectRun: (runId: string) => void
 }) {
   const { t } = useTranslation()
-  const [collapsed, setCollapsed] = useState(false)
-  const [width, setWidth] = useState(360)
+  const [width, setWidth] = useState(300)
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault()
     const startX = event.clientX
     const startWidth = width
     function onMove(moveEvent: PointerEvent) {
-      const next = Math.min(520, Math.max(300, startWidth + startX - moveEvent.clientX))
+      const next = Math.min(420, Math.max(260, startWidth + startX - moveEvent.clientX))
       setWidth(next)
     }
     function onUp() {
@@ -218,74 +221,61 @@ export function WorkflowSidePanel({
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
   }
-  if (collapsed) {
-    return (
+  return (
+    <>
       <CanvasWorkflowSideRail>
-        <CanvasWorkflowSideIconButton onClick={() => setCollapsed(false)} title={t('canvas.editor.resourceShelf.title')}>
+        <CanvasWorkflowSideIconButton
+          onClick={() => {
+            onTabChange('resources')
+            onCollapsedChange(false)
+          }}
+          data-active={!collapsed && activeTab === 'resources' ? 'true' : undefined}
+          title={t('canvas.editor.resourceShelf.title')}
+          aria-label={t('canvas.editor.resourceShelf.title')}
+        >
           <HardDrive size={14} />
         </CanvasWorkflowSideIconButton>
         <CanvasWorkflowSideIconButton
           onClick={() => {
             onTabChange('history')
-            setCollapsed(false)
+            onCollapsedChange(false)
           }}
+          data-active={!collapsed && activeTab === 'history' ? 'true' : undefined}
           title={t('canvas.editor.history.title')}
+          aria-label={t('canvas.editor.history.title')}
         >
           <History size={14} />
         </CanvasWorkflowSideIconButton>
       </CanvasWorkflowSideRail>
-    )
-  }
-  return (
-    <CanvasWorkflowSidePanel width={width}>
-      <CanvasResizeHandleButton
-        onPointerDown={startResize}
-        title={t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' })}
-      />
-      <CanvasWorkflowSideHeader>
-        <CanvasWorkflowSideTabGroup>
-          <CanvasWorkflowSideTabButton
-            type="button"
-            onClick={() => onTabChange('resources')}
-            active={activeTab === 'resources'}
-          >
-            <HardDrive size={12} />
-            <CanvasWorkflowSideTabLabel>{t('canvas.editor.resourceShelf.title')}</CanvasWorkflowSideTabLabel>
-          </CanvasWorkflowSideTabButton>
-          <CanvasWorkflowSideTabButton
-            type="button"
-            onClick={() => onTabChange('history')}
-            active={activeTab === 'history'}
-          >
-            <History size={12} />
-            <CanvasWorkflowSideTabLabel>{t('canvas.editor.history.title')}</CanvasWorkflowSideTabLabel>
-          </CanvasWorkflowSideTabButton>
-        </CanvasWorkflowSideTabGroup>
-        <CanvasWorkflowSideIconButton onClick={() => setCollapsed(true)}>
-          <ChevronRight size={14} />
-        </CanvasWorkflowSideIconButton>
-      </CanvasWorkflowSideHeader>
-      <CanvasWorkflowSideBody>
-        {activeTab === 'resources' ? (
-          <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} variant="side" />
-        ) : (
-          <WorkflowRunHistory
-            embedded
-            compact
-            runs={runs}
-            total={total}
-            page={page}
-            pageCount={pageCount}
-            statusFilter={statusFilter}
-            activeRunId={activeRunId}
-            isLoading={isLoading}
-            onStatusFilterChange={onStatusFilterChange}
-            onPageChange={onPageChange}
-            onSelectRun={onSelectRun}
+      {!collapsed ? (
+        <CanvasWorkflowSidePanel width={width}>
+          <CanvasResizeHandleButton
+            onPointerDown={startResize}
+            title={t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' })}
           />
-        )}
-      </CanvasWorkflowSideBody>
-    </CanvasWorkflowSidePanel>
+          <CanvasWorkflowSideBody>
+            {activeTab === 'resources' ? (
+              <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} activeCanvasResourceIds={activeCanvasResourceIds} disablePreviews={disableResourcePreviews} variant="side" />
+            ) : (
+              <WorkflowRunHistory
+                embedded
+                compact
+                runs={runs}
+                total={total}
+                page={page}
+                pageCount={pageCount}
+                statusFilter={statusFilter}
+                activeRunId={activeRunId}
+                isLoading={isLoading}
+                onStatusFilterChange={onStatusFilterChange}
+                onPageChange={onPageChange}
+                onSelectRun={onSelectRun}
+              />
+            )}
+          </CanvasWorkflowSideBody>
+        </CanvasWorkflowSidePanel>
+      ) : null}
+    </>
   )
 }
 

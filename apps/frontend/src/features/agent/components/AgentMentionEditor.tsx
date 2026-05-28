@@ -1,6 +1,6 @@
 import React from 'react'
 import { X } from 'lucide-react'
-import { AgentMediaThumb, AgentSurfaceBlock, Button } from '@movscript/ui'
+import { AgentMediaThumb, Button } from '@movscript/ui'
 import { attachmentDisplayUrl, formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
 import { mentionEditorTextBeforeCaret, serializeMentionEditor } from '@/features/agent/presentation/agentMentionEditorModel'
 import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
@@ -33,7 +33,7 @@ export function ComposerAttachmentChip({
   )
 
   return (
-    <AgentSurfaceBlock className="flex min-w-0 items-center gap-2 px-2 py-1 type-caption">
+    <div className="flex min-w-0 items-center gap-2 border-t border-border px-0 py-1 type-caption first:border-t-0">
       <AgentMediaThumb size="md">
         {preview}
       </AgentMediaThumb>
@@ -46,7 +46,7 @@ export function ComposerAttachmentChip({
       <Button type="button" variant="ghost" tone="danger" size="icon-xs" className="shrink-0" onClick={onRemove} aria-label={`Remove ${attachment.name}`}>
         <X size={10} />
       </Button>
-    </AgentSurfaceBlock>
+    </div>
   )
 }
 

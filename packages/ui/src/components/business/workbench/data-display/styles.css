@@ -17,7 +17,7 @@
 }
 
 .workbench-metric--compact .workbench-metric__value {
-  font-size: 15px;
+  font-size: var(--ms-text-body);
   line-height: 20px;
 }
 

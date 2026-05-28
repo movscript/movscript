@@ -127,17 +127,7 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 	if resource.OwnerID == userID || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return resource, nil
 	}
-	allowed := resource.IsShared
-	if !allowed && resource.FolderID != nil {
-		var folder persistencemodel.ResourceFolder
-		if r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error == nil {
-			allowed = folder.IsShared
-		}
-	}
-	if !allowed {
-		allowed = r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy)
-	}
-	if !allowed {
+	if !r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy) {
 		return resource, ErrForbidden
 	}
 	return resource, nil
@@ -181,29 +171,30 @@ func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID 
 		return nil, ErrForbidden
 	}
 	if folder.OwnerID != userID && !resourceInCurrentTeam(folder.OrgID, orgID) {
-		if !folder.IsShared {
-			return nil, ErrForbidden
-		}
-		var perm persistencemodel.ResourceFolderPermission
-		if r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ? AND permission = ?", folder.ID, userID, "write").
-			First(&perm).Error != nil {
-			return nil, ErrForbidden
-		}
+		return nil, ErrForbidden
 	}
 	fid := folder.ID
 	return &fid, nil
 }
 
 func (r *gormRepository) listQuery(ctx context.Context, input ListInput) (*gorm.DB, error) {
-	if input.Shared {
-		return r.sharedListQuery(ctx, input)
-	}
 	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{})
-	if input.OrgID != nil {
-		q = q.Where("(org_id = ? OR (org_id IS NULL AND owner_id = ?))", *input.OrgID, input.UserID)
-	} else {
-		q = q.Where("owner_id = ?", input.UserID)
-		q = applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID))
+	switch input.Scope {
+	case "personal":
+		q = q.Where("owner_id = ? AND org_id IS NULL", input.UserID)
+	case "team":
+		if input.OrgID == nil {
+			q = q.Where("1 = 0")
+		} else {
+			q = q.Where("org_id = ?", *input.OrgID)
+		}
+	default:
+		if input.OrgID != nil {
+			q = q.Where("(org_id = ? OR (org_id IS NULL AND owner_id = ?))", *input.OrgID, input.UserID)
+		} else {
+			q = q.Where("owner_id = ?", input.UserID)
+			q = applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID))
+		}
 	}
 	switch input.FolderID {
 	case "", "all":
@@ -213,27 +204,6 @@ func (r *gormRepository) listQuery(ctx context.Context, input ListInput) (*gorm.
 		q = q.Where("folder_id = ?", input.FolderID)
 	}
 	return q, nil
-}
-
-func (r *gormRepository) sharedListQuery(ctx context.Context, input ListInput) (*gorm.DB, error) {
-	if input.FolderID != "" {
-		var folder persistencemodel.ResourceFolder
-		if err := r.db.WithContext(ctx).First(&folder, input.FolderID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, ErrFolderNotFound
-			}
-			return nil, err
-		}
-		if !resourceInOrgScope(folder.OrgID, input.OrgID, folder.OwnerID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID)) {
-			return nil, ErrForbidden
-		}
-		if folder.OwnerID != input.UserID && !folder.IsShared {
-			return nil, ErrForbidden
-		}
-		return r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), nil
-	}
-	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner")
-	return applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID)), nil
 }
 
 func (r *gormRepository) getResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
@@ -345,9 +315,6 @@ func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
 	}
 	if spec.OrgID != nil {
 		updates["org_id"] = *spec.OrgID
-	}
-	if spec.IsShared != nil {
-		updates["is_shared"] = *spec.IsShared
 	}
 	if spec.ClearFolder {
 		updates["folder_id"] = nil

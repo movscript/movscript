@@ -1,4 +1,6 @@
-import type { ComponentProps, DragEventHandler, FormEvent, RefObject } from 'react'
+import type { ComponentProps, CSSProperties, DragEventHandler, FormEvent, RefObject } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { AtSign, CircleStop, Eye, Loader2, Send, Upload } from 'lucide-react'
 import {
@@ -7,7 +9,6 @@ import {
   AgentComposerDropOverlay,
   AgentComposerSubmit,
   AgentComposerToolbar,
-  AgentSurfaceBlock,
   Badge,
   Button,
   Input,
@@ -25,7 +26,15 @@ import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']
 
+interface MentionMenuPosition {
+  bottom: number
+  left: number
+  maxHeight: number
+  width: number
+}
+
 export interface AgentComposerSectionProps {
+  chrome?: 'card' | 'bottom-bar' | 'flush'
   answeringPendingInput: boolean
   activePendingInputTitle?: string
   addMentionTrigger: () => void
@@ -63,8 +72,8 @@ export interface AgentComposerSectionProps {
 }
 
 export function AgentComposerSection({
+  chrome = 'card',
   answeringPendingInput,
-  activePendingInputTitle,
   addMentionTrigger,
   buildingSendDraft,
   canAnswerPendingInputWithText,
@@ -100,6 +109,69 @@ export function AgentComposerSection({
 }: AgentComposerSectionProps) {
   const { t } = useTranslation()
   const editorDisabled = buildingSendDraft || (answeringPendingInput && !canAnswerPendingInputWithText)
+  const [mentionMenuPosition, setMentionMenuPosition] = useState<MentionMenuPosition | null>(null)
+  const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
+
+  useEffect(() => {
+    if (!mentionMenuOpen) {
+      setMentionMenuPosition(null)
+      return
+    }
+
+    function updateMentionMenuPosition() {
+      const editor = inputRef.current
+      if (!editor) return
+      const rect = editor.getBoundingClientRect()
+      const viewportPadding = 8
+      const gap = 6
+      const availableAbove = Math.max(120, rect.top - viewportPadding - gap)
+      const width = Math.min(Math.max(rect.width, 360), window.innerWidth - viewportPadding * 2)
+      const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding)
+
+      setMentionMenuPosition({
+        bottom: Math.max(viewportPadding, window.innerHeight - rect.top + gap),
+        left,
+        maxHeight: Math.min(360, availableAbove),
+        width,
+      })
+    }
+
+    updateMentionMenuPosition()
+    window.addEventListener('resize', updateMentionMenuPosition)
+    window.addEventListener('scroll', updateMentionMenuPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updateMentionMenuPosition)
+      window.removeEventListener('scroll', updateMentionMenuPosition, true)
+    }
+  }, [inputRef, mentionMenuOpen, mentionResults])
+
+  const mentionMenuPortalTarget = typeof document === 'undefined' ? null : document.body
+  const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(
+    <div
+      className="ai-agent-resource-mention-menu overflow-hidden border border-border bg-background shadow-lg"
+      style={{
+        '--ai-agent-resource-mention-menu-max-height': `${mentionMenuPosition.maxHeight}px`,
+        bottom: mentionMenuPosition.bottom,
+        left: mentionMenuPosition.left,
+        width: mentionMenuPosition.width,
+      } as CSSProperties}
+    >
+      <div className="ai-agent-resource-mention-menu__header border-b border-border px-2 py-1 type-tiny text-muted-foreground">
+        {t('shared.genInput.mention')}
+      </div>
+      <div className="ai-agent-resource-mention-menu__list overflow-y-auto overscroll-contain">
+        {mentionResults.map((attachment) => (
+          <MentionResourceOption
+            key={attachmentKey(attachment)}
+            attachment={attachment}
+            onSelect={() => onMentionSelect(attachment)}
+          />
+        ))}
+      </div>
+    </div>,
+    mentionMenuPortalTarget
+  ) : null
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -107,15 +179,9 @@ export function AgentComposerSection({
   }
 
   return (
-    <section className="ai-agent-panel-card ai-agent-panel-input-card">
-      <div className="ai-agent-panel-card-header ai-agent-panel-input-header">
-        <p className="ai-agent-panel-card-title">{answeringPendingInput ? '回答请求' : '输入'}</p>
-        <p className="min-w-0 truncate text-right type-tiny text-muted-foreground/40">
-          {activePendingInputTitle ?? t('agents.chat.inputHint')}
-        </p>
-      </div>
+    <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
       {pendingRuntimeInputQueue.length > 0 && (
-        <AgentSurfaceBlock variant="subtle" className="mb-2 space-y-1.5 px-2 py-1.5">
+        <div className="mb-2 space-y-1.5 px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Loader2 size={10} className="animate-spin" />
@@ -125,17 +191,16 @@ export function AgentComposerSection({
           </div>
           <div className="space-y-1">
             {pendingRuntimeInputQueue.map((item) => (
-              <AgentSurfaceBlock
+              <div
                 key={item.id}
-                variant="card"
-                className="truncate px-2 py-1 type-tiny text-foreground"
+                className="truncate border-t border-border px-0 py-1 type-tiny text-foreground first:border-t-0"
                 title={item.content}
               >
                 {item.content || '空消息'}
-              </AgentSurfaceBlock>
+              </div>
             ))}
           </div>
-        </AgentSurfaceBlock>
+        </div>
       )}
       <AgentComposer
         className={cn('ai-agent-panel-composer', draggingFiles && 'ai-agent-panel-composer--dragging')}
@@ -180,24 +245,7 @@ export function AgentComposerSection({
               {t('agents.chat.dropFilesHere')}
             </AgentComposerDropOverlay>
           )}
-          {mentionRangeActive && mentionResults.length > 0 && (
-            <AgentSurfaceBlock asChild className="absolute bottom-full left-0 z-30 mb-1.5 w-full overflow-hidden shadow-lg">
-              <div>
-                <div className="border-b border-border px-2 py-1 type-tiny text-muted-foreground">
-                  {t('shared.genInput.mention')}
-                </div>
-                <div className="max-h-48 overflow-auto">
-                  {mentionResults.map((attachment) => (
-                    <MentionResourceOption
-                      key={attachmentKey(attachment)}
-                      attachment={attachment}
-                      onSelect={() => onMentionSelect(attachment)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </AgentSurfaceBlock>
-          )}
+          {mentionMenu}
         </div>
         <AgentComposerToolbar>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">

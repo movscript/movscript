@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Sidebar,
@@ -7,6 +8,7 @@ import {
   clampSidebarWidth,
 } from './features/app-shell/components/Sidebar'
 import { Header } from './features/app-shell/components/Header'
+import { AccountSettingsDialog } from './features/app-shell/components/AccountSettingsDialog'
 import { AIAgentPanel } from './features/agent/components/AIAgentPanel'
 import { WorkspaceShell } from '@movscript/ui'
 import { Toaster } from './shared/ui/Toaster'
@@ -14,7 +16,6 @@ import { useProjectStore } from './shared/infrastructure/session/projectStore'
 import { useUserStore } from './shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from './shared/infrastructure/appSettingsStore'
 import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from '@/shared/infrastructure/backendBoot'
-import ProjectsPage from './pages/projects/ProjectsPage'
 import PreProductionPage from './pages/pre-production/PreProductionPage'
 import TasksPage from './pages/project/tasks/TasksPage'
 import AuthPage from './pages/AuthPage'
@@ -31,16 +32,19 @@ import BrainstormPage from './pages/tools/BrainstormPage'
 import ProductionPage from './pages/project/production/ProductionPage'
 import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
 import { ContentWorkbenchPage } from './features/content/components/ContentWorkbenchPage'
-import UserProfilePage from './pages/user/UserProfilePage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
 import InvitePage from './pages/auth/InvitePage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
-import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
 import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
-import { ProjectAgentModeSidebar } from './features/agent/components/ProjectAgentModePage'
+import {
+  AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
+  clampAgentModeContentPanelWidth,
+  ProjectAgentContentPanel,
+  ProjectAgentModeSidebar,
+} from './features/agent/components/ProjectAgentModePage'
 import AgentModePage from './pages/agent-mode/AgentModePage'
 import AgentModeCanvasListPage from './pages/agent-mode/AgentModeCanvasListPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
@@ -49,20 +53,26 @@ import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPag
 import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
-import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import AIAgentPerformancePage from './pages/agent/AIAgentPerformancePage'
-import AgentConsolePage from './pages/agent/AgentConsolePage'
+import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
+import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
-import { AlertTriangle, ArrowLeft, BriefcaseBusiness, ChevronsLeft, HardDrive, Loader2, Lightbulb, Minus, PanelLeftClose, PanelLeftOpen, Play, Plus, Save, Workflow, Zap } from 'lucide-react'
-import { runtimeRoutes } from '@runtime'
+import { AlertTriangle, ArrowLeft, Bot, BriefcaseBusiness, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
-import { canvasBackPath, getAppRouteSurface } from './routes/appRouteModel'
+import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
 import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
-import { AppBackendBootActionButton, AppBackendBootOverlay, AppErrorFallback, AppWindowIconButton, Badge, Button, Input, UiDebugInspector } from '@movscript/ui'
+import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
+import { useAgentStore } from './features/agent/state/agentStore'
+import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
+import { useAppShellDialogStore, type AccountSettingsDialogTab } from './features/app-shell/application/appShellDialogStore'
+import { api } from './shared/infrastructure/api'
+import { projectListQueryKey } from './features/project/application/projectQueries'
+import type { Project } from './types'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -202,7 +212,7 @@ function ProjectGuard({ children }: { children: React.ReactNode }) {
   const current = useProjectStore((s) => s.current)
   const hydrated = useProjectStore((s) => s.hydrated)
   if (!hydrated) return <LoadingScreen />
-  if (!current) return <Navigate to={ROUTES.projects} replace />
+  if (!current) return <Navigate to={ROUTES.resources} replace />
   return <>{children}</>
 }
 
@@ -228,8 +238,8 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function Padded({ children }: { children: React.ReactNode }) {
-  return <div className="h-full overflow-auto p-5">{children}</div>
+function RouteContentShell({ children, width = 'xwide' }: { children: React.ReactNode; width?: 'narrow' | 'normal' | 'wide' | 'xwide' | 'full' }) {
+  return <AppContentLayout variant="contained" width={width}>{children}</AppContentLayout>
 }
 
 function ProjectAgentModeRoute() {
@@ -240,19 +250,137 @@ function AgentModeRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AccountSettingsRoute({ tab }: { tab: AccountSettingsDialogTab }) {
+  const navigate = useNavigate()
+  const openAccountSettings = useAppShellDialogStore((s) => s.openAccountSettings)
+  const currentProject = useProjectStore((s) => s.current)
+  const workMode = useAppSettingsStore((s) => s.settings.workMode)
+
+  useEffect(() => {
+    openAccountSettings(tab)
+    navigate(routeForWorkMode(workMode, !!currentProject), { replace: true })
+  }, [currentProject, navigate, openAccountSettings, tab, workMode])
+
+  return null
+}
+
+function DefaultRouteRedirect() {
+  const currentProject = useProjectStore((s) => s.current)
+  const workMode = useAppSettingsStore((s) => s.settings.workMode)
+  return <Navigate to={routeForWorkMode(workMode, !!currentProject)} replace />
+}
+
+function ProjectRequiredDialog() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const setCurrent = useProjectStore((s) => s.setCurrent)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const workMode = useAppSettingsStore((s) => s.settings.workMode)
+  const projectDialogOpen = useAppShellDialogStore((s) => s.projectDialogOpen)
+  const closeProjectDialog = useAppShellDialogStore((s) => s.closeProjectDialog)
+  const [projectName, setProjectName] = React.useState('')
+  const [projectDescription, setProjectDescription] = React.useState('')
+  const open = projectDialogOpen
+  const createProject = useMutation({
+    mutationFn: (input: { name: string; description: string }) => api.post('/projects', input).then((response) => response.data as Project),
+    onSuccess: (project) => {
+      queryClient.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      selectProject(project)
+      setProjectName('')
+      setProjectDescription('')
+    },
+  })
+
+  function selectProject(project: Project) {
+    setCurrent(project)
+    closeProjectDialog()
+    navigate(routeForWorkMode(workMode, true))
+  }
+
+  function submitProject() {
+    const name = projectName.trim()
+    if (!name || createProject.isPending) return
+    createProject.mutate({ name, description: projectDescription.trim() })
+  }
+
+  if (!open) return null
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) return
+        closeProjectDialog()
+      }}
+    >
+      <DialogContent
+        closeLabel={i18n.t('common.close')}
+        className="w-[560px] max-w-[92vw]"
+      >
+        <DialogHeader>
+          <DialogTitle>{i18n.t('pages.projects.newProject')}</DialogTitle>
+          <DialogDescription>
+            {i18n.t('pages.projects.emptyHint')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 type-label font-medium text-foreground">
+              <Plus size={14} />
+              {i18n.t('pages.projects.newProject')}
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="required-project-name">{i18n.t('pages.projects.nameRequired')}</Label>
+                <Input
+                  id="required-project-name"
+                  value={projectName}
+                  onChange={(event) => setProjectName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') submitProject()
+                  }}
+                  placeholder={i18n.t('pages.projects.namePlaceholder')}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="required-project-description">{i18n.t('pages.projects.descriptionOptional')}</Label>
+                <Textarea
+                  id="required-project-description"
+                  value={projectDescription}
+                  onChange={(event) => setProjectDescription(event.target.value)}
+                  rows={3}
+                  placeholder={i18n.t('pages.projects.descriptionPlaceholder')}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={closeProjectDialog}>{i18n.t('common.cancel')}</Button>
+                <Button type="button" onClick={submitProject} disabled={!projectName.trim() || createProject.isPending}>
+                  <Plus size={14} />
+                  {i18n.t('pages.projects.createProject')}
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function CanvasHeaderLeft() {
   const navigate = useNavigate()
   const { search } = useLocation()
-  const canvasName = useCanvasHeaderStore((s) => s.canvasName)
   const canvasType = useCanvasHeaderStore((s) => s.canvasType)
   const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
   const runningCount = useCanvasHeaderStore((s) => s.runningCount)
   const activeRunLabel = useCanvasHeaderStore((s) => s.activeRunLabel)
   const libraryCollapsed = useCanvasHeaderStore((s) => s.libraryCollapsed)
   const onToggleLibrary = useCanvasHeaderStore((s) => s.onToggleLibrary)
-  const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
+  const canvasTypeLabel = i18n.t(`canvas.editor.canvasType.${canvasType}`)
+  const nodeCountLabel = i18n.t('canvas.editor.nodesCount', { count: nodeCount })
   return (
-    <div className="flex min-w-0 max-w-[36vw] items-center gap-1.5 overflow-hidden">
+    <div className="flex min-w-0 items-center gap-1 overflow-hidden">
       <AppWindowIconButton
         type="button"
         onClick={() => navigate(canvasBackPath(search))}
@@ -274,30 +402,53 @@ function CanvasHeaderLeft() {
       >
         {libraryCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
       </AppWindowIconButton>
-      <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
+      <span
+        className="app-window-icon-button inline-flex items-center justify-center"
+        title={canvasTypeLabel}
+        aria-label={canvasTypeLabel}
+      >
         {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-        {i18n.t(`canvas.editor.canvasType.${canvasType}`)}
-      </Badge>
-      <Input
-        className="app-window-no-drag min-w-[92px] flex-1 border-none bg-transparent type-label font-semibold text-foreground outline-none"
-        value={canvasName}
-        onChange={(event) => onNameChange?.(event.target.value)}
-        placeholder={i18n.t('canvas.editor.untitled')}
-      />
-      <Badge variant="outline" className="hidden h-6 shrink-0 items-center gap-1 border-border type-tiny font-medium leading-none text-muted-foreground sm:flex">
+      </span>
+      <span
+        className="app-window-icon-button hidden items-center justify-center sm:inline-flex"
+        title={nodeCountLabel}
+        aria-label={nodeCountLabel}
+      >
         <Workflow size={12} />
-        {i18n.t('canvas.editor.nodesCount', { count: nodeCount })}
-      </Badge>
+      </span>
       {runningCount > 0 && (
-        <Badge className="h-6 shrink-0 gap-1 type-tiny">
+        <span
+          className="app-window-icon-button inline-flex items-center justify-center"
+          title={i18n.t('canvas.editor.runningCount', { count: runningCount })}
+          aria-label={i18n.t('canvas.editor.runningCount', { count: runningCount })}
+        >
           <Loader2 size={12} className="animate-spin" />
-          {i18n.t('canvas.editor.runningCount', { count: runningCount })}
-        </Badge>
+        </span>
       )}
       {canvasType === 'workflow' && activeRunLabel && (
-        <Badge variant="outline" className="hidden h-6 max-w-[160px] gap-1 truncate type-tiny 2xl:flex">{activeRunLabel}</Badge>
+        <span
+          className="app-window-icon-button hidden items-center justify-center 2xl:inline-flex"
+          title={activeRunLabel}
+          aria-label={activeRunLabel}
+        >
+          <Zap size={12} />
+        </span>
       )}
     </div>
+  )
+}
+
+function CanvasHeaderTitle() {
+  const canvasName = useCanvasHeaderStore((s) => s.canvasName)
+  const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
+  return (
+    <Input
+      className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
+      value={canvasName}
+      onChange={(event) => onNameChange?.(event.target.value)}
+      placeholder={i18n.t('canvas.editor.untitled')}
+      aria-label={i18n.t('canvas.editor.untitled')}
+    />
   )
 }
 
@@ -307,16 +458,42 @@ function CanvasHeaderActions() {
   const onSave = useCanvasHeaderStore((s) => s.onSave)
   const saving = useCanvasHeaderStore((s) => s.saving)
   const startingRun = useCanvasHeaderStore((s) => s.startingRun)
+  const workflowPanelCollapsed = useCanvasHeaderStore((s) => s.workflowPanelCollapsed)
+  const onToggleWorkflowPanel = useCanvasHeaderStore((s) => s.onToggleWorkflowPanel)
+  const runLabel = startingRun ? i18n.t('canvas.editor.starting') : i18n.t('canvas.editor.startRun')
+  const saveLabel = saving ? i18n.t('common.saving') : i18n.t('common.save')
+  const workflowPanelLabel = workflowPanelCollapsed
+    ? i18n.t('canvas.editor.expandWorkflowPanel', { defaultValue: '展开右侧栏' })
+    : i18n.t('canvas.editor.collapseWorkflowPanel', { defaultValue: '缩略右侧栏' })
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <Button onClick={onRun} disabled={!onRun || startingRun} size="sm" className="h-6 rounded-md px-2 type-tiny">
-        <Play size={12} />
-        <span className="hidden md:inline">{startingRun ? i18n.t('canvas.editor.starting') : i18n.t('canvas.editor.startRun')}</span>
-      </Button>
-      <Button onClick={onSave} disabled={!onSave || saving} size="sm" variant="outline" className="h-6 rounded-md px-2 type-tiny">
+      <AppWindowIconButton
+        type="button"
+        onClick={onToggleWorkflowPanel}
+        disabled={!onToggleWorkflowPanel}
+        title={workflowPanelLabel}
+        aria-label={workflowPanelLabel}
+      >
+        {workflowPanelCollapsed ? <PanelRightOpen size={12} /> : <PanelRightClose size={12} />}
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
+        onClick={onRun}
+        disabled={!onRun || startingRun}
+        title={runLabel}
+        aria-label={runLabel}
+      >
+        {startingRun ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+      </AppWindowIconButton>
+      <AppWindowIconButton
+        type="button"
+        onClick={onSave}
+        disabled={!onSave || saving}
+        title={saveLabel}
+        aria-label={saveLabel}
+      >
         {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-        <span className="hidden md:inline">{saving ? i18n.t('common.saving') : i18n.t('common.save')}</span>
-      </Button>
+      </AppWindowIconButton>
       <AppWindowIconButton
         type="button"
         onClick={() => navigate(ROUTES.resources)}
@@ -337,81 +514,87 @@ function CanvasHeaderActions() {
   )
 }
 
+function AppRouteHeaderTitle({
+  icon: Icon,
+  title,
+}: {
+  icon: LucideIcon
+  title: React.ReactNode
+}) {
+  return (
+    <div className="app-window-route-title app-window-no-drag">
+      <span className="app-window-route-title__icon">
+        <Icon size={13} />
+      </span>
+      <span className="app-window-route-title__text">{title}</span>
+    </div>
+  )
+}
+
+function detailRouteHeaderTitle(pathname: string): React.ReactNode | undefined {
+  const routeTitles: Array<{
+    match: (value: string) => boolean
+    icon: LucideIcon
+    title: React.ReactNode
+  }> = [
+    { match: (value) => value === ROUTES.resources, icon: HardDrive, title: i18n.t('header.titles.resources') },
+    { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
+    { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
+    { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
+    { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
+    { match: (value) => value === ROUTES.tools.styleTransfer, icon: Zap, title: i18n.t('sidebar.items.styleTransfer') },
+    { match: (value) => value === ROUTES.tools.multiAngle, icon: Workflow, title: i18n.t('sidebar.items.multiAngle') },
+    { match: (value) => value === ROUTES.tools.brainstorm, icon: Bot, title: i18n.t('sidebar.items.brainstorm') },
+    { match: (value) => value.startsWith('/tools/plugin/'), icon: Plug, title: i18n.t('sidebar.items.plugins') },
+  ]
+  const matched = routeTitles.find((route) => route.match(pathname))
+  if (!matched) return undefined
+  return <AppRouteHeaderTitle icon={matched.icon} title={matched.title} />
+}
+
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { pathname } = useLocation()
   const routeSurface = getAppRouteSurface(pathname)
   const agentMode = routeSurface === 'agent'
-  const projectsHomeMode = pathname === ROUTES.projects
-  const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  const currentUser = useUserStore((s) => s.currentUser)
+  const userId = currentUser ? String(currentUser.ID) : ''
+  const hasOpenConversations = useAgentStore((s) => (s.convsByUser[userId]?.conversations.length ?? 0) > 0)
+  const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'hidden'>('expanded')
   const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
     return Number.isFinite(saved) ? clampSidebarWidth(saved) : SIDEBAR_DEFAULT_WIDTH
   })
-  const lastVisibleDetailSidebarState = React.useRef<'expanded' | 'collapsed'>('expanded')
   const detailSidebarHidden = detailSidebarState === 'hidden'
-  const detailSidebarCollapsed = detailSidebarState === 'collapsed'
+  const agentModeSidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
+  const toggleAgentModeSidebarCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeSidebarCollapsed)
+  const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
+  const agentModeContentPanelOpen = !agentModeContentPanelCollapsed
+  const detailAgentPanelOpen = useAgentPanelUiStore((s) => s.open)
+  const detailHeaderActions = useAgentPanelUiStore((s) => s.detailHeaderActions)
+  const [agentModeContentPanelWidth, setAgentModeContentPanelWidth] = React.useState(AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH)
+  const handleAgentModeContentPanelWidthChange = React.useCallback((width: number) => {
+    setAgentModeContentPanelWidth(clampAgentModeContentPanelWidth(width))
+  }, [])
+  const detailRightPaneOpen = detailAgentPanelOpen && hasOpenConversations
+  const assistantShortcutInHeader = !detailRightPaneOpen
+  const detailCenterContent = detailRouteHeaderTitle(pathname)
   React.useEffect(() => {
-    if (detailSidebarHidden || detailSidebarCollapsed) return
+    if (detailSidebarHidden) return
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(detailSidebarWidth))
-  }, [detailSidebarCollapsed, detailSidebarHidden, detailSidebarWidth])
-  const adjustDetailSidebarWidth = React.useCallback((delta: number) => {
-    setDetailSidebarWidth((width) => clampSidebarWidth(width + delta))
+  }, [detailSidebarHidden, detailSidebarWidth])
+  const showDetailSidebar = React.useCallback(() => {
+    setDetailSidebarState('expanded')
   }, [])
-  const toggleHiddenDetailSidebar = React.useCallback(() => {
-    setDetailSidebarState((state) => {
-      if (state === 'hidden') return lastVisibleDetailSidebarState.current
-      lastVisibleDetailSidebarState.current = state
-      return 'hidden'
-    })
-  }, [])
-  const toggleCollapsedDetailSidebar = React.useCallback(() => {
-    setDetailSidebarState((state) => {
-      if (state === 'hidden') return state
-      const next = state === 'collapsed' ? 'expanded' : 'collapsed'
-      lastVisibleDetailSidebarState.current = next
-      return next
-    })
+  const hideDetailSidebar = React.useCallback(() => {
+    setDetailSidebarState('hidden')
   }, [])
   const sidebarHeaderControl = (
     <div className="flex shrink-0 items-center gap-1">
-      {!detailSidebarHidden && !detailSidebarCollapsed && (
-        <>
-          <AppWindowIconButton
-            type="button"
-            className="app-window-sidebar-toggle"
-            onClick={() => adjustDetailSidebarWidth(-12)}
-            title="缩窄左侧栏"
-            aria-label="缩窄左侧栏"
-          >
-            <Minus size={12} />
-          </AppWindowIconButton>
-          <AppWindowIconButton
-            type="button"
-            className="app-window-sidebar-toggle"
-            onClick={() => adjustDetailSidebarWidth(12)}
-            title="加宽左侧栏"
-            aria-label="加宽左侧栏"
-          >
-            <Plus size={12} />
-          </AppWindowIconButton>
-        </>
-      )}
-      {!detailSidebarHidden && (
-        <AppWindowIconButton
-          type="button"
-          className="app-window-sidebar-toggle"
-          onClick={toggleCollapsedDetailSidebar}
-          title={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
-          aria-label={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
-        >
-          {detailSidebarCollapsed ? <PanelLeftOpen size={12} /> : <ChevronsLeft size={12} />}
-        </AppWindowIconButton>
-      )}
       <AppWindowIconButton
         type="button"
         className="app-window-sidebar-toggle"
-        onClick={toggleHiddenDetailSidebar}
+        onClick={detailSidebarHidden ? showDetailSidebar : hideDetailSidebar}
         title={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
         aria-label={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
       >
@@ -419,30 +602,120 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       </AppWindowIconButton>
     </div>
   )
+  const agentSidebarHeaderControl = (
+    <div className="flex shrink-0 items-center gap-1">
+      <AppWindowIconButton
+        type="button"
+        className="app-window-sidebar-toggle"
+        onClick={toggleAgentModeSidebarCollapsed}
+        title={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
+        aria-label={agentModeSidebarCollapsed ? i18n.t('agents.chat.expandAgentSidebar') : i18n.t('agents.chat.collapseAgentSidebar')}
+      >
+        {agentModeSidebarCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+      </AppWindowIconButton>
+    </div>
+  )
+  const detailLeftHeader = !detailSidebarHidden ? (
+    <Header
+      showAppControls={false}
+      showFallbackBrand={false}
+      leftControls={sidebarHeaderControl}
+    />
+  ) : undefined
+  const detailCenterLeftControls = detailSidebarHidden ? sidebarHeaderControl : undefined
+  const detailCenterHeader = (
+    <Header
+      showWindowControls={!detailLeftHeader}
+      showAppControls={!detailRightPaneOpen}
+      showFallbackBrand={false}
+      leftControls={detailCenterLeftControls}
+      centerContent={detailCenterContent}
+      showAssistantShortcut={assistantShortcutInHeader}
+    />
+  )
+  const detailRightHeader = detailRightPaneOpen ? (
+    <Header
+      showWindowControls={false}
+      showAppControls
+      showFallbackBrand={false}
+      appControls={detailHeaderActions}
+      showAssistantShortcut
+    />
+  ) : undefined
+  const agentLeftHeader = !agentModeSidebarCollapsed ? (
+    <Header
+      showAppControls={false}
+      showFallbackBrand={false}
+      leftControls={agentSidebarHeaderControl}
+    />
+  ) : undefined
+  const agentCenterHeader = (
+    <Header
+      titleKey="header.titles.projectAgentMode"
+      showWindowControls={!agentLeftHeader}
+      showAppControls={!agentModeContentPanelOpen}
+      showFallbackBrand={false}
+      leftControls={agentModeSidebarCollapsed ? agentSidebarHeaderControl : undefined}
+      showAgentContentPanelShortcut
+    />
+  )
+  const agentRightHeader = agentModeContentPanelOpen ? (
+    <Header
+      showWindowControls={false}
+      showAppControls
+      showFallbackBrand={false}
+      showAgentContentPanelShortcut
+    />
+  ) : undefined
+  const agentRightSlotStyle = {
+    width: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
+    minWidth: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
+    flexBasis: agentModeContentPanelCollapsed ? 0 : agentModeContentPanelWidth,
+  }
 
+  const shellSurface: AppRouteSurface = agentMode ? 'agent' : 'detail'
   const shell = (
     <>
       <RedirectListener />
       {agentMode ? (
         <WorkspaceShell
-          sidebar={<ProjectAgentModeSidebar />}
-          header={<Header titleKey="header.titles.projectAgentMode" />}
-          contentPaddingClassName="p-0"
-          contentFrameClassName="rounded-none border-0"
+          surface={shellSurface}
+          sidebar={agentModeSidebarCollapsed ? undefined : (
+            <ProjectAgentModeSidebar />
+          )}
+          leftHeader={agentLeftHeader}
+          centerHeader={agentCenterHeader}
+          rightHeader={agentRightHeader}
+          rightSlotStyle={agentRightSlotStyle}
+          assistantPanel={!agentModeContentPanelCollapsed ? (
+            <ProjectAgentContentPanel
+              onWidthChange={handleAgentModeContentPanelWidthChange}
+            />
+          ) : undefined}
         >
-          <RouteErrorBoundary>{children}</RouteErrorBoundary>
+          <AppRouteViewport scroll="auto">
+            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+          </AppRouteViewport>
         </WorkspaceShell>
       ) : (
         <WorkspaceShell
-          sidebar={detailSidebarHidden ? undefined : (
-            <Sidebar collapsed={detailSidebarCollapsed} width={detailSidebarWidth} />
-          )}
-          header={<Header leftControls={sidebarHeaderControl} />}
-          assistantPanel={<AIAgentPanel />}
-          contentPaddingClassName={projectsHomeMode ? 'p-0' : undefined}
-          contentFrameClassName={projectsHomeMode ? 'app-content-frame--plain' : undefined}
+          surface={shellSurface}
+          sidebar={!detailSidebarHidden ? (
+            <Sidebar
+              width={detailSidebarWidth}
+              onWidthChange={setDetailSidebarWidth}
+              onHide={hideDetailSidebar}
+            />
+          ) : undefined}
+          leftHeader={detailLeftHeader}
+          centerHeader={detailCenterHeader}
+          rightHeader={detailRightHeader}
+          assistantPanel={detailRightPaneOpen ? <AIAgentPanel /> : undefined}
+          leftPaneHidden={detailSidebarHidden}
         >
-          <RouteErrorBoundary>{children}</RouteErrorBoundary>
+          <AppRouteViewport scroll="auto">
+            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+          </AppRouteViewport>
         </WorkspaceShell>
       )}
     </>
@@ -513,41 +786,44 @@ export default function App() {
         <Toaster />
         <UiDebugInspector />
         <BackendBootOverlay />
+        <AccountSettingsDialog />
+        <ProjectRequiredDialog />
         <Routes>
           <Route path={ROUTES.canvasEditor} element={
             <OrgGuard>
               <WorkspaceShell
-                header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} />}
-                contentPaddingClassName="p-0"
-                contentFrameClassName="rounded-none border-0"
+                surface="canvas"
+                header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} centerContent={<CanvasHeaderTitle />} />}
               >
-                <RouteErrorBoundary>
-                  <CanvasEditorPage embeddedInShell />
-                </RouteErrorBoundary>
+                <AppRouteViewport scroll="owned">
+                  <RouteErrorBoundary>
+                    <CanvasEditorPage embeddedInShell />
+                  </RouteErrorBoundary>
+                </AppRouteViewport>
               </WorkspaceShell>
             </OrgGuard>
           } />
           <Route path={ROUTES.orgSelect} element={
             <ShellLayout requireOrg={false}>
-              <Padded><OrgSelectPage /></Padded>
+              <RouteContentShell width="wide"><OrgSelectPage /></RouteContentShell>
             </ShellLayout>
           } />
           {/* Invite page - accessible when logged in */}
           <Route path={ROUTES.invite} element={<InvitePage />} />
-          <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
+          <Route path={ROUTES.appSettings} element={<AccountSettingsRoute tab="settings" />} />
           {/* All other pages use the shell layout */}
           <Route path="*" element={
             <ShellLayout>
               <Routes>
-                <Route path={ROUTES.root} element={<Navigate to={ROUTES.projects} replace />} />
-                <Route path={ROUTES.projects} element={<ProjectsPage />} />
-                <Route path="/admin/*" element={<Navigate to={ROUTES.projects} replace />} />
+                <Route path={ROUTES.root} element={<DefaultRouteRedirect />} />
+                <Route path={ROUTES.projects} element={<DefaultRouteRedirect />} />
+                <Route path="/admin/*" element={<DefaultRouteRedirect />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path={ROUTES.project.preProduction} element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
 
               {/* 工具模块 */}
-              <Route path={ROUTES.canvases} element={<Padded><CanvasListPage /></Padded>} />
+              <Route path={ROUTES.canvases} element={<RouteContentShell width="normal"><CanvasListPage /></RouteContentShell>} />
               <Route path={ROUTES.tools.refImageGen} element={<RefImageGenPage />} />
               <Route path={ROUTES.tools.refVideoGen} element={<RefVideoGenPage />} />
               <Route path={ROUTES.tools.motionImitation} element={<MotionImitationPage />} />
@@ -566,29 +842,32 @@ export default function App() {
               <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
               <Route path={ROUTES.project.deliveryWorkbench} element={<ProjectGuard><DeliveryWorkbenchPage /></ProjectGuard>} />
               <Route path={ROUTES.project.overview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.agent} element={<ProjectGuard><ProjectAgentModeRoute /></ProjectGuard>} />
+              <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
               <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
               <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><ContentWorkbenchPage /></ProjectGuard>} />
 
               {/* 用户 */}
-              <Route path={ROUTES.user} element={<Padded><UserProfilePage /></Padded>} />
+              <Route path={ROUTES.user} element={<AccountSettingsRoute tab="profile" />} />
               {runtimeRoutes.map((route) => {
-                let element = route.element
+                const manageNavItem = runtimeNavItems.find((item) => item.to === route.path && (item.section ?? 'manage') === 'manage')
+                let element = manageNavItem
+                  ? <AccountSettingsRoute tab={`runtime:${route.path}`} />
+                  : route.element
                 if (route.requireProject) element = <ProjectGuard>{element}</ProjectGuard>
                 if (route.requireOrgAdmin) element = <OrgAdminGuard>{element}</OrgAdminGuard>
-                if (route.padded ?? true) element = <Padded>{element}</Padded>
+                if (route.padded ?? true) element = <RouteContentShell>{element}</RouteContentShell>
                 return <Route key={route.path} path={route.path} element={element} />
               })}
 
               {/* 组织 */}
-              <Route path={ROUTES.orgSettings} element={<Navigate to={ROUTES.orgSelect} replace />} />
+              <Route path={ROUTES.orgSettings} element={<AccountSettingsRoute tab="workspace" />} />
 
               {/* 文件 */}
               <Route path={ROUTES.resources} element={<ResourcesPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
-              <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
+              <Route path={ROUTES.agentConsole} element={<AccountSettingsRoute tab="agentConsole" />} />
               <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentPerformance} element={<AIAgentPerformancePage />} />
@@ -596,7 +875,7 @@ export default function App() {
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
-              <Route path="/agents" element={<Navigate to={ROUTES.agentConsole} replace />} />
+              <Route path="/agents" element={<AccountSettingsRoute tab="agentConsole" />} />
               </Routes>
             </ShellLayout>
           } />

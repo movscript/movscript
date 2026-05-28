@@ -48,9 +48,9 @@ import {
   AgentPerformanceTrendSvg,
   AgentPerformanceTrendValue,
   AgentPerformanceTwoColumnGrid,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { localAgentClient, type AgentRuntimeTelemetryOperation, type AgentRuntimeTelemetrySpan } from '@/shared/infrastructure/localAgentClient'
@@ -131,8 +131,8 @@ export default function AIAgentPerformancePage() {
   const slowRows = useMemo(() => slowDiagnosticRows(operations, runtimeSpans, longTasks), [operations, runtimeSpans, longTasks])
 
   return (
-    <AppPageShell data-testid="agent-performance-page">
-      <AppPageShellHeader>
+    <AgentPageShell data-testid="agent-performance-page">
+      <AgentPageShellHeader>
         <AgentPerformanceHeader>
           <AgentPerformanceHeaderCopy>
             <AgentPerformanceHeaderTitleRow>
@@ -157,11 +157,11 @@ export default function AIAgentPerformancePage() {
             </AgentPerformanceActionButton>
           </AgentPerformanceHeaderActions>
         </AgentPerformanceHeader>
-      </AppPageShellHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      <AppPageShellBody>
+      <AgentPageShellBody>
         <AgentPerformanceStatGrid>
           <PerformanceStat title="操作样本" value={`${operations.length}`} detail={`P95 ${formatMs(summary.p95)} / 平均 ${formatMs(summary.avg)}`} icon={<Activity size={15} />} tone={summary.slowCount > 0 ? 'warning' : 'ready'} />
           <PerformanceStat title="发送耗时" value={formatMs(summary.sendP95)} detail={`发送样本 ${summary.sendCount} 次`} icon={<Route size={15} />} tone={summary.sendP95 > 1_000 ? 'warning' : 'ready'} />
@@ -288,8 +288,8 @@ export default function AIAgentPerformancePage() {
             )}
           </PerformancePanel>
         </AgentPerformanceTwoColumnGrid>
-      </AppPageShellBody>
-    </AppPageShell>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

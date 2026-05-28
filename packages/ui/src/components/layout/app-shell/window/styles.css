@@ -1,19 +1,21 @@
 .app-window-header {
   position: relative;
+  z-index: 120;
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: var(--ms-space-2);
   -webkit-app-region: drag;
   height: 34px;
-  border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
+  max-height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  background: var(--app-window-header-background, var(--ms-color-app-background));
   padding-left: var(--ms-space-2);
   padding-right: var(--ms-space-2);
 }
 
 .app-window-header--mac {
-  padding-left: 76px;
+  padding-left: 12px;
 }
 
 .app-window-header--controls-right {
@@ -27,9 +29,17 @@
 
 .app-window-controls {
   display: flex;
+  height: 34px;
   flex-shrink: 0;
   align-items: center;
   gap: var(--ms-space-1);
+}
+
+.app-window-header__window-controls {
+  display: flex;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .app-window-header__left-controls {
@@ -47,18 +57,73 @@
   flex: 1 1 auto;
 }
 
+.app-window-header__center {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-window-route-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  max-width: min(360px, 42vw);
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-caption);
+  font-weight: 650;
+  line-height: 1;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.app-window-route-title__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ms-color-muted-foreground);
+}
+
+.app-window-route-title__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-window-header :where(.ms-button:hover:not(:disabled)) {
+  transform: none;
+}
+
 .app-window-brand-button {
   position: absolute;
   left: 50%;
   top: 50%;
+  display: inline-flex;
   height: 28px;
+  align-items: center;
+  justify-content: center;
   transform: translate(-50%, -50%);
   padding-inline: var(--ms-space-2);
   color: var(--ms-color-foreground);
+  cursor: default;
   font-size: var(--ms-text-caption);
   font-weight: 650;
   letter-spacing: 0.12em;
+  line-height: 1;
   text-transform: uppercase;
+  user-select: none;
+}
+
+.app-window-brand-button:hover,
+.app-window-brand-button:active {
+  transform: translate(-50%, -50%);
+  background: transparent;
 }
 
 .app-window-sidebar-toggle {
@@ -69,4 +134,110 @@
 
 .app-window-sidebar-toggle svg {
   display: block;
+}
+
+.app-window-traffic-lights {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding-right: var(--ms-space-1);
+}
+
+.app-window-traffic-light {
+  position: relative;
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 18%) inset;
+  cursor: default;
+}
+
+.app-window-traffic-light--close {
+  background: #ff5f57;
+}
+
+.app-window-traffic-light--minimize {
+  background: #febc2e;
+}
+
+.app-window-traffic-light--fullscreen {
+  background: #28c840;
+}
+
+.app-window-traffic-lights[data-focused="false"] .app-window-traffic-light {
+  background: #d6d6d6;
+}
+
+.app-window-traffic-light__glyph {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+
+.app-window-traffic-lights:hover .app-window-traffic-light__glyph,
+.app-window-traffic-lights:focus-within .app-window-traffic-light__glyph {
+  opacity: 1;
+}
+
+.app-window-traffic-light__glyph::before,
+.app-window-traffic-light__glyph::after {
+  position: absolute;
+  content: "";
+}
+
+.app-window-traffic-light__glyph--close::before,
+.app-window-traffic-light__glyph--close::after {
+  left: 1px;
+  top: 3.5px;
+  width: 6px;
+  height: 1px;
+  border-radius: 999px;
+  background: #7a1f1b;
+}
+
+.app-window-traffic-light__glyph--close::before {
+  transform: rotate(45deg);
+}
+
+.app-window-traffic-light__glyph--close::after {
+  transform: rotate(-45deg);
+}
+
+.app-window-traffic-light__glyph--minimize::before {
+  left: 1px;
+  top: 3.5px;
+  width: 6px;
+  height: 1px;
+  border-radius: 999px;
+  background: #8a5a00;
+}
+
+.app-window-traffic-light__glyph--fullscreen::before,
+.app-window-traffic-light__glyph--fullscreen::after {
+  width: 3px;
+  height: 3px;
+  border-color: #0b6f1f;
+}
+
+.app-window-traffic-light__glyph--fullscreen::before {
+  right: 1px;
+  top: 1px;
+  border-top: 1px solid;
+  border-right: 1px solid;
+}
+
+.app-window-traffic-light__glyph--fullscreen::after {
+  left: 1px;
+  bottom: 1px;
+  border-bottom: 1px solid;
+  border-left: 1px solid;
 }

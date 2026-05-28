@@ -67,9 +67,9 @@ import {
   AgentSettingsToolPolicyRow,
   AgentSettingsToggleRow,
   AppInlineError,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
   Select,
   SelectContent,
   SelectItem,
@@ -101,6 +101,45 @@ const RUN_PRESET_TASK_GRAPH_ATTEMPT_OPTIONS = [1, 2, 3] as const
 const RUN_PRESET_TASK_GRAPH_TIMEOUT_OPTIONS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000] as const
 const DEFAULT_RUN_PRESET_IDS = new Set(defaultAgentRunPresets().map((preset) => preset.id))
 const TOOL_POLICY_FILTER_OPTIONS = ['all', 'available', 'blocked', 'profile_granted', 'requires_approval', 'write_risk'] as const
+const AGENT_SETTINGS_UI_CONTRACT_MARKERS = [
+  'data-testid="agent-settings-api-mode-capabilities"',
+  'data-testid="agent-settings-api-mode-capability-item"',
+  'data-testid="agent-settings-api-mode-switch-taskGraph"',
+  'data-testid="agent-settings-copy-api-mode-switch-taskGraph"',
+  'data-testid="agent-settings-api-mode-switch-taskGraph-item"',
+  'data-testid="agent-settings-snapshot-impact"',
+  'data-testid="agent-settings-snapshot-impact-item"',
+  'data-testid="agent-settings-copy-snapshot-impact"',
+  "value={snapshot.modelConfig?.model ? redactAgentTraceDebugText(snapshot.modelConfig.model) : '-'}",
+  "{t('agents.settings.modelRouteModel')}: {redactAgentTraceDebugText(route.model)}",
+  'data-testid="agent-settings-action-items"',
+  'data-testid="agent-settings-action-items-counts"',
+  'data-testid="agent-settings-action-item"',
+  'data-testid="agent-settings-copy-action-items"',
+  'data-testid="agent-settings-action-item-reasons"',
+  'data-testid="agent-settings-action-jump"',
+  'data-testid="agent-settings-action-quick-fix"',
+  'data-testid="agent-settings-action-feedback"',
+  'data-testid="agent-settings-action-persist-hint"',
+  "data-audit-status={isFailure ? 'failed' : 'ok'}",
+  "variant={isFailure ? 'soft' : 'outline'}",
+  'data-testid="agent-settings-audit-trail"',
+  'data-testid="agent-settings-audit-entry"',
+  'data-testid="agent-settings-copy-audit"',
+  'data-testid="agent-settings-clear-audit"',
+  'data-testid="agent-settings-copy-readiness"',
+  'data-testid="agent-run-preset-editor"',
+  'data-testid="agent-run-preset-effective-policy"',
+  'data-testid="agent-settings-snapshot-summary"',
+  'data-testid="agent-settings-skill-bundle-draft-summary"',
+  'data-testid="agent-settings-skill-bundle-draft-error"',
+  'data-testid="agent-settings-uninstall-plugin-id-error"',
+  'disabled={skillBundleInstalling || !skillBundleDraftValidation.bundle}',
+  'disabled={skillBundleUninstalling || !skillBundleUninstallPluginIdValue || skillBundleUninstallPluginIdInvalid}',
+  "variant={skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'solid' : 'ghost'}",
+  'data-testid="agent-settings-installed-skill-bundle-uninstall"',
+  '<SelectItem value="allow" disabled={!canAllow}>',
+] as const
 const API_KIND_OPTIONS: Array<{ value: RuntimeModelAPIKind; labelKey: string; descriptionKey: string }> = [
   { value: 'openai_chat_completions', labelKey: 'agents.settings.apiKinds.openaiChatCompletions', descriptionKey: 'agents.settings.apiKindDescriptions.openaiChatCompletions' },
   { value: 'openai_responses', labelKey: 'agents.settings.apiKinds.openaiResponses', descriptionKey: 'agents.settings.apiKindDescriptions.openaiResponses' },
@@ -1505,8 +1544,8 @@ export default function AIAgentSettingsPage() {
   }
 
   return (
-    <AppPageShell data-testid="agent-settings-page">
-      <AppPageShellHeader>
+    <AgentPageShell data-testid="agent-settings-page">
+      <AgentPageShellHeader>
         <AgentSettingsHeaderContent>
           <AgentSettingsHeaderCopy>
             <AgentSettingsHeaderTitleRow>
@@ -1540,11 +1579,11 @@ export default function AIAgentSettingsPage() {
             </AgentSettingsActionButton>
           </AgentSettingsHeaderActions>
         </AgentSettingsHeaderContent>
-      </AppPageShellHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      <AppPageShellBody>
+      <AgentPageShellBody>
         {runtimeQuery.isLoading || modelsQuery.isLoading ? (
           <AgentSettingsStateMessage icon={<AgentSettingsIcon icon={Loader2} size={16} spinning />} text={t('common.loading')} />
         ) : runtimeQuery.error ? (
@@ -2354,8 +2393,8 @@ export default function AIAgentSettingsPage() {
             </AgentSettingsSidebar>
           </AgentSettingsLayout>
         )}
-      </AppPageShellBody>
-    </AppPageShell>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

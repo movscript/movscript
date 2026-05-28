@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AppSection } from "../../../app";
 import { Badge } from "../../../../primitives";
 import type { IconComponent } from "../../types";
+import { cn } from "../../../../../lib/cn";
 
 export function ReviewProposalShell({
   kind,
@@ -13,6 +14,7 @@ export function ReviewProposalShell({
   children,
   className,
   icon,
+  layout = "default",
 }: {
   kind: string;
   title: string;
@@ -22,6 +24,7 @@ export function ReviewProposalShell({
   children: ReactNode;
   className?: string;
   icon?: IconComponent;
+  layout?: "default" | "contained-scroll";
 }) {
   const sectionAction = countLabel || action ? (
     <>
@@ -37,7 +40,8 @@ export function ReviewProposalShell({
       title={title}
       description={description}
       action={sectionAction}
-      className={className}
+      className={cn("review-proposal-shell", layout !== "default" && `review-proposal-shell--${layout}`, className)}
+      bodyClassName={layout !== "default" ? "review-proposal-shell__body" : undefined}
     >
       {children}
     </AppSection>

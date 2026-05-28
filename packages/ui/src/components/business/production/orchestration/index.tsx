@@ -20,22 +20,6 @@ import {
   type TextareaProps,
 } from "../../../primitives";
 
-export function ProductionOrchestrationViewport({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("production-orchestration-viewport", className)} {...props} />;
-}
-
-export function ProductionOrchestrationMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <main className={cn("production-orchestration-main", className)} {...props} />;
-}
-
-export function ProductionOrchestrationWorkspaceFrame({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("production-orchestration-workspace-frame", className)} {...props} />;
-}
-
-export function ProductionOrchestrationWorkspaceBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("production-orchestration-workspace-body", className)} {...props} />;
-}
-
 export function ProductionOrchestrationWorkspaceShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("production-orchestration-workspace-shell", className)} {...props} />;
 }

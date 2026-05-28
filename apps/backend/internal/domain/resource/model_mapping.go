@@ -17,7 +17,6 @@ func RawResourceFromModel(resource persistencemodel.RawResource) RawResource {
 		MimeType:             resource.MimeType,
 		StorageBackend:       resource.StorageBackend,
 		StorageKey:           resource.StorageKey,
-		IsShared:             resource.IsShared,
 		DirectURL:            resource.DirectURL,
 		VerificationStatus:   resource.VerificationStatus,
 		VerificationRef:      resource.VerificationRef,
@@ -51,7 +50,6 @@ func (resource RawResource) ApplyToModel(target *persistencemodel.RawResource) {
 	target.MimeType = resource.MimeType
 	target.StorageBackend = resource.StorageBackend
 	target.StorageKey = resource.StorageKey
-	target.IsShared = resource.IsShared
 	target.DirectURL = resource.DirectURL
 	target.VerificationStatus = resource.VerificationStatus
 	target.VerificationRef = resource.VerificationRef

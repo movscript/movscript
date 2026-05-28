@@ -1,27 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Archive,
-  Bot,
-  Building2,
-  Check,
   ChevronDown,
   ChevronRight,
-  CircleUserRound,
-  ExternalLink,
-  FolderOpen,
   History,
-  LogOut,
   MessageSquare,
   PanelTopOpen,
-  Plug,
   Plus,
-  Settings,
-  UserRound,
 } from 'lucide-react'
 import {
-  AgentModeActionNavItem,
   AgentModeChatSurface,
   AgentModeChatSurfaceInner,
   AgentModeCompactNavItem,
@@ -38,48 +27,28 @@ import {
   AgentModeIconSlot,
   AgentModeLabel,
   AgentModeMeta,
-  AgentModeNavLinkItem,
   AgentModePrimaryNavItem,
   AgentModeProjectGroup,
   AgentModeProjectGroupToggle,
-  AgentModeProjectMenuContent,
-  AgentModeProjectSelectButton,
   AgentModeResizeHandle,
   AgentModeRoot,
   AgentModeSidebar,
-  AgentModeSidebarFooter,
   AgentModeSidebarScroll,
   AgentModeSidebarTop,
-  AgentModeUserAvatar,
-  AgentModeUserCopy,
-  AgentModeUserMenuContent,
-  AgentModeUserMenuLabel,
-  AgentModeUserMenuName,
-  AgentModeUserMenuRole,
-  AgentModeUserMeta,
-  AgentModeUserName,
-  AgentModeUserTrigger,
-  AgentModeWorkspace,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 import { AgentBuiltinChatShell } from '@/features/agent/components/AgentBuiltinChatShell'
 import { AgentBrowserPanel } from '@/features/agent/components/AgentBrowserPanel'
 import { openAgentPanelThread, AGENT_PANEL_THREAD_EVENT } from '@/features/agent/application/agentPanelBridge'
-import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { conversationDisplayTitle, formatAgentDate, formatAgentRelativeTime, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { api } from '@/shared/infrastructure/api'
-import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { localAgentClient, type AgentSessionSummary, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
-import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
-import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { useAgentConversationTabRuntimeStatusLights } from '@/features/agent/presentation/useAgentConversationTabRuntimeStatusLights'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
+import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import { useAgentStore, type Conversation } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -90,22 +59,147 @@ const DEFAULT_VISIBLE_PROJECT_GROUPS = 5
 const DEFAULT_VISIBLE_CHAT_CONVERSATIONS = 5
 const AGENT_SIDEBAR_WIDTH_STORAGE_KEY = 'movscript-agent-mode-sidebar-width'
 const AGENT_SIDEBAR_DEFAULT_WIDTH = 288
-const AGENT_SIDEBAR_MIN_WIDTH = 220
+const AGENT_SIDEBAR_MIN_WIDTH = 180
 const AGENT_SIDEBAR_MAX_WIDTH = 420
-const AGENT_CONTENT_PANEL_RATIO_STORAGE_KEY = 'movscript-agent-mode-content-panel-ratio'
-const AGENT_CONTENT_PANEL_DEFAULT_RATIO = 0.34
-const AGENT_CONTENT_PANEL_MIN_RATIO = 0.24
-const AGENT_CONTENT_PANEL_MAX_RATIO = 0.48
-const AGENT_CONTENT_PANEL_MIN_WIDTH = 280
-const AGENT_CONTENT_PANEL_MAX_WIDTH = 640
-const AGENT_CHAT_MIN_WIDTH = 420
+const AGENT_SIDEBAR_COLLAPSED_WIDTH = 0
+export const AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY = 'movscript-agent-mode-content-panel-width'
+export const AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH = 380
+export const AGENT_MODE_CONTENT_PANEL_MIN_WIDTH = 200
+export const AGENT_MODE_CONTENT_PANEL_MAX_WIDTH = 1500
+
+interface PaintDiagnosticRow {
+  selector: string
+  rect: string
+  scroll: string
+  area: number
+  scrollArea: number
+  position: string
+  overflow: string
+  transform: string
+  filter: string
+  backdrop: string
+  shadow: string
+  willChange: string
+}
 
 function clampAgentSidebarWidth(width: number) {
   return Math.min(AGENT_SIDEBAR_MAX_WIDTH, Math.max(AGENT_SIDEBAR_MIN_WIDTH, width))
 }
 
-function clampAgentContentPanelRatio(ratio: number) {
-  return Math.min(AGENT_CONTENT_PANEL_MAX_RATIO, Math.max(AGENT_CONTENT_PANEL_MIN_RATIO, ratio))
+export function clampAgentModeContentPanelWidth(width: number) {
+  return Math.min(AGENT_MODE_CONTENT_PANEL_MAX_WIDTH, Math.max(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH, width))
+}
+
+function agentModeRenderDiagnosticsEnabled() {
+  return import.meta.env.DEV && import.meta.env.VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS === '1'
+}
+
+function compactStyleValue(value: string, maxLength = 72) {
+  if (!value || value === 'none' || value === 'auto' || value === 'normal') return value
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+}
+
+function diagnosticSelector(element: Element) {
+  const className = typeof element.className === 'string'
+    ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${name}`).join('')
+    : ''
+  const id = element.id ? `#${element.id}` : ''
+  return `${element.tagName.toLowerCase()}${id}${className}`
+}
+
+function rectOutsideViewport(rect: DOMRect, margin = 240) {
+  return (
+    rect.bottom < -margin ||
+    rect.right < -margin ||
+    rect.top > window.innerHeight + margin ||
+    rect.left > window.innerWidth + margin
+  )
+}
+
+function collectPaintDiagnosticElements(root: HTMLElement) {
+  const elements: HTMLElement[] = []
+  const visit = (element: HTMLElement) => {
+    elements.push(element)
+    const style = window.getComputedStyle(element)
+    if (style.contentVisibility === 'auto' && rectOutsideViewport(element.getBoundingClientRect())) return
+    for (const child of Array.from(element.children)) {
+      if (child instanceof HTMLElement) visit(child)
+    }
+  }
+  visit(root)
+  return elements
+}
+
+function logAgentModePaintDiagnostics(root: HTMLElement) {
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const viewportArea = Math.max(1, viewportWidth * viewportHeight)
+  const visualScale = window.visualViewport?.scale ?? 1
+  const rootRect = root.getBoundingClientRect()
+  const rows: PaintDiagnosticRow[] = []
+  const elements = collectPaintDiagnosticElements(root)
+
+  for (const element of elements) {
+    const rect = element.getBoundingClientRect()
+    const width = Math.max(0, Math.round(rect.width))
+    const height = Math.max(0, Math.round(rect.height))
+    if (width === 0 || height === 0) continue
+
+    const style = window.getComputedStyle(element)
+    const area = width * height
+    const scrollWidth = Math.max(width, element.scrollWidth)
+    const scrollHeight = Math.max(height, element.scrollHeight)
+    const scrollArea = scrollWidth * scrollHeight
+    const hasPaintEffect = (
+      style.transform !== 'none' ||
+      style.filter !== 'none' ||
+      style.backdropFilter !== 'none' ||
+      style.boxShadow !== 'none' ||
+      style.willChange !== 'auto' ||
+      style.position === 'fixed' ||
+      style.position === 'sticky'
+    )
+    const hasLargeScrollSurface = scrollArea > viewportArea * 1.5
+    const isLargeVisibleSurface = area > viewportArea * 0.35
+    if (!hasLargeScrollSurface && !isLargeVisibleSurface && !hasPaintEffect) continue
+
+    rows.push({
+      selector: diagnosticSelector(element),
+      rect: `${width}x${height}+${Math.round(rect.left)}+${Math.round(rect.top)}`,
+      scroll: `${scrollWidth}x${scrollHeight}`,
+      area,
+      scrollArea,
+      position: style.position,
+      overflow: `${style.overflowX}/${style.overflowY}`,
+      transform: compactStyleValue(style.transform),
+      filter: compactStyleValue(style.filter),
+      backdrop: compactStyleValue(style.backdropFilter),
+      shadow: compactStyleValue(style.boxShadow),
+      willChange: compactStyleValue(style.willChange),
+    })
+  }
+
+  rows.sort((a, b) => Math.max(b.area, b.scrollArea) - Math.max(a.area, a.scrollArea))
+  console.info(
+    `[agent-mode:paint] viewport=${viewportWidth}x${viewportHeight} dpr=${window.devicePixelRatio.toFixed(2)} visualScale=${visualScale.toFixed(3)} root=${Math.round(rootRect.width)}x${Math.round(rootRect.height)} candidates=${rows.length}`,
+  )
+  for (const [index, row] of rows.slice(0, 24).entries()) {
+    console.info(
+      [
+        `[agent-mode:paint] #${index + 1}`,
+        row.selector,
+        `rect=${row.rect}`,
+        `scroll=${row.scroll}`,
+        `position=${row.position}`,
+        `overflow=${row.overflow}`,
+        `transform=${row.transform}`,
+        `filter=${row.filter}`,
+        `backdrop=${row.backdrop}`,
+        `shadow=${row.shadow}`,
+        `willChange=${row.willChange}`,
+      ].join(' '),
+    )
+  }
 }
 
 export default function ProjectAgentModePage({
@@ -117,6 +211,21 @@ export default function ProjectAgentModePage({
 }) {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
+  const contentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
+
+  useEffect(() => {
+    if (!agentModeRenderDiagnosticsEnabled()) return
+    const log = () => {
+      const root = document.querySelector<HTMLElement>('.project-agent-mode')
+      if (root) logAgentModePaintDiagnostics(root)
+    }
+    const animationFrame = window.requestAnimationFrame(log)
+    const timeout = window.setTimeout(log, 350)
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      window.clearTimeout(timeout)
+    }
+  }, [embeddedInShell, fullscreen])
 
   return (
     <AgentModeRoot>
@@ -124,6 +233,7 @@ export default function ProjectAgentModePage({
         <AgentModeFullscreenLayout>
           <ProjectAgentModeSidebar />
           <ProjectAgentModeWorkspace userId={userId} />
+          {!contentPanelCollapsed ? <ProjectAgentContentPanel manageOwnWidth /> : null}
         </AgentModeFullscreenLayout>
       )}
       {(!fullscreen || embeddedInShell) && (
@@ -133,15 +243,12 @@ export default function ProjectAgentModePage({
   )
 }
 
-export function ProjectAgentModeSidebar() {
+export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: ReactNode } = {}) {
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const project = useProjectStore((s) => s.current)
   const currentUser = useUserStore((s) => s.currentUser)
-  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const orgMemberships = useUserStore((s) => s.orgMemberships)
-  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const userId = currentUser ? String(currentUser.ID) : ''
   const getConversations = useAgentStore((s) => s.getConversations)
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
@@ -157,27 +264,44 @@ export function ProjectAgentModeSidebar() {
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
   const [conversationsOpen, setConversationsOpen] = useState(true)
   const [historyOpen, setHistoryOpen] = useState(true)
-  const [manageOpen, setManageOpen] = useState(true)
   const [showAllChatConversations, setShowAllChatConversations] = useState(false)
   const [showAllHistoryConversations, setShowAllHistoryConversations] = useState(false)
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const resizeStart = useRef({ x: 0, width: AGENT_SIDEBAR_DEFAULT_WIDTH })
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return AGENT_SIDEBAR_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(AGENT_SIDEBAR_WIDTH_STORAGE_KEY))
     return Number.isFinite(saved) ? clampAgentSidebarWidth(saved) : AGENT_SIDEBAR_DEFAULT_WIDTH
   })
+  const sidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
+  const setSidebarCollapsed = useAgentPanelUiStore((s) => s.setAgentModeSidebarCollapsed)
   const [resizing, setResizing] = useState(false)
+  const renderedSidebarWidth = sidebarCollapsed ? AGENT_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
 
   useEffect(() => {
     window.localStorage.setItem(AGENT_SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
   }, [sidebarWidth])
 
   useEffect(() => {
-    if (!resizing) return
+    const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (!resizing || sidebarCollapsed) return
 
     const handlePointerMove = (event: PointerEvent) => {
-      const delta = event.clientX - resizeStart.current.x
-      setSidebarWidth(clampAgentSidebarWidth(resizeStart.current.width + delta))
+      const nextWidth = resizeStart.current.width + event.clientX - resizeStart.current.x
+      if (nextWidth < AGENT_SIDEBAR_MIN_WIDTH) {
+        if (resizeStart.current.width <= AGENT_SIDEBAR_MIN_WIDTH) {
+          setSidebarCollapsed(true)
+          setResizing(false)
+          return
+        }
+        setSidebarWidth(AGENT_SIDEBAR_MIN_WIDTH)
+        return
+      }
+      setSidebarWidth(clampAgentSidebarWidth(nextWidth))
     }
     const handlePointerUp = () => setResizing(false)
     const previousCursor = document.body.style.cursor
@@ -194,16 +318,26 @@ export function ProjectAgentModeSidebar() {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
-  }, [resizing])
+  }, [resizing, setSidebarCollapsed, sidebarCollapsed])
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (sidebarCollapsed) return
     event.preventDefault()
     resizeStart.current = { x: event.clientX, width: sidebarWidth }
     setResizing(true)
   }
 
   const adjustSidebarWidth = (delta: number) => {
-    setSidebarWidth((width) => clampAgentSidebarWidth(width + delta))
+    const nextWidth = sidebarWidth + delta
+    if (nextWidth < AGENT_SIDEBAR_MIN_WIDTH) {
+      if (sidebarWidth <= AGENT_SIDEBAR_MIN_WIDTH) {
+        setSidebarCollapsed(true)
+        return
+      }
+      setSidebarWidth(AGENT_SIDEBAR_MIN_WIDTH)
+      return
+    }
+    setSidebarWidth(clampAgentSidebarWidth(nextWidth))
   }
 
   const { data: projects = [] } = useQuery<Project[]>({
@@ -233,6 +367,7 @@ export function ProjectAgentModeSidebar() {
     () => conversations.filter((conversation) => conversation.archived !== true),
     [conversations],
   )
+  const runtimeStatusLights = useAgentConversationTabRuntimeStatusLights(openConversations)
   const archivedConversations = useMemo(
     () => conversations
       .filter((conversation) => conversation.archived === true)
@@ -277,7 +412,7 @@ export function ProjectAgentModeSidebar() {
     const projectGroups = Array.from(projectGroupsById.values())
       .map((group) => ({
         ...group,
-        conversations: group.conversations.sort((a, b) => b.updatedAt - a.updatedAt),
+        conversations: group.conversations.sort(compareConversationCreationOrder),
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
     return { projectGroups, chatConversations }
@@ -287,7 +422,7 @@ export function ProjectAgentModeSidebar() {
   const hiddenProjectGroupCount = Math.max(0, projectGroups.length - visibleProjectGroups.length)
   const projectConversationCount = projectGroups.reduce((sum, group) => sum + group.conversations.length, 0)
   const sortedChatConversations = useMemo(
-    () => [...chatConversations].sort((a, b) => b.updatedAt - a.updatedAt),
+    () => [...chatConversations].sort(compareConversationCreationOrder),
     [chatConversations],
   )
   const visibleChatConversations = showAllChatConversations
@@ -315,18 +450,12 @@ export function ProjectAgentModeSidebar() {
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const currentMembership = orgMemberships.find((membership) => membership.org_id === currentOrgID)
-
   function startNewConversation() {
-    archiveConversations(userId, conversations.filter((conversation) => conversation.archived !== true).map((conversation) => conversation.id))
     createConversation(userId)
     navigate(ROUTES.project.agent)
   }
 
   function selectConversation(id: string) {
-    archiveConversations(userId, conversations
-      .filter((conversation) => conversation.id !== id && conversation.archived !== true)
-      .map((conversation) => conversation.id))
     unarchiveConversation(userId, id)
     setActiveConversation(userId, id)
     navigate(ROUTES.project.agent)
@@ -344,21 +473,22 @@ export function ProjectAgentModeSidebar() {
   return (
     <AgentModeSidebar
       resizing={resizing}
-      style={{ width: sidebarWidth }}
+      collapsed={sidebarCollapsed}
+      style={{ width: renderedSidebarWidth }}
     >
       <AgentModeSidebarTop>
+        {!sidebarCollapsed && headerActions ? (
+          <div className="agent-mode-sidebar__header-actions">
+            {headerActions}
+          </div>
+        ) : null}
         <AgentModePrimaryNavItem
           onClick={startNewConversation}
+          title={t('agents.chat.agentModeSidebar.newConversation')}
         >
           <AgentModeIconSlot><Plus size={14} /></AgentModeIconSlot>
           <AgentModeLabel>{t('agents.chat.agentModeSidebar.newConversation')}</AgentModeLabel>
         </AgentModePrimaryNavItem>
-        <AgentModeNavLinkItem>
-          <NavLink to={ROUTES.plugins}>
-            <AgentModeIconSlot><Plug size={14} /></AgentModeIconSlot>
-            <AgentModeLabel>{t('agents.chat.agentModeSidebar.plugins')}</AgentModeLabel>
-          </NavLink>
-        </AgentModeNavLinkItem>
       </AgentModeSidebarTop>
 
       <AgentModeSidebarScroll>
@@ -370,8 +500,8 @@ export function ProjectAgentModeSidebar() {
           onOpenChange={setProjectsOpen}
         >
           {projectGroups.length === 0 ? (
-              <AgentModeEmptyText>{t('agents.chat.agentModeSidebar.noProjectConversations')}</AgentModeEmptyText>
-            ) : (
+            <AgentModeEmptyText>{t('agents.chat.agentModeSidebar.noProjectConversations')}</AgentModeEmptyText>
+          ) : (
             <AgentModeGroupList>
               {visibleProjectGroups.map((group) => (
                 <AgentModeProjectGroup key={group.projectId}>
@@ -395,6 +525,8 @@ export function ProjectAgentModeSidebar() {
                           locale={locale}
                           title={conversationDisplayTitle(conversation, t)}
                           archived={conversation.archived === true}
+                          now={relativeTimeNow}
+                          runtimeStatusLight={runtimeStatusLights[conversation.id]}
                           onClick={() => selectConversation(conversation.id)}
                           onArchive={() => archiveConversations(userId, [conversation.id])}
                           archiveLabel={t('agents.chat.archiveConversation')}
@@ -441,6 +573,8 @@ export function ProjectAgentModeSidebar() {
                   locale={locale}
                   title={conversationDisplayTitle(conversation, t)}
                   archived={conversation.archived === true}
+                  now={relativeTimeNow}
+                  runtimeStatusLight={runtimeStatusLights[conversation.id]}
                   onClick={() => selectConversation(conversation.id)}
                   onArchive={() => archiveConversations(userId, [conversation.id])}
                   archiveLabel={t('agents.chat.archiveConversation')}
@@ -482,6 +616,7 @@ export function ProjectAgentModeSidebar() {
                       locale={locale}
                       title={conversationDisplayTitle(item.conversation, t)}
                       archived
+                      now={relativeTimeNow}
                       onClick={() => selectConversation(item.conversation.id)}
                       archiveLabel={t('agents.chat.archiveConversation')}
                     />
@@ -515,132 +650,33 @@ export function ProjectAgentModeSidebar() {
           )}
         </AgentSidebarGroup>
 
-        <AgentSidebarGroup
-          title={t('sidebar.sections.manage')}
-          icon={<Settings size={13} />}
-          open={manageOpen}
-          onOpenChange={setManageOpen}
-        >
-          <AgentModeGroupList>
-            <AgentModeNavItem to={ROUTES.orgSelect} icon={<Building2 size={13} />} label={t('sidebar.items.workspace')} />
-            <AgentModeNavItem to={ROUTES.agentConsole} icon={<Bot size={13} />} label={t('sidebar.items.agentConsole')} end />
-            {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => {
-              const RuntimeIcon = item.icon
-              return <AgentModeNavItem key={item.to} to={item.to} icon={<RuntimeIcon size={13} />} label={item.label} />
-            })}
-            {currentUser?.system_role === 'super_admin' && (
-              <AgentModeActionItem
-                icon={<ExternalLink size={13} />}
-                label={t('sidebar.items.adminConsole')}
-                onClick={() => void openAdminConsole(apiBaseURL)}
-              />
-            )}
-          </AgentModeGroupList>
-        </AgentSidebarGroup>
-
       </AgentModeSidebarScroll>
 
-      <AgentModeSidebarFooter>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <AgentModeUserTrigger>
-              <AgentModeUserAvatar fallback={currentUser?.username[0]?.toUpperCase() ?? <UserRound size={13} />} />
-              <AgentModeUserCopy>
-                <AgentModeUserName>{currentUser?.username ?? t('agents.chat.agentModeSidebar.defaultUser')}</AgentModeUserName>
-                <AgentModeUserMeta>
-                  {currentMembership?.org_name ?? t('agents.chat.agentModeSidebar.settingsUser')}
-                </AgentModeUserMeta>
-              </AgentModeUserCopy>
-              <AgentModeIconSlot><ChevronDown size={12} /></AgentModeIconSlot>
-            </AgentModeUserTrigger>
-          </DropdownMenuTrigger>
-          <AgentModeUserMenuContent>
-            <DropdownMenuLabel>
-              <AgentModeUserMenuLabel>
-                <AgentModeUserMenuName>{currentUser?.username ?? t('agents.chat.agentModeSidebar.defaultUser')}</AgentModeUserMenuName>
-                <AgentModeUserMenuRole>
-                  {currentMembership
-                    ? t(`org.roles.${currentMembership.role}`, { defaultValue: currentMembership.role })
-                    : currentUser?.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
-                </AgentModeUserMenuRole>
-              </AgentModeUserMenuLabel>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate(ROUTES.user)}>
-              <AgentModeIconSlot><CircleUserRound size={14} /></AgentModeIconSlot>
-              {t('header.titles.user')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setCurrentUser(null)}>
-              <AgentModeIconSlot><LogOut size={14} /></AgentModeIconSlot>
-              {t('sidebar.logout')}
-            </DropdownMenuItem>
-          </AgentModeUserMenuContent>
-        </DropdownMenu>
-      </AgentModeSidebarFooter>
-      <AgentModeResizeHandle
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="调整左侧栏宽度"
-        aria-valuemin={AGENT_SIDEBAR_MIN_WIDTH}
-        aria-valuemax={AGENT_SIDEBAR_MAX_WIDTH}
-        aria-valuenow={sidebarWidth}
-        tabIndex={0}
-        side="right"
-        active={resizing}
-        onPointerDown={startResize}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') {
-            event.preventDefault()
-            adjustSidebarWidth(event.shiftKey ? -32 : -12)
-          }
-          if (event.key === 'ArrowRight') {
-            event.preventDefault()
-            adjustSidebarWidth(event.shiftKey ? 32 : 12)
-          }
-        }}
-      />
+      {!sidebarCollapsed ? (
+        <AgentModeResizeHandle
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整左侧栏宽度"
+          aria-valuemin={AGENT_SIDEBAR_MIN_WIDTH}
+          aria-valuemax={AGENT_SIDEBAR_MAX_WIDTH}
+          aria-valuenow={sidebarWidth}
+          tabIndex={0}
+          side="right"
+          active={resizing}
+          onPointerDown={startResize}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              adjustSidebarWidth(event.shiftKey ? -32 : -12)
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              adjustSidebarWidth(event.shiftKey ? 32 : 12)
+            }
+          }}
+        />
+      ) : null}
     </AgentModeSidebar>
-  )
-}
-
-function AgentModeNavItem({
-  to,
-  icon,
-  label,
-  end = false,
-}: {
-  to: string
-  icon: ReactNode
-  label: string
-  end?: boolean
-}) {
-  return (
-    <AgentModeNavLinkItem>
-      <NavLink to={to} end={end}>
-        <AgentModeIconSlot>{icon}</AgentModeIconSlot>
-        <AgentModeLabel>{label}</AgentModeLabel>
-      </NavLink>
-    </AgentModeNavLinkItem>
-  )
-}
-
-function AgentModeActionItem({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <AgentModeActionNavItem
-      onClick={onClick}
-    >
-      <AgentModeIconSlot>{icon}</AgentModeIconSlot>
-      <AgentModeLabel>{label}</AgentModeLabel>
-    </AgentModeActionNavItem>
   )
 }
 
@@ -700,12 +736,18 @@ function conversationProjectId(
   return typeof threadProjectId === 'number' ? threadProjectId : undefined
 }
 
+function compareConversationCreationOrder(a: Conversation, b: Conversation) {
+  return a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+}
+
 function AgentSidebarConversation({
   conversation,
   active,
   locale,
   title,
   archived,
+  now,
+  runtimeStatusLight,
   onClick,
   onArchive,
   archiveLabel,
@@ -715,23 +757,35 @@ function AgentSidebarConversation({
   locale: string
   title: string
   archived: boolean
+  now: number
+  runtimeStatusLight?: AgentRuntimeStatusLight
   onClick: () => void
   onArchive?: () => void
   archiveLabel: string
 }) {
-  const lastMessage = conversation.messages[conversation.messages.length - 1]?.content.trim()
+  const relativeTime = formatAgentRelativeTime(conversation.updatedAt, locale, now)
+  const showArchiveAction = Boolean(active && onArchive && !archived)
 
   return (
     <AgentModeConversationRow>
       <AgentModeConversationItem
         onClick={onClick}
         active={active}
-        icon={archived ? <Archive size={11} /> : <MessageSquare size={11} />}
+        icon={runtimeStatusLight ? (
+          <span className="agent-mode-conversation__icon-stack">
+            <span
+              className="agent-mode-conversation-runtime-light"
+              data-runtime-state={runtimeStatusLight.state}
+              aria-hidden="true"
+              title={runtimeStatusLight.detail}
+            />
+          </span>
+        ) : undefined}
         title={title}
-        description={lastMessage || formatAgentDate(conversation.updatedAt, locale)}
-        hasAction={Boolean(onArchive && !archived)}
+        meta={relativeTime}
+        hasAction={showArchiveAction}
       />
-      {onArchive && !archived ? (
+      {showArchiveAction ? (
         <AgentModeConversationArchiveButton
           type="button"
           onClick={onArchive}
@@ -773,10 +827,10 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
       <AgentModeChatSurfaceInner>
         <AgentBuiltinChatShell
           userId={userId}
-          onCollapse={() => {}}
+          onCollapse={() => { }}
           showCollapse={false}
+          host="immersive"
           surface="page"
-          pageEmptyAccessory={<AgentModeProjectSelectCard />}
           pendingThreadIdToOpen={pendingThreadIdToOpen}
           onPendingThreadHandled={() => setPendingThreadIdToOpen(null)}
         />
@@ -785,121 +839,51 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
   )
 }
 
-function AgentModeProjectSelectCard() {
-  const navigate = useNavigate()
-  const { t } = useTranslation()
-  const current = useProjectStore((s) => s.current)
-  const setCurrent = useProjectStore((s) => s.setCurrent)
-  const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: projectListQueryKey(currentOrgID),
-    queryFn: () => api.get('/projects').then((response) => response.data),
-  })
-
-  function selectProject(project: Project) {
-    setCurrent(project)
-    navigate(ROUTES.project.agent)
-  }
-
-  if (projects.length === 0) {
-    return (
-      <AgentModeProjectSelectButton
-        type="button"
-        onClick={() => navigate(ROUTES.projects)}
-      >
-        <AgentModeIconSlot><FolderOpen size={15} /></AgentModeIconSlot>
-        <AgentModeLabel>{t('agents.chat.agentModeProjectPicker.noProjects')}</AgentModeLabel>
-        <AgentModeIconSlot><Plus size={14} /></AgentModeIconSlot>
-      </AgentModeProjectSelectButton>
-    )
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <AgentModeProjectSelectButton
-          type="button"
-          title={current?.name ?? t('agents.chat.agentModeProjectPicker.title')}
-          aria-label={t('agents.chat.agentModeProjectPicker.title')}
-        >
-          <AgentModeIconSlot><FolderOpen size={15} /></AgentModeIconSlot>
-          <AgentModeLabel>
-            {current?.name ?? t('agents.chat.agentModeProjectPicker.title')}
-          </AgentModeLabel>
-          <AgentModeIconSlot><ChevronDown size={14} /></AgentModeIconSlot>
-        </AgentModeProjectSelectButton>
-      </DropdownMenuTrigger>
-      <AgentModeProjectMenuContent>
-        <DropdownMenuLabel>{t('agents.chat.agentModeProjectPicker.title')}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {projects.map((project) => (
-          <DropdownMenuItem key={project.ID} onClick={() => selectProject(project)}>
-            <AgentModeLabel>{project.name}</AgentModeLabel>
-            {current?.ID === project.ID ? <AgentModeIconSlot><Check size={14} /></AgentModeIconSlot> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate(ROUTES.projects)}>
-          <AgentModeIconSlot><FolderOpen size={14} /></AgentModeIconSlot>
-          {t('agents.chat.agentModeProjectPicker.manageProjects')}
-        </DropdownMenuItem>
-      </AgentModeProjectMenuContent>
-    </DropdownMenu>
-  )
-}
-
 function ProjectAgentModeWorkspace({ userId }: { userId: string }) {
-  const workspaceRef = useRef<HTMLElement | null>(null)
-  const [workspaceWidth, setWorkspaceWidth] = useState(0)
-
-  useEffect(() => {
-    const node = workspaceRef.current
-    if (!node || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(([entry]) => {
-      setWorkspaceWidth(Math.round(entry.contentRect.width))
-    })
-    observer.observe(node)
-    setWorkspaceWidth(Math.round(node.getBoundingClientRect().width))
-    return () => observer.disconnect()
-  }, [])
-
   return (
-    <AgentModeWorkspace ref={workspaceRef}>
-      <ProjectAgentChatSurface userId={userId} />
-      <ProjectAgentContentPanel workspaceWidth={workspaceWidth} />
-    </AgentModeWorkspace>
+    <ProjectAgentChatSurface userId={userId} />
   )
 }
 
-function ProjectAgentContentPanel({ workspaceWidth }: { workspaceWidth: number }) {
-  const collapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
-  const resizeStart = useRef({ x: 0, width: 0 })
-  const [panelRatio, setPanelRatio] = useState(() => {
-    if (typeof window === 'undefined') return AGENT_CONTENT_PANEL_DEFAULT_RATIO
-    const saved = Number(window.localStorage.getItem(AGENT_CONTENT_PANEL_RATIO_STORAGE_KEY))
-    return Number.isFinite(saved) ? clampAgentContentPanelRatio(saved) : AGENT_CONTENT_PANEL_DEFAULT_RATIO
+export function ProjectAgentContentPanel({
+  manageOwnWidth = false,
+  onWidthChange,
+}: {
+  manageOwnWidth?: boolean
+  onWidthChange?: (width: number) => void
+} = {}) {
+  const setCollapsed = useAgentPanelUiStore((s) => s.setAgentModeContentPanelCollapsed)
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === 'undefined') return AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
+    const saved = Number(window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY))
+    return Number.isFinite(saved) ? clampAgentModeContentPanelWidth(saved) : AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
   })
+  const resizeStart = useRef({ x: 0, width: AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH })
   const [resizing, setResizing] = useState(false)
-  const availablePanelWidth = workspaceWidth > 0 ? workspaceWidth - AGENT_CHAT_MIN_WIDTH : 0
-  const contentPanelFits = availablePanelWidth >= AGENT_CONTENT_PANEL_MIN_WIDTH
-  const panelMaxWidth = contentPanelFits
-    ? Math.min(AGENT_CONTENT_PANEL_MAX_WIDTH, Math.floor(workspaceWidth * AGENT_CONTENT_PANEL_MAX_RATIO), availablePanelWidth)
-    : AGENT_CONTENT_PANEL_MIN_WIDTH
-  const ratioWidth = workspaceWidth > 0 ? Math.round(workspaceWidth * panelRatio) : 0
-  const renderedPanelWidth = Math.min(panelMaxWidth, Math.max(AGENT_CONTENT_PANEL_MIN_WIDTH, ratioWidth))
 
   useEffect(() => {
-    window.localStorage.setItem(AGENT_CONTENT_PANEL_RATIO_STORAGE_KEY, String(panelRatio))
-  }, [panelRatio])
+    onWidthChange?.(panelWidth)
+  }, [onWidthChange, panelWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, String(panelWidth))
+  }, [panelWidth])
 
   useEffect(() => {
     if (!resizing) return
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (workspaceWidth <= 0) return
-      const delta = resizeStart.current.x - event.clientX
-      const nextWidth = Math.min(panelMaxWidth, Math.max(AGENT_CONTENT_PANEL_MIN_WIDTH, resizeStart.current.width + delta))
-      setPanelRatio(clampAgentContentPanelRatio(nextWidth / workspaceWidth))
+      const nextWidth = resizeStart.current.width - (event.clientX - resizeStart.current.x)
+      if (nextWidth < AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
+        if (resizeStart.current.width <= AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
+          setCollapsed(true)
+          setResizing(false)
+          return
+        }
+        setPanelWidth(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH)
+        return
+      }
+      setPanelWidth(clampAgentModeContentPanelWidth(nextWidth))
     }
     const handlePointerUp = () => setResizing(false)
     const previousCursor = document.body.style.cursor
@@ -916,36 +900,45 @@ function ProjectAgentContentPanel({ workspaceWidth }: { workspaceWidth: number }
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
-  }, [panelMaxWidth, resizing, workspaceWidth])
+  }, [resizing, setCollapsed])
 
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
-    resizeStart.current = { x: event.clientX, width: renderedPanelWidth }
+    resizeStart.current = { x: event.clientX, width: panelWidth }
     setResizing(true)
   }
 
   const adjustPanelWidth = (delta: number) => {
-    if (workspaceWidth <= 0) return
-    const nextWidth = Math.min(panelMaxWidth, Math.max(AGENT_CONTENT_PANEL_MIN_WIDTH, renderedPanelWidth + delta))
-    setPanelRatio(clampAgentContentPanelRatio(nextWidth / workspaceWidth))
+    const nextWidth = panelWidth + delta
+    if (nextWidth < AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
+      if (panelWidth <= AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
+        setCollapsed(true)
+        return
+      }
+      setPanelWidth(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH)
+      return
+    }
+    setPanelWidth(clampAgentModeContentPanelWidth(nextWidth))
   }
-
-  if (collapsed || !contentPanelFits) return null
 
   return (
     <AgentModeContentPanel
       resizing={resizing}
-      style={{ width: renderedPanelWidth, flexBasis: renderedPanelWidth }}
+      style={manageOwnWidth ? {
+        width: panelWidth,
+        flexBasis: panelWidth,
+        minWidth: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
+      } : undefined}
       aria-label="Agent 内容区"
     >
       <AgentBrowserPanel />
       <AgentModeResizeHandle
         role="separator"
         aria-orientation="vertical"
-        aria-label="调整内容区宽度"
-        aria-valuemin={AGENT_CONTENT_PANEL_MIN_WIDTH}
-        aria-valuemax={panelMaxWidth}
-        aria-valuenow={renderedPanelWidth}
+        aria-label="调整对话区宽度"
+        aria-valuemin={AGENT_MODE_CONTENT_PANEL_MIN_WIDTH}
+        aria-valuemax={AGENT_MODE_CONTENT_PANEL_MAX_WIDTH}
+        aria-valuenow={panelWidth}
         tabIndex={0}
         side="left"
         active={resizing}

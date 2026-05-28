@@ -1,6 +1,9 @@
 .ms-agent-generated-candidate-target-list {
   max-height: 42vh;
   margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 72%, transparent);
+  border-radius: 0;
+  background: var(--ms-color-background);
   overflow: auto;
   padding: 0;
 }
@@ -14,6 +17,7 @@
 }
 
 .ms-agent-generated-candidate-empty-message {
+  margin: 0;
   padding: 24px 12px;
   color: var(--ms-color-muted-foreground);
   text-align: center;
@@ -24,13 +28,16 @@
 .ms-agent-generated-candidate-target-row {
   display: flex;
   min-width: 0;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .ms-agent-generated-candidate-target-title {
   min-width: 0;
+  flex: 1 1 12rem;
+  margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
@@ -46,7 +53,7 @@
 }
 
 .ms-agent-generated-candidate-target-meta {
-  margin-top: 2px;
+  margin: 2px 0 0;
   overflow: hidden;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
@@ -56,7 +63,7 @@
 
 .ms-agent-generated-candidate-target-description {
   display: -webkit-box;
-  margin-top: 4px;
+  margin: 4px 0 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -67,7 +74,8 @@
 
 .ms-agent-generated-candidate-selected-target {
   margin-top: 8px;
-  border-color: color-mix(in srgb, var(--ms-color-primary) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ms-color-primary) 25%, transparent);
+  border-radius: 0;
   background: color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
   padding: 6px 8px;
 }

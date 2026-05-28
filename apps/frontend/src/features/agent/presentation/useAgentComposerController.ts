@@ -80,7 +80,7 @@ export function useAgentComposerController({
     const query = mentionRange.query.trim().toLowerCase()
     return mentionCandidates
       .filter((attachment) => !query || attachment.name.toLowerCase().includes(query) || String(attachment.resourceId).includes(query))
-      .slice(0, 6)
+      .slice(0, 24)
   }, [mentionCandidates, mentionRange])
 
   const composerAttachmentEntries = useMemo(() => {

@@ -117,12 +117,17 @@
 
 .production-delivery-workbench-layout {
   min-height: 0;
+  min-width: 0;
   flex: 1 1 auto;
+}
+
+.production-delivery-workbench-layout .content-workspace-bottom {
+  overflow-y: auto;
 }
 
 .production-delivery-workbench-metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
   gap: var(--ms-space-3);
 }
 
@@ -161,7 +166,8 @@
 }
 
 .production-delivery-version-list-viewport {
-  max-height: 700px;
+  max-height: none;
+  min-height: 0;
   overflow: auto;
   padding: var(--ms-space-3);
 }
@@ -518,6 +524,6 @@
 
 @media (min-width: 1536px) {
   .production-delivery-workbench-split {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.42fr);
   }
 }

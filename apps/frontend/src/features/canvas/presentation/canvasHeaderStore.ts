@@ -16,8 +16,10 @@ interface CanvasHeaderState {
   saving: boolean
   startingRun: boolean
   libraryCollapsed: boolean
+  workflowPanelCollapsed: boolean
   onNameChange?: (name: string) => void
   onToggleLibrary?: () => void
+  onToggleWorkflowPanel?: () => void
   onRun?: () => void
   onSave?: () => void
   setHeader: (patch: Partial<Omit<CanvasHeaderState, 'setHeader' | 'reset'>>) => void
@@ -39,8 +41,10 @@ const INITIAL_STATE: Omit<CanvasHeaderState, 'setHeader' | 'reset'> = {
   saving: false,
   startingRun: false,
   libraryCollapsed: true,
+  workflowPanelCollapsed: false,
   onNameChange: undefined,
   onToggleLibrary: undefined,
+  onToggleWorkflowPanel: undefined,
   onRun: undefined,
   onSave: undefined,
 }
@@ -50,4 +54,3 @@ export const useCanvasHeaderStore = create<CanvasHeaderState>((set) => ({
   setHeader: (patch) => set((state) => ({ ...state, ...patch })),
   reset: () => set({ ...INITIAL_STATE }),
 }))
-

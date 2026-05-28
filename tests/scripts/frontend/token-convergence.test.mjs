@@ -98,7 +98,9 @@ const expectedTokenDefinitions = [
   '--ms-font-sans',
   '--ms-leading-body',
   '--ms-leading-caption',
+  '--ms-leading-item',
   '--ms-leading-label',
+  '--ms-leading-section',
   '--ms-leading-tiny',
   '--ms-radius-full',
   '--ms-radius-md',
@@ -109,7 +111,9 @@ const expectedTokenDefinitions = [
   '--ms-space-4',
   '--ms-text-body',
   '--ms-text-caption',
+  '--ms-text-item',
   '--ms-text-label',
+  '--ms-text-section',
   '--ms-text-tiny',
 ]
 

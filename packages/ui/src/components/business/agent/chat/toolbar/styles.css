@@ -3,12 +3,13 @@
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  min-height: 34px;
-  max-height: 34px;
+  min-height: 38px;
+  max-height: 38px;
   align-items: stretch;
   border-bottom: 0;
+  background: transparent;
   overflow: hidden;
-  padding-inline: 0;
+  padding: 0;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-chat-header > .ai-agent-panel-chat-toolbar {
@@ -26,11 +27,15 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  height: 34px;
+  height: 38px;
   align-items: stretch;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   gap: 0;
   overflow: hidden;
   flex-wrap: nowrap;
+  box-shadow: none;
 }
 
 .ai-agent-panel-chat-toolbar-tabs {
@@ -47,7 +52,8 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 2px;
-  border-bottom: 1px solid var(--ms-color-border);
+  border-left: 0;
+  background: transparent;
   padding-left: 4px;
   padding-right: 6px;
   white-space: nowrap;
@@ -57,10 +63,32 @@
   flex: 0 0 auto;
 }
 
+.ai-agent-panel-status-trigger[data-status-expanded="true"] {
+  background: color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
+  color: var(--ms-color-primary);
+}
+
 .ai-agent-panel-chat-toolbar .ms-button:hover:not(:disabled),
 .ai-agent-panel-conversation-tab-main:hover:not(:disabled),
 .ai-agent-panel-conversation-tab-close:hover:not(:disabled) {
   transform: none;
+}
+
+.ai-agent-program-header-actions {
+  display: inline-flex;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ms-space-1);
+}
+
+.ai-agent-program-header-actions .app-window-icon-button[data-active="true"] {
+  background: var(--ms-color-muted);
+  color: var(--ms-color-foreground);
+}
+
+.ai-agent-program-header-actions__status[data-active="true"] {
+  color: var(--ms-color-primary);
 }
 
 .project-agent-mode {

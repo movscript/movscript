@@ -15,6 +15,7 @@ COPY packages/drafts/package.json ./packages/drafts/package.json
 COPY packages/plugin-sdk/package.json ./packages/plugin-sdk/package.json
 COPY packages/plugin-sdk/examples/scene-summary/package.json ./packages/plugin-sdk/examples/scene-summary/package.json
 COPY packages/tokens/package.json ./packages/tokens/package.json
+COPY packages/theme/package.json ./packages/theme/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 COPY plugins/image-generator/package.json ./plugins/image-generator/package.json
 COPY plugins/video-generator/package.json ./plugins/video-generator/package.json

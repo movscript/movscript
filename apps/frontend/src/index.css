@@ -23,7 +23,7 @@
     min-width: 0;
     overflow: hidden;
     overscroll-behavior: none;
-    background: var(--ms-color-background);
+    background: var(--ms-color-app-background);
   }
   body {
     @apply bg-background text-foreground;

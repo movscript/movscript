@@ -127,10 +127,12 @@ export function AgentBrowserPanel() {
   const [webStates, setWebStates] = useState<Record<string, WebTabState>>({})
   const [launcherOpen, setLauncherOpen] = useState(false)
   const [addressDraft, setAddressDraft] = useState('')
+  const [toolbarAddressDraft, setToolbarAddressDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const available = typeof window !== 'undefined' && typeof window.api?.agentBrowserNavigate === 'function'
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
   const activeWebState = activeTab?.kind === 'web' ? webStates[activeTab.id] ?? { ...EMPTY_WEB_STATE, tabId: activeTab.id, url: activeTab.url ?? '' } : null
+  const activeWebURL = activeTab?.kind === 'web' ? activeWebState?.url || activeTab.url || '' : ''
 
   const readBounds = useCallback((): BrowserBounds | null => {
     const viewport = viewportRef.current
@@ -190,6 +192,10 @@ export function AgentBrowserPanel() {
       void window.api?.agentBrowserHide?.()
     }
   }, [])
+
+  useEffect(() => {
+    setToolbarAddressDraft(activeWebURL)
+  }, [activeTabId, activeWebURL])
 
   async function navigateWebTab(tabId: string, rawURL: string) {
     const url = rawURL.trim()
@@ -261,6 +267,19 @@ export function AgentBrowserPanel() {
     setLauncherOpen(false)
     setAddressDraft('')
     await navigateWebTab(id, url)
+  }
+
+  async function submitToolbarAddress(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (activeTab?.kind !== 'web') return
+    const url = toolbarAddressDraft.trim()
+    if (!url) return
+    setTabs((current) => current.map((tab) => (
+      tab.id === activeTab.id && tab.kind === 'web'
+        ? { ...tab, title: url, url }
+        : tab
+    )))
+    await navigateWebTab(activeTab.id, url)
   }
 
   function closeTab(tabId: string) {
@@ -402,8 +421,19 @@ export function AgentBrowserPanel() {
                 </AgentBrowserIconButton>
               )
             })}
-            <AgentBrowserUrlMeta>
-              {activeWebState?.url || activeTab.url}
+            <AgentBrowserUrlMeta asChild>
+              <form className="agent-browser-address-form" onSubmit={submitToolbarAddress}>
+                <AgentBrowserInput
+                  value={toolbarAddressDraft}
+                  onChange={(event) => setToolbarAddressDraft(event.target.value)}
+                  placeholder="网址或搜索"
+                  aria-label="网页地址"
+                  disabled={!available}
+                />
+                <AgentBrowserLauncherSubmitButton disabled={!available || !toolbarAddressDraft.trim()}>
+                  打开
+                </AgentBrowserLauncherSubmitButton>
+              </form>
             </AgentBrowserUrlMeta>
           </AgentBrowserToolbar>
         ) : null}

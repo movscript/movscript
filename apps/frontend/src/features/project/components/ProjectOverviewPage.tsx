@@ -11,7 +11,6 @@ import {
   ListChecks,
 } from 'lucide-react'
 import {
-  AppContentLayout,
   AppDashboardDividerBlock,
   AppDashboardEntry,
   AppDashboardHeroGrid,
@@ -22,11 +21,28 @@ import {
   AppDashboardPipelineStep,
   AppDashboardRegion,
   AppDashboardSection,
-  AppDashboardSectionHeader,
   AppDashboardSplit,
   Badge,
   StatusBadge,
   Button,
+  ProjectOverviewBodyCopy,
+  ProjectOverviewEntryContent,
+  ProjectOverviewEntryDetail,
+  ProjectOverviewEntryStack,
+  ProjectOverviewEntryTitle,
+  ProjectOverviewLaneActions,
+  ProjectOverviewLaneContent,
+  ProjectOverviewLaneGrid,
+  ProjectOverviewLaneHeader,
+  ProjectOverviewLaneProgress,
+  ProjectOverviewMetaGrid,
+  ProjectOverviewMetricGrid,
+  ProjectOverviewPageLayout,
+  ProjectOverviewPanelHeader,
+  ProjectOverviewPipelineGrid,
+  ProjectOverviewStatusHeader,
+  ProjectOverviewTitleGroup,
+  ProjectOverviewTitleRow,
   Progress,
 } from '@movscript/ui'
 
@@ -238,13 +254,13 @@ function PipelineStep({ lane, last = false }: { lane: WorkLane; last?: boolean }
   return (
     <div className="flex min-w-0 items-center gap-2">
       <AppDashboardPipelineStep asChild>
-      <Link to={lane.href} className="group">
-        <Icon size={14} className="shrink-0 text-muted-foreground group-hover:text-foreground" />
-        <div className="min-w-0">
-          <p className="truncate type-label font-medium text-foreground">{lane.title}</p>
-          <p className="mt-0.5 type-label tabular-nums text-muted-foreground">{lane.progress}%</p>
-        </div>
-      </Link>
+        <Link to={lane.href} className="group">
+          <Icon size={14} className="shrink-0 text-muted-foreground group-hover:text-foreground" />
+          <ProjectOverviewEntryContent>
+            <ProjectOverviewEntryTitle className="type-label">{lane.title}</ProjectOverviewEntryTitle>
+            <ProjectOverviewEntryDetail className="tabular-nums">{lane.progress}%</ProjectOverviewEntryDetail>
+          </ProjectOverviewEntryContent>
+        </Link>
       </AppDashboardPipelineStep>
       {!last ? <ChevronRight size={14} className="hidden shrink-0 text-muted-foreground xl:block" /> : null}
     </div>
@@ -257,11 +273,11 @@ function WorkLanePanel({ lane }: { lane: WorkLane }) {
 
   return (
     <AppDashboardLane tone={laneUi.intent}>
-      <div className="flex items-start justify-between gap-3">
+      <ProjectOverviewLaneHeader>
         <Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
         <StatusBadge {...laneUi}>{stateLabel(lane.state)}</StatusBadge>
-      </div>
-      <div className="mt-4 min-w-0 flex-1">
+      </ProjectOverviewLaneHeader>
+      <ProjectOverviewLaneContent>
         <h2 className="type-body font-semibold text-foreground">{lane.title}</h2>
         <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{lane.description}</p>
         <AppDashboardLaneSummary>
@@ -271,22 +287,22 @@ function WorkLanePanel({ lane }: { lane: WorkLane }) {
           </div>
           <p className="mt-1 truncate type-label text-muted-foreground">{lane.secondary}</p>
         </AppDashboardLaneSummary>
-      </div>
-      <div className="mt-4 space-y-2">
+      </ProjectOverviewLaneContent>
+      <ProjectOverviewLaneProgress>
         <div className="flex items-center justify-between gap-3 type-label">
           <span className="text-muted-foreground">准备度</span>
           <span className="font-medium tabular-nums text-foreground">{lane.progress}%</span>
         </div>
         <Progress value={lane.progress} className="h-1.5" />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      </ProjectOverviewLaneProgress>
+      <ProjectOverviewLaneActions>
         <Button asChild variant="outline" size="sm">
           <Link to={lane.href}>查看状态</Link>
         </Button>
         <Button asChild size="sm">
           <Link to={lane.workbenchHref}>{nextLaneActionLabel(lane)}</Link>
         </Button>
-      </div>
+      </ProjectOverviewLaneActions>
     </AppDashboardLane>
   )
 }
@@ -295,16 +311,16 @@ function FocusRow({ item }: { item: FocusItem }) {
   const priorityUi = projectPriorityRecipe(item.priority)
   return (
     <AppDashboardEntry asChild tone={priorityUi.intent}>
-    <Link to={item.href}>
-      <StatusBadge {...priorityUi} className="w-12 justify-center">
-        {priorityLabel(item.priority)}
-      </StatusBadge>
-      <div className="min-w-0 flex-1">
-        <p className="truncate type-body font-medium text-foreground">{item.title}</p>
-        <p className="mt-0.5 truncate type-label text-muted-foreground">{item.area} · {item.detail}</p>
-      </div>
-      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-    </Link>
+      <Link to={item.href}>
+        <StatusBadge {...priorityUi} className="w-12 justify-center">
+          {priorityLabel(item.priority)}
+        </StatusBadge>
+        <ProjectOverviewEntryContent>
+          <ProjectOverviewEntryTitle>{item.title}</ProjectOverviewEntryTitle>
+          <ProjectOverviewEntryDetail>{item.area} · {item.detail}</ProjectOverviewEntryDetail>
+        </ProjectOverviewEntryContent>
+        <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+      </Link>
     </AppDashboardEntry>
   )
 }
@@ -322,14 +338,14 @@ function SurfaceLink({
 }) {
   return (
     <AppDashboardEntry asChild>
-    <Link to={href}>
-      <Icon size={14} className="shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate type-body font-medium text-foreground">{title}</p>
-        <p className="mt-0.5 truncate type-label text-muted-foreground">{detail}</p>
-      </div>
-      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
-    </Link>
+      <Link to={href}>
+        <Icon size={14} className="shrink-0 text-muted-foreground" />
+        <ProjectOverviewEntryContent>
+          <ProjectOverviewEntryTitle>{title}</ProjectOverviewEntryTitle>
+          <ProjectOverviewEntryDetail>{detail}</ProjectOverviewEntryDetail>
+        </ProjectOverviewEntryContent>
+        <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
+      </Link>
     </AppDashboardEntry>
   )
 }
@@ -574,7 +590,7 @@ export default function ProjectOverviewPage() {
   const updatedAt = project?.UpdatedAt ?? [...Object.values(data).flat()].sort((a, b) => String(b.UpdatedAt ?? '').localeCompare(String(a.UpdatedAt ?? '')))[0]?.UpdatedAt
 
   return (
-    <AppContentLayout variant="contained" width="xwide" contentClassName="flex flex-col gap-5">
+    <ProjectOverviewPageLayout>
         <ProjectSurfaceHeader
           icon={LayoutDashboard}
           title={project?.name ?? '项目总览'}
@@ -607,39 +623,39 @@ export default function ProjectOverviewPage() {
 
         <AppDashboardHeroGrid>
           <AppDashboardRegion primary>
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+            <ProjectOverviewStatusHeader>
+              <ProjectOverviewTitleGroup>
+                <ProjectOverviewTitleRow>
                   <CheckCircle2 size={16} className="text-muted-foreground" />
                   <h2 className="type-body font-semibold text-foreground">项目生产状态</h2>
-                </div>
-                <p className="mt-1 type-label text-muted-foreground">按当前语义对象估算，不替代具体页面里的审核状态。</p>
-              </div>
+                </ProjectOverviewTitleRow>
+                <ProjectOverviewBodyCopy>按当前语义对象估算，不替代具体页面里的审核状态。</ProjectOverviewBodyCopy>
+              </ProjectOverviewTitleGroup>
               <StatusBadge {...projectReadinessRecipe(readiness)}>{readiness}%</StatusBadge>
-            </div>
+            </ProjectOverviewStatusHeader>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <ProjectOverviewMetricGrid>
               <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
               <AppDashboardMetric label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="content_orchestration" />} />
               <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
               <AppDashboardMetric label="交付版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={<WorkbenchMetricIcon workbenchId="delivery" />} />
-            </div>
+            </ProjectOverviewMetricGrid>
 
-            <div className="mt-5 grid gap-2 xl:grid-cols-5">
+            <ProjectOverviewPipelineGrid>
               {lanes.map((lane, index) => (
                 <PipelineStep key={lane.key} lane={lane} last={index === lanes.length - 1} />
               ))}
-            </div>
+            </ProjectOverviewPipelineGrid>
           </AppDashboardRegion>
 
           <AppDashboardRegion>
-            <div className="flex items-start justify-between gap-3">
+            <ProjectOverviewStatusHeader>
               <div>
                 <h2 className="type-body font-semibold text-foreground">下一步</h2>
-                <p className="mt-1 type-label text-muted-foreground">按阻塞、任务和素材需求缺口排序。</p>
+                <ProjectOverviewBodyCopy>按阻塞、任务和素材需求缺口排序。</ProjectOverviewBodyCopy>
               </div>
               <StatusBadge {...projectLaneStateRecipe(nextLane?.state ?? 'empty')}>{stateLabel(nextLane?.state ?? 'empty')}</StatusBadge>
-            </div>
+            </ProjectOverviewStatusHeader>
 
             <AppDashboardDividerBlock>
               <p className="type-label text-muted-foreground">当前建议入口</p>
@@ -653,7 +669,7 @@ export default function ProjectOverviewPage() {
               </Button>
             </AppDashboardDividerBlock>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 type-label">
+            <ProjectOverviewMetaGrid>
               <AppDashboardMetaCell>
                 <p className="text-muted-foreground">更新时间</p>
                 <p className="mt-1 font-medium text-foreground">{formatDate(updatedAt)}</p>
@@ -662,25 +678,25 @@ export default function ProjectOverviewPage() {
                 <p className="text-muted-foreground">项目状态</p>
                 <p className="mt-1 font-medium text-foreground">{project?.status || '未设置'}</p>
               </AppDashboardMetaCell>
-            </div>
+            </ProjectOverviewMetaGrid>
           </AppDashboardRegion>
         </AppDashboardHeroGrid>
 
         <AppDashboardSection>
-          <AppDashboardSectionHeader>
+          <ProjectOverviewPanelHeader>
             <div>
               <h2 className="type-title font-semibold text-foreground">工作台状态</h2>
               <p className="mt-1 type-body text-muted-foreground">总览只呈现 5 个工作台的推进状态；编排段、情景、制作项和素材需求作为对应工作台内的对象指标。</p>
             </div>
-          </AppDashboardSectionHeader>
-          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
+          </ProjectOverviewPanelHeader>
+          <ProjectOverviewLaneGrid>
             {lanes.map((lane) => <WorkLanePanel key={lane.key} lane={lane} />)}
-          </div>
+          </ProjectOverviewLaneGrid>
         </AppDashboardSection>
 
         <AppDashboardSplit>
           <AppDashboardRegion>
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <ProjectOverviewPanelHeader>
               <div>
                 <h2 className="type-title font-semibold text-foreground">优先处理</h2>
                 <p className="mt-1 type-body text-muted-foreground">只列会影响制作推进的事项。</p>
@@ -691,16 +707,16 @@ export default function ProjectOverviewPage() {
                   任务
                 </Link>
               </Button>
-            </div>
-            <div className="space-y-2">
+            </ProjectOverviewPanelHeader>
+            <ProjectOverviewEntryStack>
               {focusItems.map((item) => <FocusRow key={item.key} item={item} />)}
-            </div>
+            </ProjectOverviewEntryStack>
           </AppDashboardRegion>
 
           <AppDashboardRegion>
             <h2 className="type-title font-semibold text-foreground">工作台入口</h2>
             <p className="mt-1 type-body text-muted-foreground">当前项目只暴露 5 个工作台入口，避免从总览进入零散对象页面。</p>
-            <div className="mt-4 grid gap-2">
+            <ProjectOverviewEntryStack className="mt-4">
               {projectWorkbenchDefinitions.map((item) => {
                 const Icon = item.icon
                 return (
@@ -713,10 +729,10 @@ export default function ProjectOverviewPage() {
                   />
                 )
               })}
-            </div>
+            </ProjectOverviewEntryStack>
           </AppDashboardRegion>
         </AppDashboardSplit>
-    </AppContentLayout>
+    </ProjectOverviewPageLayout>
   )
 }
 

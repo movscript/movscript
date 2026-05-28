@@ -1,7 +1,8 @@
 .ms-agent-generated-result-card__header {
   display: flex;
   min-width: 0;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
@@ -32,9 +33,13 @@
 
 .ms-agent-generated-result-card__actions {
   display: flex;
-  flex: 0 0 auto;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  margin-left: auto;
 }
 
 .ms-agent-generated-result-card__count {

@@ -1,11 +1,17 @@
 .ms-agent-generated-result-item {
-  padding: 6px 8px;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+  min-width: 0;
+  padding: 6px 0;
+  background: transparent;
 }
 
 .ms-agent-generated-result-item__row {
   display: flex;
   min-width: 0;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -19,10 +25,11 @@
 
 .ms-agent-generated-result-item__body {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
 }
 
 .ms-agent-generated-result-item__name {
+  margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
@@ -32,6 +39,7 @@
 }
 
 .ms-agent-generated-result-item__meta {
+  margin: 0;
   overflow: hidden;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);

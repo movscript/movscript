@@ -61,12 +61,8 @@ export function CanvasGenBody({
       output={status === 'done' && outputUrl && outputType !== 'text' ? (
         <>
           {outputType === 'image'
-            ? (resource?.direct_url
-              ? <img src={outputUrl} alt="" />
-              : <AuthedImage src={outputUrl} alt="" />)
-            : (resource?.direct_url
-              ? <video src={outputUrl} controls />
-              : <AuthedVideo src={outputUrl} controls />)
+            ? <AuthedImage src={outputUrl} alt="" />
+            : <AuthedVideo src={outputUrl} controls />
           }
         </>
       ) : undefined}

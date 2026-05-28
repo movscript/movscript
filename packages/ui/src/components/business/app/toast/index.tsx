@@ -14,22 +14,20 @@ export interface AppToastShellProps extends HTMLAttributes<HTMLDivElement> {
   tone?: AppToastTone;
 }
 
-export function AppToastShell({
-  tone = "info",
-  className,
-  children,
-  ...props
-}: AppToastShellProps) {
-  return (
+export const AppToastShell = forwardRef<HTMLDivElement, AppToastShellProps>(
+  ({ tone = "info", className, children, ...props }, ref) => (
     <AppSurfaceItem
+      ref={ref}
       variant="overlay"
       className={cn("app-toast", toneSurfaceClass(tone), className)}
       {...props}
     >
       {children}
     </AppSurfaceItem>
-  );
-}
+  ),
+);
+
+AppToastShell.displayName = "AppToastShell";
 
 export function AppToastRow({
   className,
@@ -58,17 +56,15 @@ export function AppToastIcon({
   );
 }
 
-export function AppToastMessage({
-  className,
-  children,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn("app-toast__message", className)} {...props}>
+export const AppToastMessage = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, children, ...props }, ref) => (
+    <div ref={ref} className={cn("app-toast__message", className)} {...props}>
       {children}
     </div>
-  );
-}
+  ),
+);
+
+AppToastMessage.displayName = "AppToastMessage";
 
 export function AppToastDetail({
   className,
@@ -99,9 +95,8 @@ export const AppToastIconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttrib
 
 AppToastIconButton.displayName = "AppToastIconButton";
 
-export function AppToastViewport({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("app-toast-viewport", className)} {...props} />;
-}
+export const AppToastViewport = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("app-toast-viewport", className)} {...props} />,
+);
+
+AppToastViewport.displayName = "AppToastViewport";

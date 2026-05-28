@@ -3,10 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Check, LayoutTemplate, Loader2, Pencil, Plus, Trash2, X, Zap, Lightbulb } from 'lucide-react'
 import {
-  AgentSurfaceBlock,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentCanvasCreatePanel,
+  AgentCanvasListPanel,
+  AgentCanvasLoadingState,
+  AgentCanvasPageLayout,
+  AgentPageDescription,
+  AgentPageEyebrowRow,
+  AgentPageHeaderContent,
+  AgentPageHeaderCopy,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
   CanvasListCreateActionButton,
   CanvasListCreateDialogBody,
   CanvasListCreateInput,
@@ -106,26 +113,26 @@ export default function AgentModeCanvasListPage() {
   }
 
   return (
-    <AppPageShell>
-      <AppPageShellHeader>
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-2 text-muted-foreground">
+    <AgentPageShell>
+      <AgentPageShellHeader>
+        <AgentPageHeaderContent>
+          <AgentPageHeaderCopy>
+            <AgentPageEyebrowRow>
               <LayoutTemplate size={15} />
-              <span className="type-caption font-medium">Agent 模式</span>
-            </div>
+              <span>Agent 模式</span>
+            </AgentPageEyebrowRow>
             <h1 className="type-title font-semibold text-foreground">画布列表</h1>
-            <p className="mt-1 max-w-2xl type-label leading-5 text-muted-foreground">
+            <AgentPageDescription>
               管理当前项目可供 Agent 参考和执行的画布。
-            </p>
-          </div>
+            </AgentPageDescription>
+          </AgentPageHeaderCopy>
           <CanvasListTypeBadge>{canvases.length} 个画布</CanvasListTypeBadge>
-        </div>
-      </AppPageShellHeader>
+        </AgentPageHeaderContent>
+      </AgentPageShellHeader>
 
-      <AppPageShellBody>
-        <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <AgentSurfaceBlock variant="card" className="h-fit p-4">
+      <AgentPageShellBody>
+        <AgentCanvasPageLayout>
+          <AgentCanvasCreatePanel>
             <h2 className="type-body font-semibold text-foreground">新建画布</h2>
             <CanvasListCreateDialogBody>
               <CanvasListCreateInput
@@ -159,14 +166,13 @@ export default function AgentModeCanvasListPage() {
                 创建画布
               </CanvasListCreateActionButton>
             </CanvasListCreateDialogBody>
-          </AgentSurfaceBlock>
+          </AgentCanvasCreatePanel>
 
-          <div className="min-w-0">
+          <AgentCanvasListPanel>
             {canvasesQuery.isLoading ? (
-              <div className="flex items-center gap-2 type-label text-muted-foreground">
-                <Loader2 size={14} className="animate-spin" />
+              <AgentCanvasLoadingState icon={<Loader2 size={14} className="animate-spin" />}>
                 正在读取画布
-              </div>
+              </AgentCanvasLoadingState>
             ) : canvasesQuery.error ? (
               <CanvasListError role="alert">
                 {errorMessage(canvasesQuery.error)}
@@ -195,10 +201,10 @@ export default function AgentModeCanvasListPage() {
                 ))}
               </CanvasListItems>
             )}
-          </div>
-        </div>
-      </AppPageShellBody>
-    </AppPageShell>
+          </AgentCanvasListPanel>
+        </AgentCanvasPageLayout>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

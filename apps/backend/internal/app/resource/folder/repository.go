@@ -11,26 +11,20 @@ import (
 
 type repository interface {
 	IncludeLegacyPersonal(ctx context.Context, orgID *uint) bool
-	ListFolders(ctx context.Context, userID uint, orgID *uint, shared bool, includeLegacy bool) ([]domainresourcefolder.Folder, error)
+	ListFolders(ctx context.Context, userID uint, orgID *uint, includeLegacy bool) ([]domainresourcefolder.Folder, error)
 	CreateFolder(ctx context.Context, ownerID uint, input CreateInput, includeLegacy bool) (domainresourcefolder.Folder, error)
 	UpdateFolder(ctx context.Context, userID uint, orgID *uint, id uint, spec domainresourcefolder.FolderUpdateSpec, includeLegacy bool) (domainresourcefolder.Folder, error)
 	DeleteFolder(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) error
-	ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) ([]domainresourcefolder.Permission, error)
-	GrantPermission(ctx context.Context, userID uint, orgID *uint, id uint, input PermissionInput, includeLegacy bool) (domainresourcefolder.Permission, error)
-	RevokePermission(ctx context.Context, userID uint, orgID *uint, id uint, targetUserID uint, includeLegacy bool) error
 }
 
 type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) ListFolders(ctx context.Context, userID uint, orgID *uint, shared bool, includeLegacy bool) ([]domainresourcefolder.Folder, error) {
+func (r *gormRepository) ListFolders(ctx context.Context, userID uint, orgID *uint, includeLegacy bool) ([]domainresourcefolder.Folder, error) {
 	folders := make([]persistencemodel.ResourceFolder, 0)
 	q := r.db.WithContext(ctx)
-	if shared {
-		q = q.Preload("Owner").Where("is_shared = true AND owner_id != ?", userID)
-		q = applyOrgScope(q, orgID, userID, includeLegacy)
-	} else if orgID != nil {
+	if orgID != nil {
 		if includeLegacy {
 			q = q.Where("(org_id = ? OR (org_id IS NULL AND owner_id = ?))", *orgID, userID)
 		} else {
@@ -70,7 +64,6 @@ func (r *gormRepository) CreateFolder(ctx context.Context, ownerID uint, input C
 		Name:           input.Name,
 		ParentID:       input.ParentID,
 		StorageBackend: input.StorageBackend,
-		IsShared:       input.IsShared,
 	}).ToModel()
 	if err := r.db.WithContext(ctx).Create(&folder).Error; err != nil {
 		return domainresourcefolder.Folder{}, err
@@ -103,9 +96,6 @@ func folderUpdateColumns(spec domainresourcefolder.FolderUpdateSpec) map[string]
 	if spec.StorageBackend != nil {
 		updates["storage_backend"] = *spec.StorageBackend
 	}
-	if spec.IsShared != nil {
-		updates["is_shared"] = *spec.IsShared
-	}
 	return updates
 }
 
@@ -117,60 +107,7 @@ func (r *gormRepository) DeleteFolder(ctx context.Context, userID uint, orgID *u
 	if err := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("folder_id = ?", folder.ID).Update("folder_id", nil).Error; err != nil {
 		return err
 	}
-	if err := r.db.WithContext(ctx).Where("folder_id = ?", folder.ID).Delete(&persistencemodel.ResourceFolderPermission{}).Error; err != nil {
-		return err
-	}
 	return r.db.WithContext(ctx).Delete(&folder).Error
-}
-
-func (r *gormRepository) ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) ([]domainresourcefolder.Permission, error) {
-	folder, err := r.requireOwner(ctx, userID, orgID, id, includeLegacy)
-	if err != nil {
-		return nil, err
-	}
-	var perms []persistencemodel.ResourceFolderPermission
-	if err := r.db.WithContext(ctx).Preload("User").Where("folder_id = ?", folder.ID).Find(&perms).Error; err != nil {
-		return nil, err
-	}
-	return permissionSliceFromModels(perms), nil
-}
-
-func (r *gormRepository) GrantPermission(ctx context.Context, userID uint, orgID *uint, id uint, input PermissionInput, includeLegacy bool) (domainresourcefolder.Permission, error) {
-	folder, err := r.requireOwner(ctx, userID, orgID, id, includeLegacy)
-	if err != nil {
-		return domainresourcefolder.Permission{}, err
-	}
-	perm := domainresourcefolder.NormalizePermission(input.Permission)
-	if !domainresourcefolder.ValidPermission(perm) {
-		return domainresourcefolder.Permission{}, ErrConflict
-	}
-	if input.UserID == userID {
-		return domainresourcefolder.Permission{}, ErrForbidden
-	}
-	var existing persistencemodel.ResourceFolderPermission
-	if r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, input.UserID).First(&existing).Error != nil {
-		existing = domainresourcefolder.NewPermission(folder.ID, input.UserID, perm).ToModel()
-		if err := r.db.WithContext(ctx).Create(&existing).Error; err != nil {
-			return domainresourcefolder.Permission{}, err
-		}
-	} else {
-		if err := r.db.WithContext(ctx).Model(&existing).Update("permission", perm).Error; err != nil {
-			return domainresourcefolder.Permission{}, err
-		}
-	}
-	if err := r.db.WithContext(ctx).Preload("User").First(&existing, existing.ID).Error; err != nil {
-		return domainresourcefolder.Permission{}, err
-	}
-	return domainresourcefolder.PermissionFromModel(existing), nil
-}
-
-func (r *gormRepository) RevokePermission(ctx context.Context, userID uint, orgID *uint, id uint, targetUserID uint, includeLegacy bool) error {
-	folder, err := r.requireOwner(ctx, userID, orgID, id, includeLegacy)
-	if err != nil {
-		return err
-	}
-	return r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, targetUserID).
-		Delete(&persistencemodel.ResourceFolderPermission{}).Error
 }
 
 func (r *gormRepository) requireOwner(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) (persistencemodel.ResourceFolder, error) {
@@ -228,12 +165,4 @@ func folderSliceFromModels(items []persistencemodel.ResourceFolder) []domainreso
 		folders = append(folders, domainresourcefolder.FolderFromModel(item))
 	}
 	return folders
-}
-
-func permissionSliceFromModels(items []persistencemodel.ResourceFolderPermission) []domainresourcefolder.Permission {
-	permissions := make([]domainresourcefolder.Permission, 0, len(items))
-	for _, item := range items {
-		permissions = append(permissions, domainresourcefolder.PermissionFromModel(item))
-	}
-	return permissions
 }

@@ -67,7 +67,6 @@ export {
   type ContentPageSummaryGridProps,
 } from "./page";
 export {
-  ContentWorkbenchBody,
   ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchCommandCenter,
   ContentWorkbenchDrawerActionRow,

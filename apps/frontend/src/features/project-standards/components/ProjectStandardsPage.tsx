@@ -29,6 +29,7 @@ import {
   ProjectStandardsCoreGrid,
   ProjectStandardsDescription,
   ProjectStandardsDialog,
+  ProjectStandardsDialogBody,
   ProjectStandardsDialogContent,
   ProjectStandardsDialogTitle,
   ProjectStandardsEmptyState,
@@ -49,7 +50,6 @@ import {
   ProjectStandardsMetricGrid,
   ProjectStandardsPreviewAside,
   ProjectStandardsPreviewSurface,
-  ProjectStandardsRoot,
   ProjectStandardsRuleActions,
   ProjectStandardsRuleCard,
   ProjectStandardsRuleCardHeader,
@@ -69,6 +69,7 @@ import {
   ProjectStandardsTitle,
   ProjectStandardsTitleRow,
   ProjectStandardsWorkspaceGrid,
+  WorkbenchProjectBody,
   WorkbenchProjectShell,
 } from '@movscript/ui'
 
@@ -506,7 +507,7 @@ export default function ProjectStandardsPage() {
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <ProjectStandardsRoot>
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
         <ProjectStandardsMain>
           {isLoading ? (
             <ProjectStandardsLoadingState>
@@ -750,12 +751,12 @@ export default function ProjectStandardsPage() {
             </ProjectStandardsContentLayout>
           )}
         </ProjectStandardsMain>
-      </ProjectStandardsRoot>
+      </WorkbenchProjectBody>
 
       <ProjectStandardsDialog open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
         <ProjectStandardsDialogContent>
           <ProjectStandardsDialogTitle className="sr-only">项目规范审阅</ProjectStandardsDialogTitle>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+          <ProjectStandardsDialogBody>
             <ProjectStandardsProposalReviewPanel
               loading={draftsQuery.isLoading}
               draftCount={draftCounts.draft}
@@ -763,7 +764,7 @@ export default function ProjectStandardsPage() {
               applyingDraftId={applyingDraftId}
               onApplyDraft={(draft) => { void applyDraft(draft) }}
             />
-          </div>
+          </ProjectStandardsDialogBody>
         </ProjectStandardsDialogContent>
       </ProjectStandardsDialog>
 

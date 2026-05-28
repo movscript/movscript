@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
-import type { Project, RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
+import type { Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File as FileIcon,
-  FolderPlus, Folder, FolderOpen, Share2,
-  ChevronRight, MoreHorizontal, Globe, MoveRight,
-  ShieldCheck, Pencil, Eye, PenLine, X as XIcon,
+  Folder, FolderOpen, Share2,
+  ChevronRight, MoreHorizontal, MoveRight,
+  Pencil, X as XIcon,
   LayoutGrid, List, ChevronLeft, Download, FileText,
   Scissors, Play, Pause,
 } from 'lucide-react'
@@ -20,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  ProjectSurfaceHeader,
   ResourceAssetActionButton,
   ResourceAssetCard,
   ResourceAssetName,
@@ -49,7 +48,6 @@ import {
   ResourceContextMenu,
   ResourceContextMenuButton,
   ResourceDangerMenuItem,
-  ResourceDialogCheckbox,
   ResourceDialogCloseButton,
   ResourceDialogContent,
   ResourceDialogField,
@@ -63,7 +61,6 @@ import {
   ResourceDialogText,
   ResourceDialogTitle,
   ResourceFolderOption,
-  ResourceFolderTreeItem,
   ResourceMediaFillFrame,
   ResourcePageActionButton,
   ResourcePageActionGroup,
@@ -74,9 +71,6 @@ import {
   ResourcePageEmptyState,
   ResourcePageFilterBar,
   ResourcePageFlexibleSpace,
-  ResourcePageFolderEmpty,
-  ResourcePageFolderList,
-  ResourcePageHeaderMeta,
   ResourcePageHiddenFileInput,
   ResourcePageLayout,
   ResourcePageListCheckbox,
@@ -86,16 +80,7 @@ import {
   ResourcePageMutedText,
   ResourcePagePager,
   ResourcePageSearchField,
-  ResourcePageSidebar,
-  ResourcePageSidebarHeader,
-  ResourcePermissionActionGroup,
-  ResourcePermissionEmpty,
-  ResourcePermissionSection,
-  ResourcePermissionShareRow,
-  ResourcePermissionUserRow,
-  ResourceSharedIndicator,
   ResourceStateMessage,
-  Switch,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
@@ -113,7 +98,7 @@ import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
-type Tab = 'mine' | 'shared'
+type ResourceScopeFilter = 'all' | 'personal' | 'team' | 'project'
 type ClipPhase = 'idle' | 'preparing' | 'clipping' | 'uploading'
 
 function formatBytes(bytes: number): string {
@@ -140,225 +125,12 @@ const TYPE_TABS: { labelKey: string; value: TypeFilter }[] = [
   { labelKey: 'pages.resources.types.text', value: 'text' },
 ]
 
-// ─── Folder Dialog ────────────────────────────────────────────────────────────
-function FolderDialog({
-  open,
-  onClose,
-  editFolder,
-}: {
-  open: boolean
-  onClose: () => void
-  editFolder?: ResourceFolder | null
-}) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [name, setName] = useState(editFolder?.name ?? '')
-  const [isShared, setIsShared] = useState(editFolder?.is_shared ?? false)
-
-  const save = useMutation({
-    mutationFn: () => {
-      const body = { name, is_shared: isShared }
-      return editFolder
-        ? api.put(`/resource-folders/${editFolder.ID}`, body)
-        : api.post('/resource-folders', body)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resource-folders'] })
-      onClose()
-    },
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <ResourceDialogContent size="sm">
-          <ResourceDialogTitle>
-            {editFolder ? t('pages.resources.editFolder') : t('pages.resources.newFolder')}
-          </ResourceDialogTitle>
-          <ResourceDialogStack>
-            <ResourceDialogField>
-              <ResourceDialogFieldLabel>{t('forms.name')}</ResourceDialogFieldLabel>
-              <ResourceDialogInput
-                autoFocus
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder={t('pages.resources.folderNamePlaceholder')}
-              />
-            </ResourceDialogField>
-            <ResourceDialogCheckbox checked={isShared} onCheckedChange={setIsShared}>
-              <ResourcePageActionGroup>
-                <Globe size={14} />
-                {t('pages.resources.enableSharingVisible')}
-              </ResourcePageActionGroup>
-            </ResourceDialogCheckbox>
-          </ResourceDialogStack>
-          <ResourceDialogFooter>
-            <ResourcePageActionButton variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</ResourcePageActionButton>
-            <ResourcePageActionButton size="sm" onClick={() => save.mutate()} disabled={!name.trim() || save.isPending}>
-              {save.isPending ? t('common.saving') : t('common.save')}
-            </ResourcePageActionButton>
-          </ResourceDialogFooter>
-      </ResourceDialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Permissions Dialog ───────────────────────────────────────────────────────
-function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClose: () => void }) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [searchQ, setSearchQ] = useState('')
-  const [localIsShared, setLocalIsShared] = useState(folder.is_shared)
-
-  const { data: perms = [] } = useQuery<ResourceFolderPermission[]>({
-    queryKey: ['folder-permissions', folder.ID],
-    queryFn: () => api.get(`/resource-folders/${folder.ID}/permissions`).then(r => r.data),
-  })
-
-  const { data: searchResults = [] } = useQuery<User[]>({
-    queryKey: ['users-search', searchQ],
-    queryFn: () => api.get(`/users?q=${encodeURIComponent(searchQ)}`).then(r => r.data),
-    enabled: searchQ.trim().length > 0,
-  })
-
-  const existingUserIds = new Set(perms.map(p => p.user_id))
-
-  const toggleShared = useMutation({
-    mutationFn: (v: boolean) => api.put(`/resource-folders/${folder.ID}`, { is_shared: v }),
-    onSuccess: (_, v) => {
-      setLocalIsShared(v)
-      qc.invalidateQueries({ queryKey: ['resource-folders'] })
-    },
-  })
-
-  const grant = useMutation({
-    mutationFn: ({ userId, permission }: { userId: number; permission: string }) =>
-      api.post(`/resource-folders/${folder.ID}/permissions`, { user_id: userId, permission }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folder-permissions', folder.ID] }),
-  })
-
-  const revoke = useMutation({
-    mutationFn: (userId: number) =>
-      api.delete(`/resource-folders/${folder.ID}/permissions/${userId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folder-permissions', folder.ID] }),
-  })
-
-  const PERM_LABELS = { read: t('pages.resources.permissions.read'), write: t('pages.resources.permissions.write') }
-  const PERM_ICONS = { read: <Eye size={12} />, write: <PenLine size={12} /> }
-
-  return (
-    <Dialog open onOpenChange={v => !v && onClose()}>
-      <ResourceDialogContent size="permissions" hideClose>
-          <ResourceDialogHeader
-            icon={ShieldCheck}
-            title={t('pages.resources.permissionSettingsTitle', { name: folder.name })}
-            close={(
-            <ResourceDialogCloseButton>
-              <XIcon size={14} />
-            </ResourceDialogCloseButton>
-            )}
-          />
-
-          {/* Sharing toggle */}
-          <ResourcePermissionShareRow
-            title={t('pages.resources.enableSharing')}
-            description={t('pages.resources.enableSharingHint')}
-            control={<Switch
-              checked={localIsShared}
-              disabled={toggleShared.isPending}
-              onCheckedChange={checked => toggleShared.mutate(checked)}
-              aria-label={t('pages.resources.enableSharing')}
-            />}
-          />
-
-          {localIsShared && (
-            <>
-              {/* Current permission list */}
-              <ResourcePermissionSection title={t('pages.resources.authorizedUsers')}>
-                <ResourceDialogScrollArea size="md">
-                {perms.length === 0 ? (
-                  <ResourcePermissionEmpty>{t('pages.resources.noAuthorizedUsers')}</ResourcePermissionEmpty>
-                ) : (
-                  perms.map(p => (
-                    <ResourcePermissionUserRow
-                      key={p.ID}
-                      name={p.user?.username ?? t('pages.resources.userFallback', { id: p.user_id })}
-                      actions={(
-                        <>
-                      {/* Toggle permission */}
-                      <ResourcePageActionButton
-                        size="xs"
-                        variant="outline"
-                        onClick={() => grant.mutate({ userId: p.user_id, permission: p.permission === 'read' ? 'write' : 'read' })}
-                        title={t('pages.resources.togglePermissionTitle')}
-                      >
-                        {PERM_ICONS[p.permission]}
-                        {PERM_LABELS[p.permission]}
-                      </ResourcePageActionButton>
-                      {/* Revoke */}
-                      <ResourcePageActionButton
-                        size="icon-xs"
-                        variant="ghost"
-                        tone="danger"
-                        onClick={() => revoke.mutate(p.user_id)}
-                        title={t('pages.resources.removePermissionTitle')}
-                      >
-                        <XIcon size={12} />
-                      </ResourcePageActionButton>
-                        </>
-                      )}
-                    />
-                  ))
-                )}
-                </ResourceDialogScrollArea>
-              </ResourcePermissionSection>
-
-              {/* Add user */}
-              <ResourcePermissionSection title={t('pages.resources.addUser')} divided>
-                <ResourcePageSearchField
-                  icon={Search}
-                  value={searchQ}
-                  onChange={e => setSearchQ(e.target.value)}
-                  placeholder={t('pages.resources.searchUsersPlaceholder')}
-                />
-                {searchResults.length > 0 && (
-                  <ResourceDialogScrollArea size="sm">
-                    {searchResults.map(u => {
-                      const already = existingUserIds.has(u.ID)
-                      return (
-                        <ResourcePermissionUserRow
-                          key={u.ID}
-                          name={u.username}
-                          meta={already ? t('pages.resources.alreadyAdded') : undefined}
-                          actions={!already ? (
-                            <ResourcePermissionActionGroup>
-                              <ResourcePageActionButton
-                                size="xs"
-                                variant="ghost"
-                                onClick={() => { grant.mutate({ userId: u.ID, permission: 'read' }); setSearchQ('') }}
-                              >
-                                <Eye size={10} /> {t('pages.resources.permissions.read')}
-                              </ResourcePageActionButton>
-                              <ResourcePageActionButton
-                                size="xs"
-                                variant="ghost"
-                                onClick={() => { grant.mutate({ userId: u.ID, permission: 'write' }); setSearchQ('') }}
-                              >
-                                <PenLine size={10} /> {t('pages.resources.permissions.write')}
-                              </ResourcePageActionButton>
-                            </ResourcePermissionActionGroup>
-                          ) : undefined}
-                        />
-                      )
-                    })}
-                  </ResourceDialogScrollArea>
-                )}
-              </ResourcePermissionSection>
-            </>
-          )}
-      </ResourceDialogContent>
-    </Dialog>
-  )
-}
+const SCOPE_TABS: { labelKey: string; value: ResourceScopeFilter; requiresProject?: boolean }[] = [
+  { labelKey: 'pages.resources.scopes.all', value: 'all' },
+  { labelKey: 'pages.resources.scopes.personal', value: 'personal' },
+  { labelKey: 'pages.resources.scopes.team', value: 'team' },
+  { labelKey: 'pages.resources.scopes.project', value: 'project', requiresProject: true },
+]
 
 // ─── Move to Folder Dialog ───────────────────────────────────────────────────
 function MoveDialog({
@@ -400,7 +172,6 @@ function MoveDialog({
                 key={f.ID}
                 label={f.name}
                 selected={targetFolder === f.ID}
-                isShared={f.is_shared}
                 onClick={() => setTargetFolder(f.ID)}
               />
             ))}
@@ -1019,8 +790,8 @@ function sourceErrorMessage(error: 'empty' | 'too_large', size: number | undefin
   return t('pages.resources.clipSourceTooLarge', { size: formatBytes(size ?? 0), max: formatBytes(MAX_CLIP_SOURCE_BYTES) })
 }
 
-function FolderOption({ label, selected, isShared, onClick }: {
-  label: string; selected: boolean; isShared?: boolean; onClick: () => void
+function FolderOption({ label, selected, onClick }: {
+  label: string; selected: boolean; onClick: () => void
 }) {
   return (
     <ResourceFolderOption
@@ -1028,17 +799,48 @@ function FolderOption({ label, selected, isShared, onClick }: {
       icon={<Folder size={12} />}
       label={label}
       onClick={onClick}
-      sharedIndicator={isShared ? (
-        <ResourceSharedIndicator muted={selected}>
-          <Globe size={10} />
-        </ResourceSharedIndicator>
-      ) : undefined}
     />
   )
 }
 
 function resourceIDs(resources: RawResource[]) {
   return Array.from(new Set(resources.map(resource => resource.ID).filter(id => Number.isFinite(id) && id > 0)))
+}
+
+function resourceScopeLabel(resource: RawResource, currentUserID: number | undefined, currentOrgID: number | undefined, t: ReturnType<typeof useTranslation>['t']) {
+  if (currentOrgID && resource.org_id === currentOrgID) {
+    if (resource.owner && resource.owner_id !== currentUserID) {
+      return t('pages.resources.teamResourceWithOwner', { owner: resource.owner.username, defaultValue: `Team library / ${resource.owner.username}` })
+    }
+    return t('pages.resources.teamResource', { defaultValue: 'Team library' })
+  }
+  if (resource.owner_id === currentUserID) {
+    return t('pages.resources.personalStaging', { defaultValue: 'Personal staging' })
+  }
+  if (resource.owner?.username) {
+    return t('pages.resources.resourceOwner', { owner: resource.owner.username, defaultValue: `Owner: ${resource.owner.username}` })
+  }
+  return undefined
+}
+
+function projectScopeResources(bindings: ResourceBinding[], filter: TypeFilter, query: string) {
+  const seen = new Set<number>()
+  const keyword = query.trim().toLowerCase()
+  return bindings
+    .map(binding => binding.resource)
+    .filter((resource): resource is RawResource => Boolean(resource))
+    .filter(resource => {
+      if (seen.has(resource.ID)) return false
+      seen.add(resource.ID)
+      if (filter !== 'all' && resource.type !== filter) return false
+      if (keyword && !resource.name.toLowerCase().includes(keyword)) return false
+      return true
+    })
+}
+
+function paginateResources(resources: RawResource[], page: number, pageSize: number) {
+  const start = (page - 1) * pageSize
+  return resources.slice(start, start + pageSize)
 }
 
 // ─── Share To Project Dialog ─────────────────────────────────────────────────
@@ -1150,6 +952,8 @@ function ResourceBulkContextMenu({
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({
   resource,
+  currentUserID,
+  currentOrgID,
   onDelete,
   onMove,
   onRename,
@@ -1162,6 +966,8 @@ function ResourceCard({
   previewProjectId,
 }: {
   resource: RawResource
+  currentUserID?: number
+  currentOrgID?: number
   onDelete?: () => void
   onMove: () => void
   onRename: () => void
@@ -1266,15 +1072,10 @@ function ResourceCard({
             </DropdownMenuContent>
         </DropdownMenu>
       )}
-      sharedBadge={resource.is_shared ? (
-        <ResourceSharedIndicator title={t('pages.resources.sharedTitle')}>
-          <Share2 size={10} />
-        </ResourceSharedIndicator>
-      ) : undefined}
       typeIcon={<TypeIcon type={resource.type} />}
       name={<ResourceAssetName title={resource.name}>{resource.name}</ResourceAssetName>}
       size={formatBytes(resource.size)}
-      owner={isSharedView && resource.owner ? resource.owner.username : undefined}
+      owner={resourceScopeLabel(resource, currentUserID, currentOrgID, t)}
     />
   )
 }
@@ -1287,18 +1088,12 @@ export default function ResourcesPage() {
   const currentUser = useUserStore(state => state.currentUser)
   const currentProject = useProjectStore(state => state.current)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [tab, setTab] = useState<Tab>('mine')
+  const [scope, setScope] = useState<ResourceScopeFilter>('all')
   const [filter, setFilter] = useState<TypeFilter>('all')
   const [search, setSearch] = useState('')
-  // selectedFolder: null=all, 'root'=unfiled, number=folder ID
-  // selectedFolderTab: which sidebar section the selected folder belongs to
-  const [selectedFolder, setSelectedFolder] = useState<number | 'root' | null>(null)
-  const [selectedFolderTab, setSelectedFolderTab] = useState<'mine' | 'shared'>('mine')
-  const [folderDialog, setFolderDialog] = useState<{ open: boolean; folder?: ResourceFolder | null }>({ open: false })
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
   const [renameResource, setRenameResource] = useState<RawResource | null>(null)
   const [clipResource, setClipResource] = useState<RawResource | null>(null)
-  const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
   const [selectedResourceIDs, setSelectedResourceIDs] = useState<Set<number>>(() => new Set())
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; resources: RawResource[] } | null>(null)
   const [shareProjectResources, setShareProjectResources] = useState<RawResource[] | null>(null)
@@ -1306,16 +1101,18 @@ export default function ResourcesPage() {
   const [page, setPage] = useState(1)
   const pageSize = 30
 
+  useEffect(() => {
+    if ((scope === 'team' && !currentOrgID) || (scope === 'project' && !currentProject?.ID)) {
+      setScope('all')
+      setPage(1)
+      setSelectedResourceIDs(new Set())
+    }
+  }, [scope, currentOrgID, currentProject?.ID])
+
   // My folders
   const { data: myFolders = [] } = useQuery<ResourceFolder[]>({
     queryKey: ['resource-folders', 'mine'],
     queryFn: () => api.get('/resource-folders').then(r => r.data),
-  })
-
-  // Shared folders from other users
-  const { data: sharedFolders = [] } = useQuery<ResourceFolder[]>({
-    queryKey: ['resource-folders', 'shared'],
-    queryFn: () => api.get('/resource-folders?shared=true').then(r => r.data),
   })
 
   const { data: projects = [] } = useQuery<Project[]>({
@@ -1323,48 +1120,38 @@ export default function ResourcesPage() {
     queryFn: () => api.get('/projects').then(r => r.data),
   })
 
-  const deleteFolder = useMutation({
-    mutationFn: (id: number) => api.delete(`/resource-folders/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resource-folders'] })
-      if (typeof selectedFolder === 'number') setSelectedFolder(null)
-    },
-  })
+  const isProjectScope = scope === 'project'
 
-  // Resources: personal or shared, with optional folder filter
-  const folderParam = selectedFolder === 'root' ? 'root' : selectedFolder != null ? String(selectedFolder) : undefined
-  const { data: resourcesData, isLoading } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['resources', tab, folderParam, selectedFolderTab, filter, search, page],
+  // Resources: unified library view without folder or shared tab filtering.
+  const { data: resourcesData, isLoading: isResourceLoading } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', scope, filter, search, page],
     queryFn: () => {
       const params = new URLSearchParams()
       params.set('page', String(page))
       params.set('page_size', String(pageSize))
-      if (tab === 'shared' || (selectedFolderTab === 'shared' && selectedFolder != null)) {
-        params.set('shared', 'true')
-      }
-      if (folderParam && !(tab === 'shared' && !selectedFolder)) {
-        params.set('folder_id', folderParam)
-      }
-      // When showing all shared (no folder selected), don't pass folder_id
-      if (tab === 'shared' && selectedFolder === null) {
-        params.delete('folder_id')
-      }
+      if (scope === 'personal' || scope === 'team') params.set('scope', scope)
       if (filter !== 'all') params.set('type', filter)
       if (search.trim()) params.set('q', search.trim())
       return api.get(`/resources?${params}`).then(r => r.data)
     },
+    enabled: !isProjectScope,
   })
-  const resources = resourcesData?.items ?? []
-  const total = resourcesData?.total ?? 0
+
+  const { data: projectBindings = [], isLoading: isProjectResourcesLoading } = useQuery<ResourceBinding[]>({
+    queryKey: ['resource-bindings', currentProject?.ID, 'library-scope'],
+    queryFn: () => api.get(`/projects/${currentProject!.ID}/resource-bindings`).then(r => r.data),
+    enabled: isProjectScope && Boolean(currentProject?.ID),
+  })
+  const projectResources = isProjectScope ? projectScopeResources(projectBindings, filter, search) : []
+  const resources = isProjectScope ? paginateResources(projectResources, page, pageSize) : resourcesData?.items ?? []
+  const total = isProjectScope ? projectResources.length : resourcesData?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const isLoading = isProjectScope ? isProjectResourcesLoading : isResourceLoading
 
   const upload = useMutation({
     mutationFn: (file: File) => {
       const fd = new FormData()
       fd.append('file', file)
-      if (typeof selectedFolder === 'number' && selectedFolderTab === 'mine') {
-        fd.append('folder_id', String(selectedFolder))
-      }
       return api.post('/resources/upload', fd).then(r => r.data as RawResource)
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
@@ -1415,7 +1202,7 @@ export default function ResourcesPage() {
     },
   })
 
-  const isSharedView = tab === 'shared' || selectedFolderTab === 'shared'
+  const isSharedView = false
 
   const visible = resources
   const selectedResources = visible.filter(resource => selectedResourceIDs.has(resource.ID))
@@ -1468,161 +1255,9 @@ export default function ResourcesPage() {
     return Boolean(currentOrgID && currentUser?.ID && resource.owner_id === currentUser.ID && !resource.org_id)
   }
 
-  const currentFolderLabel = () => {
-    if (selectedFolder === 'root') return t('pages.resources.unfiled')
-    if (typeof selectedFolder === 'number') {
-      const inMine = myFolders.find(f => f.ID === selectedFolder)
-      if (inMine) return inMine.name
-      const inShared = sharedFolders.find(f => f.ID === selectedFolder)
-      if (inShared) return t('pages.resources.sharedFolderWithOwner', { name: inShared.name, owner: inShared.owner?.username ?? t('pages.resources.otherUser') })
-    }
-    return null
-  }
-
-  function selectMyFolder(id: number | 'root' | null) {
-    setSelectedFolder(id)
-    setSelectedFolderTab('mine')
-    setTab('mine')
-    setPage(1)
-  }
-
-  function selectSharedFolder(id: number) {
-    setSelectedFolder(id)
-    setSelectedFolderTab('shared')
-    setTab('shared')
-    setPage(1)
-  }
-
   return (
     <ResourcePageLayout>
-      <ResourcePageSidebar>
-        <ResourcePageSidebarHeader
-          title={t('pages.resources.myFolders')}
-          action={(
-          <ResourcePageActionButton
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => setFolderDialog({ open: true, folder: null })}
-            title={t('pages.resources.newFolder')}
-          >
-            <FolderPlus size={14} />
-          </ResourcePageActionButton>
-          )}
-        />
-
-        <ResourcePageFolderList>
-          <FolderItem
-            label={t('pages.resources.allResources')}
-            icon={<Folder size={14} />}
-            active={selectedFolder === null && tab === 'mine'}
-            onClick={() => selectMyFolder(null)}
-          />
-          <FolderItem
-            label={t('pages.resources.unfiled')}
-            icon={<Folder size={14} />}
-            active={selectedFolder === 'root' && tab === 'mine'}
-            onClick={() => selectMyFolder('root')}
-          />
-          {myFolders.map(f => (
-            <FolderItem
-              key={f.ID}
-              label={f.name}
-              icon={selectedFolder === f.ID && tab === 'mine' ? <FolderOpen size={14} /> : <Folder size={14} />}
-              active={selectedFolder === f.ID && tab === 'mine'}
-              onClick={() => selectMyFolder(f.ID)}
-              badge={f.resource_count > 0 ? f.resource_count : undefined}
-              isShared={f.is_shared}
-              onEdit={() => setFolderDialog({ open: true, folder: f })}
-              onDelete={() => deleteFolder.mutate(f.ID)}
-              onPermissions={() => setPermissionsFolder(f)}
-            />
-          ))}
-        </ResourcePageFolderList>
-
-        <ResourcePageSidebarHeader title={t('pages.resources.sharedFolders')} icon={Share2} />
-
-        <ResourcePageFolderList grow>
-          {sharedFolders.length === 0 ? (
-            <ResourcePageFolderEmpty>{t('pages.resources.noSharedFolders')}</ResourcePageFolderEmpty>
-          ) : (
-            sharedFolders.map(f => (
-              <FolderItem
-                key={f.ID}
-                label={f.name}
-                icon={selectedFolder === f.ID && tab === 'shared' ? <FolderOpen size={14} /> : <Folder size={14} />}
-                active={selectedFolder === f.ID && tab === 'shared'}
-                onClick={() => selectSharedFolder(f.ID)}
-                badge={f.resource_count > 0 ? f.resource_count : undefined}
-                subtitle={f.owner?.username}
-              />
-            ))
-          )}
-        </ResourcePageFolderList>
-      </ResourcePageSidebar>
-
       <ResourcePageMain>
-        <ProjectSurfaceHeader
-          icon={FolderOpen}
-          title={t('header.titles.resources')}
-          description={t('pages.resources.description', { defaultValue: '管理项目素材、生成结果、文件夹和共享资源。' })}
-          meta={currentFolderLabel() ? <ResourcePageHeaderMeta>{currentFolderLabel()}</ResourcePageHeaderMeta> : null}
-          actions={(
-            <>
-              <ResourcePageActionGroup>
-                <ResourcePageActionButton
-                  size="xs"
-                  variant={tab === 'mine' ? 'solid' : 'ghost'}
-                  onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
-                >
-                  {t('pages.resources.mine')}
-                </ResourcePageActionButton>
-                <ResourcePageActionButton
-                  size="xs"
-                  variant={tab === 'shared' ? 'solid' : 'ghost'}
-                  onClick={() => { setTab('shared'); setSelectedFolderTab('shared'); setPage(1) }}
-                >
-                  <Share2 size={12} />
-                  {t('pages.resources.shared')}
-                </ResourcePageActionButton>
-              </ResourcePageActionGroup>
-
-              <ResourcePageSearchField
-                icon={Search}
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1) }}
-                  placeholder={t('pages.resources.searchFilesPlaceholder')}
-              />
-
-              <ResourcePageActionButton
-                size="sm"
-                onClick={() => fileRef.current?.click()}
-                disabled={upload.isPending}
-                hidden={isSharedView}
-              >
-                <Upload size={14} />
-                {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
-              </ResourcePageActionButton>
-              <ResourcePageActionGroup>
-                <ResourcePageActionButton
-                  size="icon-xs"
-                  variant={viewMode === 'grid' ? 'solid' : 'ghost'}
-                  onClick={() => setViewMode('grid')}
-                  title={t('pages.resources.gridTitle')}
-                >
-                  <LayoutGrid size={14} />
-                </ResourcePageActionButton>
-                <ResourcePageActionButton
-                  size="icon-xs"
-                  variant={viewMode === 'list' ? 'solid' : 'ghost'}
-                  onClick={() => setViewMode('list')}
-                  title={t('pages.resources.listTitle')}
-                >
-                  <List size={14} />
-                </ResourcePageActionButton>
-              </ResourcePageActionGroup>
-            </>
-          )}
-        />
         <ResourcePageHiddenFileInput
           ref={fileRef}
           type="file"
@@ -1636,6 +1271,55 @@ export default function ResourcesPage() {
         />
 
         <ResourcePageFilterBar>
+          <ResourcePageSearchField
+            icon={Search}
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            placeholder={t('pages.resources.searchFilesPlaceholder')}
+          />
+          <ResourcePageActionButton
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+            disabled={upload.isPending}
+            hidden={isProjectScope}
+          >
+            <Upload size={14} />
+            {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
+          </ResourcePageActionButton>
+          <ResourcePageActionGroup>
+            <ResourcePageActionButton
+              size="icon-xs"
+              variant={viewMode === 'grid' ? 'solid' : 'ghost'}
+              onClick={() => setViewMode('grid')}
+              title={t('pages.resources.gridTitle')}
+            >
+              <LayoutGrid size={14} />
+            </ResourcePageActionButton>
+            <ResourcePageActionButton
+              size="icon-xs"
+              variant={viewMode === 'list' ? 'solid' : 'ghost'}
+              onClick={() => setViewMode('list')}
+              title={t('pages.resources.listTitle')}
+            >
+              <List size={14} />
+            </ResourcePageActionButton>
+          </ResourcePageActionGroup>
+          <ResourcePageActionGroup>
+            {SCOPE_TABS.map(tabItem => {
+              const disabled = (tabItem.requiresProject && !currentProject?.ID) || (tabItem.value === 'team' && !currentOrgID)
+              return (
+                <ResourcePageActionButton
+                  key={tabItem.value}
+                  size="xs"
+                  variant={scope === tabItem.value ? 'solid' : 'ghost'}
+                  onClick={() => { if (!disabled) { setScope(tabItem.value); setPage(1); setSelectedResourceIDs(new Set()) } }}
+                  disabled={disabled}
+                >
+                  {t(tabItem.labelKey)}
+                </ResourcePageActionButton>
+              )
+            })}
+          </ResourcePageActionGroup>
           <ResourcePageActionGroup>
             {TYPE_TABS.map(tabItem => (
               <ResourcePageActionButton
@@ -1677,7 +1361,7 @@ export default function ResourcesPage() {
             <ResourcePageLoadingState>{t('common.loadingShort')}</ResourcePageLoadingState>
           ) : visible.length === 0 ? (
             <ResourcePageEmptyState icon={Upload}>
-              {isSharedView ? t('pages.resources.noSharedResources') : search ? t('pages.resources.noMatchedFiles') : t('pages.resources.noResourcesUpload')}
+              {search ? t('pages.resources.noMatchedFiles') : t('pages.resources.noResourcesUpload')}
             </ResourcePageEmptyState>
           ) : viewMode === 'grid' ? (
             <ResourcePageAssetGrid>
@@ -1685,6 +1369,8 @@ export default function ResourcesPage() {
                 <ResourceCard
                   key={r.ID}
                   resource={r}
+                  currentUserID={currentUser?.ID}
+                  currentOrgID={currentOrgID ?? undefined}
                   isSharedView={isSharedView}
                   onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
                   onMove={() => setMoveResource(r)}
@@ -1784,13 +1470,6 @@ export default function ResourcesPage() {
       </ResourcePageMain>
 
       {/* Dialogs */}
-      {folderDialog.open && (
-        <FolderDialog
-          open
-          onClose={() => setFolderDialog({ open: false })}
-          editFolder={folderDialog.folder}
-        />
-      )}
       {moveResource && (
         <MoveDialog
           resource={moveResource}
@@ -1807,18 +1486,11 @@ export default function ResourcesPage() {
       {clipResource && (
         <VideoClipDialog
           resource={clipResource}
-          folderId={typeof selectedFolder === 'number' && selectedFolderTab === 'mine' ? selectedFolder : undefined}
           onClose={() => setClipResource(null)}
           onCreated={() => {
             qc.invalidateQueries({ queryKey: ['resources'] })
             setClipResource(null)
           }}
-        />
-      )}
-      {permissionsFolder && (
-        <PermissionsDialog
-          folder={permissionsFolder}
-          onClose={() => setPermissionsFolder(null)}
         />
       )}
       {shareProjectResources && (
@@ -1842,85 +1514,5 @@ export default function ResourcesPage() {
         />
       )}
     </ResourcePageLayout>
-  )
-}
-
-// ─── Folder Sidebar Item ──────────────────────────────────────────────────────
-function FolderItem({
-  label,
-  icon,
-  active,
-  onClick,
-  badge,
-  isShared,
-  subtitle,
-  onEdit,
-  onDelete,
-  onPermissions,
-}: {
-  label: string
-  icon: React.ReactNode
-  active: boolean
-  onClick: () => void
-  badge?: number
-  isShared?: boolean
-  subtitle?: string
-  onEdit?: () => void
-  onDelete?: () => void
-  onPermissions?: () => void
-}) {
-  const { t } = useTranslation()
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  return (
-    <ResourceFolderTreeItem
-      active={active}
-      icon={icon}
-      label={label}
-      subtitle={subtitle}
-      badge={badge}
-      onClick={onClick}
-      sharedIndicator={isShared ? (
-          <ResourceSharedIndicator title={t('pages.resources.sharedTitle')}>
-            <Globe size={10} />
-          </ResourceSharedIndicator>
-      ) : undefined}
-      actions={(onEdit || onDelete || onPermissions) ? (
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <ResourcePageActionButton
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={e => e.stopPropagation()}
-              >
-                <MoreHorizontal size={12} />
-              </ResourcePageActionButton>
-            </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={4}>
-                {onEdit && (
-                  <DropdownMenuItem
-                    onSelect={() => { onEdit(); setMenuOpen(false) }}
-                  >
-                    {t('pages.resources.edit')}
-                  </DropdownMenuItem>
-                )}
-                {onPermissions && (
-                  <DropdownMenuItem
-                    onSelect={() => { onPermissions(); setMenuOpen(false) }}
-                  >
-                    <ShieldCheck size={12} />
-                    {t('pages.resources.permissionSettings')}
-                  </DropdownMenuItem>
-                )}
-                {onDelete && (
-                  <ResourceDangerMenuItem onSelect={() => { onDelete(); setMenuOpen(false) }}>
-                    {t('common.delete')}
-                  </ResourceDangerMenuItem>
-                )}
-              </DropdownMenuContent>
-          </DropdownMenu>
-      ) : undefined}
-    />
   )
 }

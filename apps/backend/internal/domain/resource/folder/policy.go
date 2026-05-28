@@ -1,14 +1,8 @@
 package folder
 
 import (
-	"strconv"
 	"strings"
 	"time"
-)
-
-const (
-	PermissionRead  = "read"
-	PermissionWrite = "write"
 )
 
 type NewFolderSpec struct {
@@ -17,13 +11,11 @@ type NewFolderSpec struct {
 	Name           string
 	ParentID       *uint
 	StorageBackend string
-	IsShared       bool
 }
 
 type FolderUpdateSpec struct {
 	Name           *string
 	StorageBackend *string
-	IsShared       *bool
 }
 
 type Folder struct {
@@ -34,20 +26,9 @@ type Folder struct {
 	Name           string    `json:"name"`
 	ParentID       *uint     `json:"parent_id,omitempty"`
 	StorageBackend string    `json:"storage_backend"`
-	IsShared       bool      `json:"is_shared"`
 	ResourceCount  int       `json:"resource_count"`
 	CreatedAt      time.Time `json:"CreatedAt"`
 	UpdatedAt      time.Time `json:"UpdatedAt"`
-}
-
-type Permission struct {
-	ID         uint      `json:"ID"`
-	FolderID   uint      `json:"folder_id"`
-	UserID     uint      `json:"user_id"`
-	User       *UserRef  `json:"user,omitempty"`
-	Permission string    `json:"permission"`
-	CreatedAt  time.Time `json:"CreatedAt"`
-	UpdatedAt  time.Time `json:"UpdatedAt"`
 }
 
 type UserRef struct {
@@ -60,7 +41,7 @@ type UserRef struct {
 	Status       string  `json:"status,omitempty"`
 }
 
-func NewFolderUpdateSpec(name string, storageBackend string, isShared *bool) FolderUpdateSpec {
+func NewFolderUpdateSpec(name string, storageBackend string) FolderUpdateSpec {
 	var spec FolderUpdateSpec
 	if strings.TrimSpace(name) != "" {
 		trimmed := strings.TrimSpace(name)
@@ -70,17 +51,12 @@ func NewFolderUpdateSpec(name string, storageBackend string, isShared *bool) Fol
 		trimmed := strings.TrimSpace(storageBackend)
 		spec.StorageBackend = &trimmed
 	}
-	if isShared != nil {
-		shared := *isShared
-		spec.IsShared = &shared
-	}
 	return spec
 }
 
 func (spec FolderUpdateSpec) Empty() bool {
 	return spec.Name == nil &&
-		spec.StorageBackend == nil &&
-		spec.IsShared == nil
+		spec.StorageBackend == nil
 }
 
 func (folder *Folder) ApplyUpdate(spec FolderUpdateSpec) {
@@ -89,9 +65,6 @@ func (folder *Folder) ApplyUpdate(spec FolderUpdateSpec) {
 	}
 	if spec.StorageBackend != nil {
 		folder.StorageBackend = *spec.StorageBackend
-	}
-	if spec.IsShared != nil {
-		folder.IsShared = *spec.IsShared
 	}
 }
 
@@ -102,32 +75,6 @@ func NewFolder(spec NewFolderSpec) Folder {
 		Name:           strings.TrimSpace(spec.Name),
 		ParentID:       spec.ParentID,
 		StorageBackend: strings.TrimSpace(spec.StorageBackend),
-		IsShared:       spec.IsShared,
-	}
-}
-
-func NormalizePermission(permission string) string {
-	permission = strings.TrimSpace(strings.ToLower(permission))
-	if permission == "" {
-		return PermissionRead
-	}
-	return permission
-}
-
-func ValidPermission(permission string) bool {
-	switch permission {
-	case PermissionRead, PermissionWrite:
-		return true
-	default:
-		return false
-	}
-}
-
-func NewPermission(folderID uint, userID uint, permission string) Permission {
-	return Permission{
-		FolderID:   folderID,
-		UserID:     userID,
-		Permission: NormalizePermission(permission),
 	}
 }
 
@@ -143,12 +90,4 @@ func SameOrg(a, b *uint) bool {
 		return a == nil && b == nil
 	}
 	return *a == *b
-}
-
-func ParsePermissionID(raw string) (uint, error) {
-	n, err := strconv.ParseUint(raw, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return uint(n), nil
 }

@@ -1,38 +1,113 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../lib/cn";
+import type { LayoutChrome } from "../chrome";
+
+export type WorkspaceShellChrome = Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
+export type WorkspaceShellSurface = "agent" | "detail" | "canvas";
+export type MasterDetailChrome = "split" | "flush";
+export type PanelResizeHandleSide = "left" | "right";
 
 export function WorkspaceShell({
   sidebar,
   header,
+  leftHeader,
+  centerHeader,
+  rightHeader,
+  rightSlotStyle,
   children,
   assistantPanel,
-  contentFrameClassName,
-  contentPaddingClassName = "p-2.5",
+  surface = "detail",
+  chrome,
+  layout,
+  sidebarCollapsed = false,
+  leftPaneHidden = false,
 }: {
   sidebar?: ReactNode;
-  header: ReactNode;
+  header?: ReactNode;
+  leftHeader?: ReactNode;
+  centerHeader?: ReactNode;
+  rightHeader?: ReactNode;
+  rightSlotStyle?: CSSProperties;
   children: ReactNode;
   assistantPanel?: ReactNode;
-  contentFrameClassName?: string;
-  contentPaddingClassName?: string;
+  surface?: WorkspaceShellSurface;
+  chrome?: WorkspaceShellChrome;
+  layout?: "flush" | "stacked";
+  sidebarCollapsed?: boolean;
+  leftPaneHidden?: boolean;
 }) {
+  const resolvedChrome = chrome ?? workspaceShellChromeForSurface(surface);
+  const resolvedLayout = layout ?? (surface === "canvas" ? "flush" : "stacked");
+  const resolvedPaddingClassName = workspaceShellPaddingClassName(resolvedChrome);
+  const frameChromeClassName = `app-content-frame--${resolvedChrome}`;
+  const resolvedCenterHeader = centerHeader ?? header;
+
   return (
-    <div className="app-shell fixed inset-0 flex flex-col overflow-hidden text-foreground">
-      {header}
+    <div
+      className="app-shell fixed inset-0 flex flex-col overflow-hidden text-foreground"
+      data-surface={surface}
+      data-chrome={resolvedChrome}
+      data-layout={resolvedLayout}
+    >
       <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
-          {sidebar}
-          <div className={cn("min-w-0 flex-1 overflow-hidden", contentPaddingClassName)}>
-            <div className={cn("app-content-frame h-full min-h-0 min-w-0 overflow-hidden rounded-lg", contentFrameClassName)}>
-              {children}
+        <div className="app-shell__slots flex h-full min-h-0 min-w-0 overflow-hidden">
+          {sidebar || leftHeader ? (
+            <div
+              className="app-shell__slot app-shell__slot--left app-shell-pane"
+              data-shell-slot="left"
+              data-collapsed={sidebarCollapsed ? "true" : undefined}
+              data-hidden={leftPaneHidden ? "true" : undefined}
+            >
+              <div className="app-shell-pane__header">{leftHeader}</div>
+              {sidebar ? <div className="app-shell-pane__body">{sidebar}</div> : null}
+            </div>
+          ) : null}
+          <div className={cn("app-shell__slot app-shell__slot--center min-w-0 flex-1 overflow-hidden", resolvedPaddingClassName)} data-shell-slot="center">
+            <div className={cn("app-content-frame h-full min-h-0 min-w-0 overflow-hidden", frameChromeClassName)}>
+              <div className="app-content-frame__head-spacer">{resolvedCenterHeader}</div>
+              <div className="app-content-frame__body">
+                {children}
+              </div>
             </div>
           </div>
-          {assistantPanel}
+          {assistantPanel ? (
+            <div className="app-shell__slot app-shell__slot--right app-shell-pane" data-shell-slot="right" style={rightSlotStyle}>
+              <div className="app-shell-pane__header">{rightHeader}</div>
+              <div className="app-shell-pane__body">{assistantPanel}</div>
+            </div>
+          ) : null}
         </div>
       </main>
     </div>
   );
+}
+
+export function PanelResizeHandle({
+  className,
+  side = "right",
+  active = false,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  side?: PanelResizeHandleSide;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className={cn("panel-resize-handle", `panel-resize-handle--${side}`, active && "panel-resize-handle--active", className)}
+      {...props}
+    />
+  );
+}
+
+function workspaceShellChromeForSurface(surface: WorkspaceShellSurface): WorkspaceShellChrome {
+  if (surface === "agent") return "immersive";
+  if (surface === "canvas") return "canvas";
+  return "workspace";
+}
+
+function workspaceShellPaddingClassName(chrome: WorkspaceShellChrome): string {
+  return "p-0";
 }
 
 export function ContentWorkspaceLayout({
@@ -69,23 +144,23 @@ export function ContentWorkspaceLayout({
   } as CSSProperties;
 
   return (
-    <div className={cn("content-workspace-shell bg-background", flow ? "" : "h-full overflow-auto", className)}>
-      <div className="space-y-3 p-4" style={contentStyle}>
+    <div className={cn("content-workspace-shell", className)} data-flow={flow ? "flow" : "contained"}>
+      <div className="content-workspace-inner" style={contentStyle}>
         {header ? <section className="content-workspace-header">{header}</section> : null}
         <section className="content-workspace-overview">{overview}</section>
-        {filters ? <section>{filters}</section> : null}
-        <section className={cn("content-workspace-core grid gap-4", flow ? "" : "h-[min(820px,82vh)] min-h-[560px] overflow-hidden")}>
-          <div className={cn("content-workspace-column min-w-0", flow ? "space-y-4" : "min-h-0 space-y-4 overflow-y-auto pr-1")}>{list}</div>
-          <div className={cn("content-workspace-column min-w-0", flow ? "flex flex-col gap-4" : "min-h-0 space-y-4 overflow-y-auto pr-1")}>
+        {filters ? <section className="content-workspace-filters">{filters}</section> : null}
+        <section className="content-workspace-core">
+          <div className="content-workspace-column content-workspace-column--list">{list}</div>
+          <div className="content-workspace-column content-workspace-column--detail">
             {detail}
             {preview}
           </div>
         </section>
-        <section className="border-t border-border pt-4">
+        <section className="content-workspace-bottom">
           {bottom ?? (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <div className="min-w-0 space-y-4">{upstream}</div>
-              <div className="min-w-0 space-y-4">{downstream}</div>
+            <div className="content-workspace-related-grid">
+              <div className="content-workspace-related-column">{upstream}</div>
+              <div className="content-workspace-related-column">{downstream}</div>
             </div>
           )}
         </section>
@@ -97,20 +172,22 @@ export function ContentWorkspaceLayout({
 export function MasterDetail({
   list,
   detail,
+  chrome = "split",
   listWidth = 288,
   className,
 }: {
   list: ReactNode;
   detail: ReactNode;
+  chrome?: MasterDetailChrome;
   listWidth?: number;
   className?: string;
 }) {
   return (
-    <div className={cn("flex h-full overflow-hidden bg-background", className)}>
-      <div style={{ width: listWidth }} className="shrink-0 border-r border-border flex flex-col overflow-hidden bg-muted/50">
+    <div className={cn("master-detail-layout flex h-full overflow-hidden bg-background", className)} data-chrome={chrome}>
+      <div style={{ width: listWidth }} className="master-detail-layout__list shrink-0 flex flex-col overflow-hidden bg-muted/50">
         {list}
       </div>
-      <div className="flex-1 overflow-hidden">{detail}</div>
+      <div className="master-detail-layout__detail flex-1 overflow-hidden">{detail}</div>
     </div>
   );
 }

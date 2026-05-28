@@ -24,7 +24,6 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 		MimeType:       "image/png",
 		StorageBackend: "local",
 		StorageKey:     "old",
-		IsShared:       true,
 	}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
@@ -32,7 +31,6 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 	resource := domainresource.RawResourceFromModel(row)
 	empty := ""
 	size := int64(0)
-	isShared := false
 
 	if err := repo.UpdateResourceRecord(context.Background(), &resource, domainresource.UpdateSpec{
 		FilePath:       &empty,
@@ -42,7 +40,6 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 		Name:           &empty,
 		MimeType:       &empty,
 		Size:           &size,
-		IsShared:       &isShared,
 		ClearFolder:    true,
 	}); err != nil {
 		t.Fatalf("UpdateResourceRecord() error = %v", err)
@@ -55,10 +52,10 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 	if stored.FilePath != "" || stored.StorageKey != "" || stored.StorageBackend != "" || stored.Type != "" || stored.Name != "" || stored.MimeType != "" {
 		t.Fatalf("string fields were not persisted as empty: %+v", stored)
 	}
-	if stored.Size != 0 || stored.IsShared || stored.FolderID != nil {
+	if stored.Size != 0 || stored.FolderID != nil {
 		t.Fatalf("zero values/folder clear were not persisted: %+v", stored)
 	}
-	if resource.Size != 0 || resource.IsShared || resource.FolderID != nil {
+	if resource.Size != 0 || resource.FolderID != nil {
 		t.Fatalf("domain resource was not updated: %+v", resource)
 	}
 }

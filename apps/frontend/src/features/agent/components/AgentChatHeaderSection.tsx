@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { History, PanelRightClose, Plus } from 'lucide-react'
+import { PanelRightClose } from 'lucide-react'
 import {
   AgentHeader,
   Button,
@@ -36,9 +36,12 @@ export interface AgentChatHeaderSectionProps {
   showConversationControls?: boolean
   historyOpen?: boolean
   activeConversationRuntimeStatusLight?: AgentRuntimeStatusLight
+  pinnedStatusExpanded?: boolean
+  showPinnedStatusControl?: boolean
   onNewConversation: () => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
+  onTogglePinnedStatus?: () => void
   onToggleHistory?: () => void
 }
 
@@ -50,12 +53,9 @@ export function AgentChatHeaderSection({
   onCollapse,
   showCollapse = true,
   showConversationControls = true,
-  historyOpen = false,
   activeConversationRuntimeStatusLight,
-  onNewConversation,
   onReorderConversation,
   onSelectConversation,
-  onToggleHistory,
 }: AgentChatHeaderSectionProps) {
   const { t } = useTranslation()
   const conversationTabs = useMemo(() => {
@@ -209,30 +209,13 @@ export function AgentChatHeaderSection({
           </div>
         )}
         {showConversationControls ? tabContextMenuNode : null}
-        <div className="ai-agent-panel-chat-toolbar-actions">
-          {showConversationControls && (
-            <>
-              <Button size="icon-sm" variant="ghost" onClick={onNewConversation} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')}>
-                <Plus size={14} />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                onClick={onToggleHistory}
-                aria-label={t('agents.chat.conversationHistory')}
-                title={t('agents.chat.conversationHistory')}
-                className={historyOpen ? 'bg-muted text-foreground' : undefined}
-              >
-                <History size={14} />
-              </Button>
-            </>
-          )}
-          {showCollapse && (
+        {showCollapse && (
+          <div className="ai-agent-panel-chat-toolbar-actions">
             <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
               <PanelRightClose size={14} />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </AgentHeader>
   )

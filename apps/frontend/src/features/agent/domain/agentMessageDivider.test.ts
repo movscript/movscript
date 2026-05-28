@@ -15,7 +15,7 @@ test('agentMessageDividerLabel counts model-only replies as one call', () => {
       data: { usage: { total_tokens: 9498 } },
       createdAt: '2026-05-22T01:00:00.000Z',
     }],
-  })), '10:00 · 耗时 2s · 调用 1 次 · Token 9,498')
+  })), '10:00 · 耗时 2s · 模型调用 1 次 · Token 9,498')
 })
 
 test('agentMessageDividerLabel shows model and tool metrics when tools were called', () => {
@@ -38,7 +38,7 @@ test('agentMessageDividerLabel shows model and tool metrics when tools were call
       data: { usage: { input_tokens: 40, output_tokens: 2 } },
       createdAt: '2026-05-22T01:00:01.000Z',
     }],
-  })), '10:00 · 耗时 2s · 调用 1 次 · 工具 1 次 · Token 42')
+  })), '10:00 · 耗时 2s · 模型调用 1 次 · 工具 1 次 · Token 42')
 })
 
 test('agentMessageDividerLabel does not show empty tool or token metrics for failed runs without tools', () => {

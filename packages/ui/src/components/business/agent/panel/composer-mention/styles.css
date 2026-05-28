@@ -2,6 +2,11 @@
   background: var(--ms-color-background);
 }
 
+.ai-agent-panel-shell .ai-agent-panel-composer > :not(.hidden) {
+  width: 90%;
+  justify-self: center;
+}
+
 .ai-agent-panel-shell .ai-agent-panel-composer--dragging {
   background: color-mix(in srgb, var(--ms-color-primary) 4%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ms-color-primary) 45%, transparent);
@@ -9,12 +14,12 @@
 
 .ai-agent-panel-shell .ai-agent-panel-composer-field {
   border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, var(--ms-color-muted) 28%, transparent);
+  background: transparent;
   padding: 7px 8px;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-composer-field:focus {
-  background: var(--ms-color-background);
+  background: transparent;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor {
@@ -22,7 +27,7 @@
   max-height: 260px;
   overflow-y: auto;
   border-radius: var(--ms-radius-sm);
-  background: color-mix(in srgb, var(--ms-color-muted) 28%, transparent);
+  background: transparent;
   color: var(--ms-color-foreground);
   padding: 7px 8px;
   font-size: var(--ms-text-label);
@@ -33,7 +38,7 @@
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor:focus {
-  background: var(--ms-color-background);
+  background: transparent;
 }
 
 .ai-agent-panel-shell .ai-agent-panel-mention-editor:empty::before {
@@ -78,6 +83,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ai-agent-resource-mention-menu {
+  position: fixed;
+  z-index: 1000;
+  max-width: calc(100vw - 16px);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-background);
+  box-shadow: var(--ms-shadow-lg);
+}
+
+.ai-agent-resource-mention-menu__header {
+  background: color-mix(in srgb, var(--ms-color-background) 94%, transparent);
+}
+
+.ai-agent-resource-mention-menu__list {
+  max-height: var(--ai-agent-resource-mention-menu-max-height, min(360px, calc(100vh - 96px)));
+  overflow-y: auto;
 }
 
 .ai-agent-panel-shell .ms-agent-composer__field {

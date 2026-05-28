@@ -2,6 +2,7 @@ import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { forwardRef } from "react";
 
 import { cn } from "../../../../lib/cn";
+import { PanelResizeHandle } from "../../../layout";
 import {
   Avatar,
   AvatarFallback,
@@ -22,11 +23,13 @@ export function AgentModeFullscreenLayout({ className, ...props }: HTMLAttribute
 export function AgentModeSidebar({
   className,
   resizing = false,
+  collapsed = false,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   resizing?: boolean;
+  collapsed?: boolean;
 }) {
-  return <aside className={cn("agent-mode-sidebar", resizing && "agent-mode-sidebar--resizing", className)} {...props} />;
+  return <aside data-collapsed={collapsed ? "true" : undefined} className={cn("agent-mode-sidebar", resizing && "agent-mode-sidebar--resizing", className)} {...props} />;
 }
 
 export function AgentModeSidebarTop({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -172,7 +175,7 @@ export function AgentModeResizeHandle({
   side?: "left" | "right";
   active?: boolean;
 }) {
-  return <div className={cn("agent-mode-resize-handle", `agent-mode-resize-handle--${side}`, active && "agent-mode-resize-handle--active", className)} {...props} />;
+  return <PanelResizeHandle className={cn("agent-mode-resize-handle", className)} side={side} active={active} {...props} />;
 }
 
 export const AgentModeWorkspace = forwardRef<HTMLElement, HTMLAttributes<HTMLElement>>(
@@ -201,9 +204,11 @@ export function AgentModeProjectMenuContent({ className, ...props }: ComponentPr
 export function AgentModeContentPanel({
   className,
   resizing = false,
+  collapsed = false,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   resizing?: boolean;
+  collapsed?: boolean;
 }) {
-  return <aside className={cn("agent-mode-content-panel", resizing && "agent-mode-content-panel--resizing", className)} {...props} />;
+  return <aside data-collapsed={collapsed ? "true" : undefined} className={cn("agent-mode-content-panel", resizing && "agent-mode-content-panel--resizing", className)} {...props} />;
 }

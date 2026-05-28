@@ -12,6 +12,7 @@ export function AppMetricCard({
   detail,
   tone = "neutral",
   compact = false,
+  className,
 }: {
   icon?: IconComponent;
   label: ReactNode;
@@ -19,6 +20,7 @@ export function AppMetricCard({
   detail?: ReactNode;
   tone?: SemanticTone;
   compact?: boolean;
+  className?: string;
 }) {
   return (
     <MetricCard
@@ -26,7 +28,7 @@ export function AppMetricCard({
       value={value}
       detail={detail}
       icon={Icon ? <Icon size={compact ? 15 : 18} className={toneTextClass(tone)} /> : undefined}
-      className={cn("app-metric-card", compact && "app-metric-card--compact")}
+      className={cn("app-metric-card", compact && "app-metric-card--compact", className)}
       rowClassName="app-metric-card__row"
       copyClassName="app-metric-card__copy"
       labelClassName="app-metric-card__label"

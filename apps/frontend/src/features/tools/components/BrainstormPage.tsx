@@ -34,7 +34,6 @@ import {
   ToolBrainstormPanelHeader,
   ToolBrainstormResultCard,
   ToolBrainstormSectionHeader,
-  ToolHeader,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
@@ -228,12 +227,6 @@ export default function BrainstormPage() {
 
   return (
     <ToolBrainstormFrame>
-      <ToolHeader
-        title={t('sidebar.items.brainstorm')}
-        description={t('tools.brainstorm.description')}
-        icon={Bot}
-      />
-
       {/* Body */}
       <ToolBrainstormBody>
         {/* Left: resource panel */}

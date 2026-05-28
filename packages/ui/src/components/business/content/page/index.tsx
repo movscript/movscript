@@ -272,9 +272,10 @@ export function ContentPageEmptyState({
 
 export function ContentPageMetricCard({
   compact = true,
+  className,
   ...props
 }: Parameters<typeof AppMetricCard>[0]) {
-  return <AppMetricCard compact={compact} {...props} />;
+  return <AppMetricCard compact={compact} className={cn("content-page-metric-card", className)} {...props} />;
 }
 
 export function ContentPageKeyValue({

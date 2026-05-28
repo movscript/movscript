@@ -96,11 +96,9 @@ func TestRawResourceApplyUpdateHandlesZeroValuesAndFolderClear(t *testing.T) {
 		Type:           "image",
 		MimeType:       "image/png",
 		Size:           12,
-		IsShared:       true,
 	}
 	empty := ""
 	size := int64(0)
-	isShared := false
 	resource.ApplyUpdate(UpdateSpec{
 		FilePath:       &empty,
 		StorageKey:     &empty,
@@ -109,13 +107,12 @@ func TestRawResourceApplyUpdateHandlesZeroValuesAndFolderClear(t *testing.T) {
 		Name:           &empty,
 		MimeType:       &empty,
 		Size:           &size,
-		IsShared:       &isShared,
 		ClearFolder:    true,
 	})
 	if resource.FilePath != "" || resource.StorageKey != "" || resource.StorageBackend != "" || resource.Type != "" || resource.Name != "" || resource.MimeType != "" {
 		t.Fatalf("string fields were not cleared: %+v", resource)
 	}
-	if resource.Size != 0 || resource.IsShared || resource.FolderID != nil {
+	if resource.Size != 0 || resource.FolderID != nil {
 		t.Fatalf("zero values/folder clear were not applied: %+v", resource)
 	}
 }

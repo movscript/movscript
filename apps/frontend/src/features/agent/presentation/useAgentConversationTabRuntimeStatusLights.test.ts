@@ -37,6 +37,23 @@ test('buildAgentConversationTabRuntimeTargets prefers session anchors and keeps 
   ])
 })
 
+test('buildAgentConversationTabRuntimeTargets leaves unanchored conversations disconnected', () => {
+  const targets = buildAgentConversationTabRuntimeTargets({
+    conversations: [
+      conversation({ id: 'conv_empty' }),
+    ],
+    localThreadIdsByConversation: {},
+    sessionIdsByConversation: {},
+  })
+
+  assert.deepEqual(targets, [
+    {
+      conversationId: 'conv_empty',
+      threadId: '',
+    },
+  ])
+})
+
 function conversation(overrides: Partial<Conversation>): Conversation {
   return {
     id: 'conv_1',

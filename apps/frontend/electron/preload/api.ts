@@ -8,6 +8,7 @@ import { createGenerationToolsAPI } from './api/generationTools'
 import { createMCPAPI } from './api/mcp'
 import { createSettingsAPI } from './api/settings'
 import { createVideoAPI } from './api/video'
+import { createWindowAPI } from './api/window'
 
 export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Platform): ElectronAPI {
   return {
@@ -17,6 +18,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createSettingsAPI(ipcRenderer),
     ...createGenerationToolsAPI(ipcRenderer),
     ...createBackendAPI(ipcRenderer),
+    ...createWindowAPI(ipcRenderer),
     ...createAgentBrowserAPI(ipcRenderer),
     ...createAgentRuntimeAPI(ipcRenderer),
     ...createVideoAPI(ipcRenderer),

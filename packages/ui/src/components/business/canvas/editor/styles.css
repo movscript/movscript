@@ -1,7 +1,7 @@
 .canvas-editor {
   display: flex;
   flex-direction: column;
-  background: var(--ms-color-background);
+  background: var(--ms-color-canvas-background);
   color: var(--ms-color-foreground);
 }
 
@@ -97,6 +97,10 @@
   animation: ms-spin 900ms linear infinite;
 }
 
+.canvas-editor-chrome__spin-icon {
+  animation: ms-spin 900ms linear infinite;
+}
+
 .canvas-editor-chrome__metric-badge,
 .canvas-editor-chrome__status-badge,
 .canvas-editor-chrome__parallel-badge {
@@ -144,14 +148,21 @@
   display: flex;
   min-height: 0;
   flex: 1;
+  gap: var(--ms-space-2);
   overflow: hidden;
+}
+
+.canvas-editor__main {
+  padding: var(--ms-space-2);
 }
 
 .canvas-viewport-pane {
   position: relative;
   min-height: 0;
   flex: 1;
-  background: var(--ms-color-background);
+  overflow: hidden;
+  border-radius: var(--ms-radius-lg, 14px);
+  background: var(--ms-color-canvas-background);
 }
 
 .canvas-viewport-pane[data-drop-active="true"] {
@@ -220,13 +231,19 @@
 .canvas-palette {
   width: 288px;
   flex-shrink: 0;
-  border-right: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
-  transition: width var(--ms-duration-fast) var(--ms-easing-standard);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 76%, transparent);
+  border-radius: var(--ms-radius-lg, 14px);
+  background: var(--ms-color-surface-raised);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ms-color-foreground) 5%, transparent);
+  transition: width 260ms var(--ms-easing-standard);
 }
 
 .canvas-palette[data-collapsed="true"] {
+  align-self: center;
   width: 48px;
+  max-height: 100%;
+  border-radius: var(--ms-radius-md);
 }
 
 .canvas-palette__inner {
@@ -235,12 +252,17 @@
   flex-direction: column;
 }
 
+.canvas-palette[data-collapsed="true"] .canvas-palette__inner {
+  height: auto;
+  max-height: 100%;
+  justify-content: center;
+}
+
 .canvas-palette__header {
   display: flex;
   height: 48px;
   align-items: center;
   gap: var(--ms-space-2);
-  border-bottom: 1px solid var(--ms-color-border);
   padding-inline: var(--ms-space-3);
 }
 
@@ -270,6 +292,12 @@
 }
 
 .canvas-palette__collapsed-body {
+  display: flex;
+  width: 100%;
+  max-height: 100%;
+  flex: 0 1 auto;
+  flex-direction: column;
+  justify-content: center;
   padding: var(--ms-space-2) 6px;
 }
 
@@ -279,7 +307,6 @@
 
 .canvas-palette__collapsed-group[data-separated="true"] {
   margin-top: var(--ms-space-2);
-  border-top: 1px solid var(--ms-color-border);
   padding-top: var(--ms-space-2);
 }
 
@@ -290,6 +317,7 @@
 }
 
 .canvas-palette__collapsed-items {
+  justify-items: center;
   gap: var(--ms-space-1);
 }
 

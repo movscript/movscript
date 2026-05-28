@@ -7,6 +7,7 @@ import { registerGenerationToolsIpcHandlers } from './generationToolsIpc'
 import { registerMCPIpcHandlers } from './mcpIpc'
 import { registerSettingsIpcHandlers } from './settingsIpc'
 import { registerVideoIpcHandlers } from './videoIpc'
+import { registerWindowIpcHandlers } from './windowIpc'
 
 export interface IpcHandlerDependencies {
   broadcastBackendStatus: (status: BackendStatus) => void
@@ -18,6 +19,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerMCPIpcHandlers()
   registerGenerationToolsIpcHandlers()
   registerBackendIpcHandlers()
+  registerWindowIpcHandlers()
   registerAgentBrowserIpcHandlers()
   registerSettingsIpcHandlers(deps)
   registerAgentRuntimeIpcHandlers(deps)

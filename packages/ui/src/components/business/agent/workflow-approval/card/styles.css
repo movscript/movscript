@@ -1,6 +1,9 @@
 .ms-agent-workflow-approval-card {
   margin-top: 6px;
+  min-width: 0;
+  background: transparent;
   padding: 10px;
+  box-shadow: none;
 }
 
 .ms-agent-workflow-approval-card__row {
@@ -12,19 +15,20 @@
 
 .ms-agent-workflow-approval-card__body {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
 }
 
 .ms-agent-workflow-approval-card__header {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px 6px;
 }
 
 .ms-agent-workflow-approval-card__title {
   min-width: 0;
+  flex: 1 1 12rem;
   overflow: hidden;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
@@ -53,7 +57,7 @@
 
 .ms-agent-workflow-approval-card__prompt {
   display: -webkit-box;
-  margin-top: 8px;
+  margin: 8px 0 0;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -63,7 +67,7 @@
 }
 
 .ms-agent-workflow-approval-card__text {
-  margin-top: 4px;
+  margin: 4px 0 0;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-body);

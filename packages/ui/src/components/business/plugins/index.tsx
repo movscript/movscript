@@ -4,6 +4,7 @@ import { forwardRef, type ComponentProps, type HTMLAttributes, type IframeHTMLAt
 
 import { cn } from "../../../lib/cn";
 import { toneTextClass, type SemanticTone } from "../../../semantic";
+import { AppContentLayout } from "../../layout";
 import {
   AppCodeBlock,
   AppControlGroup,
@@ -14,6 +15,77 @@ import {
 } from "../app";
 import { Button, Input, NativeSelect, Textarea } from "../../primitives";
 import type { IconComponent } from "../../primitives/types";
+
+export function PluginPageLayout({
+  className,
+  contentClassName,
+  ...props
+}: ComponentProps<typeof AppContentLayout>) {
+  return (
+    <AppContentLayout
+      variant="workspace"
+      padding="none"
+      scroll="hidden"
+      className={className}
+      contentClassName={cn("plugin-page-layout", contentClassName)}
+      {...props}
+    />
+  );
+}
+
+export function PluginPageHeader({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <header className={cn("plugin-page-header", className)} {...props} />;
+}
+
+export function PluginPageHeaderInner({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-header__inner", className)} {...props} />;
+}
+
+export function PluginPageHeaderCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-header__copy", className)} {...props} />;
+}
+
+export function PluginPageHeaderTitleRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-header__title-row", className)} {...props} />;
+}
+
+export function PluginPageHeaderActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-header__actions", className)} {...props} />;
+}
+
+export function PluginPageTabBar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-tab-bar", className)} {...props} />;
+}
+
+export function PluginPageScrollBody({
+  padded = true,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  padded?: boolean;
+}) {
+  return <div data-padded={padded ? "true" : undefined} className={cn("plugin-page-scroll-body", className)} {...props} />;
+}
+
+export function PluginPageCardGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-page-card-grid", className)} {...props} />;
+}
+
+export function PluginDialogOverlay({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-dialog-overlay", className)} {...props} />;
+}
+
+export function PluginDialogTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return <h2 className={cn("plugin-dialog-title", className)} {...props} />;
+}
+
+export function PluginDialogDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("plugin-dialog-description", className)} {...props} />;
+}
+
+export function PluginDialogActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-dialog-actions", className)} {...props} />;
+}
 
 export function PluginDialogSurface({
   className,
@@ -27,6 +99,62 @@ export function PluginCardSurface({
   ...props
 }: ComponentProps<typeof AppSurfaceItem>) {
   return <AppSurfaceItem className={cn("plugin-card-surface", className)} {...props} />;
+}
+
+export function PluginCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-card-header", className)} {...props} />;
+}
+
+export function PluginCardCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-card-copy", className)} {...props} />;
+}
+
+export function PluginCardActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-card-actions", className)} {...props} />;
+}
+
+export function PluginCardTitle({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("plugin-card-title", className)} {...props} />;
+}
+
+export function PluginCardMeta({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("plugin-card-meta", className)} {...props} />;
+}
+
+export function PluginCardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("plugin-card-description", className)} {...props} />;
+}
+
+export function PluginCardFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-card-footer", className)} {...props} />;
+}
+
+export function PluginCardId({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("plugin-card-id", className)} {...props} />;
+}
+
+export function PluginCardTagRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-card-tag-row", className)} {...props} />;
+}
+
+export function PluginCardDownloadMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("plugin-card-download-meta", className)} {...props} />;
+}
+
+export function PluginMarketplaceToolbar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-marketplace-toolbar", className)} {...props} />;
+}
+
+export function PluginSearchField({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-search-field", className)} {...props} />;
+}
+
+export function PluginSearchIconSlot({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-search-field__icon", className)} {...props} />;
+}
+
+export function PluginEmptyActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-empty-actions", className)} {...props} />;
 }
 
 export function PluginEmptyState({
@@ -143,6 +271,30 @@ export function PluginToolSurface({
   ...props
 }: ComponentProps<typeof AppSurfaceItem>) {
   return <AppSurfaceItem className={cn("plugin-tool-surface", className)} {...props} />;
+}
+
+export function PluginToolInfoHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-tool-info-header", className)} {...props} />;
+}
+
+export function PluginToolInfoCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-tool-info-copy", className)} {...props} />;
+}
+
+export function PluginToolVersionMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("plugin-tool-version-meta", className)} {...props} />;
+}
+
+export function PluginToolResourceList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-tool-resource-list", className)} {...props} />;
+}
+
+export function PluginToolFieldStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-tool-field-stack", className)} {...props} />;
+}
+
+export function PluginToolActionRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("plugin-tool-action-row", className)} {...props} />;
 }
 
 export function PluginToolMutedSurface({

@@ -1,8 +1,7 @@
 .ms-agent-activity-divider-actions {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 20;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
   opacity: 0;
   transition: opacity var(--ms-duration-fast) var(--ms-easing-standard);
 }

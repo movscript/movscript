@@ -206,14 +206,8 @@ func (r *gormRepository) EnsureResourceVisibleToUser(ctx context.Context, resour
 	if !domainresource.InOrgScope(resource.OrgID, orgID, resource.OwnerID, userID, r.includeLegacyPersonal(ctx, orgID)) {
 		return ErrResourceForbidden
 	}
-	if resource.OwnerID == userID || resource.IsShared || resourceInCurrentTeam(resource.OrgID, orgID) {
+	if resource.OwnerID == userID || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return nil
-	}
-	if resource.FolderID != nil {
-		var folder persistencemodel.ResourceFolder
-		if err := r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error; err == nil && folder.IsShared {
-			return nil
-		}
 	}
 	return ErrResourceForbidden
 }

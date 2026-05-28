@@ -1,4 +1,6 @@
 .projects-region {
+  min-width: 0;
+  overflow-x: hidden;
   border-top: 1px solid var(--ms-color-border);
 }
 
@@ -34,13 +36,20 @@
 }
 
 .projects-region__body {
+  min-width: 0;
+  overflow-x: hidden;
   padding: var(--ms-space-4) 0;
+}
+
+.projects-list {
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .projects-list-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 0.9fr) minmax(220px, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr) minmax(0, 0.8fr) auto;
   align-items: center;
   gap: 18px;
   border-bottom: 1px solid var(--ms-color-border);
@@ -70,7 +79,9 @@
 
 .projects-list-row__actions {
   display: flex;
+  min-width: 0;
   flex-shrink: 0;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
@@ -78,12 +89,12 @@
 
 @media (max-width: 1180px) {
   .projects-list-row {
-    grid-template-columns: minmax(220px, 1fr) minmax(200px, 0.9fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) auto;
   }
 
   .projects-list-row__stats {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(4, minmax(90px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

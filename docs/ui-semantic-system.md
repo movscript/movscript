@@ -19,6 +19,22 @@ Do not add compatibility aliases for removed token names. If a token is removed,
 
 `@movscript/theme` must not contain business words such as agent, canvas, generation, resource, project, or review. It only maps reference values to theme roles and applies `data-theme`.
 
+## Typography Scale
+
+Product UI should use a compact tool-oriented scale. The common working sizes are `12px`, `13px`, `14px`, and `16px`; `10px`, `11px`, and `20px` are reserved for narrow roles.
+
+```text
+--ms-text-tiny      10px  badges, counters, very short status markers
+--ms-text-caption   11px  timestamps and weak metadata
+--ms-text-label     12px  labels, section captions, table headers
+--ms-text-item      13px  sidebar items, list titles, compact row text
+--ms-text-body      14px  body copy, controls, chat messages, form content
+--ms-text-section   16px  panel titles, dialog titles, local section titles
+20px                      page titles and major metric values only
+```
+
+Selection and active state should not be expressed by increasing font size. Use color, background, indicator, or weight changes while keeping the item on the same size token.
+
 ## Recipe Axes
 
 The public vocabulary is intentionally small:

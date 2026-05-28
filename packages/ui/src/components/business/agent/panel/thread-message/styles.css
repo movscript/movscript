@@ -1,44 +1,45 @@
 .ai-agent-panel-shell .ms-agent-thread {
-  gap: 13px;
+  gap: 4px;
   overflow-x: hidden;
-  background: var(--ms-color-background);
-  padding: 14px;
+  background: transparent;
+  padding: 4px 5% 8px;
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-thread {
+  gap: 4px;
+  padding: 4px 5% 8px;
+}
+
+.ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-thread {
+  gap: 4px;
+  padding: 4px 5% 8px;
 }
 
 .ai-agent-panel-shell .ms-agent-message {
+  width: 100%;
   gap: 0;
 }
 
 .ai-agent-panel-shell .ms-agent-message--assistant {
   position: relative;
   border-top: 0;
-  padding-top: 18px;
+  padding: 8px 0 6px;
 }
 
 .ai-agent-panel-shell .ms-agent-message--assistant::before {
-  position: absolute;
-  top: 6px;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--ms-color-border);
-  content: "";
+  display: none;
 }
 
-.ai-agent-panel-shell .ms-agent-message--assistant[data-agent-divider-label]::after {
-  position: absolute;
-  top: -1px;
-  left: 0;
-  max-width: min(100%, 520px);
-  overflow: hidden;
-  background: var(--ms-color-background);
-  color: var(--ms-color-muted-foreground);
-  padding-right: 8px;
-  content: attr(data-agent-divider-label);
-  font-size: var(--ms-text-tiny);
-  line-height: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.ms-agent-message-section)::before,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.rounded.border)::before,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.rounded-md.border)::before {
+  display: none;
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.ms-agent-message-section),
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.rounded.border),
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message--assistant:has(.rounded-md.border) {
+  padding-top: 8px;
 }
 
 .ai-agent-panel-shell .ms-agent-message__avatar {
@@ -46,17 +47,38 @@
 }
 
 .ai-agent-panel-shell .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+.ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-message__body {
+  width: 100%;
   max-width: 100%;
   flex: 1 1 auto;
 }
 
 .ai-agent-panel-shell .ms-agent-message--user .ms-agent-message__body {
-  max-width: min(76%, 328px);
-  flex: 0 1 auto;
-  margin-left: auto;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  align-items: stretch;
+  margin-left: 0;
+  padding-right: 0;
+}
+
+.ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-message--user .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  align-items: stretch;
+  margin-left: 0;
+  padding-right: 0;
 }
 
 .ai-agent-panel-shell .ms-agent-message__content {
+  width: 100%;
+  max-width: 100%;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -64,6 +86,35 @@
   box-shadow: none;
   font-size: var(--ms-text-label);
   line-height: 18px;
+}
+
+.ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-message__content {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  flex-basis: 100%;
+}
+
+.ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-message--assistant .ms-agent-message__body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  flex-basis: 100%;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message__content {
+  width: 100%;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message__content > * {
+  width: 100%;
+  max-width: 100%;
 }
 
 .ai-agent-panel-shell .ms-agent-message__content,
@@ -80,11 +131,132 @@
   border-top-right-radius: 3px;
   background: var(--ms-color-primary);
   color: var(--ms-color-primary-foreground);
-  padding: 7px 9px;
+  padding: 7px 12px;
 }
 
 .ai-agent-panel-shell .ms-agent-message--assistant .rounded.border:not([class*="border-primary"]):not([class*="border-green"]):not([class*="border-amber"]):not([class*="border-red"]):not([class*="border-destructive"]),
 .ai-agent-panel-shell .ms-agent-message--assistant .rounded-md.border:not([class*="border-primary"]):not([class*="border-green"]):not([class*="border-amber"]):not([class*="border-red"]):not([class*="border-destructive"]) {
   border-color: color-mix(in srgb, var(--ms-color-border) 90%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ms-color-foreground) 2.5%, transparent);
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message-section,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-run-activity,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-plan-overview,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-generated-result-card,
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-activity-frame {
+  border-radius: 0;
+}
+
+.ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-message-section {
+  margin-top: 4px;
+  padding: 6px 8px;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section,
+.ai-agent-panel-shell .ms-agent-message--assistant .agent-generated-card,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-result-card,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-feed,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-frame,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity-bubble__frame {
+  width: 100%;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-result-card {
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-workflow-approval-thumb {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  background: color-mix(in srgb, var(--ms-color-muted) 55%, transparent);
+  padding: 0;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity__summary,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview__header,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-result-card__header {
+  min-height: 0;
+  padding: 4px 0;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity__content {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 46%, transparent);
+  padding: 6px 0 0;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity-item,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-result-item,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview-task,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview-item,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-frame,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-code-panel,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-run-activity-code,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview-code,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview-disclosure {
+  border: 0;
+  background: transparent;
+  padding-right: 0;
+  padding-left: 0;
+  box-shadow: none;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-result-card__list > * + *,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-plan-overview-list > * + *,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-feed > * + *,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-activity-round__items > * + * {
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 38%, transparent);
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview {
+  border-radius: var(--ms-radius-sm);
+  margin-bottom: 6px;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > img,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > video,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > img,
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-generated-media-preview > .ms-button__content > video {
+  height: 10rem;
+  max-height: 34vh;
+}
+
+.ai-agent-panel-shell .ms-agent-message--assistant .ms-agent-message-section {
+  margin-top: 6px;
+  padding: 7px 8px;
+}
+
+.ai-agent-panel-thread-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.ai-agent-panel-run-group {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.ai-agent-panel-run-group[data-has-user="true"] {
+  padding-block: 4px;
 }

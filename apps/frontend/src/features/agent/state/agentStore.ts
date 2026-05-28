@@ -195,6 +195,16 @@ function archiveConversationsState(state: Pick<AgentStore, 'convsByUser'>, userI
   }
 }
 
+function frontendOnlyNewConversationId(conversations: Conversation[]): string | undefined {
+  return [...conversations]
+    .filter((conversation) => (
+      conversation.messages.length === 0
+      && !conversation.runtimeSessionId?.trim()
+      && !conversation.runtimeThreadId?.trim()
+    ))
+    .sort((a, b) => b.createdAt - a.createdAt || b.updatedAt - a.updatedAt || b.id.localeCompare(a.id))[0]?.id
+}
+
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   modelId: null,
   includeProjectContext: true,
@@ -261,6 +271,21 @@ export const useAgentStore = create<AgentStore>()(
       const id = genId()
       set((state) => {
         const cur = getUserState(state, userId)
+        const reusableConversationId = frontendOnlyNewConversationId(cur.conversations)
+        if (reusableConversationId) {
+          return {
+            convsByUser: {
+              ...state.convsByUser,
+              [userId]: {
+                ...cur,
+                conversations: cur.conversations.map((conversation) => conversation.id === reusableConversationId
+                  ? { ...conversation, archived: false }
+                  : conversation),
+                activeConversationId: reusableConversationId,
+              },
+            },
+          }
+        }
         return {
           convsByUser: {
             ...state.convsByUser,
@@ -275,7 +300,7 @@ export const useAgentStore = create<AgentStore>()(
           },
         }
       })
-      return id
+      return getUserState(get(), userId).activeConversationId ?? id
     },
 
     deleteConversation: (userId, id) => set((state) => {

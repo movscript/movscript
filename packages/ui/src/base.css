@@ -1,16 +1,17 @@
 .ms-frame {
   overflow: hidden;
-  border: 1px solid var(--ui-surface-border, var(--ms-color-border));
+  border: 1px solid var(--ui-surface-border, var(--ms-surface-border, var(--ms-color-border)));
   border-radius: var(--ui-surface-radius, var(--ms-radius-md));
-  background: var(--ui-surface-background, var(--ms-color-surface));
+  background: var(--ui-surface-background, var(--ms-surface-background, var(--ms-color-surface)));
   color: var(--ms-color-foreground);
   box-shadow: var(--ui-surface-shadow, none);
+  backdrop-filter: var(--ui-surface-backdrop-filter, var(--ms-surface-backdrop-filter, none));
 }
 
 .ms-frame__header {
   display: flex;
   min-width: 0;
-  border-bottom: 1px solid var(--ui-surface-border, var(--ms-color-border));
+  border-bottom: 1px solid var(--ui-surface-border, var(--ms-surface-border, var(--ms-color-border)));
 }
 
 .ms-frame__heading {

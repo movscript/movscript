@@ -26,7 +26,7 @@
 .ms-button--sm {
   height: 28px;
   padding: 0 9px;
-  font-size: 13px;
+  font-size: var(--ms-text-item);
 }
 
 .ms-button--md {
@@ -38,7 +38,7 @@
 .ms-button--lg {
   height: 40px;
   padding: 0 16px;
-  font-size: 15px;
+  font-size: var(--ms-text-body);
 }
 
 .ms-button--icon {
@@ -67,9 +67,10 @@
 }
 
 .ms-button--solid.ms-button--tone-brand {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ms-color-primary) 92%, white 8%), var(--ms-color-primary));
-  color: var(--ms-color-primary-foreground);
-  box-shadow: 0 1px 0 rgb(255 255 255 / 16%) inset, 0 10px 22px rgb(19 22 27 / 12%);
+  border-color: var(--ms-button-brand-border, transparent);
+  background: var(--ms-button-brand-background, linear-gradient(180deg, color-mix(in srgb, var(--ms-color-primary) 92%, white 8%), var(--ms-color-primary)));
+  color: var(--ms-button-brand-foreground, var(--ms-color-primary-foreground));
+  box-shadow: var(--ms-button-brand-shadow, 0 1px 0 rgb(255 255 255 / 16%) inset, 0 10px 22px rgb(19 22 27 / 12%));
 }
 
 .ms-button--solid.ms-button--tone-brand:hover:not(:disabled) {
@@ -88,16 +89,17 @@
 
 .ms-button--soft,
 .ms-button--outline {
-  border-color: color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%);
-  background: color-mix(in srgb, var(--ms-color-surface) 92%, white 8%);
+  border-color: var(--ms-surface-border-strong, color-mix(in srgb, var(--ms-color-border) 88%, var(--ms-color-foreground) 12%));
+  background: var(--ms-button-subtle-background, color-mix(in srgb, var(--ms-color-surface) 92%, white 8%));
   color: var(--ms-color-foreground);
+  backdrop-filter: var(--ms-surface-backdrop-filter, none);
 }
 
 .ms-button--soft:hover:not(:disabled),
 .ms-button--outline:hover:not(:disabled),
 .ms-button--ghost:hover:not(:disabled),
 .ms-menu-item:focus {
-  background: var(--ms-color-muted);
+  background: var(--ms-button-subtle-hover-background, var(--ms-color-muted));
 }
 
 .ms-button--soft.ms-button--tone-brand {

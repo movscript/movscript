@@ -1,3 +1,49 @@
+.script-workbench-shell {
+  height: 100%;
+  overflow: auto;
+  background: var(--ms-color-page-background);
+}
+
+.script-workbench-frame {
+  min-height: 100%;
+  padding: var(--ms-space-4);
+}
+
+.script-workbench-layout {
+  min-height: 0;
+  background: var(--ms-color-page-background);
+}
+
+.script-workbench-main {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.script-workbench-inspector {
+  display: flex;
+  min-height: 0;
+  border-left: 1px solid var(--ms-color-border);
+}
+
+.script-workbench-inspector__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--ms-space-3);
+}
+
+.script-workbench-detail-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .script-editor-form {
   display: flex;
   height: 100%;

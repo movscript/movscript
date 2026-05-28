@@ -73,12 +73,8 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasR
       {task.status === 'done' && outputUrl && (
         <CanvasToolFullOutputFrame className="canvas-tool-full-output--history">
           {outputType === 'image'
-            ? (resource?.direct_url
-              ? <img src={outputUrl} alt="" />
-              : <AuthedImage src={outputUrl} alt="" />)
-            : (resource?.direct_url
-              ? <video src={outputUrl} controls />
-              : <AuthedVideo src={outputUrl} controls />)
+            ? <AuthedImage src={outputUrl} alt="" />
+            : <AuthedVideo src={outputUrl} controls />
           }
         </CanvasToolFullOutputFrame>
       )}
@@ -193,12 +189,8 @@ export function ToolNodeFullCard({
         {!latestTask && status === 'done' && outputUrl && (
           <CanvasToolFullOutputFrame className="canvas-tool-full-output--current">
             {outputType === 'image'
-              ? (resource?.direct_url
-                ? <img src={outputUrl} alt={t('shared.generation.resultAlt')} />
-                : <AuthedImage src={outputUrl} alt={t('shared.generation.resultAlt')} />)
-              : (resource?.direct_url
-                ? <video src={outputUrl} controls />
-                : <AuthedVideo src={outputUrl} controls />)
+              ? <AuthedImage src={outputUrl} alt={t('shared.generation.resultAlt')} />
+              : <AuthedVideo src={outputUrl} controls />
             }
           </CanvasToolFullOutputFrame>
         )}

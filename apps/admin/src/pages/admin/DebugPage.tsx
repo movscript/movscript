@@ -972,7 +972,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'default' }: { ic
           <Icon size={15} />
         </AppFeedbackText>
       </div>
-      <p className="mt-2 text-2xl font-semibold tracking-normal text-foreground">{value}</p>
+      <p className="mt-2 text-xl font-semibold tracking-normal text-foreground">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </AppStatusSurface>
   )

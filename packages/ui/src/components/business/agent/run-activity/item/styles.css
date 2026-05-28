@@ -1,4 +1,7 @@
 .ms-agent-run-activity-item {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
   padding: 6px 8px;
 }
 

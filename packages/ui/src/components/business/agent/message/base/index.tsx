@@ -50,6 +50,14 @@ export const AgentMessageBody = React.forwardRef<HTMLDivElement, React.HTMLAttri
 
 AgentMessageBody.displayName = "AgentMessageBody";
 
+export const AgentMessageHead = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-message__head", className)} {...props} />;
+  }
+);
+
+AgentMessageHead.displayName = "AgentMessageHead";
+
 export const AgentMessageMeta = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     return <div ref={ref} className={cn("ms-agent-cluster ms-agent-message__meta", className)} {...props} />;

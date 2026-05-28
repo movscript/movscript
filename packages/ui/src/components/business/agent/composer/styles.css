@@ -1,16 +1,16 @@
 .ms-agent-composer {
   gap: 8px;
-  margin: 0 clamp(14px, 3.2vw, 40px) 16px;
+  margin: 0 0 16px;
   border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
   border-radius: var(--ms-radius-md);
   background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
-  padding: 9px;
+  padding: 9px 0;
   box-shadow: var(--ms-shadow-md);
 }
 
 .ms-agent-shell--compact .ms-agent-composer {
-  margin: 0 12px 12px;
-  padding: 8px;
+  margin: 0 0 12px;
+  padding: 8px 0;
 }
 
 .ms-agent-composer:focus-within {
@@ -31,7 +31,7 @@
   padding: 4px 2px;
   font-family: var(--ms-font-sans);
   font-size: var(--ms-text-body);
-  line-height: 22px;
+  line-height: var(--ms-leading-body);
 }
 
 .ms-agent-composer__field:focus {

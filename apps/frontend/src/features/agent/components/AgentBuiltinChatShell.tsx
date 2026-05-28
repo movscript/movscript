@@ -4,10 +4,13 @@ import { AgentChatView } from '@/features/agent/components/AgentChatView'
 import { ConversationList } from '@/features/agent/components/AgentConversationList'
 import { useAgentBuiltinChatController } from '@/features/agent/presentation/useAgentBuiltinChatController'
 
+export type AgentChatHost = 'dock-panel' | 'floating-panel' | 'immersive'
+
 export interface AgentBuiltinChatShellProps {
   userId: string
   onCollapse: () => void
   showCollapse?: boolean
+  host?: AgentChatHost
   surface?: 'panel' | 'page'
   pageEmptyAccessory?: ReactNode
   pendingThreadIdToOpen?: string | null
@@ -18,6 +21,7 @@ export function AgentBuiltinChatShell({
   userId,
   onCollapse,
   showCollapse = true,
+  host,
   surface = 'panel',
   pageEmptyAccessory,
   pendingThreadIdToOpen,
@@ -40,9 +44,15 @@ export function AgentBuiltinChatShell({
     pendingThreadIdToOpen,
     onPendingThreadHandled,
   })
+  const resolvedHost = host ?? (surface === 'page' ? 'immersive' : 'dock-panel')
+  const resolvedSurface = resolvedHost === 'immersive' ? 'page' : 'panel'
 
   return (
-    <AgentShell density="compact" className={surface === 'page' ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}>
+    <AgentShell
+      density="compact"
+      data-agent-chat-host={resolvedHost}
+      className={resolvedHost === 'immersive' ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}
+    >
       {activeConversation ? (
         <AgentChatView
           key={activeConversation.id}
@@ -60,11 +70,12 @@ export function AgentBuiltinChatShell({
           onRestoreLocalThread={restoreLocalThread}
           archivedConversations={archivedConversations}
           onRestoreArchivedConversation={selectConversation}
-          surface={surface}
+          host={resolvedHost}
+          surface={resolvedSurface}
           pageEmptyAccessory={pageEmptyAccessory}
           externalTask={activeTask}
           pageToolRequestId={activeTask?.requestId}
-          showConversationControls={surface !== 'page'}
+          showConversationControls={resolvedHost !== 'immersive'}
         />
       ) : (
         <ConversationList

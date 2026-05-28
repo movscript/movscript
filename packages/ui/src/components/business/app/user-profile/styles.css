@@ -5,9 +5,9 @@
 
 .user-profile-header__title {
   color: var(--ms-color-foreground);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--ms-leading-section);
 }
 
 .user-profile-header__description {
@@ -37,9 +37,9 @@
 .user-profile-identity__name {
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--ms-leading-section);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
 import { ArrowRightIcon, Button, RefreshIcon } from "../../../../primitives";
@@ -89,4 +89,40 @@ export function WorkbenchProjectShell({
       {children}
     </div>
   );
+}
+
+export function WorkbenchProjectBody({
+  className,
+  padding = "normal",
+  scroll = "auto",
+  tone = "plain",
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  padding?: "normal" | "none";
+  scroll?: "auto" | "hidden" | "responsive";
+  tone?: "plain" | "muted";
+}) {
+  return (
+    <div
+      className={cn("workbench-project-body", className)}
+      data-padding={padding}
+      data-scroll={scroll}
+      data-tone={tone}
+      {...props}
+    />
+  );
+}
+
+export function WorkbenchProjectViewport({
+  className,
+  direction = "row",
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  direction?: "row" | "column";
+}) {
+  return <div className={cn("workbench-project-viewport", className)} data-direction={direction} {...props} />;
+}
+
+export function WorkbenchProjectPane({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("workbench-project-pane", className)} {...props} />;
 }

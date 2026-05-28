@@ -53,8 +53,9 @@
 }
 
 .canvas-resource-shelf-thumb-frame[data-compact="true"] {
-  width: 64px;
-  height: 64px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--ms-radius-sm);
 }
 
 .canvas-resource-shelf-thumb-frame[data-compact="false"] {

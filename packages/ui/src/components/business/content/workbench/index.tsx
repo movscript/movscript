@@ -364,14 +364,6 @@ function hierarchyOptionInitial(label: string) {
   return trimmed.slice(0, 1);
 }
 
-export function ContentWorkbenchBody({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
-  return (
-    <main className={cn("content-workbench-body", className)} {...props}>
-      {children}
-    </main>
-  );
-}
-
 export function ContentWorkbenchCommandCenter({
   sidebar,
   children,

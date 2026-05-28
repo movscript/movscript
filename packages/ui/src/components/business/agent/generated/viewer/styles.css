@@ -19,6 +19,11 @@
   margin-top: 8px;
 }
 
+.ms-agent-generated-viewer-panel__content {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
 .ms-agent-generated-viewer-panel__action,
 .ms-agent-generated-viewer-panel__badge {
   min-width: 0;

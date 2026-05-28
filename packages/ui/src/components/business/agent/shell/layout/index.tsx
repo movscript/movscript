@@ -110,6 +110,14 @@ export const AgentThread = React.forwardRef<HTMLDivElement, React.HTMLAttributes
 
 AgentThread.displayName = "AgentThread";
 
+export const AgentThreadFill = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <AgentThread ref={ref} className={cn("ms-agent-thread--fill", className)} {...props} />;
+  }
+);
+
+AgentThreadFill.displayName = "AgentThreadFill";
+
 export const AgentEmpty = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
     return (

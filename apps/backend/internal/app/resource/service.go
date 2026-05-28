@@ -50,7 +50,7 @@ type ListInput struct {
 	UserID   uint
 	OrgID    *uint
 	FolderID string
-	Shared   bool
+	Scope    string
 	Type     string
 	Query    string
 	Page     int
@@ -78,7 +78,6 @@ type UpdateInput struct {
 	UserID   uint
 	OrgID    *uint
 	ID       uint
-	IsShared *bool
 	FolderID *uint
 	Name     string
 }
@@ -194,9 +193,6 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 		return r, err
 	}
 	var updates domainresource.UpdateSpec
-	if input.IsShared != nil {
-		updates.IsShared = input.IsShared
-	}
 	if input.FolderID != nil {
 		if *input.FolderID == 0 {
 			updates.ClearFolder = true
@@ -314,7 +310,7 @@ func resourceListNamespace(userID uint, orgID *uint) string {
 func resourceListCacheKey(input ListInput, version int64) string {
 	values := url.Values{}
 	values.Set("folder_id", strings.TrimSpace(input.FolderID))
-	values.Set("shared", strconv.FormatBool(input.Shared))
+	values.Set("scope", strings.TrimSpace(input.Scope))
 	values.Set("type", strings.TrimSpace(input.Type))
 	values.Set("q", strings.TrimSpace(input.Query))
 	values.Set("page", strconv.Itoa(input.Page))

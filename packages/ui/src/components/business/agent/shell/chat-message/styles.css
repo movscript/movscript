@@ -88,6 +88,9 @@
 }
 
 .ms-agent-chat-result-stack {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
   margin-top: 8px;
 }
 

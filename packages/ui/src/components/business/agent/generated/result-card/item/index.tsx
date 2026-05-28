@@ -3,18 +3,10 @@
 import * as React from "react";
 
 import { cn } from "../../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../../surface-block";
 
-export const AgentGeneratedResultItem = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
-    return (
-      <AgentSurfaceBlock
-        ref={ref}
-        variant={variant}
-        className={cn("ms-agent-generated-result-item", className)}
-        {...props}
-      />
-    );
+export const AgentGeneratedResultItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-generated-result-item", className)} {...props} />;
   }
 );
 

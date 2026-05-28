@@ -1,40 +1,16 @@
-.production-orchestration-viewport {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-}
-
-.production-orchestration-main {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow-y: auto;
-  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
-}
-
-.production-orchestration-workspace-frame {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
-.production-orchestration-workspace-body {
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
 .production-orchestration-workspace-shell {
   display: flex;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
   padding: var(--ms-space-4);
 }
 
 .production-structure-workspace-layout {
   display: grid;
+  min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   grid-template-columns: 1fr;
@@ -595,9 +571,9 @@
 .production-scene-editor-header__title {
   margin: var(--ms-space-1) 0 0;
   color: var(--ms-color-foreground);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--ms-leading-section);
 }
 
 .production-scene-editor-header__description {
@@ -747,7 +723,7 @@
 
 @media (min-width: 1024px) {
   .production-structure-workspace-layout {
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
     align-items: stretch;
     gap: var(--ms-space-4);
     overflow: hidden;

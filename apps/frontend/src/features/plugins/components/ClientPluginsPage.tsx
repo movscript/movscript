@@ -15,15 +15,41 @@ import {
 } from '@/features/plugins/application/clientPlugins'
 import { MARKETPLACE_PLUGINS, type MarketplaceEntry } from '@/features/plugins/application/pluginMarketplace'
 import {
-  AppContentLayout,
   Button,
   Input,
+  PluginCardActions,
+  PluginCardCopy,
+  PluginCardDescription,
+  PluginCardDownloadMeta,
+  PluginCardFooter,
+  PluginCardHeader,
+  PluginCardId,
   PluginCardSurface,
+  PluginCardMeta,
+  PluginCardTagRow,
+  PluginCardTitle,
+  PluginDialogActions,
+  PluginDialogDescription,
+  PluginDialogOverlay,
   PluginDialogSurface,
+  PluginDialogTitle,
+  PluginEmptyActions,
   PluginEmptyState,
   PluginInlineMeta,
+  PluginMarketplaceToolbar,
+  PluginPageCardGrid,
+  PluginPageHeader,
+  PluginPageHeaderActions,
+  PluginPageHeaderCopy,
+  PluginPageHeaderInner,
+  PluginPageHeaderTitleRow,
+  PluginPageLayout,
+  PluginPageScrollBody,
+  PluginPageTabBar,
   PluginStateBanner,
   PluginStatusMeta,
+  PluginSearchField,
+  PluginSearchIconSlot,
   PluginTabGroup,
   PluginTagMeta,
   PluginToneText,
@@ -58,13 +84,13 @@ function InstallURLDialog({ onInstalled, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <PluginDialogOverlay onClick={onClose}>
       <PluginDialogSurface
         className="mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="type-body font-semibold text-foreground mb-1">{t('plugins.installFromUrlTitle')}</h2>
-        <p className="type-label text-muted-foreground mb-4">{t('plugins.installFromUrlDescription')}</p>
+        <PluginDialogTitle>{t('plugins.installFromUrlTitle')}</PluginDialogTitle>
+        <PluginDialogDescription>{t('plugins.installFromUrlDescription')}</PluginDialogDescription>
         <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -79,15 +105,15 @@ function InstallURLDialog({ onInstalled, onClose }: {
             {error}
           </PluginToneText>
         )}
-        <div className="flex justify-end gap-2">
+        <PluginDialogActions>
           <Button size="sm" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
           <Button size="sm" onClick={handleInstall} disabled={loading || !url.trim()}>
             {loading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Download size={14} className="mr-1.5" />}
             {loading ? t('plugins.installing') : t('plugins.install')}
           </Button>
-        </div>
+        </PluginDialogActions>
       </PluginDialogSurface>
-    </div>
+    </PluginDialogOverlay>
   )
 }
 
@@ -101,14 +127,14 @@ function PluginCard({ plugin, onRemove, onOpen }: {
   const { t } = useTranslation()
   return (
     <PluginCardSurface>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="type-body font-semibold text-foreground truncate">{plugin.name}</p>
-          <p className="type-label text-muted-foreground mt-0.5">
+      <PluginCardHeader>
+        <PluginCardCopy>
+          <PluginCardTitle>{plugin.name}</PluginCardTitle>
+          <PluginCardMeta>
             {plugin.author ? `${plugin.author} · ` : ''}v{plugin.version}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
+          </PluginCardMeta>
+        </PluginCardCopy>
+        <PluginCardActions>
           {plugin.homepage && (
             <Button size="icon-sm" variant="ghost" asChild>
               <a href={plugin.homepage} target="_blank" rel="noopener noreferrer">
@@ -119,20 +145,20 @@ function PluginCard({ plugin, onRemove, onOpen }: {
           <Button size="icon-sm" variant="ghost" tone="danger" onClick={onRemove}>
             <Trash2 size={14} />
           </Button>
-        </div>
-      </div>
+        </PluginCardActions>
+      </PluginCardHeader>
 
       {plugin.description && (
-        <p className="type-label text-muted-foreground leading-relaxed">{plugin.description}</p>
+        <PluginCardDescription>{plugin.description}</PluginCardDescription>
       )}
 
-      <div className="flex items-center justify-between mt-auto pt-1">
-        <p className="type-caption text-muted-foreground font-mono truncate max-w-[160px]">{plugin.id}</p>
+      <PluginCardFooter>
+        <PluginCardId>{plugin.id}</PluginCardId>
         <Button size="sm" onClick={onOpen}>
           <Play size={12} className="mr-1.5" />
           {t('plugins.open')}
         </Button>
-      </div>
+      </PluginCardFooter>
     </PluginCardSurface>
   )
 }
@@ -169,19 +195,19 @@ function MarketplaceView({ installedIds, onInstall }: {
   }
 
   return (
-    <div className="p-4 overflow-y-auto h-full">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative max-w-sm w-full">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+    <PluginPageScrollBody>
+      <PluginMarketplaceToolbar>
+        <PluginSearchField>
+          <PluginSearchIconSlot><Search size={14} /></PluginSearchIconSlot>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('plugins.searchPlaceholder')}
             className="pl-8 type-body"
           />
-        </div>
+        </PluginSearchField>
         <p className="type-label text-muted-foreground">{t('plugins.marketplaceNote')}</p>
-      </div>
+      </PluginMarketplaceToolbar>
 
       {filtered.length === 0 ? (
         <PluginEmptyState
@@ -191,17 +217,17 @@ function MarketplaceView({ installedIds, onInstall }: {
           className="h-[320px]"
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <PluginPageCardGrid>
           {filtered.map((entry) => {
             const isInstalled = installedIds.has(entry.id) || justInstalled.has(entry.id)
             const isInstalling = installing === entry.id
             return (
               <PluginCardSurface key={entry.id} className="gap-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="type-body font-semibold text-foreground">{entry.name}</p>
-                    <p className="type-label text-muted-foreground mt-0.5">{entry.author} · v{entry.version}</p>
-                  </div>
+                <PluginCardHeader>
+                  <PluginCardCopy>
+                    <PluginCardTitle>{entry.name}</PluginCardTitle>
+                    <PluginCardMeta>{entry.author} · v{entry.version}</PluginCardMeta>
+                  </PluginCardCopy>
                   {isInstalled ? (
                     <PluginStatusMeta>
                       {t('plugins.alreadyInstalled')}
@@ -214,24 +240,24 @@ function MarketplaceView({ installedIds, onInstall }: {
                       }
                     </Button>
                   )}
-                </div>
-                <p className="type-label text-muted-foreground leading-relaxed">{entry.description}</p>
-                <div className="flex items-center gap-2 mt-auto pt-1">
-                  <div className="flex flex-wrap gap-1">
+                </PluginCardHeader>
+                <PluginCardDescription>{entry.description}</PluginCardDescription>
+                <PluginCardFooter>
+                  <PluginCardTagRow>
                     {entry.tags.map((tag) => (
                       <PluginTagMeta key={tag}>{tag}</PluginTagMeta>
                     ))}
-                  </div>
-                  <span className="ml-auto type-caption text-muted-foreground whitespace-nowrap">
+                  </PluginCardTagRow>
+                  <PluginCardDownloadMeta>
                     {entry.downloads.toLocaleString()} {t('plugins.downloads')}
-                  </span>
-                </div>
+                  </PluginCardDownloadMeta>
+                </PluginCardFooter>
               </PluginCardSurface>
             )
           })}
-        </div>
+        </PluginPageCardGrid>
       )}
-    </div>
+    </PluginPageScrollBody>
   )
 }
 
@@ -288,21 +314,21 @@ export default function ClientPluginsPage() {
   }
 
   return (
-    <AppContentLayout variant="workspace" padding="none" scroll="hidden" contentClassName="flex h-full flex-col">
+    <PluginPageLayout>
       {showURLDialog && <InstallURLDialog onInstalled={handleInstalled} onClose={() => setShowURLDialog(false)} />}
 
-      <header className="shrink-0 border-b border-border bg-background px-5 py-3">
-        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+      <PluginPageHeader>
+        <PluginPageHeaderInner>
+          <PluginPageHeaderCopy>
+            <PluginPageHeaderTitleRow>
               <Blocks size={18} />
               <h1 className="type-title font-semibold text-foreground">{t('plugins.title')}</h1>
-            </div>
+            </PluginPageHeaderTitleRow>
             <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">
               管理应用插件、画布节点、工具页，以及可安装到 Agent 的 Skills 和工具扩展。
             </p>
-          </div>
-          <div className="flex items-center gap-2">
+          </PluginPageHeaderCopy>
+          <PluginPageHeaderActions>
             <Input
               ref={fileInputRef}
               type="file"
@@ -320,9 +346,9 @@ export default function ClientPluginsPage() {
               <Download size={14} className="mr-1.5" />
               {t('plugins.installFromUrl')}
             </Button>
-          </div>
-        </div>
-      </header>
+          </PluginPageHeaderActions>
+        </PluginPageHeaderInner>
+      </PluginPageHeader>
 
       <AgentConsoleNav compact />
 
@@ -336,7 +362,7 @@ export default function ClientPluginsPage() {
         </PluginStateBanner>
       )}
 
-      <div className="shrink-0 border-b border-border px-5 py-2">
+      <PluginPageTabBar>
         <PluginTabGroup>
           <Button
             type="button"
@@ -363,7 +389,7 @@ export default function ClientPluginsPage() {
             {t('plugins.marketplace')}
           </Button>
         </PluginTabGroup>
-      </div>
+      </PluginPageTabBar>
 
       {migrationNote && (
         <PluginStateBanner
@@ -375,21 +401,18 @@ export default function ClientPluginsPage() {
       )}
 
       {tab === 'marketplace' && (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <MarketplaceView installedIds={installedIds} onInstall={handleMarketplaceInstall} />
-        </div>
+        <MarketplaceView installedIds={installedIds} onInstall={handleMarketplaceInstall} />
       )}
 
       {tab === 'installed' && (
-        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+        <PluginPageScrollBody>
           {plugins.length === 0 ? (
             <PluginEmptyState
               icon={Plus}
               title={t('plugins.empty')}
               detail={t('plugins.emptyHint')}
-              className="h-full"
               action={(
-                <div className="flex flex-wrap justify-center gap-2">
+                <PluginEmptyActions>
                   <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
                     <Upload size={14} className="mr-1.5" />
                     {t('plugins.installFromFile')}
@@ -402,11 +425,11 @@ export default function ClientPluginsPage() {
                     <Store size={14} className="mr-1.5" />
                     {t('plugins.browseMarketplace')}
                   </Button>
-                </div>
+                </PluginEmptyActions>
               )}
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <PluginPageCardGrid>
               {plugins.map((plugin) => (
                 <PluginCard
                   key={plugin.id}
@@ -415,10 +438,10 @@ export default function ClientPluginsPage() {
                   onOpen={() => navigate(`/tools/plugin/${encodeURIComponent(plugin.id)}`)}
                 />
               ))}
-            </div>
+            </PluginPageCardGrid>
           )}
-        </div>
+        </PluginPageScrollBody>
       )}
-    </AppContentLayout>
+    </PluginPageLayout>
   )
 }

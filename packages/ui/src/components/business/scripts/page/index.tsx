@@ -21,15 +21,15 @@ export function ScriptWorkspaceShell({
   ...props
 }: ScriptWorkspaceShellProps) {
   return (
-    <div className={cn("script-workbench-shell h-full overflow-auto bg-muted/30", className)} {...props}>
-      <div className={cn("script-workbench-frame min-h-full p-4", frameClassName)}>{children}</div>
+    <div className={cn("script-workbench-shell", className)} {...props}>
+      <div className={cn("script-workbench-frame", frameClassName)}>{children}</div>
     </div>
   );
 }
 
 export function ScriptWorkspaceLayout({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("script-workbench-layout min-h-0 bg-background", className)} {...props}>
+    <div className={cn("script-workbench-layout", className)} {...props}>
       {children}
     </div>
   );
@@ -37,7 +37,7 @@ export function ScriptWorkspaceLayout({ children, className, ...props }: HTMLAtt
 
 export function ScriptWorkspaceMain({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
-    <main className={cn("flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className)} {...props}>
+    <main className={cn("script-workbench-main", className)} {...props}>
       {children}
     </main>
   );
@@ -45,10 +45,14 @@ export function ScriptWorkspaceMain({ children, className, ...props }: HTMLAttri
 
 export function ScriptWorkspaceInspector({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
-    <aside className={cn("script-workbench-inspector min-h-0 border-l border-border", className)} {...props}>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
+    <aside className={cn("script-workbench-inspector", className)} {...props}>
+      <div className="script-workbench-inspector__body">{children}</div>
     </aside>
   );
+}
+
+export function ScriptWorkspaceDetailContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("script-workbench-detail-content", className)} {...props} />;
 }
 
 export interface ScriptWorkspaceEmptySelectionProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {

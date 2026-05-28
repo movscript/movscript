@@ -114,6 +114,12 @@ export function CanvasResourceShelfResourceCard({
   idPrefix?: ReactNode;
   onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
 }) {
+  const compactMeta = compact ? (
+    <CanvasResourceShelfCardFooter
+      idLabel={<>{idPrefix}{item.id}</>}
+      meta={item.selected && selectedLabel ? selectedLabel : item.footerMeta}
+    />
+  ) : null;
   return (
     <CanvasResourceShelfCard
       draggable={!!onDragStart}
@@ -127,22 +133,27 @@ export function CanvasResourceShelfResourceCard({
           {item.media}
         </CanvasResourceShelfThumbFrame>
         <CanvasResourceShelfCardContent>
-          <CanvasResourceShelfCardMetaRow>
-            <CanvasResourceShelfTypeBadge>{item.type}</CanvasResourceShelfTypeBadge>
-            {item.selected && selectedLabel ? <CanvasResourceShelfSelectedBadge>{selectedLabel}</CanvasResourceShelfSelectedBadge> : null}
-          </CanvasResourceShelfCardMetaRow>
+          {!compact ? (
+            <CanvasResourceShelfCardMetaRow>
+              <CanvasResourceShelfTypeBadge>{item.type}</CanvasResourceShelfTypeBadge>
+              {item.selected && selectedLabel ? <CanvasResourceShelfSelectedBadge>{selectedLabel}</CanvasResourceShelfSelectedBadge> : null}
+            </CanvasResourceShelfCardMetaRow>
+          ) : null}
           <CanvasResourceShelfResourceName>{item.name}</CanvasResourceShelfResourceName>
           {item.description ? (
             <CanvasResourceShelfResourceDescription>
               {item.description}
             </CanvasResourceShelfResourceDescription>
           ) : null}
+          {compactMeta}
         </CanvasResourceShelfCardContent>
       </CanvasResourceShelfCardBody>
-      <CanvasResourceShelfCardFooter
-        idLabel={<>{idPrefix}{item.id}</>}
-        meta={item.selected && dragMetaLabel ? dragMetaLabel : item.footerMeta}
-      />
+      {!compact ? (
+        <CanvasResourceShelfCardFooter
+          idLabel={<>{idPrefix}{item.id}</>}
+          meta={item.selected && dragMetaLabel ? dragMetaLabel : item.footerMeta}
+        />
+      ) : null}
     </CanvasResourceShelfCard>
   );
 }

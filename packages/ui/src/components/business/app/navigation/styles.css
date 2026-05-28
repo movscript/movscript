@@ -12,6 +12,7 @@
 
 .app-top-controls {
   display: flex;
+  height: 34px;
   min-width: 0;
   flex-shrink: 0;
   align-items: center;
@@ -24,6 +25,12 @@
 
 .app-top-control-button {
   color: var(--ms-color-muted-foreground);
+}
+
+.app-top-control-button--mode-switch {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .app-top-control-button:hover:not(:disabled),
@@ -78,6 +85,10 @@
 
 .app-top-project-menu {
   width: 16rem;
+}
+
+.app-top-selection-menu {
+  width: 12rem;
 }
 
 .app-top-user-menu {

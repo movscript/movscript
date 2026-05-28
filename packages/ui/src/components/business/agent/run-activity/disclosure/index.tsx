@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock } from "../../surface-block";
 
 export interface AgentRunActivityDisclosureProps extends Omit<React.DetailsHTMLAttributes<HTMLDetailsElement>, "title"> {
   title: React.ReactNode;
@@ -23,19 +22,17 @@ export function AgentRunActivityDisclosure({
   ...props
 }: AgentRunActivityDisclosureProps) {
   return (
-    <AgentSurfaceBlock asChild className={cn("ms-agent-run-activity", className)}>
-      <details {...props}>
-        <summary className="ms-agent-run-activity__summary">
-          <AgentRunActivityTitle icon={icon}>{title}</AgentRunActivityTitle>
-          <AgentRunActivityMeta>
-            {action}
-            {status}
-            {summary ? <AgentRunActivitySummaryText>{summary}</AgentRunActivitySummaryText> : null}
-          </AgentRunActivityMeta>
-        </summary>
-        <div className="ms-agent-run-activity__content">{children}</div>
-      </details>
-    </AgentSurfaceBlock>
+    <details className={cn("ms-agent-run-activity", className)} {...props}>
+      <summary className="ms-agent-run-activity__summary">
+        <AgentRunActivityTitle icon={icon}>{title}</AgentRunActivityTitle>
+        <AgentRunActivityMeta>
+          {action}
+          {status}
+          {summary ? <AgentRunActivitySummaryText>{summary}</AgentRunActivitySummaryText> : null}
+        </AgentRunActivityMeta>
+      </summary>
+      <div className="ms-agent-run-activity__content">{children}</div>
+    </details>
   );
 }
 
@@ -76,5 +73,5 @@ export function AgentRunActivityEmpty({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <AgentSurfaceBlock variant="subtle" className={cn("ms-agent-run-activity-empty", className)} {...props} />;
+  return <div className={cn("ms-agent-run-activity-empty", className)} {...props} />;
 }

@@ -19,6 +19,7 @@ import {
   SelectionMode,
   ConnectionMode,
   MarkerType,
+  PanOnScrollMode,
   ViewportPortal,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -83,7 +84,6 @@ import {
 } from '@/features/canvas/runtime/runtimeValues'
 import {
   CanvasDropOverlay,
-  CanvasEditorActionButton,
   CanvasEditorChrome,
   CanvasEditorChromeContent,
   CanvasEditorContent,
@@ -180,6 +180,156 @@ const nodeTypes = {
 
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
 const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
+const CANVAS_GRID_MIN_ZOOM = 0.65
+const CANVAS_DEBUG_STORAGE_KEY = 'movscript.canvasDebug'
+
+type CanvasDebugBooleanKey = 'nodes' | 'grid' | 'media' | 'images' | 'videos' | 'shelf' | 'edges' | 'shadows' | 'controls' | 'minimap' | 'visibleOnly'
+
+type CanvasDebugOptions = Record<CanvasDebugBooleanKey, boolean> & {
+  enabled: boolean
+  source: string
+}
+
+const DEFAULT_CANVAS_DEBUG_OPTIONS: CanvasDebugOptions = {
+  enabled: false,
+  source: 'default',
+  nodes: true,
+  grid: true,
+  media: true,
+  images: true,
+  videos: true,
+  shelf: true,
+  edges: true,
+  shadows: true,
+  controls: true,
+  minimap: true,
+  visibleOnly: true,
+}
+
+const CANVAS_DEBUG_KEY_ALIASES: Record<string, CanvasDebugBooleanKey> = {
+  node: 'nodes',
+  nodes: 'nodes',
+  grid: 'grid',
+  media: 'media',
+  image: 'images',
+  images: 'images',
+  img: 'images',
+  video: 'videos',
+  videos: 'videos',
+  shelf: 'shelf',
+  resources: 'shelf',
+  resourceShelf: 'shelf',
+  edges: 'edges',
+  edge: 'edges',
+  shadows: 'shadows',
+  shadow: 'shadows',
+  controls: 'controls',
+  minimap: 'minimap',
+  miniMap: 'minimap',
+  visible: 'visibleOnly',
+  visibleOnly: 'visibleOnly',
+  virtualization: 'visibleOnly',
+}
+
+function parseCanvasDebugBool(value: string | null | undefined, fallback: boolean) {
+  if (value == null || value === '') return fallback
+  const normalized = value.trim().toLowerCase()
+  if (['1', 'true', 'on', 'yes', 'y', 'enable', 'enabled'].includes(normalized)) return true
+  if (['0', 'false', 'off', 'no', 'n', 'disable', 'disabled'].includes(normalized)) return false
+  return fallback
+}
+
+function applyCanvasDebugSpec(options: CanvasDebugOptions, raw: string | null | undefined, source: string) {
+  if (raw == null) return
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    options.enabled = true
+    options.source = source
+    return
+  }
+  const normalized = trimmed.toLowerCase()
+  if (['0', 'false', 'off', 'no', 'disabled'].includes(normalized)) {
+    options.enabled = false
+    options.source = source
+    return
+  }
+  options.enabled = true
+  options.source = source
+  if (['1', 'true', 'on', 'yes', 'enabled'].includes(normalized)) return
+  for (const token of trimmed.split(/[,&;]/)) {
+    const part = token.trim()
+    if (!part) continue
+    const [rawKey, rawValue] = part.split(/[:=]/, 2)
+    const key = CANVAS_DEBUG_KEY_ALIASES[rawKey.trim()]
+    if (!key) continue
+    options[key] = parseCanvasDebugBool(rawValue, true)
+  }
+}
+
+function parseCanvasDebugOptions(search: string): CanvasDebugOptions {
+  const options: CanvasDebugOptions = { ...DEFAULT_CANVAS_DEBUG_OPTIONS }
+  try {
+    applyCanvasDebugSpec(options, window.localStorage.getItem(CANVAS_DEBUG_STORAGE_KEY), 'localStorage')
+  } catch {
+    // Ignore blocked storage in restricted browser contexts.
+  }
+  const params = new URLSearchParams(search)
+  if (params.has('canvasDebug')) {
+    applyCanvasDebugSpec(options, params.get('canvasDebug'), 'query')
+  }
+  for (const [param, value] of params.entries()) {
+    if (!param.startsWith('canvasDebug') || param === 'canvasDebug') continue
+    const rawKey = param.slice('canvasDebug'.length)
+    const key = CANVAS_DEBUG_KEY_ALIASES[rawKey.charAt(0).toLowerCase() + rawKey.slice(1)]
+    if (!key) continue
+    options.enabled = true
+    options.source = 'query'
+    options[key] = parseCanvasDebugBool(value, true)
+  }
+  return options
+}
+
+function canvasRenderDiagnosticsEnabled(debugOptions?: CanvasDebugOptions) {
+  return import.meta.env.DEV && (import.meta.env.VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS === '1' || !!debugOptions?.enabled)
+}
+
+function compactCanvasDebugOptions(options: CanvasDebugOptions) {
+  if (!options.enabled) return 'off'
+  const flags = (Object.keys(DEFAULT_CANVAS_DEBUG_OPTIONS) as Array<keyof CanvasDebugOptions>)
+    .filter((key): key is CanvasDebugBooleanKey => typeof options[key] === 'boolean')
+    .map((key) => `${key}=${options[key] ? '1' : '0'}`)
+    .join(',')
+  return `${options.source}:${flags}`
+}
+
+function compactCanvasRect(rect: DOMRect) {
+  return `${Math.round(rect.width)}x${Math.round(rect.height)}+${Math.round(rect.left)}+${Math.round(rect.top)}`
+}
+
+function compactCanvasResource(resource: RawResource | undefined) {
+  if (!resource) return 'none'
+  return `#${resource.ID}:${resource.type}:${resource.size ?? 0}:${resource.name}`
+}
+
+function compactCanvasMediaSrc(src: string | undefined) {
+  if (!src) return 'empty'
+  try {
+    const url = new URL(src, window.location.origin)
+    return `${url.pathname}${url.search}`
+  } catch {
+    return src.length > 80 ? `${src.slice(0, 80)}...` : src
+  }
+}
+
+function compactCanvasMediaElement(element: HTMLImageElement | HTMLVideoElement) {
+  const rect = element.getBoundingClientRect()
+  const flowNode = element.closest<HTMLElement>('.react-flow__node')
+  const owner = flowNode?.dataset.id ? `node:${flowNode.dataset.id}` : element.closest('.canvas-resource-shelf-card') ? 'shelf' : 'other'
+  const natural = element instanceof HTMLVideoElement
+    ? `${element.videoWidth}x${element.videoHeight}`
+    : `${element.naturalWidth}x${element.naturalHeight}`
+  return `${owner}:${compactCanvasRect(rect)}:natural=${natural}:${compactCanvasMediaSrc(element.currentSrc || element.src)}`
+}
 
 interface CanvasWorkspaceProps {
   canvasId: number | string
@@ -194,6 +344,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const { search } = useLocation()
   const { screenToFlowPosition, fitView } = useReactFlow()
   const id = String(canvasId)
+  const canvasDebug = useMemo(() => parseCanvasDebugOptions(search), [search])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -205,6 +356,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const toggleLibraryCollapsed = useCallback(() => setLibraryCollapsed((value) => !value), [])
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
+  const viewportZoomRef = useRef(1)
+  const [gridZoomEligible, setGridZoomEligible] = useState(true)
+  const renderDiagnosticsTimerRef = useRef<number | null>(null)
 
   // Workflow input dialog
   const [runDialogOpen, setRunDialogOpen] = useState(false)
@@ -215,6 +369,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	  const [runHistoryPage, setRunHistoryPage] = useState(1)
 	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
 	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
+  const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(false)
+  const toggleWorkflowPanelCollapsed = useCallback(() => setWorkflowPanelCollapsed((value) => !value), [])
 	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
   const [runtimeStarting, setRuntimeStarting] = useState(false)
 
@@ -766,46 +922,56 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     onNodeDragStop(event, node)
   }, [onNodeDragStop])
 
-  const nodeById = new Map(nodes.map((node) => [node.id, node]))
-  const nodesWithHandlers = nodes.map((n) => {
-    const data = n.data as unknown as CanvasNodeData
-    const referenceResources: RawResource[] = []
-    const seenReferenceResourceIds = new Set<number>()
-    edges.forEach((edge) => {
-      if (edge.target !== n.id) return
-      const targetPort = portForHandle(n, 'target', edge.targetHandle)
-      if (!targetPort || !['resource', 'image', 'video'].includes(targetPort.type)) return
-      const sourceNode = nodeById.get(edge.source)
-      const sourceData = sourceNode?.data as Partial<CanvasNodeData> | undefined
-      const resource = sourceData?.resource ?? (sourceData?.resourceId ? canvasNodeResourceById.get(sourceData.resourceId) : undefined)
-      if (!resource || seenReferenceResourceIds.has(resource.ID)) return
-      seenReferenceResourceIds.add(resource.ID)
-      referenceResources.push(resource)
-    })
-    const plugin = n.type === 'plugin_card' && data.pluginId
-      ? clientPlugins.find((item) => item.id === data.pluginId)
-      : undefined
-    return {
-      ...n,
-      data: {
-        ...n.data,
-        canvasId: id,
-        rfNodeId: n.id,
-        availableResources: canvasNodeResources,
-        referenceResources,
-        ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
-        onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
-        onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
-        onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
-        onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
-        onUpdateModelId: (modelId: string, modelDbId?: number) => updateNodeData(n.id, { modelId, modelDbId }),
-        onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
-        onUpdateParams: (params: Record<string, unknown>) => updateNodeData(n.id, { params }),
-        onApprove: () => handleApprove(n.id),
-        onReject: () => handleReject(n.id),
+  const handleViewportMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { zoom: number }) => {
+    viewportZoomRef.current = viewport.zoom
+    const nextGridZoomEligible = viewport.zoom >= CANVAS_GRID_MIN_ZOOM
+    setGridZoomEligible((current) => current === nextGridZoomEligible ? current : nextGridZoomEligible)
+  }, [])
+
+  const nodesWithHandlers = useMemo(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node]))
+    const pluginById = new Map(clientPlugins.map((plugin) => [plugin.id, plugin]))
+    return nodes.map((n) => {
+      const data = n.data as unknown as CanvasNodeData
+      const referenceResources: RawResource[] = []
+      const seenReferenceResourceIds = new Set<number>()
+      edges.forEach((edge) => {
+        if (edge.target !== n.id) return
+        const targetPort = portForHandle(n, 'target', edge.targetHandle)
+        if (!targetPort || !['resource', 'image', 'video'].includes(targetPort.type)) return
+        const sourceNode = nodeById.get(edge.source)
+        const sourceData = sourceNode?.data as Partial<CanvasNodeData> | undefined
+        const resource = sourceData?.resource ?? (sourceData?.resourceId ? canvasNodeResourceById.get(sourceData.resourceId) : undefined)
+        if (!resource || seenReferenceResourceIds.has(resource.ID)) return
+        seenReferenceResourceIds.add(resource.ID)
+        referenceResources.push(resource)
+      })
+      const plugin = n.type === 'plugin_card' && data.pluginId
+        ? pluginById.get(data.pluginId)
+        : undefined
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          canvasId: id,
+          rfNodeId: n.id,
+          availableResources: canvasNodeResources,
+          referenceResources,
+          canvasDebug,
+          ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
+          onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
+          onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
+          onUpdatePrompt: (prompt: string) => updateNodeData(n.id, { prompt }),
+          onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
+          onUpdateModelId: (modelId: string, modelDbId?: number) => updateNodeData(n.id, { modelId, modelDbId }),
+          onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
+          onUpdateParams: (params: Record<string, unknown>) => updateNodeData(n.id, { params }),
+          onApprove: () => handleApprove(n.id),
+          onReject: () => handleReject(n.id),
+        }
       }
-    }
-  })
+    })
+  }, [canvasDebug, canvasNodeResourceById, canvasNodeResources, clientPlugins, edges, id, nodes, runLocalPluginNode, runNode, updateNodeData])
 
   const topLevelSelectedNodes = useMemo(
     () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n))),
@@ -841,6 +1007,90 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
   const savingCanvas = save.isPending || autoSaveState === 'saving'
   const shouldBlockCanvasExit = hasUnsavedChanges || savingCanvas || runtimeStarting || runningCount > 0
+  const showCanvasGrid = canvasDebug.grid && gridZoomEligible
+  const renderedNodes = useMemo(() => canvasDebug.nodes ? nodesWithHandlers : [], [canvasDebug.nodes, nodesWithHandlers])
+  const visibleEdges = useMemo(() => canvasDebug.nodes && canvasDebug.edges ? edges : [], [canvasDebug.edges, canvasDebug.nodes, edges])
+  const activeCanvasResourceIds = useMemo(() => {
+    const ids = new Set<number>()
+    nodes.forEach((node) => {
+      const data = node.data as Partial<CanvasNodeData>
+      if (data.resource?.ID) ids.add(data.resource.ID)
+      if (data.resourceId) ids.add(data.resourceId)
+    })
+    return ids
+  }, [nodes])
+
+  useEffect(() => {
+    if (!canvasRenderDiagnosticsEnabled(canvasDebug)) return
+    if (renderDiagnosticsTimerRef.current !== null) {
+      window.clearTimeout(renderDiagnosticsTimerRef.current)
+    }
+    renderDiagnosticsTimerRef.current = window.setTimeout(() => {
+      renderDiagnosticsTimerRef.current = null
+      const root = canvasPaneRef.current
+      const flow = root?.querySelector<HTMLElement>('.react-flow')
+      const viewport = root?.querySelector<HTMLElement>('.react-flow__viewport')
+      const domNodes = root?.querySelectorAll('.react-flow__node').length ?? 0
+      const domEdges = root?.querySelectorAll('.react-flow__edge').length ?? 0
+      const domVideos = root?.querySelectorAll('video').length ?? 0
+      const domImages = root?.querySelectorAll('img').length ?? 0
+      const domImageSample = Array.from(root?.querySelectorAll('img') ?? [])
+        .slice(0, 12)
+        .map((element) => compactCanvasMediaElement(element))
+        .join('|') || 'none'
+      const domVideoSample = Array.from(root?.querySelectorAll('video') ?? [])
+        .slice(0, 6)
+        .map((element) => compactCanvasMediaElement(element))
+        .join('|') || 'none'
+      const videoNodes = nodes.filter((node) => node.type === 'video' || (node.data as Partial<CanvasNodeData>)?.resource?.type === 'video')
+      const imageNodes = nodes.filter((node) => node.type === 'image' || (node.data as Partial<CanvasNodeData>)?.resource?.type === 'image')
+      const mediaWithResources = nodes
+        .map((node) => ({ node, resource: (node.data as Partial<CanvasNodeData>)?.resource }))
+        .filter((item) => item.resource?.type === 'image' || item.resource?.type === 'video')
+      const rootRect = root?.getBoundingClientRect()
+      const flowRect = flow?.getBoundingClientRect()
+      const viewportTransform = viewport ? window.getComputedStyle(viewport).transform : 'none'
+      const firstMedia = mediaWithResources.slice(0, 8).map((item) => `${item.node.id}:${compactCanvasResource(item.resource)}`).join('|') || 'none'
+
+      console.info(
+        [
+          `[canvas:render] id=${id}`,
+          `canvasType=${canvasType}`,
+          `viewport=${window.innerWidth}x${window.innerHeight}`,
+          `dpr=${window.devicePixelRatio.toFixed(2)}`,
+          `pane=${rootRect ? compactCanvasRect(rootRect) : 'none'}`,
+          `flow=${flowRect ? compactCanvasRect(flowRect) : 'none'}`,
+          `nodes=${nodes.length}`,
+          `edges=${edges.length}`,
+          `renderedNodes=${renderedNodes.length}`,
+          `renderedEdges=${visibleEdges.length}`,
+          `domNodes=${domNodes}`,
+          `domEdges=${domEdges}`,
+          `images=${imageNodes.length}/${domImages}`,
+          `videos=${videoNodes.length}/${domVideos}`,
+          `resources=${canvasNodeResources.length}`,
+          `selected=${selectedNodeIds.length}`,
+          `running=${runningCount}`,
+          `libraryCollapsed=${libraryCollapsed}`,
+          `workflowCollapsed=${workflowPanelCollapsed}`,
+          `zoom=${viewportZoomRef.current.toFixed(3)}`,
+          `grid=${showCanvasGrid ? 'on' : 'off'}`,
+          `debug=${compactCanvasDebugOptions(canvasDebug)}`,
+          `transform=${viewportTransform}`,
+        ].join(' '),
+      )
+      console.info(`[canvas:render] media-sample id=${id} items=${firstMedia}`)
+      console.info(`[canvas:render] image-dom-sample id=${id} items=${domImageSample}`)
+      console.info(`[canvas:render] video-dom-sample id=${id} items=${domVideoSample}`)
+    }, 250)
+
+    return () => {
+      if (renderDiagnosticsTimerRef.current !== null) {
+        window.clearTimeout(renderDiagnosticsTimerRef.current)
+        renderDiagnosticsTimerRef.current = null
+      }
+    }
+  }, [canvasDebug, canvasId, canvasNodeResources.length, canvasType, edges.length, id, libraryCollapsed, nodes, renderedNodes.length, runningCount, selectedNodeIds.length, showCanvasGrid, visibleEdges.length, workflowPanelCollapsed])
 
   const requestCanvasExit = useCallback(async (leave: () => void) => {
     if (runningCount > 0 || runtimeStarting) {
@@ -895,12 +1145,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       saving: savingCanvas,
 	      startingRun: runtimeStarting,
       libraryCollapsed,
+      workflowPanelCollapsed,
       onNameChange: setCanvasName,
       onToggleLibrary: toggleLibraryCollapsed,
+      onToggleWorkflowPanel: toggleWorkflowPanelCollapsed,
       onRun: handleRunWorkflow,
       onSave: () => save.mutate(),
     })
-  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
+  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, toggleWorkflowPanelCollapsed, useAppHeader, workflowPanelCollapsed, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
 
   useEffect(() => {
     if (!useAppHeader) return
@@ -981,18 +1233,31 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             </CanvasEditorTypeBadge>
           )}
 
-          <CanvasEditorActionButton onClick={handleRunWorkflow} disabled={runtimeStarting}>
-            <Play size={12} /> {runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
-          </CanvasEditorActionButton>
+          <CanvasEditorIconButton
+            onClick={handleRunWorkflow}
+            disabled={runtimeStarting}
+            title={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
+            aria-label={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
+          >
+            {runtimeStarting ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Play size={14} />}
+          </CanvasEditorIconButton>
 
-          <CanvasEditorActionButton onClick={() => save.mutate()} disabled={savingCanvas} loading={savingCanvas} variant="outline">
-            {!savingCanvas ? <Save size={12} /> : null}
-            {savingCanvas
+          <CanvasEditorIconButton
+            onClick={() => save.mutate()}
+            disabled={savingCanvas}
+            title={savingCanvas
               ? t('common.saving')
               : hasUnsavedChanges
                 ? t('canvas.editor.unsaved', { defaultValue: '未保存' })
                 : t('common.save')}
-          </CanvasEditorActionButton>
+            aria-label={savingCanvas
+              ? t('common.saving')
+              : hasUnsavedChanges
+                ? t('canvas.editor.unsaved', { defaultValue: '未保存' })
+                : t('common.save')}
+          >
+            {savingCanvas ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Save size={14} />}
+          </CanvasEditorIconButton>
 
           {embedded && onClose && (
             <CanvasEditorIconButton onClick={() => void requestCanvasExit(onClose)}>
@@ -1146,9 +1411,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             onDragLeave={onDragLeave}
           >
             <ReactFlow
-              className={canvasFlowClassName}
-              nodes={nodesWithHandlers}
-              edges={edges}
+              className={cn(canvasFlowClassName, !canvasDebug.shadows && 'canvas-flow--debug-no-shadows')}
+              nodes={renderedNodes}
+              edges={visibleEdges}
               onNodesChange={handleNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -1159,6 +1424,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               onNodeDragStop={handleNodeDragStop}
               onPaneClick={() => setMenu(null)}
               onPaneContextMenu={onPaneContextMenu}
+              onMove={handleViewportMove}
               nodeTypes={nodeTypes}
               defaultViewport={{ x: 0, y: 0, zoom: 1 }}
               minZoom={0.1}
@@ -1166,9 +1432,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               deleteKeyCode={['Delete', 'Backspace']}
               selectionOnDrag={true}
               panOnDrag={[1, 2]}
+              panOnScroll={true}
+              panOnScrollMode={PanOnScrollMode.Free}
               selectionMode={SelectionMode.Full}
               connectionMode={ConnectionMode.Loose}
               connectionRadius={40}
+              onlyRenderVisibleElements={canvasDebug.visibleOnly}
               defaultEdgeOptions={{
                 type: 'default',
                 markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
@@ -1212,9 +1481,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                   </CanvasViewportBoundsLayer>
                 </ViewportPortal>
               )}
-              <Background gap={18} size={1} color={canvasFlowBackgroundColor} />
-              <Controls position="bottom-left" />
-              <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />
+              {showCanvasGrid && <Background gap={24} size={1} color={canvasFlowBackgroundColor} />}
+              {canvasDebug.controls && <Controls position="bottom-left" />}
+              {canvasDebug.minimap && <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />}
             </ReactFlow>
 
             {nodes.length === 0 && (
@@ -1243,22 +1512,28 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
           </CanvasViewportPane>
 
-          <WorkflowSidePanel
-            projectId={canvas?.project_id}
-            dependencyBindings={canvasDependencyBindings}
-            activeTab={workflowPanelTab}
-            runs={workflowRuns}
-            total={workflowRunTotal}
-            page={runHistoryPage}
-            pageCount={workflowRunPageCount}
-            statusFilter={runStatusFilter}
-            activeRunId={activeRunId}
-	            isLoading={false}
-            onTabChange={setWorkflowPanelTab}
-            onStatusFilterChange={setRunStatusFilter}
-            onPageChange={setRunHistoryPage}
-            onSelectRun={setActiveRunId}
-          />
+          {canvasDebug.shelf && (
+            <WorkflowSidePanel
+              projectId={canvas?.project_id}
+              dependencyBindings={canvasDependencyBindings}
+              activeCanvasResourceIds={activeCanvasResourceIds}
+              disableResourcePreviews={!canvasDebug.media}
+              activeTab={workflowPanelTab}
+              collapsed={workflowPanelCollapsed}
+              runs={workflowRuns}
+              total={workflowRunTotal}
+              page={runHistoryPage}
+              pageCount={workflowRunPageCount}
+              statusFilter={runStatusFilter}
+              activeRunId={activeRunId}
+	              isLoading={false}
+              onTabChange={setWorkflowPanelTab}
+              onCollapsedChange={setWorkflowPanelCollapsed}
+              onStatusFilterChange={setRunStatusFilter}
+              onPageChange={setRunHistoryPage}
+              onSelectRun={setActiveRunId}
+            />
+          )}
         </CanvasEditorContent>
       </CanvasEditorMain>
 

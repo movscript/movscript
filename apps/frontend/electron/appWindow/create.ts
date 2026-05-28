@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { bindWindowRenderDiagnostics } from '../diagnostics/rendering'
 import { bindDevtoolsShortcut } from './devtools'
 import { loadRenderer } from './loadRenderer'
 import { resolveAppIconPath, resolvePreloadPath } from './paths'
@@ -17,6 +18,7 @@ export function createWindow(): void {
   })
 
   bindTitlebarChromeToZoom(win, process.platform)
+  bindWindowRenderDiagnostics(win)
   loadRenderer(win)
   bindDevtoolsShortcut(win)
 }

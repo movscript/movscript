@@ -59,6 +59,7 @@ import {
   ScriptWorkflowPanel,
   ScriptWorkflowStep as ScriptWorkflowStepUi,
   ScriptWorkspaceEmptySelection,
+  ScriptWorkspaceDetailContent,
   ScriptWorkspaceInspector,
   ScriptWorkspaceLayout,
   ScriptWorkspaceMain,
@@ -521,7 +522,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
             />
 
             {/* Tab content */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <ScriptWorkspaceDetailContent>
               {detailTab === 'edit' && (
                 <ScriptForm
                   script={selected}
@@ -657,7 +658,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   )}
                 </ScriptProductionPanel>
               )}
-            </div>
+            </ScriptWorkspaceDetailContent>
           </>
         )}
           </ScriptWorkspaceMain>

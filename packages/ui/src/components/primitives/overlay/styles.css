@@ -16,6 +16,7 @@
   inset: 0;
   z-index: 50;
   background: rgb(0 0 0 / 62%);
+  backdrop-filter: blur(var(--ms-blur-frosted-sm));
 }
 
 .ms-dialog__content {
@@ -28,12 +29,13 @@
   max-width: calc(100vw - 32px);
   transform: translate(-50%, -50%);
   gap: var(--ms-space-4);
-  border: 1px solid var(--ms-color-border);
+  border: 1px solid var(--ms-surface-border, var(--ms-color-border));
   border-radius: var(--ms-radius-md);
-  background: var(--ms-color-surface);
+  background: var(--ms-surface-raised-background, var(--ms-color-surface));
   color: var(--ms-color-foreground);
   padding: 24px;
   box-shadow: var(--ms-shadow-lg);
+  backdrop-filter: var(--ms-surface-backdrop-filter, none);
 }
 
 .ms-dialog__close {
@@ -67,16 +69,16 @@
 .ms-dialog__title {
   margin: 0;
   font-family: var(--ms-font-sans);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 650;
-  line-height: 26px;
+  line-height: var(--ms-leading-section);
 }
 
 .ms-dialog__description {
   margin: 0;
   font-family: var(--ms-font-sans);
   font-size: var(--ms-text-body);
-  line-height: 22px;
+  line-height: var(--ms-leading-body);
 }
 
 .ms-menu-content {
@@ -84,12 +86,13 @@
   max-height: var(--radix-select-content-available-height, var(--radix-dropdown-menu-content-available-height, 320px));
   min-width: 128px;
   overflow: auto;
-  border: 1px solid var(--ms-color-border);
+  border: 1px solid var(--ms-surface-border, var(--ms-color-border));
   border-radius: var(--ms-radius-md);
-  background: var(--ms-color-surface-raised);
+  background: var(--ms-surface-raised-background, var(--ms-color-surface-raised));
   color: var(--ms-color-foreground);
   padding: var(--ms-space-1);
   box-shadow: var(--ms-shadow-md);
+  backdrop-filter: var(--ms-surface-backdrop-filter, none);
 }
 
 .ms-menu-item {
@@ -177,7 +180,7 @@
 .ms-select__trigger--sm {
   height: 30px;
   padding: 0 9px;
-  font-size: 13px;
+  font-size: var(--ms-text-item);
 }
 
 .ms-select__viewport {

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	domainresourcefolder "github.com/movscript/movscript/internal/domain/resource/folder"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
@@ -191,7 +190,7 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 	}
 }
 
-func TestGormRepositoryLoadInputResourcesRequiresVisibilityGrant(t *testing.T) {
+func TestGormRepositoryLoadInputResourcesRejectsLegacySharedPersonalResource(t *testing.T) {
 	db := openJobRepositoryTestDB(t)
 	repo := &gormRepository{db: db}
 	resource := model.RawResource{
@@ -211,38 +210,8 @@ func TestGormRepositoryLoadInputResourcesRequiresVisibilityGrant(t *testing.T) {
 	if err := db.Model(&resource).Update("is_shared", true).Error; err != nil {
 		t.Fatalf("share resource: %v", err)
 	}
-	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); err != nil {
-		t.Fatalf("LoadInputResources(shared resource) error = %v", err)
-	}
-}
-
-func TestGormRepositoryLoadInputResourcesAllowsFolderPermission(t *testing.T) {
-	db := openJobRepositoryTestDB(t)
-	repo := &gormRepository{db: db}
-	folder := model.ResourceFolder{OwnerID: 2, Name: "Shared Work"}
-	if err := db.Create(&folder).Error; err != nil {
-		t.Fatalf("create folder: %v", err)
-	}
-	resource := model.RawResource{
-		OwnerID:  2,
-		FolderID: &folder.ID,
-		Type:     "image",
-		Name:     "folder-private.png",
-	}
-	if err := db.Create(&resource).Error; err != nil {
-		t.Fatalf("create resource: %v", err)
-	}
-	permission := model.ResourceFolderPermission{
-		FolderID:   folder.ID,
-		UserID:     1,
-		Permission: domainresourcefolder.PermissionRead,
-	}
-	if err := db.Create(&permission).Error; err != nil {
-		t.Fatalf("create folder permission: %v", err)
-	}
-
-	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); err != nil {
-		t.Fatalf("LoadInputResources(folder permission) error = %v", err)
+	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); !errors.Is(err, ErrResourceOutsideOrg) {
+		t.Fatalf("LoadInputResources(legacy shared resource) error = %v, want ErrResourceOutsideOrg", err)
 	}
 }
 
@@ -273,5 +242,5 @@ func TestGormRepositoryLoadInputResourcesAllowsTeamResourceWithoutSharing(t *tes
 
 func openJobRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.Organization{}, &model.RawResource{}, &model.ResourceFolder{}, &model.ResourceFolderPermission{}, &model.AICredential{}, &model.AIModelConfig{})
+	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.Organization{}, &model.RawResource{}, &model.ResourceFolder{}, &model.AICredential{}, &model.AIModelConfig{})
 }

@@ -8,7 +8,7 @@ func TestResourceListCacheKeyIncludesVersionAndFilters(t *testing.T) {
 		UserID:   42,
 		OrgID:    &orgID,
 		FolderID: "root",
-		Shared:   true,
+		Scope:    "team",
 		Type:     "image,video",
 		Query:    " hero ",
 		Page:     2,
@@ -16,7 +16,7 @@ func TestResourceListCacheKeyIncludesVersionAndFilters(t *testing.T) {
 	}
 
 	key := resourceListCacheKey(input, 3)
-	if key != "resources:user:42:org:7:v3:folder_id=root&page=2&page_size=24&q=hero&shared=true&type=image%2Cvideo" {
+	if key != "resources:user:42:org:7:v3:folder_id=root&page=2&page_size=24&q=hero&scope=team&type=image%2Cvideo" {
 		t.Fatalf("cache key = %q", key)
 	}
 }

@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   STOPPED_RUNTIME_STATUS_LIGHT,
-  runtimeStatusLightFromThreadRuntimeSnapshot,
   type AgentRuntimeStatusLight,
 } from '@/features/agent/domain/agentRuntimeStatusLight'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import { runtimeThreadProjectionShouldRefresh } from '@movscript/event-state'
+import {
+  agentRuntimeStatusLightController,
+  runtimeStatusLightTargetKey,
+  runtimeStatusLightTargetsSignature,
+  useAgentRuntimeStatusLightStore,
+  type AgentRuntimeStatusLightWatchTarget,
+} from '@/features/agent/presentation/agentRuntimeStatusLightController'
+
+let nextRuntimeStatusLightOwnerId = 0
 
 export function useAgentConversationTabRuntimeStatusLights(conversations: Conversation[]): Record<string, AgentRuntimeStatusLight> {
   const localThreadIdsByConversation = useAgentSessionStore((state) => state.localThreadIdsByConversation)
@@ -17,74 +23,39 @@ export function useAgentConversationTabRuntimeStatusLights(conversations: Conver
     localThreadIdsByConversation,
     sessionIdsByConversation,
   }), [conversations, localThreadIdsByConversation, sessionIdsByConversation])
-  const [statusLights, setStatusLights] = useState<Record<string, AgentRuntimeStatusLight>>({})
+  const targetSignature = useMemo(() => runtimeStatusLightTargetsSignature(tabRuntimeTargets), [tabRuntimeTargets])
+  const targetsRef = useRef(tabRuntimeTargets)
+  targetsRef.current = tabRuntimeTargets
+  const ownerIdRef = useRef<string>()
+  if (!ownerIdRef.current) {
+    nextRuntimeStatusLightOwnerId += 1
+    ownerIdRef.current = `conversation-tab-runtime-status-lights:${nextRuntimeStatusLightOwnerId}`
+  }
+  const runtimeStatusLightsByTarget = useAgentRuntimeStatusLightStore((state) => state.runtimeStatusLightsByTarget)
 
   useEffect(() => {
-    let cancelled = false
-    const controllers: AbortController[] = []
+    agentRuntimeStatusLightController.setOwnerTargets(ownerIdRef.current!, targetsRef.current)
+  }, [targetSignature])
 
-    setStatusLights((current) => {
-      const next: Record<string, AgentRuntimeStatusLight> = {}
-      for (const target of tabRuntimeTargets) {
-        next[target.conversationId] = current[target.conversationId] ?? STOPPED_RUNTIME_STATUS_LIGHT
-      }
-      return next
-    })
-
-    const updateStatusLight = (conversationId: string, statusLight: AgentRuntimeStatusLight) => {
-      if (cancelled) return
-      setStatusLights((current) => {
-        const existing = current[conversationId]
-        if (existing?.state === statusLight.state && existing.label === statusLight.label && existing.detail === statusLight.detail) return current
-        return { ...current, [conversationId]: statusLight }
-      })
-    }
-
-    for (const target of tabRuntimeTargets) {
-      if (!target.sessionId && !target.threadId) {
-        updateStatusLight(target.conversationId, STOPPED_RUNTIME_STATUS_LIGHT)
-        continue
-      }
-
-      const controller = new AbortController()
-      controllers.push(controller)
-      const refresh = () => {
-        const snapshot = target.sessionId
-          ? localAgentClient.getSessionRuntime(target.sessionId, controller.signal)
-          : localAgentClient.getThreadRuntime(target.threadId, controller.signal)
-        void snapshot
-          .then((snapshot) => updateStatusLight(target.conversationId, runtimeStatusLightFromThreadRuntimeSnapshot(snapshot)))
-          .catch(() => {
-            if (!controller.signal.aborted) updateStatusLight(target.conversationId, STOPPED_RUNTIME_STATUS_LIGHT)
-          })
-      }
-      refresh()
-      const stream = target.sessionId
-        ? localAgentClient.streamSession(target.sessionId, {
-          signal: controller.signal,
-          onRuntimeEvent: (event) => {
-            if (runtimeThreadProjectionShouldRefresh(event)) refresh()
-          },
-        })
-        : localAgentClient.streamThread(target.threadId, {
-          signal: controller.signal,
-          onRuntimeEvent: (event) => {
-            if (runtimeThreadProjectionShouldRefresh(event)) refresh()
-          },
-        })
-      void stream.catch(() => undefined)
-    }
-
+  useEffect(() => {
     return () => {
-      cancelled = true
-      for (const controller of controllers) controller.abort()
+      agentRuntimeStatusLightController.clearOwnerTargets(ownerIdRef.current!)
     }
-  }, [tabRuntimeTargets])
+  }, [])
 
-  return statusLights
+  return useMemo(() => {
+    const statusLights: Record<string, AgentRuntimeStatusLight> = {}
+    for (const target of tabRuntimeTargets) {
+      const targetKey = runtimeStatusLightTargetKey(target)
+      statusLights[target.conversationId] = targetKey
+        ? runtimeStatusLightsByTarget[targetKey] ?? STOPPED_RUNTIME_STATUS_LIGHT
+        : STOPPED_RUNTIME_STATUS_LIGHT
+    }
+    return statusLights
+  }, [runtimeStatusLightsByTarget, tabRuntimeTargets])
 }
 
-export interface AgentConversationTabRuntimeTarget {
+export interface AgentConversationTabRuntimeTarget extends AgentRuntimeStatusLightWatchTarget {
   conversationId: string
   sessionId?: string
   threadId: string

@@ -6,7 +6,6 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, ArrowRight, FolderOpen } from 'lucide-react'
 import {
-  AppPage,
   AppPageHeader,
   Dialog,
   DialogContent,
@@ -17,6 +16,7 @@ import {
   Progress,
   ProjectPageActionButton,
   ProjectPageEmptyState,
+  ProjectListPageLayout,
   ProjectPageLocalAdminPrompt,
   StatusBadge,
   Textarea,
@@ -303,7 +303,7 @@ export default function ProjectsPage() {
     && !adminPromptDismissed
 
   return (
-    <AppPage width="normal" className="projects-page">
+    <ProjectListPageLayout>
       <AppPageHeader
         icon={FolderOpen}
         title={t('pages.projects.myProjects')}
@@ -365,6 +365,6 @@ export default function ProjectsPage() {
           onCreate={(name, desc) => handleCreate(name, desc)}
         />
       )}
-    </AppPage>
+    </ProjectListPageLayout>
   )
 }

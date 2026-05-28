@@ -1,5 +1,6 @@
 .workbench-thumbnail {
   color: var(--ms-color-muted-foreground);
+  padding: 0;
 }
 
 .workbench-thumbnail[data-ratio="square"] {

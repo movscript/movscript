@@ -154,6 +154,13 @@ export type ElectronAgentRuntimeStatus = {
   error?: string
 }
 
+export type ElectronWindowControlAction = 'close' | 'minimize' | 'toggleFullscreen'
+
+export type ElectronWindowState = {
+  fullscreen: boolean
+  focused: boolean
+}
+
 export type ElectronGenerationToolServerTestResult = {
   success: boolean
   latency_ms?: number
@@ -167,6 +174,9 @@ export type ElectronAPI = {
   platform?: NodeJS.Platform
   openFile?: () => Promise<string | null>
   saveFile?: (defaultPath?: string) => Promise<string | null>
+  windowControl?: (action: ElectronWindowControlAction) => Promise<ElectronWindowState | undefined>
+  getWindowState?: () => Promise<ElectronWindowState>
+  onWindowState?: (handler: (state: ElectronWindowState) => void) => () => void
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
   setAppSettings?: (settings: AppSettings) => Promise<void>

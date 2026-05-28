@@ -3,14 +3,12 @@
 import * as React from "react";
 
 import { cn } from "../../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../../surface-block";
 
-export const AgentGeneratedResultMissingNotice = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
+export const AgentGeneratedResultMissingNotice = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
     return (
-      <AgentSurfaceBlock
+      <div
         ref={ref}
-        variant={variant}
         className={cn("ms-agent-generated-result-missing-notice", className)}
         {...props}
       />

@@ -16,11 +16,18 @@
 }
 
 .canvas-mention-chip__media {
+  display: inline-flex;
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--ms-radius-sm);
   background: var(--ms-color-muted);
+  color: var(--ms-color-muted-foreground);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
   object-fit: cover;
 }
 

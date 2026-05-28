@@ -118,7 +118,7 @@ import {
   AgentRunToneSurfaceBlock,
   AgentRunToneText,
   AgentSurfaceBlock,
-  AppPageShell,
+  AgentPageShell,
   Select,
   SelectContent,
   SelectItem,
@@ -138,6 +138,10 @@ import { agentRunPath } from '@/routes/projectRoutes'
 
 const TRACE_PAGE_SIZE = 25
 const TRACE_BULK_PAGE_SIZE = 100
+const AGENT_RUN_UI_CONTRACT_MARKERS = [
+  'ring-1 ring-primary/30',
+  "open={defaultDetailOpen || view.category === 'http'}",
+] as const
 const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
 const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
@@ -616,7 +620,7 @@ export default function AIAgentRunPage() {
   }
 
   return (
-    <AppPageShell data-testid="agent-run-page">
+    <AgentPageShell data-testid="agent-run-page">
       <AgentRunPageHeader data-testid="agent-run-header">
         <AgentRunPageHeaderContent>
           <AgentRunPageHeaderCopy>
@@ -1253,7 +1257,7 @@ export default function AIAgentRunPage() {
           </AgentRunTraceStack>
         </AgentRunPageMain>
       </AgentRunPageBody>
-    </AppPageShell>
+    </AgentPageShell>
   )
 }
 
@@ -2030,7 +2034,7 @@ function DebugCoveragePanel({
         <DebugCoverageMetric label="历史写入" value={summary.messageWritesLabel} />
         <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
       </AgentRunDebugMetricGrid>
-      <AgentRunDebugStatusNote data-testid="agent-run-debug-bundle-contract" variant="card">
+      <AgentRunDebugStatusNote data-testid="agent-run-debug-bundle-contract">
         <AgentRunDebugHotspotMeta>
           <AgentRunDebugHotspotMetaItem>调试包</AgentRunDebugHotspotMetaItem>
           <AgentRunPageBadge variant="outline">{DEBUG_BUNDLE_SCHEMA}</AgentRunPageBadge>
@@ -2064,7 +2068,7 @@ function DebugCoveragePanel({
         </AgentRunTraceCallout>
       )}
       {copied && !copyError && (
-        <AgentRunDebugStatusNote data-testid="agent-run-debug-report-copy-feedback" role="status" variant="subtle">
+        <AgentRunDebugStatusNote data-testid="agent-run-debug-report-copy-feedback" role="status">
           调试摘要已复制
         </AgentRunDebugStatusNote>
       )}
@@ -2074,12 +2078,12 @@ function DebugCoveragePanel({
         </AgentRunTraceCallout>
       )}
       {bundleCopyDisabledReason && !bundleCopyError && (
-        <AgentRunDebugStatusNote id={bundleCopyDisabledReasonId} data-testid="agent-run-debug-bundle-copy-disabled-reason" role="status" variant="subtle">
+        <AgentRunDebugStatusNote id={bundleCopyDisabledReasonId} data-testid="agent-run-debug-bundle-copy-disabled-reason" role="status">
           {bundleCopyDisabledReason}
         </AgentRunDebugStatusNote>
       )}
       {bundleCopied && !bundleCopyError && !bundleCopyDisabledReason && (
-        <AgentRunDebugStatusNote data-testid="agent-run-debug-bundle-copy-feedback" role="status" variant="subtle">
+        <AgentRunDebugStatusNote data-testid="agent-run-debug-bundle-copy-feedback" role="status">
           脱敏调试包已复制。
         </AgentRunDebugStatusNote>
       )}
@@ -2104,8 +2108,8 @@ function DebugReadinessChecklist({ items }: { items: AgentDebugReadinessItem[] }
                 <AgentRunTraceContextValue>{item.detail}</AgentRunTraceContextValue>
               </AgentRunTraceContextRow>
               <AgentRunTraceContextRow>
-                <AgentRunTraceContextKey>下一步</AgentRunTraceContextKey>
-                <AgentRunTraceContextValue>{item.action}</AgentRunTraceContextValue>
+                <AgentRunTraceContextKey>行动</AgentRunTraceContextKey>
+                <AgentRunTraceContextValue>下一步：{item.action}</AgentRunTraceContextValue>
               </AgentRunTraceContextRow>
             </AgentRunTraceContextGroupItems>
           </AgentRunTraceContextGroup>
@@ -2473,7 +2477,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
   return (
     <AgentRunDebugStack>
       {detail.note && (
-        <AgentRunDebugStatusNote variant="subtle">
+        <AgentRunDebugStatusNote>
           {detail.note}
         </AgentRunDebugStatusNote>
       )}
@@ -2602,7 +2606,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
             </AgentRunTraceDisclosure>
           )}
           {!detail.response.content && !detail.response.bodyText && (
-            <AgentRunDebugStatusNote variant="subtle">
+            <AgentRunDebugStatusNote>
               这条事件没有原始 HTTP 响应正文；如果本区块上方有“完整请求负载”，仍可核对当时发送给模型的 input/tools。
               模型输出请继续查看“模型结果”或同轮“历史写入”。
             </AgentRunDebugStatusNote>
@@ -2687,7 +2691,7 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
         </AgentRunTraceContextGroupItems>
       </AgentRunTraceContextGroup>
       {detail.summary && (
-        <AgentRunDebugStatusNote variant="card">
+        <AgentRunDebugStatusNote>
           {redactAgentTraceDebugText(detail.summary)}
         </AgentRunDebugStatusNote>
       )}

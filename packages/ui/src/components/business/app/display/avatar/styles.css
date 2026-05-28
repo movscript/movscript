@@ -27,5 +27,5 @@
 }
 
 .app-avatar[data-size="lg"] .ms-avatar__fallback {
-  font-size: 18px;
+  font-size: var(--ms-text-section);
 }

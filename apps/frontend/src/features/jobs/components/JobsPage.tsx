@@ -51,7 +51,6 @@ import {
   JobsFilterChipButton,
   JobsFilterDivider,
   JobsFilterGroup,
-  JobsHeader,
   JobsHeaderStatus,
   JobsLoadingState,
   JobsPageShell,
@@ -649,39 +648,6 @@ export default function JobsPage() {
 
   return (
     <JobsPageShell
-      header={(
-        <JobsHeader
-          title={t('header.titles.jobs')}
-          meta={t('pages.jobs.recordsCount', { count: total })}
-          status={hasActiveJobs(jobs) ? (
-            <JobsHeaderStatus icon={<JobSpinIcon><Loader2 size={12} /></JobSpinIcon>}>
-              {t('pages.jobs.generating')}
-            </JobsHeaderStatus>
-          ) : undefined}
-          actions={(
-            <JobsViewToggle>
-              <JobsActionButton
-                type="button"
-                variant={viewMode === 'grid' ? 'soft' : 'ghost'}
-                size="icon-sm"
-                onClick={() => setViewMode('grid')}
-                title={t('pages.resources.gridTitle')}
-              >
-                <LayoutGrid size={14} />
-              </JobsActionButton>
-              <JobsActionButton
-                type="button"
-                variant={viewMode === 'list' ? 'soft' : 'ghost'}
-                size="icon-sm"
-                onClick={() => setViewMode('list')}
-                title={t('pages.resources.listTitle')}
-              >
-                <List size={14} />
-              </JobsActionButton>
-            </JobsViewToggle>
-          )}
-        />
-      )}
       filters={(
         <JobsFilterBar>
           <JobsFilterGroup>
@@ -695,6 +661,31 @@ export default function JobsPage() {
               </JobsFilterChipButton>
             ))}
           </JobsFilterGroup>
+          <JobsViewToggle>
+            <JobsActionButton
+              type="button"
+              variant={viewMode === 'grid' ? 'soft' : 'ghost'}
+              size="icon-sm"
+              onClick={() => setViewMode('grid')}
+              title={t('pages.resources.gridTitle')}
+            >
+              <LayoutGrid size={14} />
+            </JobsActionButton>
+            <JobsActionButton
+              type="button"
+              variant={viewMode === 'list' ? 'soft' : 'ghost'}
+              size="icon-sm"
+              onClick={() => setViewMode('list')}
+              title={t('pages.resources.listTitle')}
+            >
+              <List size={14} />
+            </JobsActionButton>
+          </JobsViewToggle>
+          {hasActiveJobs(jobs) ? (
+            <JobsHeaderStatus icon={<JobSpinIcon><Loader2 size={12} /></JobSpinIcon>}>
+              {t('pages.jobs.generating')}
+            </JobsHeaderStatus>
+          ) : null}
           <JobsFilterDivider />
           {CATEGORIES.map((cat) => {
             const showCount = cat.key === activeCategory

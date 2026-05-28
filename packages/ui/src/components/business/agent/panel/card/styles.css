@@ -8,12 +8,19 @@
 
 .ai-agent-panel-content-card {
   display: flex;
+  order: 0;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  background: var(--ms-color-background);
+  background: transparent;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-content-card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .ai-agent-panel-context-section {
@@ -21,21 +28,55 @@
 }
 
 .ai-agent-panel-input-card {
+  order: 2;
   flex: 0 0 auto;
-  margin: 8px;
+  margin: 8px 10px 10px;
+  border-color: color-mix(in srgb, var(--ms-color-border) 88%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ms-color-foreground) 8%, transparent);
+}
+
+.ai-agent-panel-input-card[data-chrome="bottom-bar"] {
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: var(--ms-color-background);
+  box-shadow: none;
+}
+
+.ai-agent-panel-input-card[data-chrome="flush"] {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 0 10px;
+  box-shadow: none;
+}
+
+.ai-agent-panel-input-card[data-chrome="flush"] .ai-agent-panel-composer {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--ms-color-border) 78%, transparent);
+  border-radius: var(--ms-radius-md);
+  background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
+  padding: 8px 0;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ms-color-foreground) 6%, transparent);
 }
 
 .ai-agent-panel-content-card[data-empty-conversation="true"] > .ai-agent-panel-input-card {
   margin-top: 18px;
 }
 
-.ai-agent-panel-content-card[data-history-open="true"] > .ai-agent-panel-input-card {
+.ai-agent-panel-content-card[data-empty-conversation="true"] > .ai-agent-panel-input-card[data-chrome="bottom-bar"],
+.ai-agent-panel-content-card[data-empty-conversation="true"] > .ai-agent-panel-input-card[data-chrome="flush"] {
+  margin-top: 0;
+}
+
+.ai-agent-panel-content-card[data-history-open="true"] > .ai-agent-panel-input-card[data-chrome="card"] {
   position: relative;
   z-index: 2;
   margin: 8px;
 }
 
-.ai-agent-panel-content-card[data-empty-conversation="true"][data-history-open="true"] > .ai-agent-panel-input-card {
+.ai-agent-panel-content-card[data-empty-conversation="true"][data-history-open="true"] > .ai-agent-panel-input-card[data-chrome="card"] {
   margin-top: 8px;
 }
 

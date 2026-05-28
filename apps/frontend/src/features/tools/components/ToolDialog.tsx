@@ -37,7 +37,6 @@ import {
   ToolDialogPanel,
   ToolDialogPanelHeader,
   ToolDialogWarningCallout,
-  ToolHeader,
 } from '@movscript/ui'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
@@ -450,12 +449,6 @@ export function ToolDialog({
 
   return (
     <ToolDialogFrame>
-      <ToolHeader
-        title={toolName}
-        description={toolDescription}
-        icon={Wand2}
-      />
-
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <ToolDialogBody>
         {/* Left: resource panel — filter by the type needed for the next unfilled slot */}

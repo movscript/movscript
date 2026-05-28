@@ -4,7 +4,6 @@ import * as React from "react";
 import { StatusBadge, StatusDot, type StatusBadgeProps, type StatusDotProps } from "../../../../primitives/badge";
 import { cn } from "../../../../../lib/cn";
 import { toneTextClass, type SemanticTone } from "../../../../../semantic";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
 export const AgentPlanOverviewList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
@@ -14,9 +13,9 @@ export const AgentPlanOverviewList = React.forwardRef<HTMLDivElement, React.HTML
 
 AgentPlanOverviewList.displayName = "AgentPlanOverviewList";
 
-export const AgentPlanOverviewTaskCard = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
+export const AgentPlanOverviewTaskCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} className={cn("ms-agent-plan-overview-task", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-plan-overview-task", className)} {...props} />;
   }
 );
 

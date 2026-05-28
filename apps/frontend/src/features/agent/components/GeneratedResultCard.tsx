@@ -80,6 +80,7 @@ import {
   AgentGeneratedViewerActionButton,
   AgentGeneratedViewerBadge,
   AgentGeneratedViewerSideActions,
+  AgentGeneratedViewerSideContent,
   AgentGeneratedViewerSideHeader,
   AgentGeneratedViewerSidePanel,
   Dialog,
@@ -372,12 +373,13 @@ function GeneratedCandidateAttachDialog({
                 </AgentGeneratedViewerBadge>
               </AgentGeneratedViewerSideActions>
             </AgentGeneratedViewerSideHeader>
-            <ResourceCandidateAttachPanel
-              resources={[candidateResourceFromGeneratedAttachment(viewerAttachment)]}
-              projectId={projectId}
-              compact
-              className="min-h-0 flex-1"
-            />
+            <AgentGeneratedViewerSideContent>
+              <ResourceCandidateAttachPanel
+                resources={[candidateResourceFromGeneratedAttachment(viewerAttachment)]}
+                projectId={projectId}
+                compact
+              />
+            </AgentGeneratedViewerSideContent>
           </AgentGeneratedViewerSidePanel>
         )}
       />

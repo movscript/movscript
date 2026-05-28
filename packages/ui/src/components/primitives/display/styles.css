@@ -159,16 +159,16 @@
   margin: 0;
   color: var(--ms-color-foreground);
   font-family: var(--ms-font-sans);
-  font-size: 16px;
+  font-size: var(--ms-text-section);
   font-weight: 650;
-  line-height: 24px;
+  line-height: var(--ms-leading-section);
 }
 
 .ms-card__description {
   margin: 0;
   font-family: var(--ms-font-sans);
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--ms-text-item);
+  line-height: var(--ms-leading-item);
 }
 
 .ms-progress {
@@ -231,6 +231,6 @@
   background: var(--ms-color-muted);
   color: var(--ms-color-muted-foreground);
   font-family: var(--ms-font-sans);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   font-weight: 650;
 }

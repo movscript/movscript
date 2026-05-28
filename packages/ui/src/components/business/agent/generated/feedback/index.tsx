@@ -7,15 +7,14 @@ import { toneSurfaceClass, toneTextClass, type SemanticTone } from "../../../../
 import { AppProgressBar, type AppProgressBarProps } from "../../../app";
 import { StatusBadge, type StatusBadgeProps } from "../../../../primitives";
 import { ReviewCallout, ReviewStat } from "../../../review";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
 export type AgentGeneratedIntent = SemanticTone;
 
 export function AgentGeneratedCard({
   className,
   ...props
-}: AgentSurfaceBlockProps) {
-  return <AgentSurfaceBlock className={cn("agent-generated-card", className)} {...props} />;
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-generated-card", className)} {...props} />;
 }
 
 export function AgentGeneratedCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -83,12 +82,11 @@ export function AgentGeneratedItem({
   intent,
   className,
   ...props
-}: AgentSurfaceBlockProps & {
+}: HTMLAttributes<HTMLDivElement> & {
   intent?: AgentGeneratedIntent;
 }) {
   return (
-    <AgentSurfaceBlock
-      variant="subtle"
+    <div
       className={cn("agent-generated-item", intent && toneSurfaceClass(intent), className)}
       {...props}
     />
@@ -177,20 +175,5 @@ export function AgentGeneratedIntentText({
     <Element className={cn("agent-generated-intent-text", toneTextClass(intent), className)} {...props}>
       {children}
     </Element>
-  );
-}
-
-export function AgentGeneratedIntentSurfaceBlock({
-  intent,
-  className,
-  ...props
-}: AgentSurfaceBlockProps & {
-  intent: AgentGeneratedIntent;
-}) {
-  return (
-    <AgentSurfaceBlock
-      className={cn("agent-generated-intent-surface-block", toneSurfaceClass(intent), className)}
-      {...props}
-    />
   );
 }

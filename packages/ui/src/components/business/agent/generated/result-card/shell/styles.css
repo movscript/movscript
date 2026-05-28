@@ -1,8 +1,13 @@
 .ms-agent-generated-result-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
   margin-top: 8px;
+  min-width: 0;
+  background: transparent;
   padding: 8px;
 }
 
 .ms-agent-generated-result-card__list > * + * {
-  margin-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 38%, transparent);
 }

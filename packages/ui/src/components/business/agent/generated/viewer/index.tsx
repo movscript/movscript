@@ -29,6 +29,14 @@ export const AgentGeneratedViewerSideActions = React.forwardRef<HTMLDivElement, 
 
 AgentGeneratedViewerSideActions.displayName = "AgentGeneratedViewerSideActions";
 
+export const AgentGeneratedViewerSideContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-generated-viewer-panel__content", className)} {...props} />;
+  }
+);
+
+AgentGeneratedViewerSideContent.displayName = "AgentGeneratedViewerSideContent";
+
 export const AgentGeneratedViewerActionButton = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, size = "xs", ...props }, ref) => {
     return <Button ref={ref} size={size} className={cn("ms-agent-generated-viewer-panel__action", className)} {...props} />;

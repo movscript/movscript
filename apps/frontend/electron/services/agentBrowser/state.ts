@@ -31,6 +31,24 @@ export function normalizeAgentBrowserBounds(input?: Partial<AgentBrowserBounds> 
   return { x, y, width, height }
 }
 
+export function normalizeRendererAgentBrowserBounds(
+  input: Partial<AgentBrowserBounds> | null | undefined,
+  zoomFactor: number,
+): AgentBrowserBounds | null {
+  const bounds = normalizeAgentBrowserBounds(input)
+  if (!bounds) return null
+
+  const scale = Number(zoomFactor)
+  if (!Number.isFinite(scale) || scale <= 0 || scale === 1) return bounds
+
+  return normalizeAgentBrowserBounds({
+    x: bounds.x * scale,
+    y: bounds.y * scale,
+    width: bounds.width * scale,
+    height: bounds.height * scale,
+  })
+}
+
 export function normalizeTabId(tabId?: string | null): string {
   const trimmed = tabId?.trim()
   return trimmed || 'default'

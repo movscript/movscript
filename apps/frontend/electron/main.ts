@@ -1,4 +1,6 @@
 import { app, BrowserWindow } from 'electron'
+import { installChromiumRenderDiagnostics } from './diagnostics/rendering'
+import { installApplicationMenu } from './appMenu'
 import { createWindow } from './appWindow'
 import {
   bootstrapManagedServicesBeforeWindow,
@@ -15,7 +17,10 @@ async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
   app.exit(exitCode)
 }
 
+installChromiumRenderDiagnostics()
+
 app.whenReady().then(async () => {
+  installApplicationMenu()
   await bootstrapManagedServicesBeforeWindow()
   createWindow()
 

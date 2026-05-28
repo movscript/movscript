@@ -2,11 +2,11 @@
 
 import * as React from "react";
 
-import { Button } from "../../../primitives/button";
 import { cn } from "../../../../lib/cn";
 
 export function AppWindowHeader({
   isMacOS = true,
+  windowControls,
   leftControls,
   controls,
   centerContent,
@@ -15,6 +15,7 @@ export function AppWindowHeader({
   ...props
 }: React.HTMLAttributes<HTMLElement> & {
   isMacOS?: boolean;
+  windowControls?: React.ReactNode;
   leftControls?: React.ReactNode;
   controls?: React.ReactNode;
   centerContent?: React.ReactNode;
@@ -29,9 +30,10 @@ export function AppWindowHeader({
       )}
       {...props}
     >
+      {isMacOS && windowControls ? <div className="app-window-header__window-controls app-window-no-drag">{windowControls}</div> : null}
       {leftControls ? <div className="app-window-header__left-controls app-window-no-drag">{leftControls}</div> : null}
       {!isMacOS && controls}
-      {centerContent ? <div className="app-window-header__center">{centerContent}</div> : fallbackBrand}
+      {centerContent ? <div className="app-window-header__center">{centerContent}</div> : (fallbackBrand ?? <div className="app-window-header__spacer" />)}
       {isMacOS && controls}
     </header>
   );
@@ -51,9 +53,69 @@ export function AppWindowBrandButton({
   return (
     <>
       <div className="app-window-header__spacer" />
-      <Button asChild variant="ghost" size="sm" className={cn("app-window-brand-button app-window-no-drag", className)}>
+      <div className={cn("app-window-brand-button", className)} aria-label="Movscript">
         {children}
-      </Button>
+      </div>
     </>
+  );
+}
+
+export function AppWindowMacTrafficLights({
+  focused = true,
+  fullscreen = false,
+  closeLabel = "Close",
+  minimizeLabel = "Minimize",
+  fullscreenLabel = "Enter fullscreen",
+  restoreLabel = "Exit fullscreen",
+  onClose,
+  onMinimize,
+  onToggleFullscreen,
+  className,
+}: {
+  focused?: boolean;
+  fullscreen?: boolean;
+  closeLabel?: string;
+  minimizeLabel?: string;
+  fullscreenLabel?: string;
+  restoreLabel?: string;
+  onClose?: () => void;
+  onMinimize?: () => void;
+  onToggleFullscreen?: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("app-window-traffic-lights", className)}
+      data-focused={focused ? "true" : "false"}
+      data-fullscreen={fullscreen ? "true" : "false"}
+    >
+      <button
+        type="button"
+        className="app-window-traffic-light app-window-traffic-light--close"
+        aria-label={closeLabel}
+        title={closeLabel}
+        onClick={onClose}
+      >
+        <span className="app-window-traffic-light__glyph app-window-traffic-light__glyph--close" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="app-window-traffic-light app-window-traffic-light--minimize"
+        aria-label={minimizeLabel}
+        title={minimizeLabel}
+        onClick={onMinimize}
+      >
+        <span className="app-window-traffic-light__glyph app-window-traffic-light__glyph--minimize" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="app-window-traffic-light app-window-traffic-light--fullscreen"
+        aria-label={fullscreen ? restoreLabel : fullscreenLabel}
+        title={fullscreen ? restoreLabel : fullscreenLabel}
+        onClick={onToggleFullscreen}
+      >
+        <span className="app-window-traffic-light__glyph app-window-traffic-light__glyph--fullscreen" aria-hidden="true" />
+      </button>
+    </div>
   );
 }

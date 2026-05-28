@@ -10,7 +10,7 @@
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
-  padding: 20px clamp(14px, 3.2vw, 40px);
+  padding: 20px 0;
   scroll-behavior: auto;
 }
 

@@ -282,6 +282,7 @@ export function SemanticEntityInlineEditor({
     return (
       <DetailEntityHorizontalRail
         className={shellClassName}
+        data-inline-editor-collapsed-mode="horizontal"
         title={railTitle}
         subtitle={String(railSubtitle)}
         icon={<ChevronLeft size={14} />}

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "pnpm --filter @movscript/desktop^... --if-present build && electron-vite dev",
+    "dev": "pnpm --filter @movscript/desktop^... --if-present build && node scripts/run-with-env.mjs MOVSCRIPT_AGENT_BROWSER_DIAGNOSTICS=1 VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS=1 electron-vite dev",
+    "dev:render-debug": "pnpm --filter @movscript/desktop^... --if-present build && node scripts/run-with-env.mjs MOVSCRIPT_CHROMIUM_RENDER_DIAGNOSTICS=1 MOVSCRIPT_AGENT_BROWSER_DIAGNOSTICS=1 VITE_MOVSCRIPT_AGENT_MODE_RENDER_DIAGNOSTICS=1 electron-vite dev",
     "dev:local": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm run dev",
     "build": "pnpm --filter @movscript/conversation... build && node scripts/prepare-agent-deploy.mjs && electron-vite build",
     "dist": "pnpm run build && electron-builder --publish never",

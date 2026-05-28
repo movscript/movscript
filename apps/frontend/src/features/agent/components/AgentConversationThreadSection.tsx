@@ -1,11 +1,11 @@
 import React, { type RefObject, type UIEvent } from 'react'
 import {
   AgentBody,
-  AgentThread,
+  AgentThreadFill,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/features/agent/components/AgentPlanOverviewPanel'
 import { LocalAgentWorkflowBubble } from '@/features/agent/components/AgentWorkflowBubble'
-import { AgentPinnedStatusShelf } from '@/features/agent/components/AgentPinnedStatusShelf'
+import { AgentPinnedStatusShelf, hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { LiveRunActivityBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import {
   GenerationProgressBubble,
@@ -23,7 +23,6 @@ import type { GenerationProgressState } from '@/features/agent/domain/agentGener
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 import type { AgentTaskGraphSnapshot, AgentPlan, AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { cn } from '@/shared/ui/cn'
 
 export interface AgentConversationThreadSectionProps {
   activePlanSnapshot?: AgentTaskGraphSnapshot
@@ -35,6 +34,7 @@ export interface AgentConversationThreadSectionProps {
   messages: ChatMessage[]
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
+  pinnedStatusExpanded?: boolean
   projectId?: number
   showLocalWorkflow: boolean
   thinkingState: ThinkingBubbleState
@@ -47,6 +47,7 @@ export interface AgentConversationThreadSectionProps {
   onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
   onCancelPlanTree: () => void
   onDispatchTaskGraph: () => void
+  onPinnedStatusExpandedChange?: (expanded: boolean) => void
   onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
   onRejectPlanReview: (taskId: string) => void
   onRetaskGraph: () => void
@@ -65,6 +66,7 @@ export function AgentConversationThreadSection({
   messages,
   planActionBusy,
   planDispatchSettings,
+  pinnedStatusExpanded,
   projectId,
   showLocalWorkflow,
   thinkingState,
@@ -77,6 +79,7 @@ export function AgentConversationThreadSection({
   onApproveLocalRun,
   onCancelPlanTree,
   onDispatchTaskGraph,
+  onPinnedStatusExpandedChange,
   onRejectLocalRun,
   onRejectPlanReview,
   onRetaskGraph,
@@ -85,6 +88,11 @@ export function AgentConversationThreadSection({
   onUpdatePlanDispatchSettings,
 }: AgentConversationThreadSectionProps) {
   const currentPlan = latestPlanFromMessages(messages)
+  const showPinnedStatus = hasAgentPinnedStatus({
+    plan: currentPlan,
+    generationProgressStates,
+    planSnapshot: activePlanSnapshot,
+  }) && (pinnedStatusExpanded ?? true)
   const activeRunId = activeRun?.id
   const suppressedWorkflowRunIds = activeRunId && !isTerminalAgentRunStatus(activeRun?.status)
     ? new Set([activeRunId])
@@ -132,16 +140,19 @@ export function AgentConversationThreadSection({
   }
 
   return (
-    <AgentBody className="flex flex-col">
-      <AgentPinnedStatusShelf
-        plan={currentPlan}
-        generationProgressStates={generationProgressStates}
-        planSnapshot={activePlanSnapshot}
-      />
-      <AgentThread
+    <AgentBody className="ai-agent-panel-thread-body">
+      {showPinnedStatus ? (
+        <AgentPinnedStatusShelf
+          plan={currentPlan}
+          generationProgressStates={generationProgressStates}
+          planSnapshot={activePlanSnapshot}
+          expanded={pinnedStatusExpanded}
+          onExpandedChange={onPinnedStatusExpandedChange}
+        />
+      ) : null}
+      <AgentThreadFill
         ref={threadRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1"
       >
         {threadItems.map((threadItem) => {
           if (threadItem.type === 'message') {
@@ -162,10 +173,8 @@ export function AgentConversationThreadSection({
           return (
             <div
               key={threadItem.id}
-              className={cn(
-                'space-y-2 border-l border-border/80 pl-3',
-                threadItem.items.some((item) => item.message.role === 'user') && 'py-1',
-              )}
+              className="ai-agent-panel-run-group"
+              data-has-user={threadItem.items.some((item) => item.message.role === 'user') ? 'true' : undefined}
               data-agent-run-group-id={threadItem.runId}
             >
               {threadItem.items.map((item) => (
@@ -187,7 +196,8 @@ export function AgentConversationThreadSection({
         })}
         {activeRunId && !activeRunHasThreadGroup && renderableConversationBlocks.length > 0 && (
           <div
-            className="space-y-2 border-l border-border/80 pl-3 py-1"
+            className="ai-agent-panel-run-group"
+            data-has-user="true"
             data-agent-run-group-id={activeRunId}
           >
             {renderableConversationBlocks.map(renderConversationBlock)}
@@ -224,7 +234,7 @@ export function AgentConversationThreadSection({
           onDispatchSettingsChange={onUpdatePlanDispatchSettings}
         />
         <div ref={bottomRef} />
-      </AgentThread>
+      </AgentThreadFill>
     </AgentBody>
   )
 }
@@ -326,7 +336,7 @@ function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boole
   return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
-function latestPlanFromMessages(messages: ChatMessage[]): AgentPlan | undefined {
+export function latestPlanFromMessages(messages: ChatMessage[]): AgentPlan | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const plan = messages[index].meta?.planRevision?.snapshot
     if (plan) return plan

@@ -12,7 +12,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: msColor('--ms-color-background'),
+        background: msColor('--ms-color-page-background'),
         foreground: msColor('--ms-color-foreground'),
         card: {
           DEFAULT: msColor('--ms-color-surface-raised'),

@@ -1,4 +1,7 @@
 .ms-agent-activity-feed {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 640px;
   margin-top: 8px;
   font-size: var(--ms-text-label);
 }

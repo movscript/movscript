@@ -42,9 +42,9 @@ export function ProjectStandardsProposalReviewPanel({
       description="审阅 project_standards_proposal 中的 project_style，包含固定规范和扩展 custom_rules。"
       icon={GitBranch}
       countLabel={`draft ${draftCount}`}
-      className="min-h-0 overflow-hidden shadow-sm"
+      layout="contained-scroll"
     >
-      <ReviewProposalDraftList className="min-h-0 overflow-y-auto">
+      <ReviewProposalDraftList scroll>
         {loading ? (
           <ProjectProposalReviewLoadingState icon={<Loader2 size={12} className="animate-spin" />} text="读取草稿…" />
         ) : null}

@@ -60,6 +60,7 @@ import {
 
 const semanticInputHandleId = (portId: string) => `in:${portId}`
 const semanticOutputHandleId = (portId: string) => `out:${portId}`
+const CANVAS_NODE_IMAGE_THUMB_MAX_SIZE = 320
 
 const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video'])
 
@@ -376,6 +377,11 @@ type NodeDataWithHandlers = CanvasNodeData & {
   label: string
   availableResources?: RawResource[]
   referenceResources?: RawResource[]
+  canvasDebug?: {
+    media?: boolean
+    images?: boolean
+    videos?: boolean
+  }
   pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
   onRun?: () => void
   onUpdateContent?: (content: string) => void
@@ -386,6 +392,14 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onUpdateParams?: (params: Record<string, unknown>) => void
   onApprove?: () => void
   onReject?: () => void
+}
+
+function shouldRenderCanvasResourcePreview(resource: RawResource | undefined, canvasDebug: NodeDataWithHandlers['canvasDebug']) {
+  if (!resource) return false
+  if (canvasDebug?.media === false) return false
+  if (resource.type === 'image' && canvasDebug?.images === false) return false
+  if (resource.type === 'video' && canvasDebug?.videos === false) return false
+  return true
 }
 
 function selectedInputResources(data: NodeDataWithHandlers) {
@@ -412,43 +426,31 @@ function selectedInputResources(data: NodeDataWithHandlers) {
   return resources
 }
 
-async function fetchCanvasChipMediaUrl(resource: RawResource): Promise<string> {
-  if (resource.direct_url) return resource.direct_url
-  const src = `${API_BASE}${resource.url}`
-  const res = await api.get(src, { baseURL: '', responseType: 'blob' })
-  return URL.createObjectURL(res.data)
+function canvasResourceIcon(resource: Pick<RawResource, 'type'>, size = 12) {
+  if (resource.type === 'image') return <Image size={size} />
+  if (resource.type === 'video') return <Video size={size} />
+  return <FileText size={size} />
 }
 
-function buildCanvasChipElement(resource: RawResource): { chip: HTMLElement; media: HTMLImageElement | HTMLVideoElement } {
+function buildCanvasChipElement(resource: RawResource): HTMLElement {
   const chip = document.createElement('span')
   chip.contentEditable = 'false'
   chip.dataset.resourceName = resource.name
   chip.dataset.resourceId = String(resource.ID)
   chip.className = canvasMentionChipClassNames.chip
 
-  let media: HTMLImageElement | HTMLVideoElement
-  if (resource.type === 'video') {
-    const video = document.createElement('video')
-    video.muted = true
-    video.playsInline = true
-    video.preload = 'metadata'
-    video.className = canvasMentionChipClassNames.media
-    chip.appendChild(video)
-    media = video
-  } else {
-    const image = document.createElement('img')
-    image.alt = resource.name
-    image.className = canvasMentionChipClassNames.media
-    chip.appendChild(image)
-    media = image
-  }
+  const media = document.createElement('span')
+  media.className = canvasMentionChipClassNames.media
+  media.dataset.type = resource.type
+  media.textContent = resource.type === 'video' ? 'V' : resource.type === 'image' ? 'I' : 'T'
+  chip.appendChild(media)
 
   const label = document.createElement('span')
   label.textContent = resource.name
   label.className = canvasMentionChipClassNames.label
   chip.appendChild(label)
 
-  return { chip, media }
+  return chip
 }
 
 function serializeCanvasPrompt(node: Node): string {
@@ -456,32 +458,6 @@ function serializeCanvasPrompt(node: Node): string {
   const el = node as HTMLElement
   if (el.dataset?.resourceId) return `@[resource:${el.dataset.resourceId}]`
   return Array.from(node.childNodes).map(serializeCanvasPrompt).join('')
-}
-
-function attachCanvasChipMedia(resource: RawResource, media: HTMLImageElement | HTMLVideoElement, editor: HTMLElement | null, objectUrls: Set<string>) {
-  fetchCanvasChipMediaUrl(resource).then((mediaUrl) => {
-    let target: HTMLImageElement | HTMLVideoElement | null = media
-    if (!media.isConnected && editor) {
-      const chip = editor.querySelector(`[data-resource-id="${resource.ID}"]`)
-      target = chip?.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null
-    }
-    if (!target) {
-      if (mediaUrl.startsWith('blob:')) URL.revokeObjectURL(mediaUrl)
-      return
-    }
-    if (target.src.startsWith('blob:')) {
-      URL.revokeObjectURL(target.src)
-      objectUrls.delete(target.src)
-    }
-    target.src = mediaUrl
-    if (mediaUrl.startsWith('blob:')) objectUrls.add(mediaUrl)
-    if (resource.type === 'video') {
-      const video = target as HTMLVideoElement
-      video.addEventListener('loadedmetadata', () => { video.currentTime = 0.1 }, { once: true })
-    }
-  }).catch((error) => {
-    console.error('[canvas mention chip] fetch failed', resource.url, error?.response?.status, error?.message)
-  })
 }
 
 function CanvasGenerationInputPanel({
@@ -495,7 +471,6 @@ function CanvasGenerationInputPanel({
 }) {
   const { t } = useTranslation()
   const editorRef = useRef<HTMLDivElement>(null)
-  const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const mentionRangeRef = useRef<{ node: Text; start: number; end: number } | null>(null)
   const syncedPromptRef = useRef<string | null>(null)
   const renderedResourceKeyRef = useRef<string>('')
@@ -512,7 +487,7 @@ function CanvasGenerationInputPanel({
     id: resource.ID,
     media: (
       <CanvasMentionMenuThumb>
-        <MediaViewer resource={resource} lightbox={false} />
+        {canvasResourceIcon(resource, 12)}
       </CanvasMentionMenuThumb>
     ),
     label: resource.name,
@@ -528,7 +503,7 @@ function CanvasGenerationInputPanel({
       id: resource.ID,
       media: (
         <CanvasMentionAttachmentThumb>
-          <MediaViewer resource={resource} lightbox={false} />
+          {canvasResourceIcon(resource, 12)}
         </CanvasMentionAttachmentThumb>
       ),
       label: resource.name,
@@ -611,7 +586,7 @@ function CanvasGenerationInputPanel({
       }
     }
 
-    const { chip, media } = buildCanvasChipElement(resource)
+    const chip = buildCanvasChipElement(resource)
     const space = document.createTextNode(' ')
     insertRange.insertNode(space)
     insertRange.insertNode(chip)
@@ -627,7 +602,6 @@ function CanvasGenerationInputPanel({
     const nextText = editorText()
     syncedPromptRef.current = nextText
     data.onUpdatePrompt?.(nextText)
-    attachCanvasChipMedia(resource, media, editorRef.current, chipObjectUrlsRef.current)
   }
 
   useEffect(() => {
@@ -642,8 +616,6 @@ function CanvasGenerationInputPanel({
     }
     if (isFocused && syncedPromptRef.current === currentPrompt) return
     if (isFocused && syncedPromptRef.current === prompt) return
-    for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
-    chipObjectUrlsRef.current.clear()
     editor.innerHTML = ''
     const pattern = /@\[resource:(\d+)\]\s?/g
     let lastIndex = 0
@@ -653,10 +625,9 @@ function CanvasGenerationInputPanel({
       if (before) editor.appendChild(document.createTextNode(before))
       const resource = resourceById.get(Number(match[1]))
       if (resource) {
-        const { chip, media } = buildCanvasChipElement(resource)
+        const chip = buildCanvasChipElement(resource)
         editor.appendChild(chip)
         editor.appendChild(document.createTextNode(' '))
-        attachCanvasChipMedia(resource, media, editor, chipObjectUrlsRef.current)
       } else {
         editor.appendChild(document.createTextNode(match[0]))
       }
@@ -667,13 +638,6 @@ function CanvasGenerationInputPanel({
     syncedPromptRef.current = prompt
     renderedResourceKeyRef.current = resourceLookupKey
   }, [data.prompt, resourceById, resourceLookupKey])
-
-  useEffect(() => {
-    return () => {
-      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
-      chipObjectUrlsRef.current.clear()
-    }
-  }, [])
 
   return (
     <CanvasNodePromptInputView
@@ -775,12 +739,13 @@ function CanvasGenerationResultPanel({
 }) {
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const { t } = useTranslation()
+  const resource = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug) ? data.resource : undefined
   return (
     <CanvasNodeMediaResultView
       status={status}
-      media={data.resource ? (
+      media={resource ? (
         <CanvasMediaFill fit="contain">
-          <MediaViewer resource={data.resource} fit="contain" lightbox />
+          <MediaViewer resource={resource} fit="contain" lightbox thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE} diagnosticLabel={`canvas-result:${data.rfNodeId ?? resource.ID}`} />
         </CanvasMediaFill>
       ) : undefined}
       emptyIcon={outputType === 'video' ? <Video size={20} /> : <Image size={20} />}
@@ -844,6 +809,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const imgUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
+  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug)
   return (
     <CanvasImageNodeView
       selected={selected}
@@ -852,9 +818,8 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       status={status}
       statusIcons={canvasNodeStatusIcons}
       runIcon={<Play size={12} />}
-      onRun={data.onRun}
       ports={<SemanticPortRows nodeType="image" inputPorts={mediaNodeInputPorts('image', data)} />}
-      media={imgUrl ? <AuthedImage src={imgUrl} alt="" /> : undefined}
+      media={imgUrl && showPreview ? <AuthedImage src={imgUrl} alt="" diagnosticLabel={`canvas-node:${data.rfNodeId ?? data.resource?.ID ?? 'unknown'}`} thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE} /> : undefined}
       emptyIcon={<Image size={24} />}
     />
   )
@@ -864,6 +829,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const videoUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
+  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug)
   return (
     <CanvasVideoNodeView
       selected={selected}
@@ -874,7 +840,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       runIcon={<Play size={12} />}
       onRun={data.onRun}
       ports={<SemanticPortRows nodeType="video" inputPorts={mediaNodeInputPorts('video', data)} />}
-      media={videoUrl ? <AuthedVideo src={videoUrl} controls /> : undefined}
+      media={videoUrl && showPreview ? <AuthedVideo src={videoUrl} controls diagnosticLabel={`canvas-node:${data.rfNodeId ?? data.resource?.ID ?? 'unknown'}`} /> : undefined}
       emptyIcon={<Video size={24} />}
       surface="dark"
     />
@@ -926,7 +892,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
             <CanvasGenerationParamControls nodeType={type} data={data} outputType={meta.outputType} models={models} selectedModel={selectedModel} />
           </>
         ) : undefined}
-        configs={toolConfigItems(type, data, meta.outputType, selectedModel)}
+        configs={isGenerationTool ? undefined : toolConfigItems(type, data, meta.outputType, selectedModel)}
         outputs={toolOutputSlots(type, data, t)}
         resultPanel={isGenerationTool ? <CanvasGenerationResultPanel data={data} outputType={meta.outputType} /> : undefined}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
@@ -1149,7 +1115,6 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
             <CanvasGenerationParamControls nodeType="text_gen" data={data} outputType="text" models={models} selectedModel={selectedModel} />
           </>
         )}
-        configs={toolConfigItems('text_gen', data, 'text', selectedModel)}
         outputs={toolOutputSlots('text_gen', { ...data, resource: data.resource, status }, t)}
         resultPanel={<CanvasTextGenerationResultPanel data={data} />}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
@@ -1162,12 +1127,6 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
 }
 
 // ── AI Gen node ────────────────────────────────────────────────────────────────
-
-const OUTPUT_TYPES: Array<{ value: 'image' | 'video' | 'text'; icon: React.ReactNode; label: string }> = [
-  { value: 'image', icon: <Image size={10} />, label: 'canvas.outputTypes.image' },
-  { value: 'video', icon: <Video size={10} />, label: 'canvas.outputTypes.video' },
-  { value: 'text',  icon: <FileText size={10} />, label: 'canvas.outputTypes.text' },
-]
 
 export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
@@ -1198,10 +1157,6 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
             <CanvasGenerationParamControls nodeType="ai_gen" data={data} outputType={outputType} models={models} selectedModel={selectedModel} />
           </>
         )}
-        configs={[
-          { id: 'outputType', label: '输出', value: t(OUTPUT_TYPES.find((item) => item.value === outputType)?.label ?? 'canvas.outputTypes.image') },
-          ...toolConfigItems('ai_gen', data, outputType, selectedModel),
-        ]}
         outputs={outputSlots}
         resultPanel={outputType === 'text' ? <CanvasTextGenerationResultPanel data={data} /> : <CanvasGenerationResultPanel data={data} outputType={outputType} />}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}

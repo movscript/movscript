@@ -1,4 +1,4 @@
-export const movScriptThemeNames = ["dark", "light", "graphite", "studio"] as const;
+export const movScriptThemeNames = ["dark", "light", "noir", "gray"] as const;
 
 export type MovScriptThemeName = (typeof movScriptThemeNames)[number];
 export type MovScriptThemeMode = "light" | "dark";
@@ -12,8 +12,8 @@ export interface MovScriptThemeMeta {
 export const movScriptThemeRegistry: Record<MovScriptThemeName, MovScriptThemeMeta> = {
   dark: { name: "dark", label: "Dark", mode: "dark" },
   light: { name: "light", label: "Light", mode: "light" },
-  graphite: { name: "graphite", label: "Graphite", mode: "dark" },
-  studio: { name: "studio", label: "Studio", mode: "light" }
+  noir: { name: "noir", label: "Black Gold", mode: "dark" },
+  gray: { name: "gray", label: "Gray", mode: "light" }
 } as const;
 
 export const movScriptThemeStorageKey = "movscript-theme" as const;

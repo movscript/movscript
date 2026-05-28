@@ -42,7 +42,7 @@ func (h *ResourceHandler) List(c *gin.Context) {
 		UserID:   user.ID,
 		OrgID:    currentOrgID(c),
 		FolderID: c.Query("folder_id"),
-		Shared:   c.Query("shared") == "true",
+		Scope:    c.Query("scope"),
 		Type:     c.Query("type"),
 		Query:    c.Query("q"),
 		Page:     parseInt(c.DefaultQuery("page", "0")),
@@ -220,7 +220,7 @@ func (h *ResourceHandler) AdoptToTeam(c *gin.Context) {
 	c.JSON(http.StatusOK, r)
 }
 
-// Update patches is_shared and/or folder_id on a resource.
+// Update patches editable resource metadata.
 func (h *ResourceHandler) Update(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
@@ -228,7 +228,6 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		return
 	}
 	var body struct {
-		IsShared *bool  `json:"is_shared"`
 		FolderID *uint  `json:"folder_id"`
 		Name     string `json:"name"`
 	}
@@ -240,7 +239,6 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		UserID:   user.ID,
 		OrgID:    currentOrgID(c),
 		ID:       parseID(c.Param("id")),
-		IsShared: body.IsShared,
 		FolderID: body.FolderID,
 		Name:     body.Name,
 	})

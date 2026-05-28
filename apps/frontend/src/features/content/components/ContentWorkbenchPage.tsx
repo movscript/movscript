@@ -65,7 +65,6 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
   Badge,
-  ContentWorkbenchBody,
   ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchCommandCenter,
   ContentWorkbenchDrawerActionRow,
@@ -86,6 +85,7 @@ import {
   WorkbenchGateChecklist as GateChecklist,
   WorkbenchMetricStrip as MetricStrip,
   WorkbenchPanel,
+  WorkbenchProjectBody,
   WorkbenchProjectShell,
   WorkbenchQueueMiniMetric as QueueMiniMetric,
   WorkbenchSpecializedQueue as SpecializedQueue,
@@ -539,7 +539,7 @@ export function ContentWorkbenchPage() {
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <ContentWorkbenchBody>
+      <WorkbenchProjectBody scroll="responsive">
         {!projectId ? (
           <WorkbenchEmptyState title="请先选择项目" description="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
         ) : isLoading ? (
@@ -711,7 +711,7 @@ export function ContentWorkbenchPage() {
             <ContentWorkbenchCandidateUploadInput ref={candidateUploadInput.inputRef} accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleCandidateUpload(e.target.files?.[0])} />
           </ContentWorkbenchCommandCenter>
         )}
-      </ContentWorkbenchBody>
+      </WorkbenchProjectBody>
 
       <ContentWorkbenchDialogs
         projectId={projectId}

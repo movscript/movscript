@@ -26,11 +26,68 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { Button, CheckboxField, Input, NativeSelect, RangeInput, Textarea, ToolTimelineClipButton, ToolVideoEditPanel, ToolVideoEditStage, ToolVideoEditStateMessage, ToolVideoEditSurface, ToolVideoEditTrackControlButton, ToolVideoEditWaveform } from '@movscript/ui'
+import {
+  Button,
+  CheckboxField,
+  Input,
+  NativeSelect,
+  RangeInput,
+  Textarea,
+  ToolTimelineClipButton,
+  ToolVideoEditBody,
+  ToolVideoEditCanvasPane,
+  ToolVideoEditClipFallbackFill,
+  ToolVideoEditClipMeta,
+  ToolVideoEditClipThumbnailFrame,
+  ToolVideoEditClipThumbnailOverlay,
+  ToolVideoEditClipThumbnailStrip,
+  ToolVideoEditClipTitle,
+  ToolVideoEditClipTrimHandle,
+  ToolVideoEditControlRow,
+  ToolVideoEditEmptyPreview,
+  ToolVideoEditHeader,
+  ToolVideoEditHeaderActions,
+  ToolVideoEditInspector,
+  ToolVideoEditInspectorFieldRow,
+  ToolVideoEditInspectorFieldStack,
+  ToolVideoEditInspectorReadout,
+  ToolVideoEditInspectorStack,
+  ToolVideoEditInspectorText,
+  ToolVideoEditMain,
+  ToolVideoEditMarkerInputRow,
+  ToolVideoEditMarkerLabel,
+  ToolVideoEditMarkerList,
+  ToolVideoEditMarkerRow,
+  ToolVideoEditMarkerTime,
+  ToolVideoEditPanel,
+  ToolVideoEditPreviewFrame,
+  ToolVideoEditPreviewGrid,
+  ToolVideoEditRoot,
+  ToolVideoEditSplit,
+  ToolVideoEditStage,
+  ToolVideoEditStateMessage,
+  ToolVideoEditTimelineActions,
+  ToolVideoEditTimelineCanvas,
+  ToolVideoEditTimelineHeader,
+  ToolVideoEditTimelineHeaderGroup,
+  ToolVideoEditTimelineMarker,
+  ToolVideoEditTimelineMarkerLabel,
+  ToolVideoEditTimelinePlayhead,
+  ToolVideoEditTimelineRuler,
+  ToolVideoEditTimelineSurface,
+  ToolVideoEditTimelineTick,
+  ToolVideoEditTimelineViewport,
+  ToolVideoEditTrackCollapsedGuide,
+  ToolVideoEditTrackControlButton,
+  ToolVideoEditTrackControls,
+  ToolVideoEditTrackLaneSurface,
+  ToolVideoEditTrackRow,
+  ToolVideoEditTrackStack,
+  ToolVideoEditWaveform,
+} from '@movscript/ui'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
 import { resolveResourceUrl } from '@/shared/ui/MediaViewer'
 import { api } from '@/shared/infrastructure/api'
-import { cn } from '@/shared/ui/cn'
 import type { RawResource } from '@/types'
 import {
   addMarker,
@@ -566,12 +623,12 @@ export default function VideoEditPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-5">
+    <ToolVideoEditRoot>
+      <ToolVideoEditHeader>
         <Scissors size={16} className="text-primary" />
         <h1 className="type-body font-semibold text-foreground">剪辑工作台</h1>
         <span className="truncate type-label text-muted-foreground">非破坏式时间线、素材装配、字幕/脚本粗剪和项目交付 JSON</span>
-        <div className="ml-auto flex items-center gap-2">
+        <ToolVideoEditHeaderActions>
           <ToolbarButton icon={<Undo2 size={14} />} label="撤销" onClick={undo} disabled={past.length === 0} />
           <ToolbarButton icon={<Redo2 size={14} />} label="重做" onClick={redo} disabled={future.length === 0} />
           <Input
@@ -597,19 +654,19 @@ export default function VideoEditPage() {
             <Download size={14} />
             导出 JSON
           </Button>
-        </div>
-      </div>
+        </ToolVideoEditHeaderActions>
+      </ToolVideoEditHeader>
 
-      <div className="flex min-h-0 flex-1">
+      <ToolVideoEditBody>
         <ResourcePanel inputType="media" selectedIds={[]} onSelect={handleResourceSelect} />
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] overflow-hidden max-xl:grid-cols-1">
-            <div className="min-h-0 overflow-auto p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <ToolVideoEditMain>
+          <ToolVideoEditSplit>
+            <ToolVideoEditCanvasPane>
+              <ToolVideoEditPreviewGrid>
                 <ToolVideoEditStage variant="stage-dark">
                   {previewResource ? (
-                    <div className="relative aspect-video w-full">
+                    <ToolVideoEditPreviewFrame>
                       <video
                         ref={videoRef}
                         key={visibleVideoClip?.id}
@@ -692,14 +749,14 @@ export default function VideoEditPage() {
                           {clip.text}
                         </div>
                       ))}
-                    </div>
+                    </ToolVideoEditPreviewFrame>
                   ) : (
-                    <div className="flex aspect-video items-center justify-center type-body text-white/55">从左侧素材库选择视频开始装配</div>
+                    <ToolVideoEditEmptyPreview>从左侧素材库选择视频开始装配</ToolVideoEditEmptyPreview>
                   )}
                 </ToolVideoEditStage>
 
                 <ToolVideoEditPanel title="预览控制" action={<span className="type-label tabular-nums text-muted-foreground">{formatTime(playheadMs)}</span>}>
-                  <div className="flex flex-wrap gap-2">
+                  <ToolVideoEditControlRow>
                     <ToolbarButton icon={<StepBack size={14} />} label="-1s" onClick={() => nudgePlayhead(-1000)} />
                     <ToolbarButton icon={playing ? <Pause size={14} /> : <Play size={14} />} label={playing ? '暂停' : '播放'} onClick={togglePreviewPlayback} disabled={!previewResource} />
                     <ToolbarButton icon={<StepForward size={14} />} label="+1s" onClick={() => nudgePlayhead(1000)} />
@@ -709,7 +766,7 @@ export default function VideoEditPage() {
                     <ToolbarButton icon={<ClipboardPaste size={14} />} label="粘贴" onClick={pasteCopiedClipAtPlayhead} disabled={!copiedClipId} />
                     <ToolbarButton icon={<StepForward size={14} />} label="移到播放头" onClick={moveSelectedClipToPlayhead} disabled={!selectedClip} />
                     <ToolbarButton icon={<Trash2 size={14} />} label="删除" onClick={deleteSelectedClip} disabled={!selectedClip} />
-                  </div>
+                  </ToolVideoEditControlRow>
                   <RangeInput
                     min={0}
                     max={durationMs}
@@ -718,7 +775,7 @@ export default function VideoEditPage() {
                     onChange={event => setPlayheadMs(Number(event.target.value))}
                     className="mt-4 w-full"
                   />
-                  <div className="mt-3 flex items-center gap-2">
+                  <ToolVideoEditMarkerInputRow>
                     <Input
                       value={markerLabel}
                       onChange={event => setMarkerLabel(event.target.value)}
@@ -726,7 +783,7 @@ export default function VideoEditPage() {
                       className="min-w-0 flex-1 px-2 py-1.5 type-label"
                     />
                     <ToolbarButton icon={<BookmarkPlus size={14} />} label="标记" onClick={addTimelineMarker} />
-                  </div>
+                  </ToolVideoEditMarkerInputRow>
                   {renderError && (
                     <ToolVideoEditStateMessage tone="danger">
                       {renderError}
@@ -738,7 +795,7 @@ export default function VideoEditPage() {
                     </ToolVideoEditStateMessage>
                   )}
                 </ToolVideoEditPanel>
-              </div>
+              </ToolVideoEditPreviewGrid>
 
               <TimelineEditor
                 timeline={timeline}
@@ -757,9 +814,9 @@ export default function VideoEditPage() {
                 onAddTrack={(kind) => commit(addTrack(timeline, kind))}
                 onDeleteTrack={(trackId) => commit(deleteTrack(timeline, trackId))}
               />
-            </div>
+            </ToolVideoEditCanvasPane>
 
-            <aside className="min-h-0 overflow-auto border-l border-border p-4 max-xl:border-l-0 max-xl:border-t">
+            <ToolVideoEditInspector>
               <Inspector
                 timeline={timeline}
                 selectedClip={selectedClip}
@@ -773,11 +830,11 @@ export default function VideoEditPage() {
                 onScriptDraftChange={setScriptDraft}
                 onApplyScript={applyScript}
               />
-            </aside>
-          </section>
-        </main>
-      </div>
-    </div>
+            </ToolVideoEditInspector>
+          </ToolVideoEditSplit>
+        </ToolVideoEditMain>
+      </ToolVideoEditBody>
+    </ToolVideoEditRoot>
   )
 }
 
@@ -819,11 +876,11 @@ function TimelineEditor({
   const snapPoints = buildTimelineSnapPoints(timeline, durationMs)
 
   return (
-    <ToolVideoEditSurface className="mt-4 overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
+    <ToolVideoEditTimelineSurface>
+      <ToolVideoEditTimelineHeader>
+        <ToolVideoEditTimelineHeaderGroup>
           <p className="type-body font-medium text-foreground">时间线</p>
-          <div className="flex items-center gap-1">
+          <ToolVideoEditTimelineActions>
             {[
               ['V', 'video', '添加视频轨'],
               ['O', 'overlay', '添加叠加轨'],
@@ -844,9 +901,9 @@ function TimelineEditor({
                 {label}
               </Button>
             ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+          </ToolVideoEditTimelineActions>
+        </ToolVideoEditTimelineHeaderGroup>
+        <ToolVideoEditTimelineActions>
           <span className="type-label tabular-nums text-muted-foreground">总时长 {formatTime(timelineDurationMs(timeline))}</span>
           <Button
             type="button"
@@ -872,24 +929,24 @@ function TimelineEditor({
           >
             <ZoomIn size={14} />
           </Button>
-        </div>
-      </div>
-      <div className="relative overflow-x-auto p-3">
-        <div className="relative min-w-[760px]" style={{ width: timelineWidth }}>
-          <div className="absolute bottom-0 top-0 z-20 w-px bg-primary" style={{ left: `${playheadPct}%` }} />
-          <div className="relative h-7 border-b border-border/70 type-tiny tabular-nums text-muted-foreground">
+        </ToolVideoEditTimelineActions>
+      </ToolVideoEditTimelineHeader>
+      <ToolVideoEditTimelineViewport>
+        <ToolVideoEditTimelineCanvas style={{ width: timelineWidth }}>
+          <ToolVideoEditTimelinePlayhead style={{ left: `${playheadPct}%` }} />
+          <ToolVideoEditTimelineRuler>
             {ticks.map(tick => (
-              <div key={tick.atMs} className="absolute bottom-0 top-1 border-l border-border/80 pl-1" style={{ left: `${tick.atMs / durationMs * 100}%` }}>
+              <ToolVideoEditTimelineTick key={tick.atMs} style={{ left: `${tick.atMs / durationMs * 100}%` }}>
                 <span>{tick.label}</span>
-              </div>
+              </ToolVideoEditTimelineTick>
             ))}
-          </div>
+          </ToolVideoEditTimelineRuler>
           {timeline.markers.map(marker => (
-            <div key={marker.id} className="absolute bottom-0 top-7 z-10 w-px bg-primary/70" style={{ left: `${marker.atMs / durationMs * 100}%` }}>
-              <span className="absolute left-1 top-0 max-w-28 truncate rounded bg-primary px-1.5 py-0.5 type-tiny text-primary-foreground">{marker.label}</span>
-            </div>
+            <ToolVideoEditTimelineMarker key={marker.id} style={{ left: `${marker.atMs / durationMs * 100}%` }}>
+              <ToolVideoEditTimelineMarkerLabel>{marker.label}</ToolVideoEditTimelineMarkerLabel>
+            </ToolVideoEditTimelineMarker>
           ))}
-          <div className="space-y-2 pt-3">
+          <ToolVideoEditTrackStack>
             {timeline.tracks.map(track => (
               <TrackLane
                 key={track.id}
@@ -909,10 +966,10 @@ function TimelineEditor({
                 onDeleteTrack={onDeleteTrack}
               />
             ))}
-          </div>
-        </div>
-      </div>
-    </ToolVideoEditSurface>
+          </ToolVideoEditTrackStack>
+        </ToolVideoEditTimelineCanvas>
+      </ToolVideoEditTimelineViewport>
+    </ToolVideoEditTimelineSurface>
   )
 }
 
@@ -1038,8 +1095,8 @@ function TrackLane({
   }
 
   return (
-    <div className="grid grid-cols-[160px_minmax(0,1fr)] items-stretch gap-2">
-      <ToolVideoEditSurface className="flex items-center gap-1 px-1.5 type-label font-medium text-muted-foreground">
+    <ToolVideoEditTrackRow>
+      <ToolVideoEditTrackControls>
         <ToolVideoEditTrackControlButton
           state={track.locked ? 'active' : 'default'}
           title={track.locked ? '解锁轨道' : '锁定轨道'}
@@ -1090,22 +1147,19 @@ function TrackLane({
         >
           <Trash2 size={12} />
         </Button>
-      </ToolVideoEditSurface>
-      <ToolVideoEditSurface
+      </ToolVideoEditTrackControls>
+      <ToolVideoEditTrackLaneSurface
         asChild
         variant="overlay"
-        className={cn(
-          'relative cursor-crosshair p-0',
-          track.collapsed ? 'h-7' : 'h-14',
-          track.locked && 'cursor-not-allowed opacity-70'
-        )}
+        data-collapsed={track.collapsed ? 'true' : undefined}
+        data-locked={track.locked ? 'true' : undefined}
       >
       <div
         ref={laneRef}
         data-video-edit-track-id={track.id}
         onMouseDown={track.locked ? undefined : handleLanePointer}
       >
-        {track.collapsed && <div className="absolute inset-x-2 top-1/2 h-px bg-border" />}
+        {track.collapsed && <ToolVideoEditTrackCollapsedGuide />}
         {clips.map(clip => {
           const draft = drag?.clip.id === clip.id ? drag.draft : clip
           const left = draft.startMs / durationMs * 100
@@ -1139,16 +1193,16 @@ function TrackLane({
                 />
               )}
               {!track.locked && !track.collapsed && (
-                <span
-                  className="absolute bottom-0 left-0 top-0 w-2 cursor-ew-resize bg-white/0 hover:bg-white/25"
+                <ToolVideoEditClipTrimHandle
+                  side="start"
                   onPointerDown={event => beginDrag(event, clip, 'trim-start')}
                 />
               )}
-              <span className="relative z-10 w-full truncate font-medium drop-shadow-sm">{clip.text || clip.resourceName || clip.kind}</span>
-              {!track.collapsed && <span className="relative z-10 type-tiny opacity-80 drop-shadow-sm">{formatTime(draft.startMs)} · {formatTime(draft.durationMs)}</span>}
+              <ToolVideoEditClipTitle>{clip.text || clip.resourceName || clip.kind}</ToolVideoEditClipTitle>
+              {!track.collapsed && <ToolVideoEditClipMeta>{formatTime(draft.startMs)} · {formatTime(draft.durationMs)}</ToolVideoEditClipMeta>}
               {!track.locked && !track.collapsed && (
-                <span
-                  className="absolute bottom-0 right-0 top-0 w-2 cursor-ew-resize bg-white/0 hover:bg-white/25"
+                <ToolVideoEditClipTrimHandle
+                  side="end"
                   onPointerDown={event => beginDrag(event, clip, 'trim-end')}
                 />
               )}
@@ -1156,8 +1210,8 @@ function TrackLane({
           )
         })}
       </div>
-      </ToolVideoEditSurface>
-    </div>
+      </ToolVideoEditTrackLaneSurface>
+    </ToolVideoEditTrackRow>
   )
 }
 
@@ -1180,22 +1234,21 @@ function ClipMediaPreview({
   }
   if (thumbnail) {
     return (
-      <div className="absolute inset-0 flex opacity-60">
+      <ToolVideoEditClipThumbnailStrip>
         {Array.from({ length: 8 }).map((_, index) => (
-          <div
+          <ToolVideoEditClipThumbnailFrame
             key={index}
-            className="min-w-10 flex-1 border-r border-black/20 bg-cover bg-center"
             style={{ backgroundImage: `url("${thumbnail}")` }}
           />
         ))}
-        <div className="absolute inset-0 bg-black/20" />
-      </div>
+        <ToolVideoEditClipThumbnailOverlay />
+      </ToolVideoEditClipThumbnailStrip>
     )
   }
   if (resource?.type === 'video' || clip.kind === 'video') {
     return <div className="tool-video-edit-media-grid" data-density="compact" />
   }
-  return <div className="absolute inset-0 bg-muted/20" />
+  return <ToolVideoEditClipFallbackFill />
 }
 
 function Inspector({
@@ -1224,13 +1277,13 @@ function Inspector({
   onApplyScript: () => void
 }) {
   return (
-    <div className="space-y-4">
+    <ToolVideoEditInspectorStack>
       <ToolVideoEditPanel title="片段属性" icon={FileJson}>
         {selectedClip ? (
-          <div className="space-y-3">
+          <ToolVideoEditInspectorFieldStack>
             <Readout label="类型" value={selectedClip.kind} />
             <Readout label="素材" value={selectedClip.resourceName || selectedClip.text || '手动片段'} />
-            <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
+            <ToolVideoEditInspectorFieldRow>
               <span className="text-muted-foreground">轨道</span>
               <NativeSelect
                 value={selectedClip.trackId}
@@ -1241,7 +1294,7 @@ function Inspector({
                   .filter(track => track.kind === selectedClip.kind)
                   .map(track => <option key={track.id} value={track.id}>{track.name}</option>)}
               </NativeSelect>
-            </label>
+            </ToolVideoEditInspectorFieldRow>
             <NumberField label="起点" value={selectedClip.startMs} onChange={value => onTrimClip({ startMs: value })} />
             <NumberField label="时长" value={selectedClip.durationMs} onChange={value => onTrimClip({ durationMs: value })} />
             <NumberField label="源入点" value={selectedClip.sourceInMs} onChange={value => onTrimClip({ sourceInMs: value })} />
@@ -1299,9 +1352,9 @@ function Inspector({
                 <NumberField label="底色透明" value={selectedClip.captionBoxOpacityPercent ?? 35} min={0} step={5} onChange={value => onPatchClip({ captionBoxOpacityPercent: value })} />
               </>
             )}
-          </div>
+          </ToolVideoEditInspectorFieldStack>
         ) : (
-          <p className="type-label leading-5 text-muted-foreground">选择时间线片段后可微调入点、时长、音量和字幕文本。</p>
+          <ToolVideoEditInspectorText>选择时间线片段后可微调入点、时长、音量和字幕文本。</ToolVideoEditInspectorText>
         )}
       </ToolVideoEditPanel>
 
@@ -1319,12 +1372,12 @@ function Inspector({
       </ToolVideoEditPanel>
 
       <ToolVideoEditPanel title="标记点" icon={BookmarkPlus}>
-        <div className="space-y-2">
-          {timeline.markers.length === 0 && <p className="type-label text-muted-foreground">暂无标记，当前播放头 {formatTime(playheadMs)}。</p>}
+        <ToolVideoEditMarkerList>
+          {timeline.markers.length === 0 && <ToolVideoEditInspectorText>暂无标记，当前播放头 {formatTime(playheadMs)}。</ToolVideoEditInspectorText>}
           {timeline.markers.map(marker => (
-            <ToolVideoEditSurface key={marker.id} className="flex items-center gap-2 px-2 py-1.5">
-              <span className="w-14 shrink-0 type-label tabular-nums text-muted-foreground">{formatTime(marker.atMs)}</span>
-              <span className="min-w-0 flex-1 truncate type-label text-foreground">{marker.label}</span>
+            <ToolVideoEditMarkerRow key={marker.id}>
+              <ToolVideoEditMarkerTime>{formatTime(marker.atMs)}</ToolVideoEditMarkerTime>
+              <ToolVideoEditMarkerLabel>{marker.label}</ToolVideoEditMarkerLabel>
               <Button
                 type="button"
                 variant="ghost"
@@ -1336,11 +1389,11 @@ function Inspector({
               >
                 <Trash2 size={12} />
               </Button>
-            </ToolVideoEditSurface>
+            </ToolVideoEditMarkerRow>
           ))}
-        </div>
+        </ToolVideoEditMarkerList>
       </ToolVideoEditPanel>
-    </div>
+    </ToolVideoEditInspectorStack>
   )
 }
 
@@ -1364,10 +1417,10 @@ function ToolbarButton({ icon, label, onClick, disabled }: { icon: ReactNode; la
 
 function Readout({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 type-label">
+    <ToolVideoEditInspectorReadout>
       <span className="text-muted-foreground">{label}</span>
-      <span className="min-w-0 truncate text-foreground">{value}</span>
-    </div>
+      <span className="tool-video-edit-inspector-readout__value">{value}</span>
+    </ToolVideoEditInspectorReadout>
   )
 }
 
@@ -1385,7 +1438,7 @@ function NumberField({
   step?: number
 }) {
   return (
-    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
+    <ToolVideoEditInspectorFieldRow>
       <span className="text-muted-foreground">{label}</span>
       <Input
         type="number"
@@ -1395,13 +1448,13 @@ function NumberField({
         onChange={event => onChange(Number(event.target.value))}
         className="h-8 px-2 text-right tabular-nums"
       />
-    </label>
+    </ToolVideoEditInspectorFieldRow>
   )
 }
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
+    <ToolVideoEditInspectorFieldRow>
       <span className="text-muted-foreground">{label}</span>
       <Input
         type="color"
@@ -1409,7 +1462,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
         onChange={event => onChange(event.target.value)}
         className="h-8 w-full px-1"
       />
-    </label>
+    </ToolVideoEditInspectorFieldRow>
   )
 }
 

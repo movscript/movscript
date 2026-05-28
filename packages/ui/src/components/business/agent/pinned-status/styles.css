@@ -1,13 +1,17 @@
 .agent-pinned-status-root {
   z-index: 20;
   flex-shrink: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  border-bottom: 1px solid var(--ms-color-border);
   background: var(--ms-color-background);
-  padding: var(--ms-space-2);
+  padding: 0;
 }
 
 .agent-pinned-status-surface {
-  box-shadow: var(--ms-shadow-sm);
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .agent-pinned-status-header {

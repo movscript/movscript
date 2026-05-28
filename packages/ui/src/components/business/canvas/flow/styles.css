@@ -1,8 +1,5 @@
 .canvas-flow {
-  background:
-    linear-gradient(to right, color-mix(in srgb, var(--ms-color-border) 16%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--ms-color-border) 16%, transparent) 1px, transparent 1px);
-  background-size: 72px 72px;
+  background: var(--ms-color-canvas-background);
 }
 
 .canvas-flow .react-flow__pane {
@@ -14,15 +11,38 @@
 }
 
 .canvas-flow .react-flow__node-input,
-.canvas-flow .react-flow__node-output {
+.canvas-flow .react-flow__node-output,
+.canvas-flow .react-flow__node-group {
   border: 0;
   background: transparent;
   padding: 0;
   box-shadow: none;
 }
 
+.canvas-flow .react-flow__node-group.selected,
+.canvas-flow .react-flow__node-group:focus,
+.canvas-flow .react-flow__node-group:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
+.canvas-flow .react-flow__node-group .react-flow__resize-control.line {
+  border-color: transparent;
+}
+
 .canvas-flow .react-flow__edge-path {
   stroke: color-mix(in srgb, var(--ms-color-muted-foreground) 50%, transparent);
+}
+
+.canvas-flow--debug-no-shadows .react-flow__node,
+.canvas-flow--debug-no-shadows .react-flow__node *,
+.canvas-flow--debug-no-shadows .react-flow__edge,
+.canvas-flow--debug-no-shadows .react-flow__edge *,
+.canvas-flow--debug-no-shadows .react-flow__controls,
+.canvas-flow--debug-no-shadows .react-flow__minimap {
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
 }
 
 .canvas-flow .react-flow__edges,
@@ -94,29 +114,68 @@
 }
 
 .canvas-group-frame {
+  position: relative;
   width: 100%;
   height: 100%;
-  border: 1px dashed color-mix(in srgb, var(--ms-color-border) 70%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--ms-color-foreground) 18%, transparent);
   border-radius: var(--ms-radius-md);
-  background: color-mix(in srgb, var(--ms-color-background) 35%, transparent);
-  backdrop-filter: blur(1px);
-  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard), background-color var(--ms-duration-fast) var(--ms-easing-standard);
+  background: transparent;
+  box-shadow: none;
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.canvas-group-frame::before,
+.canvas-group-frame::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: color-mix(in srgb, var(--ms-color-primary) 48%, transparent);
+}
+
+.canvas-group-frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: var(--ms-radius-md);
+}
+
+.canvas-group-frame::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  border-bottom-right-radius: var(--ms-radius-md);
 }
 
 .canvas-group-frame:hover {
-  border-color: color-mix(in srgb, var(--ms-color-foreground) 25%, transparent);
+  border-color: color-mix(in srgb, var(--ms-color-foreground) 32%, transparent);
 }
 
 .canvas-group-frame[data-selected="true"] {
   border-color: color-mix(in srgb, var(--ms-color-primary) 70%, transparent);
-  background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
+  background: transparent;
+}
+
+.canvas-group-frame[data-selected="true"]::before,
+.canvas-group-frame[data-selected="true"]::after {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 78%, transparent);
 }
 
 .canvas-group-header {
   display: flex;
   align-items: center;
   gap: var(--ms-space-2);
+  width: fit-content;
+  max-width: calc(100% - var(--ms-space-4));
   padding: var(--ms-space-2) var(--ms-space-3);
+  border-bottom-right-radius: var(--ms-radius-sm);
+  border-right: 1px solid var(--ms-color-border);
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  box-shadow: none;
 }
 
 .canvas-group-header__title {

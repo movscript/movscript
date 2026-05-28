@@ -1,3 +1,155 @@
+.project-overview-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ms-space-5);
+}
+
+.project-list-page {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.project-list-page-layout {
+  overflow-x: hidden;
+}
+
+.project-overview-status-header,
+.project-overview-panel-header,
+.project-overview-lane-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+}
+
+.project-overview-title-group,
+.project-overview-entry-content,
+.project-overview-lane-content {
+  min-width: 0;
+}
+
+.project-overview-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.project-overview-body-copy {
+  margin: 4px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.project-overview-metric-grid {
+  display: grid;
+  gap: var(--ms-space-3);
+  margin-top: var(--ms-space-5);
+}
+
+.project-overview-pipeline-grid {
+  display: grid;
+  gap: var(--ms-space-2);
+  margin-top: var(--ms-space-5);
+}
+
+.project-overview-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ms-space-3);
+  margin-top: var(--ms-space-4);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.project-overview-lane-grid {
+  display: grid;
+  gap: var(--ms-space-3);
+}
+
+.project-overview-panel-header {
+  margin-bottom: var(--ms-space-4);
+}
+
+.project-overview-entry-stack {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.project-overview-entry-content {
+  flex: 1 1 auto;
+}
+
+.project-overview-entry-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 500;
+  line-height: var(--ms-leading-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-overview-entry-detail {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-overview-lane-content {
+  margin-top: var(--ms-space-4);
+  flex: 1 1 auto;
+}
+
+.project-overview-lane-progress,
+.project-overview-lane-actions {
+  margin-top: var(--ms-space-4);
+}
+
+.project-overview-lane-progress {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.project-overview-lane-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ms-space-2);
+}
+
+@media (min-width: 640px) {
+  .project-overview-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .project-overview-lane-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .project-overview-metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .project-overview-pipeline-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .project-overview-lane-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 .project-page-action-button,
 .project-page-empty-state,
 .project-page-local-admin-prompt {

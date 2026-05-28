@@ -28,8 +28,8 @@ export function workModeForRoute(pathname: string, fallback: AppWorkMode): AppWo
 }
 
 export function routeForWorkMode(workMode: AppWorkMode, hasProject: boolean): string {
-  if (!hasProject) return ROUTES.projects
-  return workMode === 'agent' ? ROUTES.project.agent : ROUTES.project.overview
+  if (workMode === 'agent') return ROUTES.project.agent
+  return hasProject ? ROUTES.project.overview : ROUTES.resources
 }
 
 export function canvasEditorPath(canvasId: string | number, options?: { source?: CanvasRouteSource }): string {

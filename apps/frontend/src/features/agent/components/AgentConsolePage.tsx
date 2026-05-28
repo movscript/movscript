@@ -61,9 +61,9 @@ import {
   AgentConsoleSyncBadge,
   AgentConsoleTestResult,
   AgentConsoleToolbar,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
   type AgentConsoleIssueTone,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
@@ -219,8 +219,8 @@ export default function AgentConsolePage() {
   }
 
   return (
-    <AppPageShell data-testid="agent-console-page">
-      <AppPageShellHeader>
+    <AgentPageShell data-testid="agent-console-page">
+      <AgentPageShellHeader>
         <AgentConsoleHeader>
           <AgentConsoleHeaderCopy>
             <AgentConsoleHeaderTitleRow>
@@ -260,11 +260,11 @@ export default function AgentConsolePage() {
             </AgentConsoleActionButton>
           </AgentConsoleHeaderActions>
         </AgentConsoleHeader>
-      </AppPageShellHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      <AppPageShellBody>
+      <AgentPageShellBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
             title="Runtime"
@@ -355,8 +355,8 @@ export default function AgentConsolePage() {
             </ConsolePanel>
           </AgentConsoleSidebar>
         </AgentConsoleMainGrid>
-      </AppPageShellBody>
-    </AppPageShell>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

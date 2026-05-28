@@ -10,26 +10,24 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestGormRepositoryUpdateFolderPersistsUpdateSpecFalseValue(t *testing.T) {
+func TestGormRepositoryUpdateFolderPersistsTextFields(t *testing.T) {
 	db := openResourceFolderRepositoryTestDB(t)
 	repo := &gormRepository{db: db}
 	row := model.ResourceFolder{
 		OwnerID:        1,
 		Name:           "Old",
 		StorageBackend: "old",
-		IsShared:       true,
 	}
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("create folder: %v", err)
 	}
-	shared := false
-	spec := domainresourcefolder.NewFolderUpdateSpec(" New ", " local ", &shared)
+	spec := domainresourcefolder.NewFolderUpdateSpec(" New ", " local ")
 
 	folder, err := repo.UpdateFolder(context.Background(), row.OwnerID, nil, row.ID, spec, true)
 	if err != nil {
 		t.Fatalf("UpdateFolder() error = %v", err)
 	}
-	if folder.Name != "New" || folder.StorageBackend != "local" || folder.IsShared {
+	if folder.Name != "New" || folder.StorageBackend != "local" {
 		t.Fatalf("unexpected domain folder: %+v", folder)
 	}
 
@@ -37,8 +35,8 @@ func TestGormRepositoryUpdateFolderPersistsUpdateSpecFalseValue(t *testing.T) {
 	if err := db.First(&stored, row.ID).Error; err != nil {
 		t.Fatalf("load folder: %v", err)
 	}
-	if stored.Name != "New" || stored.StorageBackend != "local" || stored.IsShared {
-		t.Fatalf("false sharing update was not persisted: %+v", stored)
+	if stored.Name != "New" || stored.StorageBackend != "local" {
+		t.Fatalf("text update was not persisted: %+v", stored)
 	}
 }
 

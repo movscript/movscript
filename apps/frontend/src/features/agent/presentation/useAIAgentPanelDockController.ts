@@ -6,17 +6,21 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-const DETAIL_AGENT_PANEL_MIN_WIDTH = 300
-const DETAIL_AGENT_PANEL_DEFAULT_WIDTH = 320
-const DETAIL_AGENT_PANEL_WIDE_DEFAULT_WIDTH = 360
-const DETAIL_AGENT_PANEL_MAX_WIDTH = 420
+const DETAIL_AGENT_PANEL_MIN_WIDTH = 260
+const DETAIL_AGENT_PANEL_DEFAULT_WIDTH = 360
+const DETAIL_AGENT_PANEL_WIDE_DEFAULT_WIDTH = 420
+const DETAIL_AGENT_PANEL_MAX_WIDTH = 720
+const DETAIL_AGENT_PANEL_RESERVED_WIDTH = 760
 
 function agentPanelDefaultWidth(viewportWidth: number) {
   return viewportWidth >= 1440 ? DETAIL_AGENT_PANEL_WIDE_DEFAULT_WIDTH : DETAIL_AGENT_PANEL_DEFAULT_WIDTH
 }
 
 function agentPanelMaxWidth(viewportWidth: number) {
-  return Math.min(DETAIL_AGENT_PANEL_MAX_WIDTH, Math.max(DETAIL_AGENT_PANEL_MIN_WIDTH, Math.round(viewportWidth * 0.28)))
+  return Math.min(
+    DETAIL_AGENT_PANEL_MAX_WIDTH,
+    Math.max(DETAIL_AGENT_PANEL_MIN_WIDTH, viewportWidth - DETAIL_AGENT_PANEL_RESERVED_WIDTH),
+  )
 }
 
 function clampAgentPanelWidth(width: number, viewportWidth: number) {
@@ -27,6 +31,7 @@ export function useAIAgentPanelDockController() {
   const open = useAgentPanelUiStore((state) => state.open)
   const setOpen = useAgentPanelUiStore((state) => state.setOpen)
   const toggleOpen = useAgentPanelUiStore((state) => state.toggleOpen)
+  const setDetailAgentPanelWidth = useAgentPanelUiStore((state) => state.setDetailAgentPanelWidth)
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
@@ -36,6 +41,10 @@ export function useAIAgentPanelDockController() {
   const panelRef = useRef<HTMLDivElement | null>(null)
   const panelResizeFrameRef = useRef<number | null>(null)
   const panelResizeStateRef = useRef<{ startX: number; startWidth: number; latestWidth: number; maxWidth: number } | null>(null)
+
+  useEffect(() => {
+    setDetailAgentPanelWidth(panelWidth)
+  }, [panelWidth, setDetailAgentPanelWidth])
 
   useEffect(() => {
     function handleDraft() {
@@ -86,7 +95,25 @@ export function useAIAgentPanelDockController() {
       const state = panelResizeStateRef.current
       if (!state) return
       const delta = state.startX - moveEvent.clientX
-      state.latestWidth = clampNumber(state.startWidth + delta, DETAIL_AGENT_PANEL_MIN_WIDTH, state.maxWidth)
+      const nextWidth = state.startWidth + delta
+      if (nextWidth < DETAIL_AGENT_PANEL_MIN_WIDTH) {
+        if (state.startWidth <= DETAIL_AGENT_PANEL_MIN_WIDTH) {
+          if (panelResizeFrameRef.current !== null) {
+            window.cancelAnimationFrame(panelResizeFrameRef.current)
+            panelResizeFrameRef.current = null
+          }
+          panelResizeStateRef.current = null
+          document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUp)
+          window.removeEventListener('pointercancel', onUp)
+          setOpen(false)
+          return
+        }
+        state.latestWidth = DETAIL_AGENT_PANEL_MIN_WIDTH
+      } else {
+        state.latestWidth = clampNumber(nextWidth, DETAIL_AGENT_PANEL_MIN_WIDTH, state.maxWidth)
+      }
       if (panelResizeFrameRef.current !== null) return
       panelResizeFrameRef.current = window.requestAnimationFrame(() => {
         panelResizeFrameRef.current = null

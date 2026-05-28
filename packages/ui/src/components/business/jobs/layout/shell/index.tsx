@@ -13,7 +13,7 @@ export function JobsPageShell({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
-  header: ReactNode;
+  header?: ReactNode;
   filters?: ReactNode;
   pager?: ReactNode;
 }) {
@@ -25,7 +25,7 @@ export function JobsPageShell({
       contentClassName={cn("jobs-page-shell", className)}
       {...props}
     >
-      {header}
+      {header ? header : null}
       {filters}
       <main className="jobs-page-shell__content">{children}</main>
       {pager}

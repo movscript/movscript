@@ -1,6 +1,7 @@
 .workbench-project-shell {
   display: flex;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
@@ -59,9 +60,9 @@
   margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 24px;
+  line-height: var(--ms-leading-section);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -87,7 +88,8 @@
 
 .workbench-project-header__actions {
   display: flex;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
@@ -108,6 +110,66 @@
 
 .workbench-project-header__refresh-icon.is-spinning {
   animation: ms-workbench-spin 1s linear infinite;
+}
+
+.workbench-project-body {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.workbench-project-body[data-tone="plain"] {
+  background: var(--ms-color-background);
+}
+
+.workbench-project-body[data-tone="muted"] {
+  background: color-mix(in srgb, var(--ms-color-muted) 20%, transparent);
+}
+
+.workbench-project-body[data-padding="normal"] {
+  padding: var(--ms-space-4);
+}
+
+.workbench-project-body[data-padding="none"] {
+  padding: 0;
+}
+
+.workbench-project-body[data-scroll="auto"],
+.workbench-project-body[data-scroll="responsive"] {
+  overflow-y: auto;
+}
+
+.workbench-project-body[data-scroll="hidden"] {
+  overflow: hidden;
+}
+
+.workbench-project-viewport {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.workbench-project-viewport[data-direction="column"] {
+  flex-direction: column;
+}
+
+.workbench-project-viewport[data-direction="row"] {
+  flex-direction: row;
+}
+
+.workbench-project-pane {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+@media (min-width: 1280px) {
+  .workbench-project-body[data-scroll="responsive"] {
+    overflow: hidden;
+  }
 }
 
 @keyframes ms-workbench-spin {

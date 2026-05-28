@@ -14,7 +14,7 @@ export function CanvasToolActionCard({
   status,
   selected,
   inputs = [],
-  configs = [],
+  configs,
   outputs = [],
   inputPanel,
   resultPanel,

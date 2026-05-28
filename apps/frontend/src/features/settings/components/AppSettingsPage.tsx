@@ -39,7 +39,7 @@ function healthURL(baseURL: string): string {
   return `${normalizeAPIBaseURL(baseURL)}/health`
 }
 
-export default function AppSettingsPage() {
+export function AppSettingsPanel({ host = 'page' }: { host?: 'page' | 'dialog' } = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useUserStore((s) => s.currentUser)
@@ -79,11 +79,7 @@ export default function AppSettingsPage() {
   function chooseWorkMode(mode: AppSettings['workMode']) {
     setWorkMode(mode)
     if (!user) return
-    if (!currentProject) {
-      navigate(ROUTES.projects)
-      return
-    }
-    navigate(routeForWorkMode(mode, true))
+    navigate(routeForWorkMode(mode, !!currentProject))
   }
 
   function saveSettings() {
@@ -121,24 +117,8 @@ export default function AppSettingsPage() {
     }
   }
 
-  return (
-    <AppSettingsShell>
-      <AppSettingsHeader
-        icon={Settings}
-        title={t('appSettings.title')}
-        back={
-          <AppSettingsBackButton
-            type="button"
-            onClick={() => user ? navigate(routeForWorkMode(settings.workMode, !!currentProject)) : navigate(ROUTES.root)}
-          >
-            <ArrowLeft size={16} />
-            {t('common.back')}
-          </AppSettingsBackButton>
-        }
-      />
-
-      <AppSettingsMain>
-        <AppSettingsContentStack>
+  const content = (
+    <AppSettingsContentStack>
           <AppSettingsIntro title={t('appSettings.title')} description={t('appSettings.description')} />
 
           <AppSettingsSection
@@ -264,8 +244,34 @@ export default function AppSettingsPage() {
               <Link to={ROUTES.root} className="text-foreground underline-offset-4 hover:underline">{t('appSettings.returnToLogin')}</Link>
             </AppSettingsFooterText>
           )}
-        </AppSettingsContentStack>
+    </AppSettingsContentStack>
+  )
+
+  if (host === 'dialog') return content
+
+  return (
+    <AppSettingsShell>
+      <AppSettingsHeader
+        icon={Settings}
+        title={t('appSettings.title')}
+        back={
+          <AppSettingsBackButton
+            type="button"
+            onClick={() => user ? navigate(routeForWorkMode(settings.workMode, !!currentProject)) : navigate(ROUTES.root)}
+          >
+            <ArrowLeft size={16} />
+            {t('common.back')}
+          </AppSettingsBackButton>
+        }
+      />
+
+      <AppSettingsMain>
+        {content}
       </AppSettingsMain>
     </AppSettingsShell>
   )
+}
+
+export default function AppSettingsPage() {
+  return <AppSettingsPanel />
 }

@@ -47,9 +47,9 @@ import {
   AgentDebugTextarea,
   AgentDebugToneText,
   AppInlineError,
-  AppPageShell,
-  AppPageShellBody,
-  AppPageShellHeader,
+  AgentPageShell,
+  AgentPageShellBody,
+  AgentPageShellHeader,
   TabsTrigger,
 } from '@movscript/ui'
 import {
@@ -577,8 +577,8 @@ export default function AIAgentDebugPage() {
   const runtimeOnline = !!debugQuery.data && !debugQuery.error
 
   return (
-    <AppPageShell data-testid="agent-debug-page">
-      <AppPageShellHeader>
+    <AgentPageShell data-testid="agent-debug-page">
+      <AgentPageShellHeader>
         <AgentDebugHeaderContent>
           <AgentDebugHeaderCopy>
             <AgentDebugHeaderTitleRow>
@@ -618,11 +618,11 @@ export default function AIAgentDebugPage() {
             </AgentDebugActionButton>
           </AgentDebugHeaderActions>
         </AgentDebugHeaderContent>
-      </AppPageShellHeader>
+      </AgentPageShellHeader>
 
       <AgentConsoleNav compact />
 
-      <AppPageShellBody>
+      <AgentPageShellBody>
         {debugQuery.isLoading ? (
           <AgentDebugStateMessage icon={<AgentDebugIcon icon={Loader2} size={16} spinning />} text={t('common.loading')} />
         ) : debugQuery.error ? (
@@ -994,8 +994,8 @@ export default function AIAgentDebugPage() {
             </AgentDebugTabsContent>
           </AgentDebugTabs>
         ) : null}
-      </AppPageShellBody>
-    </AppPageShell>
+      </AgentPageShellBody>
+    </AgentPageShell>
   )
 }
 

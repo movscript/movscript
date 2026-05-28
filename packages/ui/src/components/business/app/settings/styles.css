@@ -1,6 +1,6 @@
 .app-settings-shell {
   min-height: 100vh;
-  background: var(--ms-color-background);
+  background: var(--ms-color-page-background);
   color: var(--ms-color-foreground);
 }
 

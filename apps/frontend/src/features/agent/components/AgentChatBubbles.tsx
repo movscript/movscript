@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { type ReactNode, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
@@ -68,7 +68,7 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
       <AgentChatMessage
         role="assistant"
         avatar={<Bot size={14} />}
-        data-agent-divider-label={formatAgentDividerTime(undefined)}
+        head={<AgentMessageHeadLabel>{formatAgentDividerTime(undefined)}</AgentMessageHeadLabel>}
         footer={(
           <AgentChatTinyBadge variant="outline">
             {label}
@@ -99,7 +99,7 @@ export function GenerationProgressBubble({ state }: { state: GenerationProgressS
     <AgentChatMessage
       role="assistant"
       avatar={<Bot size={14} />}
-      data-agent-divider-label={formatAgentDividerTime(state.firstSeenAt ?? state.updatedAt)}
+      head={<AgentMessageHeadLabel>{formatAgentDividerTime(state.firstSeenAt ?? state.updatedAt)}</AgentMessageHeadLabel>}
       footer={(
         <AgentChatTinyBadge variant={state.terminal ? 'outline' : 'soft'}>
           {state.terminal ? '生成已结束' : '生成监控中'}
@@ -190,6 +190,7 @@ export function MessageBubble({
       || hasResultSection
       || hasDiagnosticSection
   const hasFooter = contextLabels.length > 0 || !!runtimeInputLabel
+  const assistantHeadLabel = !isUser ? agentMessageDividerLabel(time, localRunActivity) : undefined
   const asyncWorkHandoffOnly = !isUser
     && shouldRenderRuntimeStatusOnly({
       content: msg.content,
@@ -219,7 +220,7 @@ export function MessageBubble({
       data-agent-runtime-thread-id={msg.meta?.runtimeMessage?.threadId}
       data-agent-runtime-message-id={msg.meta?.runtimeMessage?.messageId}
       data-agent-runtime-run-id={msg.meta?.runtimeMessage?.runId}
-      data-agent-divider-label={!isUser ? agentMessageDividerLabel(time, localRunActivity) : undefined}
+      head={assistantHeadLabel ? <AgentMessageHeadLabel>{assistantHeadLabel}</AgentMessageHeadLabel> : undefined}
       actions={isUser ? (
         <Button
           size="icon-xs"
@@ -230,6 +231,8 @@ export function MessageBubble({
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </Button>
+      ) : hasActivityContent && !activityFeedRun ? (
+        <AgentActivityDividerMenu activity={localRunActivity} />
       ) : undefined}
       footer={(contextLabels.length > 0 || runtimeInputLabel) && (
         <AgentChatFooterBadges align={isUser ? 'end' : 'start'}>
@@ -251,7 +254,6 @@ export function MessageBubble({
         </AgentChatFooterBadges>
       )}
     >
-      {!isUser && hasActivityContent && !activityFeedRun && <AgentActivityDividerMenu activity={localRunActivity} />}
       {!isUser && hasActivityContent && (
         <AgentActivityFeedView
           activity={activityFeedRun ? undefined : localRunActivity}
@@ -328,7 +330,7 @@ function RuntimeStatusBubble({ status }: { status: RuntimeStatusMessage }) {
     <AgentChatMessage
       role="assistant"
       avatar={<Bot size={14} />}
-      data-agent-divider-label={formatAgentDividerTime(undefined)}
+      head={<AgentMessageHeadLabel>{formatAgentDividerTime(undefined)}</AgentMessageHeadLabel>}
       footer={(
         <AgentChatTinyBadge variant="outline">
           Runtime
@@ -362,7 +364,7 @@ export function StreamingAssistantBubble({ content }: { content: string }) {
     <AgentChatMessage
       role="assistant"
       avatar={<Bot size={14} />}
-      data-agent-divider-label={formatAgentDividerTime(undefined)}
+      head={<AgentMessageHeadLabel>{formatAgentDividerTime(undefined)}</AgentMessageHeadLabel>}
       footer={(
         <AgentChatFooterBadges>
           <AgentChatTinyBadge>
@@ -374,4 +376,8 @@ export function StreamingAssistantBubble({ content }: { content: string }) {
       <MarkdownContent text={content} />
     </AgentChatMessage>
   )
+}
+
+function AgentMessageHeadLabel({ children }: { children: ReactNode }) {
+  return <span className="ms-agent-message__head-label">{children}</span>
 }

@@ -32,6 +32,8 @@ packages/*
 !packages/plugin-sdk/**
 !packages/tokens/
 !packages/tokens/**
+!packages/theme/
+!packages/theme/**
 !packages/ui/
 !packages/ui/**
 packages/*/dist/

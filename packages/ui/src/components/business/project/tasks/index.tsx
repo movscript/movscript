@@ -224,6 +224,18 @@ export function ProjectTaskPanel({
   );
 }
 
+export function ProjectTaskPublishPanel({ className, ...props }: ComponentPropsWithoutRef<typeof ProjectTaskPanel>) {
+  return <ProjectTaskPanel className={cn("project-task-publish-panel", className)} {...props} />;
+}
+
+export function ProjectTaskListPanel({ className, ...props }: ComponentPropsWithoutRef<typeof ProjectTaskPanel>) {
+  return <ProjectTaskPanel className={cn("project-task-list-panel", className)} {...props} />;
+}
+
+export function ProjectTaskDetailPanel({ className, ...props }: ComponentPropsWithoutRef<typeof ProjectTaskPanel>) {
+  return <ProjectTaskPanel className={cn("project-task-detail-panel", className)} {...props} />;
+}
+
 export function ProjectTaskSurfaceItem({
   children,
   className,

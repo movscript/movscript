@@ -46,6 +46,7 @@ import {
   ProductionDeliveryWorkbenchMetric,
   ProductionDeliveryWorkbenchSection,
   ProductionDeliveryWorkbenchStatusBadge,
+  WorkbenchProjectBody,
   WorkbenchProjectShell,
 } from '@movscript/ui'
 import { ContentFilterBar } from '@/features/content/presentation/ContentFilterBar'
@@ -295,7 +296,8 @@ export default function DeliveryWorkbenchPage() {
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <ProductionDeliveryWorkbenchLayout
+      <WorkbenchProjectBody padding="none" scroll="hidden">
+        <ProductionDeliveryWorkbenchLayout
         overview={(
           <DeliveryOverviewPanel
             versions={versions}
@@ -455,7 +457,8 @@ export default function DeliveryWorkbenchPage() {
           )}
         </ProductionDeliveryWorkbenchSection>
       )}
-      />
+        />
+      </WorkbenchProjectBody>
     </WorkbenchProjectShell>
   )
 }

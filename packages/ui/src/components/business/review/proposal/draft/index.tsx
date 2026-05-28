@@ -11,10 +11,12 @@ export type ReviewProposalFieldDiffChange = "added" | "deleted" | "modified" | "
 export function ReviewProposalDraftList({
   children,
   className,
+  scroll = false,
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
+  scroll?: boolean;
 }) {
-  return <div className={cn("review-proposal-draft-list", className)}>{children}</div>;
+  return <div className={cn("review-proposal-draft-list", scroll && "review-proposal-draft-list--scroll", className)}>{children}</div>;
 }
 
 export function ReviewProposalDraftPanel({

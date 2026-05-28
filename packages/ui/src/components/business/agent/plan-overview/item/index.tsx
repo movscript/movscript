@@ -3,11 +3,10 @@
 import * as React from "react";
 import { Badge, type BadgeProps } from "../../../../primitives/badge";
 import { cn } from "../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../surface-block";
 
-export const AgentPlanOverviewItemCard = React.forwardRef<HTMLDivElement, AgentSurfaceBlockProps>(
-  ({ className, variant = "subtle", ...props }, ref) => {
-    return <AgentSurfaceBlock ref={ref} variant={variant} className={cn("ms-agent-plan-overview-item", className)} {...props} />;
+export const AgentPlanOverviewItemCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => {
+    return <div ref={ref} className={cn("ms-agent-plan-overview-item", className)} {...props} />;
   }
 );
 

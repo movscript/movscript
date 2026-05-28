@@ -52,7 +52,7 @@ function runActivityDividerMetricParts(activity: ChatRunActivity, metrics: Retur
 
   const parts: string[] = []
   if (metrics.duration !== '--') parts.push(`耗时 ${metrics.duration}`)
-  if (hasModelCalls) parts.push(`调用 ${metrics.modelCalls} 次`)
+  if (hasModelCalls) parts.push(`模型调用 ${metrics.modelCalls} 次`)
   if (hasToolCalls) parts.push(`工具 ${metrics.toolCalls} 次`)
   if (metrics.tokens) parts.push(`Token ${metrics.tokens}`)
   return parts

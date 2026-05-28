@@ -36,6 +36,8 @@ export function ResourceMediaDialog({
   closeIcon: ReactNode;
   onDownload: () => void;
 }) {
+  if (!open) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>

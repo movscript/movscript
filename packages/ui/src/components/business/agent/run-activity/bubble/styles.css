@@ -9,11 +9,6 @@
   min-width: 0;
   align-items: center;
   gap: 4px;
-  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard);
-}
-
-.ms-agent-run-activity-bubble__frame:hover {
-  border-color: color-mix(in srgb, var(--ms-color-foreground) 25%, transparent);
 }
 
 .ms-agent-run-activity-bubble__button {

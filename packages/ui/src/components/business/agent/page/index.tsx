@@ -3,14 +3,29 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
 import { Badge, Button, Input, SelectTrigger, StatusBadge, type BadgeProps, type ButtonProps, type InputProps, type StatusBadgeProps } from "../../../primitives";
-import { AppPageShellBody, AppPageShellHeader } from "../../../layout";
+import { AppPageShell, AppPageShellBody, AppPageShellHeader } from "../../../layout";
 import { AppCodeBlock } from "../../app";
 import type { IconComponent } from "../../../primitives/types";
 import { AgentSurfaceBlock } from "../surface-block";
 import { AgentRunCallout, AgentRunToneSurfaceBlock, type AgentRunTone } from "../run/feedback";
 
-export function AgentRunPageHeader(props: ComponentProps<typeof AppPageShellHeader>) {
+export function AgentPageShell({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof AppPageShell>, "chrome">) {
+  return <AppPageShell chrome="immersive" className={cn("agent-page-shell", className)} {...props} />;
+}
+
+export function AgentPageShellHeader(props: ComponentProps<typeof AppPageShellHeader>) {
   return <AppPageShellHeader {...props} />;
+}
+
+export function AgentPageShellBody(props: ComponentProps<typeof AppPageShellBody>) {
+  return <AppPageShellBody {...props} />;
+}
+
+export function AgentRunPageHeader(props: ComponentProps<typeof AppPageShellHeader>) {
+  return <AgentPageShellHeader {...props} />;
 }
 
 export function AgentRunPageHeaderContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -53,7 +68,7 @@ export function AgentRunPageBody({
   className,
   ...props
 }: Omit<ComponentProps<typeof AppPageShellBody>, "padding" | "scroll">) {
-  return <AppPageShellBody padding="none" scroll="responsive-split" className={cn("agent-run-page-body", className)} {...props} />;
+  return <AgentPageShellBody padding="none" scroll="responsive-split" className={cn("agent-run-page-body", className)} {...props} />;
 }
 
 export function AgentRunPageSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
@@ -62,6 +77,152 @@ export function AgentRunPageSidebar({ className, ...props }: HTMLAttributes<HTML
 
 export function AgentRunPageMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return <section className={cn("agent-run-page-main", className)} {...props} />;
+}
+
+export function AgentDraftsPageBody({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof AppPageShellBody>, "padding" | "scroll">) {
+  return <AgentPageShellBody padding="none" scroll="responsive-split" className={cn("agent-drafts-page-body", className)} {...props} />;
+}
+
+export function AgentDraftsPageSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <aside className={cn("agent-drafts-page-sidebar", className)} {...props} />;
+}
+
+export function AgentDraftsPageSidebarControls({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-drafts-page-sidebar__controls", className)} {...props} />;
+}
+
+export function AgentDraftsPageList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-drafts-page-list", className)} {...props} />;
+}
+
+export function AgentDraftsPageMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <main className={cn("agent-drafts-page-main", className)} {...props} />;
+}
+
+export function AgentPageHeaderContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-page-header-content", className)} {...props} />;
+}
+
+export function AgentPageHeaderCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-page-header-copy", className)} {...props} />;
+}
+
+export function AgentPageTitleRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-page-title-row", className)} {...props} />;
+}
+
+export function AgentPageEyebrowRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-page-eyebrow-row", className)} {...props} />;
+}
+
+export function AgentPageDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("agent-page-description", className)} {...props} />;
+}
+
+export function AgentDraftsFilterGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-drafts-filter-grid", className)} {...props} />;
+}
+
+export function AgentDraftListState({ icon, className, children, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
+  return (
+    <div className={cn("agent-draft-list-state", className)} {...props}>
+      {icon}
+      {children}
+    </div>
+  );
+}
+
+export function AgentDraftListItemButton({ className, ...props }: ButtonProps) {
+  return <Button type="button" variant="ghost" className={cn("agent-draft-list-item", className)} {...props} />;
+}
+
+export function AgentDraftListItemHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-list-item__header", className)} {...props} />;
+}
+
+export function AgentDraftListItemTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-draft-list-item__title", className)} {...props} />;
+}
+
+export function AgentDraftListItemMeta({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-list-item__meta", className)} {...props} />;
+}
+
+export function AgentDraftDetailStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-detail-stack", className)} {...props} />;
+}
+
+export function AgentDraftDetailCard({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
+  return <AgentSurfaceBlock className={cn("agent-draft-detail-card", className)} {...props} />;
+}
+
+export function AgentDraftDetailHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-detail-header", className)} {...props} />;
+}
+
+export function AgentDraftDetailCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-detail-copy", className)} {...props} />;
+}
+
+export function AgentDraftDetailTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return <h2 className={cn("agent-draft-detail-title", className)} {...props} />;
+}
+
+export function AgentDraftBadgeRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-badge-row", className)} {...props} />;
+}
+
+export function AgentDraftActionRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-action-row", className)} {...props} />;
+}
+
+export function AgentDraftMetaGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-meta-grid", className)} {...props} />;
+}
+
+export function AgentDraftCodePanel({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
+  return <AgentSurfaceBlock asChild className={cn("agent-draft-code-panel", className)} {...props} />;
+}
+
+export function AgentDraftCodePanelHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-draft-code-panel__header", className)} {...props} />;
+}
+
+export function AgentDraftJsonGrid({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-draft-json-grid", className)} {...props} />;
+}
+
+export function AgentDraftMetaItem({ label, value, title, className, ...props }: HTMLAttributes<HTMLDivElement> & { label: ReactNode; value: ReactNode; title?: string }) {
+  return (
+    <div className={cn("agent-draft-meta-item", className)} {...props}>
+      <div className="agent-draft-meta-item__label">{label}</div>
+      <div className="agent-draft-meta-item__value" title={title}>{value}</div>
+    </div>
+  );
+}
+
+export function AgentCanvasPageLayout({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-canvas-page-layout", className)} {...props} />;
+}
+
+export function AgentCanvasCreatePanel({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
+  return <AgentSurfaceBlock variant="card" className={cn("agent-canvas-create-panel", className)} {...props} />;
+}
+
+export function AgentCanvasListPanel({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-canvas-list-panel", className)} {...props} />;
+}
+
+export function AgentCanvasLoadingState({ icon, className, children, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
+  return (
+    <div className={cn("agent-canvas-loading-state", className)} {...props}>
+      {icon}
+      {children}
+    </div>
+  );
 }
 
 export function AgentRunPageLoading({ icon, children, className, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
@@ -132,12 +293,12 @@ export function AgentRunSidebarSurface({ className, ...props }: ComponentProps<t
   return <AgentSurfaceBlock variant="subtle" className={cn("agent-run-sidebar-surface", className)} {...props} />;
 }
 
-export function AgentRunSidebarLoading({ icon, children, className, ...props }: ComponentProps<typeof AgentSurfaceBlock> & { icon?: ReactNode }) {
+export function AgentRunSidebarLoading({ icon, children, className, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
   return (
-    <AgentSurfaceBlock variant="subtle" className={cn("agent-run-sidebar-loading", className)} {...props}>
+    <div className={cn("agent-run-sidebar-loading", className)} {...props}>
       {icon}
       {children}
-    </AgentSurfaceBlock>
+    </div>
   );
 }
 
@@ -289,8 +450,8 @@ export function AgentRunTraceFeedbackActions({ className, ...props }: HTMLAttrib
   return <div className={cn("agent-run-trace-feedback__actions", className)} {...props} />;
 }
 
-export function AgentRunTraceEmptyState({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock variant="subtle" className={cn("agent-run-trace-empty-state", className)} {...props} />;
+export function AgentRunTraceEmptyState({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-run-trace-empty-state", className)} {...props} />;
 }
 
 export function AgentRunTraceEventCard({
@@ -470,8 +631,8 @@ export function AgentRunDebugList({ className, ...props }: HTMLAttributes<HTMLDi
   return <div className={cn("agent-run-debug-list", className)} {...props} />;
 }
 
-export function AgentRunDebugMutedNote({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock variant="subtle" className={cn("agent-run-debug-muted-note", className)} {...props} />;
+export function AgentRunDebugMutedNote({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-run-debug-muted-note", className)} {...props} />;
 }
 
 export function AgentRunDebugActionList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -486,8 +647,8 @@ export function AgentRunDebugRowButton({ className, ...props }: ButtonProps) {
   return <Button type="button" variant="ghost" className={cn("agent-run-debug-row-button", className)} {...props} />;
 }
 
-export function AgentRunDebugStatusNote({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock variant="subtle" className={cn("agent-run-debug-status-note", className)} {...props} />;
+export function AgentRunDebugStatusNote({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-run-debug-status-note", className)} {...props} />;
 }
 
 export function AgentRunDebugCodeBlock({ className, ...props }: ComponentProps<typeof AppCodeBlock>) {

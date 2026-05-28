@@ -17,9 +17,9 @@
 }
 
 .ms-agent-tool__title {
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   font-weight: 650;
-  line-height: 18px;
+  line-height: var(--ms-leading-item);
 }
 
 .ms-agent-tool__meta {
@@ -31,7 +31,7 @@
 .ms-agent-tool__content {
   padding: 10px;
   color: var(--ms-color-muted-foreground);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   line-height: 20px;
 }
 
@@ -49,7 +49,7 @@
   align-items: flex-start;
   gap: 8px;
   color: var(--ms-color-muted-foreground);
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   line-height: 19px;
 }
 

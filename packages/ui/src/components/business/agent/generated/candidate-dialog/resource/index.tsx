@@ -2,19 +2,17 @@
 
 import * as React from "react";
 import { cn } from "../../../../../../lib/cn";
-import { AgentSurfaceBlock, type AgentSurfaceBlockProps } from "../../../surface-block";
 
-export interface AgentGeneratedCandidateResourceItemProps extends AgentSurfaceBlockProps {
+export interface AgentGeneratedCandidateResourceItemProps extends React.HTMLAttributes<HTMLDivElement> {
   attached?: boolean;
 }
 
 export const AgentGeneratedCandidateResourceItem = React.forwardRef<HTMLDivElement, AgentGeneratedCandidateResourceItemProps>(
-  ({ attached = false, className, variant, ...props }, ref) => {
+  ({ attached = false, className, ...props }, ref) => {
     return (
-      <AgentSurfaceBlock
+      <div
         ref={ref}
         data-attached={attached ? "true" : undefined}
-        variant={variant ?? (attached ? "subtle" : "card")}
         className={cn("ms-agent-generated-candidate-resource-item", className)}
         {...props}
       />

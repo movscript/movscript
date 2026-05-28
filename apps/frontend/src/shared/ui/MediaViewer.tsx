@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { X, Maximize2, Download, FileAudio, FileText, File } from 'lucide-react'
+import { X, Maximize2, Download, FileAudio, FileText, File, PlayCircle } from 'lucide-react'
 import { AuthedAudio, AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { api } from '@/shared/infrastructure/api'
 import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
@@ -25,6 +25,9 @@ interface MediaViewerProps {
   fit?: 'cover' | 'contain'
   metadata?: ReactNode
   sidePanel?: ReactNode
+  diagnosticLabel?: string
+  lightweightVideoThumb?: boolean
+  thumbnailMaxSize?: number
   /** If true, clicking opens a fullscreen lightbox. Default: true */
   lightbox?: boolean
   /** Controlled open state — when provided, the component acts as a pure lightbox (no thumbnail) */
@@ -59,7 +62,7 @@ async function loadTextResource(proxyUrl: string): Promise<string> {
 
 /** Renders a thumbnail/preview of a resource; image or video.
  *  Pass `open` + `onOpenChange` to use as a controlled lightbox without a thumbnail. */
-export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
+export function MediaViewer({ resource, className = '', fit = 'cover', metadata, sidePanel, diagnosticLabel, lightweightVideoThumb = false, thumbnailMaxSize, lightbox = true, open: controlledOpen, onOpenChange }: MediaViewerProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const proxyUrl = resolveResourceUrl(resource)
@@ -76,13 +79,15 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       fit={fit}
     >
       {resource.type === 'video' ? (
-        <VideoThumb proxyUrl={proxyUrl} fit={fit} />
+        lightweightVideoThumb
+          ? <VideoPlaceholderThumb name={resource.name} size={resource.size} />
+          : <VideoThumb proxyUrl={proxyUrl} fit={fit} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} />
       ) : resource.type === 'audio' ? (
         <IconThumb icon={<FileAudio size={24} />} />
       ) : resource.type === 'text' ? (
         <TextThumb proxyUrl={proxyUrl} name={resource.name} />
       ) : resource.type === 'image' ? (
-        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} />
+        <ImageThumb proxyUrl={proxyUrl} alt={resource.name} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:thumb`} thumbnailMaxSize={thumbnailMaxSize} />
       ) : (
         <IconThumb icon={<File size={24} />} />
       )}
@@ -106,7 +111,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       onDownload={() => downloadResource(proxyUrl, resource.name)}
     >
       {resource.type === 'video' ? (
-        <AuthedVideo src={proxyUrl} controls autoPlay />
+        <AuthedVideo src={proxyUrl} controls autoPlay diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
       ) : resource.type === 'audio' ? (
         <ResourceMediaAudioPanel icon={<FileAudio size={18} />} name={resource.name}>
           <AuthedAudio src={proxyUrl} controls autoPlay />
@@ -114,7 +119,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       ) : resource.type === 'text' ? (
         <TextPreview proxyUrl={proxyUrl} />
       ) : resource.type === 'image' ? (
-        <AuthedImage src={proxyUrl} alt={resource.name} />
+        <AuthedImage src={proxyUrl} alt={resource.name} diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
       ) : (
         <ResourceMediaFallbackPanel icon={<File size={24} />} name={resource.name} />
       )}
@@ -134,16 +139,34 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
   )
 }
 
-function ImageThumb({ proxyUrl, alt }: { proxyUrl: string; alt: string }) {
-  return <AuthedImage src={proxyUrl} alt={alt} />
+function ImageThumb({ proxyUrl, alt, diagnosticLabel, thumbnailMaxSize }: { proxyUrl: string; alt: string; diagnosticLabel?: string; thumbnailMaxSize?: number }) {
+  return <AuthedImage src={proxyUrl} alt={alt} diagnosticLabel={diagnosticLabel} thumbnailMaxSize={thumbnailMaxSize} />
 }
 
-function VideoThumb({ proxyUrl, fit }: { proxyUrl: string; fit: 'cover' | 'contain' }) {
+function VideoThumb({ proxyUrl, fit, diagnosticLabel }: { proxyUrl: string; fit: 'cover' | 'contain'; diagnosticLabel?: string }) {
   return (
     <ResourceMediaFillFrame fit={fit}>
-      <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" />
+      <AuthedVideo src={proxyUrl} muted playsInline preload="metadata" diagnosticLabel={diagnosticLabel} />
     </ResourceMediaFillFrame>
   )
+}
+
+function VideoPlaceholderThumb({ name, size }: { name: string; size?: number }) {
+  return (
+    <ResourceMediaFillFrame>
+      <div className="resource-media-video-placeholder">
+        <PlayCircle size={24} />
+        <span>{name}</span>
+        {size ? <small>{formatVideoPlaceholderBytes(size)}</small> : null}
+      </div>
+    </ResourceMediaFillFrame>
+  )
+}
+
+function formatVideoPlaceholderBytes(value: number) {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
+  return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
 function IconThumb({ icon }: { icon: ReactNode }) {

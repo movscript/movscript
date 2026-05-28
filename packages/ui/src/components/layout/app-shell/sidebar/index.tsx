@@ -10,8 +10,8 @@ import type { IconComponent } from "../../../primitives/types";
 import { cn } from "../../../../lib/cn";
 
 export const APP_SIDEBAR_WIDTH_STORAGE_KEY = "movscript-sidebar-width";
-export const APP_SIDEBAR_DEFAULT_WIDTH = 216;
-export const APP_SIDEBAR_MIN_WIDTH = 176;
+export const APP_SIDEBAR_DEFAULT_WIDTH = 300;
+export const APP_SIDEBAR_MIN_WIDTH = 100;
 export const APP_SIDEBAR_MAX_WIDTH = 312;
 
 export function clampAppSidebarWidth(width: number) {
@@ -32,7 +32,7 @@ export function AppSidebarShell({
     <aside
       data-collapsed={collapsed ? "true" : "false"}
       className={cn("app-sidebar", className)}
-      style={collapsed ? style : { ...style, width }}
+      style={{ ...style, width: collapsed ? 44 : width }}
       {...props}
     />
   );
@@ -133,7 +133,7 @@ export function AppSidebarNavItemContent({
   return (
     <>
       <Icon size={14} className="app-sidebar-nav-item__icon" />
-      {!collapsed ? <span className="app-sidebar-nav-item__label">{label}</span> : null}
+      <span className="app-sidebar-nav-item__label" aria-hidden={collapsed ? true : undefined}>{label}</span>
     </>
   );
 }
@@ -187,53 +187,69 @@ export function AppSidebarFooter({
   return <div data-collapsed={collapsed ? "true" : "false"} className={cn("app-sidebar__footer", className)} {...props} />;
 }
 
-export function AppSidebarUserButton({
-  collapsed = false,
-  children,
-  className,
-}: {
-  collapsed?: boolean;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <Button asChild variant="ghost" className={cn("app-sidebar-user-button", collapsed && "app-sidebar-user-button--collapsed", className)}>
-      {children}
-    </Button>
-  );
-}
+export const AppSidebarUserButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<typeof Button> & {
+    collapsed?: boolean;
+  }
+>(({ collapsed = false, children, className, ...props }, ref) => (
+  <Button
+    ref={ref}
+    type="button"
+    variant="ghost"
+    size="icon"
+    className={cn("app-sidebar-user-button", collapsed && "app-sidebar-user-button--collapsed", className)}
+    {...props}
+  >
+    {children}
+  </Button>
+));
+
+AppSidebarUserButton.displayName = "AppSidebarUserButton";
 
 export function AppSidebarUserMeta({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("app-sidebar-user-meta", className)} {...props} />;
 }
 
 export function AppSidebarUserButtonContent({
-  collapsed = false,
   username,
-  role,
 }: {
   collapsed?: boolean;
   username: string;
   role?: React.ReactNode;
 }) {
   return (
-    <div className="app-sidebar-user-button__content" role="button" tabIndex={0} title={collapsed ? username : undefined}>
+    <div className="app-sidebar-user-button__content" title={username}>
       <Avatar className="app-sidebar-user-button__avatar">
         <AvatarFallback className="app-sidebar-user-button__avatar-fallback">{username[0]?.toUpperCase()}</AvatarFallback>
       </Avatar>
-      {!collapsed ? (
-        <AppSidebarUserMeta>
-          <span className="app-sidebar-user-meta__name">{username}</span>
-          {role ? <span className="app-sidebar-user-meta__role">{role}</span> : null}
-        </AppSidebarUserMeta>
-      ) : null}
-      {!collapsed ? <ChevronDownIcon size={12} className="app-sidebar-user-button__chevron" /> : null}
     </div>
   );
 }
 
-export function AppSidebarUserMenuContent({ className, ...props }: React.ComponentPropsWithoutRef<typeof DropdownMenuContent>) {
-  return <DropdownMenuContent align="start" className={cn("app-sidebar-user-menu", className)} {...props} />;
+export function AppSidebarUserMenuContent({
+  className,
+  collapsed = false,
+  menuWidth,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuContent> & {
+  collapsed?: boolean;
+  menuWidth?: number;
+}) {
+  const menuStyle = menuWidth == null
+    ? style
+    : ({ ...style, "--app-sidebar-user-menu-width": `${menuWidth}px` } as React.CSSProperties);
+
+  return (
+    <DropdownMenuContent
+      align="start"
+      data-collapsed={collapsed ? "true" : "false"}
+      className={cn("app-sidebar-user-menu", className)}
+      style={menuStyle}
+      {...props}
+    />
+  );
 }
 
 export function AppSidebarMenuLeadingIcon({ icon: Icon }: { icon: IconComponent }) {

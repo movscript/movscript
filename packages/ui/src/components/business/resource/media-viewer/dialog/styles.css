@@ -9,7 +9,7 @@
   width: auto;
   max-width: none;
   max-height: none;
-  translate: 0 0;
+  transform: none;
   align-items: center;
   justify-content: center;
   border: 0;

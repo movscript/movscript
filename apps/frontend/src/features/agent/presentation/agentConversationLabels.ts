@@ -20,6 +20,20 @@ export function formatAgentDate(value: string | number, locale: string) {
   return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 }
 
+export function formatAgentRelativeTime(value: string | number, locale: string, now: number = Date.now()) {
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return ''
+  const diffMs = timestamp - now
+  const absMs = Math.abs(diffMs)
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  if (absMs < 60_000) return formatter.format(0, 'minute')
+  if (absMs < 60 * 60_000) return formatter.format(Math.round(diffMs / 60_000), 'minute')
+  if (absMs < 24 * 60 * 60_000) return formatter.format(Math.round(diffMs / (60 * 60_000)), 'hour')
+  if (absMs < 30 * 24 * 60 * 60_000) return formatter.format(Math.round(diffMs / (24 * 60 * 60_000)), 'day')
+  if (absMs < 12 * 30 * 24 * 60 * 60_000) return formatter.format(Math.round(diffMs / (30 * 24 * 60 * 60_000)), 'month')
+  return formatter.format(Math.round(diffMs / (365 * 24 * 60 * 60_000)), 'year')
+}
+
 export function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: TranslationFn) {
   return thread.title || t('agents.chat.panel.runtime.localThreadTitle', { id: thread.id.slice(-6) })
 }

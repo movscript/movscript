@@ -1,35 +1,128 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ElementType, type HTMLAttributes } from 'react'
 import { AlertCircle, Check, Loader2, Wand2 } from 'lucide-react'
 import type { ChatGenerationJob, ChatGenerationParamAudit, ChatGenerationValidationError } from '@/features/agent/state/agentStore'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel } from '@/features/agent/domain/agentGenerationDisplay'
 import { agentGenerationStatusRecipe, agentReadinessStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
-import {
-  AgentGeneratedCallout,
-  AgentGeneratedCard,
-  AgentGeneratedCardHeader,
-  AgentGeneratedCountBadge,
-  AgentGeneratedDescription,
-  AgentGeneratedHeaderCopy,
-  AgentGeneratedHeaderMeta,
-  AgentGeneratedIconSlot,
-  AgentGeneratedItem,
-  AgentGeneratedItemCopy,
-  AgentGeneratedItemDetail,
-  AgentGeneratedItemHeader,
-  AgentGeneratedItemMeta,
-  AgentGeneratedItemProgressBar,
-  AgentGeneratedItemTitle,
-  AgentGeneratedIntentText,
-  AgentGeneratedProgressBar,
-  AgentGeneratedStack,
-  AgentGeneratedStatusBadge,
-  AgentGeneratedStat,
-  AgentGeneratedStatGrid,
-  AgentGeneratedStatPill,
-  AgentGeneratedSupportText,
-  AgentGeneratedTitle,
-} from '@movscript/ui'
+
+type GeneratedIntent = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+
+function classNames(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(' ')
+}
+
+function AgentGeneratedCard({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-card', className)} {...props} />
+}
+
+function AgentGeneratedCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-card__header', className)} {...props} />
+}
+
+function AgentGeneratedHeaderCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-card__header-copy', className)} {...props} />
+}
+
+function AgentGeneratedIconSlot({ intent, muted, spinning, className, ...props }: HTMLAttributes<HTMLSpanElement> & { intent?: GeneratedIntent; muted?: boolean; spinning?: boolean }) {
+  return <span className={classNames('agent-generated-icon-slot', intent && `agent-generated-icon-slot--${intent}`, muted && 'agent-generated-icon-slot--muted', spinning && 'agent-generated-icon-slot--spinning', className)} {...props} />
+}
+
+function AgentGeneratedTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={classNames('agent-generated-title', className)} {...props} />
+}
+
+function AgentGeneratedHeaderMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={classNames('agent-generated-header-meta', className)} {...props} />
+}
+
+function AgentGeneratedCountBadge({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={classNames('agent-generated-count-badge', className)} {...props} />
+}
+
+function AgentGeneratedStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-stack', className)} {...props} />
+}
+
+function AgentGeneratedDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={classNames('agent-generated-description', className)} {...props} />
+}
+
+function AgentGeneratedSupportText({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={classNames('agent-generated-support-text', className)} {...props} />
+}
+
+function AgentGeneratedItem({ intent, className, ...props }: HTMLAttributes<HTMLDivElement> & { intent?: GeneratedIntent }) {
+  return <div className={classNames('agent-generated-item', intent && `agent-generated-item--${intent}`, className)} {...props} />
+}
+
+function AgentGeneratedItemHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-item__header', className)} {...props} />
+}
+
+function AgentGeneratedItemCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-item__copy', className)} {...props} />
+}
+
+function AgentGeneratedItemTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={classNames('agent-generated-item__title', className)} {...props} />
+}
+
+function AgentGeneratedItemMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={classNames('agent-generated-item__meta', className)} {...props} />
+}
+
+function AgentGeneratedItemDetail({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={classNames('agent-generated-item__detail', className)} {...props} />
+}
+
+function AgentGeneratedStatusBadge({ intent, emphasis, className, ...props }: HTMLAttributes<HTMLSpanElement> & { intent?: string; emphasis?: string }) {
+  return <span className={classNames('agent-generated-status-badge', className)} data-intent={intent} data-emphasis={emphasis} {...props} />
+}
+
+function AgentGeneratedStat({ intent, className, ...props }: HTMLAttributes<HTMLSpanElement> & { intent?: GeneratedIntent }) {
+  return <span className={classNames('agent-generated-stat', intent && `agent-generated-stat--${intent}`, className)} {...props} />
+}
+
+function AgentGeneratedStatGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={classNames('agent-generated-stat-grid', className)} {...props} />
+}
+
+function AgentGeneratedStatPill({ label, value }: { label: string; value: string | number }) {
+  return (
+    <AgentGeneratedItem>
+      <AgentGeneratedItemMeta>{label}</AgentGeneratedItemMeta>
+      <AgentGeneratedItemTitle>{value}</AgentGeneratedItemTitle>
+    </AgentGeneratedItem>
+  )
+}
+
+function AgentGeneratedIntentText({ as, intent, className, ...props }: HTMLAttributes<HTMLElement> & { as?: ElementType; intent?: GeneratedIntent }) {
+  const Component = as ?? 'span'
+  return <Component className={classNames('agent-generated-intent-text', intent && `agent-generated-intent-text--${intent}`, className)} {...props} />
+}
+
+function AgentGeneratedProgressBar({ value, tone, size, indeterminate, className, ...props }: HTMLAttributes<HTMLDivElement> & { value?: number; tone?: string; size?: 'sm' | 'default'; indeterminate?: boolean }) {
+  const numericValue = value !== undefined ? clampNumber(value, 0, 100) : undefined
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={numericValue}
+      data-tone={tone}
+      data-size={size}
+      data-indeterminate={indeterminate ? 'true' : undefined}
+      className={classNames('agent-generated-progress-bar', className)}
+      {...props}
+    >
+      <span style={{ width: `${numericValue ?? 100}%` }} />
+    </div>
+  )
+}
+
+function AgentGeneratedItemProgressBar(props: Parameters<typeof AgentGeneratedProgressBar>[0]) {
+  return <AgentGeneratedProgressBar className="agent-generated-item__progress" {...props} />
+}
 
 export function GenerationProgressCard({ state }: { state: GenerationProgressState }) {
   const [now, setNow] = useState(() => new Date().toISOString())
@@ -280,7 +373,7 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
 export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerationValidationError[] }) {
   if (!errors?.length) return null
   return (
-    <AgentGeneratedCallout data-testid="agent-generation-validation-errors" intent="danger" compact>
+    <AgentGeneratedCard data-testid="agent-generation-validation-errors">
       <AgentGeneratedCardHeader>
         <AgentGeneratedHeaderCopy>
           <AgentGeneratedIconSlot>
@@ -315,7 +408,7 @@ export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerat
           </AgentGeneratedItem>
         ))}
       </AgentGeneratedStack>
-    </AgentGeneratedCallout>
+    </AgentGeneratedCard>
   )
 }
 

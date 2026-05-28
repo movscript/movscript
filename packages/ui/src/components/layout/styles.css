@@ -1,9 +1,49 @@
 @import "./app-shell/styles.css";
 
+.app-route-viewport {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: inherit;
+}
+
+.app-route-viewport[data-scroll="auto"] {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.app-route-viewport[data-scroll="owned"],
+.app-route-viewport[data-scroll="hidden"] {
+  overflow: hidden;
+}
+
+.app-route-viewport > :where(
+  .app-content-layout,
+  .app-page-shell,
+  .workbench-project-shell,
+  .tool-dialog-frame,
+  .tool-brainstorm-frame,
+  .tool-page-frame,
+  .plugin-tool-root,
+  .agent-mode-root,
+  .script-workbench-shell
+) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .app-content-layout {
   height: 100%;
   min-width: 0;
-  background: var(--ms-color-background);
+  background: var(--ms-app-shell-slot-center-background, var(--ms-color-page-background));
+}
+
+.app-content-layout[data-chrome="immersive"],
+.app-content-layout[data-chrome="canvas"] {
+  background: var(--ms-app-shell-slot-center-background, transparent);
 }
 
 .app-content-layout[data-scroll="auto"] {
@@ -17,6 +57,14 @@
 .app-content-layout__inner {
   width: 100%;
   min-width: 0;
+}
+
+.app-content-layout[data-variant="contained"] .app-content-layout__inner {
+  min-height: 100%;
+}
+
+.app-content-layout[data-variant="contained"] .app-content-layout__inner > * + * {
+  margin-top: var(--ms-space-4);
 }
 
 .app-content-layout[data-variant="contained"] .app-content-layout__inner,
@@ -65,51 +113,33 @@
   max-width: none;
 }
 
-.app-page {
-  height: 100%;
-  overflow: auto;
-  background: transparent;
-}
-
-.app-page__content {
-  min-height: 100%;
-  margin-inline: auto;
-}
-
-.app-page__content > * + * {
-  margin-top: var(--ms-space-4);
-}
-
-.app-page__content--normal {
-  max-width: 64rem;
-}
-
-.app-page__content--wide {
-  max-width: 80rem;
-}
-
-.app-page__content--full {
-  max-width: none;
-}
-
 .app-page-shell {
   display: flex;
   height: 100%;
   min-height: 0;
   min-width: 0;
   flex-direction: column;
-  background: var(--ms-color-background);
+  background: var(--ms-app-shell-slot-center-background, var(--ms-color-page-background));
+}
+
+.app-page-shell[data-chrome="immersive"],
+.app-page-shell[data-chrome="canvas"] {
+  background: var(--ms-app-shell-slot-center-background, transparent);
 }
 
 .app-page-shell__header {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
+  background: var(--ms-app-shell-slot-center-background, var(--ms-color-page-background));
   padding: var(--ms-space-3) 20px;
 }
 
+.app-page-shell[data-chrome="canvas"] > .app-page-shell__header {
+  border-bottom: 0;
+}
+
 .app-page-shell__body {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   min-width: 0;
 }
@@ -119,7 +149,6 @@
 }
 
 .app-content-layout[data-padding="normal"] .app-content-layout__inner,
-.app-page__content,
 .app-page-shell__body[data-padding="normal"] {
   padding: 20px;
 }
@@ -198,25 +227,26 @@
 }
 
 .ms-page-header__title {
+  margin: 0;
   color: var(--ms-color-foreground);
   letter-spacing: 0;
 }
 
 .app-page-header__title {
   margin-top: var(--ms-space-1);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 650;
   line-height: 28px;
 }
 
 .ms-page-header__description {
-  margin-top: var(--ms-space-1);
+  margin: var(--ms-space-1) 0 0;
   color: var(--ms-color-muted-foreground);
 }
 
 .app-page-header__description {
   max-width: 760px;
-  font-size: 13px;
+  font-size: var(--ms-text-item);
   line-height: 20px;
 }
 
@@ -244,7 +274,7 @@
 
 .project-surface-header {
   align-items: center;
-  padding-bottom: var(--ms-space-4);
+  padding-block: var(--ms-space-4);
 }
 
 .project-surface-header__lead {
@@ -257,9 +287,9 @@
 
 .project-surface-header__title {
   overflow: hidden;
-  font-size: 18px;
+  font-size: var(--ms-text-section);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--ms-leading-section);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

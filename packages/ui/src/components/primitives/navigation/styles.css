@@ -1,5 +1,5 @@
 .ms-tabs__list {
-  height: 36px;
+  min-height: 36px;
   border-radius: var(--ms-radius-md);
   background: var(--ms-color-muted);
   padding: var(--ms-space-1);

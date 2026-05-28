@@ -1,22 +1,26 @@
-import type { HTMLAttributes } from "react";
+import { forwardRef, type HTMLAttributes } from "react";
 
 import { cn } from "../../../../../lib/cn";
 import { Surface } from "../../../../primitives";
 
-export function AppSurfaceItem({
-  children,
-  asChild = false,
-  density = "normal",
-  variant = "card",
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & {
+export const AppSurfaceItem = forwardRef<HTMLElement, HTMLAttributes<HTMLDivElement> & {
   asChild?: boolean;
   density?: "normal" | "compact";
   variant?: "card" | "overlay" | "muted";
-}) {
-  return (
+}>(
+  (
+    {
+      children,
+      asChild = false,
+      density = "normal",
+      variant = "card",
+      className,
+      ...props
+    },
+    ref,
+  ) => (
     <Surface
+      ref={ref}
       asChild={asChild}
       kind={variant === "overlay" ? "overlay" : "item"}
       density={density === "compact" ? "compact" : "normal"}
@@ -27,5 +31,7 @@ export function AppSurfaceItem({
     >
       {children}
     </Surface>
-  );
-}
+  ),
+);
+
+AppSurfaceItem.displayName = "AppSurfaceItem";

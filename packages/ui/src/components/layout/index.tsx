@@ -1,9 +1,14 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import type { IconComponent } from "../primitives/types";
 import { cn } from "../../lib/cn";
+import type { LayoutChrome } from "./chrome";
+import { useAppShellSurfaceBackground } from "./surface-background";
+
+export { useAppShellSurfaceBackground } from "./surface-background";
 
 export * from "./workspace";
 export * from "./app-shell";
+export * from "./chrome";
 
 export type AppContentLayoutVariant =
   | "contained"
@@ -18,26 +23,54 @@ export type AppContentLayoutWidth =
   | "xwide"
   | "full";
 
+export type AppRouteViewportScroll = "auto" | "owned" | "hidden";
+
+export function AppRouteViewport({
+  children,
+  className,
+  scroll = "auto",
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  scroll?: AppRouteViewportScroll;
+}) {
+  return (
+    <div data-scroll={scroll} className={cn("app-route-viewport", className)} {...props}>
+      {children}
+    </div>
+  );
+}
+
 export function AppContentLayout({
   children,
   className,
   contentClassName,
+  chrome = "workspace",
   variant = "contained",
   width,
   padding = "normal",
   scroll = "auto",
+  surfaceBackground,
+  surfaceHeaderBackground,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
+  chrome?: Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
   contentClassName?: string;
   variant?: AppContentLayoutVariant;
   width?: AppContentLayoutWidth;
   padding?: "normal" | "compact" | "none";
   scroll?: "auto" | "hidden";
+  surfaceBackground?: string;
+  surfaceHeaderBackground?: string;
 }) {
   const resolvedWidth = width ?? defaultContentWidth(variant);
+  useAppShellSurfaceBackground({
+    center: surfaceBackground,
+    header: surfaceHeaderBackground ?? surfaceBackground,
+  });
 
   return (
     <div
+      data-chrome={chrome}
       data-variant={variant}
       data-padding={padding}
       data-scroll={scroll}
@@ -63,36 +96,25 @@ function defaultContentWidth(variant: AppContentLayoutVariant): AppContentLayout
   return "xwide";
 }
 
-export function AppPage({
-  children,
-  className,
-  width = "wide",
-}: {
-  children: ReactNode;
-  className?: string;
-  width?: "normal" | "wide" | "full";
-}) {
-  return (
-    <div className={cn("app-page", className)}>
-      <div
-        className={cn(
-          "app-page__content",
-          `app-page__content--${width}`,
-        )}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export function AppPageShell({
   children,
   className,
+  chrome = "workspace",
+  surfaceBackground,
+  surfaceHeaderBackground,
   ...props
-}: HTMLAttributes<HTMLDivElement>) {
+}: HTMLAttributes<HTMLDivElement> & {
+  chrome?: Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
+  surfaceBackground?: string;
+  surfaceHeaderBackground?: string;
+}) {
+  useAppShellSurfaceBackground({
+    center: surfaceBackground,
+    header: surfaceHeaderBackground ?? surfaceBackground,
+  });
+
   return (
-    <div className={cn("app-page-shell", className)} {...props}>
+    <div className={cn("app-page-shell", className)} data-chrome={chrome} {...props}>
       {children}
     </div>
   );

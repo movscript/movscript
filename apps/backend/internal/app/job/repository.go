@@ -6,7 +6,6 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	domainresourcefolder "github.com/movscript/movscript/internal/domain/resource/folder"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
@@ -111,29 +110,10 @@ func (r *gormRepository) canUseInputResource(ctx context.Context, resource persi
 	if !r.inOrgScope(ctx, resource.OrgID, orgID, resource.OwnerID, userID) {
 		return false
 	}
-	if resource.OwnerID == userID || resource.IsShared || resourceInCurrentTeam(resource.OrgID, orgID) {
+	if resource.OwnerID == userID || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return true
 	}
-	if resource.FolderID == nil {
-		return false
-	}
-
-	var folder persistencemodel.ResourceFolder
-	if err := r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error; err != nil {
-		return false
-	}
-	if !r.inOrgScope(ctx, folder.OrgID, orgID, folder.OwnerID, userID) {
-		return false
-	}
-	if folder.IsShared {
-		return true
-	}
-
-	var permission persistencemodel.ResourceFolderPermission
-	err := r.db.WithContext(ctx).
-		Where("folder_id = ? AND user_id = ? AND permission IN ?", folder.ID, userID, []string{domainresourcefolder.PermissionRead, domainresourcefolder.PermissionWrite}).
-		First(&permission).Error
-	return err == nil
+	return false
 }
 
 func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {

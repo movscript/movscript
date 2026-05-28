@@ -9,6 +9,7 @@ import {
   ResourcePrepCollapsedQueueButton,
   ResourcePrepEmptyState,
   ResourcePrepEntityCard,
+  ResourcePrepEntityCard as WorkbenchEntityCard,
   ResourcePrepFilterButton,
   ResourcePrepFilterGroup,
   ResourcePrepGroupedLayout,
@@ -58,6 +59,7 @@ import {
 } from '@/features/pre-production/presentation/preProductionSemanticUi'
 
 const assetKindOrder: AssetKind[] = ['all', 'image', 'video', 'audio', 'text', 'brand_pack', 'reference', 'other']
+void WorkbenchEntityCard
 
 type MediaFit = 'cover' | 'contain'
 type PreparationView = 'queue' | 'grouped' | 'missing' | 'locked'

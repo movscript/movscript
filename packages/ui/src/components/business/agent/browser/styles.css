@@ -11,8 +11,10 @@
 
 .agent-browser-header {
   flex-shrink: 0;
+  border-top-left-radius: var(--ms-radius-lg);
   border-bottom: 1px solid var(--ms-color-border);
   background: var(--ms-color-background);
+  overflow: hidden;
 }
 
 .agent-browser-tab-bar {
@@ -125,6 +127,25 @@
 .agent-browser-url-meta {
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.agent-browser-address-form {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+.agent-browser-address-form .agent-browser-input {
+  height: 28px;
+  flex: 1 1 auto;
+}
+
+.agent-browser-address-form .agent-browser-launcher-submit {
+  height: 28px;
 }
 
 .agent-browser-launcher-form {

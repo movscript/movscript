@@ -306,8 +306,8 @@ function AgentActivityItemRow({
             )}
           </AgentActivityFrameHeader>
           <AgentActivityFrameLines>
-            {item.lines.map((line) => (
-              <AgentActivityFrameLine key={line}>{line}</AgentActivityFrameLine>
+            {item.lines.map((line, lineIndex) => (
+              <AgentActivityFrameLine key={`${item.id}:line:${lineIndex}`}>{line}</AgentActivityFrameLine>
             ))}
           </AgentActivityFrameLines>
         </AgentActivityFrame>
@@ -332,8 +332,8 @@ function AgentActivityItemRow({
           )}
         </AgentActivityFrameHeader>
         <AgentActivityFrameLines>
-          {item.lines.map((line) => (
-            <AgentActivityFrameLine key={line}>{line}</AgentActivityFrameLine>
+          {item.lines.map((line, lineIndex) => (
+            <AgentActivityFrameLine key={`${item.id}:line:${lineIndex}`}>{line}</AgentActivityFrameLine>
           ))}
         </AgentActivityFrameLines>
         {item.code && (
