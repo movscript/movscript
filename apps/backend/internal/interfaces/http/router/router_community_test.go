@@ -116,6 +116,7 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 		"GET /api/v1/admin/resource-storage/resources",
 		"GET /api/v1/admin/resource-storage/resources/:id/detail",
 		"DELETE /api/v1/admin/resource-storage/resources/:id",
+		"POST /api/v1/admin/resource-storage/blobs/gc",
 		"GET /api/v1/admin/cloud-file-configs",
 		"POST /api/v1/admin/cloud-file-configs",
 		"PUT /api/v1/admin/cloud-file-configs/:id",

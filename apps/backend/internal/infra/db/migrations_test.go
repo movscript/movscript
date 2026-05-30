@@ -301,6 +301,134 @@ func TestMigration000022BackfillsCurrentSchemaTables(t *testing.T) {
 	}
 }
 
+func TestMigration000032BackfillsAndEnforcesUniqueResourceFilenames(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000032_resource_filenames.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{}, &model.RawResource{})
+	orgID := uint(7)
+	resources := []model.RawResource{
+		{OwnerID: 1, Type: "image", Name: "Hero.png", FilePath: "/tmp/hero-1.png"},
+		{OwnerID: 1, Type: "image", Name: "hero.PNG", FilePath: "/tmp/hero-2.png"},
+		{OwnerID: 2, Type: "image", Name: "hero.png", FilePath: "/tmp/hero-other-user.png"},
+		{OwnerID: 1, OrgID: &orgID, Type: "image", Name: "team.png", FilePath: "/tmp/team-1.png"},
+		{OwnerID: 2, OrgID: &orgID, Type: "image", Name: "TEAM.PNG", FilePath: "/tmp/team-2.png"},
+	}
+	for i := range resources {
+		if err := db.Create(&resources[i]).Error; err != nil {
+			t.Fatalf("create resource %d: %v", i, err)
+		}
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000032" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var personal []model.RawResource
+	if err := db.Where("owner_id = ? AND org_id IS NULL", 1).Order("id asc").Find(&personal).Error; err != nil {
+		t.Fatalf("load personal resources: %v", err)
+	}
+	if got := []string{personal[0].Name, personal[1].Name}; got[0] != "Hero.png" || got[1] != "hero (2).PNG" {
+		t.Fatalf("personal names = %v, want [Hero.png hero (2).PNG]", got)
+	}
+	var team []model.RawResource
+	if err := db.Where("org_id = ?", orgID).Order("id asc").Find(&team).Error; err != nil {
+		t.Fatalf("load team resources: %v", err)
+	}
+	if got := []string{team[0].Name, team[1].Name}; got[0] != "team.png" || got[1] != "TEAM (2).PNG" {
+		t.Fatalf("team names = %v, want [team.png TEAM (2).PNG]", got)
+	}
+
+	duplicatePersonal := model.RawResource{OwnerID: 1, Type: "image", Name: "HERO.png", FilePath: "/tmp/hero-3.png"}
+	if err := db.Create(&duplicatePersonal).Error; err == nil {
+		t.Fatal("create duplicate personal resource name succeeded, want unique constraint error")
+	}
+	allowedOtherUser := model.RawResource{OwnerID: 3, Type: "image", Name: "hero.png", FilePath: "/tmp/hero-user-3.png"}
+	if err := db.Create(&allowedOtherUser).Error; err != nil {
+		t.Fatalf("same name in a different personal library should be allowed: %v", err)
+	}
+	duplicateTeam := model.RawResource{OwnerID: 3, OrgID: &orgID, Type: "image", Name: "team.PNG", FilePath: "/tmp/team-3.png"}
+	if err := db.Create(&duplicateTeam).Error; err == nil {
+		t.Fatal("create duplicate team resource name succeeded, want unique constraint error")
+	}
+}
+
+func TestMigration000034BackfillsResourceBlobs(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000034_resource_blobs.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{}, &model.RawResource{})
+	resources := []model.RawResource{
+		{OwnerID: 1, Type: "image", Name: "first.png", FilePath: "stored:shared-key", StorageBackend: "filesystem", StorageKey: "shared-key", Size: 4, MimeType: "image/png"},
+		{OwnerID: 1, Type: "image", Name: "second.png", FilePath: "stored:shared-key", StorageBackend: "filesystem", StorageKey: "shared-key", Size: 4, MimeType: "image/png"},
+		{OwnerID: 1, Type: "image", Name: "third.png", FilePath: "stored:shared-key", StorageBackend: "minio", StorageKey: "shared-key", Size: 4, MimeType: "image/png"},
+	}
+	for i := range resources {
+		if err := db.Create(&resources[i]).Error; err != nil {
+			t.Fatalf("create resource %d: %v", i, err)
+		}
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000034" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var blobs []model.ResourceBlob
+	if err := db.Find(&blobs).Error; err != nil {
+		t.Fatalf("load blobs: %v", err)
+	}
+	if len(blobs) != 2 {
+		t.Fatalf("blob count = %d, want 2: %+v", len(blobs), blobs)
+	}
+	blobByBackend := map[string]model.ResourceBlob{}
+	for _, blob := range blobs {
+		blobByBackend[blob.StorageBackend] = blob
+	}
+	if blobByBackend["filesystem"].RefCount != 2 {
+		t.Fatalf("filesystem blob ref count = %d, want 2", blobByBackend["filesystem"].RefCount)
+	}
+	if blobByBackend["minio"].RefCount != 1 {
+		t.Fatalf("minio blob ref count = %d, want 1", blobByBackend["minio"].RefCount)
+	}
+	var persisted []model.RawResource
+	if err := db.Order("id asc").Find(&persisted).Error; err != nil {
+		t.Fatalf("load resources: %v", err)
+	}
+	if persisted[0].BlobID == nil || *persisted[0].BlobID != blobByBackend["filesystem"].ID {
+		t.Fatalf("first resource blob_id = %v, want %d", persisted[0].BlobID, blobByBackend["filesystem"].ID)
+	}
+	if persisted[1].BlobID == nil || *persisted[1].BlobID != blobByBackend["filesystem"].ID {
+		t.Fatalf("second resource blob_id = %v, want %d", persisted[1].BlobID, blobByBackend["filesystem"].ID)
+	}
+	if persisted[2].BlobID == nil || *persisted[2].BlobID != blobByBackend["minio"].ID {
+		t.Fatalf("third resource blob_id = %v, want %d", persisted[2].BlobID, blobByBackend["minio"].ID)
+	}
+}
+
 func TestMigration000024BackfillsAIModelCapacityConfigColumns(t *testing.T) {
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000024_ai_model_capacity_config.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,

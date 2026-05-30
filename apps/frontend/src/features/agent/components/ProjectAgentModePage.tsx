@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -35,6 +35,7 @@ import {
   AgentModeSidebar,
   AgentModeSidebarScroll,
   AgentModeSidebarTop,
+  useResizablePanel,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
@@ -267,7 +268,6 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const [showAllChatConversations, setShowAllChatConversations] = useState(false)
   const [showAllHistoryConversations, setShowAllHistoryConversations] = useState(false)
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
-  const resizeStart = useRef({ x: 0, width: AGENT_SIDEBAR_DEFAULT_WIDTH })
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return AGENT_SIDEBAR_DEFAULT_WIDTH
     const saved = Number(window.localStorage.getItem(AGENT_SIDEBAR_WIDTH_STORAGE_KEY))
@@ -275,7 +275,17 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   })
   const sidebarCollapsed = useAgentPanelUiStore((s) => s.agentModeSidebarCollapsed)
   const setSidebarCollapsed = useAgentPanelUiStore((s) => s.setAgentModeSidebarCollapsed)
-  const [resizing, setResizing] = useState(false)
+  const sidebarResize = useResizablePanel({
+    size: sidebarWidth,
+    onSizeChange: setSidebarWidth,
+    minSize: AGENT_SIDEBAR_MIN_WIDTH,
+    maxSize: AGENT_SIDEBAR_MAX_WIDTH,
+    resizeEdge: 'right',
+    collapsed: sidebarCollapsed,
+    onCollapsedChange: setSidebarCollapsed,
+    collapseMode: 'after-min',
+    ariaLabel: '调整左侧栏宽度',
+  })
   const renderedSidebarWidth = sidebarCollapsed ? AGENT_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
 
   useEffect(() => {
@@ -286,59 +296,6 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
     return () => window.clearInterval(interval)
   }, [])
-
-  useEffect(() => {
-    if (!resizing || sidebarCollapsed) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const nextWidth = resizeStart.current.width + event.clientX - resizeStart.current.x
-      if (nextWidth < AGENT_SIDEBAR_MIN_WIDTH) {
-        if (resizeStart.current.width <= AGENT_SIDEBAR_MIN_WIDTH) {
-          setSidebarCollapsed(true)
-          setResizing(false)
-          return
-        }
-        setSidebarWidth(AGENT_SIDEBAR_MIN_WIDTH)
-        return
-      }
-      setSidebarWidth(clampAgentSidebarWidth(nextWidth))
-    }
-    const handlePointerUp = () => setResizing(false)
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [resizing, setSidebarCollapsed, sidebarCollapsed])
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (sidebarCollapsed) return
-    event.preventDefault()
-    resizeStart.current = { x: event.clientX, width: sidebarWidth }
-    setResizing(true)
-  }
-
-  const adjustSidebarWidth = (delta: number) => {
-    const nextWidth = sidebarWidth + delta
-    if (nextWidth < AGENT_SIDEBAR_MIN_WIDTH) {
-      if (sidebarWidth <= AGENT_SIDEBAR_MIN_WIDTH) {
-        setSidebarCollapsed(true)
-        return
-      }
-      setSidebarWidth(AGENT_SIDEBAR_MIN_WIDTH)
-      return
-    }
-    setSidebarWidth(clampAgentSidebarWidth(nextWidth))
-  }
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: projectListQueryKey(currentOrgID),
@@ -472,7 +429,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
 
   return (
     <AgentModeSidebar
-      resizing={resizing}
+      resizing={sidebarResize.resizing}
       collapsed={sidebarCollapsed}
       style={{ width: renderedSidebarWidth }}
     >
@@ -654,26 +611,8 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
 
       {!sidebarCollapsed ? (
         <AgentModeResizeHandle
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整左侧栏宽度"
-          aria-valuemin={AGENT_SIDEBAR_MIN_WIDTH}
-          aria-valuemax={AGENT_SIDEBAR_MAX_WIDTH}
-          aria-valuenow={sidebarWidth}
-          tabIndex={0}
+          {...sidebarResize.resizeHandleProps}
           side="right"
-          active={resizing}
-          onPointerDown={startResize}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? -32 : -12)
-            }
-            if (event.key === 'ArrowRight') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? 32 : 12)
-            }
-          }}
         />
       ) : null}
     </AgentModeSidebar>
@@ -860,8 +799,17 @@ export function ProjectAgentContentPanel({
     const saved = Number(window.localStorage.getItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY))
     return Number.isFinite(saved) ? clampAgentModeContentPanelWidth(saved) : AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH
   })
-  const resizeStart = useRef({ x: 0, width: AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH })
-  const [resizing, setResizing] = useState(false)
+  const panelResize = useResizablePanel({
+    size: panelWidth,
+    onSizeChange: setPanelWidth,
+    minSize: AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
+    maxSize: AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
+    resizeEdge: 'left',
+    collapsed,
+    onCollapsedChange: setCollapsed,
+    collapseMode: 'after-min',
+    ariaLabel: '调整对话区宽度',
+  })
 
   useEffect(() => {
     onWidthChange?.(panelWidth)
@@ -871,61 +819,9 @@ export function ProjectAgentContentPanel({
     window.localStorage.setItem(AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY, String(panelWidth))
   }, [panelWidth])
 
-  useEffect(() => {
-    if (!resizing) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const nextWidth = resizeStart.current.width - (event.clientX - resizeStart.current.x)
-      if (nextWidth < AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
-        if (resizeStart.current.width <= AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
-          setCollapsed(true)
-          setResizing(false)
-          return
-        }
-        setPanelWidth(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH)
-        return
-      }
-      setPanelWidth(clampAgentModeContentPanelWidth(nextWidth))
-    }
-    const handlePointerUp = () => setResizing(false)
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [resizing, setCollapsed])
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    resizeStart.current = { x: event.clientX, width: panelWidth }
-    setResizing(true)
-  }
-
-  const adjustPanelWidth = (delta: number) => {
-    const nextWidth = panelWidth + delta
-    if (nextWidth < AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
-      if (panelWidth <= AGENT_MODE_CONTENT_PANEL_MIN_WIDTH) {
-        setCollapsed(true)
-        return
-      }
-      setPanelWidth(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH)
-      return
-    }
-    setPanelWidth(clampAgentModeContentPanelWidth(nextWidth))
-  }
-
   return (
     <AgentModeContentPanel
-      resizing={resizing}
+      resizing={panelResize.resizing}
       collapsed={collapsed}
       style={manageOwnWidth ? (
         collapsed
@@ -942,26 +838,8 @@ export function ProjectAgentContentPanel({
       <AgentBrowserPanel />
       {!collapsed ? (
         <AgentModeResizeHandle
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整对话区宽度"
-          aria-valuemin={AGENT_MODE_CONTENT_PANEL_MIN_WIDTH}
-          aria-valuemax={AGENT_MODE_CONTENT_PANEL_MAX_WIDTH}
-          aria-valuenow={panelWidth}
-          tabIndex={0}
+          {...panelResize.resizeHandleProps}
           side="left"
-          active={resizing}
-          onPointerDown={startResize}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') {
-              event.preventDefault()
-              adjustPanelWidth(event.shiftKey ? 32 : 12)
-            }
-            if (event.key === 'ArrowRight') {
-              event.preventDefault()
-              adjustPanelWidth(event.shiftKey ? -32 : -12)
-            }
-          }}
         />
       ) : null}
     </AgentModeContentPanel>

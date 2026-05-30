@@ -1057,7 +1057,8 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
 
   assert.equal((result.result as any)?.status, 'applied')
   const applied = draftStore.getDraft(draft.id)
-  assert.equal(applied?.status, 'applied')
+  assert.equal(applied?.status, 'draft')
+  assert.equal((applied?.metadata as any)?.lastApplyStatus, 'applied')
   assert.equal((applied?.metadata as any)?.appliedBy, 'movscript-agent')
 })
 

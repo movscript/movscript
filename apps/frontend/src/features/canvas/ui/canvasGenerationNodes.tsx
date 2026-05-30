@@ -356,7 +356,7 @@ function CanvasGenerationResultPanel({
 }) {
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const { t } = useTranslation()
-  const resource = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug) ? data.resource : undefined
+  const resource = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug, data.canvasMediaLightweightMode) ? data.resource : undefined
   return (
     <CanvasNodeMediaResultView
       status={status}

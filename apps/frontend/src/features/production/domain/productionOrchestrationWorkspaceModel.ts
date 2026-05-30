@@ -37,6 +37,21 @@ export interface ProductionSegmentNavigatorItem {
   rawRecord: SemanticEntityRecord
 }
 
+export type ProductionOrchestrationDropPosition = 'before' | 'after'
+
+export interface ProductionSegmentOrderPatch {
+  segmentId: number
+  payload: { order: number }
+}
+
+export interface ProductionSceneMomentOrderPatch {
+  momentId: number
+  payload: {
+    order: number
+    segment_id?: number
+  }
+}
+
 export type ProductionWorkspaceLookup = ProductionOrchestrationLookup<
   SegmentRecord,
   SceneMomentRecord,
@@ -96,6 +111,88 @@ export function compareProductionOrchestrationOrder<T extends { order?: number; 
   return ao - bo
 }
 
+export function buildProductionSegmentReorderPatches(
+  segments: SegmentRecord[],
+  draggedSegmentId: number,
+  targetSegmentId: number,
+  position: ProductionOrchestrationDropPosition,
+): ProductionSegmentOrderPatch[] {
+  if (draggedSegmentId === targetSegmentId) return []
+  if (!segments.some((segment) => segment.ID === draggedSegmentId) || !segments.some((segment) => segment.ID === targetSegmentId)) {
+    return []
+  }
+  const reordered = reorderProductionOrchestrationRecords(segments, draggedSegmentId, targetSegmentId, position)
+  const originalOrders = new Map(segments.map((segment) => [segment.ID, normalizedOrder(segment, segments.indexOf(segment))]))
+  return reordered
+    .map((segment, index) => ({ segmentId: segment.ID, payload: { order: index + 1 } }))
+    .filter((patch) => originalOrders.get(patch.segmentId) !== patch.payload.order)
+}
+
+export function buildProductionSceneMomentReorderPatches({
+  sceneMoments,
+  draggedMomentId,
+  targetSegmentId,
+  targetMomentId,
+  position = 'after',
+}: {
+  sceneMoments: SceneMomentRecord[]
+  draggedMomentId: number
+  targetSegmentId: number
+  targetMomentId?: number | null
+  position?: ProductionOrchestrationDropPosition
+}): ProductionSceneMomentOrderPatch[] {
+  const dragged = sceneMoments.find((moment) => moment.ID === draggedMomentId)
+  if (!dragged || !targetSegmentId) return []
+  const sourceSegmentId = Number(dragged.segment_id) || 0
+  if (!sourceSegmentId) return []
+  if (targetMomentId && draggedMomentId === targetMomentId) return []
+
+  const sourceMoments = orderedSceneMomentsForSegment(sceneMoments, sourceSegmentId)
+    .filter((moment) => moment.ID !== draggedMomentId)
+  const targetMoments = sourceSegmentId === targetSegmentId
+    ? sourceMoments
+    : orderedSceneMomentsForSegment(sceneMoments, targetSegmentId).filter((moment) => moment.ID !== draggedMomentId)
+  const targetIndex = targetMomentId
+    ? targetMoments.findIndex((moment) => moment.ID === targetMomentId)
+    : targetMoments.length - 1
+  if (targetMomentId && targetIndex < 0) return []
+
+  const insertIndex = targetMomentId
+    ? position === 'after' ? targetIndex + 1 : targetIndex
+    : targetMoments.length
+  const reorderedTargetMoments = [
+    ...targetMoments.slice(0, insertIndex),
+    { ...dragged, segment_id: targetSegmentId },
+    ...targetMoments.slice(insertIndex),
+  ]
+
+  const patches = new Map<number, ProductionSceneMomentOrderPatch>()
+  if (sourceSegmentId !== targetSegmentId) {
+    sourceMoments.forEach((moment, index) => {
+      const nextOrder = index + 1
+      if (normalizedOrder(moment, index) !== nextOrder) {
+        patches.set(moment.ID, { momentId: moment.ID, payload: { order: nextOrder } })
+      }
+    })
+  }
+
+  reorderedTargetMoments.forEach((moment, index) => {
+    const nextOrder = index + 1
+    const movedToSegment = moment.ID === draggedMomentId && sourceSegmentId !== targetSegmentId
+    if (movedToSegment || normalizedOrder(moment, index) !== nextOrder) {
+      patches.set(moment.ID, {
+        momentId: moment.ID,
+        payload: {
+          order: nextOrder,
+          ...(movedToSegment ? { segment_id: targetSegmentId } : {}),
+        },
+      })
+    }
+  })
+
+  return Array.from(patches.values())
+}
+
 export function productionOrchestrationRecordTitle(record: SemanticEntityRecord | null | undefined) {
   return String(record?.title ?? record?.name ?? record?.label ?? `#${record?.ID ?? '-'}`)
 }
@@ -138,8 +235,8 @@ export function buildProductionOrchestrationWorkspaceView({
   selectedMomentId: number | null
   lookup: ProductionWorkspaceLookup
 }): ProductionOrchestrationWorkspaceView {
-  const selectedMoment = selectedMomentId ? sceneMoments.find((moment) => moment.ID === selectedMomentId) ?? null : sceneMoments[0] ?? null
-  const selectedSegment = selectedMoment?.segment_id ? segments.find((segment) => segment.ID === Number(selectedMoment.segment_id)) ?? null : segments[0] ?? null
+  const selectedMoment = selectedMomentId ? sceneMoments.find((moment) => moment.ID === selectedMomentId) ?? null : null
+  const selectedSegment = selectedMoment?.segment_id ? segments.find((segment) => segment.ID === Number(selectedMoment.segment_id)) ?? null : null
   const selectedMomentScriptBlock = selectedMoment?.script_block_id ? scriptBlocks.find((block) => block.ID === Number(selectedMoment.script_block_id)) ?? null : null
   const selectedMomentContentUnits = selectedMoment
     ? Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === selectedMoment.ID)
@@ -224,4 +321,36 @@ function buildProductionSegmentNavigatorItems({
       }),
     }
   })
+}
+
+function reorderProductionOrchestrationRecords<T extends { ID: number; order?: number }>(
+  records: T[],
+  draggedId: number,
+  targetId: number,
+  position: ProductionOrchestrationDropPosition,
+) {
+  const orderedRecords = records.slice().sort(compareProductionOrchestrationOrder)
+  const dragged = orderedRecords.find((record) => record.ID === draggedId)
+  if (!dragged || draggedId === targetId) return orderedRecords
+  const withoutDragged = orderedRecords.filter((record) => record.ID !== draggedId)
+  const targetIndex = withoutDragged.findIndex((record) => record.ID === targetId)
+  if (targetIndex < 0) return orderedRecords
+  const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex
+  return [
+    ...withoutDragged.slice(0, insertIndex),
+    dragged,
+    ...withoutDragged.slice(insertIndex),
+  ]
+}
+
+function orderedSceneMomentsForSegment(sceneMoments: SceneMomentRecord[], segmentId: number) {
+  return sceneMoments
+    .filter((moment) => Number(moment.segment_id) === segmentId)
+    .slice()
+    .sort(compareProductionOrchestrationOrder)
+}
+
+function normalizedOrder(record: { ID: number; order?: unknown }, index: number) {
+  const order = Number(record.order)
+  return Number.isFinite(order) && order > 0 ? order : index + 1
 }

@@ -3,9 +3,11 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	adminresource "github.com/movscript/movscript/internal/app/admin/resource"
+	appresource "github.com/movscript/movscript/internal/app/resource"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
@@ -73,10 +75,14 @@ func (h *ResourceAdminHandler) ResourceDetail(c *gin.Context) {
 }
 
 func (h *ResourceAdminHandler) DeleteResource(c *gin.Context) {
-	deleted, err := h.service.DeleteResource(c.Request.Context(), parseID(c.Param("id")), h.store)
+	deleted, err := h.service.DeleteResource(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
+			return
+		}
+		if errors.Is(err, appresource.ErrResourceInUse) {
+			c.JSON(http.StatusConflict, gin.H{"code": "RESOURCE_IN_USE", "error": "resource is still referenced"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.Internal("删除资源失败"))
@@ -97,4 +103,27 @@ func (h *ResourceAdminHandler) DeleteResource(c *gin.Context) {
 		},
 	})
 	c.Status(http.StatusNoContent)
+}
+
+func (h *ResourceAdminHandler) CollectUnusedBlobs(c *gin.Context) {
+	result, err := h.service.CollectUnusedBlobs(c.Request.Context(), h.store, adminresource.BlobGCInput{
+		Limit:  parsePositiveInt(c.Query("limit"), 100),
+		DryRun: strings.EqualFold(c.Query("dry_run"), "true") || c.Query("dry_run") == "1",
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("清理资源文件失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "resource.blob_gc",
+		TargetType: "resource_blob",
+		Metadata: map[string]any{
+			"backend":     result.Backend,
+			"dry_run":     result.DryRun,
+			"candidates":  result.Candidates,
+			"deleted":     result.Deleted,
+			"freed_bytes": result.FreedBytes,
+		},
+	})
+	c.JSON(http.StatusOK, result)
 }

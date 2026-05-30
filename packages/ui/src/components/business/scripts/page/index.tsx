@@ -36,9 +36,25 @@ export function ScriptWorkspaceLayout({ children, className, ...props }: HTMLAtt
   );
 }
 
-export function ScriptWorkspaceMain({ children, className, ...props }: HTMLAttributes<HTMLElement>) {
+export function ScriptWorkspaceMain({
+  children,
+  className,
+  resizeHandleProps,
+  resizeHandleSide = "left",
+  ...props
+}: Omit<ComponentPropsWithoutRef<typeof OverlapPane>, "as" | "side"> & {
+  resizeHandleProps?: ComponentPropsWithoutRef<typeof OverlapPane>["resizeHandleProps"];
+  resizeHandleSide?: ComponentPropsWithoutRef<typeof OverlapPane>["resizeHandleSide"];
+}) {
   return (
-    <OverlapPane as="main" side="left" className={cn("script-workbench-main", className)} {...props}>
+    <OverlapPane
+      as="main"
+      side="left"
+      resizeHandleSide={resizeHandleSide}
+      resizeHandleProps={resizeHandleProps}
+      className={cn("script-workbench-main", className)}
+      {...props}
+    >
       {children}
     </OverlapPane>
   );

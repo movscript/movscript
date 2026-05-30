@@ -9,6 +9,8 @@ export type NodeDataWithHandlers = CanvasNodeData & {
     images?: boolean
     videos?: boolean
   }
+  canvasOverviewMode?: boolean
+  canvasMediaLightweightMode?: boolean
   pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
   onRun?: () => void
   onUpdateContent?: (content: string) => void

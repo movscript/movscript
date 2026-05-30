@@ -2,11 +2,13 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
 	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -44,7 +46,98 @@ func TestGenerateStorageKeySanitizesName(t *testing.T) {
 	}
 }
 
-func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
+func TestUploadRejectsDuplicateFilenameInSameLibrary(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), store, nil)
+	input := UploadInput{
+		UserID:   1,
+		Filename: "Hero.PNG",
+		MimeType: "image/png",
+		Size:     4,
+		Data:     []byte("data"),
+	}
+	if _, err := service.Upload(ctx, input); err != nil {
+		t.Fatalf("first upload: %v", err)
+	}
+	input.Filename = "hero.png"
+	if _, err := service.Upload(ctx, input); !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("duplicate upload error = %v, want ErrDuplicateName", err)
+	}
+	input.UserID = 2
+	if _, err := service.Upload(ctx, input); err != nil {
+		t.Fatalf("same filename for a different personal library should be allowed: %v", err)
+	}
+}
+
+func TestUploadDeduplicatesBlobForSameContent(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), store, nil)
+	first, err := service.Upload(ctx, UploadInput{
+		UserID:   1,
+		Filename: "hero.png",
+		MimeType: "image/png",
+		Size:     4,
+		Data:     []byte("same"),
+	})
+	if err != nil {
+		t.Fatalf("first upload: %v", err)
+	}
+	second, err := service.Upload(ctx, UploadInput{
+		UserID:   1,
+		Filename: "alternate.png",
+		MimeType: "image/png",
+		Size:     4,
+		Data:     []byte("same"),
+	})
+	if err != nil {
+		t.Fatalf("second upload: %v", err)
+	}
+	if first.BlobID == nil || second.BlobID == nil || *first.BlobID != *second.BlobID {
+		t.Fatalf("uploads did not share blob: first=%v second=%v", first.BlobID, second.BlobID)
+	}
+	var count int64
+	if err := db.Model(&model.ResourceBlob{}).Count(&count).Error; err != nil {
+		t.Fatalf("count blobs: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("blob count = %d, want 1", count)
+	}
+}
+
+func TestUpdateRejectsDuplicateFilenameInSameTeamLibrary(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	org := model.Organization{Name: "Studio", Slug: "studio-duplicate"}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	first := model.RawResource{OwnerID: 1, OrgID: &org.ID, Type: "image", Name: "hero.png", FilePath: "/tmp/hero.png"}
+	second := model.RawResource{OwnerID: 2, OrgID: &org.ID, Type: "image", Name: "alt.png", FilePath: "/tmp/alt.png"}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("create first resource: %v", err)
+	}
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("create second resource: %v", err)
+	}
+
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
+	_, err := service.Update(ctx, UpdateInput{UserID: second.OwnerID, OrgID: &org.ID, ID: second.ID, Name: " HERO.png "})
+	if !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("duplicate rename error = %v, want ErrDuplicateName", err)
+	}
+}
+
+func TestDeleteResourceRejectsReferencedResource(t *testing.T) {
 	db := newResourceTestDB(t)
 	ctx := context.Background()
 	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "hero.png", FilePath: "/tmp/hero.png"}
@@ -70,23 +163,20 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 	}
 
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
-	if err := service.Delete(ctx, resource.ID, resource.OwnerID, nil); err != nil {
-		t.Fatalf("delete resource: %v", err)
+	if err := service.Delete(ctx, resource.ID, resource.OwnerID, nil); !errors.Is(err, ErrResourceInUse) {
+		t.Fatalf("delete resource error = %v, want ErrResourceInUse", err)
 	}
 
 	var count int64
 	if err := db.Model(&model.ResourceBinding{}).Where("resource_id = ?", resource.ID).Count(&count).Error; err != nil {
 		t.Fatalf("count bindings: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("expected bindings to be deleted, got %d", count)
+	if count != 1 {
+		t.Fatalf("expected binding to be preserved, got %d", count)
 	}
 	var updatedSlot model.AssetSlot
 	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
 		t.Fatalf("reload slot: %v", err)
-	}
-	if updatedSlot.ResourceID != nil {
-		t.Fatalf("expected slot resource_id to be cleared, got %+v", updatedSlot)
 	}
 	if err := db.Model(&model.EntityRelation{}).
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?", "asset_slot", slot.ID, "raw_resource", resource.ID).
@@ -94,9 +184,54 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relations: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("expected resource relations to be deleted, got %d", count)
+	if count != 1 {
+		t.Fatalf("expected resource relation to be preserved, got %d", count)
 	}
+}
+
+func TestDeleteResourceSoftDeletesWithoutDeletingBlob(t *testing.T) {
+	db := newResourceTestDB(t)
+	ctx := context.Background()
+	store, err := storage.NewFileSystemStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), store, nil)
+	resource, err := service.Upload(ctx, UploadInput{
+		UserID:   1,
+		Filename: "orphan.png",
+		MimeType: "image/png",
+		Size:     4,
+		Data:     []byte("data"),
+	})
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if err := service.Delete(ctx, resource.ID, resource.OwnerID, nil); err != nil {
+		t.Fatalf("delete resource: %v", err)
+	}
+	var stored model.RawResource
+	if err := db.Unscoped().First(&stored, resource.ID).Error; err != nil {
+		t.Fatalf("load deleted resource: %v", err)
+	}
+	if stored.DeletedAt.Valid == false {
+		t.Fatalf("resource was not soft deleted: %+v", stored)
+	}
+	if resource.BlobID == nil {
+		t.Fatal("resource blob id is nil")
+	}
+	var blob model.ResourceBlob
+	if err := db.First(&blob, *resource.BlobID).Error; err != nil {
+		t.Fatalf("load blob: %v", err)
+	}
+	if blob.RefCount != 0 {
+		t.Fatalf("blob ref count = %d, want 0", blob.RefCount)
+	}
+	body, _, _, err := store.GetObject(ctx, resource.StorageKey, -1, -1)
+	if err != nil {
+		t.Fatalf("blob object should remain in storage: %v", err)
+	}
+	_ = body.Close()
 }
 
 func TestGetVisibleAllowsTeamResourceWithoutSharing(t *testing.T) {
@@ -201,5 +336,5 @@ func newResourceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "resource.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	}, &model.EntityRelation{}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.RawResource{}, &model.AssetSlot{}, &model.ResourceBinding{})
+	}, &model.EntityRelation{}, &model.Organization{}, &model.Project{}, &model.ProjectMember{}, &model.ResourceBlob{}, &model.RawResource{}, &model.ShotReference{}, &model.AssetSlot{}, &model.ResourceBinding{})
 }

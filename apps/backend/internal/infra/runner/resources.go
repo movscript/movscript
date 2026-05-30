@@ -3,8 +3,11 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,8 +17,10 @@ import (
 	"unicode"
 
 	"github.com/movscript/movscript/internal/domain/media"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"gorm.io/gorm"
 )
 
 func (w *Worker) saveDebugInfo(job *persistencemodel.Job, result *ai.DebugCallResult) {
@@ -38,27 +43,34 @@ func (w *Worker) saveBytes(ctx context.Context, job *persistencemodel.Job, data 
 		mimeType = normalizedMime
 	}
 	resType := typeFromMime(mimeType)
-	name := generatedResourceName(job, resType, extFromMime(mimeType))
-	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
+	name, err := w.uniqueGeneratedResourceName(job, generatedResourceName(job, resType, extFromMime(mimeType)))
+	if err != nil {
+		return 0, err
+	}
+	blob, err := w.ensureResourceBlob(ctx, data, mimeType)
+	if err != nil {
+		return 0, err
+	}
 
 	r := persistencemodel.RawResource{
 		OwnerID:        job.UserID,
+		OrgID:          job.OrgID,
+		BlobID:         &blob.ID,
 		Type:           resType,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           int64(len(data)),
-		FilePath:       "pending",
-		StorageBackend: w.store.Backend(),
-		StorageKey:     key,
+		FilePath:       "stored:" + blob.StorageKey,
+		StorageBackend: blob.StorageBackend,
+		StorageKey:     blob.StorageKey,
 	}
 	if err := w.db.Create(&r).Error; err != nil {
 		return 0, fmt.Errorf("create resource record: %w", err)
 	}
-	if err := w.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
+	if err := w.incrementResourceBlobRef(blob.ID); err != nil {
 		w.db.Delete(&r)
-		return 0, fmt.Errorf("store file: %w", err)
+		return 0, fmt.Errorf("increment resource blob ref: %w", err)
 	}
-	w.db.Model(&r).Update("file_path", "stored:"+key)
 	return r.ID, nil
 }
 
@@ -113,30 +125,77 @@ func (w *Worker) saveResult(ctx context.Context, job *persistencemodel.Job, prov
 	}
 
 	resType := typeFromMime(mimeType)
-	name := generatedResourceName(job, resType, extFromMime(mimeType))
-	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
+	name, err := w.uniqueGeneratedResourceName(job, generatedResourceName(job, resType, extFromMime(mimeType)))
+	if err != nil {
+		return 0, err
+	}
+	blob, err := w.ensureResourceBlob(ctx, data, mimeType)
+	if err != nil {
+		return 0, err
+	}
 
 	r := persistencemodel.RawResource{
 		OwnerID:        job.UserID,
+		OrgID:          job.OrgID,
+		BlobID:         &blob.ID,
 		Type:           resType,
 		Name:           name,
 		MimeType:       mimeType,
 		Size:           int64(len(data)),
-		FilePath:       "pending",
-		StorageBackend: w.store.Backend(),
-		StorageKey:     key,
+		FilePath:       "stored:" + blob.StorageKey,
+		StorageBackend: blob.StorageBackend,
+		StorageKey:     blob.StorageKey,
 	}
 	if err := w.db.Create(&r).Error; err != nil {
 		return 0, fmt.Errorf("create resource record: %w", err)
 	}
-
-	if err := w.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
+	if err := w.incrementResourceBlobRef(blob.ID); err != nil {
 		w.db.Delete(&r)
-		return 0, fmt.Errorf("store file: %w", err)
+		return 0, fmt.Errorf("increment resource blob ref: %w", err)
 	}
-
-	w.db.Model(&r).Update("file_path", "stored:"+key)
 	return r.ID, nil
+}
+
+func (w *Worker) ensureResourceBlob(ctx context.Context, data []byte, mimeType string) (persistencemodel.ResourceBlob, error) {
+	hash := sha256Hex(data)
+	var existing persistencemodel.ResourceBlob
+	if err := w.db.Where("hash = ?", hash).First(&existing).Error; err == nil {
+		return existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return persistencemodel.ResourceBlob{}, fmt.Errorf("find resource blob: %w", err)
+	}
+	key := domainresource.GenerateBlobStorageKey(hash)
+	if err := w.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
+		return persistencemodel.ResourceBlob{}, fmt.Errorf("store file: %w", err)
+	}
+	blob := persistencemodel.ResourceBlob{
+		Hash:           hash,
+		StorageBackend: w.store.Backend(),
+		StorageKey:     key,
+		Size:           int64(len(data)),
+		MimeType:       mimeType,
+	}
+	if err := w.db.Create(&blob).Error; err != nil {
+		if findErr := w.db.Where("hash = ?", hash).First(&existing).Error; findErr == nil {
+			return existing, nil
+		} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return persistencemodel.ResourceBlob{}, fmt.Errorf("find resource blob after create conflict: %w", findErr)
+		}
+		return persistencemodel.ResourceBlob{}, fmt.Errorf("create resource blob: %w", err)
+	}
+	return blob, nil
+}
+
+func (w *Worker) incrementResourceBlobRef(blobID uint) error {
+	return w.db.
+		Model(&persistencemodel.ResourceBlob{}).
+		Where("id = ?", blobID).
+		UpdateColumn("ref_count", gorm.Expr("ref_count + ?", 1)).Error
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func generatedResourceName(job *persistencemodel.Job, resType string, ext string) string {
@@ -149,6 +208,52 @@ func generatedResourceName(job *persistencemodel.Job, resType string, ext string
 		return base
 	}
 	return base + "." + ext
+}
+
+func (w *Worker) uniqueGeneratedResourceName(job *persistencemodel.Job, name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = fmt.Sprintf("job_%d_file", job.ID)
+	}
+	if exists, err := w.generatedResourceNameExists(job, name); err != nil {
+		return "", fmt.Errorf("check resource filename: %w", err)
+	} else if !exists {
+		return name, nil
+	}
+	base, ext := splitResourceName(name)
+	for suffix := 2; suffix < 10000; suffix++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, suffix, ext)
+		exists, err := w.generatedResourceNameExists(job, candidate)
+		if err != nil {
+			return "", fmt.Errorf("check resource filename: %w", err)
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("resource filename already exists: %s", name)
+}
+
+func (w *Worker) generatedResourceNameExists(job *persistencemodel.Job, name string) (bool, error) {
+	q := w.db.Model(&persistencemodel.RawResource{}).Where("LOWER(name) = LOWER(?)", strings.TrimSpace(name))
+	if job.OrgID == nil {
+		q = q.Where("owner_id = ? AND org_id IS NULL", job.UserID)
+	} else {
+		q = q.Where("org_id = ?", *job.OrgID)
+	}
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func splitResourceName(name string) (string, string) {
+	dot := strings.LastIndex(name, ".")
+	if dot <= 0 || dot == len(name)-1 {
+		return name, ""
+	}
+	return strings.TrimSpace(name[:dot]), name[dot:]
 }
 
 func generatedResourceBaseName(title string) string {

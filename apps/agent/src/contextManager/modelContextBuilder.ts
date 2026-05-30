@@ -652,7 +652,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
     target: { type: 'object', additionalProperties: true },
     seed: { type: 'object', additionalProperties: true, description: 'DraftDomainModel/MCP seed contract or hydrated seed summary to persist under metadata.seed.' },
     metadata: { type: 'object', additionalProperties: true },
-    proposal: { type: 'boolean', description: 'When true, creates a reviewable proposal draft: adds schema validation, infers target/source, sets default title, and returns {proposalRef, draftId, status}.' },
+    proposal: { type: 'boolean', description: 'When true, creates a reviewable proposal draft: adds schema validation, infers target/source, sets default title, and returns {proposalRef, draftId} plus validation/apply results when available.' },
   },
 } satisfies Record<string, unknown>
 

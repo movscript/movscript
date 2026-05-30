@@ -86,6 +86,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/resource-storage/resources", h.resourceAdmin.ListResources)
 	admin.GET("/resource-storage/resources/:id/detail", h.resourceAdmin.ResourceDetail)
 	admin.DELETE("/resource-storage/resources/:id", h.resourceAdmin.DeleteResource)
+	admin.POST("/resource-storage/blobs/gc", h.resourceAdmin.CollectUnusedBlobs)
 
 	// cloud file storage configs
 	admin.GET("/cloud-file-configs", h.cloudFileConfig.List)

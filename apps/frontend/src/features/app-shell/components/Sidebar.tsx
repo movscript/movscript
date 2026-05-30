@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -9,9 +9,9 @@ import {
   Bot,
   BrainCircuit,
   Cable,
+  Clapperboard,
   CirclePlay,
   Component,
-  Factory,
   FlaskConical,
   FolderArchive,
   FolderOpen,
@@ -33,6 +33,7 @@ import {
   Tag,
   ToyBrick,
   Truck,
+  Video,
   Wrench,
 } from 'lucide-react'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -53,6 +54,7 @@ import {
   AppSidebarShell,
   PanelResizeHandle,
   clampAppSidebarWidth,
+  useResizablePanel,
 } from '@movscript/ui'
 import { loadClientPlugins } from '@/features/plugins/application/clientPlugins'
 import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
@@ -136,69 +138,22 @@ export function Sidebar({
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const { pathname } = useLocation()
-  const resizeStart = useRef({ x: 0, width })
-  const [resizing, setResizing] = useState(false)
+  const sidebarResize = useResizablePanel({
+    size: width,
+    onSizeChange: (nextWidth) => onWidthChange?.(clampSidebarWidth(nextWidth)),
+    minSize: SIDEBAR_MIN_WIDTH,
+    maxSize: SIDEBAR_MAX_WIDTH,
+    resizeEdge: 'right',
+    collapsed,
+    onCollapsedChange: (nextCollapsed) => {
+      if (nextCollapsed) onHide?.()
+    },
+    collapseMode: 'after-min',
+    ariaLabel: '调整左侧栏宽度',
+  })
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/features/plugins/application/clientPlugins').ClientPluginManifest[]>([])
   useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
-
-  useEffect(() => {
-    if (!resizing || !onWidthChange) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const nextWidth = resizeStart.current.width + event.clientX - resizeStart.current.x
-      if (nextWidth < SIDEBAR_MIN_WIDTH) {
-        if (resizeStart.current.width <= SIDEBAR_MIN_WIDTH) {
-          onHide?.()
-          setResizing(false)
-          return
-        }
-        onWidthChange(SIDEBAR_MIN_WIDTH)
-        return
-      }
-      onWidthChange(clampSidebarWidth(nextWidth))
-    }
-    const handlePointerUp = () => setResizing(false)
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerUp)
-
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerUp)
-    }
-  }, [onHide, onWidthChange, resizing])
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (collapsed || !onWidthChange || event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    resizeStart.current = { x: event.clientX, width }
-    setResizing(true)
-  }
-
-  const adjustSidebarWidth = (delta: number) => {
-    if (!onWidthChange) return
-    const nextWidth = width + delta
-    if (nextWidth < SIDEBAR_MIN_WIDTH) {
-      if (width <= SIDEBAR_MIN_WIDTH) {
-        onHide?.()
-        return
-      }
-      onWidthChange(SIDEBAR_MIN_WIDTH)
-      return
-    }
-    onWidthChange(clampSidebarWidth(nextWidth))
-  }
-
 
   const { isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
@@ -238,14 +193,13 @@ export function Sidebar({
                 </AppSidebarProjectRow>
               )}
               <NavItem to={ROUTES.project.overview} icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
-              <NavItem to={ROUTES.project.production} icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} end />
               <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.delivery} icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} end />
             </AppSidebarSection>
 
             <AppSidebarDivider collapsed={collapsed} />
             <AppSidebarSection title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              {projectWorkbenchDefinitions.map((item, index) => (
+              {projectWorkbenchDefinitions.filter((item) => item.id !== 'content_orchestration').map((item, index) => (
                 <Fragment key={item.id}>
                   <NavItem to={item.route} icon={item.icon} label={t(item.sidebarTitleKey)} collapsed={collapsed} />
                   {index === 0 ? (
@@ -253,6 +207,7 @@ export function Sidebar({
                   ) : null}
                 </Fragment>
               ))}
+              <NavItem to={ROUTES.project.contentUnitEditor} icon={Clapperboard} label={t('sidebar.items.shotEditWorkbench')} collapsed={collapsed} />
             </AppSidebarSection>
           </>
         )}
@@ -277,7 +232,9 @@ export function Sidebar({
 
         {/* Files */}
         <AppSidebarSection title={t('sidebar.sections.files')} collapsed={collapsed}>
-          <NavItem to={ROUTES.resources} icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} />
+          <NavItem to={ROUTES.resources} icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} end />
+          <NavItem to={ROUTES.externalResources} icon={ScanSearch} label={t('sidebar.items.externalResources', { defaultValue: '外部资源' })} collapsed={collapsed} />
+          <NavItem to={ROUTES.shotLibrary} icon={Video} label={t('sidebar.items.shotLibrary')} collapsed={collapsed} />
           <NavItem to={ROUTES.jobs} icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </AppSidebarSection>
 
@@ -285,26 +242,8 @@ export function Sidebar({
 
       {!collapsed && onWidthChange ? (
         <PanelResizeHandle
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整左侧栏宽度"
-          aria-valuemin={SIDEBAR_MIN_WIDTH}
-          aria-valuemax={SIDEBAR_MAX_WIDTH}
-          aria-valuenow={width}
-          tabIndex={0}
+          {...sidebarResize.resizeHandleProps}
           side="right"
-          active={resizing}
-          onPointerDown={startResize}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? -32 : -12)
-            }
-            if (event.key === 'ArrowRight') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? 32 : 12)
-            }
-          }}
         />
       ) : null}
     </AppSidebarShell>

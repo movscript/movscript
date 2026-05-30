@@ -171,7 +171,7 @@ function nextLaneActionLabel(lane?: WorkLane) {
   if (lane.key === 'project_standards') return '进入项目规范'
   if (lane.key === 'pre_production') return '进入前期准备'
   if (lane.key === 'orchestration_production') return '进入创作编排'
-  if (lane.key === 'content_orchestration') return '进入内容编排'
+  if (lane.key === 'content_orchestration') return '进入创作编排'
   if (lane.key === 'delivery') return '进入交付工作台'
   return `进入${lane.title}`
 }
@@ -410,7 +410,6 @@ export default function ProjectOverviewPage() {
     const standards = getProjectWorkbenchDefinition('project_standards')
     const preProduction = getProjectWorkbenchDefinition('pre_production')
     const creative = getProjectWorkbenchDefinition('orchestration_production')
-    const content = getProjectWorkbenchDefinition('content_orchestration')
     const delivery = getProjectWorkbenchDefinition('delivery')
 
     const standardsTotal = 5
@@ -427,13 +426,11 @@ export default function ProjectOverviewPage() {
     const preProductionDone = counts.confirmedReferences + counts.confirmedRelationships + counts.lockedAssets
     const preProductionProgress = preProductionTotal > 0 ? percentage(preProductionDone, preProductionTotal) : standardsProgress > 0 ? 20 : 0
 
-    const planTotal = data.productions.length + data.segments.length + data.sceneMoments.length + data.storyboardScripts.length + data.previewTimelines.length
-    const planDone = counts.deliveredProductions + statusCount(data.storyboardScripts, ['active', 'locked']) + statusCount(data.previewTimelines, ['playable', 'confirmed'])
-    const planProgress = planTotal > 0 ? Math.max(counts.productionProgress, percentage(planDone, planTotal)) : 0
-
     const contentTotal = data.contentUnits.length + data.keyframes.length
     const contentDone = counts.confirmedContents + counts.acceptedKeyframes
-    const contentProgress = contentTotal > 0 ? percentage(contentDone, contentTotal) : planProgress > 0 ? 20 : 0
+    const planTotal = data.productions.length + data.segments.length + data.sceneMoments.length + data.storyboardScripts.length + data.previewTimelines.length + contentTotal
+    const planDone = counts.deliveredProductions + statusCount(data.storyboardScripts, ['active', 'locked']) + statusCount(data.previewTimelines, ['playable', 'confirmed']) + contentDone
+    const planProgress = planTotal > 0 ? Math.max(counts.productionProgress, percentage(planDone, planTotal)) : 0
     const deliveryProgress = data.deliveryVersions.length > 0 ? percentage(counts.approvedDeliveries, data.deliveryVersions.length) : 0
 
     return [
@@ -467,27 +464,14 @@ export default function ProjectOverviewPage() {
         key: 'orchestration_production',
         title: creative.title,
         description: creative.purpose,
-        primaryLabel: '制作/编排/情景',
+        primaryLabel: '制作/情景/镜头',
         primaryValue: planTotal,
-        secondary: `${counts.activeProductions} 个制作进行中，${counts.confirmedSegments} 个编排段，${counts.confirmedMoments} 个情景`,
+        secondary: `${counts.activeProductions} 个制作进行中，${counts.confirmedMoments} 个情景，${counts.confirmedContents} 个镜头可推进`,
         progress: planProgress,
         state: data.productions.length === 0 ? (data.scriptVersions.length > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: creative.route,
         workbenchHref: creative.route,
         icon: creative.icon,
-      },
-      {
-        key: 'content_orchestration',
-        title: content.title,
-        description: content.purpose,
-        primaryLabel: '制作项/画面锚点',
-        primaryValue: contentTotal,
-        secondary: `${counts.confirmedContents} 个制作项可推进，${counts.acceptedKeyframes} 个画面锚点已采纳`,
-        progress: contentProgress,
-        state: contentTotal === 0 ? (planProgress > 0 ? 'active' : 'empty') : contentProgress >= 70 ? 'ready' : 'active',
-        href: content.route,
-        workbenchHref: content.route,
-        icon: content.icon,
       },
       {
         key: 'delivery',
@@ -556,10 +540,10 @@ export default function ProjectOverviewPage() {
       items.push({
         key: 'content',
         title: '拆解或确认制作项',
-        area: '内容编排工作台',
-        href: ROUTES.project.contentUnitWorkbench,
+        area: '创作编排工作台',
+        href: ROUTES.project.productionOrchestration,
         priority: 'medium',
-        detail: '制作创建后，需要先在内容编排工作台拆出可执行颗粒',
+        detail: '制作创建后，需要先在创作编排工作台拆出可执行镜头',
       })
     }
 
@@ -568,8 +552,8 @@ export default function ProjectOverviewPage() {
       {
         key: 'preview',
         title: '检查预览挂载',
-        area: '内容编排工作台',
-        href: ROUTES.project.contentUnitWorkbench,
+        area: '创作编排工作台',
+        href: ROUTES.project.productionOrchestration,
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
@@ -594,7 +578,7 @@ export default function ProjectOverviewPage() {
         <ProjectSurfaceHeader
           icon={LayoutDashboard}
           title={project?.name ?? '项目总览'}
-          description={project?.description || '项目总览按 5 个工作台组织当前进度：项目规范、前期准备、创作编排、内容编排和交付。具体生成、确认和返工决策进入对应工作台完成。'}
+          description={project?.description || '项目总览按工作台组织当前进度：项目规范、前期准备、创作编排和交付。镜头方案、时间轴和镜头列表在创作编排中推进。'}
           meta={(
             <>
               <StatusBadge {...projectBlockedSummaryRecipe(blockedCount)}>
@@ -636,7 +620,7 @@ export default function ProjectOverviewPage() {
 
             <ProjectOverviewMetricGrid>
               <AppDashboardMetric label="创作方案" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
-              <AppDashboardMetric label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="content_orchestration" />} />
+              <AppDashboardMetric label="镜头" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={<WorkbenchMetricIcon workbenchId="orchestration_production" />} />
               <AppDashboardMetric label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={<WorkbenchMetricIcon workbenchId="pre_production" />} />
               <AppDashboardMetric label="交付版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={<WorkbenchMetricIcon workbenchId="delivery" />} />
             </ProjectOverviewMetricGrid>
@@ -663,7 +647,7 @@ export default function ProjectOverviewPage() {
               <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
               <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
               <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
-                <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
+                <Link to={nextLane?.workbenchHref ?? ROUTES.project.productionOrchestration}>
                   {nextLaneActionLabel(nextLane)} <ArrowRight size={14} />
                 </Link>
               </Button>

@@ -10,6 +10,8 @@ import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from
 // rejection. It is not a formal backend domain entity until a separate apply
 // flow writes accepted content to backend APIs.
 export type AgentDraftKind = DraftKindValue
+// Kept for wire compatibility with older clients. The local draft itself now
+// remains a mutable work copy; apply/reject outcomes are recorded in metadata.
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentDraftSource {
@@ -175,7 +177,6 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     const updated: AgentDraft = {
       ...current,
       filePath: current.filePath ?? this.getDraftFilePath(current.id),
-      ...(input.status ? { status: input.status } : {}),
       ...(typeof input.title === 'string' ? { title: normalizeTitle(input.title) } : {}),
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
       ...(target ? { target } : {}),
@@ -1147,7 +1148,7 @@ function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
     kind: normalizeDraftKind(draft.kind),
     title: normalizeTitle(draft.title),
     content: typeof draft.content === 'string' ? draft.content : '',
-    status: normalizeDraftStatus(draft.status) ?? 'draft',
+    status: 'draft',
     ...(source ? { source } : { source: undefined }),
     ...(target ? { target } : { target: undefined }),
     ...(appliedByUserId !== undefined ? { appliedByUserId } : { appliedByUserId: undefined }),

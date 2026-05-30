@@ -1,5 +1,6 @@
 export type ProductionScriptVersionLike = {
   ID: number
+  version_number?: number
   title?: string
   content?: string
   raw_source?: string
@@ -22,7 +23,9 @@ export type ScriptLineEntry = {
 }
 
 export function scriptVersionOptionLabel(version: ProductionScriptVersionLike) {
-  return version.title || `剧本 #${version.ID}`
+  const title = typeof version.title === 'string' ? version.title.trim() : ''
+  const versionNumber = Number(version.version_number) || version.ID
+  return title ? `${title} · v${versionNumber}` : `剧本版本 v${versionNumber}`
 }
 
 export function scriptSourceTextForVersion(version: ProductionScriptVersionLike | null) {

@@ -11,8 +11,6 @@ import {
   type ProposalSegmentNode,
 } from '@/features/production/domain/productionProposalReviewModel'
 
-export type ProductionOrchestrationWorkspaceView = 'structure' | 'review'
-
 interface ProductionOrchestrationReviewControllerInput {
   projectId?: number
   searchParams: URLSearchParams
@@ -29,9 +27,9 @@ export function useProductionOrchestrationReviewController({
   const openedDraftId = searchParams.get('draftId')?.trim() || ''
   const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
   const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
+  const reviewOpen = searchParams.get('view') === 'review'
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
-  const [workspaceView, setWorkspaceView] = useState<ProductionOrchestrationWorkspaceView>('structure')
 
   const openedDraftQuery = useQuery<AgentDraft | null>({
     queryKey: ['production-orchestration-draft', projectId, openedDraftId],
@@ -62,7 +60,7 @@ export function useProductionOrchestrationReviewController({
     () => proposalPreviewDraft ? collectProposalReviewNodes(buildProposalReviewSegments(proposalPreviewDraft.proposal.segments, currentProductionSnapshot)).length : 0,
     [currentProductionSnapshot, proposalPreviewDraft],
   )
-  const workspaceStatusLabel = workspaceView === 'review'
+  const workspaceStatusLabel = reviewOpen
     ? proposalPreviewDraft
       ? `待审节点 ${proposalReviewNodeCount}`
       : '等待 AI 草稿'
@@ -77,7 +75,6 @@ export function useProductionOrchestrationReviewController({
     const parsed = parseProductionProposalDraft(draft)
     setProposalPreviewDraft(parsed)
     setProposalNodeDecisions({})
-    setWorkspaceView('review')
   }, [openedDraftId, openedDraftQuery.data])
 
   useEffect(() => {
@@ -86,24 +83,9 @@ export function useProductionOrchestrationReviewController({
     }
   }, [proposalPreviewDraft])
 
-  useEffect(() => {
-    if (openedSettingDraftId || openedAssetProposalDraftId || openedDraftId) {
-      setWorkspaceView('review')
-    }
-  }, [openedAssetProposalDraftId, openedDraftId, openedSettingDraftId])
-
-  function showReview() {
-    setWorkspaceView('review')
-  }
-
-  function showStructure() {
-    setWorkspaceView('structure')
-  }
-
   function clearProposalReview() {
     setProposalPreviewDraft(null)
     setProposalNodeDecisions({})
-    setWorkspaceView('structure')
   }
 
   return {
@@ -117,11 +99,8 @@ export function useProductionOrchestrationReviewController({
     proposalNodeDecisions,
     setProposalNodeDecisions,
     proposalReviewNodeCount,
-    workspaceView,
-    setWorkspaceView,
+    reviewOpen,
     workspaceStatusLabel,
-    showReview,
-    showStructure,
     clearProposalReview,
   }
 }

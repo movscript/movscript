@@ -13,6 +13,7 @@ import {
   isCanvasNodeOutsideGroupBounds,
   normalizedCanvasNodeStyle,
   resolveCanvasGroupPromotionId,
+  shouldUseCanvasMediaLightweightMode,
   topLevelSelectedCanvasNodes,
 } from './layout'
 import {
@@ -44,6 +45,38 @@ test('canvas ports resolve custom ports before node defaults', () => {
   assert.equal(defaultHandleForNode(node, 'source'), 'custom_output')
   assert.equal(portForHandle(node, 'target', 'in:custom_input')?.type, 'text')
   assert.equal(portForHandle(node, 'source', 'out:custom_output')?.type, 'image')
+})
+
+test('canvas media previews stay enabled for sparse visible media at low zoom', () => {
+  const nodes = Array.from({ length: 4 }, (_, index) => canvasNode(`image-${index}`, 'image', {
+    source: 'manual',
+    resource: canvasImageResource(index),
+  }, { x: index * 260, y: 0 }, { width: 200, height: 160 }))
+
+  assert.equal(shouldUseCanvasMediaLightweightMode({
+    nodes,
+    viewportX: 0,
+    viewportY: 0,
+    zoom: 0.1,
+    viewportWidth: 1200,
+    viewportHeight: 800,
+  }), false)
+})
+
+test('canvas media previews degrade only when visible media exceeds budget', () => {
+  const nodes = Array.from({ length: 40 }, (_, index) => canvasNode(`image-${index}`, 'image', {
+    source: 'manual',
+    resource: canvasImageResource(index),
+  }, { x: (index % 10) * 220, y: Math.floor(index / 10) * 180 }, { width: 200, height: 160 }))
+
+  assert.equal(shouldUseCanvasMediaLightweightMode({
+    nodes,
+    viewportX: 0,
+    viewportY: 0,
+    zoom: 0.5,
+    viewportWidth: 1400,
+    viewportHeight: 900,
+  }), true)
 })
 
 test('canvas edge identity dedupes equivalent UI handles', () => {
@@ -260,6 +293,18 @@ function canvasEdge(source: string, target: string, sourceHandle?: string | null
     sourceHandle,
     targetHandle,
   }
+}
+
+function canvasImageResource(id: number) {
+  return {
+    ID: id,
+    owner_id: 1,
+    type: 'image',
+    name: `image-${id}.png`,
+    url: `/resources/${id}/file`,
+    size: 1024,
+    mime_type: 'image/png',
+  } as CanvasNodeData['resource']
 }
 
 function t(key: string, options?: Record<string, unknown>) {

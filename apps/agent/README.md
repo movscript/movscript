@@ -70,8 +70,8 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 | `POST` | `/draft` | Create a local draft/candidate artifact. |
 | `GET` | `/drafts` | List local draft/candidate artifacts. |
 | `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
-| `POST` | `/drafts/:id/apply-preview` | Build before/after review metadata for applying a draft. |
-| `POST` | `/drafts/:id/reject` | Mark a local draft rejected. |
+| `POST` | `/drafts/:id/apply-preview` | Build before/after review metadata for applying the draft's current content. |
+| `POST` | `/drafts/:id/reject` | Record a local draft review rejection without closing the draft. |
 | `POST` | `/threads` | Agent thread creation. |
 | `GET` | `/threads` | Agent thread summaries. |
 | `DELETE` | `/threads` | Physically delete all thread history, related runs, plans, runtime records, and trace files. Queued or in-progress runs must be cancelled first; waiting `requires_action` history is deletable. |

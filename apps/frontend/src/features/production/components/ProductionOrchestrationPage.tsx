@@ -1,24 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  GitBranch,
+  Plus,
   Wand2,
 } from 'lucide-react'
 
-import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
+import { semanticEntityConfig } from '@/shared/infrastructure/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/shared/ui/SemanticEntityCrudDialog'
 import { ProductionProposalReviewPanel } from '@/features/production/components/proposals/ProductionProposalReviewPanel'
 import { ProductionOrchestrationWorkspace } from '@/features/production/components/ProductionOrchestrationWorkspace'
-import { ProductionWorkspaceHeaderContext } from '@/features/production/components/ProductionOrchestrationStructure'
+import { ContentWorkbenchDialogs } from '@/features/content/components/ContentWorkbenchDialogs'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
 import { isGeneratedKeyframeCandidateRecord } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import { listScriptVersions, type ScriptVersion } from '@/shared/infrastructure/api/scriptVersions'
 import {
-  buildProductionCurrentOverview,
-} from '@/features/production/domain/productionOrchestrationOverview'
+  buildContentWorkbenchAiSuggestLaunchInput,
+  launchContentWorkbenchAiSuggestAgent,
+} from '@/features/content/application/contentWorkbenchAgentLaunch'
+import {
+  buildMoveContentUnitOnTimelineMutationOptions,
+  buildReorderContentUnitsMutationOptions,
+} from '@/features/content/application/contentWorkbenchMutationController'
+import {
+  buildContentGenerationMomentRows,
+  type ContentGenerationMomentRow,
+} from '@/features/content/domain/contentWorkbenchModel'
 import { buildProductionOrchestrationLookup } from '@/features/production/domain/productionOrchestrationEntityModel'
-import { scriptSourceTextForVersion } from '@/features/production/domain/productionScriptBlocks'
+import { scriptSourceTextForVersion, scriptVersionOptionLabel } from '@/features/production/domain/productionScriptBlocks'
 import {
   buildBindProductionScriptVersionMutationOptions,
   buildBindSceneMomentScriptBlockMutationOptions,
@@ -28,6 +37,8 @@ import {
   buildDeleteSceneMomentMutationOptions,
   buildDeleteWritingExpressionMutationOptions,
   buildLinkSceneMomentReferenceMutationOptions,
+  buildReorderProductionSceneMomentsMutationOptions,
+  buildReorderProductionSegmentsMutationOptions,
   buildUpdateSceneMomentMutationOptions,
   buildUpdateSegmentMutationOptions,
   buildUpdateWritingExpressionMutationOptions,
@@ -44,30 +55,11 @@ import {
   buildProductionProposalRevisionRequestId,
   launchProductionProposalRevisionAgent,
 } from '@/features/production/application/productionProposalAgentLaunch'
-import {
-  appendProductionProposalDraftContentUnit,
-  appendProductionProposalDraftCreativeReference,
-  appendProductionProposalDraftSceneMoment,
-  appendProductionProposalDraftSegment,
-  appendProductionProposalDraftWritingExpression,
-  buildProductionProposalDraftClientId,
-  removeProductionProposalDraftContentUnit,
-  removeProductionProposalDraftCreativeReference,
-  removeProductionProposalDraftSceneMoment,
-  removeProductionProposalDraftSegment,
-  removeProductionProposalDraftWritingExpression,
-  replaceProductionProposalDraftContentUnit,
-  replaceProductionProposalDraftSceneMoment,
-  replaceProductionProposalDraftSegment,
-  replaceProductionProposalDraftWritingExpression,
-  updateProductionProposalDraftText,
-} from '@/features/production/domain/productionProposalDraftEdit'
-import {
-  buildProductionProposalDraftWorkspaceData,
-  proposalCreativeReferenceFromRecord,
-} from '@/features/production/domain/productionProposalDraftWorkspace'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
-import { useProductionOrchestrationPageController } from '@/features/production/application/productionOrchestrationPageController'
+import {
+  buildProductionOrchestrationStaleContentUnitParams,
+  useProductionOrchestrationPageController,
+} from '@/features/production/application/productionOrchestrationPageController'
 import { useProductionOrchestrationLaunchController } from '@/features/production/application/productionOrchestrationLaunchController'
 import { useProductionOrchestrationReviewController } from '@/features/production/application/productionOrchestrationReviewController'
 import {
@@ -76,21 +68,23 @@ import {
   filterProductionSceneMomentsForSegments,
   filterProductionSegmentsForProduction,
 } from '@/features/production/domain/productionOrchestrationWorkspaceModel'
-import type {
-  ProductionWritingExpressionEditTarget,
-  ProductionWritingExpressionSavePayload,
-} from '@/features/production/domain/productionWritingExpressions'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
-import { productionProposalModeRecipe } from '@/features/production/presentation/productionSemanticUi'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import {
   Dialog,
   ProductionOrchestrationGenerationNotice,
   ProductionOrchestrationHeaderAction,
-  ProductionOrchestrationHeaderBadge,
   ProductionOrchestrationHeaderMetaBadge,
-  ProductionOrchestrationProposalBanner,
-  ProductionOrchestrationProductionSelectTrigger,
+  ProductionOrchestrationProductionCard,
+  ProductionOrchestrationProductionCardBreadcrumbs,
+  ProductionOrchestrationProductionCardScriptBinding,
+  ProductionOrchestrationProductionCardScriptSelectTrigger,
+  ProductionOrchestrationProductionDeck,
+  ProductionOrchestrationProductionDeckGrid,
+  ProductionOrchestrationProductionDeckHeader,
+  ProductionOrchestrationProductionEmptyState,
+  ProductionOrchestrationProductionPager,
   ProductionOrchestrationReviewDialogContent,
   ProductionOrchestrationReviewDialogTitle,
   ProductionOrchestrationReviewEmptyNotice,
@@ -106,6 +100,8 @@ import {
   WorkbenchProjectViewport,
 } from '@movscript/ui'
 
+const PRODUCTION_PAGE_SIZE = 8
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,13 +109,15 @@ import {
 export default function ProductionOrchestrationPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const productionId = Number(searchParams.get('productionId')) || 0
+  const selectedContentUnitId = Number(searchParams.get('content_unit_id')) || 0
 
   const queryKey = ['production-orchestration', projectId] as const
   const scriptVersionsQueryKey = ['production-orchestration-script-versions', projectId] as const
-  const { data, isLoading, isFetching, refetch } = useQuery<OrchestrationData>({
+  const { data, isLoading, refetch } = useQuery<OrchestrationData>({
     queryKey,
     queryFn: () => loadProductionOrchestrationData(projectId!),
     enabled: !!projectId,
@@ -143,7 +141,6 @@ export default function ProductionOrchestrationPage() {
   const mutationBase = { projectId, queryClient, queryKey, refetch }
   const bindScriptVersionMutation = useMutation(buildBindProductionScriptVersionMutationOptions({
     ...mutationBase,
-    productionId: effectiveProductionId,
     scriptVersionsQueryKey,
   }))
   const bindSceneMomentScriptBlockMutation = useMutation(buildBindSceneMomentScriptBlockMutationOptions(mutationBase))
@@ -155,6 +152,8 @@ export default function ProductionOrchestrationPage() {
   }))
   const updateSceneMomentMutation = useMutation(buildUpdateSceneMomentMutationOptions(mutationBase))
   const updateSegmentMutation = useMutation(buildUpdateSegmentMutationOptions(mutationBase))
+  const reorderSegmentsMutation = useMutation(buildReorderProductionSegmentsMutationOptions(mutationBase))
+  const reorderSceneMomentsMutation = useMutation(buildReorderProductionSceneMomentsMutationOptions(mutationBase))
   const deleteSegmentMutation = useMutation(buildDeleteSegmentMutationOptions(mutationBase))
   const deleteSceneMomentMutation = useMutation(buildDeleteSceneMomentMutationOptions(mutationBase))
   const linkSceneMomentReferenceMutation = useMutation(buildLinkSceneMomentReferenceMutationOptions(mutationBase))
@@ -162,6 +161,10 @@ export default function ProductionOrchestrationPage() {
   const updateWritingExpressionMutation = useMutation(buildUpdateWritingExpressionMutationOptions(mutationBase))
   const deleteWritingExpressionMutation = useMutation(buildDeleteWritingExpressionMutationOptions(mutationBase))
   const createWritingExpressionMutation = useMutation(buildCreateWritingExpressionMutationOptions(mutationBase))
+  const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
+  const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
+  const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
+  const previewTimelineItemConfig = useMemo(() => semanticEntityConfig('previewTimelineItems'), [])
   const allSegments = useMemo(
     () => filterProductionSegmentsForProduction(data?.segments ?? [], effectiveProductionId).sort(compareProductionOrchestrationOrder),
     [data?.segments, effectiveProductionId]
@@ -208,18 +211,6 @@ export default function ProductionOrchestrationPage() {
     () => (data?.creativeReferences ?? []).filter((reference) => !['ignored', 'merged'].includes(String(reference.status ?? ''))),
     [data?.creativeReferences],
   )
-  const currentProductionOverview = useMemo(
-    () => buildProductionCurrentOverview({
-      production: selectedProduction,
-      scriptVersion: selectedScriptVersion,
-      segments: allSegments,
-      sceneMoments: allSceneMoments,
-      creativeReferences: allCreativeReferences,
-      assetSlots: allAssetSlots,
-      contentUnits: allContentUnits,
-    }),
-    [allAssetSlots, allCreativeReferences, allContentUnits, allSceneMoments, allSegments, selectedProduction, selectedScriptVersion],
-  )
   const currentProductionSnapshot = useMemo(
     () => buildCurrentProductionProposalSnapshot({
       segments: allSegments,
@@ -244,8 +235,7 @@ export default function ProductionOrchestrationPage() {
     proposalNodeDecisions,
     setProposalNodeDecisions,
     proposalReviewNodeCount,
-    workspaceView,
-    showReview,
+    reviewOpen,
     clearProposalReview,
   } = useProductionOrchestrationReviewController({
     projectId,
@@ -255,9 +245,11 @@ export default function ProductionOrchestrationPage() {
   })
   const pageController = useProductionOrchestrationPageController({
     projectId,
+    route: ROUTES.project.productionOrchestration,
     searchParams,
     setSearchParams,
     sceneMoments: allSceneMoments,
+    segments: allSegments,
     effectiveProductionId,
     queryClient,
     queryKey,
@@ -273,62 +265,102 @@ export default function ProductionOrchestrationPage() {
     selectedScriptVersion,
     scriptVersions,
     setSearchParams,
-    showReview,
     refetch,
     queryClient,
     queryKey,
   })
   const productionLabel = selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作'
-  const productionDraftActive = Boolean(proposalPreviewDraft || openedDraftQuery.data?.kind === 'production_proposal' || (openedDraftId && openedDraftQuery.isLoading))
-  const proposalModeActive = workspaceView === 'review' && productionDraftActive
-  const [proposalSelectedMomentId, setProposalSelectedMomentId] = useState<number | null>(null)
-  const [proposalReviewOpen, setProposalReviewOpen] = useState(false)
-  const [savingProposalDraft, setSavingProposalDraft] = useState(false)
-  const [openingProposalMode, setOpeningProposalMode] = useState(false)
   const [launchingProposalRevision, setLaunchingProposalRevision] = useState(false)
+  const [createProductionOpen, setCreateProductionOpen] = useState(false)
   const [proposalRevisionDialogOpen, setProposalRevisionDialogOpen] = useState(false)
   const [proposalRevisionInstruction, setProposalRevisionInstruction] = useState('')
+  const [productionPage, setProductionPage] = useState(0)
   const proposalRevisionCleanupRef = useRef<(() => void) | null>(null)
-  const proposalWorkspaceData = useMemo(
-    () => proposalPreviewDraft
-      ? buildProductionProposalDraftWorkspaceData(proposalPreviewDraft, {
-        productionId: effectiveProductionId,
-        creativeReferences: allCreativeReferences,
-      })
-      : null,
-    [allCreativeReferences, effectiveProductionId, proposalPreviewDraft],
-  )
-  const workspaceSegments = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.segments : allSegments
-  const workspaceSceneMoments = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.sceneMoments : allSceneMoments
-  const workspaceWritingExpressions = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.writingExpressions : allWritingExpressions
-  const workspaceContentUnits = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.contentUnits : allContentUnits
-  const workspaceAssetSlots = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.assetSlots : allAssetSlots
-  const workspaceCreativeReferenceUsages = proposalModeActive && proposalWorkspaceData ? proposalWorkspaceData.creativeReferenceUsages : data?.creativeReferenceUsages ?? []
   const workspaceLookup = useMemo(() => buildProductionOrchestrationLookup({
     scriptText,
     scriptVersionTitle: selectedScriptVersion?.title ?? '',
-    segments: workspaceSegments,
-    sceneMoments: workspaceSceneMoments,
+    segments: allSegments,
+    sceneMoments: allSceneMoments,
     creativeReferences: allCreativeReferences,
-    creativeReferenceUsages: workspaceCreativeReferenceUsages,
-    assetSlots: workspaceAssetSlots,
-    contentUnits: workspaceContentUnits,
-  }), [allCreativeReferences, scriptText, selectedScriptVersion?.title, workspaceAssetSlots, workspaceContentUnits, workspaceCreativeReferenceUsages, workspaceSceneMoments, workspaceSegments])
+    creativeReferenceUsages: data?.creativeReferenceUsages ?? [],
+    assetSlots: allAssetSlots,
+    contentUnits: allContentUnits,
+  }), [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, data?.creativeReferenceUsages, scriptText, selectedScriptVersion?.title])
+  const shotPlanRows = useMemo(() => buildContentGenerationMomentRows(data), [data])
+  const selectedShotPlanRow = useMemo(
+    () => pageController.selectedWritingMomentId
+      ? shotPlanRows.find((row) => row.moment.ID === pageController.selectedWritingMomentId) ?? null
+      : null,
+    [pageController.selectedWritingMomentId, shotPlanRows],
+  )
+  const selectedShotPlanUnit = useMemo(
+    () => selectedShotPlanRow?.units.find((unit) => unit.ID === selectedContentUnitId) ?? null,
+    [selectedContentUnitId, selectedShotPlanRow],
+  )
+  const selectedShotPlanUnitKeyframes = selectedShotPlanRow && selectedShotPlanUnit
+    ? selectedShotPlanRow.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedShotPlanUnit.ID)
+    : []
+  const [creatingContentUnit, setCreatingContentUnit] = useState(false)
+  const reorderContentUnits = useMutation(buildReorderContentUnitsMutationOptions({
+    projectId,
+    contentUnitConfig,
+    queryClient,
+    productionWorkbenchQueryKey: queryKey,
+    selectContentUnitFromRow: (row: ContentGenerationMomentRow, unitId: number) => selectContentUnitFromShotPlan(row, unitId),
+  }))
+  const moveContentUnitOnTimeline = useMutation(buildMoveContentUnitOnTimelineMutationOptions({
+    projectId,
+    previewTimelineItemConfig,
+    previewTimelines: data?.previewTimelines ?? [],
+    queryClient,
+    productionWorkbenchQueryKey: queryKey,
+    selectContentUnit: (unitId: number) => selectContentUnitFromShotPlan(selectedShotPlanRow, unitId),
+  }))
 
   useEffect(() => {
-    if (!proposalModeActive) return
-    if (proposalSelectedMomentId && workspaceSceneMoments.some((moment) => moment.ID === proposalSelectedMomentId)) return
-    setProposalSelectedMomentId(workspaceSceneMoments[0]?.ID ?? null)
-  }, [proposalModeActive, proposalSelectedMomentId, workspaceSceneMoments])
+    if (!selectedContentUnitId || pageController.selectedWritingMomentId || shotPlanRows.length === 0) return
+    const rowForUnit = shotPlanRows.find((row) => row.units.some((unit) => unit.ID === selectedContentUnitId))
+    if (!rowForUnit || !currentSceneMomentIds.has(rowForUnit.moment.ID)) {
+      setSearchParams((current) => {
+        return buildProductionOrchestrationStaleContentUnitParams({
+          searchParams: current,
+          sceneMomentId: rowForUnit?.moment.ID,
+        })
+      }, { replace: true })
+      return
+    }
+    pageController.selectSceneMoment(rowForUnit.moment.ID)
+  }, [currentSceneMomentIds, pageController, selectedContentUnitId, setSearchParams, shotPlanRows])
 
   useEffect(() => {
     return () => proposalRevisionCleanupRef.current?.()
   }, [])
 
-  function exitProposalMode() {
+  const productionCards = useMemo(() => buildProductionHeaderCards(data), [data])
+  const productionPageCount = Math.max(1, Math.ceil(productionCards.length / PRODUCTION_PAGE_SIZE))
+  const currentProductionPage = Math.min(productionPage, productionPageCount - 1)
+  const visibleProductionCards = productionCards.slice(
+    currentProductionPage * PRODUCTION_PAGE_SIZE,
+    currentProductionPage * PRODUCTION_PAGE_SIZE + PRODUCTION_PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    if (productionPage > productionPageCount - 1) setProductionPage(productionPageCount - 1)
+  }, [productionPage, productionPageCount])
+
+  useEffect(() => {
+    if (!effectiveProductionId) return
+    const selectedIndex = productionCards.findIndex((item) => item.id === effectiveProductionId)
+    if (selectedIndex < 0) return
+    const selectedPage = Math.floor(selectedIndex / PRODUCTION_PAGE_SIZE)
+    if (selectedPage !== productionPage) setProductionPage(selectedPage)
+  }, [effectiveProductionId, productionCards, productionPage])
+
+  function clearProposalPatchParams() {
     clearProposalReview()
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
+      next.delete('view')
       next.delete('draftId')
       next.delete('settingDraftId')
       next.delete('assetProposalDraftId')
@@ -348,16 +380,15 @@ export default function ProductionOrchestrationPage() {
 
   async function discardProposalDraft() {
     if (openedDraftId) {
-      await localAgentClient.rejectDraft(openedDraftId, '用户放弃 production proposal 提案模式').catch(() => undefined)
+      await localAgentClient.rejectDraft(openedDraftId, '用户放弃 production proposal patch').catch(() => undefined)
     }
-    exitProposalMode()
+    clearProposalPatchParams()
   }
 
   async function handleProposalApplied() {
     await refetch()
     queryClient.invalidateQueries({ queryKey })
-    setProposalReviewOpen(false)
-    exitProposalMode()
+    clearProposalPatchParams()
   }
 
   function launchProposalRevisionAgent(instruction = proposalRevisionInstruction) {
@@ -381,237 +412,74 @@ export default function ProductionOrchestrationPage() {
     })
   }
 
-  async function openProposalMode() {
-    if (proposalModeActive || openingProposalMode) return
-    setOpeningProposalMode(true)
-    try {
-      await launchController.openProposalMode()
-    } finally {
-      setOpeningProposalMode(false)
-    }
+  function closeProposalPatchDialog() {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('view')
+      return next
+    }, { replace: true })
   }
 
-  async function patchProposalDraft(
-    mutate: Parameters<typeof updateProductionProposalDraftText>[1],
-    successMessage = '提案草稿已保存',
-  ) {
-    const draft = openedDraftQuery.data
-    if (savingProposalDraft) return
-    if (!draft) {
-      toast.info('请先生成或打开 production proposal 草稿。')
+  function handleProductionCreated(record: { ID: number }) {
+    setCreateProductionOpen(false)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('productionId', String(record.ID))
+      next.delete('scene_moment_id')
+      return next
+    }, { replace: true })
+    queryClient.invalidateQueries({ queryKey })
+    void refetch()
+  }
+
+  function selectContentUnitFromShotPlan(row: ContentGenerationMomentRow | null, unitId: number | null) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (row?.moment.ID) next.set('scene_moment_id', String(row.moment.ID))
+      if (unitId) next.set('content_unit_id', String(unitId))
+      else next.delete('content_unit_id')
+      return next
+    }, { replace: true })
+  }
+
+  function createContentUnitForSelectedMoment() {
+    if (!selectedShotPlanRow) {
+      toast.info('请先选择情节')
       return
     }
-    const result = updateProductionProposalDraftText(draft, mutate)
-    if (result.error) {
-      toast.info(result.error)
-      return
-    }
-    setSavingProposalDraft(true)
-    try {
-      await localAgentClient.updateDraft(draft.id, { content: result.content })
-      toast.success(successMessage)
-      await handleProposalDraftUpdated()
-    } catch (error) {
-      toast.info(error instanceof Error ? error.message : '保存提案草稿失败')
-    } finally {
-      setSavingProposalDraft(false)
-    }
+    setCreatingContentUnit(true)
   }
 
-  function createProposalSegment() {
-    void patchProposalDraft((draft) => {
-      appendProductionProposalDraftSegment(draft, {
-        client_id: buildProductionProposalDraftClientId('segment'),
-        title: '新增编排段',
-        kind: 'emotional_function',
-        summary: '',
-        status: 'candidate',
-        scene_moments: [],
-      })
-    }, '已新增到提案草稿')
-  }
-
-  function saveProposalSegment(segmentId: number, payload: SemanticEntityPayload) {
-    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(segmentId)
-    if (!segmentKey) return
-    void patchProposalDraft((draft) => {
-      replaceProductionProposalDraftSegment(draft, segmentKey, {
-        title: stringPayloadField(payload.title),
-        kind: stringPayloadField(payload.kind),
-        summary: stringPayloadField(payload.summary),
-        status: stringPayloadField(payload.status),
-      })
-    }, '编排段已保存到提案草稿')
-  }
-
-  function deleteProposalSegment(segmentId: number) {
-    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(segmentId)
-    if (!segmentKey) return
-    void patchProposalDraft((draft) => {
-      removeProductionProposalDraftSegment(draft, segmentKey)
-    }, '编排段已从提案草稿移除')
-  }
-
-  function createProposalSceneMoment(segmentId: number) {
-    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(segmentId)
-    if (!segmentKey) return
-    const clientId = buildProductionProposalDraftClientId('moment')
-    void patchProposalDraft((draft) => {
-      appendProductionProposalDraftSceneMoment(draft, segmentKey, {
-        client_id: clientId,
-        title: '新增情节',
-        action_text: '',
-        status: 'candidate',
-      })
-    }, '已新增到提案草稿')
-  }
-
-  function saveProposalSceneMoment(momentId: number, payload: SemanticEntityPayload) {
-    const target = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
-    if (!target) return
-    void patchProposalDraft((draft) => {
-      replaceProductionProposalDraftSceneMoment(draft, target.segmentKey, target.momentKey, {
-        title: stringPayloadField(payload.title),
-        description: stringPayloadField(payload.description),
-        mood: stringPayloadField(payload.mood),
-        time_text: stringPayloadField(payload.time_text),
-        location_text: stringPayloadField(payload.location_text),
-        action_text: stringPayloadField(payload.action_text),
-        script_block_id: payload.script_block_id === null ? null : numberPayloadField(payload.script_block_id),
-      })
+  function openShotPlanAiSuggest() {
+    const launchInput = buildContentWorkbenchAiSuggestLaunchInput({
+      projectId,
+      row: selectedShotPlanRow,
+      productions: data?.productions ?? [],
     })
-  }
-
-  function deleteProposalSceneMoment(momentId: number) {
-    const target = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
-    if (!target) return
-    void patchProposalDraft((draft) => {
-      removeProductionProposalDraftSceneMoment(draft, target.segmentKey, target.momentKey)
-    }, '情节已从提案草稿移除')
-  }
-
-  function bindProposalSceneMomentScriptBlock(momentId: number, scriptBlockId: number | null) {
-    const target = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
-    if (!target) return
-    void patchProposalDraft((draft) => {
-      replaceProductionProposalDraftSceneMoment(draft, target.segmentKey, target.momentKey, {
-        script_block_id: scriptBlockId,
-      })
-    }, '提案草稿已绑定剧本块')
-  }
-
-  function linkProposalReferenceToSceneMoment(momentId: number, referenceId: number, role: string) {
-    const momentTarget = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
-    const reference = allCreativeReferences.find((item) => item.ID === referenceId)
-    if (!momentTarget || !reference) return
-    void patchProposalDraft((draft) => {
-      appendProductionProposalDraftCreativeReference(draft, momentTarget.segmentKey, momentTarget.momentKey, {
-        ...proposalCreativeReferenceFromRecord(reference),
-        role,
-      })
-    }, '设定已绑定到提案草稿')
-  }
-
-  function unlinkProposalReferenceFromSceneMoment(usageId: number) {
-    const usageTarget = proposalWorkspaceData?.referenceUsageByWorkspaceId.get(usageId)
-    if (!usageTarget) return
-    void patchProposalDraft((draft) => {
-      removeProductionProposalDraftCreativeReference(
-        draft,
-        usageTarget.segmentKey,
-        usageTarget.momentKey,
-        usageTarget.referenceKey,
-      )
-    }, '设定已从提案草稿移除')
-  }
-
-  function saveProposalExpressionLine(
-    target: ProductionWritingExpressionEditTarget,
-    payload: ProductionWritingExpressionSavePayload,
-  ) {
-    if (target.kind === 'writingExpressions') {
-      const expressionTarget = proposalWorkspaceData?.writingExpressionKeyByWorkspaceId.get(target.id)
-      if (!expressionTarget) return
-      void patchProposalDraft((draft) => {
-        replaceProductionProposalDraftWritingExpression(draft, expressionTarget.segmentKey, expressionTarget.momentKey, expressionTarget.expressionKey, {
-          kind: payload.kind,
-          speaker: payload.speaker,
-          text: payload.text,
-          note: payload.note,
-          intent: payload.intent,
-          order: payload.order,
-          script_block_id: payload.script_block_id === null ? null : payload.script_block_id,
-        })
-      })
+    if (!launchInput) {
+      toast.info('请先选择情节')
       return
     }
-
-    if (target.kind === 'fallback' && !target.id.startsWith('content-unit-')) {
-      const momentTarget = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(target.sceneMomentId)
-      if (!momentTarget) return
-      void patchProposalDraft((draft) => {
-        appendProductionProposalDraftWritingExpression(draft, momentTarget.segmentKey, momentTarget.momentKey, {
-          client_id: buildProductionProposalDraftClientId('expression'),
-          kind: payload.kind,
-          speaker: payload.speaker,
-          text: payload.text,
-          note: payload.note,
-          intent: payload.intent,
-          order: payload.order ?? target.order,
-          script_block_id: payload.script_block_id ?? undefined,
-        })
-      })
-      return
-    }
-
-    if (target.kind === 'fallback' && target.id.startsWith('content-unit-')) {
-      const unitId = Number(target.id.replace('content-unit-', ''))
-      const unitTarget = proposalWorkspaceData?.contentUnitKeyByWorkspaceId.get(unitId)
-      if (!unitTarget) return
-      void patchProposalDraft((draft) => {
-        replaceProductionProposalDraftContentUnit(draft, unitTarget.segmentKey, unitTarget.momentKey, unitTarget.unitKey, {
-          kind: payload.kind,
-          description: payload.text,
-          title: payload.intent || payload.text.slice(0, 24),
-          script_block_id: payload.script_block_id === null ? null : payload.script_block_id,
-        })
-      })
-    }
+    launchContentWorkbenchAiSuggestAgent(launchInput)
+    toast.success('已打开 AI 助手，可在输入框补充需求后发送')
   }
 
-  function addProposalExpressionLine(momentId: number, order: number, scriptBlockId?: number | null) {
-    const momentTarget = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
-    if (!momentTarget) return
-    void patchProposalDraft((draft) => {
-      appendProductionProposalDraftWritingExpression(draft, momentTarget.segmentKey, momentTarget.momentKey, {
-        client_id: buildProductionProposalDraftClientId('expression'),
-        kind: 'action',
-        speaker: '场面',
-        text: '待补表达',
-        intent: '',
-        note: '',
-        order,
-        script_block_id: scriptBlockId ?? undefined,
-      })
-    }, '表达已新增到提案草稿')
+  function openContentUnitEditor(unitId: number) {
+    if (!selectedShotPlanRow) return
+    navigate(withRouteParams(ROUTES.project.contentUnitEditor, {
+      productionId: effectiveProductionId || undefined,
+      scene_moment_id: selectedShotPlanRow.moment.ID,
+      content_unit_id: unitId,
+    }))
   }
 
-  function deleteProposalExpressionLine(target: ProductionWritingExpressionEditTarget) {
-    if (target.kind === 'writingExpressions') {
-      const expressionTarget = proposalWorkspaceData?.writingExpressionKeyByWorkspaceId.get(target.id)
-      if (!expressionTarget) return
-      void patchProposalDraft((draft) => {
-        removeProductionProposalDraftWritingExpression(draft, expressionTarget.segmentKey, expressionTarget.momentKey, expressionTarget.expressionKey)
-      }, '表达已从提案草稿移除')
+  function selectFirstSceneMomentForShotPlan() {
+    const firstMoment = allSceneMoments[0]
+    if (!firstMoment) {
+      toast.info('暂无可选择的情节')
       return
     }
-    if (target.kind !== 'fallback' || !target.id.startsWith('content-unit-')) return
-    const unitId = Number(target.id.replace('content-unit-', ''))
-    const unitTarget = proposalWorkspaceData?.contentUnitKeyByWorkspaceId.get(unitId)
-    if (!unitTarget) return
-    void patchProposalDraft((draft) => {
-      removeProductionProposalDraftContentUnit(draft, unitTarget.segmentKey, unitTarget.momentKey, unitTarget.unitKey)
-    }, '表达已从提案草稿移除')
+    pageController.selectSceneMoment(firstMoment.ID)
   }
 
   const workbenchShellProps = useProjectWorkbenchShellProps({
@@ -619,74 +487,96 @@ export default function ProductionOrchestrationPage() {
     projectName: project?.name,
     kicker: selectedProduction ? `${String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`)} · 创作编排` : '创作编排',
     title: '创作编排工作台',
-    description: proposalModeActive
-      ? '正式项目当前只读，先在 production proposal draft 中调整提案，再通过审核应用到项目。'
-      : '把剧本、设定和素材约束组织成 production 级创作蓝图，并通过 production proposal 审阅后落地。',
+    description: '组织剧本、设定和素材约束，形成创作蓝图。',
     badges: (
       <>
-        {proposalModeActive ? <ProductionOrchestrationHeaderBadge statusProps={productionProposalModeRecipe(proposalModeActive)}>提案模式</ProductionOrchestrationHeaderBadge> : null}
         {openedSettingDraftId ? <ProductionOrchestrationHeaderMetaBadge>设定 draft</ProductionOrchestrationHeaderMetaBadge> : null}
         {openedAssetProposalDraftId ? <ProductionOrchestrationHeaderMetaBadge>素材需求 draft</ProductionOrchestrationHeaderMetaBadge> : null}
         {openedDraftId ? <ProductionOrchestrationHeaderMetaBadge>已打开 draft</ProductionOrchestrationHeaderMetaBadge> : null}
       </>
     ),
-    headerBody: (
-      <ProductionWorkspaceHeaderContext
-        projectName={project?.name ?? '当前项目'}
-        productionLabel={productionLabel}
-        segmentCount={workspaceSegments.length}
-        sceneMomentCount={workspaceSceneMoments.length}
-        writingExpressionCount={workspaceWritingExpressions.length}
-        selectedScriptVersion={selectedScriptVersion}
-        scriptVersions={scriptVersions}
-        scriptText={scriptText}
-        scriptBlockCount={allScriptBlocks.length}
-        nextStep={currentProductionOverview.nextStep[0] ?? '继续写作'}
-        isFetchingScriptVersions={isFetchingScriptVersions}
-        isBindingScriptVersion={bindScriptVersionMutation.isPending}
-        disabled={!selectedProduction || proposalModeActive}
-        onBindScriptVersion={(scriptVersionId) => bindScriptVersionMutation.mutate(scriptVersionId)}
-      />
-    ),
-    onRefresh: () => { void refetch() },
-    refreshing: isFetching,
-    refreshLabel: '刷新',
     actions: (
+      <ProductionOrchestrationHeaderAction
+        variant="outline"
+        onClick={() => { void launchController.openProposalPatchDialog() }}
+        disabled={!projectId || !effectiveProductionId}
+      >
+        <Wand2 size={14} />
+        提案草案
+      </ProductionOrchestrationHeaderAction>
+    ),
+    headerBody: (
       <>
-        {productions.length > 0 ? (
-          <Select value={String(effectiveProductionId || '')} onValueChange={pageController.handleSelectProduction} disabled={proposalModeActive}>
-            <ProductionOrchestrationProductionSelectTrigger>
-              <SelectValue placeholder="选择制作" />
-            </ProductionOrchestrationProductionSelectTrigger>
-            <SelectContent>
-              {productions.map((p) => (
-                <SelectItem key={p.ID} value={String(p.ID)}>
-                  {String(p.name ?? `制作 #${p.ID}`)}
-                </SelectItem>
+        <ProductionOrchestrationProductionDeck>
+          <ProductionOrchestrationProductionDeckHeader
+            title="制作列表"
+            meta={`${productions.length} 个 · 当前 ${productionLabel}`}
+            actions={(
+              <>
+                <ProductionOrchestrationHeaderAction
+                  variant="outline"
+                  onClick={() => setCreateProductionOpen(true)}
+                  disabled={!projectId}
+                >
+                  <Plus size={14} />
+                  新建制作
+                </ProductionOrchestrationHeaderAction>
+                <ProductionOrchestrationProductionPager
+                  pageLabel={`${currentProductionPage + 1}/${productionPageCount}`}
+                  canPrevious={currentProductionPage > 0}
+                  canNext={currentProductionPage < productionPageCount - 1}
+                  onPrevious={() => setProductionPage((page) => Math.max(0, page - 1))}
+                  onNext={() => setProductionPage((page) => Math.min(productionPageCount - 1, page + 1))}
+                />
+              </>
+            )}
+          />
+          {visibleProductionCards.length > 0 ? (
+            <ProductionOrchestrationProductionDeckGrid>
+              {visibleProductionCards.map((production) => (
+                <ProductionOrchestrationProductionCard
+                  key={production.id}
+                  active={production.id === effectiveProductionId}
+                  title={production.name}
+                  titleMeta={(
+                    <ProductionOrchestrationProductionCardBreadcrumbs>
+                      {production.breadcrumbLabel}
+                    </ProductionOrchestrationProductionCardBreadcrumbs>
+                  )}
+                  scriptBinding={(
+                    <ProductionOrchestrationProductionCardScriptBinding>
+                      <Select
+                        value={production.scriptVersionId ? String(production.scriptVersionId) : '__none__'}
+                        onValueChange={(value) => bindScriptVersionMutation.mutate({
+                          productionId: production.id,
+                          scriptVersionId: value === '__none__' ? null : Number(value),
+                        })}
+                        disabled={isFetchingScriptVersions || bindScriptVersionMutation.isPending || scriptVersions.length === 0}
+                      >
+                        <ProductionOrchestrationProductionCardScriptSelectTrigger>
+                          <SelectValue placeholder={isFetchingScriptVersions ? '读取剧本...' : '选择剧本'} />
+                        </ProductionOrchestrationProductionCardScriptSelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">不绑定剧本</SelectItem>
+                          {scriptVersions.map((version) => (
+                            <SelectItem key={version.ID} value={String(version.ID)}>
+                              {scriptVersionOptionLabel(version)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </ProductionOrchestrationProductionCardScriptBinding>
+                  )}
+                  onSelect={() => pageController.handleSelectProduction(String(production.id))}
+                />
               ))}
-            </SelectContent>
-          </Select>
-        ) : null}
-        <ProductionOrchestrationHeaderAction
-          active={proposalModeActive}
-          variant="outline"
-          onClick={() => { void openProposalMode() }}
-          loading={openingProposalMode}
-          disabled={!projectId || !effectiveProductionId || openingProposalMode}
-          count={proposalPreviewDraft ? proposalReviewNodeCount : undefined}
-        >
-          <GitBranch size={14} />
-          提案模式
-        </ProductionOrchestrationHeaderAction>
-        <ProductionOrchestrationHeaderAction
-          onClick={proposalModeActive ? () => setProposalRevisionDialogOpen(true) : () => launchController.handleAnalyzeTarget({ scope: 'production' })}
-          loading={proposalModeActive ? launchingProposalRevision : launchController.orchestrationStage !== 'idle'}
-          disabled={!projectId || !effectiveProductionId || (proposalModeActive ? !openedDraftQuery.data || launchingProposalRevision : launchController.orchestrationStage !== 'idle')}
-          title={proposalModeActive ? 'Agent 会读取并编辑当前 production proposal draft 文件' : undefined}
-        >
-          <Wand2 size={14} />
-          {proposalModeActive ? '让 Agent 调整提案' : '生成编排提案'}
-        </ProductionOrchestrationHeaderAction>
+            </ProductionOrchestrationProductionDeckGrid>
+          ) : (
+            <ProductionOrchestrationProductionEmptyState>
+              暂无制作。可以先新建制作，再继续编排段和情节。
+            </ProductionOrchestrationProductionEmptyState>
+          )}
+        </ProductionOrchestrationProductionDeck>
       </>
     ),
   })
@@ -698,16 +588,6 @@ export default function ProductionOrchestrationPage() {
           <ProductionOrchestrationSkeleton />
         ) : (
           <WorkbenchProjectViewport direction="column">
-            {proposalModeActive ? (
-              <ProductionOrchestrationProposalBanner
-                saving={savingProposalDraft}
-                reviewDisabled={!proposalPreviewDraft}
-                discardDisabled={!openedDraftId}
-                onReview={() => setProposalReviewOpen(true)}
-                onExit={exitProposalMode}
-                onDiscard={() => { void discardProposalDraft() }}
-              />
-            ) : null}
             {launchController.orchestrationStage !== 'idle' ? (
               <ProductionOrchestrationGenerationNotice />
             ) : null}
@@ -715,52 +595,97 @@ export default function ProductionOrchestrationPage() {
               <ProductionOrchestrationWorkspace
                 scriptSourceText={scriptSourceText}
                 creativeReferences={allCreativeReferences}
-                assetSlots={workspaceAssetSlots}
-                segments={workspaceSegments}
-                sceneMoments={workspaceSceneMoments}
-                writingExpressions={workspaceWritingExpressions}
+                assetSlots={allAssetSlots}
+                segments={allSegments}
+                sceneMoments={allSceneMoments}
+                writingExpressions={allWritingExpressions}
                 scriptBlocks={allScriptBlocks}
-                selectedMomentId={proposalModeActive ? proposalSelectedMomentId : pageController.selectedWritingMomentId}
-                isBindingSceneMomentScriptBlock={proposalModeActive ? savingProposalDraft : bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
-                allowCreateAndBindSceneMomentScriptBlock={!proposalModeActive}
+                projectId={projectId}
+                selectedMomentId={pageController.selectedWritingMomentId}
+                shotPlanRow={selectedShotPlanRow}
+                selectedContentUnit={selectedShotPlanUnit}
+                shotPlanJobs={data?.jobs ?? []}
+                shotPlanQueryKey={queryKey}
+                isReorderingShotPlan={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                isBindingSceneMomentScriptBlock={bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
+                allowCreateAndBindSceneMomentScriptBlock
                 lookup={workspaceLookup}
-                onCreateSegment={proposalModeActive ? createProposalSegment : pageController.createSegment}
-                onCreateSceneMoment={proposalModeActive ? createProposalSceneMoment : pageController.createSceneMoment}
-                onSelectSceneMoment={proposalModeActive ? setProposalSelectedMomentId : pageController.selectSceneMoment}
-                onSaveSegment={proposalModeActive ? saveProposalSegment : (segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
-                onDeleteSegment={proposalModeActive ? deleteProposalSegment : (segmentId) => deleteSegmentMutation.mutate(segmentId)}
-                onBindSceneMomentScriptBlock={proposalModeActive ? bindProposalSceneMomentScriptBlock : (momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
-                onCreateAndBindSceneMomentScriptBlock={proposalModeActive ? (momentId, _startLine, _endLine) => bindProposalSceneMomentScriptBlock(momentId, null) : (momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
-                onSaveSceneMoment={proposalModeActive ? saveProposalSceneMoment : (momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
-                onDeleteSceneMoment={proposalModeActive ? deleteProposalSceneMoment : (momentId) => deleteSceneMomentMutation.mutate(momentId)}
-                onLinkReferenceToSceneMoment={proposalModeActive ? linkProposalReferenceToSceneMoment : (momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
-                onUnlinkReferenceFromSceneMoment={proposalModeActive ? unlinkProposalReferenceFromSceneMoment : (usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
-                onSaveExpressionLine={proposalModeActive ? saveProposalExpressionLine : (target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
+                onCreateSegment={pageController.createSegment}
+                onCreateSceneMoment={pageController.createSceneMoment}
+                onSelectSceneMoment={pageController.selectSceneMoment}
+                onReorderSegment={(draggedSegmentId, targetSegmentId, position) => {
+                  if (reorderSegmentsMutation.isPending) return
+                  reorderSegmentsMutation.mutate({ segments: allSegments, draggedSegmentId, targetSegmentId, position })
+                }}
+                onReorderSceneMoment={(draggedMomentId, targetSegmentId, targetMomentId, position) => {
+                  if (reorderSceneMomentsMutation.isPending) return
+                  reorderSceneMomentsMutation.mutate({ sceneMoments: allSceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position })
+                }}
+                onSelectContentUnit={(unitId) => selectContentUnitFromShotPlan(selectedShotPlanRow, unitId)}
+                onCreateContentUnit={createContentUnitForSelectedMoment}
+                onAiSuggestShotPlan={openShotPlanAiSuggest}
+                onOpenContentUnitEditor={openContentUnitEditor}
+                onSelectFirstSceneMomentForShotPlan={selectFirstSceneMomentForShotPlan}
+                onReorderContentUnit={(draggedUnitId, targetUnitId, position) => {
+                  if (!selectedShotPlanRow || reorderContentUnits.isPending) return
+                  reorderContentUnits.mutate({ row: selectedShotPlanRow, draggedUnitId, targetUnitId, position })
+                }}
+                onMoveContentUnitOnTimeline={(unitId, startSec) => {
+                  if (!selectedShotPlanRow || moveContentUnitOnTimeline.isPending) return
+                  moveContentUnitOnTimeline.mutate({ row: selectedShotPlanRow, unitId, startSec })
+                }}
+                onSaveSegment={(segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
+                onDeleteSegment={(segmentId) => deleteSegmentMutation.mutate(segmentId)}
+                onBindSceneMomentScriptBlock={(momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
+                onCreateAndBindSceneMomentScriptBlock={(momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
+                onSaveSceneMoment={(momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
+                onDeleteSceneMoment={(momentId) => deleteSceneMomentMutation.mutate(momentId)}
+                onLinkReferenceToSceneMoment={(momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
+                onUnlinkReferenceFromSceneMoment={(usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
+                onSaveExpressionLine={(target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
                 onDeleteExpressionLine={(target) => {
-                  if (proposalModeActive) {
-                    deleteProposalExpressionLine(target)
-                    return
-                  }
                   if (target.kind === 'writingExpressions') deleteWritingExpressionMutation.mutate(target.id)
                 }}
-                onAddExpressionLine={proposalModeActive ? addProposalExpressionLine : (momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
-                canDeleteFallbackContentUnits={proposalModeActive}
-                isSavingSegment={proposalModeActive ? savingProposalDraft : updateSegmentMutation.isPending}
-                isDeletingSegment={proposalModeActive ? savingProposalDraft : deleteSegmentMutation.isPending}
-                isSavingSceneMoment={proposalModeActive ? savingProposalDraft : updateSceneMomentMutation.isPending}
-                isDeletingSceneMoment={proposalModeActive ? savingProposalDraft : deleteSceneMomentMutation.isPending}
-                isLinkingSceneMomentReference={proposalModeActive ? savingProposalDraft : linkSceneMomentReferenceMutation.isPending}
-                isDeletingSceneMomentReference={proposalModeActive ? savingProposalDraft : unlinkSceneMomentReferenceMutation.isPending}
-                isSavingExpressionLine={proposalModeActive ? savingProposalDraft : updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending || deleteWritingExpressionMutation.isPending}
+                onAddExpressionLine={(momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
+                canDeleteFallbackContentUnits={false}
+                isSavingSegment={updateSegmentMutation.isPending}
+                isReorderingStructure={reorderSegmentsMutation.isPending || reorderSceneMomentsMutation.isPending}
+                isDeletingSegment={deleteSegmentMutation.isPending}
+                isSavingSceneMoment={updateSceneMomentMutation.isPending}
+                isDeletingSceneMoment={deleteSceneMomentMutation.isPending}
+                isLinkingSceneMomentReference={linkSceneMomentReferenceMutation.isPending}
+                isDeletingSceneMomentReference={unlinkSceneMomentReferenceMutation.isPending}
+                isSavingExpressionLine={updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending || deleteWritingExpressionMutation.isPending}
               />
             </WorkbenchProjectPane>
           </WorkbenchProjectViewport>
         )}
       </WorkbenchProjectBody>
 
-      <Dialog open={proposalReviewOpen} onOpenChange={setProposalReviewOpen}>
+      <Dialog open={reviewOpen} onOpenChange={(open) => {
+        if (!open) closeProposalPatchDialog()
+      }}>
         <ProductionOrchestrationReviewDialogContent>
           <ProductionOrchestrationReviewDialogTitle />
+          <div className="production-orchestration-review-dialog-toolbar">
+            <div className="production-orchestration-review-dialog-toolbar__copy">
+              <span className="production-orchestration-review-dialog-toolbar__title">提案 Patch</span>
+              <span className="production-orchestration-review-dialog-toolbar__meta">
+                {proposalPreviewDraft ? `待审节点 ${proposalReviewNodeCount}` : '等待 draft'}
+              </span>
+            </div>
+            <ProductionOrchestrationHeaderAction
+              size="sm"
+              variant="outline"
+              onClick={() => setProposalRevisionDialogOpen(true)}
+              loading={launchingProposalRevision}
+              disabled={!openedDraftQuery.data || launchingProposalRevision}
+              title="Agent 会读取并编辑当前 production proposal draft 文件"
+            >
+              <Wand2 size={14} />
+              Agent 调整提案
+            </ProductionOrchestrationHeaderAction>
+          </div>
           {proposalPreviewDraft ? (
             <ProductionProposalReviewPanel
               projectId={projectId}
@@ -768,7 +693,7 @@ export default function ProductionOrchestrationPage() {
               currentSnapshot={currentProductionSnapshot}
               nodeDecisions={proposalNodeDecisions}
               onNodeDecisionsChange={setProposalNodeDecisions}
-              onAccepted={() => setProposalReviewOpen(false)}
+              onAccepted={closeProposalPatchDialog}
               onDiscard={() => { void discardProposalDraft() }}
               onApplied={() => { void handleProposalApplied() }}
             />
@@ -789,6 +714,18 @@ export default function ProductionOrchestrationPage() {
         />
       </Dialog>
 
+      <SemanticEntityCrudDialog
+        open={createProductionOpen}
+        mode="create"
+        projectId={projectId}
+        config={semanticEntityConfig('productions')}
+        defaults={{ source_type: 'direct', status: 'planning', owner_label: '导演组', progress: 0 }}
+        queryKey={queryKey}
+        title="新建制作"
+        onOpenChange={setCreateProductionOpen}
+        onSaved={handleProductionCreated}
+      />
+
       {pageController.createDialog && (
         <SemanticEntityCrudDialog
           open
@@ -802,15 +739,67 @@ export default function ProductionOrchestrationPage() {
           onSaved={pageController.createDialog.onSaved}
         />
       )}
+      <ContentWorkbenchDialogs
+        projectId={projectId}
+        queryKey={queryKey}
+        selected={selectedShotPlanRow}
+        selectedUnit={selectedShotPlanUnit}
+        selectedUnitKeyframes={selectedShotPlanUnitKeyframes}
+        contentUnitConfig={contentUnitConfig}
+        assetSlotConfig={assetSlotConfig}
+        keyframeConfig={keyframeConfig}
+        creatingUnit={creatingContentUnit}
+        unitDraftDefaults={null}
+        editingUnit={false}
+        creatingAssetSlot={false}
+        assetSlotDefaults={undefined}
+        creatingKeyframe={false}
+        keyframeDefaults={undefined}
+        onCreatingUnitChange={(open) => {
+          if (!open) setCreatingContentUnit(false)
+        }}
+        onUnitSaved={(record) => {
+          setCreatingContentUnit(false)
+          selectContentUnitFromShotPlan(selectedShotPlanRow, record.ID)
+        }}
+        onEditingUnitChange={() => {}}
+        onAssetSlotCreated={() => {}}
+        onCreatingAssetSlotChange={() => {}}
+        onKeyframeCreated={() => {}}
+        onCreatingKeyframeChange={() => {}}
+      />
     </WorkbenchProjectShell>
   )
 }
 
-function stringPayloadField(value: unknown) {
-  return typeof value === 'string' ? value : undefined
+interface ProductionHeaderCard {
+  id: number
+  name: string
+  breadcrumbLabel: string
+  scriptVersionId: number | null
 }
 
-function numberPayloadField(value: unknown) {
-  const numberValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
-  return Number.isFinite(numberValue) ? numberValue : undefined
+function buildProductionHeaderCards(data?: OrchestrationData): ProductionHeaderCard[] {
+  if (!data) return []
+  return data.productions.map((production) => {
+    const productionId = production.ID
+    const segments = filterProductionSegmentsForProduction(data.segments, productionId)
+    const segmentIds = new Set(segments.map((segment) => segment.ID))
+    const sceneMoments = filterProductionSceneMomentsForSegments(data.sceneMoments, segmentIds)
+    const sceneMomentIds = new Set(sceneMoments.map((moment) => moment.ID))
+    const contentUnits = filterProductionContentUnitsForProduction(data.contentUnits, productionId, segmentIds, sceneMomentIds)
+    const scriptVersionId = Number(production.script_version_id) || null
+    const name = firstProductionText(production.name) || `#${productionId}`
+
+    return {
+      id: productionId,
+      name,
+      breadcrumbLabel: `${segments.length} 编排段 / ${sceneMoments.length} 情节 / ${contentUnits.length} 制作项`,
+      scriptVersionId,
+    }
+  })
+}
+
+function firstProductionText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
 }

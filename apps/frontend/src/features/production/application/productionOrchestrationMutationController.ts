@@ -16,7 +16,12 @@ import {
   type ProductionWritingExpressionEditTarget,
   type ProductionWritingExpressionSavePayload,
 } from '@/features/production/domain/productionWritingExpressions'
-import type { ScriptBlockRecord } from '@/features/production/domain/productionOrchestrationData'
+import type { SceneMomentRecord, ScriptBlockRecord, SegmentRecord } from '@/features/production/domain/productionOrchestrationData'
+import {
+  buildProductionSceneMomentReorderPatches,
+  buildProductionSegmentReorderPatches,
+  type ProductionOrchestrationDropPosition,
+} from '@/features/production/domain/productionOrchestrationWorkspaceModel'
 import { toast } from '@/shared/ui/toastStore'
 
 export interface ProductionOrchestrationMutationQueryClient {
@@ -42,13 +47,12 @@ function refreshProductionOrchestration(input: ProductionOrchestrationMutationBa
 }
 
 export function buildBindProductionScriptVersionMutationOptions(input: ProductionOrchestrationMutationBaseInput & {
-  productionId: number
   scriptVersionsQueryKey: readonly unknown[]
 }) {
   return {
-    mutationFn: async (scriptVersionId: number | null) => {
-      if (!input.projectId || !input.productionId) throw new Error('请先选择制作')
-      return updateSemanticEntity(input.projectId, semanticEntityConfig('productions'), input.productionId, {
+    mutationFn: async ({ productionId, scriptVersionId }: { productionId: number; scriptVersionId: number | null }) => {
+      if (!input.projectId || !productionId) throw new Error('请先选择制作')
+      return updateSemanticEntity(input.projectId, semanticEntityConfig('productions'), productionId, {
         script_version_id: scriptVersionId,
         source_type: scriptVersionId ? 'script' : 'direct',
       })
@@ -156,6 +160,31 @@ export function buildDeleteSegmentMutationOptions(input: ProductionOrchestration
   }
 }
 
+export function buildReorderProductionSegmentsMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async ({ segments, draggedSegmentId, targetSegmentId, position }: {
+      segments: SegmentRecord[]
+      draggedSegmentId: number
+      targetSegmentId: number
+      position: ProductionOrchestrationDropPosition
+    }) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      const patches = buildProductionSegmentReorderPatches(segments, draggedSegmentId, targetSegmentId, position)
+      await Promise.all(patches.map((patch) => (
+        updateSemanticEntity(input.projectId!, semanticEntityConfig('segments'), patch.segmentId, patch.payload)
+      )))
+      return { draggedSegmentId }
+    },
+    onSuccess: () => {
+      toast.success('编排段顺序已更新')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '编排段顺序更新失败'))
+    },
+  }
+}
+
 export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
     mutationFn: async ({ momentId, payload }: { momentId: number; payload: SemanticEntityPayload }) => {
@@ -168,6 +197,38 @@ export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestra
     },
     onError: (error: unknown) => {
       toast.error(productionMutationErrorMessage(error, '保存情节失败'))
+    },
+  }
+}
+
+export function buildReorderProductionSceneMomentsMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async ({ sceneMoments, draggedMomentId, targetSegmentId, targetMomentId, position }: {
+      sceneMoments: SceneMomentRecord[]
+      draggedMomentId: number
+      targetSegmentId: number
+      targetMomentId?: number | null
+      position?: ProductionOrchestrationDropPosition
+    }) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      const patches = buildProductionSceneMomentReorderPatches({
+        sceneMoments,
+        draggedMomentId,
+        targetSegmentId,
+        targetMomentId,
+        position,
+      })
+      await Promise.all(patches.map((patch) => (
+        updateSemanticEntity(input.projectId!, semanticEntityConfig('sceneMoments'), patch.momentId, patch.payload)
+      )))
+      return { draggedMomentId }
+    },
+    onSuccess: () => {
+      toast.success('情节顺序已更新')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '情节顺序更新失败'))
     },
   }
 }

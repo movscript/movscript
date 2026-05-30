@@ -45,5 +45,6 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
   assert.equal(validateDraft(draft).ok, true)
   assert.equal(simulated.ok, true)
   assert.equal(simulated.backendApply, backendApply)
-  assert.equal(rejected.status, 'rejected')
+  assert.equal(rejected.status, 'draft')
+  assert.equal(rejected.metadata?.lastReviewStatus, 'rejected')
 })

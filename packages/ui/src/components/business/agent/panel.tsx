@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { HTMLAttributes } from "react";
 import type { LayoutChrome } from "../../layout/chrome";
 import { PanelResizeHandle } from "../../layout/workspace";
 
@@ -13,7 +14,9 @@ export interface AgentPanelShellProps {
   collapsed?: boolean;
   panelRef: React.Ref<HTMLDivElement>;
   panelWidth: number;
-  onResizeStart: React.PointerEventHandler<HTMLDivElement>;
+  resizeHandleProps?: HTMLAttributes<HTMLDivElement> & {
+    active?: boolean;
+  };
   children: React.ReactNode;
 }
 
@@ -24,11 +27,12 @@ export function AgentPanelShell({
   collapsed = false,
   panelRef,
   panelWidth,
-  onResizeStart,
+  resizeHandleProps,
   children,
 }: AgentPanelShellProps) {
   if (!open) return null;
   const resolvedChrome = chrome ?? (dockLayout ? "dock" : "floating");
+  const { className: resizeHandleClassName, ...resolvedResizeHandleProps } = resizeHandleProps ?? {};
 
   return (
     <div
@@ -39,16 +43,13 @@ export function AgentPanelShell({
       data-collapsed={collapsed ? "true" : undefined}
       style={{ ["--ui-agent-panel-width" as string]: `${panelWidth}px` }}
     >
-      {dockLayout && (
+      {dockLayout && resizeHandleProps ? (
         <PanelResizeHandle
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize assistant panel"
-          className="ai-agent-panel__resize-handle"
+          className={["ai-agent-panel__resize-handle", resizeHandleClassName].filter(Boolean).join(" ")}
           side="left"
-          onPointerDown={onResizeStart}
+          {...resolvedResizeHandleProps}
         />
-      )}
+      ) : null}
 
       <div className="ai-agent-panel__body">{children}</div>
     </div>

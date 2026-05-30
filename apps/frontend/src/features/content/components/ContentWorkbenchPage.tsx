@@ -3,45 +3,24 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ClipboardCheck,
-  PanelRightOpen,
   Route,
   Wand2,
 } from 'lucide-react'
 
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
 import {
   buildContentWorkbenchAiSuggestLaunchInput,
-  buildContentWorkbenchVisualPlanLaunchInput,
   launchContentWorkbenchAiSuggestAgent,
-  launchContentWorkbenchVisualPlanAgent,
 } from '@/features/content/application/contentWorkbenchAgentLaunch'
 import { pickContentWorkbenchFirstUsableUnit } from '@/features/content/domain/contentWorkbenchCandidateFocus'
 import { contentWorkbenchProposalDefaults } from '@/features/content/domain/contentWorkbenchDraftProposal'
-import {
-  keyframeFrameRoleLabel,
-  keyframeOrderForRole,
-  nextKeyframeFrameRole,
-} from '@/features/content/domain/contentWorkbenchEditModel'
-import { contentWorkbenchCanvasRoute, openContentWorkbenchUnitCanvas } from '@/features/content/application/contentWorkbenchCanvasLaunch'
-import { pickContentWorkbenchRelevantJobs } from '@/features/content/domain/contentWorkbenchJobScope'
 import { useContentWorkbenchPageController } from '@/features/content/application/contentWorkbenchPageController'
 import { useContentWorkbenchReviewController } from '@/features/content/application/contentWorkbenchReviewController'
-import { apiErrorMessage, contentUnitWorkStatus, normalizeAssetSlotStatus } from '@/features/content/domain/contentWorkbenchStatus'
 import {
   buildContentGenerationMomentRows,
-  buildGenerationContextRows,
-  buildGenerationContextStandards,
-  buildMomentStandards,
-  contentWorkbenchNullableNumber,
   isVisibleContentWorkbenchRecord,
   loadContentWorkbenchData,
   type ContentGenerationMomentRow,
-  type ContentWorkbenchRecord as WorkbenchRecord,
 } from '@/features/content/domain/contentWorkbenchModel'
-import {
-  buildContentWorkbenchUploadCandidateMutationOptions,
-  useContentWorkbenchCandidateUploadInput,
-} from '@/features/content/application/contentWorkbenchUploadController'
 import {
   buildApplyContentUnitProposalMutationOptions,
   buildMarkContentDraftReviewedMutationOptions,
@@ -50,7 +29,6 @@ import {
   buildReorderContentUnitsMutationOptions,
 } from '@/features/content/application/contentWorkbenchMutationController'
 import {
-  byOrder,
   firstText,
   numberOf,
   titleOfRecord,
@@ -58,65 +36,42 @@ import {
 import {
   previewTimelineItemRank,
 } from '@/features/content/domain/contentWorkbenchTimeline'
-import { contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
-import { pickContentWorkbenchUploadTarget } from '@/features/content/domain/contentWorkbenchUploadTarget'
 import { unitIdentifier } from '@/features/content/domain/productionIdentifiers'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
   Badge,
-  ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchCommandCenter,
-  ContentWorkbenchDrawerActionRow,
-  ContentWorkbenchDrawerOpenButton,
+  ContentWorkbenchDetailContent,
   ContentWorkbenchEmptyActionButton,
   ContentWorkbenchFilterSidebar,
   ContentWorkbenchInfoSection,
   ContentWorkbenchInfoText,
   ContentWorkbenchMainColumn,
-  ContentWorkbenchProductionGrid,
-  ContentWorkbenchProductionMain,
   ContentWorkbenchReviewButton,
   ContentWorkbenchReviewPanel,
   ContentWorkbenchSceneInfoGrid,
   ContentWorkbenchViewHeader,
+  ContentWorkbenchWorkspaceShell,
+  OverlapPaneRevealButton,
   WorkbenchEmptyState,
-  WorkbenchContextStack as ContextStack,
-  WorkbenchGateChecklist as GateChecklist,
-  WorkbenchMetricStrip as MetricStrip,
-  WorkbenchPanel,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
-  WorkbenchQueueMiniMetric as QueueMiniMetric,
-  WorkbenchSpecializedQueue as SpecializedQueue,
-  type WorkbenchChromeMetric as WorkbenchMetric,
+  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { ContentWorkbenchDialogs } from './ContentWorkbenchDialogs'
 import { contentWorkbenchRowMatchesSearch } from './ContentWorkbenchSearch'
 import { ContentWorkbenchScenePreview } from './ContentWorkbenchScenePreview'
-import { ContentWorkbenchUnitInspector, UnitProductionTrack } from './ContentWorkbenchUnitTrack'
+import { UnitProductionTrack } from './ContentWorkbenchUnitTrack'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
-import type { WorkbenchGate } from '@/shared/domain/workbenchTypes'
 import {
-  buildContentUnitGenerationContext,
+  abandonSceneMoment,
   semanticEntityConfig,
   type SemanticEntityPayload,
 } from '@/shared/infrastructure/api/semanticEntities'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
-function appendReviewGate(rows: WorkbenchGate[], pendingDraftCount: number): WorkbenchGate[] {
-  if (rows.length === 0) return rows
-  return [
-    ...rows,
-    {
-      label: 'AI 草案已处理',
-      detail: pendingDraftCount > 0 ? `${pendingDraftCount} 个制作项草案仍需人工审阅` : '没有待确认的制作项草案',
-      done: pendingDraftCount === 0,
-      state: pendingDraftCount === 0 ? 'passed' : 'required',
-    },
-  ]
-}
-
+const CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.contentWorkbench.detailPaneWidth'
 function ContentWorkbenchSceneInfoCard({
   row,
 }: {
@@ -191,7 +146,6 @@ export function ContentWorkbenchPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const candidateUploadInput = useContentWorkbenchCandidateUploadInput()
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['workbench', 'production', projectId],
     queryFn: () => loadContentWorkbenchData(projectId!),
@@ -200,10 +154,19 @@ export function ContentWorkbenchPage() {
   const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
   const [creatingUnit, setCreatingUnit] = useState(false)
   const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
-  const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
-  const [creatingKeyframe, setCreatingKeyframe] = useState(false)
-  const [unitDrawerOpen, setUnitDrawerOpen] = useState(false)
+  const detailPane = usePersistentOverlapPaneController({
+    storageKey: CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: 880,
+    minSize: 560,
+    maxSize: (containerRect) => Math.max(600, Math.min(containerRect.width - 300, 1160)),
+    resizeEdge: 'left',
+    collapseMode: 'after-min',
+    expandMode: 'after-max',
+    ariaLabel: '调整内容编排详情面板宽度',
+  })
   const pageController = useContentWorkbenchPageController({
+    projectId,
+    route: ROUTES.project.contentUnitWorkbench,
     rows,
     productions: data?.productions ?? [],
     searchParams,
@@ -215,7 +178,6 @@ export function ContentWorkbenchPage() {
     segmentFilter,
     sidebarQuery,
     scopeLevel,
-    editingUnit,
     filteredRows,
     visibleRows,
     productionFilterOptions,
@@ -225,7 +187,6 @@ export function ContentWorkbenchPage() {
     selectedUnit,
     setSidebarQuery,
     setOptimisticSelectedUnit,
-    setEditingUnit,
     selectSceneMoment,
     selectContentUnit,
     selectContentUnitFromRow,
@@ -233,115 +194,19 @@ export function ContentWorkbenchPage() {
     selectSegmentFilter,
     focusRowForUnitCreation,
   } = pageController
-
-  const generationContextQuery = useQuery({
-    queryKey: ['workbench', 'production', 'generation-context', projectId, selectedUnit?.ID],
-    queryFn: () => buildContentUnitGenerationContext(projectId!, selectedUnit!.ID, 'video'),
-    enabled: !!projectId && !!selectedUnit?.ID,
-  })
-  const uploadCandidate = useMutation(buildContentWorkbenchUploadCandidateMutationOptions({
-    projectId,
-    queryClient,
-    onSettled: candidateUploadInput.resetUpload,
-  }))
-  const openUnitCanvas = useMutation({
-    mutationFn: async (unit: WorkbenchRecord) => {
-      if (!projectId) throw new Error('请先选择项目')
-      return openContentWorkbenchUnitCanvas({
-        projectId,
-        unit,
-      })
-    },
-    onSuccess: (canvas) => navigate(contentWorkbenchCanvasRoute(canvas)),
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '打开生成画布失败'))
-    },
-  })
-  const baseStandards = generationContextQuery.data
-    ? buildGenerationContextStandards(generationContextQuery.data)
-    : buildMomentStandards(selected, data?.jobs ?? [])
-  const generationContextRows = buildGenerationContextRows(generationContextQuery.data)
+  const hasSelectedRow = Boolean(selected)
+  const detailPaneLayoutProps = hasSelectedRow
+    ? detailPane.groupProps
+    : {
+        ...detailPane.groupProps,
+        'data-overlap-pane-collapsed': 'true' as const,
+        'data-overlap-pane-expanded': undefined,
+      }
   const selectedUnitKeyframes = selected && selectedUnit
-    ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
+    ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID)
     : []
-  const selectedUnitAssetSlots = selected && selectedUnit
-    ? selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === selectedUnit.ID)
-    : []
-  const selectedUnitMissingSlots = selectedUnitAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
-  const uploadTargetSlot = pickContentWorkbenchUploadTarget({
-    selectedUnitAssetSlots,
-    momentAssetSlots: selected?.assetSlots ?? [],
-  })
-  const selectedUnitResourceIds = [
-    ...selectedUnitAssetSlots.map((slot) => numberOf(slot.resource_id)),
-    ...selectedUnitKeyframes.map((keyframe) => numberOf(keyframe.resource_id)),
-  ].filter((id) => id > 0)
-  const selectedUnitJobs = pickContentWorkbenchRelevantJobs({
-    jobs: data?.jobs ?? [],
-    contentUnitId: selectedUnit?.ID,
-    contentUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
-    resourceIds: selectedUnitResourceIds,
-  })
-  const selectedUnitRunningJobCount = selectedUnitJobs.filter((job) => job.status === 'pending' || job.status === 'running').length
-  const selectedUnitCompletedJobCount = selectedUnitJobs.filter((job) => job.status === 'succeeded').length
-  const selectedUnitRequiresKeyframe = selectedUnit ? contentWorkbenchUnitRequiresKeyframe(selectedUnit.kind) : true
-  const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
-  const nextKeyframeRole = nextKeyframeFrameRole(selectedUnitKeyframes)
-  const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
-    if (!selected || !selectedUnit) return undefined
-    return {
-      production_id: contentWorkbenchNullableNumber(selectedUnit.production_id ?? selected.segment?.production_id ?? selected.moment.production_id ?? selected.productionIds[0]),
-      scene_moment_id: selected.moment.ID,
-      content_unit_id: selectedUnit.ID,
-      order: keyframeOrderForRole(nextKeyframeRole, selectedUnitKeyframes),
-      status: 'candidate',
-      metadata_json: JSON.stringify({
-        frame_role: nextKeyframeRole,
-        frame_role_label: keyframeFrameRoleLabel(nextKeyframeRole),
-      }),
-    }
-  }, [nextKeyframeRole, selected, selectedUnit, selectedUnitKeyframes])
-  const assetSlotDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
-    if (!selected || !selectedUnit) return undefined
-    return {
-      production_id: contentWorkbenchNullableNumber(selectedUnit.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
-      owner_type: 'content_unit',
-      owner_id: selectedUnit.ID,
-      kind: 'image',
-      name: `${titleOfRecord(selectedUnit)}参考素材`,
-      slot_key: `content_unit_${selectedUnit.ID}_asset_${selectedUnitAssetSlots.length + 1}`,
-      description: firstText(selectedUnit.description, selectedUnit.prompt, ''),
-      prompt_hint: firstText(selectedUnit.prompt, selectedUnit.description, ''),
-      priority: selectedUnitAssetSlots.length === 0 ? 'high' : 'normal',
-      status: 'missing',
-    }
-  }, [selected, selectedUnit, selectedUnitAssetSlots.length])
-  const missingGenerationContext = generationContextQuery.data
-    ? buildGenerationContextStandards(generationContextQuery.data).filter((item) => !item.done)
-    : []
-
-  function triggerCandidateUpload() {
-    candidateUploadInput.triggerUpload(uploadTargetSlot, candidateUploadInput.uploading || uploadCandidate.isPending)
-  }
-
-  function handleCandidateUpload(file?: File) {
-    candidateUploadInput.uploadFile(file, uploadTargetSlot, {
-      disabled: uploadCandidate.isPending,
-      onUpload: (input) => uploadCandidate.mutate(input),
-    })
-  }
-
-  function openCreateKeyframe() {
-    if (!selectedUnit) return
-    setCreatingKeyframe(true)
-  }
-
-  function openCreateAssetSlot() {
-    if (!selectedUnit) return
-    setCreatingAssetSlot(true)
-  }
 
   const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
   const previewTimelineItemConfig = useMemo(() => semanticEntityConfig('previewTimelineItems'), [])
@@ -363,7 +228,6 @@ export function ContentWorkbenchPage() {
     selectDraft: selectReviewDraft,
     closeReview,
   } = reviewController
-  const standards = useMemo(() => appendReviewGate(baseStandards, reviewQueueSummary.pending), [baseStandards, reviewQueueSummary.pending])
 
   const rejectContentDraft = useMutation(buildRejectContentDraftMutationOptions({
     refetchDrafts: reviewDraftsQuery.refetch,
@@ -391,7 +255,6 @@ export function ContentWorkbenchPage() {
   const projectReferenceCount = (data?.creativeReferences ?? []).filter(isVisibleContentWorkbenchRecord).length
   const projectAssetSlotCount = (data?.assetSlots ?? []).filter((slot) => slot.owner_type !== 'asset_slot' && isVisibleContentWorkbenchRecord(slot)).length
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
-  const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
   const selectedPreviewItemCount = data?.previewTimelineItems.filter((item) => isVisibleContentWorkbenchRecord(item) && (
     selectedProductionIdSet.has(numberOf(item.production_id)) ||
@@ -413,6 +276,21 @@ export function ContentWorkbenchPage() {
     productionWorkbenchQueryKey,
     selectContentUnit,
   }))
+  const deleteSceneMoment = useMutation({
+    mutationFn: async (row: ContentGenerationMomentRow) => {
+      if (!projectId) throw new Error('请先选择项目')
+      await abandonSceneMoment(projectId, row.moment.ID)
+      return row
+    },
+    onSuccess: async (row) => {
+      if (selected?.id === row.id) selectSceneMoment(row.id, { replace: true })
+      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      toast.success('情节已删除')
+    },
+    onError: () => {
+      toast.error('删除情节失败')
+    },
+  })
 
   function openAiSuggest(rowOverride?: ContentGenerationMomentRow) {
     const targetRow = rowOverride ?? selected
@@ -429,23 +307,6 @@ export function ContentWorkbenchPage() {
     toast.success('已打开 AI 助手，可在输入框补充需求后发送')
   }
 
-  function openAiVisualTaskGraph(unitOverride?: WorkbenchRecord | null) {
-    const targetRow = selected
-    const targetUnit = unitOverride ?? selectedUnit
-    const launchInput = buildContentWorkbenchVisualPlanLaunchInput({
-      projectId,
-      row: targetRow,
-      unit: targetUnit,
-      productions: data?.productions ?? [],
-    })
-    if (!launchInput) {
-      toast.info('请先选择情节和制作项')
-      return
-    }
-    launchContentWorkbenchVisualPlanAgent(launchInput)
-    toast.success('已打开 AI 助手，可起草当前制作项的视觉计划')
-  }
-
   function openReviewQueue() {
     reviewController.setCollapsed(false)
     const draft = selectedReviewDraft ?? reviewDrafts[0]
@@ -456,16 +317,13 @@ export function ContentWorkbenchPage() {
     selectReviewDraft(draft.id)
   }
 
-  function openEditSelectedUnit(unitId?: number) {
-    const targetUnit = unitId && selected?.units.some((unit) => unit.ID === unitId)
-      ? selected.units.find((unit) => unit.ID === unitId) ?? null
-      : selectedUnit
-    if (!targetUnit) {
+  function openReviewUnitEditor(unitId: number) {
+    const targetRow = rows.find((row) => row.units.some((unit) => unit.ID === unitId)) ?? selected
+    if (!targetRow) {
       setCreatingUnit(true)
       return
     }
-    selectContentUnit(targetUnit.ID)
-    setEditingUnit(true)
+    openUnitEditor(targetRow, unitId)
   }
 
   function openCreateUnitFromProposal(proposal: Record<string, unknown>) {
@@ -485,13 +343,12 @@ export function ContentWorkbenchPage() {
     setCreatingUnit(true)
   }
 
-  function openSelectedUnitCanvas() {
-    if (openUnitCanvas.isPending) return
-    if (!selectedUnit) {
-      setCreatingUnit(true)
-      return
-    }
-    openUnitCanvas.mutate(selectedUnit)
+  function openUnitEditor(row: ContentGenerationMomentRow, unitId: number) {
+    selectContentUnitFromRow(row, unitId)
+    navigate(withRouteParams(ROUTES.project.contentUnitEditor, {
+      scene_moment_id: row.moment.ID,
+      content_unit_id: unitId,
+    }))
   }
 
   function selectFirstSceneMoment() {
@@ -514,6 +371,13 @@ export function ContentWorkbenchPage() {
       return
     }
     selectContentUnit(targetUnitId)
+  }
+
+  function deleteSceneMomentFromSidebar(rowId: string) {
+    const row = rows.find((item) => item.id === rowId)
+    if (!row || deleteSceneMoment.isPending) return
+    if (!window.confirm(`确定删除情节「${row.title}」吗？相关镜头方案、表达和素材需求可能需要重新归属。`)) return
+    deleteSceneMoment.mutate(row)
   }
 
   const activeProductionFilter = productionFilterOptions.find((option) => option.value === productionFilter)
@@ -539,7 +403,7 @@ export function ContentWorkbenchPage() {
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <WorkbenchProjectBody scroll="responsive">
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
         {!projectId ? (
           <WorkbenchEmptyState title="请先选择项目" description="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
         ) : isLoading ? (
@@ -547,7 +411,9 @@ export function ContentWorkbenchPage() {
         ) : isError ? (
           <WorkbenchEmptyState title="内容编排数据加载失败" description="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
-          <ContentWorkbenchCommandCenter
+          <ContentWorkbenchWorkspaceShell>
+            <ContentWorkbenchCommandCenter
+            {...detailPaneLayoutProps}
             sidebar={(
               <ContentWorkbenchFilterSidebar
                 productionOptions={productionFilterOptions}
@@ -563,153 +429,129 @@ export function ContentWorkbenchPage() {
                 onSelectProduction={selectProductionFilter}
                 onSelectSegment={selectSegmentFilter}
                 onSelectScene={selectSceneMoment}
+                onDeleteScene={deleteSceneMomentFromSidebar}
               />
             )}
           >
-            <ContentWorkbenchMainColumn>
-              <ContentWorkbenchViewHeader
-                icon={<Wand2 size={14} />}
-                kicker="编排视图"
-                title={contentWorkbenchViewTitle}
-                detail={contentWorkbenchViewDetail}
-                action={(
-                  <ContentWorkbenchReviewButton
-                    data-action-key="review_ai_drafts"
-                    pendingCount={reviewQueueSummary.pending}
-                    icon={<ClipboardCheck size={14} />}
-                    onClick={openReviewQueue}
-                  >
-                    待审草案
-                  </ContentWorkbenchReviewButton>
-                )}
-                emptyMessage={visibleRows.length === 0 ? (
-                  filteredRows.length === 0 ? '当前项目还没有情节入口，先完成制作编排后再进入内容编排。' : '没有匹配当前搜索条件的情节。'
-                ) : undefined}
-                emptyAction={visibleRows.length === 0 && filteredRows.length === 0 ? (
-                  <ContentWorkbenchEmptyActionButton onClick={() => navigate(ROUTES.project.productionOrchestration)}>
-                    <Route size={14} />
-                    进入制作编排
-                  </ContentWorkbenchEmptyActionButton>
-                ) : undefined}
-              />
-
-              {!selected ? (
-                <ContentWorkbenchSceneInfoCard
-                  row={null}
-                />
-              ) : (
-                <>
-                  {showReviewPanel ? (
-                    <ContentWorkbenchReviewPanel
-                      reviewMode={reviewMode}
-                      drafts={reviewDrafts}
-                      selectedDraft={selectedReviewDraft}
-                      reviewModel={contentDraftReview}
-                      queueSummary={reviewQueueSummary}
-                      rejectingDraft={rejectContentDraft.isPending}
-                      markingDraftReviewed={markContentDraftReviewed.isPending}
-                      onOpenAiSuggest={openAiSuggest}
-                      onSelectDraft={selectReviewDraft}
-                      onCreateUnitFromProposal={openCreateUnitFromProposal}
-                      onEditCurrentUnit={openEditSelectedUnit}
-                      onApplyUnitProposal={(unitId, proposal) => applyContentUnitProposal.mutate({ unitId, proposal })}
-                      onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
-                      onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
-                      onCloseReview={closeReview}
-                    />
-                  ) : null}
-
-                  <ContentWorkbenchProductionGrid drawerOpen={unitDrawerOpen}>
-                    <ContentWorkbenchProductionMain drawerOpen={unitDrawerOpen}>
-                      <ContentWorkbenchSceneInfoCard
-                        row={selected}
-                      />
-
-                      {selectedUnit && !unitDrawerOpen ? (
-                        <ContentWorkbenchDrawerActionRow>
-                          <ContentWorkbenchDrawerOpenButton
-                            onClick={() => setUnitDrawerOpen(true)}
-                            data-testid="content-workbench-open-unit-drawer"
+            {hasSelectedRow && !detailPane.collapsed ? (
+              <ContentWorkbenchMainColumn
+                overlapState={detailPane.overlapState}
+                resizeHandleProps={detailPane.resizeHandleProps}
+                resizeHandleSide="left"
+              >
+                <ContentWorkbenchDetailContent>
+                      <ContentWorkbenchViewHeader
+                        icon={<Wand2 size={14} />}
+                        kicker="编排视图"
+                        title={contentWorkbenchViewTitle}
+                        detail={contentWorkbenchViewDetail}
+                        action={(
+                          <ContentWorkbenchReviewButton
+                            data-action-key="review_ai_drafts"
+                            pendingCount={reviewQueueSummary.pending}
+                            icon={<ClipboardCheck size={14} />}
+                            onClick={openReviewQueue}
                           >
-                            <PanelRightOpen size={14} />
-                            打开当前制作项
-                          </ContentWorkbenchDrawerOpenButton>
-                        </ContentWorkbenchDrawerActionRow>
-                      ) : null}
-
-                      <UnitProductionTrack
-                        row={selected}
-                        selectedUnitId={selectedUnit?.ID}
-                        showInlineEditor={false}
-                        onSelectUnit={(unitId) => {
-                          selectContentUnitFromRow(selected, unitId)
-                          setUnitDrawerOpen(Boolean(unitId))
-                        }}
-                        onCreateUnit={() => openCreateUnitForRow(selected)}
-                        onAiSuggest={() => openAiSuggest(selected)}
-                        onSelectFirstMoment={selectFirstSceneMoment}
-                        onCreateAssetSlot={openCreateAssetSlot}
-                        onCreateKeyframe={openCreateKeyframe}
-                        onOpenCanvas={openSelectedUnitCanvas}
-                        onUploadMissingAssets={triggerCandidateUpload}
-                        onReorderUnit={(draggedUnitId, targetUnitId, position) => {
-                          if (reorderContentUnits.isPending) return
-                          reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
-                        }}
-                        onMoveUnitOnTimeline={(unitId, startSec) => {
-                          if (moveContentUnitOnTimeline.isPending) return
-                          moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
-                        }}
-                        onDeleteUnit={(unit) => {
-                          selectContentUnitFromRow(selected, null, { replace: true })
-                          setUnitDrawerOpen(false)
-                        }}
-                        projectId={projectId}
-                        queryKey={productionWorkbenchQueryKey}
-                        jobs={data?.jobs ?? []}
-                        isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                            待审草案
+                          </ContentWorkbenchReviewButton>
+                        )}
+                        emptyMessage={visibleRows.length === 0 ? (
+                          filteredRows.length === 0 ? '当前项目还没有情节入口，先完成制作编排后再进入内容编排。' : '没有匹配当前搜索条件的情节。'
+                        ) : undefined}
+                        emptyAction={visibleRows.length === 0 && filteredRows.length === 0 ? (
+                          <ContentWorkbenchEmptyActionButton onClick={() => navigate(ROUTES.project.productionOrchestration)}>
+                            <Route size={14} />
+                            进入制作编排
+                          </ContentWorkbenchEmptyActionButton>
+                        ) : undefined}
                       />
 
-                      <ContentWorkbenchScenePreview
-                        row={selected}
-                        selectedUnit={selectedUnit}
-                        keyframes={selectedUnitKeyframes}
-                        previewItemCount={selectedPreviewItemCount}
-                        runningJobCount={selectedUnitRunningJobCount}
-                      />
-                    </ContentWorkbenchProductionMain>
+                      {!selected ? (
+                        <ContentWorkbenchSceneInfoCard
+                          row={null}
+                        />
+                      ) : (
+                        <>
+                          {showReviewPanel ? (
+                            <ContentWorkbenchReviewPanel
+                              reviewMode={reviewMode}
+                              drafts={reviewDrafts}
+                              selectedDraft={selectedReviewDraft}
+                              reviewModel={contentDraftReview}
+                              queueSummary={reviewQueueSummary}
+                              rejectingDraft={rejectContentDraft.isPending}
+                              markingDraftReviewed={markContentDraftReviewed.isPending}
+                              onOpenAiSuggest={openAiSuggest}
+                              onSelectDraft={selectReviewDraft}
+                              onCreateUnitFromProposal={openCreateUnitFromProposal}
+                              onEditCurrentUnit={openReviewUnitEditor}
+                              onApplyUnitProposal={(unitId, proposal) => applyContentUnitProposal.mutate({ unitId, proposal })}
+                              onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
+                              onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
+                              onCloseReview={closeReview}
+                            />
+                          ) : null}
 
-                    {unitDrawerOpen ? (
-                      <ContentWorkbenchUnitInspector
-                        projectId={projectId}
-                        queryKey={productionWorkbenchQueryKey}
-                        jobs={data?.jobs ?? []}
-                        row={selected}
-                        unit={selectedUnit}
-                        onSelectUnit={(unitId) => {
-                          selectContentUnitFromRow(selected, unitId)
-                          setUnitDrawerOpen(true)
-                        }}
-                        onCreateUnit={() => openCreateUnitForRow(selected)}
-                        onAiSuggest={() => openAiSuggest(selected)}
-                        onAiVisualTaskGraph={() => openAiVisualTaskGraph(selectedUnit)}
-                        onCreateAssetSlot={openCreateAssetSlot}
-                        onCreateKeyframe={openCreateKeyframe}
-                        onOpenCanvas={openSelectedUnitCanvas}
-                        onUploadMissingAssets={triggerCandidateUpload}
-                        onDeleteUnit={(unit) => {
-                          selectContentUnitFromRow(selected, null, { replace: true })
-                          setUnitDrawerOpen(false)
-                        }}
-                        onClose={() => setUnitDrawerOpen(false)}
-                      />
-                    ) : null}
-                  </ContentWorkbenchProductionGrid>
-                </>
-              )}
+                          <ContentWorkbenchSceneInfoCard
+                            row={selected}
+                          />
+
+                          <ContentWorkbenchScenePreview
+                            row={selected}
+                            selectedUnit={selectedUnit}
+                            keyframes={selectedUnitKeyframes}
+                            previewItemCount={selectedPreviewItemCount}
+                            runningJobCount={runningJobCount}
+                          />
+
+                          <UnitProductionTrack
+                            row={selected}
+                            selectedUnitId={selectedUnit?.ID}
+                            showInlineEditor={false}
+                            onSelectUnit={(unitId) => {
+                              selectContentUnit(unitId)
+                            }}
+                            onOpenUnitEditor={(unitId) => openUnitEditor(selected, unitId)}
+                            onCreateUnit={() => openCreateUnitForRow(selected)}
+                            onAiSuggest={() => openAiSuggest(selected)}
+                            onSelectFirstMoment={selectFirstSceneMoment}
+                            onReorderUnit={(draggedUnitId, targetUnitId, position) => {
+                              if (reorderContentUnits.isPending) return
+                              reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
+                            }}
+                            onMoveUnitOnTimeline={(unitId, startSec) => {
+                              if (moveContentUnitOnTimeline.isPending) return
+                              moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
+                            }}
+                            onDeleteUnit={(unit) => {
+                              selectContentUnitFromRow(selected, null, { replace: true })
+                            }}
+                            projectId={projectId}
+                            queryKey={productionWorkbenchQueryKey}
+                            jobs={data?.jobs ?? []}
+                            isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                          />
+                        </>
+                      )}
+                    </ContentWorkbenchDetailContent>
             </ContentWorkbenchMainColumn>
-            <ContentWorkbenchCandidateUploadInput ref={candidateUploadInput.inputRef} accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleCandidateUpload(e.target.files?.[0])} />
-          </ContentWorkbenchCommandCenter>
+            ) : null}
+            {hasSelectedRow && detailPane.collapsed ? (
+              <OverlapPaneRevealButton
+                action="show"
+                label="显示内容详情"
+                onClick={detailPane.show}
+              />
+            ) : null}
+            {hasSelectedRow && detailPane.expanded ? (
+              <OverlapPaneRevealButton
+                action="restore"
+                label="还原内容详情"
+                onClick={detailPane.restore}
+              />
+            ) : null}
+            </ContentWorkbenchCommandCenter>
+          </ContentWorkbenchWorkspaceShell>
         )}
       </WorkbenchProjectBody>
 
@@ -724,11 +566,11 @@ export function ContentWorkbenchPage() {
         keyframeConfig={keyframeConfig}
         creatingUnit={creatingUnit}
         unitDraftDefaults={unitDraftDefaults}
-        editingUnit={editingUnit}
-        creatingAssetSlot={creatingAssetSlot}
-        assetSlotDefaults={assetSlotDefaults}
-        creatingKeyframe={creatingKeyframe}
-        keyframeDefaults={keyframeDefaults}
+        editingUnit={false}
+        creatingAssetSlot={false}
+        assetSlotDefaults={undefined}
+        creatingKeyframe={false}
+        keyframeDefaults={undefined}
         onCreatingUnitChange={(open) => {
           if (!open) {
             setCreatingUnit(false)
@@ -740,17 +582,15 @@ export function ContentWorkbenchPage() {
           setOptimisticSelectedUnit(record)
           setCreatingUnit(false)
           setUnitDraftDefaults(null)
-          setEditingUnit(false)
-          setUnitDrawerOpen(true)
+          if (selected) openUnitEditor(selected, record.ID)
         }}
-        onEditingUnitChange={(open) => { if (!open) setEditingUnit(false) }}
-        onAssetSlotCreated={() => setCreatingAssetSlot(false)}
-        onCreatingAssetSlotChange={(open) => { if (!open) setCreatingAssetSlot(false) }}
+        onEditingUnitChange={() => {}}
+        onAssetSlotCreated={() => {}}
+        onCreatingAssetSlotChange={() => {}}
         onKeyframeCreated={(record) => {
-          setCreatingKeyframe(false)
           selectContentUnit(Number(record.content_unit_id) || selectedUnit?.ID || null)
         }}
-        onCreatingKeyframeChange={(open) => { if (!open) setCreatingKeyframe(false) }}
+        onCreatingKeyframeChange={() => {}}
       />
 
     </WorkbenchProjectShell>

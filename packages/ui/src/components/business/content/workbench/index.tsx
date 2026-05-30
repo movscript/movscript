@@ -124,20 +124,31 @@ export {
   type ContentWorkbenchUnitActionTone,
 } from "./unit-track";
 
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { forwardRef, type ComponentPropsWithoutRef, type HTMLAttributes, type ReactNode } from "react";
+import { Search, Trash2 } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
-import { Badge, Button, type ButtonProps, Input, type InputProps, StatusBadge } from "../../../primitives";
+import { Button, type ButtonProps, Input, type InputProps, StatusBadge } from "../../../primitives";
+import { OverlapPane, OverlapPaneGroup } from "../../../layout";
 import { ReviewCallout } from "../../review";
-import { AppInlineMeta } from "../../app";
-import { WorkbenchEmptyState, WorkbenchList, WorkbenchListItem, WorkbenchSurfaceItem, WorkbenchThumbnail } from "../../workbench";
+import {
+  WorkbenchEmptyState,
+  WorkbenchList,
+  WorkbenchListItem,
+  WorkbenchSurfaceItem,
+  type WorkbenchStatus,
+} from "../../workbench";
 
 export interface ContentWorkbenchFilterSidebarOption {
   value: string;
   label: string;
   identifier?: string;
   count: number;
+  detail?: string;
+  groupKey?: string;
+  groupLabel?: string;
+  missingCount?: number;
+  status?: WorkbenchStatus;
 }
 
 export function ContentWorkbenchFilterSidebar({
@@ -154,6 +165,7 @@ export function ContentWorkbenchFilterSidebar({
   onSelectProduction,
   onSelectSegment,
   onSelectScene,
+  onDeleteScene,
   className,
   ...props
 }: HTMLAttributes<HTMLElement> & {
@@ -170,54 +182,48 @@ export function ContentWorkbenchFilterSidebar({
   onSelectProduction: (value: string) => void;
   onSelectSegment: (value: string) => void;
   onSelectScene: (value: string) => void;
+  onDeleteScene?: (value: string) => void;
 }) {
   return (
-    <aside className={cn("content-workbench-filter-sidebar", className)} data-testid="content-workbench-filter-sidebar" {...props}>
-      <WorkbenchSurfaceItem className="content-workbench-filter-sidebar__summary">
-        <div className="content-workbench-filter-sidebar__summary-body">
-          <WorkbenchThumbnail icon={SlidersHorizontal} ratio="square" className="content-workbench-filter-sidebar__summary-icon" />
-          <span className="content-workbench-filter-sidebar__summary-copy">
-            <p className="content-workbench-filter-sidebar__summary-title">分类筛选</p>
-            <p className="content-workbench-filter-sidebar__summary-detail">{resultCount} 个情节 · {unitCount} 个制作项</p>
-          </span>
+    <aside
+      aria-label={`情节导航，${resultCount} 个情节，${unitCount} 个制作项`}
+      className={cn("content-workbench-filter-sidebar", className)}
+      data-testid="content-workbench-filter-sidebar"
+      {...props}
+    >
+      <div className="content-workbench-filter-sidebar__summary">
+        <div className="content-workbench-filter-sidebar__summary-copy">
+          <h2 className="content-workbench-filter-sidebar__summary-title">内容结构</h2>
+          <p className="content-workbench-filter-sidebar__summary-detail">按情绪段检查情节和制作项。</p>
         </div>
-      </WorkbenchSurfaceItem>
+        <div className="content-workbench-filter-sidebar__search">
+          <Search size={14} className="content-workbench-filter-sidebar__search-icon" />
+          <Input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="搜索"
+            className="content-workbench-filter-sidebar__search-input"
+            data-testid="content-workbench-sidebar-search"
+          />
+        </div>
+      </div>
 
-      <WorkbenchSurfaceItem className="content-workbench-filter-sidebar__search">
-        <Search size={14} className="content-workbench-filter-sidebar__search-icon" />
-        <Input
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="搜索情节、制作项、提示词"
-          className="content-workbench-filter-sidebar__search-input"
-          data-testid="content-workbench-sidebar-search"
-        />
-      </WorkbenchSurfaceItem>
-
-      <div className="content-workbench-filter-sidebar__groups" data-testid="content-workbench-hierarchy-filter">
-        <ContentWorkbenchCategoryFilterGroup
-          title="制作分类"
-          options={productionOptions}
-          value={productionValue}
-          testId="content-workbench-production-filter"
-          emptyText="暂无制作分类"
-          onSelect={onSelectProduction}
-        />
-        <ContentWorkbenchCategoryFilterGroup
-          title="情绪段分类"
-          options={segmentOptions}
-          value={segmentValue}
-          testId="content-workbench-segment-filter"
-          emptyText="暂无情绪段"
-          onSelect={onSelectSegment}
+      <div className="content-workbench-filter-sidebar__viewport" data-testid="content-workbench-hierarchy-filter">
+        <ContentWorkbenchScopeFilters
+          productionOptions={productionOptions}
+          productionValue={productionValue}
+          segmentOptions={segmentOptions}
+          segmentValue={segmentValue}
+          onSelectProduction={onSelectProduction}
+          onSelectSegment={onSelectSegment}
         />
         <ContentWorkbenchHierarchyFilterColumn
-          title="情节导航"
           options={sceneOptions}
           value={sceneValue}
           testId="content-workbench-scene-moment-filter"
           emptyText="当前筛选没有情节"
           onSelect={onSelectScene}
+          onDelete={onDeleteScene}
         />
       </div>
     </aside>
@@ -225,36 +231,56 @@ export function ContentWorkbenchFilterSidebar({
 }
 
 function ContentWorkbenchHierarchyFilterColumn({
-  title,
   options,
   value,
   testId,
   emptyText,
   onSelect,
+  onDelete,
 }: {
-  title: string;
   options: ContentWorkbenchFilterSidebarOption[];
   value: string;
   testId: string;
   emptyText: string;
   onSelect: (value: string) => void;
+  onDelete?: (value: string) => void;
 }) {
+  const groupedOptions = groupHierarchyOptions(options);
   return (
     <div className="content-workbench-hierarchy-filter" data-testid={testId}>
-      <div className="content-workbench-filter-group-header">
-        <p className="content-workbench-filter-group-header__title">{title}</p>
-        <Badge variant="outline">{options.length}</Badge>
-      </div>
       {options.length > 0 ? (
         <WorkbenchList className="content-workbench-hierarchy-filter__list">
-          {options.map((option) => (
-            <ContentWorkbenchHierarchyFilterOption
-              key={option.value}
-              option={option}
-              active={option.value === value}
-              onSelect={onSelect}
-            />
-          ))}
+          {groupedOptions.map((group) => {
+            const active = group.options.some((option) => option.value === value);
+            return (
+              <section
+                key={group.key}
+                className={cn(
+                  "content-workbench-hierarchy-filter__group",
+                  active && "content-workbench-hierarchy-filter__group--active",
+                )}
+              >
+                <span className="content-workbench-hierarchy-filter__group-dot" aria-hidden="true" />
+                <div className="content-workbench-hierarchy-filter__group-card">
+                  <div className="content-workbench-hierarchy-filter__group-header">
+                    <span className="content-workbench-hierarchy-filter__group-title">{group.label}</span>
+                    <span className="content-workbench-hierarchy-filter__group-count">{group.options.length} 情节</span>
+                  </div>
+                  <div className="content-workbench-hierarchy-filter__group-items">
+                    {group.options.map((option) => (
+                      <ContentWorkbenchHierarchyFilterOption
+                        key={option.value}
+                        option={option}
+                        active={option.value === value}
+                        onSelect={onSelect}
+                        onDelete={onDelete}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            );
+          })}
         </WorkbenchList>
       ) : (
         <WorkbenchEmptyState title={emptyText} compact />
@@ -267,29 +293,125 @@ function ContentWorkbenchHierarchyFilterOption({
   option,
   active,
   onSelect,
+  onDelete,
 }: {
   option: ContentWorkbenchFilterSidebarOption;
   active: boolean;
   onSelect: (value: string) => void;
+  onDelete?: (value: string) => void;
 }) {
   const identifier = option.identifier || hierarchyOptionInitial(option.label);
+  const meta = hierarchyOptionMeta(option);
   return (
-    <WorkbenchListItem
+    <WorkbenchSurfaceItem
       onClick={() => onSelect(option.value)}
       active={active}
+      role="button"
+      tabIndex={0}
       className="content-workbench-hierarchy-filter__option"
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onSelect(option.value);
+      }}
     >
-      <WorkbenchThumbnail className="content-workbench-hierarchy-filter__thumbnail" data-testid="content-workbench-hierarchy-thumbnail">
-        <span className="content-workbench-hierarchy-filter__thumbnail-label">{identifier}</span>
-      </WorkbenchThumbnail>
-      <span className="content-workbench-hierarchy-filter__option-copy">
-        <span className="content-workbench-hierarchy-filter__option-title-row">
-          {option.identifier ? <AppInlineMeta className="content-workbench-hierarchy-filter__identifier">{option.identifier}</AppInlineMeta> : null}
-          <span className="content-workbench-hierarchy-filter__option-title">{option.label}</span>
-        </span>
-        <span className="content-workbench-hierarchy-filter__option-count">{option.count} 项</span>
-      </span>
-    </WorkbenchListItem>
+      <div className="content-workbench-hierarchy-filter__option-body">
+        <div className="content-workbench-hierarchy-filter__option-copy">
+          <div className="content-workbench-hierarchy-filter__option-title-row">
+            <span className="content-workbench-hierarchy-filter__code" data-testid="content-workbench-hierarchy-thumbnail">{identifier}</span>
+            <span className="content-workbench-hierarchy-filter__option-title">{option.label}</span>
+          </div>
+          {option.detail ? <p className="content-workbench-hierarchy-filter__option-detail">{option.detail}</p> : null}
+        </div>
+        <div className="content-workbench-hierarchy-filter__option-side">
+          <span className="content-workbench-hierarchy-filter__option-meta" data-tone={meta.tone}>{meta.label}</span>
+          {onDelete ? (
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              className="content-workbench-hierarchy-filter__delete"
+              aria-label={`删除情节 ${option.label}`}
+              title="删除情节"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete(option.value);
+              }}
+            >
+              <Trash2 size={12} />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </WorkbenchSurfaceItem>
+  );
+}
+
+function hierarchyOptionMeta(option: ContentWorkbenchFilterSidebarOption) {
+  if (option.missingCount && option.missingCount > 0) return { label: `${option.missingCount} 缺口`, tone: "warning" };
+  if (option.count === 0) return { label: "待拆", tone: "muted" };
+  if (option.status === "running") return { label: "生成中", tone: "info" };
+  if (option.status === "review") return { label: "待确认", tone: "warning" };
+  if (option.status === "blocked") return { label: "待补", tone: "warning" };
+  return { label: `${option.count} 项`, tone: "muted" };
+}
+
+function groupHierarchyOptions(options: ContentWorkbenchFilterSidebarOption[]) {
+  const groups: Array<{
+    key: string;
+    label: string;
+    options: ContentWorkbenchFilterSidebarOption[];
+  }> = [];
+  const groupByKey = new Map<string, typeof groups[number]>();
+  for (const option of options) {
+    const key = option.groupKey || option.groupLabel || "ungrouped";
+    const label = option.groupLabel || "未绑定情绪段";
+    let group = groupByKey.get(key);
+    if (!group) {
+      group = { key, label, options: [] };
+      groups.push(group);
+      groupByKey.set(key, group);
+    }
+    group.options.push(option);
+  }
+  return groups;
+}
+
+function ContentWorkbenchScopeFilters({
+  productionOptions,
+  productionValue,
+  segmentOptions,
+  segmentValue,
+  onSelectProduction,
+  onSelectSegment,
+}: {
+  productionOptions: ContentWorkbenchFilterSidebarOption[];
+  productionValue: string;
+  segmentOptions: ContentWorkbenchFilterSidebarOption[];
+  segmentValue: string;
+  onSelectProduction: (value: string) => void;
+  onSelectSegment: (value: string) => void;
+}) {
+  return (
+    <div className="content-workbench-scope-filter">
+      <ContentWorkbenchCategoryFilterGroup
+        title="制作"
+        options={productionOptions}
+        value={productionValue}
+        testId="content-workbench-production-filter"
+        emptyText="暂无制作"
+        onSelect={onSelectProduction}
+      />
+      <ContentWorkbenchCategoryFilterGroup
+        title="段落"
+        options={segmentOptions}
+        value={segmentValue}
+        testId="content-workbench-segment-filter"
+        emptyText="暂无段落"
+        onSelect={onSelectSegment}
+      />
+    </div>
   );
 }
 
@@ -308,51 +430,34 @@ function ContentWorkbenchCategoryFilterGroup({
   emptyText: string;
   onSelect: (value: string) => void;
 }) {
-  return (
-    <WorkbenchSurfaceItem density="compact" className="content-workbench-category-filter" data-testid={testId}>
-      <div className="content-workbench-filter-group-header">
-        <p className="content-workbench-filter-group-header__title">{title}</p>
-        <Badge variant="outline">{options.length}</Badge>
+  if (options.length === 0) {
+    return (
+      <div className="content-workbench-category-filter" data-testid={testId}>
+        <span className="content-workbench-category-filter__label">{title}</span>
+        <span className="content-workbench-category-filter__empty">{emptyText}</span>
       </div>
-      {options.length > 0 ? (
-        <div className="content-workbench-category-filter__options">
-          {options.map((option) => (
-            <ContentWorkbenchCategoryFilterButton
-              key={option.value}
-              option={option}
-              active={option.value === value}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      ) : (
-        <WorkbenchEmptyState title={emptyText} compact />
-      )}
-    </WorkbenchSurfaceItem>
-  );
-}
+    );
+  }
 
-function ContentWorkbenchCategoryFilterButton({
-  option,
-  active,
-  onSelect,
-}: {
-  option: ContentWorkbenchFilterSidebarOption;
-  active: boolean;
-  onSelect: (value: string) => void;
-}) {
   return (
-    <Button
-      type="button"
-      onClick={() => onSelect(option.value)}
-      variant={active ? "soft" : "ghost"}
-      size="xs"
-      className="content-workbench-category-filter__option"
-      data-active={active ? "true" : undefined}
-    >
-      <span className="content-workbench-category-filter__option-label">{option.label}</span>
-      <span className="content-workbench-category-filter__option-count">{option.count}</span>
-    </Button>
+    <div className="content-workbench-category-filter" data-testid={testId}>
+      <span className="content-workbench-category-filter__label">{title}</span>
+      <div className="content-workbench-category-filter__options">
+        {options.map((option) => (
+          <Button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            variant={option.value === value ? "soft" : "ghost"}
+            size="xs"
+            className="content-workbench-category-filter__option"
+            data-active={option.value === value ? "true" : undefined}
+          >
+            <span className="content-workbench-category-filter__option-label">{option.label}</span>
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -362,6 +467,10 @@ function hierarchyOptionInitial(label: string) {
   const alphaNumeric = trimmed.match(/[A-Za-z0-9]/)?.[0];
   if (alphaNumeric) return alphaNumeric.toUpperCase();
   return trimmed.slice(0, 1);
+}
+
+export function ContentWorkbenchWorkspaceShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("content-workbench-workspace-shell", className)} {...props} />;
 }
 
 export function ContentWorkbenchCommandCenter({
@@ -374,24 +483,39 @@ export function ContentWorkbenchCommandCenter({
 }) {
   return (
     <div className={cn("content-workbench-frame", className)}>
-      <div
+      <OverlapPaneGroup
         className="content-workbench-command-center"
         data-testid="content-workbench-command-center"
         {...props}
       >
         {sidebar}
         {children}
-      </div>
+      </OverlapPaneGroup>
     </div>
   );
 }
 
-export function ContentWorkbenchMainColumn({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function ContentWorkbenchMainColumn({
+  children,
+  className,
+  resizeHandleSide = "left",
+  ...props
+}: Omit<ComponentPropsWithoutRef<typeof OverlapPane>, "as" | "side">) {
   return (
-    <div className={cn("content-workbench-main-column", className)} data-testid="content-workbench-main-scroll" {...props}>
+    <OverlapPane
+      as="main"
+      side="left"
+      resizeHandleSide={resizeHandleSide}
+      className={cn("content-workbench-main-column", className)}
+      {...props}
+    >
       {children}
-    </div>
+    </OverlapPane>
   );
+}
+
+export function ContentWorkbenchDetailContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("content-workbench-detail-content", className)} data-testid="content-workbench-main-scroll" {...props} />;
 }
 
 export function ContentWorkbenchViewHeader({
@@ -492,35 +616,29 @@ export const ContentWorkbenchCandidateUploadInput = forwardRef<HTMLInputElement,
 ContentWorkbenchCandidateUploadInput.displayName = "ContentWorkbenchCandidateUploadInput";
 
 export function ContentWorkbenchProductionGrid({
-  drawerOpen = false,
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  drawerOpen?: boolean;
-}) {
+}: HTMLAttributes<HTMLElement>) {
   return (
-    <div
+    <OverlapPaneGroup
+      as="section"
       className={cn("content-workbench-production-grid", className)}
       data-testid="content-workbench-production-grid"
-      data-unit-drawer-open={drawerOpen ? "true" : undefined}
       {...props}
     >
       {children}
-    </div>
+    </OverlapPaneGroup>
   );
 }
 
 export function ContentWorkbenchProductionMain({
-  drawerOpen = false,
   children,
   className,
   ...props
-}: HTMLAttributes<HTMLDivElement> & {
-  drawerOpen?: boolean;
-}) {
+}: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("content-workbench-production-main", drawerOpen && "content-workbench-production-main--drawer-open", className)} {...props}>
+    <div className={cn("content-workbench-production-main", className)} {...props}>
       {children}
     </div>
   );

@@ -210,12 +210,13 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
   const res = await dispatch(handler, 'POST', `/drafts/${draft.id}/apply`, {
     currentValue: 'Old description',
   })
-  const json = JSON.parse(res.body) as { status: string; draft: { status: string } }
+  const json = JSON.parse(res.body) as { status: string; draft: { status: string; metadata?: { lastApplyStatus?: string } } }
 
   assert.equal(res.statusCode, 200)
   assert.equal(json.status, 'applied')
-  assert.equal(json.draft.status, 'applied')
-  assert.equal(runtime.getDraft(draft.id)?.status, 'applied')
+  assert.equal(json.draft.status, 'draft')
+  assert.equal(json.draft.metadata?.lastApplyStatus, 'applied')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
   assert.equal(backendApplyClient.calls.length, 1)
   assert.equal(runtime.listRuns().length, 0)
 })

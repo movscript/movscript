@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 
+	appresource "github.com/movscript/movscript/internal/app/resource"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	"github.com/movscript/movscript/internal/infra/storage"
@@ -48,6 +49,19 @@ type ResourceDetail struct {
 	Bindings     []domainbinding.Binding    `json:"bindings"`
 }
 
+type BlobGCInput struct {
+	Limit  int
+	DryRun bool
+}
+
+type BlobGCResult struct {
+	Backend    string `json:"backend"`
+	DryRun     bool   `json:"dry_run"`
+	Candidates int    `json:"candidates"`
+	Deleted    int    `json:"deleted"`
+	FreedBytes int64  `json:"freed_bytes"`
+}
+
 func (s *Service) StorageStats(ctx context.Context) ([]StorageStat, error) {
 	return s.repo.StorageStats(ctx)
 }
@@ -69,16 +83,68 @@ func (s *Service) ResourceDetail(ctx context.Context, id uint) (ResourceDetail, 
 	return s.repo.ResourceDetail(ctx, id)
 }
 
-func (s *Service) DeleteResource(ctx context.Context, id uint, store storage.Storage) (domainresource.RawResource, error) {
-	resource, err := s.repo.GetResource(ctx, id)
-	if err != nil {
-		return resource, err
-	}
-	if resource.StorageKey != "" && store != nil {
-		_ = store.Delete(ctx, resource.StorageKey)
-	}
-	if err := s.repo.DeleteResourceAndBindings(ctx, resource); err != nil {
+func (s *Service) DeleteResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
+	var resource domainresource.RawResource
+	if err := s.repo.Transaction(ctx, func(repo repository) error {
+		var err error
+		resource, err = repo.GetResource(ctx, id)
+		if err != nil {
+			return err
+		}
+		refs, err := repo.ResourceReferenceCount(ctx, resource.ID)
+		if err != nil {
+			return err
+		}
+		if refs > 0 {
+			return appresource.ErrResourceInUse
+		}
+		if err := repo.DeleteResourceRecord(ctx, &resource); err != nil {
+			return err
+		}
+		if resource.BlobID != nil {
+			return repo.DecrementBlobRef(ctx, *resource.BlobID)
+		}
+		return nil
+	}); err != nil {
 		return resource, err
 	}
 	return resource, nil
+}
+
+func (s *Service) CollectUnusedBlobs(ctx context.Context, store storage.Storage, input BlobGCInput) (BlobGCResult, error) {
+	result := BlobGCResult{DryRun: input.DryRun}
+	if store == nil {
+		return result, nil
+	}
+	result.Backend = store.Backend()
+	limit := normalizeBlobGCLimit(input.Limit)
+	blobs, err := s.repo.ListUnusedBlobs(ctx, result.Backend, limit)
+	if err != nil {
+		return result, err
+	}
+	result.Candidates = len(blobs)
+	for _, blob := range blobs {
+		result.FreedBytes += blob.Size
+		if input.DryRun {
+			continue
+		}
+		if err := store.Delete(ctx, blob.StorageKey); err != nil {
+			return result, err
+		}
+		if err := s.repo.DeleteBlobRecord(ctx, blob.ID); err != nil {
+			return result, err
+		}
+		result.Deleted++
+	}
+	return result, nil
+}
+
+func normalizeBlobGCLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	if limit > 1000 {
+		return 1000
+	}
+	return limit
 }

@@ -1,5 +1,13 @@
 import { ipcMain } from 'electron'
-import { clipVideo, exportVideoTimeline, getVideoClipStatus, type VideoClipInput, type VideoTimelineExportInput } from '../services/videoClip'
+import {
+  analyzeShotCuts,
+  clipVideo,
+  exportVideoTimeline,
+  getVideoClipStatus,
+  type VideoClipInput,
+  type VideoShotCutInput,
+  type VideoTimelineExportInput,
+} from '../services/videoClip'
 
 export function registerVideoIpcHandlers(): void {
   ipcMain.handle('video:clip', async (_e, input: VideoClipInput) => {
@@ -12,5 +20,9 @@ export function registerVideoIpcHandlers(): void {
 
   ipcMain.handle('video:clip-status', async () => {
     return getVideoClipStatus()
+  })
+
+  ipcMain.handle('video:shot-cuts', async (_e, input: VideoShotCutInput) => {
+    return analyzeShotCuts(input)
   })
 }

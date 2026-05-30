@@ -51,8 +51,11 @@ export function preProductionAssetSlotCandidatesQueryKey(projectId?: number) {
   return [PRE_PRODUCTION_ASSET_SLOT_CANDIDATES_QUERY_KEY, projectId] as const
 }
 
-export function isInternalPreProductionCandidateSlot(slot: AssetSlotRecord) {
-  return slot.owner_type === 'asset_slot'
+export function isInternalPreProductionCandidateSlot(slot: AssetSlotRecord, candidateAssetSlotParentIds?: ReadonlyMap<number, number>) {
+  if (String(slot.owner_type ?? '').trim() !== 'asset_slot') return false
+  if (!candidateAssetSlotParentIds) return true
+  const parentSlotId = candidateAssetSlotParentIds.get(slot.ID)
+  return Boolean(parentSlotId && slot.owner_id === parentSlotId)
 }
 
 function requirePreProductionProjectId(projectId?: number) {
@@ -73,7 +76,7 @@ export function usePreProductionWorkbenchData(projectId?: number) {
 
   const slotsQuery = useQuery({
     queryKey: preProductionAssetSlotsQueryKey(projectId),
-    queryFn: () => listSemanticEntities(projectId!, slotConfig) as Promise<AssetSlotRecord[]>,
+    queryFn: () => listSemanticEntities(projectId!, slotConfig, { include_internal: true }) as Promise<AssetSlotRecord[]>,
     enabled: !!projectId,
   })
 
@@ -86,7 +89,16 @@ export function usePreProductionWorkbenchData(projectId?: number) {
   const creativeReferences = creativeReferencesQuery.data ?? []
   const slots = slotsQuery.data ?? []
   const candidates = candidatesQuery.data ?? []
-  const visibleSlots = useMemo(() => slots.filter((slot) => !isInternalPreProductionCandidateSlot(slot)), [slots])
+  const candidateAssetSlotParentIds = useMemo(() => {
+    const parentIds = new Map<number, number>()
+    for (const candidate of candidates) {
+      if (typeof candidate.candidate_asset_slot_id !== 'number' || candidate.candidate_asset_slot_id <= 0) continue
+      if (typeof candidate.asset_slot_id !== 'number' || candidate.asset_slot_id <= 0) continue
+      parentIds.set(candidate.candidate_asset_slot_id, candidate.asset_slot_id)
+    }
+    return parentIds
+  }, [candidates])
+  const visibleSlots = useMemo(() => slots.filter((slot) => !isInternalPreProductionCandidateSlot(slot, candidateAssetSlotParentIds)), [candidateAssetSlotParentIds, slots])
   const slotById = useMemo(() => new Map(slots.map((slot) => [slot.ID, slot])), [slots])
   const rows = useMemo(() => buildPreProductionAssetRows(visibleSlots, candidates, slotById), [candidates, slotById, visibleSlots])
   const referenceById = useMemo(() => new Map(creativeReferences.map((reference) => [reference.ID, reference])), [creativeReferences])

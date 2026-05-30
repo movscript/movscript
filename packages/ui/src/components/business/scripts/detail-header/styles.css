@@ -3,8 +3,9 @@
   border-bottom: 0;
   background: transparent;
   margin: 0 auto;
-  width: min(100%, 1080px);
-  padding: 22px var(--script-workbench-content-x, 40px) 8px;
+  width: min(100%, var(--script-workbench-content-max, 92%));
+  box-sizing: border-box;
+  padding: 0 0 calc(var(--script-workbench-content-y, 12px) * 0.5);
 }
 
 .script-detail-header__top {
@@ -28,7 +29,7 @@
 }
 
 .script-detail-header__title {
-  margin: 8px 0 0;
+  margin: clamp(4px, 0.75cqi, 8px) 0 0;
   color: var(--ms-color-foreground);
   font-size: 26px;
   font-weight: 600;
@@ -50,7 +51,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
+  margin-top: var(--script-workbench-content-y, 12px);
 }
 
 @media (min-width: 1280px) {

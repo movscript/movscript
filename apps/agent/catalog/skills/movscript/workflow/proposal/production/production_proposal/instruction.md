@@ -58,7 +58,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - 不确定 segment 或 scene moment 范围时，应询问用户。
 
 输出：
-回复 draftId、projectId、productionId、draft status、最近一次 preview apply 的 ok/stage、segments 和 scene moments 数量，以及未解决缺口。
+回复 draftId、projectId、productionId、最近一次 preview apply 的 ok/stage、segments 和 scene moments 数量，以及未解决缺口。
 
 绝不：
 - 绝不把 draft 说成正式 production 已变更。

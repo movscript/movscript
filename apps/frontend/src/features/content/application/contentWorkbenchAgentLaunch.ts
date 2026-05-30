@@ -190,7 +190,7 @@ function buildContentWorkbenchClientInput(input: {
       projectId: input.projectId,
       productionId: input.productionId,
       route: {
-        pathname: ROUTES.project.contentUnitWorkbench,
+        pathname: ROUTES.project.productionOrchestration,
         search: buildContentWorkbenchRouteSearch({
           sceneMomentId: input.sceneMomentId,
           contentUnitId: input.contentUnitId,

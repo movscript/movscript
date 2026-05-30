@@ -17,6 +17,9 @@ test('pre-production data controller defines stable query keys', () => {
 
 test('pre-production data controller filters internal candidate slots', () => {
   assert.equal(isInternalPreProductionCandidateSlot({ ID: 10, owner_type: 'asset_slot' } as AssetSlotRecord), true)
+  assert.equal(isInternalPreProductionCandidateSlot({ ID: 10, owner_type: 'asset_slot', owner_id: 2 } as AssetSlotRecord, new Map([[10, 2]])), true)
+  assert.equal(isInternalPreProductionCandidateSlot({ ID: 10, owner_type: 'asset_slot', owner_id: 3 } as AssetSlotRecord, new Map([[10, 2]])), false)
+  assert.equal(isInternalPreProductionCandidateSlot({ ID: 10, owner_type: 'asset_slot' } as AssetSlotRecord, new Map([[10, 2]])), false)
   assert.equal(isInternalPreProductionCandidateSlot({ ID: 11, owner_type: 'creative_reference' } as AssetSlotRecord), false)
   assert.equal(isInternalPreProductionCandidateSlot({ ID: 12 } as AssetSlotRecord), false)
 })

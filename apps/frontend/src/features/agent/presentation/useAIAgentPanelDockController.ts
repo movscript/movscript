@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AGENT_PANEL_DRAFT_EVENT, AGENT_PANEL_THREAD_EVENT, type AgentPanelThreadPayload } from '@/features/agent/application/agentPanelBridge'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
+import { useResizablePanel } from '@movscript/ui'
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -39,8 +40,30 @@ export function useAIAgentPanelDockController() {
   })
   const dockLayout = true
   const panelRef = useRef<HTMLDivElement | null>(null)
-  const panelResizeFrameRef = useRef<number | null>(null)
-  const panelResizeStateRef = useRef<{ startX: number; startWidth: number; latestWidth: number; maxWidth: number } | null>(null)
+  const resizeBodyClassNames = useRef(['ai-agent-panel-resizing', 'ai-agent-panel-resizing--x'])
+  const panelResize = useResizablePanel({
+    size: panelWidth,
+    onSizeChange: (nextWidth) => {
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
+      const resolvedWidth = clampAgentPanelWidth(nextWidth, viewportWidth)
+      panelRef.current?.style.setProperty('--ui-agent-panel-width', `${resolvedWidth}px`)
+      setDetailAgentPanelWidth(resolvedWidth)
+      setPanelWidth(resolvedWidth)
+    },
+    minSize: DETAIL_AGENT_PANEL_MIN_WIDTH,
+    maxSize: () => {
+      const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
+      return agentPanelMaxWidth(viewportWidth)
+    },
+    resizeEdge: 'left',
+    collapsed: !open,
+    onCollapsedChange: (collapsed) => {
+      if (collapsed) setOpen(false)
+    },
+    collapseMode: 'after-min',
+    ariaLabel: 'Resize assistant panel',
+    resizingBodyClassNames: resizeBodyClassNames.current,
+  })
 
   useEffect(() => {
     setDetailAgentPanelWidth(panelWidth)
@@ -80,73 +103,6 @@ export function useAIAgentPanelDockController() {
     setPendingThreadIdToOpen((current) => current === threadId ? null : current)
   }, [])
 
-  const startPanelResize = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    if (!open || event.button !== 0) return
-    event.preventDefault()
-    event.stopPropagation()
-    const startWidth = panelWidth
-    const startX = event.clientX
-    const viewportWidth = window.innerWidth
-    const maxWidth = agentPanelMaxWidth(viewportWidth)
-    panelResizeStateRef.current = { startX, startWidth, latestWidth: startWidth, maxWidth }
-    document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
-
-    const onMove = (moveEvent: globalThis.PointerEvent) => {
-      const state = panelResizeStateRef.current
-      if (!state) return
-      const delta = state.startX - moveEvent.clientX
-      const nextWidth = state.startWidth + delta
-      if (nextWidth < DETAIL_AGENT_PANEL_MIN_WIDTH) {
-        if (state.startWidth <= DETAIL_AGENT_PANEL_MIN_WIDTH) {
-          if (panelResizeFrameRef.current !== null) {
-            window.cancelAnimationFrame(panelResizeFrameRef.current)
-            panelResizeFrameRef.current = null
-          }
-          panelResizeStateRef.current = null
-          document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
-          window.removeEventListener('pointermove', onMove)
-          window.removeEventListener('pointerup', onUp)
-          window.removeEventListener('pointercancel', onUp)
-          setOpen(false)
-          return
-        }
-        state.latestWidth = DETAIL_AGENT_PANEL_MIN_WIDTH
-      } else {
-        state.latestWidth = clampNumber(nextWidth, DETAIL_AGENT_PANEL_MIN_WIDTH, state.maxWidth)
-      }
-      if (panelResizeFrameRef.current !== null) return
-      panelResizeFrameRef.current = window.requestAnimationFrame(() => {
-        panelResizeFrameRef.current = null
-        const latest = panelResizeStateRef.current
-        if (!latest) return
-        const latestWidth = latest.latestWidth
-        panelRef.current?.style.setProperty('--ui-agent-panel-width', `${latestWidth}px`)
-        setDetailAgentPanelWidth(latestWidth)
-        setPanelWidth(latestWidth)
-      })
-    }
-
-    const onUp = () => {
-      const finalWidth = panelResizeStateRef.current?.latestWidth ?? panelWidth
-      if (panelResizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(panelResizeFrameRef.current)
-        panelResizeFrameRef.current = null
-      }
-      panelRef.current?.style.setProperty('--ui-agent-panel-width', `${finalWidth}px`)
-      setDetailAgentPanelWidth(finalWidth)
-      setPanelWidth(finalWidth)
-      panelResizeStateRef.current = null
-      document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
-  }, [open, panelWidth, setDetailAgentPanelWidth, setOpen])
-
   return {
     dockLayout,
     handlePendingThreadHandled,
@@ -154,7 +110,7 @@ export function useAIAgentPanelDockController() {
     panelRef,
     panelWidth,
     pendingThreadIdToOpen,
-    startPanelResize,
+    resizeHandleProps: panelResize.resizeHandleProps,
     toggleOpen,
   }
 }

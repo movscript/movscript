@@ -1,8 +1,9 @@
 .tool-dialog-frame {
+  --tool-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   display: flex;
   height: 100%;
   flex-direction: column;
-  background: var(--ms-color-page-background);
+  background: var(--tool-page-background);
 }
 
 .tool-dialog-body {
@@ -16,28 +17,21 @@
   --tool-dialog-main-inset: clamp(20px, 3vw, 36px);
   container-type: inline-size;
   display: grid;
-  grid-template-columns: minmax(460px, 1fr) minmax(360px, var(--tool-dialog-resource-pane-width, 520px));
+  grid-template-columns: minmax(460px, 1fr) minmax(360px, var(--overlap-pane-size, 520px));
   gap: 0;
 }
 
-.tool-dialog-body--reference-workbench[data-resource-pane-collapsed="true"] {
+.tool-dialog-body--reference-workbench[data-overlap-pane-collapsed="true"] {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.tool-dialog-body--reference-workbench[data-resource-pane-expanded="true"] {
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.tool-dialog-body--reference-workbench[data-resource-pane-expanded="true"] .tool-dialog-main,
-.tool-dialog-body--reference-workbench[data-resource-pane-expanded="true"] .tool-brainstorm-main {
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-dialog-main,
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-brainstorm-main {
   display: none;
-}
-
-.tool-dialog-body--reference-workbench[data-resource-pane-expanded="true"] > .tool-dialog-resource-overlap.overlap-pane[data-overlap-side="left"] {
-  margin-left: 0;
-  width: 100%;
-  border-radius: 0;
-  box-shadow: none;
 }
 
 .tool-dialog-main {
@@ -129,7 +123,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--ms-color-page-background);
+  background: var(--tool-page-background, var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background))));
 }
 
 .tool-dialog-resource-overlap > * {
@@ -141,6 +135,16 @@
 .tool-dialog-resource-overlap > .resource-panel {
   width: 100%;
   border-right: 0;
+}
+
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__filters {
+  padding: 0 0 var(--ms-space-2);
+}
+
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__content,
+.tool-dialog-resource-overlap > .resource-panel .resource-panel__pager {
+  padding-right: 0;
+  padding-left: 0;
 }
 
 .tool-dialog-panel__body {
@@ -343,11 +347,7 @@
     padding: 20px var(--tool-dialog-main-inset);
   }
 
-  .tool-dialog-body--reference-workbench > .tool-dialog-resource-overlap.overlap-pane[data-overlap-side="left"] {
-    margin-left: 0;
-    width: 100%;
-    border-radius: 0;
-    box-shadow: none;
+  .tool-dialog-body--reference-workbench > .tool-dialog-resource-overlap {
     min-height: 420px;
   }
 }

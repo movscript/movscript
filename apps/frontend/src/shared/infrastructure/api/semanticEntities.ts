@@ -74,6 +74,7 @@ export interface SemanticEntityConfig {
 }
 
 export type SemanticEntityPayload = Record<string, string | number | boolean | null>
+export type SemanticEntityListParams = Record<string, string | number | boolean | null | undefined>
 
 type SemanticEntityAccent = 'sky' | 'cyan' | 'blue' | 'teal' | 'emerald' | 'lime' | 'amber' | 'orange' | 'rose' | 'violet' | 'indigo'
 
@@ -125,8 +126,9 @@ export function semanticEntityPath(projectId: number, config: SemanticEntityConf
   return `/projects/${projectId}/entities/${config.path}`
 }
 
-export async function listSemanticEntities(projectId: number, config: SemanticEntityConfig) {
-  const { data } = await api.get<SemanticEntityRecord[] | { items?: SemanticEntityRecord[] }>(semanticEntityPath(projectId, config))
+export async function listSemanticEntities(projectId: number, config: SemanticEntityConfig, params: SemanticEntityListParams = {}) {
+  const queryParams = Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''))
+  const { data } = await api.get<SemanticEntityRecord[] | { items?: SemanticEntityRecord[] }>(semanticEntityPath(projectId, config), { params: queryParams })
   return Array.isArray(data) ? data : data.items ?? []
 }
 

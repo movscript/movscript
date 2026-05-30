@@ -1,16 +1,12 @@
 import { type DragEvent, useEffect, useState } from 'react'
 import {
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   Clock3,
   FileText,
   Plus,
   Route,
-  Play,
   Sparkles,
-  X,
 } from 'lucide-react'
 
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord as WorkbenchRecord } from '@/features/content/domain/contentWorkbenchModel'
@@ -40,26 +36,14 @@ import {
 } from '@/features/content/domain/contentWorkbenchTimeline'
 import { buildContentWorkbenchUnitTrack, contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
-import { sceneIdentifier, unitIdentifier } from '@/features/content/domain/productionIdentifiers'
-import { contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
+import { unitIdentifier } from '@/features/content/domain/productionIdentifiers'
 import type { Job } from '@/types'
 import {
   Badge,
-  ContentWorkbenchShotList,
   ContentWorkbenchShotListActionBar,
-  ContentWorkbenchShotListCard,
-  ContentWorkbenchShotListFieldButton,
-  ContentWorkbenchShotListFieldGrid,
-  ContentWorkbenchShotListGrid,
-  ContentWorkbenchShotListHeader,
   ContentWorkbenchUnitControlBar,
-  ContentWorkbenchUnitExecutionActionRow,
-  ContentWorkbenchUnitExecutionCard,
-  ContentWorkbenchUnitExecutionDetail,
-  ContentWorkbenchUnitExecutionDetailGrid,
   ContentWorkbenchUnitExecutionGrid,
   ContentWorkbenchUnitExecutionRegion,
-  ContentWorkbenchUnitExecutionStatus,
   ContentWorkbenchUnitKindFilterButton,
   ContentWorkbenchUnitKindFilterGroup,
   ContentWorkbenchUnitMoveButton,
@@ -68,11 +52,6 @@ import {
   ContentWorkbenchUnitScheduleHeader,
   ContentWorkbenchUnitScheduleToolbar,
   ContentWorkbenchUnitSceneBrief,
-  ContentWorkbenchUnitInspectorHeader,
-  ContentWorkbenchUnitInspectorShell,
-  ContentWorkbenchUnitNextActionCard,
-  ContentWorkbenchUnitPanelSwitcher,
-  ContentWorkbenchUnitPanelTab,
   ContentWorkbenchTimelineBoundary,
   ContentWorkbenchTimelineBlock,
   ContentWorkbenchTimelineGridRow,
@@ -86,191 +65,13 @@ import {
   ContentWorkbenchTimelineTick,
   ContentWorkbenchTimelineViewport,
   ContentWorkbenchTimelineZoomControl,
-  ContentWorkbenchUnitTrackHeader,
   ContentWorkbenchUnitTrackActionButton,
   ContentWorkbenchUnitTrackMeta,
   ContentWorkbenchUnitTrackShell,
-  StatusBadge,
   WorkbenchEmptyState,
 } from '@movscript/ui'
+import { CompactShotListCard } from './CompactShotListCard'
 import { ContentUnitEditCards } from './ContentUnitEditCards'
-
-export function ContentWorkbenchUnitInspector({
-  projectId,
-  queryKey,
-  jobs = [],
-  row,
-  unit,
-  onSelectUnit,
-  onCreateUnit,
-  onAiSuggest,
-  onAiVisualTaskGraph,
-  onCreateAssetSlot,
-  onCreateKeyframe,
-  onOpenCanvas,
-  onUploadMissingAssets,
-  onDeleteUnit,
-  onClose,
-}: {
-  projectId?: number
-  queryKey?: readonly unknown[]
-  jobs?: Job[]
-  row: ContentGenerationMomentRow | null
-  unit: WorkbenchRecord | null
-  onSelectUnit: (unitId: number) => void
-  onCreateUnit: () => void
-  onAiSuggest?: () => void
-  onAiVisualTaskGraph?: () => void
-  onCreateAssetSlot?: () => void
-  onCreateKeyframe?: () => void
-  onOpenCanvas?: () => void
-  onUploadMissingAssets?: () => void
-  onDeleteUnit?: (unit: WorkbenchRecord) => void
-  onClose?: () => void
-}) {
-  const drawerAction = buildContentUnitDrawerAction({
-    row,
-    unit,
-    onCreateUnit,
-    onAiSuggest,
-    onAiVisualTaskGraph,
-    onCreateAssetSlot,
-    onCreateKeyframe,
-    onOpenCanvas,
-  })
-
-  return (
-    <ContentWorkbenchUnitInspectorShell>
-      <ContentWorkbenchUnitInspectorHeader
-        icon={<FileText size={14} />}
-        kicker="镜头详情"
-        title={unit ? titleOfRecord(unit) : row ? '选择或规划镜头' : '等待选择情节'}
-        detail={
-          unit
-            ? '这里只编辑选中镜头的生成目标、关键帧、故事板和调度输入。'
-            : row
-              ? '先在镜头方案中选择一个镜头，或让 AI 规划一组镜头。'
-              : '选择情节后再开始内容编排。'
-        }
-        actions={(
-          <>
-            {unit ? <Badge variant="outline">{trackKindLabel(String(unit.kind || 'shot'))}</Badge> : null}
-            {onClose ? (
-              <ContentWorkbenchUnitTrackActionButton size="icon-sm" variant="ghost" onClick={onClose} aria-label="收起镜头详情抽屉">
-                <X size={14} />
-              </ContentWorkbenchUnitTrackActionButton>
-            ) : null}
-          </>
-        )}
-      />
-      <ContentWorkbenchUnitNextActionCard
-        tone={drawerAction.state}
-        icon={drawerAction.state === 'ready' ? <CheckCircle2 size={15} /> : drawerAction.state === 'blocked' ? <AlertTriangle size={15} /> : <FileText size={15} />}
-        label={drawerAction.label}
-        detail={drawerAction.detail}
-        actionText={drawerAction.actionText}
-        onAction={drawerAction.onAction}
-      />
-      <ContentUnitEditCards
-        projectId={projectId}
-        queryKey={queryKey}
-        jobs={jobs}
-        row={row}
-        unit={unit}
-        compact
-        onSelectUnit={onSelectUnit}
-        onCreateUnit={onCreateUnit}
-        onAiSuggest={onAiSuggest}
-        onAiVisualTaskGraph={onAiVisualTaskGraph}
-        onCreateAssetSlot={onCreateAssetSlot}
-        onCreateKeyframe={onCreateKeyframe}
-        onOpenCanvas={onOpenCanvas}
-        onUploadMissingAssets={onUploadMissingAssets}
-        onDeleteUnit={onDeleteUnit}
-      />
-    </ContentWorkbenchUnitInspectorShell>
-  )
-}
-
-function buildContentUnitDrawerAction({
-  row,
-  unit,
-  onCreateUnit,
-  onAiSuggest,
-  onAiVisualTaskGraph,
-  onCreateAssetSlot,
-  onCreateKeyframe,
-  onOpenCanvas,
-}: {
-  row: ContentGenerationMomentRow | null
-  unit: WorkbenchRecord | null
-  onCreateUnit: () => void
-  onAiSuggest?: () => void
-  onAiVisualTaskGraph?: () => void
-  onCreateAssetSlot?: () => void
-  onCreateKeyframe?: () => void
-  onOpenCanvas?: () => void
-}) {
-  if (!row) {
-    return {
-      state: 'idle' as const,
-      label: '选择情节',
-      detail: '先从左侧情节导航选择一个情节，再规划它需要的镜头组合。',
-      actionText: '选择情节',
-    }
-  }
-  if (!unit) {
-    return {
-      state: 'blocked' as const,
-      label: '规划镜头方案',
-      detail: '当前情节还没有选中的镜头。先选择一个镜头，或让 AI 帮你拆分这一段情节。',
-      actionText: '新建镜头',
-      onAction: onCreateUnit,
-    }
-  }
-
-  const unitSlots = row.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID)
-  const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
-  const unitKeyframes = row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
-  const hasPrompt = Boolean(firstText(unit.prompt, unit.description))
-  const requiresKeyframe = contentWorkbenchUnitRequiresKeyframe(unit.kind)
-
-  if (!hasPrompt) {
-    return {
-      state: 'blocked' as const,
-      label: '补齐生成目标',
-      detail: '当前镜头缺少描述或提示词，生成前需要先说明画面、声音或叙事目标。',
-      actionText: onAiVisualTaskGraph ? '让 AI 起草' : '补齐输入',
-      onAction: onAiVisualTaskGraph,
-    }
-  }
-  if (missingSlots.length > 0) {
-    return {
-      state: 'blocked' as const,
-      label: '补素材',
-      detail: `${missingSlots.length} 个素材缺口需要补齐。先上传或绑定候选素材。`,
-      actionText: '补素材',
-      onAction: onCreateAssetSlot,
-    }
-  }
-  if (requiresKeyframe && unitKeyframes.length === 0) {
-    return {
-      state: 'blocked' as const,
-      label: '建立关键画面',
-      detail: '镜头条目需要至少一个关键帧作为视频生成的画面锚点。',
-      actionText: '新建关键帧',
-      onAction: onCreateKeyframe,
-    }
-  }
-
-  return {
-    state: 'ready' as const,
-    label: '开始生成视频',
-    detail: '当前镜头的核心输入已经具备，可以进入生成画布检查并发起视频生成。',
-    actionText: '生成画布',
-    onAction: onOpenCanvas,
-  }
-}
 
 export function UnitProductionTrack({
   row,
@@ -278,6 +79,7 @@ export function UnitProductionTrack({
   showInlineEditor = true,
   onSelectUnit,
   onCreateUnit,
+  onOpenUnitEditor,
   onAiSuggest,
   onSelectFirstMoment,
   onCreateAssetSlot,
@@ -297,6 +99,7 @@ export function UnitProductionTrack({
   showInlineEditor?: boolean
   onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
+  onOpenUnitEditor?: (unitId: number) => void
   onAiSuggest?: () => void
   onSelectFirstMoment: () => void
   onCreateAssetSlot?: () => void
@@ -369,12 +172,6 @@ export function UnitProductionTrack({
   if (!row || summary.total === 0) {
     return (
       <ContentWorkbenchUnitTrackShell>
-        <ContentWorkbenchUnitTrackHeader
-          icon={<Route size={14} />}
-          title={summary.title}
-          detail={summary.detail}
-          aside={<Badge variant="outline">{row ? '待镜头方案' : '待情节'}</Badge>}
-        />
         <ContentWorkbenchUnitScheduleFrame
           header={(
             <ContentWorkbenchUnitScheduleHeader
@@ -441,11 +238,7 @@ export function UnitProductionTrack({
   useEffect(() => {
     if ((!selectedUnit || !showInlineEditor) && schedulePanel === 'edit') setSchedulePanel('timeline')
   }, [schedulePanel, selectedUnit, showInlineEditor])
-  function selectOrClearUnit(unitId: number) {
-    if (selectedUnitId === unitId) {
-      onSelectUnit(null)
-      return
-    }
+  function selectUnit(unitId: number) {
     onSelectUnit(unitId)
   }
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
@@ -518,21 +311,6 @@ export function UnitProductionTrack({
 
   return (
     <ContentWorkbenchUnitTrackShell>
-      <ContentWorkbenchUnitTrackHeader
-        icon={<Route size={14} />}
-        title={summary.title}
-        detail={summary.detail}
-        aside={(
-          <ContentWorkbenchUnitTrackMeta
-            items={[
-              { label: `${summary.total} 镜头` },
-              { label: formatTrackDuration(summary.durationSec) },
-              { label: `${summary.keyframeCount} 关键帧`, tone: summary.keyframeCount > 0 ? 'neutral' : 'warning' },
-            ]}
-          />
-        )}
-      />
-
       <ContentWorkbenchUnitControlBar
         filters={(
           <ContentWorkbenchUnitKindFilterGroup>
@@ -552,6 +330,13 @@ export function UnitProductionTrack({
         )}
         actions={(
           <>
+            <ContentWorkbenchUnitTrackMeta
+              items={[
+                { label: `${summary.total} 镜头` },
+                { label: formatTrackDuration(summary.durationSec) },
+                { label: `${summary.keyframeCount} 关键帧`, tone: summary.keyframeCount > 0 ? 'neutral' : 'warning' },
+              ]}
+            />
             {onAiSuggest ? (
               <ContentWorkbenchUnitTrackActionButton onClick={onAiSuggest} data-testid="content-workbench-ai-shot-taskGraph">
                 <Sparkles size={14} />
@@ -580,16 +365,13 @@ export function UnitProductionTrack({
               {visibleSummary.items.map((item, index) => {
                 const previousItem = visibleSummary.items[index - 1]
                 const nextItem = visibleSummary.items[index + 1]
-                const itemAction = contentWorkbenchUnitExecutionAction(item)
-                const purposeText = contentWorkbenchUnitNarrativePurpose(item)
                 return (
-                  <ContentWorkbenchUnitExecutionCard
+                  <CompactShotListCard
                     key={item.id}
                     active={item.selected}
                     draggable={canDragUnits}
                     data-track-item-id={item.id}
                     aria-grabbed={draggedUnitId === Number(item.id)}
-                    title={canDragUnits ? '拖动到下方时间轴调整开始时间' : undefined}
                     onDragStart={(event) => handleUnitDragStart(event, Number(item.id))}
                     onDragOver={(event) => {
                       if (!canDragUnits) return
@@ -598,46 +380,23 @@ export function UnitProductionTrack({
                     }}
                     onDrop={(event) => handleUnitDrop(event, Number(item.id))}
                     onDragEnd={() => setDraggedUnitId(null)}
-                    onClick={() => selectOrClearUnit(Number(item.id))}
-                    identifier={item.identifier || String(index + 1).padStart(2, '0')}
-                    heading={item.title}
-                    summary={`${trackKindLabel(item.kind)} · ${item.summary || item.scriptCue || item.soundCue || '待补画面描述'}`}
-                    status={(
-                      <ContentWorkbenchUnitExecutionStatus
-                        tone={itemAction.state === 'ready' ? 'ready' : 'blocked'}
-                        icon={itemAction.state === 'ready' ? <Play size={12} /> : <AlertTriangle size={12} />}
-                      >
-                        {itemAction.label}
-                      </ContentWorkbenchUnitExecutionStatus>
-                    )}
-                    details={(
-                      <ContentWorkbenchUnitExecutionDetailGrid>
-                        <ContentWorkbenchUnitExecutionDetail
-                          label="画面目标"
-                          value={item.summary || item.scriptCue || item.soundCue || '待补画面描述'}
-                          meta={trackKindLabel(item.kind)}
-                        />
-                        <ContentWorkbenchUnitExecutionDetail
-                          label="承载作用"
-                          value={purposeText.title}
-                          meta={purposeText.detail}
-                        />
-                        <ContentWorkbenchUnitExecutionDetail
-                          label="下一步"
-                          value={formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec), item.durationSec)}
-                          meta={itemAction.detail}
-                        />
-                      </ContentWorkbenchUnitExecutionDetailGrid>
-                    )}
+                    kind={trackKindLabel(item.kind)}
+                    title={item.title}
+                    frameCount={item.keyframeTitles.length}
+                    expression={shotExpressionText(item)}
+                    cue={shotCueText(item)}
+                    status={shotStatusText(item)}
+                    context={shotMetaText(item)}
+                    onOpen={() => selectUnit(Number(item.id))}
+                    onEdit={onOpenUnitEditor ? () => onOpenUnitEditor(Number(item.id)) : undefined}
                     actions={canDragUnits ? (
-                      <ContentWorkbenchUnitExecutionActionRow>
+                      <ContentWorkbenchShotListActionBar>
                         <ContentWorkbenchUnitMoveButton
                           data-testid="content-workbench-unit-move-earlier"
                           aria-label={`前移 ${item.title}`}
                           title="前移"
                           disabled={!previousItem || isReordering}
-                          onClick={(event) => {
-                            event.stopPropagation()
+                          onClick={() => {
                             if (!previousItem) return
                             onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
                           }}
@@ -649,15 +408,14 @@ export function UnitProductionTrack({
                           aria-label={`后移 ${item.title}`}
                           title="后移"
                           disabled={!nextItem || isReordering}
-                          onClick={(event) => {
-                            event.stopPropagation()
+                          onClick={() => {
                             if (!nextItem) return
                             onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
                           }}
                         >
                           <ArrowRight size={12} />
                         </ContentWorkbenchUnitMoveButton>
-                      </ContentWorkbenchUnitExecutionActionRow>
+                      </ContentWorkbenchShotListActionBar>
                     ) : null}
                   />
                 )
@@ -672,18 +430,14 @@ export function UnitProductionTrack({
         header={(
           <ContentWorkbenchUnitScheduleToolbar
             switcher={(
-              <ContentWorkbenchUnitPanelSwitcher>
-                <ContentWorkbenchUnitPanelTab active={schedulePanel === 'timeline'} onClick={() => setSchedulePanel('timeline')}>
+              <div className="content-workbench-unit-schedule-toolbar__title">
+                {schedulePanel === 'edit' ? (
+                  <FileText size={14} />
+                ) : (
                   <Clock3 size={14} />
-                  方案时间轴
-                </ContentWorkbenchUnitPanelTab>
-                {selectedUnit && showInlineEditor ? (
-                  <ContentWorkbenchUnitPanelTab active={schedulePanel === 'edit'} onClick={() => setSchedulePanel('edit')}>
-                    <FileText size={14} />
-                    镜头编辑
-                  </ContentWorkbenchUnitPanelTab>
-                ) : null}
-              </ContentWorkbenchUnitPanelSwitcher>
+                )}
+                {schedulePanel === 'edit' ? '内容编辑' : '方案时间轴'}
+              </div>
             )}
             controls={(
               <ContentWorkbenchTimelineStatusGroup>
@@ -701,8 +455,27 @@ export function UnitProductionTrack({
                     {focusedTimeline ? (
                       <Badge variant="outline" data-testid="content-workbench-timeline-focus-label">关注段 0:00 = 全局 {formatTrackClock(timelineOriginSec)}</Badge>
                     ) : null}
+                    {selectedUnit && showInlineEditor ? (
+                      <ContentWorkbenchUnitTrackActionButton
+                        size="xs"
+                        variant="outline"
+                        onClick={() => setSchedulePanel('edit')}
+                      >
+                        <FileText size={14} />
+                        内容编辑
+                      </ContentWorkbenchUnitTrackActionButton>
+                    ) : null}
                   </>
-                ) : null}
+                ) : (
+                  <ContentWorkbenchUnitTrackActionButton
+                    size="xs"
+                    variant="outline"
+                    onClick={() => setSchedulePanel('timeline')}
+                  >
+                    <Clock3 size={14} />
+                    方案时间轴
+                  </ContentWorkbenchUnitTrackActionButton>
+                )}
                 <Badge variant="outline">{formatTrackDuration(timelineContentDurationSec)}</Badge>
               </ContentWorkbenchTimelineStatusGroup>
             )}
@@ -779,7 +552,7 @@ export function UnitProductionTrack({
                             event.dataTransfer.dropEffect = 'move'
                           }}
                           onDragEnd={() => setDraggedUnitId(null)}
-                          onClick={() => selectOrClearUnit(Number(item.id))}
+                          onClick={() => selectUnit(Number(item.id))}
                           left={trackTimelinePx(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), timelinePxPerSec)}
                           width={trackTimelineWidthPx(item.durationSec, timelinePxPerSec)}
                           blockTitle={title}
@@ -793,84 +566,6 @@ export function UnitProductionTrack({
                 ))}
               </ContentWorkbenchTimelineLaneStack>
         </ContentWorkbenchTimelineViewport>
-        <ContentWorkbenchShotList
-          title="镜头明细"
-          badge={<Badge variant="outline">{visibleSummary.items.length} 项</Badge>}
-        >
-          <ContentWorkbenchShotListGrid>
-            {visibleSummary.items.map((item, index) => {
-              const previousItem = visibleSummary.items[index - 1]
-              const nextItem = visibleSummary.items[index + 1]
-              return (
-                <ContentWorkbenchShotListCard
-                  key={item.id}
-                  active={item.selected}
-                  data-track-item-id={item.id}
-                  actions={canDragUnits ? (
-                    <ContentWorkbenchShotListActionBar>
-                      <ContentWorkbenchUnitMoveButton
-                        data-testid="content-workbench-shot-list-move-earlier"
-                        aria-label={`前移 ${item.title}`}
-                        title="前移"
-                        disabled={!previousItem || isReordering}
-                        onClick={() => {
-                          if (!previousItem) return
-                          onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
-                        }}
-                      >
-                        <ArrowLeft size={12} />
-                      </ContentWorkbenchUnitMoveButton>
-                      <ContentWorkbenchUnitMoveButton
-                        data-testid="content-workbench-shot-list-move-later"
-                        aria-label={`后移 ${item.title}`}
-                        title="后移"
-                        disabled={!nextItem || isReordering}
-                        onClick={() => {
-                          if (!nextItem) return
-                          onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
-                        }}
-                      >
-                        <ArrowRight size={12} />
-                      </ContentWorkbenchUnitMoveButton>
-                    </ContentWorkbenchShotListActionBar>
-                  ) : null}
-                >
-                  <ContentWorkbenchShotListHeader
-                    identifier={String(index + 1).padStart(2, '0')}
-                    title={item.title}
-                    summary={item.summary || item.scriptCue || item.soundCue || '待补输入'}
-                    onOpen={() => selectOrClearUnit(Number(item.id))}
-                    status={(
-                      <StatusBadge {...contentWorkbenchStatusRecipe(item.state)}>{item.state === 'blocked' ? '待补齐' : item.state === 'ready' ? '可生成' : '处理中'}</StatusBadge>
-                    )}
-                  />
-                  <ContentWorkbenchShotListFieldGrid>
-                    <ContentWorkbenchShotListFieldButton
-                      label={trackKindLabel(item.kind)}
-                      value={formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec), item.durationSec)}
-                      onClick={() => selectOrClearUnit(Number(item.id))}
-                    />
-                    <ContentWorkbenchShotListFieldButton
-                      label="关键帧"
-                      value={item.requiresKeyframe
-                        ? item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '未设置'
-                        : '非必需'}
-                      fieldTone={item.requiresKeyframe && item.keyframeTitles.length === 0 ? 'warning' : 'neutral'}
-                      onClick={() => selectOrClearUnit(Number(item.id))}
-                    />
-                    <ContentWorkbenchShotListFieldButton
-                      label="素材"
-                      value={item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无显性缺口'}
-                      fieldTone={item.missingAssetTitles.length > 0 ? 'warning' : 'neutral'}
-                      wide
-                      onClick={() => selectOrClearUnit(Number(item.id))}
-                    />
-                  </ContentWorkbenchShotListFieldGrid>
-                </ContentWorkbenchShotListCard>
-              )
-            })}
-          </ContentWorkbenchShotListGrid>
-        </ContentWorkbenchShotList>
         </>) : (
         <ContentUnitEditCards
           projectId={projectId}
@@ -901,86 +596,26 @@ function formatTrackDuration(seconds: number) {
   return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`
 }
 
-function contentWorkbenchUnitExecutionAction(item: {
-  state: string
-  blockers: string[]
-}) {
-  if (item.blockers.includes('缺提示')) {
-    return {
-      state: 'blocked' as const,
-      label: '补生成目标',
-      detail: '先补清画面、声音或叙事意图',
-    }
-  }
-  if (item.blockers.includes('缺素材')) {
-    return {
-      state: 'blocked' as const,
-      label: '补素材',
-      detail: '上传或绑定可用素材',
-    }
-  }
-  if (item.blockers.includes('缺关键帧')) {
-    return {
-      state: 'blocked' as const,
-      label: '建关键帧',
-      detail: '为镜头建立画面锚点',
-    }
-  }
-  if (item.state === 'ready') {
-    return {
-      state: 'ready' as const,
-      label: '开始生成',
-      detail: '打开抽屉进入生成画布',
-    }
-  }
-  if (item.state === 'running') {
-    return {
-      state: 'ready' as const,
-      label: '查看结果',
-      detail: '检查生成任务和预览结果',
-    }
-  }
-  return {
-    state: 'blocked' as const,
-    label: '确认输入',
-    detail: '打开抽屉检查条目内容',
-  }
+function shotExpressionText(item: ReturnType<typeof buildContentWorkbenchUnitTrack>['items'][number]) {
+  return firstText(item.summary, item.scriptCue, item.soundCue, item.keyframeTitles[0], '未填写镜头表达')
 }
 
-function contentWorkbenchUnitNarrativePurpose(item: {
-  kind: string
-  scriptCue: string
-  soundCue: string
-  keyframeTitles: string[]
-  missingAssetTitles: string[]
-  labels: string[]
-}) {
-  if (item.scriptCue) {
-    return {
-      title: '承接内容条目',
-      detail: item.scriptCue,
-    }
-  }
-  if (item.soundCue) {
-    return {
-      title: '承接声音设计',
-      detail: item.soundCue,
-    }
-  }
-  if (item.keyframeTitles.length > 0) {
-    return {
-      title: '锚定关键画面',
-      detail: item.keyframeTitles.slice(0, 2).join('、'),
-    }
-  }
-  if (item.missingAssetTitles.length > 0) {
-    return {
-      title: '等待素材补齐',
-      detail: item.missingAssetTitles.slice(0, 2).join('、'),
-    }
-  }
-  return {
-    title: item.kind === 'shot' ? '补全镜头作用' : '补全制作作用',
-    detail: item.labels.join(' · '),
-  }
+function shotCueText(item: ReturnType<typeof buildContentWorkbenchUnitTrack>['items'][number]) {
+  const cue = firstText(item.scriptCue, item.soundCue, item.missingAssetTitles[0] ? `待补素材：${item.missingAssetTitles[0]}` : '')
+  return cue || undefined
+}
+
+function shotStatusText(item: ReturnType<typeof buildContentWorkbenchUnitTrack>['items'][number]) {
+  if (item.blockers.length > 0) return item.blockers.join(' / ')
+  if (item.state === 'ready') return '可生成'
+  if (item.state === 'running') return '生成中'
+  return '待确认'
+}
+
+function shotMetaText(item: ReturnType<typeof buildContentWorkbenchUnitTrack>['items'][number]) {
+  return [
+    item.durationSec > 0 ? formatTrackDuration(item.durationSec) : '未设时长',
+    item.requiresKeyframe ? `${item.keyframeTitles.length} 帧` : '无需关键帧',
+    item.missingAssetTitles.length > 0 ? `${item.missingAssetTitles.length} 素材缺口` : '',
+  ].filter(Boolean).join(' · ')
 }

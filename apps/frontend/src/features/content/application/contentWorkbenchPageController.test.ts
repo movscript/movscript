@@ -104,7 +104,8 @@ test('content workbench page controller resolves linked ids and selected unit', 
     linkedSceneMomentId: 1,
     linkedContentUnitId: 100,
   })
-  assert.equal(contentWorkbenchSelectedRow({ visibleRows: rows, selectedId: '', scopeLevel: 'scene_moment' })?.id, 'a')
+  assert.equal(contentWorkbenchSelectedRow({ visibleRows: rows, selectedId: '' }), null)
+  assert.equal(contentWorkbenchSelectedRow({ visibleRows: rows, selectedId: 'a' })?.id, 'a')
   assert.equal(contentWorkbenchSelectedUnit({ selected: rows[0], selectedUnitId: 100, optimisticSelectedUnit: fallbackUnit })?.ID, 100)
   assert.equal(contentWorkbenchSelectedUnit({ selected: rows[0], selectedUnitId: 101, optimisticSelectedUnit: fallbackUnit })?.ID, 101)
 })

@@ -781,7 +781,9 @@ export function ResourcePrepWorkbenchRailItem({
   );
 }
 
-export function ResourcePrepWorkbenchMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
+export function ResourcePrepWorkbenchMain({ className, divider: _divider, ...props }: Omit<ComponentPropsWithoutRef<typeof OverlapPane>, "as" | "side"> & {
+  divider?: "none" | "line";
+}) {
   return <OverlapPane as="main" side="left" className={cn("resource-prep-workbench-main", className)} {...props} />;
 }
 

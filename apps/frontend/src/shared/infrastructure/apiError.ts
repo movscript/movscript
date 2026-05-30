@@ -16,6 +16,8 @@ const CODE_KEYS: Record<string, string> = {
   INTERNAL_ERROR: 'apiErrors.internalError',
   CYCLE_DETECTED: 'apiErrors.cycleDetected',
   CONFLICT: 'apiErrors.conflict',
+  RESOURCE_NAME_CONFLICT: 'apiErrors.resourceNameConflict',
+  RESOURCE_IN_USE: 'apiErrors.resourceInUse',
 }
 
 const EXACT_KEYS: Record<string, string> = {

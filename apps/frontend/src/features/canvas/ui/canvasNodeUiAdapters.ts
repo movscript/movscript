@@ -206,8 +206,10 @@ export function resourceSinkPorts(): { inputs: CanvasPortDef[]; outputs: CanvasP
 export function shouldRenderCanvasResourcePreview(
   resource: RawResource | undefined,
   canvasDebug: { media?: boolean; images?: boolean; videos?: boolean } | undefined,
+  overviewMode = false,
 ) {
   if (!resource) return false
+  if (overviewMode) return false
   if (canvasDebug?.media === false) return false
   if (resource.type === 'image' && canvasDebug?.images === false) return false
   if (resource.type === 'video' && canvasDebug?.videos === false) return false

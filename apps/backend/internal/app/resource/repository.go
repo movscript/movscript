@@ -3,28 +3,58 @@ package resource
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
-	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
 type repository interface {
+	Transaction(ctx context.Context, fn func(repository) error) error
 	List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error)
 	CreateResource(ctx context.Context, r *domainresource.RawResource) error
+	FindBlobByHash(ctx context.Context, hash string) (resourceBlob, bool, error)
+	CreateBlob(ctx context.Context, blob *resourceBlob) error
+	IncrementBlobRef(ctx context.Context, blobID uint) error
+	DecrementBlobRef(ctx context.Context, blobID uint) error
 	DeleteResourceRecord(ctx context.Context, r *domainresource.RawResource) error
 	UpdateResourceRecord(ctx context.Context, r *domainresource.RawResource, spec domainresource.UpdateSpec) error
 	ReloadResource(ctx context.Context, r *domainresource.RawResource) error
+	ResourceNameExists(ctx context.Context, scope resourceNameScope) (bool, error)
+	ResourceReferenceCount(ctx context.Context, resourceID uint) (int64, error)
 	AdoptOwnedPersonalResourceToOrg(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
-	DeleteResourceAndBindings(ctx context.Context, r domainresource.RawResource) error
 	UploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error)
 }
 
 type gormRepository struct {
 	db *gorm.DB
+}
+
+func (r *gormRepository) Transaction(ctx context.Context, fn func(repository) error) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&gormRepository{db: tx})
+	})
+}
+
+type resourceNameScope struct {
+	UserID    uint
+	OrgID     *uint
+	Name      string
+	ExcludeID uint
+}
+
+type resourceBlob struct {
+	ID             uint
+	Hash           string
+	StorageBackend string
+	StorageKey     string
+	Size           int64
+	MimeType       string
+	RefCount       int
 }
 
 func (r *gormRepository) List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error) {
@@ -62,6 +92,53 @@ func (r *gormRepository) CreateResource(ctx context.Context, resource *domainres
 	return nil
 }
 
+func (r *gormRepository) FindBlobByHash(ctx context.Context, hash string) (resourceBlob, bool, error) {
+	var blob persistencemodel.ResourceBlob
+	if err := r.db.WithContext(ctx).Where("hash = ?", strings.TrimSpace(hash)).First(&blob).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return resourceBlob{}, false, nil
+		}
+		return resourceBlob{}, false, err
+	}
+	return resourceBlobFromModel(blob), true, nil
+}
+
+func (r *gormRepository) CreateBlob(ctx context.Context, blob *resourceBlob) error {
+	modelBlob := persistencemodel.ResourceBlob{
+		Hash:           blob.Hash,
+		StorageBackend: blob.StorageBackend,
+		StorageKey:     blob.StorageKey,
+		Size:           blob.Size,
+		MimeType:       blob.MimeType,
+		RefCount:       blob.RefCount,
+	}
+	if err := r.db.WithContext(ctx).Create(&modelBlob).Error; err != nil {
+		return err
+	}
+	*blob = resourceBlobFromModel(modelBlob)
+	return nil
+}
+
+func (r *gormRepository) IncrementBlobRef(ctx context.Context, blobID uint) error {
+	if blobID == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).
+		Model(&persistencemodel.ResourceBlob{}).
+		Where("id = ?", blobID).
+		UpdateColumn("ref_count", gorm.Expr("ref_count + ?", 1)).Error
+}
+
+func (r *gormRepository) DecrementBlobRef(ctx context.Context, blobID uint) error {
+	if blobID == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).
+		Model(&persistencemodel.ResourceBlob{}).
+		Where("id = ? AND ref_count > 0", blobID).
+		UpdateColumn("ref_count", gorm.Expr("ref_count - ?", 1)).Error
+}
+
 func (r *gormRepository) DeleteResourceRecord(ctx context.Context, resource *domainresource.RawResource) error {
 	modelResource := resource.ToModel()
 	return r.db.WithContext(ctx).Delete(&modelResource).Error
@@ -89,6 +166,70 @@ func (r *gormRepository) ReloadResource(ctx context.Context, resource *domainres
 	return nil
 }
 
+func (r *gormRepository) ResourceNameExists(ctx context.Context, scope resourceNameScope) (bool, error) {
+	name := strings.TrimSpace(scope.Name)
+	if name == "" {
+		return false, nil
+	}
+	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("LOWER(name) = LOWER(?)", name)
+	if scope.OrgID == nil {
+		q = q.Where("owner_id = ? AND org_id IS NULL", scope.UserID)
+	} else {
+		q = q.Where("org_id = ?", *scope.OrgID)
+	}
+	if scope.ExcludeID != 0 {
+		q = q.Where("id <> ?", scope.ExcludeID)
+	}
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *gormRepository) ResourceReferenceCount(ctx context.Context, resourceID uint) (int64, error) {
+	checks := []struct {
+		model any
+		where string
+		args  []any
+	}{
+		{model: &persistencemodel.ResourceBinding{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.ShotReference{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.ShotReferenceGroup{}, where: "source_resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.AssetSlot{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.Keyframe{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.DeliveryTimelineItem{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.ExportRecord{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.CanvasTask{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.CanvasOutput{}, where: "resource_id = ?", args: []any{resourceID}},
+		{model: &persistencemodel.Job{}, where: "input_resource_id = ? OR output_resource_id = ? OR input_resource_ids = ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ? OR input_resource_ids LIKE ?", args: jobResourceReferenceArgs(resourceID)},
+	}
+	var total int64
+	for _, check := range checks {
+		if !r.db.Migrator().HasTable(check.model) {
+			continue
+		}
+		var count int64
+		if err := r.db.WithContext(ctx).Model(check.model).Where(check.where, check.args...).Count(&count).Error; err != nil {
+			return 0, err
+		}
+		total += count
+	}
+	return total, nil
+}
+
+func jobResourceReferenceArgs(resourceID uint) []any {
+	id := fmt.Sprint(resourceID)
+	return []any{
+		resourceID,
+		resourceID,
+		"[" + id + "]",
+		"[" + id + ",%",
+		"%," + id + ",%",
+		"%," + id + "]",
+	}
+}
+
 func (r *gormRepository) AdoptOwnedPersonalResourceToOrg(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
 	if orgID == nil {
 		return domainresource.RawResource{}, ErrForbidden
@@ -102,6 +243,13 @@ func (r *gormRepository) AdoptOwnedPersonalResourceToOrg(ctx context.Context, id
 			return resource, nil
 		}
 		return resource, ErrForbidden
+	}
+	exists, err := r.ResourceNameExists(ctx, resourceNameScope{UserID: userID, OrgID: orgID, Name: resource.Name, ExcludeID: resource.ID})
+	if err != nil {
+		return resource, err
+	}
+	if exists {
+		return resource, ErrDuplicateName
 	}
 	if err := r.UpdateResourceRecord(ctx, &resource, domainresource.UpdateSpec{OrgID: orgID}); err != nil {
 		return resource, err
@@ -142,21 +290,6 @@ func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, org
 		return resource, ErrForbidden
 	}
 	return resource, nil
-}
-
-func (r *gormRepository) DeleteResourceAndBindings(ctx context.Context, resource domainresource.RawResource) error {
-	var bindings []persistencemodel.ResourceBinding
-	if err := r.db.WithContext(ctx).Select("id").Where("resource_id = ?", resource.ID).Find(&bindings).Error; err != nil {
-		return err
-	}
-	bindingSvc := resourcebinding.NewService(r.db)
-	for i := range bindings {
-		if err := bindingSvc.Delete(ctx, bindings[i].ID); err != nil {
-			return err
-		}
-	}
-	modelResource := resource.ToModel()
-	return r.db.WithContext(ctx).Delete(&modelResource).Error
 }
 
 func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error) {
@@ -290,6 +423,18 @@ func rawResourceSliceFromModels(items []persistencemodel.RawResource) []domainre
 	return resources
 }
 
+func resourceBlobFromModel(blob persistencemodel.ResourceBlob) resourceBlob {
+	return resourceBlob{
+		ID:             blob.ID,
+		Hash:           blob.Hash,
+		StorageBackend: blob.StorageBackend,
+		StorageKey:     blob.StorageKey,
+		Size:           blob.Size,
+		MimeType:       blob.MimeType,
+		RefCount:       blob.RefCount,
+	}
+}
+
 func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
 	updates := map[string]any{}
 	if spec.FilePath != nil {
@@ -300,6 +445,9 @@ func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
 	}
 	if spec.StorageBackend != nil {
 		updates["storage_backend"] = *spec.StorageBackend
+	}
+	if spec.BlobID != nil {
+		updates["blob_id"] = *spec.BlobID
 	}
 	if spec.Type != nil {
 		updates["type"] = *spec.Type

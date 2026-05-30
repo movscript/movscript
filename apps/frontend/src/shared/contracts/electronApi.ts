@@ -144,6 +144,28 @@ export type ElectronVideoClipStatus = {
   arch?: string
 }
 
+export type ElectronShotCutInput = {
+  sourceData?: ArrayBuffer | Uint8Array
+  sourceName?: string
+  durationSec?: number
+  sceneThreshold?: number
+  minShotDurationSec?: number
+  maxShotDurationSec?: number
+}
+
+export type ElectronShotCutSegment = {
+  startSec: number
+  endSec: number
+}
+
+export type ElectronShotCutResult = {
+  ok: boolean
+  strategy?: 'scene_detection' | 'even'
+  shots?: ElectronShotCutSegment[]
+  error?: string
+  code?: string
+}
+
 export type ElectronAgentRuntimeStatus = {
   ok: boolean
   running: boolean
@@ -200,5 +222,6 @@ export type ElectronAPI = {
   clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
   exportTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
   getVideoClipStatus?: () => Promise<ElectronVideoClipStatus>
+  analyzeShotCuts?: (input: ElectronShotCutInput) => Promise<ElectronShotCutResult>
   onMCPOpenRoute?: (handler: (route: string) => void) => () => void
 }

@@ -3,6 +3,8 @@ package resource
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -24,6 +26,8 @@ var (
 	ErrFolderNotFound = errors.New("resource folder not found")
 	ErrForbidden      = errors.New("resource access denied")
 	ErrNoStorageKey   = errors.New("resource has no storage key")
+	ErrDuplicateName  = errors.New("resource filename already exists")
+	ErrResourceInUse  = errors.New("resource is still referenced")
 )
 
 type Service struct {
@@ -106,54 +110,55 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]domainresource.R
 }
 
 func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource.RawResource, error) {
-	folderID, err := s.repo.UploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
-	if err != nil {
-		return domainresource.RawResource{}, err
-	}
 	mimeType := normalizeUploadMimeType(input.MimeType, input.Filename)
-	r := domainresource.NewUploadedResource(domainresource.NewUploadedResourceSpec{
-		OwnerID:        input.UserID,
-		OrgID:          input.OrgID,
-		FolderID:       folderID,
-		Name:           input.Filename,
-		MimeType:       mimeType,
-		Size:           input.Size,
-		StorageBackend: s.store.Backend(),
-	})
-	if err := s.repo.CreateResource(ctx, &r); err != nil {
-		return domainresource.RawResource{}, err
-	}
-
-	key := GenerateStorageKey(r.ID, input.Filename)
+	filename := strings.TrimSpace(input.Filename)
 	data := input.Data
+	size := input.Size
 	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
 		fmt.Printf("[resource] video normalization skipped for %q: %v\n", input.Filename, err)
 	} else if changed {
 		data = normalized
 		mimeType = normalizedMime
-		r.Type = MimeToType(mimeType, input.Filename)
-		r.MimeType = mimeType
-		r.Name = media.MP4Name(r.Name)
-		r.Size = int64(len(data))
+		filename = media.MP4Name(filename)
+		size = int64(len(data))
 	}
-
-	if err := s.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
-		_ = s.repo.DeleteResourceRecord(ctx, &r)
+	if err := s.ensureUniqueResourceName(ctx, input.UserID, input.OrgID, filename, 0); err != nil {
 		return domainresource.RawResource{}, err
 	}
-	if err := s.repo.UpdateResourceRecord(ctx, &r, domainresource.UpdateSpec{
-		FilePath:       &key,
-		StorageKey:     &key,
-		StorageBackend: ptrString(s.store.Backend()),
-		Type:           &r.Type,
-		Name:           &r.Name,
-		MimeType:       &r.MimeType,
-		Size:           &r.Size,
+	blob, err := s.ensureBlobForData(ctx, data, mimeType)
+	if err != nil {
+		return domainresource.RawResource{}, err
+	}
+
+	var r domainresource.RawResource
+	if err := s.repo.Transaction(ctx, func(repo repository) error {
+		folderID, err := repo.UploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
+		if err != nil {
+			return err
+		}
+		if err := s.ensureUniqueResourceNameWithRepo(ctx, repo, input.UserID, input.OrgID, filename, 0); err != nil {
+			return err
+		}
+		r = domainresource.NewUploadedResource(domainresource.NewUploadedResourceSpec{
+			OwnerID:        input.UserID,
+			OrgID:          input.OrgID,
+			FolderID:       folderID,
+			Name:           filename,
+			MimeType:       mimeType,
+			Size:           size,
+			StorageBackend: s.store.Backend(),
+		})
+		r.BlobID = &blob.ID
+		r.FilePath = "stored:" + blob.StorageKey
+		r.StorageKey = blob.StorageKey
+		r.StorageBackend = blob.StorageBackend
+		if err := repo.CreateResource(ctx, &r); err != nil {
+			return err
+		}
+		return repo.IncrementBlobRef(ctx, blob.ID)
 	}); err != nil {
 		return domainresource.RawResource{}, err
 	}
-	r.StorageKey = key
-	r.StorageBackend = s.store.Backend()
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
 }
@@ -173,14 +178,26 @@ func (s *Service) AdoptToTeam(ctx context.Context, id uint, userID uint, orgID *
 }
 
 func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) error {
-	r, err := s.repo.GetOwned(ctx, id, userID, orgID)
-	if err != nil {
-		return err
-	}
-	if r.StorageKey != "" {
-		_ = s.store.Delete(ctx, r.StorageKey)
-	}
-	if err := s.repo.DeleteResourceAndBindings(ctx, r); err != nil {
+	if err := s.repo.Transaction(ctx, func(repo repository) error {
+		r, err := repo.GetOwned(ctx, id, userID, orgID)
+		if err != nil {
+			return err
+		}
+		refs, err := repo.ResourceReferenceCount(ctx, r.ID)
+		if err != nil {
+			return err
+		}
+		if refs > 0 {
+			return ErrResourceInUse
+		}
+		if err := repo.DeleteResourceRecord(ctx, &r); err != nil {
+			return err
+		}
+		if r.BlobID != nil {
+			return repo.DecrementBlobRef(ctx, *r.BlobID)
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
 	s.bumpListVersion(ctx, userID, orgID)
@@ -207,8 +224,11 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 			updates.FolderID = folderID
 		}
 	}
-	if input.Name != "" {
-		updates.Name = &input.Name
+	if name := strings.TrimSpace(input.Name); name != "" {
+		if err := s.ensureUniqueResourceName(ctx, input.UserID, input.OrgID, name, r.ID); err != nil {
+			return r, err
+		}
+		updates.Name = &name
 	}
 	if !updates.Empty() {
 		if err := s.repo.UpdateResourceRecord(ctx, &r, updates); err != nil {
@@ -220,6 +240,67 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 	}
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
+}
+
+func (s *Service) ensureUniqueResourceName(ctx context.Context, userID uint, orgID *uint, name string, excludeID uint) error {
+	return s.ensureUniqueResourceNameWithRepo(ctx, s.repo, userID, orgID, name, excludeID)
+}
+
+func (s *Service) ensureUniqueResourceNameWithRepo(ctx context.Context, repo repository, userID uint, orgID *uint, name string, excludeID uint) error {
+	if strings.TrimSpace(name) == "" {
+		return nil
+	}
+	exists, err := repo.ResourceNameExists(ctx, resourceNameScope{
+		UserID:    userID,
+		OrgID:     orgID,
+		Name:      name,
+		ExcludeID: excludeID,
+	})
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrDuplicateName
+	}
+	return nil
+}
+
+func (s *Service) ensureBlobForData(ctx context.Context, data []byte, mimeType string) (resourceBlob, error) {
+	return s.ensureBlobForDataWithRepo(ctx, s.repo, data, mimeType)
+}
+
+func (s *Service) ensureBlobForDataWithRepo(ctx context.Context, repo repository, data []byte, mimeType string) (resourceBlob, error) {
+	hash := sha256Hex(data)
+	if existing, ok, err := repo.FindBlobByHash(ctx, hash); err != nil {
+		return resourceBlob{}, err
+	} else if ok {
+		return existing, nil
+	}
+	key := domainresource.GenerateBlobStorageKey(hash)
+	if err := s.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
+		return resourceBlob{}, err
+	}
+	blob := resourceBlob{
+		Hash:           hash,
+		StorageBackend: s.store.Backend(),
+		StorageKey:     key,
+		Size:           int64(len(data)),
+		MimeType:       mimeType,
+	}
+	if err := repo.CreateBlob(ctx, &blob); err != nil {
+		if existing, ok, findErr := repo.FindBlobByHash(ctx, hash); findErr != nil {
+			return resourceBlob{}, findErr
+		} else if ok {
+			return existing, nil
+		}
+		return resourceBlob{}, err
+	}
+	return blob, nil
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Service) VerifyImage(ctx context.Context, input VerifyImageInput) (domainresource.RawResource, error) {

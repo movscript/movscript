@@ -1,7 +1,7 @@
 .tool-header {
   flex-shrink: 0;
   border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-background);
+  background: var(--tool-page-background, var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background))));
   padding: 16px 20px;
 }
 

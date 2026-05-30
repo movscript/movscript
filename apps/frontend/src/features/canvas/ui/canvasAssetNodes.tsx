@@ -60,7 +60,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
       status={status}
       statusIcons={canvasNodeStatusIcons}
       ports={<ResourceNodeOutputHandle nodeType="text" data={data} selected={selected} />}
-      meta={<CanvasResourceNodeMeta resource={data.resource} />}
+      meta={<CanvasResourceNodeMeta resource={data.resource} lightweight={data.canvasMediaLightweightMode} />}
       manual={data.source === 'manual'}
       editable={editable}
       previewing={previewing}
@@ -122,7 +122,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
   const imgUrl = data.resource?.direct_url ?? (data.resource?.url ? `${API_BASE}${data.resource.url}` : null)
-  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug)
+  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug, data.canvasMediaLightweightMode)
   const [aspectRatio, setAspectRatio] = useState<number>()
   useEffect(() => {
     setAspectRatio(undefined)
@@ -136,7 +136,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       statusIcons={canvasNodeStatusIcons}
       runIcon={<Play size={12} />}
       ports={<ResourceNodeOutputHandle nodeType="image" data={data} selected={selected} />}
-      meta={<CanvasResourceNodeMeta resource={data.resource} />}
+      meta={<CanvasResourceNodeMeta resource={data.resource} lightweight={data.canvasMediaLightweightMode} />}
       aspectRatio={aspectRatio}
       media={imgUrl && showPreview ? (
         <AuthedImage
@@ -157,7 +157,7 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
 export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug)
+  const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug, data.canvasMediaLightweightMode)
   const [aspectRatio, setAspectRatio] = useState<number>()
   useEffect(() => {
     setAspectRatio(undefined)
@@ -172,7 +172,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       runIcon={<Play size={12} />}
       onRun={data.onRun}
       ports={<ResourceNodeOutputHandle nodeType="video" data={data} selected={selected} />}
-      meta={<CanvasResourceNodeMeta resource={data.resource} />}
+      meta={<CanvasResourceNodeMeta resource={data.resource} lightweight={data.canvasMediaLightweightMode} />}
       aspectRatio={aspectRatio}
       media={data.resource && showPreview ? (
         <MediaViewer
@@ -232,8 +232,10 @@ function ResourceNodeOutputHandle({
 
 function CanvasResourceNodeMeta({
   resource,
+  lightweight = false,
 }: {
   resource?: RawResource
+  lightweight?: boolean
 }) {
   const [detail, setDetail] = useState<string>()
   useEffect(() => {
@@ -248,23 +250,25 @@ function CanvasResourceNodeMeta({
         <span className="canvas-media-node-info__crumb">{formatBytes(resource.size)}</span>
         <span className="canvas-media-node-info__crumb">{detail || fallbackResourceDetail(resource)}</span>
       </div>
-      {resource.type === 'image' && url ? (
+      {!lightweight && resource.type === 'image' && url ? (
         <AuthedImage
           src={url}
           alt=""
           aria-hidden
           className="canvas-media-node-info__probe"
+          thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE}
           onLoad={(event) => {
             const image = event.currentTarget
             if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
           }}
         />
       ) : null}
-      {resource.type === 'video' && url ? (
+      {!lightweight && resource.type === 'video' && url ? (
         <MediaViewer
           resource={resource}
           lightbox={false}
           className="canvas-media-node-info__probe"
+          lightweightVideoThumb
           onVideoLoadedMetadata={(event) => {
             const video = event.currentTarget
             const parts = [

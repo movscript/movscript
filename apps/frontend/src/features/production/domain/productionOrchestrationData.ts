@@ -4,8 +4,10 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
+import { api } from '@/shared/infrastructure/api'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
 import type { ProductionWritingExpressionType as WritingExpressionType } from '@/features/production/domain/productionWritingExpressions'
+import type { Job } from '@/types'
 
 export type ProductionRecord = SemanticEntityRecord & { script_version_id?: number; name?: string }
 
@@ -127,6 +129,10 @@ export interface OrchestrationData {
   scriptBlocks: ScriptBlockRecord[]
   writingExpressions: WritingExpressionRecord[]
   keyframes: KeyframeRecord[]
+  previewTimelines: SemanticEntityRecord[]
+  previewTimelineItems: SemanticEntityRecord[]
+  deliveryVersions: SemanticEntityRecord[]
+  jobs: Job[]
 }
 
 export function isActiveProductionOrchestrationRecord(record: SemanticEntityRecord) {
@@ -144,6 +150,9 @@ export const PRODUCTION_ORCHESTRATION_ENTITY_KINDS = [
   'scriptBlocks',
   'writingExpressions',
   'keyframes',
+  'previewTimelines',
+  'previewTimelineItems',
+  'deliveryVersions',
 ] as const satisfies readonly SemanticEntityKind[]
 
 export async function loadProductionOrchestrationData(projectId: number): Promise<OrchestrationData> {
@@ -158,6 +167,9 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     scriptBlocks,
     writingExpressions,
     keyframes,
+    previewTimelines,
+    previewTimelineItems,
+    deliveryVersions,
   ] = await Promise.all(PRODUCTION_ORCHESTRATION_ENTITY_KINDS.map((kind) => listSemanticEntities(projectId, semanticEntityConfig(kind))))
 
   return {
@@ -171,5 +183,23 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
     scriptBlocks: scriptBlocks as ScriptBlockRecord[],
     writingExpressions: writingExpressions as WritingExpressionRecord[],
     keyframes: keyframes as KeyframeRecord[],
+    previewTimelines,
+    previewTimelineItems,
+    deliveryVersions,
+    jobs: await loadProductionOrchestrationJobs(projectId, ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v']),
   }
+}
+
+export async function loadProductionOrchestrationJobs(projectId: number, types: string[]) {
+  const batches = await Promise.all(types.map((type) => (
+    api.get<Job[]>('/jobs', {
+      params: {
+        project_id: projectId,
+        type,
+        exact_type: 1,
+        limit: 100,
+      },
+    }).then((response) => response.data)
+  )))
+  return batches.flat().sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
 }

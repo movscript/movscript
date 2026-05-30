@@ -4,10 +4,11 @@
   align-items: center;
   gap: 6px;
   margin: 0 auto;
-  width: min(100%, 1080px);
+  width: min(100%, var(--script-workbench-content-max, 92%));
   border-bottom: 0;
   background: transparent;
-  padding: 0 var(--script-workbench-content-x, 34px) 8px;
+  box-sizing: border-box;
+  padding: 0 0 calc(var(--script-workbench-content-y, 12px) * 0.65);
 }
 
 .script-detail-tabs__trigger {

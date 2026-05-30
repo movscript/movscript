@@ -41,5 +41,5 @@
     "schema://movscript.setting_proposal.v1"
   ],
   "instructionTemplatePath": "instruction.md",
-  "outputContract": "回复 draftId、projectId、draft status、validation/preview 状态，以及设定资料变更摘要。"
+  "outputContract": "回复 draftId、projectId、validation/preview 结果，以及设定资料变更摘要。"
 }

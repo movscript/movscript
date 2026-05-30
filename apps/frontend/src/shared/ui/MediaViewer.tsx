@@ -38,7 +38,9 @@ interface MediaViewerProps {
 }
 
 export function resolveResourceUrl(resource: RawResource): string {
-  return resource.direct_url ?? `${API_BASE}${resource.url}`
+  if (resource.direct_url) return resource.direct_url
+  if (/^https?:\/\//i.test(resource.url) || resource.url.startsWith('data:') || resource.url.startsWith('blob:')) return resource.url
+  return `${API_BASE}${resource.url}`
 }
 
 export async function downloadResource(proxyUrl: string, name: string) {

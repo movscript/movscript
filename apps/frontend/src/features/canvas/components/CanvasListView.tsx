@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Check, LayoutTemplate, Lightbulb, Pencil, Plus, Trash2, X, Zap } from 'lucide-react'
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Lightbulb, Pencil, Plus, Search, Trash2, Workflow, X, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   CanvasListCreateActionButton,
@@ -20,6 +20,8 @@ import {
   CanvasListEmpty,
   CanvasListEmptyActionButton,
   CanvasListError,
+  CanvasListFilterButton,
+  CanvasListFilterGroup,
   CanvasListHeader,
   CanvasListHeaderText,
   CanvasListItem,
@@ -32,8 +34,15 @@ import {
   CanvasListItemNameInput,
   CanvasListItems,
   CanvasListLoading,
+  CanvasListPageButton,
+  CanvasListPageStatus,
+  CanvasListPagination,
+  CanvasListSearchBox,
+  CanvasListSearchInput,
   CanvasListShell,
+  CanvasListSummary,
   CanvasListTitle,
+  CanvasListToolbar,
   CanvasListTypeBadge,
 } from '@movscript/ui'
 
@@ -42,15 +51,21 @@ import { api } from '@/shared/infrastructure/api'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import type { Canvas, CanvasType } from '@/types'
 
-const TYPE_META: Record<CanvasType, { labelKey: string; icon: JSX.Element; descKey: string }> = {
+const PAGE_SIZE = 8
+
+type CanvasTypeFilter = 'all' | CanvasType
+
+const TYPE_META: Record<CanvasType, { labelKey: string; icon: JSX.Element; listIcon: JSX.Element; descKey: string }> = {
   inspiration: {
     labelKey: 'pages.canvases.types.inspiration',
     icon: <Lightbulb size={12} />,
+    listIcon: <Lightbulb size={16} />,
     descKey: 'pages.canvases.typeDescriptions.inspiration',
   },
   workflow: {
     labelKey: 'pages.canvases.types.workflow',
     icon: <Zap size={12} />,
+    listIcon: <Workflow size={16} />,
     descKey: 'pages.canvases.typeDescriptions.workflow',
   },
 }
@@ -70,6 +85,9 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
   const [newCanvasType, setNewCanvasType] = useState<CanvasType>('inspiration')
   const [editingCanvasId, setEditingCanvasId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [typeFilter, setTypeFilter] = useState<CanvasTypeFilter>('all')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
 
   const canvasesQuery = useQuery<Canvas[]>({
     queryKey: ['canvases', currentProject?.ID],
@@ -106,6 +124,21 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
   })
 
   const canvases = canvasesQuery.data ?? []
+  const filteredCanvases = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return canvases.filter((canvas) => {
+      const type = canvas.canvas_type ?? 'inspiration'
+      if (typeFilter !== 'all' && type !== typeFilter) return false
+      if (!query) return true
+      return `${canvas.name} ${canvas.ID} ${t(TYPE_META[type].labelKey)}`
+        .toLowerCase()
+        .includes(query)
+    })
+  }, [canvases, search, t, typeFilter])
+  const pageCount = Math.max(1, Math.ceil(filteredCanvases.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pagedCanvases = filteredCanvases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const hasFilters = search.trim().length > 0 || typeFilter !== 'all'
 
   function resetCreate() {
     setShowCreate(false)
@@ -135,6 +168,16 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
     setEditingName('')
   }
 
+  function updateTypeFilter(nextFilter: CanvasTypeFilter) {
+    setTypeFilter(nextFilter)
+    setPage(1)
+  }
+
+  function updateSearch(nextSearch: string) {
+    setSearch(nextSearch)
+    setPage(1)
+  }
+
   return (
     <CanvasListShell className={className}>
       <CanvasListHeader>
@@ -154,7 +197,7 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
           {errorMessage(canvasesQuery.error)}
         </CanvasListError>
       ) : canvases.length === 0 ? (
-        <CanvasListEmpty icon={LayoutTemplate} title={t('pages.canvases.empty')}>
+        <CanvasListEmpty icon={Workflow} title={t('pages.canvases.empty')}>
           <CanvasListEmptyActionButton
             type="button"
             onClick={() => setShowCreate(true)}
@@ -163,92 +206,159 @@ export function CanvasListView({ source, className }: CanvasListViewProps) {
           </CanvasListEmptyActionButton>
         </CanvasListEmpty>
       ) : (
-        <CanvasListItems>
-          {canvases.map((canvas) => {
-            const type = canvas.canvas_type ?? 'inspiration'
-            const meta = TYPE_META[type]
-            const isEditing = editingCanvasId === canvas.ID
-            return (
-              <CanvasListItem key={canvas.ID}>
-                <CanvasListItemIcon>
-                  <LayoutTemplate size={16} />
-                </CanvasListItemIcon>
-                <CanvasListItemBody>
-                  {isEditing ? (
-                    <CanvasListItemNameInput
-                      autoFocus
-                      value={editingName}
-                      onChange={(event) => setEditingName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') submitRename(canvas.ID)
-                        if (event.key === 'Escape') cancelRename()
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <CanvasListItemName>{canvas.name}</CanvasListItemName>
-                      {source === 'agent' ? (
-                        <CanvasListItemMeta>#{canvas.ID}</CanvasListItemMeta>
-                      ) : null}
-                    </>
-                  )}
-                </CanvasListItemBody>
-                <CanvasListTypeBadge icon={meta.icon}>{t(meta.labelKey)}</CanvasListTypeBadge>
-                {isEditing ? (
-                  <CanvasListItemActions>
-                    <CanvasListItemActionButton
-                      variant="outline"
-                      size="icon"
-                      onClick={() => submitRename(canvas.ID)}
-                      disabled={!editingName.trim() || renameCanvas.isPending}
-                      aria-label={t('pages.canvases.renameConfirm')}
-                    >
-                      <Check size={14} />
-                    </CanvasListItemActionButton>
-                    <CanvasListItemActionButton
-                      variant="ghost"
-                      size="icon"
-                      onClick={cancelRename}
-                      aria-label={t('common.cancel')}
-                      muted
-                    >
-                      <X size={14} />
-                    </CanvasListItemActionButton>
-                  </CanvasListItemActions>
-                ) : (
-                  <CanvasListItemActions>
-                    <CanvasListItemActionButton
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(canvasEditorPath(canvas.ID, { source }))}
-                    >
-                      {t('pages.canvases.open')} <ArrowRight size={14} />
-                    </CanvasListItemActionButton>
-                    <CanvasListItemActionButton
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => startRename(canvas)}
-                      aria-label={t('pages.canvases.rename')}
-                      muted
-                    >
-                      <Pencil size={14} />
-                    </CanvasListItemActionButton>
-                    <CanvasListItemActionButton
-                      variant="ghost"
-                      tone="danger"
-                      size="icon"
-                      onClick={() => removeCanvas.mutate(canvas.ID)}
-                      disabled={removeCanvas.isPending}
-                      aria-label={t('common.delete')}
-                    >
-                      <Trash2 size={14} />
-                    </CanvasListItemActionButton>
-                  </CanvasListItemActions>
-                )}
-              </CanvasListItem>
-            )
-          })}
-        </CanvasListItems>
+        <>
+          <CanvasListToolbar>
+            <CanvasListSearchBox icon={<Search size={14} />}>
+              <CanvasListSearchInput
+                value={search}
+                onChange={(event) => updateSearch(event.target.value)}
+                placeholder={t('pages.canvases.searchPlaceholder')}
+                aria-label={t('pages.canvases.searchLabel')}
+              />
+            </CanvasListSearchBox>
+            <CanvasListFilterGroup aria-label={t('pages.canvases.categoryFilter')}>
+              {(['all', 'inspiration', 'workflow'] as CanvasTypeFilter[]).map((filter) => (
+                <CanvasListFilterButton
+                  key={filter}
+                  active={typeFilter === filter}
+                  onClick={() => updateTypeFilter(filter)}
+                >
+                  {filter === 'all' ? t('common.all') : t(TYPE_META[filter].labelKey)}
+                </CanvasListFilterButton>
+              ))}
+            </CanvasListFilterGroup>
+          </CanvasListToolbar>
+          <CanvasListSummary>
+            {t('pages.canvases.resultSummary', { shown: filteredCanvases.length, total: canvases.length })}
+          </CanvasListSummary>
+          {filteredCanvases.length === 0 ? (
+            <CanvasListEmpty icon={Search} title={t('pages.canvases.noResults')}>
+              {hasFilters ? (
+                <CanvasListEmptyActionButton
+                  type="button"
+                  onClick={() => {
+                    updateSearch('')
+                    updateTypeFilter('all')
+                  }}
+                >
+                  {t('pages.canvases.clearFilters')}
+                </CanvasListEmptyActionButton>
+              ) : null}
+            </CanvasListEmpty>
+          ) : (
+            <>
+              <CanvasListItems>
+                {pagedCanvases.map((canvas) => {
+                  const type = canvas.canvas_type ?? 'inspiration'
+                  const meta = TYPE_META[type]
+                  const isEditing = editingCanvasId === canvas.ID
+                  return (
+                    <CanvasListItem key={canvas.ID}>
+                      <CanvasListItemIcon data-canvas-type={type}>
+                        {meta.listIcon}
+                      </CanvasListItemIcon>
+                      <CanvasListItemBody>
+                        {isEditing ? (
+                          <CanvasListItemNameInput
+                            autoFocus
+                            value={editingName}
+                            onChange={(event) => setEditingName(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') submitRename(canvas.ID)
+                              if (event.key === 'Escape') cancelRename()
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <CanvasListItemName>{canvas.name}</CanvasListItemName>
+                            {source === 'agent' ? (
+                              <CanvasListItemMeta>#{canvas.ID}</CanvasListItemMeta>
+                            ) : null}
+                          </>
+                        )}
+                      </CanvasListItemBody>
+                      <CanvasListTypeBadge icon={meta.icon}>{t(meta.labelKey)}</CanvasListTypeBadge>
+                      {isEditing ? (
+                        <CanvasListItemActions>
+                          <CanvasListItemActionButton
+                            variant="outline"
+                            size="icon"
+                            onClick={() => submitRename(canvas.ID)}
+                            disabled={!editingName.trim() || renameCanvas.isPending}
+                            aria-label={t('pages.canvases.renameConfirm')}
+                          >
+                            <Check size={14} />
+                          </CanvasListItemActionButton>
+                          <CanvasListItemActionButton
+                            variant="ghost"
+                            size="icon"
+                            onClick={cancelRename}
+                            aria-label={t('common.cancel')}
+                            muted
+                          >
+                            <X size={14} />
+                          </CanvasListItemActionButton>
+                        </CanvasListItemActions>
+                      ) : (
+                        <CanvasListItemActions>
+                          <CanvasListItemActionButton
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(canvasEditorPath(canvas.ID, { source }))}
+                          >
+                            {t('pages.canvases.open')} <ArrowRight size={14} />
+                          </CanvasListItemActionButton>
+                          <CanvasListItemActionButton
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => startRename(canvas)}
+                            aria-label={t('pages.canvases.rename')}
+                            muted
+                          >
+                            <Pencil size={14} />
+                          </CanvasListItemActionButton>
+                          <CanvasListItemActionButton
+                            variant="ghost"
+                            tone="danger"
+                            size="icon"
+                            onClick={() => removeCanvas.mutate(canvas.ID)}
+                            disabled={removeCanvas.isPending}
+                            aria-label={t('common.delete')}
+                          >
+                            <Trash2 size={14} />
+                          </CanvasListItemActionButton>
+                        </CanvasListItemActions>
+                      )}
+                    </CanvasListItem>
+                  )
+                })}
+              </CanvasListItems>
+              {pageCount > 1 ? (
+                <CanvasListPagination>
+                  <CanvasListPageStatus>
+                    {t('pages.canvases.pageStatus', { page: currentPage, pageCount })}
+                  </CanvasListPageStatus>
+                  <CanvasListPageButton
+                    type="button"
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    disabled={currentPage <= 1}
+                    aria-label={t('pages.canvases.previousPage')}
+                  >
+                    <ChevronLeft size={14} />
+                  </CanvasListPageButton>
+                  <CanvasListPageButton
+                    type="button"
+                    onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+                    disabled={currentPage >= pageCount}
+                    aria-label={t('pages.canvases.nextPage')}
+                  >
+                    <ChevronRight size={14} />
+                  </CanvasListPageButton>
+                </CanvasListPagination>
+              ) : null}
+            </>
+          )}
+        </>
       )}
 
       <CanvasListCreateDialog

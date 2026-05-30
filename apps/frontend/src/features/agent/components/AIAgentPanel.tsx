@@ -16,7 +16,7 @@ export function AIAgentPanel() {
     panelRef,
     panelWidth,
     pendingThreadIdToOpen,
-    startPanelResize,
+    resizeHandleProps,
     toggleOpen,
   } = useAIAgentPanelDockController()
   const [renderPanel, setRenderPanel] = useState(open)
@@ -63,7 +63,7 @@ export function AIAgentPanel() {
       collapsed={!animatedOpen}
       panelRef={panelRef}
       panelWidth={animatedOpen ? panelWidth : 0}
-      onResizeStart={startPanelResize}
+      resizeHandleProps={resizeHandleProps}
     >
       <AgentBuiltinChatShell
         userId={userId}

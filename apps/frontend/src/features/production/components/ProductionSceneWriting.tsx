@@ -145,7 +145,7 @@ export function SceneMomentSettingsEditor({
         description={(
           <ProductionSceneWritingResponsiveDescription>
             {linkedReferences.length > 0
-              ? '这些设定会跟随当前情节进入后续内容编排和生成上下文。'
+              ? '这些设定会跟随当前情节进入镜头方案和生成上下文。'
               : '当前情节还没有显式绑定设定；可从前期准备里的设定资料中选择并挂到这个情节。'}
           </ProductionSceneWritingResponsiveDescription>
         )}

@@ -345,7 +345,7 @@ function ScriptBlockPickerDialog({
           sidebar={(
             <ProductionScriptBlockList>
               {scriptBlocks.length === 0 ? (
-                <WorkbenchEmptyState compact title={allowCreateFromScriptRange ? '当前还没有已创建的剧本块，可以在右侧从剧本正文直接创建。' : '当前还没有已创建的剧本块。提案模式下不会创建正式剧本块。'} />
+                <WorkbenchEmptyState compact title={allowCreateFromScriptRange ? '当前还没有已创建的剧本块，可以在右侧从剧本正文直接创建。' : '当前还没有已创建的剧本块。只读状态下不会创建正式剧本块。'} />
               ) : scriptBlocks.map((block, index) => {
                 const active = index === activeIndex
                 return (
@@ -445,7 +445,7 @@ function ScriptBlockPickerDialog({
             />
             <ProductionScriptPreviewStack>
               {scriptBlocks.length === 0 ? (
-                <WorkbenchEmptyState title={allowCreateFromScriptRange ? '当前还没有可绑定的剧本块。可以先在上方从剧本正文选择行，创建后会自动绑定到当前情节。' : '当前还没有可绑定的剧本块。提案模式保持正式项目只读，因此这里只能绑定已有剧本块。'} />
+                <WorkbenchEmptyState title={allowCreateFromScriptRange ? '当前还没有可绑定的剧本块。可以先在上方从剧本正文选择行，创建后会自动绑定到当前情节。' : '当前还没有可绑定的剧本块。只读状态下只能绑定已有剧本块。'} />
               ) : previewBlocks.map((block) => {
                 const speaker = firstScriptText(block.speaker)
                 return (

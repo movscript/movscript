@@ -40,7 +40,7 @@ test('project workbench draft review search prefers latest matching artifact and
 
   assert.equal(result?.draftId, 'latest-draft')
   assert.equal(result?.artifact?.draftId, 'latest-draft')
-  assert.equal(result?.searchParams.toString(), 'panel=review&productionId=301&draftId=latest-draft')
+  assert.equal(result?.searchParams.toString(), 'panel=review&view=review&draftId=latest-draft&productionId=301')
 })
 
 test('project workbench artifact review search merges related proposal drafts', () => {

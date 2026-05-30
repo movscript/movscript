@@ -9,7 +9,6 @@ import {
   Bug, History, ChevronLeft, ChevronRight,
   AlertTriangle,
   PanelRightClose,
-  PanelRightOpen,
   RefreshCw,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
@@ -50,7 +49,8 @@ import {
   ToolDialogPanelHeader,
   ToolDialogResourcePane,
   ToolDialogWarningCallout,
-  useResizableOverlapPane,
+  OverlapPaneRevealButton,
+  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { buildGenerationJobPayload } from '@/features/resources/domain/generationJobPayload'
@@ -59,7 +59,8 @@ import {
   TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH,
   TOOL_RESOURCE_PANE_MAX_WIDTH,
   TOOL_RESOURCE_PANE_MIN_WIDTH,
-  usePersistentToolResourcePaneWidth,
+  TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
+  TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
 } from './toolResourcePaneWidth'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
@@ -356,23 +357,16 @@ export function ToolDialog({
   const [uploading, setUploading] = useState(false)
   const [activeJobId, setActiveJobId] = useState<number | null>(null)
   const [debugMode, setDebugMode] = useState(false)
-  const [resourcePaneCollapsed, setResourcePaneCollapsed] = useState(false)
-  const [resourcePaneExpanded, setResourcePaneExpanded] = useState(false)
-  const [resourcePaneWidth, setResourcePaneWidth] = usePersistentToolResourcePaneWidth()
-  const resourcePaneResize = useResizableOverlapPane({
-    size: resourcePaneWidth,
-    onSizeChange: setResourcePaneWidth,
+  const resourcePaneController = usePersistentOverlapPaneController({
+    storageKey: TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
     minSize: TOOL_RESOURCE_PANE_MIN_WIDTH,
     maxSize: (rect) => Math.max(
       TOOL_RESOURCE_PANE_MIN_WIDTH,
       Math.min(TOOL_RESOURCE_PANE_MAX_WIDTH, rect.width - TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH),
     ),
     resizeEdge: 'left',
-    collapsed: resourcePaneCollapsed,
-    onCollapsedChange: setResourcePaneCollapsed,
     collapseMode: 'after-min',
-    expanded: resourcePaneExpanded,
-    onExpandedChange: setResourcePaneExpanded,
     expandMode: 'after-max',
     ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
   })
@@ -592,17 +586,14 @@ export function ToolDialog({
               <p className="type-tiny text-muted-foreground">{toolDescription}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {layout === 'reference-workbench' && !resourcePaneCollapsed ? (
+              {layout === 'reference-workbench' && !resourcePaneController.collapsed ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   title={t('common.hide', { defaultValue: '隐藏' })}
                   aria-label={t('common.hide', { defaultValue: '隐藏' })}
-                  onClick={() => {
-                    setResourcePaneExpanded(false)
-                    setResourcePaneCollapsed(true)
-                  }}
+                  onClick={resourcePaneController.collapse}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <PanelRightClose size={14} />
@@ -730,48 +721,32 @@ export function ToolDialog({
       <ToolDialogFrame className="tool-dialog-frame--reference-workbench">
         <ToolDialogBody
           className="tool-dialog-body--reference-workbench"
-          data-resource-pane-collapsed={resourcePaneCollapsed ? 'true' : undefined}
-          data-resource-pane-expanded={resourcePaneExpanded ? 'true' : undefined}
-          style={{ '--tool-dialog-resource-pane-width': `${resourcePaneWidth}px` } as React.CSSProperties}
+          {...resourcePaneController.groupProps}
         >
           {mainPane}
-          {!resourcePaneCollapsed ? (
+          {!resourcePaneController.collapsed ? (
             <ToolDialogResourcePane
+              overlapState={resourcePaneController.overlapState}
               resizeHandleProps={{
-                ...resourcePaneResize.resizeHandleProps,
+                ...resourcePaneController.resizeHandleProps,
               }}
             >
               {resourcePaneNode}
             </ToolDialogResourcePane>
           ) : null}
-          {resourcePaneCollapsed ? (
-            <Button
-              type="button"
-              variant="soft"
-              size="icon-sm"
-              className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
-              title={t('common.show', { defaultValue: '显示' })}
-              aria-label={t('common.show', { defaultValue: '显示' })}
-              onClick={() => {
-                setResourcePaneExpanded(false)
-                setResourcePaneCollapsed(false)
-              }}
-            >
-              <PanelRightOpen size={14} />
-            </Button>
+          {resourcePaneController.collapsed ? (
+            <OverlapPaneRevealButton
+              action="show"
+              label={t('common.show', { defaultValue: '显示' })}
+              onClick={resourcePaneController.show}
+            />
           ) : null}
-          {resourcePaneExpanded ? (
-            <Button
-              type="button"
-              variant="soft"
-              size="icon-sm"
-              className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
-              title={t('common.restore', { defaultValue: '还原' })}
-              aria-label={t('common.restore', { defaultValue: '还原' })}
-              onClick={() => setResourcePaneExpanded(false)}
-            >
-              <PanelRightClose size={14} />
-            </Button>
+          {resourcePaneController.expanded ? (
+            <OverlapPaneRevealButton
+              action="restore"
+              label={t('common.restore', { defaultValue: '还原' })}
+              onClick={resourcePaneController.restore}
+            />
           ) : null}
         </ToolDialogBody>
       </ToolDialogFrame>

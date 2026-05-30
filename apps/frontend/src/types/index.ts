@@ -479,6 +479,7 @@ export interface RawResource {
   ID: number
   owner_id: number
   org_id?: number
+  blob_id?: number
   folder_id?: number
   type: 'image' | 'video' | 'audio' | 'text' | 'file'
   name: string
@@ -489,6 +490,47 @@ export interface RawResource {
   storage_key?: string
   direct_url?: string // presigned URL for cloud-stored resources
   owner?: { ID: number; username: string }
+}
+
+export interface ExternalResourceSource {
+  ID: number
+  owner_id: number
+  org_id?: number
+  name: string
+  provider_key: 'pexels' | 'pixabay' | string
+  priority: number
+  is_enabled: boolean
+  masked_config?: string
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface ExternalResourceItem {
+  provider_key: string
+  external_id: string
+  media_type: 'image' | 'video' | string
+  title?: string
+  description?: string
+  thumbnail_url: string
+  preview_url?: string
+  source_url: string
+  width?: number
+  height?: number
+  duration_seconds?: number
+  author_name?: string
+  author_url?: string
+  attribution_text?: string
+  license_label?: string
+}
+
+export interface ExternalResourceSearchResult {
+  total: number
+  items: ExternalResourceItem[]
+  page: number
+  page_size: number
+  provider: string
+  next_page?: string
+  source_name?: string
 }
 
 export type ResourceBindingOwnerType =

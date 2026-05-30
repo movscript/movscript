@@ -1,9 +1,10 @@
-import type { ComponentPropsWithoutRef, ComponentType, CSSProperties, HTMLAttributes, ReactNode } from "react";
-import { AlertCircle, GitBranch } from "lucide-react";
+import type { ComponentPropsWithoutRef, ComponentType, CSSProperties, HTMLAttributes, MouseEvent, ReactNode } from "react";
+import { AlertCircle, ChevronLeft, ChevronRight, GitBranch } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
 import { AppInlineMeta, AppMarkerDot, AppSkeleton, AppSurfaceItem } from "../../app";
 import { WorkbenchEmptyState, WorkbenchListItem, WorkbenchSection, WorkbenchSurfaceItem } from "../../workbench";
+import { OverlapPane, OverlapPaneGroup } from "../../../layout";
 import {
   Badge,
   Button,
@@ -24,20 +25,50 @@ export function ProductionOrchestrationWorkspaceShell({ className, ...props }: H
   return <div className={cn("production-orchestration-workspace-shell", className)} {...props} />;
 }
 
+export function ProductionOrchestrationPaneGroup({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <OverlapPaneGroup className={cn("production-orchestration-pane-group", className)} {...props} />;
+}
+
+export function ProductionOrchestrationNavigatorPane({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <aside className={cn("production-orchestration-navigator-pane", className)} {...props} />;
+}
+
+export function ProductionOrchestrationDetailPane({
+  className,
+  resizeHandleSide = "left",
+  ...props
+}: Omit<ComponentPropsWithoutRef<typeof OverlapPane>, "as" | "side">) {
+  return (
+    <OverlapPane
+      as="main"
+      side="left"
+      resizeHandleSide={resizeHandleSide}
+      className={cn("production-orchestration-detail-pane", className)}
+      {...props}
+    />
+  );
+}
+
+export function ProductionOrchestrationDetailContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("production-orchestration-detail-content", className)} {...props} />;
+}
+
 export function ProductionStructureWorkspaceLayout({
   sidebar,
   children,
   className,
 }: HTMLAttributes<HTMLDivElement> & {
   sidebar: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <div className={cn("production-structure-workspace-layout", className)}>
+    <div className={cn("production-structure-workspace-layout", className)} data-has-content={children ? "true" : undefined}>
       {sidebar}
-      <div className="production-structure-workspace-layout__content" style={{ scrollbarGutter: "stable" } as CSSProperties}>
-        {children}
-      </div>
+      {children ? (
+        <div className="production-structure-workspace-layout__content" style={{ scrollbarGutter: "stable" } as CSSProperties}>
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -148,12 +179,13 @@ export function ProductionSegmentNavigatorSection({
   active,
   className,
   children,
+  ...props
 }: HTMLAttributes<HTMLElement> & {
   active?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className={cn("production-segment-section", active && "production-segment-section--active", className)}>
+    <section className={cn("production-segment-section", active && "production-segment-section--active", className)} {...props}>
       <AppMarkerDot
         tone={active ? "brand" : "border"}
         size="md"
@@ -169,13 +201,15 @@ export function ProductionSegmentNavigatorCard({
   header,
   badges,
   children,
-}: {
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
   header: ReactNode;
   badges?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div className="production-segment-card">
+    <div className={cn("production-segment-card", className)} {...props}>
       {header}
       {badges ? <div className="production-segment-card__badges">{badges}</div> : null}
       {children}
@@ -310,16 +344,202 @@ export function ProductionOrchestrationHeaderAction({
   );
 }
 
-export function ProductionOrchestrationProductionSelectTrigger({
+export function ProductionOrchestrationProductionDeck({
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+}) {
+  return <section className={cn("production-orchestration-production-deck", className)} {...props}>{children}</section>;
+}
+
+export function ProductionOrchestrationProductionDeckHeader({
+  title,
+  meta,
+  actions,
+}: {
+  title: ReactNode;
+  meta?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="production-orchestration-production-deck__header">
+      <div className="production-orchestration-production-deck__copy">
+        <h2 className="production-orchestration-production-deck__title">{title}</h2>
+        {meta ? <p className="production-orchestration-production-deck__meta">{meta}</p> : null}
+      </div>
+      {actions ? <div className="production-orchestration-production-deck__actions">{actions}</div> : null}
+    </div>
+  );
+}
+
+export function ProductionOrchestrationProductionDeckGrid({
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+}) {
+  return <div className={cn("production-orchestration-production-deck__grid", className)} {...props}>{children}</div>;
+}
+
+const productionCardInteractiveSelector = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "[role='button']",
+  "[role='link']",
+  "[role='menuitem']",
+  "[data-production-card-interactive='true']",
+].join(",");
+
+function isProductionCardInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement) {
+  if (!(target instanceof HTMLElement)) return false;
+  const interactiveTarget = target.closest(productionCardInteractiveSelector);
+  return Boolean(interactiveTarget && currentTarget.contains(interactiveTarget));
+}
+
+export function ProductionOrchestrationProductionCard({
+  active,
+  title,
+  titleMeta,
+  scriptBinding,
+  onSelect,
+}: {
+  active?: boolean;
+  title: ReactNode;
+  titleMeta?: ReactNode;
+  scriptBinding?: ReactNode;
+  onSelect: () => void;
+}) {
+  function handleCardClick(event: MouseEvent<HTMLElement>) {
+    if (isProductionCardInteractiveTarget(event.target, event.currentTarget)) return;
+    onSelect();
+  }
+
+  return (
+    <article
+      className="production-orchestration-production-card"
+      data-active={active ? "true" : "false"}
+      onClick={handleCardClick}
+    >
+      <div className="production-orchestration-production-card__inner">
+        <button
+          type="button"
+          className="production-orchestration-production-card__select"
+          onClick={onSelect}
+        >
+          选中制作
+        </button>
+        <span className="production-orchestration-production-card__topline">
+          <span className="production-orchestration-production-card__heading">
+            <span className="production-orchestration-production-card__title">{title}</span>
+            {titleMeta ? <span className="production-orchestration-production-card__title-meta">{titleMeta}</span> : null}
+          </span>
+        </span>
+        {scriptBinding ? <div className="production-orchestration-production-card__script">{scriptBinding}</div> : null}
+      </div>
+    </article>
+  );
+}
+
+export function ProductionOrchestrationProductionCardBreadcrumbs({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <span className="production-orchestration-production-card-breadcrumbs">
+      {children}
+    </span>
+  );
+}
+
+export function ProductionOrchestrationProductionCardScriptBinding({
+  label,
+  meta,
+  children,
+}: {
+  label?: ReactNode;
+  meta?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="production-orchestration-production-card-script">
+      {label || meta ? (
+        <div className="production-orchestration-production-card-script__copy">
+          {label ? <span className="production-orchestration-production-card-script__label">{label}</span> : null}
+          {meta ? <span className="production-orchestration-production-card-script__meta">{meta}</span> : null}
+        </div>
+      ) : null}
+      <div className="production-orchestration-production-card-script__control">{children}</div>
+    </div>
+  );
+}
+
+export function ProductionOrchestrationProductionCardScriptSelectTrigger({
   className,
   ...props
 }: ComponentPropsWithoutRef<typeof SelectTrigger>) {
   return (
     <SelectTrigger
-      className={cn("production-orchestration-production-select-trigger", className)}
+      className={cn("production-orchestration-production-card-script-select", className)}
       {...props}
     />
   );
+}
+
+export function ProductionOrchestrationProductionPager({
+  pageLabel,
+  canPrevious,
+  canNext,
+  onPrevious,
+  onNext,
+}: {
+  pageLabel: ReactNode;
+  canPrevious: boolean;
+  canNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="production-orchestration-production-pager">
+      <Button
+        size="icon-sm"
+        variant="outline"
+        className="production-orchestration-production-pager__button"
+        aria-label="上一页制作"
+        disabled={!canPrevious}
+        onClick={onPrevious}
+      >
+        <ChevronLeft size={14} />
+      </Button>
+      <span className="production-orchestration-production-pager__label">{pageLabel}</span>
+      <Button
+        size="icon-sm"
+        variant="outline"
+        className="production-orchestration-production-pager__button"
+        aria-label="下一页制作"
+        disabled={!canNext}
+        onClick={onNext}
+      >
+        <ChevronRight size={14} />
+      </Button>
+    </div>
+  );
+}
+
+export function ProductionOrchestrationProductionEmptyState({
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  children: ReactNode;
+}) {
+  return <div className={cn("production-orchestration-production-empty", className)} {...props}>{children}</div>;
 }
 
 export function ProductionOrchestrationProposalBanner({
@@ -343,7 +563,7 @@ export function ProductionOrchestrationProposalBanner({
     <WorkbenchSurfaceItem className={cn("production-orchestration-proposal-banner", className)} {...props}>
       <div className="production-orchestration-proposal-banner__message">
         <GitBranch size={13} className="production-orchestration-proposal-banner__icon" />
-        <span className="production-orchestration-proposal-banner__text">正在编辑 AI 编排提案草稿，正式项目当前只读。</span>
+        <span className="production-orchestration-proposal-banner__text">正在审阅 AI 编排提案草稿。</span>
         {saving ? <Badge className="production-orchestration-proposal-banner__saving">保存中</Badge> : null}
       </div>
       <div className="production-orchestration-proposal-banner__actions">
@@ -351,7 +571,7 @@ export function ProductionOrchestrationProposalBanner({
           应用提案到项目
         </Button>
         <Button size="sm" variant="ghost" className="production-orchestration-proposal-banner__button" onClick={onExit}>
-          退出提案模式
+          关闭提案
         </Button>
         <Button size="sm" variant="ghost" tone="danger" className="production-orchestration-proposal-banner__button" onClick={onDiscard} disabled={discardDisabled}>
           放弃提案

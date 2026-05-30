@@ -9,7 +9,9 @@ export interface ScriptLibraryItemProps {
   statusProps?: StatusDotProps;
   title: ReactNode;
   meta: ReactNode;
-  tag?: ReactNode;
+  statusLabel?: ReactNode;
+  action?: ReactNode;
+  editor?: ReactNode;
   onSelect?: () => void;
 }
 
@@ -18,26 +20,34 @@ export function ScriptLibraryItem({
   statusProps,
   title,
   meta,
-  tag,
+  statusLabel,
+  action,
+  editor,
   onSelect,
 }: ScriptLibraryItemProps) {
   const { className: statusClassName, ...statusVisualProps } = statusProps ?? {};
 
   return (
     <div data-active={active ? "true" : undefined} className="script-library-item">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={onSelect}
-        className="script-library-item__select"
-      >
-        <StatusDot className={cn("script-library-item__dot", statusClassName)} {...statusVisualProps} />
-        <span className="script-library-item__copy">
-          <span className="script-library-item__title">{title}</span>
-          <span className="script-library-item__meta">{meta}</span>
-        </span>
-      </Button>
-      {tag ? <div className="script-library-item__tag">{tag}</div> : null}
+      <div className="script-library-item__main">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onSelect}
+          className="script-library-item__select"
+        >
+          <StatusDot className={cn("script-library-item__dot", statusClassName)} {...statusVisualProps} />
+          <span className="script-library-item__copy">
+            <span className="script-library-item__title-row">
+              <span className="script-library-item__title">{title}</span>
+              {statusLabel ? <span className="script-library-item__state">{statusLabel}</span> : null}
+            </span>
+            <span className="script-library-item__meta">{meta}</span>
+          </span>
+        </Button>
+        {action ? <div className="script-library-item__action">{action}</div> : null}
+      </div>
+      {editor ? <div className="script-library-item__editor">{editor}</div> : null}
     </div>
   );
 }

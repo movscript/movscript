@@ -11,6 +11,8 @@ type RawResource struct {
 	OwnerID              uint            `gorm:"not null" json:"owner_id"`
 	Owner                User            `json:"owner,omitempty"`
 	OrgID                *uint           `gorm:"index" json:"org_id,omitempty"`
+	BlobID               *uint           `gorm:"index" json:"blob_id,omitempty"`
+	Blob                 *ResourceBlob   `gorm:"foreignKey:BlobID" json:"-"`
 	FolderID             *uint           `json:"folder_id,omitempty"`
 	Folder               *ResourceFolder `gorm:"foreignKey:FolderID" json:"folder,omitempty"`
 	Type                 string          `gorm:"not null" json:"type"` // image | video | audio | text
@@ -32,6 +34,16 @@ type RawResource struct {
 	// CloudUploads is a JSON map of cloud_file_config_id -> CloudUploadEntry.
 	// Populated lazily when a job needs to pass the file to an AI model via URL/file_id.
 	CloudUploads string `gorm:"default:'{}'" json:"-"`
+}
+
+type ResourceBlob struct {
+	gorm.Model
+	Hash           string `gorm:"uniqueIndex;not null;size:128" json:"hash"`
+	StorageBackend string `gorm:"not null;index;uniqueIndex:uidx_resource_blobs_backend_key;size:64" json:"storage_backend"`
+	StorageKey     string `gorm:"not null;uniqueIndex:uidx_resource_blobs_backend_key;size:512" json:"storage_key"`
+	Size           int64  `json:"size"`
+	MimeType       string `json:"mime_type"`
+	RefCount       int    `gorm:"not null;default:0" json:"ref_count"`
 }
 
 type ResourceFolder struct {

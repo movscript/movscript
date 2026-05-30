@@ -7,6 +7,7 @@ import {
   normalizeAPIBaseURL,
   type AppSettings,
 } from '@/shared/infrastructure/config'
+import type { ShotLibrarySourceConfig } from '@/shared/contracts/appSettings'
 
 interface AppSettingsStore {
   settings: AppSettings
@@ -16,6 +17,7 @@ interface AppSettingsStore {
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setWorkMode: (workMode: AppSettings['workMode']) => void
   setAPIBaseURL: (apiBaseURL: string) => void
+  setShotLibrarySources: (sources: ShotLibrarySourceConfig[], defaultSourceId?: string) => void
   reset: () => void
 }
 
@@ -27,6 +29,9 @@ const defaultSettings: AppSettings = {
 }
 
 function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings {
+  const apiBaseURL = normalizeAPIBaseURL(settings?.apiBaseURL || (settings?.launchMode === 'local' ? getLocalAPIBaseURL() : defaultSettings.apiBaseURL))
+  const shotLibrarySources = normalizeShotLibrarySources(settings?.shotLibrarySources, apiBaseURL)
+  const defaultShotLibrarySourceId = normalizeDefaultShotLibrarySourceId(settings?.defaultShotLibrarySourceId, shotLibrarySources)
   return {
     ...defaultSettings,
     ...settings,
@@ -34,8 +39,63 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
     workMode: settings?.workMode === 'agent' ? 'agent' : 'detail',
     onboardingCompleted: settings?.onboardingCompleted ?? defaultSettings.onboardingCompleted,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
-    apiBaseURL: normalizeAPIBaseURL(settings?.apiBaseURL || (settings?.launchMode === 'local' ? getLocalAPIBaseURL() : defaultSettings.apiBaseURL)),
+    apiBaseURL,
+    shotLibrarySources,
+    defaultShotLibrarySourceId,
   }
+}
+
+function normalizeShotLibrarySources(sources: ShotLibrarySourceConfig[] | undefined, apiBaseURL: string): ShotLibrarySourceConfig[] {
+  const defaultSource = defaultShotLibrarySource(apiBaseURL)
+  const normalized = Array.isArray(sources)
+    ? sources
+        .map(normalizeShotLibrarySource)
+        .filter((source): source is ShotLibrarySourceConfig => !!source)
+    : []
+  const withoutDuplicateIds = new Map<string, ShotLibrarySourceConfig>()
+  for (const source of normalized) {
+    withoutDuplicateIds.set(source.id, source)
+  }
+  if (!withoutDuplicateIds.has(defaultSource.id)) {
+    withoutDuplicateIds.set(defaultSource.id, defaultSource)
+  } else {
+    const current = withoutDuplicateIds.get(defaultSource.id)!
+    withoutDuplicateIds.set(defaultSource.id, {
+      ...defaultSource,
+      ...current,
+      baseURL: current.baseURL || defaultSource.baseURL,
+      name: current.name || defaultSource.name,
+    })
+  }
+  return Array.from(withoutDuplicateIds.values())
+}
+
+function normalizeShotLibrarySource(source: Partial<ShotLibrarySourceConfig> | null | undefined): ShotLibrarySourceConfig | null {
+  if (!source?.id?.trim() || !source.name?.trim() || !source.baseURL?.trim()) return null
+  return {
+    id: source.id.trim(),
+    name: source.name.trim(),
+    baseURL: normalizeAPIBaseURL(source.baseURL),
+    enabled: source.enabled !== false,
+    readOnly: source.readOnly === true,
+    authToken: source.authToken?.trim() || undefined,
+  }
+}
+
+function defaultShotLibrarySource(apiBaseURL: string): ShotLibrarySourceConfig {
+  return {
+    id: 'default',
+    name: 'Movscript',
+    baseURL: apiBaseURL,
+    enabled: true,
+    readOnly: false,
+  }
+}
+
+function normalizeDefaultShotLibrarySourceId(defaultSourceId: string | undefined, sources: ShotLibrarySourceConfig[]): string | undefined {
+  const enabledSources = sources.filter(source => source.enabled !== false)
+  if (defaultSourceId && enabledSources.some(source => source.id === defaultSourceId)) return defaultSourceId
+  return enabledSources[0]?.id
 }
 
 function syncElectronSettings(settings: AppSettings): void {
@@ -81,6 +141,15 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setAPIBaseURL: (apiBaseURL) => {
         const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, apiBaseURL })
+        set({ settings: next, savedAt: new Date().toISOString() })
+        syncElectronSettings(next)
+      },
+      setShotLibrarySources: (shotLibrarySources, defaultShotLibrarySourceId) => {
+        const next = normalizeSettings({
+          ...useAppSettingsStore.getState().settings,
+          shotLibrarySources,
+          defaultShotLibrarySourceId,
+        })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },

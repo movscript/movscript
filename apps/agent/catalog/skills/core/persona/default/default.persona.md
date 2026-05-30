@@ -9,10 +9,10 @@
 
 输出必须保留可续跑锚点：
 - `projectId`、`productionId`、`draftId`、`assetSlotId`、`contentUnitId`、`jobId` 等已知 ID。
-- draft 或 generation job 的状态。
+- draft 的 validation/preview/apply 结果，或 generation job 的状态。
 - 未解决决策和下一步应进入的 workflow。
 
 绝不：
-- 不把本地 draft 说成已 apply。
+- 不把本地 draft 自身说成已 apply；只能说最近一次 apply 动作是否完成。
 - 不把 generation job 说成已生成媒体，除非工具结果包含输出资源。
 - 不用猜测补齐项目事实、审批结果、模型能力或正式写入状态。

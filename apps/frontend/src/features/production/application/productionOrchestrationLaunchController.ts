@@ -36,7 +36,6 @@ export interface ProductionOrchestrationLaunchControllerInput {
   selectedScriptVersion?: ScriptVersion | null
   scriptVersions: ScriptVersion[]
   setSearchParams: ProductionOrchestrationSearchParamsSetter
-  showReview: () => void
   refetch: () => Promise<unknown> | unknown
   queryClient: ProductionOrchestrationLaunchQueryClient
   queryKey: readonly unknown[]
@@ -151,7 +150,6 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
       fallbackDraftId: productionDraft.id,
     }), { replace: true })
 
-    input.showReview()
     return { productionDraft, target }
   }, [input, productionPageKey])
 
@@ -181,21 +179,20 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
           fallbackDraftId: drafts.productionDraft.id,
           artifacts: payload.artifacts,
         }), { replace: true })
-        input.showReview()
         setOrchestrationStage('idle')
         await refreshProductionQueries()
       },
     })
   }, [ensureProductionProposalDraftForLaunch, input, refreshProductionQueries])
 
-  const openProposalMode = useCallback(async () => {
+  const openProposalPatchDialog = useCallback(async () => {
     await ensureProductionProposalDraftForLaunch({ scope: 'production' }, { seedProposalFromSnapshot: true, requireLinkedScript: false })
   }, [ensureProductionProposalDraftForLaunch])
 
   return {
     orchestrationStage,
     productionPageKey,
-    openProposalMode,
+    openProposalPatchDialog,
     handleAnalyzeTarget,
   }
 }

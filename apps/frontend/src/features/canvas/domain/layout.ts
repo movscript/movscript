@@ -3,6 +3,10 @@ import type { Node } from '@xyflow/react'
 export const FINAL_OUTPUT_NODE_ID = 'final-output'
 export const GROUP_SELECTION_PADDING = 64
 
+const MEDIA_PREVIEW_VISIBLE_NODE_BUDGET = 32
+const MEDIA_PREVIEW_SCREEN_PIXEL_BUDGET = 2_400_000
+const MEDIA_PREVIEW_ALWAYS_ON_NODE_BUDGET = 8
+
 const TOOL_CARD_NODE_TYPES = new Set<string>([
   'canvas',
   'ref_image_gen',
@@ -55,6 +59,59 @@ export function canvasNodeDimensions(node: Node) {
       ?? numericStyleValue(node.style?.height)
       ?? defaultCanvasNodeHeight(node.type),
   }
+}
+
+export function isCanvasNodeVisibleInViewport(
+  node: Node,
+  nodeById: Map<string, Node>,
+  viewport: { x: number; y: number; width: number; height: number },
+) {
+  const position = canvasNodeAbsolutePosition(node, nodeById)
+  const dimensions = canvasNodeDimensions(node)
+  return (
+    position.x + dimensions.width >= viewport.x
+    && position.y + dimensions.height >= viewport.y
+    && position.x <= viewport.x + viewport.width
+    && position.y <= viewport.y + viewport.height
+  )
+}
+
+export function shouldUseCanvasMediaLightweightMode({
+  nodes,
+  viewportX,
+  viewportY,
+  zoom,
+  viewportWidth,
+  viewportHeight,
+}: {
+  nodes: Node[]
+  viewportX: number
+  viewportY: number
+  zoom: number
+  viewportWidth: number
+  viewportHeight: number
+}) {
+  if (zoom <= 0 || viewportWidth <= 0 || viewportHeight <= 0) return false
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const viewport = {
+    x: -viewportX / zoom,
+    y: -viewportY / zoom,
+    width: viewportWidth / zoom,
+    height: viewportHeight / zoom,
+  }
+  let visibleMediaNodes = 0
+  let estimatedScreenPixels = 0
+  for (const node of nodes) {
+    const data = node.data as { resource?: { type?: string } } | undefined
+    const resourceType = data?.resource?.type
+    if (resourceType !== 'image' && resourceType !== 'video') continue
+    if (!isCanvasNodeVisibleInViewport(node, nodeById, viewport)) continue
+    visibleMediaNodes += 1
+    const dimensions = canvasNodeDimensions(node)
+    estimatedScreenPixels += dimensions.width * dimensions.height * zoom * zoom
+  }
+  if (visibleMediaNodes <= MEDIA_PREVIEW_ALWAYS_ON_NODE_BUDGET) return false
+  return visibleMediaNodes > MEDIA_PREVIEW_VISIBLE_NODE_BUDGET || estimatedScreenPixels > MEDIA_PREVIEW_SCREEN_PIXEL_BUDGET
 }
 
 export function canvasNodeAbsolutePosition(node: Node, nodeById: Map<string, Node>) {

@@ -353,6 +353,11 @@
   box-shadow: 0 8px 24px color-mix(in srgb, var(--ms-color-foreground) 5%, transparent);
 }
 
+.canvas-workflow-side-panel__resize-handle.panel-resize-handle--left {
+  width: 8px;
+  transform: translateX(-4px);
+}
+
 .canvas-workflow-side-panel__header {
   display: flex;
   height: 48px;

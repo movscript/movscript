@@ -130,7 +130,7 @@ export async function applyRuntimeDraftFromUI(input: {
       status: 'applied',
       review: preparedReview,
       draft: finalDraft,
-      message: 'Asset candidate planning draft marked applied locally. Backend project snapshot apply was skipped.',
+      message: 'Asset candidate planning draft apply recorded. Backend project snapshot apply was skipped.',
       backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
     } as unknown as JSONValue
   }
@@ -180,7 +180,7 @@ export async function applyRuntimeDraftFromUI(input: {
     draft: finalDraft,
     message: backendApply.performed
       ? 'Draft applied by UI and backend business item patch completed.'
-      : 'Draft marked applied by UI. Backend business item patch was skipped.',
+      : 'Draft apply recorded by UI. Backend business item patch was skipped.',
     backendApply,
   } as unknown as JSONValue
 }

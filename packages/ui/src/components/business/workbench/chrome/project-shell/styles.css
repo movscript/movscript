@@ -1,16 +1,17 @@
 .workbench-project-shell {
+  --workbench-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   display: flex;
   height: 100%;
   min-width: 0;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  background: var(--ms-color-background);
+  background: var(--workbench-page-background);
 }
 
 .workbench-project-header {
   flex-shrink: 0;
-  background: var(--ms-color-background);
+  background: var(--workbench-page-background);
   padding: 12px 20px;
 }
 
@@ -118,7 +119,7 @@
 }
 
 .workbench-project-body[data-tone="plain"] {
-  background: var(--ms-color-background);
+  background: var(--workbench-page-background);
 }
 
 .workbench-project-body[data-tone="muted"] {

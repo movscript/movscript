@@ -36,7 +36,7 @@ test('runtime draft CRUD helpers normalize inputs and preview draft apply', () =
     draftInput: { draftId: draft.id, title: 'Updated script', status: 'accepted' },
   })
   assert.equal(updated.title, 'Updated script')
-  assert.equal(updated.status, 'accepted')
+  assert.equal(updated.status, 'draft')
 
   const preview = previewRuntimeDraftApply({
     draftStore,
@@ -46,8 +46,9 @@ test('runtime draft CRUD helpers normalize inputs and preview draft apply', () =
   assert.equal(preview.review?.draftId, draft.id)
 
   const rejected = rejectRuntimeDraft({ draftStore, draftId: draft.id, reason: 'not needed' })
-  assert.equal(rejected.status, 'rejected')
+  assert.equal(rejected.status, 'draft')
   assert.equal(rejected.rejectedReason, 'not needed')
+  assert.equal(rejected.metadata?.lastReviewStatus, 'rejected')
 })
 
 test('simulateRuntimeDraftApply returns local validation failures before backend calls', async () => {
@@ -105,7 +106,7 @@ test('simulateRuntimeDraftApply projects backend preview errors without throwing
   assert.equal(result.backendError?.status, 422)
 })
 
-test('applyRuntimeDraftFromUI marks asset planning drafts applied without backend writes', async () => {
+test('applyRuntimeDraftFromUI records asset planning draft apply without backend writes', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
     kind: 'asset_proposal',
@@ -125,7 +126,8 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
   assert.equal(result.status, 'applied')
   assert.equal(result.backendApply?.performed, false)
   assert.equal(backend.applyCalls, 0)
-  assert.equal(draftStore.getDraft(draft.id)?.status, 'applied')
+  assert.equal(draftStore.getDraft(draft.id)?.status, 'draft')
+  assert.equal(draftStore.getDraft(draft.id)?.metadata?.lastApplyStatus, 'applied')
 })
 
 test('simulateRuntimeDraftApply accepts asset slot snapshot drafts without snapshot base', async () => {
@@ -490,6 +492,7 @@ test('applyRuntimeDraftFromUI applies backend results and records backend failur
   assert.equal(result.status, 'applied')
   assert.equal(result.backendApply?.performed, true)
   assert.equal(draftStore.getDraft(draft.id)?.appliedByUserId, 12)
+  assert.equal(draftStore.getDraft(draft.id)?.status, 'draft')
 
   const failingDraft = draftStore.createDraft({
     kind: 'project_standards_proposal',

@@ -11,14 +11,14 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - 当前 focus 中的 project、production、selected asset slot 或 asset need。
 - 用户给出的素材目标、输出类型、prompt 方向、参考资源、风格限制、模型能力需求、角色/场景定位和验收标准。
 - 若 focus 未提供充足角色-场景关系时，在决策前先定位并精读相关剧本片段进行交叉确认；不要默认读取完整剧本。
-- 现有 creative references、setting_proposal draft、已应用设定 snapshot，以及素材要引用的角色、地点、道具、世界规则或风格参考。
+- 现有 creative references、setting_proposal draft、已写入后端的设定 snapshot，以及素材要引用的角色、地点、道具、世界规则或风格参考。
 
 边界：
 - 此 workflow 只写 `asset_proposal` draft；素材需求和素材候选方案都不要拆到其他素材 draft kind。
 - 如果用户在梳理“需要哪些素材位 / 素材需求清单”，写 `proposal.asset_slots`，不写候选 prompt。
 - 如果用户在问“这个素材需求怎么做候选方案”，必须绑定一个已存在或明确选择的 asset slot，写 `proposal.candidate_plans`，并保持 `proposal.asset_slots` 为空数组。
-- 从 setting_proposal 或已应用设定中承接场景、地点、空间、室内外环境类 creative reference 时，必须在 asset_proposal 中提取俯视图素材需求：为每个场景设定创建或保留一个 `kind: "image"` 的 top-down / floor-taskGraph asset slot，owner 指向该场景 creative reference。
-- 从 setting_proposal 或已应用设定中承接核心人物、主场景、核心道具或风格参考时，必须优先创建或保留 canonical / base asset slot：人物用于基础形象，场景用于俯视图或空间标准，道具用于标准物件视图，风格用于基础风格板。派生服装、情绪、动作、年龄、损坏、关键帧或视频参考必须依赖对应 canonical slot 的已采纳/已锁定 resource，或标记为等待基本素材。
+- 从 setting_proposal 或已写入后端的设定中承接场景、地点、空间、室内外环境类 creative reference 时，必须在 asset_proposal 中提取俯视图素材需求：为每个场景设定创建或保留一个 `kind: "image"` 的 top-down / floor-taskGraph asset slot，owner 指向该场景 creative reference。
+- 从 setting_proposal 或已写入后端的设定中承接核心人物、主场景、核心道具或风格参考时，必须优先创建或保留 canonical / base asset slot：人物用于基础形象，场景用于俯视图或空间标准，道具用于标准物件视图，风格用于基础风格板。派生服装、情绪、动作、年龄、损坏、关键帧或视频参考必须依赖对应 canonical slot 的已采纳/已锁定 resource，或标记为等待基本素材。
 - 不创建图片或视频生成任务。
 - 如果用户明确要求“生成图片候选 / 生成视频候选 / 出图 / 出视频”，不要停留在此 workflow；应交接到 asset_candidate_generation 或 visual_generation。
 - Draft 内容必须落在 asset proposal schema 内，不写 content unit 结构或 production segments。
@@ -28,7 +28,7 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - 不把候选计划说成已生成、已选中、已绑定或已锁定的素材。
 - asset_proposal draft 是可编辑的后端 snapshot。素材需求条目直接写在 `proposal.asset_slots[]` 上，不使用 `fields` wrapper、action 或 operations。
 - `proposal.asset_slots` 是完整目标快照，不是局部操作列表。更新或保留已有 draft 时，必须保留每个已有 asset slot 的原始 `id`；未修改的 slot 也要原样放回 `proposal.asset_slots`，不得重新生成、重编号、替换或通过重排改变已有 id。只有草稿中不存在的全新 slot 才能不带 `id` 或按系统规则生成新 id。用户明确要求移除某个已有 slot 时，从 `proposal.asset_slots` 省略该 id；省略表示删除/移出。
-- 素材归属必须优先使用后端 id。`owner.client_id` 只允许引用同一次 apply/bundle 内刚创建的本地设定；不能引用已应用 setting draft 里的旧 client_id。
+- 素材归属必须优先使用后端 id。`owner.client_id` 只允许引用同一次 apply/bundle 内刚创建的本地设定；不能引用 setting draft 里的旧 client_id 当作已写入后端的 id。
 - 场景俯视图素材位应使用稳定可检索的命名和提示，例如 `slot_key: "top_down_floor_taskGraph"`、name 包含“俯视图/平面图/top-down floor taskGraph”、`prompt_hint` 说明需要 2D 俯视关系、空间边界、入口/出口、人物初始站位、关键道具、遮挡物、光区/暗区或禁入区；这是给后续导演调度标注用的素材位，不是单个 Shot 的执行调度。
 
 上下文缺失回退：

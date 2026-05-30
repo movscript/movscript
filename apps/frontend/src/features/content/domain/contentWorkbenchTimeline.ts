@@ -38,8 +38,8 @@ export function contentWorkbenchTimelinePxPerSec(zoom: number) {
 export function contentWorkbenchTimelineRulerWidth(items: Array<{ endSec: number; durationSec: number }>, originSec: number, pxPerSec: number) {
   const maxEndSec = items.reduce((max, item) => Math.max(max, contentWorkbenchLocalTimelineSec(item.endSec, originSec)), 0)
   const longestItemSec = items.reduce((max, item) => Math.max(max, Number(item.durationSec) || 0), 0)
-  const visibleSeconds = Math.max(30, maxEndSec + Math.max(20, longestItemSec * 2))
-  return Math.max(1200, Math.round(visibleSeconds * pxPerSec))
+  const visibleSeconds = Math.max(12, maxEndSec + Math.max(4, longestItemSec * 0.5))
+  return Math.max(360, Math.round(visibleSeconds * pxPerSec))
 }
 
 export function trackTimelinePx(seconds: number, pxPerSec: number) {

@@ -80,6 +80,7 @@ import {
   buildUpdateDeliveryTimelineItemMutationOptions,
 } from '@/features/delivery/application/deliveryWorkbenchMutationController'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
+import { ROUTES } from '@/routes/projectRoutes'
 
 export default function DeliveryWorkbenchPage() {
   const project = useProjectStore((s) => s.current)
@@ -104,7 +105,13 @@ export default function DeliveryWorkbenchPage() {
     setSearch,
     setSelectedVersionId,
     selectProduction,
-  } = useDeliveryWorkbenchVersionController({ searchParams, setSearchParams, versions })
+  } = useDeliveryWorkbenchVersionController({
+    projectId,
+    route: ROUTES.project.deliveryWorkbench,
+    searchParams,
+    setSearchParams,
+    versions,
+  })
 
   const productionsQuery = useQuery({
     queryKey: ['semantic-productions', projectId],
@@ -162,7 +169,13 @@ export default function DeliveryWorkbenchPage() {
     editingItem,
     setSelectedItemId,
     setEditingItem,
-  } = useDeliveryWorkbenchTimelineSelectionController({ selectedVersionId, timelineItems })
+  } = useDeliveryWorkbenchTimelineSelectionController({
+    projectId,
+    route: ROUTES.project.deliveryWorkbench,
+    selectedProductionId,
+    selectedVersionId,
+    timelineItems,
+  })
   const resourceLibrary = useDeliveryWorkbenchResourceLibrary({ projectId, selectedItem })
   const versionReadiness = buildDeliveryReadiness(timelineItems)
   const sourceContentUnits = useMemo(

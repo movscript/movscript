@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -291,6 +292,47 @@ func RegisteredMigrations() []Migration {
 			Name:    "backfill_cached_input_token_columns",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&persistencemodel.UsageLog{}, &persistencemodel.LLMCallLog{})
+			},
+		},
+		{
+			Version: "000031",
+			Name:    "add_shot_reference_library",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ShotReferenceGroup{}, &persistencemodel.ShotReference{})
+			},
+		},
+		{
+			Version: "000032",
+			Name:    "enforce_unique_resource_filenames",
+			Up: func(db *gorm.DB) error {
+				if err := backfillUniqueRawResourceNames(db); err != nil {
+					return err
+				}
+				return createRawResourceNameUniqueIndexes(db)
+			},
+		},
+		{
+			Version: "000033",
+			Name:    "add_shot_reference_groups",
+			Up: func(db *gorm.DB) error {
+				return migrateShotReferenceGroups(db)
+			},
+		},
+		{
+			Version: "000034",
+			Name:    "add_resource_blobs",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.ResourceBlob{}, &persistencemodel.RawResource{}); err != nil {
+					return err
+				}
+				return backfillLegacyResourceBlobs(db)
+			},
+		},
+		{
+			Version: "000035",
+			Name:    "add_external_resource_sources",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ExternalResourceSource{})
 			},
 		},
 	}
@@ -659,6 +701,252 @@ func createProductionIdentifierIndexes(db *gorm.DB) error {
 	return createPartialUniqueIndex(db, &persistencemodel.ContentUnit{}, unitCodeUniqueIndex, "content_units", "scene_moment_id, kind, unit_code", "deleted_at IS NULL AND scene_moment_id IS NOT NULL AND unit_code <> ''")
 }
 
+const rawResourcePersonalNameUniqueIndex = "uidx_raw_resources_personal_name"
+const rawResourceTeamNameUniqueIndex = "uidx_raw_resources_team_name"
+
+type rawResourceNameRow struct {
+	ID      uint
+	OwnerID uint
+	OrgID   *uint
+	Name    string
+}
+
+func backfillUniqueRawResourceNames(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.RawResource{}) {
+		return nil
+	}
+	var rows []rawResourceNameRow
+	if err := db.
+		Model(&persistencemodel.RawResource{}).
+		Select("id, owner_id, org_id, name").
+		Where("deleted_at IS NULL").
+		Order("org_id, owner_id, LOWER(name), id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list raw resources for filename backfill: %w", err)
+	}
+	usedByScope := map[string]map[string]struct{}{}
+	for _, row := range rows {
+		scope := rawResourceNameScope(row)
+		used := usedByScope[scope]
+		if used == nil {
+			used = map[string]struct{}{}
+			usedByScope[scope] = used
+		}
+		unique := uniqueResourceName(row.Name, used)
+		if unique == row.Name {
+			continue
+		}
+		if err := db.
+			Session(&gorm.Session{SkipHooks: true}).
+			Model(&persistencemodel.RawResource{}).
+			Where("id = ?", row.ID).
+			Update("name", unique).Error; err != nil {
+			return fmt.Errorf("rename duplicate raw resource %d: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+func createRawResourceNameUniqueIndexes(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.RawResource{}) {
+		return nil
+	}
+	if db.Dialector.Name() != "postgres" && db.Dialector.Name() != "sqlite" {
+		return nil
+	}
+	indexes := []struct {
+		name    string
+		columns string
+		where   string
+	}{
+		{
+			name:    rawResourcePersonalNameUniqueIndex,
+			columns: "owner_id, LOWER(name)",
+			where:   "deleted_at IS NULL AND org_id IS NULL",
+		},
+		{
+			name:    rawResourceTeamNameUniqueIndex,
+			columns: "org_id, LOWER(name)",
+			where:   "deleted_at IS NULL AND org_id IS NOT NULL",
+		},
+	}
+	for _, index := range indexes {
+		if db.Migrator().HasIndex(&persistencemodel.RawResource{}, index.name) {
+			continue
+		}
+		stmt := fmt.Sprintf("CREATE UNIQUE INDEX %s ON raw_resources (%s) WHERE %s", index.name, index.columns, index.where)
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("create %s: %w", index.name, err)
+		}
+	}
+	return nil
+}
+
+func migrateShotReferenceGroups(db *gorm.DB) error {
+	if err := db.AutoMigrate(&persistencemodel.ShotReferenceGroup{}, &persistencemodel.ShotReference{}); err != nil {
+		return err
+	}
+	migrator := db.Migrator()
+	if migrator.HasIndex(&persistencemodel.ShotReference{}, "uidx_shot_references_resource") {
+		if err := migrator.DropIndex(&persistencemodel.ShotReference{}, "uidx_shot_references_resource"); err != nil {
+			return fmt.Errorf("drop shot reference resource unique index: %w", err)
+		}
+	}
+	var rows []persistencemodel.ShotReference
+	if err := db.Where("group_id IS NULL").Find(&rows).Error; err != nil {
+		return err
+	}
+	for i := range rows {
+		row := rows[i]
+		group := persistencemodel.ShotReferenceGroup{
+			OwnerID:          row.OwnerID,
+			OrgID:            row.OrgID,
+			SourceResourceID: row.ResourceID,
+			Title:            row.Title,
+			Summary:          row.Summary,
+			AnalysisStatus:   row.AnalysisStatus,
+			CutStrategy:      "manual_single",
+		}
+		if strings.TrimSpace(group.Title) == "" {
+			group.Title = fmt.Sprintf("Shot reference group #%d", row.ID)
+		}
+		if strings.TrimSpace(group.AnalysisStatus) == "" {
+			group.AnalysisStatus = "ready"
+		}
+		if err := db.Create(&group).Error; err != nil {
+			return err
+		}
+		if err := db.Model(&persistencemodel.ShotReference{}).
+			Where("id = ?", row.ID).
+			Updates(map[string]any{
+				"group_id":        group.ID,
+				"order":           1,
+				"analysis_source": "manual_draft",
+			}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rawResourceNameScope(row rawResourceNameRow) string {
+	if row.OrgID != nil {
+		return fmt.Sprintf("org:%d", *row.OrgID)
+	}
+	return fmt.Sprintf("personal:%d", row.OwnerID)
+}
+
+func uniqueResourceName(name string, used map[string]struct{}) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "resource"
+	}
+	key := normalizedResourceNameKey(name)
+	if _, ok := used[key]; !ok {
+		used[key] = struct{}{}
+		return name
+	}
+	ext := filepath.Ext(name)
+	base := strings.TrimSpace(strings.TrimSuffix(name, ext))
+	if base == "" {
+		base = "resource"
+	}
+	for suffix := 2; ; suffix++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, suffix, ext)
+		key := normalizedResourceNameKey(candidate)
+		if _, ok := used[key]; ok {
+			continue
+		}
+		used[key] = struct{}{}
+		return candidate
+	}
+}
+
+func normalizedResourceNameKey(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+type legacyRawResourceBlobRow struct {
+	ID             uint
+	StorageBackend string
+	StorageKey     string
+	Size           int64
+	MimeType       string
+	BlobID         *uint
+}
+
+func backfillLegacyResourceBlobs(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.RawResource{}) || !db.Migrator().HasTable(&persistencemodel.ResourceBlob{}) {
+		return nil
+	}
+	var rows []legacyRawResourceBlobRow
+	if err := db.
+		Model(&persistencemodel.RawResource{}).
+		Select("id, storage_backend, storage_key, size, mime_type, blob_id").
+		Where("deleted_at IS NULL AND blob_id IS NULL AND COALESCE(storage_key, '') <> ''").
+		Order("storage_backend, storage_key, id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list raw resources for blob backfill: %w", err)
+	}
+	blobIDsByStorageKey := map[string]uint{}
+	refCounts := map[uint]int{}
+	for _, row := range rows {
+		scopeKey := row.StorageBackend + "\x00" + row.StorageKey
+		blobID := blobIDsByStorageKey[scopeKey]
+		if blobID == 0 {
+			blob, err := findOrCreateLegacyResourceBlob(db, row)
+			if err != nil {
+				return err
+			}
+			blobID = blob.ID
+			blobIDsByStorageKey[scopeKey] = blobID
+		}
+		if err := db.
+			Session(&gorm.Session{SkipHooks: true}).
+			Model(&persistencemodel.RawResource{}).
+			Where("id = ?", row.ID).
+			Update("blob_id", blobID).Error; err != nil {
+			return fmt.Errorf("set raw resource %d blob: %w", row.ID, err)
+		}
+		refCounts[blobID]++
+	}
+	for blobID, count := range refCounts {
+		if err := db.
+			Model(&persistencemodel.ResourceBlob{}).
+			Where("id = ?", blobID).
+			UpdateColumn("ref_count", gorm.Expr("ref_count + ?", count)).Error; err != nil {
+			return fmt.Errorf("increment legacy blob %d refs: %w", blobID, err)
+		}
+	}
+	return nil
+}
+
+func findOrCreateLegacyResourceBlob(db *gorm.DB, row legacyRawResourceBlobRow) (persistencemodel.ResourceBlob, error) {
+	var existing persistencemodel.ResourceBlob
+	if err := db.Where("storage_backend = ? AND storage_key = ?", row.StorageBackend, row.StorageKey).First(&existing).Error; err == nil {
+		return existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return persistencemodel.ResourceBlob{}, fmt.Errorf("find legacy blob %q: %w", row.StorageKey, err)
+	}
+	blob := persistencemodel.ResourceBlob{
+		Hash:           legacyResourceBlobHash(row.StorageBackend, row.StorageKey),
+		StorageBackend: row.StorageBackend,
+		StorageKey:     row.StorageKey,
+		Size:           row.Size,
+		MimeType:       row.MimeType,
+		RefCount:       0,
+	}
+	if err := db.Create(&blob).Error; err != nil {
+		return persistencemodel.ResourceBlob{}, fmt.Errorf("create legacy blob %q: %w", row.StorageKey, err)
+	}
+	return blob, nil
+}
+
+func legacyResourceBlobHash(storageBackend string, storageKey string) string {
+	sum := sha256.Sum256([]byte(storageBackend + "\x00" + storageKey))
+	return "legacy:" + hex.EncodeToString(sum[:])
+}
+
 func createPartialUniqueIndex(db *gorm.DB, model any, name string, table string, columns string, predicate string) error {
 	if !db.Migrator().HasTable(model) || db.Migrator().HasIndex(model, name) {
 		return nil
@@ -946,7 +1234,11 @@ func allModels() []any {
 		&persistencemodel.LLMCallLog{},
 		&persistencemodel.ResourceFolder{},
 		&persistencemodel.ResourceFolderPermission{},
+		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
+		&persistencemodel.ExternalResourceSource{},
+		&persistencemodel.ShotReferenceGroup{},
+		&persistencemodel.ShotReference{},
 		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},
@@ -1018,7 +1310,11 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.LLMCallLog{},
 		&persistencemodel.ResourceFolder{},
 		&persistencemodel.ResourceFolderPermission{},
+		&persistencemodel.ResourceBlob{},
 		&persistencemodel.RawResource{},
+		&persistencemodel.ExternalResourceSource{},
+		&persistencemodel.ShotReferenceGroup{},
+		&persistencemodel.ShotReference{},
 		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},

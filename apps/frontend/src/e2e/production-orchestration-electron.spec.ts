@@ -29,10 +29,16 @@ test('electron renderer smoke reaches production orchestration with project-leve
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
     await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-    await expect(page.getByRole('button', { name: /AI 提案/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /AI 提案/ })).toHaveCount(0)
     await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
-    await expect(page.getByText('制作剧本', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('剧本', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('当前编排段', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('情节编辑', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('所属编排段', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('戏剧任务', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('表达数量', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '添加情节到 进入空间' })).toBeVisible()
     await expect(page.getByText('绑定剧本块', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /选择剧本块/ })).toBeVisible()
     await expect(page.getByText('表达条目', { exact: true })).toBeVisible()
@@ -40,9 +46,6 @@ test('electron renderer smoke reaches production orchestration with project-leve
     await expect(page.getByText('绑定全局设定', { exact: true })).toHaveCount(0)
     await expect(page.getByText('项目级角色设定', { exact: false })).toHaveCount(0)
 
-    await page.getByRole('button', { name: /AI 提案/ }).click()
-
-    await expect(page.getByRole('heading', { name: '当前没有 AI 编排提案' })).toBeVisible()
   } finally {
     await app.close()
   }

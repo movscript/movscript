@@ -478,13 +478,13 @@ export default function ContentUnitsPage() {
           <ProjectSurfaceHeader
             icon={Boxes}
             title="制作项"
-            description="集中查看制作项的来源、输入缺口和关联对象；拆解、关键帧、素材补齐和生成决策统一在内容编排工作台完成。"
+            description="集中查看制作项的来源、输入缺口和关联对象；拆解、关键帧、素材补齐和生成决策统一在创作编排工作台完成。"
             actions={(
               <>
             <ContentPageActionButton asChild>
-              <Link to={ROUTES.project.contentUnitWorkbench}>
+              <Link to={ROUTES.project.productionOrchestration}>
                 <Wand2 size={14} />
-                进入内容编排
+                进入创作编排
               </Link>
             </ContentPageActionButton>
             <ContentPageActionButton variant="outline" onClick={startCreateContentUnit}>
@@ -551,13 +551,13 @@ export default function ContentUnitsPage() {
         list={(
           <ContentPageSection
             title="制作项清单"
-            description="每一项都是可被内容编排工作台检查、复核和锁定的生产颗粒。"
+            description="每一项都是可被创作编排工作台检查、复核和锁定的生产颗粒。"
           >
             <ContentPageListViewport>
               {isLoading ? (
                 <ContentPageEmptyState icon={Boxes} title="正在加载制作项" detail="读取制作项、情景和创作输入关系" />
               ) : filteredUnits.length === 0 ? (
-                <ContentPageEmptyState icon={Boxes} title="暂无制作项" detail="可先进入内容编排工作台拆解制作项骨架，再回到这里查看清单和关联对象。" />
+                <ContentPageEmptyState icon={Boxes} title="暂无制作项" detail="可先进入创作编排工作台拆解镜头方案，再回到这里查看清单和关联对象。" />
               ) : (
                 <ContentPageList>
                   {filteredUnits.map((item) => (
@@ -786,7 +786,7 @@ function ContentUnitDetail({
               预览
             </ContentPageActionButton>
             <ContentPageActionButton size="sm" asChild>
-              <Link to={`${ROUTES.project.contentUnitWorkbench}${workbenchSearch}`}>
+              <Link to={`${ROUTES.project.productionOrchestration}${workbenchSearch}`}>
               <Wand2 size={14} />
               进入编排
               </Link>

@@ -50,7 +50,7 @@ test('listDrafts filters by threadId and runId', () => {
   )
 })
 
-test('listDrafts filters by multiple statuses', () => {
+test('draft status remains draft for compatibility and is not a lifecycle gate', () => {
   const store = new InMemoryAgentDraftStore()
   const activeDraft = store.createDraft({ title: 'active', content: 'draft' })
   const appliedDraft = store.createDraft({ title: 'applied', content: 'done' })
@@ -58,9 +58,11 @@ test('listDrafts filters by multiple statuses', () => {
   store.updateDraft(appliedDraft.id, { status: 'applied' })
   store.updateDraft(rejectedDraft.id, { status: 'rejected' })
 
+  assert.equal(store.getDraft(appliedDraft.id)?.status, 'draft')
+  assert.equal(store.getDraft(rejectedDraft.id)?.status, 'draft')
   assert.deepEqual(
     store.listDrafts({ statuses: ['draft', 'applied'] }).map((draft) => draft.id).sort(),
-    [activeDraft.id, appliedDraft.id].sort(),
+    [activeDraft.id, appliedDraft.id, rejectedDraft.id].sort(),
   )
 })
 

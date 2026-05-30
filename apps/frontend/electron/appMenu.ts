@@ -29,7 +29,7 @@ const navigationGroups: NavigationMenuGroup[] = [
       { label: 'Project Standards', route: '/project/standards', accelerator: 'CmdOrCtrl+2' },
       { label: 'Pre-production', route: '/project/pre-production' },
       { label: 'Orchestration', route: '/project/production/orchestration' },
-      { label: 'Content Orchestration', route: '/project/content-units/workbench' },
+      { label: 'Shot Editor', route: '/project/content-units/editor' },
       { label: 'Delivery Workbench', route: '/project/delivery/workbench' },
     ],
   },

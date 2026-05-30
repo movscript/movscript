@@ -485,6 +485,7 @@
 }
 
 .agent-mode-content-panel {
+  --agent-content-panel-background: var(--app-shell-slot-right-background, var(--ms-app-shell-slot-right-background, var(--ms-color-app-background)));
   position: relative;
   display: flex;
   width: 100%;
@@ -496,7 +497,7 @@
   box-sizing: border-box;
   border: 0;
   border-radius: inherit;
-  background: inherit;
+  background: var(--agent-content-panel-background);
   transition:
     width 0.26s var(--ms-easing-standard),
     min-width 0.26s var(--ms-easing-standard),

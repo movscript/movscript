@@ -25,7 +25,6 @@ import { api } from '@/shared/infrastructure/api'
 import {
   Button,
   CanvasMediaFill,
-  CanvasResizeHandleButton,
   CanvasRunStatusBadge,
   CanvasWorkflowHistoryDuration,
   CanvasWorkflowHistoryView,
@@ -38,6 +37,8 @@ import {
   type CanvasWorkflowHistoryStatusFilter,
   type CanvasWorkflowRunResultsItem,
   Input,
+  PanelResizeHandle,
+  useResizablePanel,
 } from '@movscript/ui'
 import type { Canvas, CanvasRunStatus, ResourceBinding } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
@@ -329,21 +330,15 @@ export function WorkflowSidePanel({
 }) {
   const { t } = useTranslation()
   const [width, setWidth] = useState(300)
-  function startResize(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = width
-    function onMove(moveEvent: PointerEvent) {
-      const next = Math.min(420, Math.max(260, startWidth + startX - moveEvent.clientX))
-      setWidth(next)
-    }
-    function onUp() {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-  }
+  const sidePanelResize = useResizablePanel({
+    size: width,
+    onSizeChange: setWidth,
+    minSize: 260,
+    maxSize: 420,
+    resizeEdge: 'left',
+    ariaLabel: t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' }),
+  })
+
   return (
     <>
       <CanvasWorkflowSideRail>
@@ -383,9 +378,10 @@ export function WorkflowSidePanel({
       </CanvasWorkflowSideRail>
       {!collapsed ? (
         <CanvasWorkflowSidePanel width={width}>
-          <CanvasResizeHandleButton
-            onPointerDown={startResize}
-            title={t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' })}
+          <PanelResizeHandle
+            {...sidePanelResize.resizeHandleProps}
+            className="canvas-workflow-side-panel__resize-handle"
+            side="left"
           />
           <CanvasWorkflowSideBody>
             {activeTab === 'resources' ? (

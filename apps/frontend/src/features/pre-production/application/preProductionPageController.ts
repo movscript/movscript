@@ -1,7 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/features/content/presentation/contentFilters'
+import {
+  hasExplicitWorkbenchSearchParam,
+  useWorkbenchSessionStore,
+} from '@/features/project-workbenches/application/workbenchSessionStore'
 import {
   normalizeAssetKind,
   type AssetKind,
@@ -9,6 +13,8 @@ import {
   type CreativeReferenceRecord,
   type ReferenceAssetCluster,
 } from '@/features/pre-production/domain/preProductionAssetRows'
+
+const PRE_PRODUCTION_SESSION_SELECTION_KEYS = ['reference_id', 'asset_slot_id', 'selected']
 
 export interface PreProductionPageSelectionInput {
   searchParams: URLSearchParams
@@ -29,11 +35,21 @@ export interface PreProductionPageSelection {
   selectedCluster: ReferenceAssetCluster | null
 }
 
+export type PreProductionSearchParamsSetter = (
+  nextInit: URLSearchParams | ((current: URLSearchParams) => URLSearchParams),
+  navigateOptions?: { replace?: boolean },
+) => void
+
 export function buildPreProductionFilterParams(
   searchParams: URLSearchParams,
   updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>,
 ) {
   return updateContentFilterParams(searchParams, updates) as URLSearchParams
+}
+
+export function normalizePreProductionKindFilter(value?: string | null): AssetKind {
+  const normalized = String(value ?? '').trim()
+  return !normalized || normalized === 'all' ? 'all' : normalizeAssetKind(normalized)
 }
 
 export function buildPreProductionSlotSelectionParams(
@@ -67,6 +83,33 @@ export function buildPreProductionReferenceSelectionParams(
   return buildPreProductionFilterParams(searchParams, { reference_id: referenceId, asset_slot_id: null, selected: null })
 }
 
+export function buildPreProductionSessionRestoreParams({
+  searchParams,
+  rows,
+  referenceById,
+  kind,
+  slotId,
+  referenceId,
+}: {
+  searchParams: URLSearchParams
+  rows: AssetSlotViewModel[]
+  referenceById: Map<number, CreativeReferenceRecord>
+  kind: AssetKind
+  slotId: number
+  referenceId: number
+}) {
+  const restoredRow = slotId ? rows.find((row) => row.slot.ID === slotId) ?? null : null
+  const restoredReferenceId = restoredRow?.slot.creative_reference_id ?? (referenceId && referenceById.has(referenceId) ? referenceId : 0)
+  const next = new URLSearchParams(searchParams)
+  if (!next.get('kind') && kind !== 'all' && rows.some((row) => row.kind === kind)) next.set('kind', kind)
+  if (restoredReferenceId) next.set('reference_id', String(restoredReferenceId))
+  else next.delete('reference_id')
+  if (restoredRow) next.set('asset_slot_id', String(restoredRow.slot.ID))
+  else next.delete('asset_slot_id')
+  next.delete('selected')
+  return next
+}
+
 export function resolvePreProductionPageSelection({
   searchParams,
   rows,
@@ -76,8 +119,10 @@ export function resolvePreProductionPageSelection({
   const selectedId = readNumberParam(searchParams, 'asset_slot_id') ?? readNumberParam(searchParams, 'selected')
   const selectedReferenceParam = readNumberParam(searchParams, 'reference_id')
   const kindParam = readStringParam(searchParams, 'kind')
-  const kindFilter: AssetKind = kindParam ? normalizeAssetKind(kindParam) : 'all'
-  const filtered = rows.filter((row) => kindFilter === 'all' || row.kind === kindFilter)
+  const parsedKindFilter = normalizePreProductionKindFilter(kindParam)
+  const filteredByKind = rows.filter((row) => parsedKindFilter === 'all' || row.kind === parsedKindFilter)
+  const kindFilter = parsedKindFilter === 'other' && rows.length > 0 && filteredByKind.length === 0 ? 'all' : parsedKindFilter
+  const filtered = kindFilter === parsedKindFilter ? filteredByKind : rows
   const filteredClusters = clusters.map((cluster) => ({
     ...cluster,
     rows: cluster.rows.filter((row) => kindFilter === 'all' || row.kind === kindFilter),
@@ -105,16 +150,27 @@ export function resolvePreProductionPageSelection({
 }
 
 export function usePreProductionPageController({
+  projectId,
+  route,
   searchParams,
   setSearchParams,
   rows,
   clusters,
   referenceById,
 }: PreProductionPageSelectionInput & {
-  setSearchParams: (nextInit: URLSearchParams, navigateOptions?: { replace?: boolean }) => void
+  projectId?: number
+  route?: string
+  setSearchParams: PreProductionSearchParamsSetter
 }) {
   const [newSlotEditId, setNewSlotEditId] = useState<number | null>(null)
   const [newReferenceEditKey, setNewReferenceEditKey] = useState<string | number | null>(null)
+  const restoredSessionRef = useRef(false)
+  const sessionSnapshot = useWorkbenchSessionStore((state) => projectId ? state.snapshotFor(projectId, 'pre_production') : null)
+  const upsertWorkbenchSessionSnapshot = useWorkbenchSessionStore((state) => state.upsertSnapshot)
+  const hasExplicitSelectionSearch = useMemo(
+    () => hasExplicitWorkbenchSearchParam(searchParams, PRE_PRODUCTION_SESSION_SELECTION_KEYS),
+    [searchParams],
+  )
   const selection = useMemo(() => resolvePreProductionPageSelection({
     searchParams,
     rows,
@@ -122,8 +178,57 @@ export function usePreProductionPageController({
     referenceById,
   }), [clusters, referenceById, rows, searchParams])
 
+  function persistSessionSnapshot(nextParams: URLSearchParams) {
+    if (!projectId) return
+    const selectedId = readNumberParam(nextParams, 'asset_slot_id') ?? readNumberParam(nextParams, 'selected')
+    const selectedReferenceParam = readNumberParam(nextParams, 'reference_id')
+    const selectedRow = selectedId ? rows.find((row) => row.slot.ID === selectedId) ?? null : null
+    const selectedReferenceId = selectedReferenceParam ?? selectedRow?.slot.creative_reference_id ?? null
+    const kind = normalizePreProductionKindFilter(readStringParam(nextParams, 'kind'))
+    upsertWorkbenchSessionSnapshot({
+      projectId,
+      workbenchId: 'pre_production',
+      route,
+      search: nextParams.toString(),
+      filters: {
+        kind,
+        selectedId: selectedId ?? null,
+        selectedReferenceId: selectedReferenceId ?? null,
+      },
+      selection: {
+        ...(selectedReferenceId ? { primary: { entityType: 'creative_reference', entityId: selectedReferenceId } } : {}),
+        ...(selectedId ? { secondary: { entityType: 'asset_slot', entityId: selectedId } } : {}),
+      },
+    })
+  }
+
+  useEffect(() => {
+    if (!projectId || hasExplicitSelectionSearch || restoredSessionRef.current || !sessionSnapshot) return
+    if (rows.length === 0 && referenceById.size === 0) return
+    restoredSessionRef.current = true
+    const snapshotKind = normalizePreProductionKindFilter(typeof sessionSnapshot.filters?.kind === 'string' ? sessionSnapshot.filters.kind : null)
+    const snapshotSlotId = sessionSnapshot.selection?.secondary?.entityType === 'asset_slot'
+      ? sessionSnapshot.selection.secondary.entityId
+      : Number(sessionSnapshot.filters?.selectedId) || 0
+    const snapshotReferenceId = sessionSnapshot.selection?.primary?.entityType === 'creative_reference'
+      ? sessionSnapshot.selection.primary.entityId
+      : Number(sessionSnapshot.filters?.selectedReferenceId) || 0
+    setSearchParams((current) => {
+      return buildPreProductionSessionRestoreParams({
+        searchParams: current,
+        rows,
+        referenceById,
+        kind: snapshotKind,
+        slotId: snapshotSlotId,
+        referenceId: snapshotReferenceId,
+      })
+    }, { replace: true })
+  }, [hasExplicitSelectionSearch, projectId, referenceById, rows, sessionSnapshot, setSearchParams])
+
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
-    setSearchParams(buildPreProductionFilterParams(searchParams, updates), { replace: true })
+    const next = buildPreProductionFilterParams(searchParams, updates)
+    setSearchParams(next, { replace: true })
+    persistSessionSnapshot(next)
   }
 
   function startCreateReference() {
@@ -158,22 +263,30 @@ export function usePreProductionPageController({
 
   function selectSlot(slotId: number) {
     setNewReferenceEditKey(null)
-    setSearchParams(buildPreProductionSlotSelectionParams(searchParams, rows, slotId), { replace: true })
+    const next = buildPreProductionSlotSelectionParams(searchParams, rows, slotId)
+    setSearchParams(next, { replace: true })
+    persistSessionSnapshot(next)
   }
 
   function selectReference(referenceId: number) {
     setNewReferenceEditKey(null)
-    setSearchParams(buildPreProductionReferenceSelectionParams(searchParams, referenceId), { replace: true })
+    const next = buildPreProductionReferenceSelectionParams(searchParams, referenceId)
+    setSearchParams(next, { replace: true })
+    persistSessionSnapshot(next)
   }
 
   function openSlot(slotId: number) {
     setNewReferenceEditKey(null)
-    setSearchParams(buildPreProductionSlotSelectionParams(searchParams, rows, slotId, { forceOpen: true }), { replace: true })
+    const next = buildPreProductionSlotSelectionParams(searchParams, rows, slotId, { forceOpen: true })
+    setSearchParams(next, { replace: true })
+    persistSessionSnapshot(next)
   }
 
   function openReference(referenceId: number) {
     setNewReferenceEditKey(null)
-    setSearchParams(buildPreProductionReferenceSelectionParams(searchParams, referenceId, { forceOpen: true }), { replace: true })
+    const next = buildPreProductionReferenceSelectionParams(searchParams, referenceId, { forceOpen: true })
+    setSearchParams(next, { replace: true })
+    persistSessionSnapshot(next)
   }
 
   return {

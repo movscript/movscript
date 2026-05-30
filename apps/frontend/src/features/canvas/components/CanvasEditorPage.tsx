@@ -58,6 +58,7 @@ import {
   isCanvasNodeOutsideGroupBounds,
   resizeCanvasGroupsToFitMembers,
   resolveCanvasGroupPromotionId,
+  shouldUseCanvasMediaLightweightMode,
   topLevelSelectedCanvasNodes,
 } from '@/features/canvas/domain/layout'
 import { compareWorkflowIoNodes, isFinalOutputNode } from '@/features/canvas/domain/graph'
@@ -192,7 +193,10 @@ const nodeTypes = {
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
 const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval', 'resource_sink', 'canvas'])
 const CANVAS_GRID_MIN_ZOOM = 0.65
-const CANVAS_MINIMAP_NODE_LIMIT = 120
+const CANVAS_OVERVIEW_MIN_ZOOM = 0.45
+const CANVAS_BUSY_OVERVIEW_MIN_ZOOM = 0.8
+const CANVAS_OVERVIEW_NODE_LIMIT = 80
+const CANVAS_MINIMAP_NODE_LIMIT = 60
 const CANVAS_DEBUG_STORAGE_KEY = 'movscript.canvasDebug'
 
 type CanvasGroupDragSnapshot = {
@@ -349,6 +353,10 @@ function compactCanvasMediaElement(element: HTMLImageElement | HTMLVideoElement)
   return `${owner}:${compactCanvasRect(rect)}:natural=${natural}:${compactCanvasMediaSrc(element.currentSrc || element.src)}`
 }
 
+function shouldUseCanvasOverviewMode(zoom: number, nodeCount: number) {
+  return zoom < CANVAS_OVERVIEW_MIN_ZOOM || (nodeCount > CANVAS_OVERVIEW_NODE_LIMIT && zoom < CANVAS_BUSY_OVERVIEW_MIN_ZOOM)
+}
+
 interface CanvasWorkspaceProps {
   canvasId: number | string
   embedded?: boolean
@@ -376,8 +384,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
   const viewportZoomRef = useRef(1)
+  const viewportPositionRef = useRef({ x: 0, y: 0 })
   const groupDragSnapshotRef = useRef<CanvasGroupDragSnapshot | null>(null)
   const [gridZoomEligible, setGridZoomEligible] = useState(true)
+  const [canvasOverviewMode, setCanvasOverviewMode] = useState(false)
+  const [canvasMediaLightweightMode, setCanvasMediaLightweightMode] = useState(false)
   const renderDiagnosticsTimerRef = useRef<number | null>(null)
 
   // Workflow input dialog
@@ -1059,11 +1070,37 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     onNodeDragStop(event, node)
   }, [onNodeDragStop])
 
-  const handleViewportMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { zoom: number }) => {
+  const handleViewportMove = useCallback((_: MouseEvent | TouchEvent | null, viewport: { x: number; y: number; zoom: number }) => {
     viewportZoomRef.current = viewport.zoom
+    viewportPositionRef.current = { x: viewport.x, y: viewport.y }
     const nextGridZoomEligible = viewport.zoom >= CANVAS_GRID_MIN_ZOOM
+    const nextOverviewMode = shouldUseCanvasOverviewMode(viewport.zoom, nodes.length)
+    const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
+      nodes,
+      viewportX: viewport.x,
+      viewportY: viewport.y,
+      zoom: viewport.zoom,
+      viewportWidth: canvasPaneRef.current?.clientWidth ?? window.innerWidth,
+      viewportHeight: canvasPaneRef.current?.clientHeight ?? window.innerHeight,
+    })
     setGridZoomEligible((current) => current === nextGridZoomEligible ? current : nextGridZoomEligible)
-  }, [])
+    setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
+    setCanvasMediaLightweightMode((current) => current === nextMediaLightweightMode ? current : nextMediaLightweightMode)
+  }, [nodes])
+
+  useEffect(() => {
+    const nextOverviewMode = shouldUseCanvasOverviewMode(viewportZoomRef.current, nodes.length)
+    const nextMediaLightweightMode = shouldUseCanvasMediaLightweightMode({
+      nodes,
+      viewportX: viewportPositionRef.current.x,
+      viewportY: viewportPositionRef.current.y,
+      zoom: viewportZoomRef.current,
+      viewportWidth: canvasPaneRef.current?.clientWidth ?? window.innerWidth,
+      viewportHeight: canvasPaneRef.current?.clientHeight ?? window.innerHeight,
+    })
+    setCanvasOverviewMode((current) => current === nextOverviewMode ? current : nextOverviewMode)
+    setCanvasMediaLightweightMode((current) => current === nextMediaLightweightMode ? current : nextMediaLightweightMode)
+  }, [nodes])
 
   const nodesWithHandlers = useMemo(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
@@ -1100,6 +1137,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           availableResources: canvasNodeResources,
           referenceResources,
           canvasDebug,
+          canvasOverviewMode,
+          canvasMediaLightweightMode,
           ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
           onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
           onUpdateContent: (content: string) => {
@@ -1129,7 +1168,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         }
       }
     })
-  }, [canvasDebug, canvasNodeResourceById, canvasNodeResources, clientPlugins, edges, id, nodes, runLocalPluginNode, runNode, updateNodeData])
+  }, [canvasDebug, canvasMediaLightweightMode, canvasNodeResourceById, canvasNodeResources, canvasOverviewMode, clientPlugins, edges, id, nodes, runLocalPluginNode, runNode, updateNodeData])
 
   const topLevelSelectedNodes = useMemo(
     () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n))),
@@ -1165,10 +1204,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
   const savingCanvas = save.isPending || autoSaveState === 'saving' || renameCanvas.isPending
   const shouldBlockCanvasExit = hasUnsavedChanges || savingCanvas || runtimeStarting || runningCount > 0
-  const showCanvasGrid = canvasDebug.grid && gridZoomEligible
-  const showCanvasMinimap = canvasDebug.minimap && nodes.length <= CANVAS_MINIMAP_NODE_LIMIT
+  const showCanvasGrid = canvasDebug.grid && gridZoomEligible && !canvasOverviewMode
+  const showCanvasMinimap = canvasDebug.minimap && !canvasOverviewMode && nodes.length <= CANVAS_MINIMAP_NODE_LIMIT
   const renderedNodes = useMemo(() => canvasDebug.nodes ? nodesWithHandlers : [], [canvasDebug.nodes, nodesWithHandlers])
-  const visibleEdges = useMemo(() => canvasDebug.nodes && canvasDebug.edges ? edges : [], [canvasDebug.edges, canvasDebug.nodes, edges])
+  const visibleEdges = useMemo(() => {
+    if (!canvasDebug.nodes || !canvasDebug.edges) return []
+    return edges.map((edge) => ({
+      ...edge,
+      markerEnd: canvasOverviewMode ? undefined : (edge.markerEnd ?? { type: MarkerType.ArrowClosed, width: 14, height: 14 }),
+      style: {
+        ...edge.style,
+        strokeWidth: canvasOverviewMode ? 1 : (edge.style?.strokeWidth ?? 1.6),
+      },
+    }))
+  }, [canvasDebug.edges, canvasDebug.nodes, canvasOverviewMode, edges])
   const visiblePaletteSections = useMemo(() => SIDEBAR_NODE_CATEGORIES
     .map((category) => ({
       category,
@@ -1235,6 +1284,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           `zoom=${viewportZoomRef.current.toFixed(3)}`,
           `grid=${showCanvasGrid ? 'on' : 'off'}`,
           `minimap=${showCanvasMinimap ? 'on' : 'off'}`,
+          `mediaLightweight=${canvasMediaLightweightMode ? 'on' : 'off'}`,
           `debug=${compactCanvasDebugOptions(canvasDebug)}`,
           `transform=${viewportTransform}`,
         ].join(' '),
@@ -1585,7 +1635,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             onDragLeave={onDragLeave}
           >
             <ReactFlow
-              className={cn(canvasFlowClassName, !canvasDebug.shadows && 'canvas-flow--debug-no-shadows')}
+              className={cn(
+                canvasFlowClassName,
+                (!canvasDebug.shadows || canvasOverviewMode) && 'canvas-flow--debug-no-shadows',
+                canvasOverviewMode && 'canvas-flow--overview',
+              )}
               nodes={renderedNodes}
               edges={visibleEdges}
               onNodesChange={handleNodesChange}
@@ -1614,8 +1668,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               onlyRenderVisibleElements={canvasDebug.visibleOnly}
               defaultEdgeOptions={{
                 type: 'default',
-                markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-                style: { strokeWidth: 1.6 },
+                markerEnd: canvasOverviewMode ? undefined : { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+                style: { strokeWidth: canvasOverviewMode ? 1 : 1.6 },
               }}
             >
               {selectedGroupBounds && (

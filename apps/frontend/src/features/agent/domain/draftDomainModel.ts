@@ -44,7 +44,7 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.contentUnitWorkbench, { draftId: draft.id, content_unit_id: contentUnitId })
+    return withRouteParams(ROUTES.project.productionOrchestration, { draftId: draft.id, content_unit_id: contentUnitId })
   }
 
   const productionId = sourceEntityId ?? targetEntityId

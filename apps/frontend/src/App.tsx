@@ -29,12 +29,13 @@ import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import BrainstormPage from './pages/tools/BrainstormPage'
-import ProductionPage from './pages/project/production/ProductionPage'
 import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
-import { ContentWorkbenchPage } from './features/content/components/ContentWorkbenchPage'
+import { ContentUnitWorkbenchPage } from './features/content/components/ContentUnitWorkbenchPage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
 import InvitePage from './pages/auth/InvitePage'
 import ResourcesPage from './pages/resources/ResourcesPage'
+import ExternalResourcesPage from './pages/resources/ExternalResourcesPage'
+import ShotLibraryPage from './pages/shot-library/ShotLibraryPage'
 import JobsPage from './pages/jobs/JobsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
@@ -59,7 +60,7 @@ import AgentRunsPage from './pages/agent/AgentRunsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
-import { AlertTriangle, ArrowLeft, Bot, BriefcaseBusiness, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Bot, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
@@ -106,6 +107,11 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
     }
     return this.props.children
   }
+}
+
+function ContentWorkbenchRedirect() {
+  const location = useLocation()
+  return <Navigate to={`${ROUTES.project.productionOrchestration}${location.search}`} replace />
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -561,7 +567,10 @@ function detailRouteHeaderTitle(pathname: string): React.ReactNode | undefined {
     title: React.ReactNode
   }> = [
     { match: (value) => value === ROUTES.resources, icon: HardDrive, title: i18n.t('header.titles.resources') },
+    { match: (value) => value === ROUTES.externalResources, icon: ImageIcon, title: i18n.t('header.titles.externalResources', { defaultValue: '外部资源' }) },
+    { match: (value) => value === ROUTES.shotLibrary, icon: Clapperboard, title: i18n.t('header.titles.shotLibrary') },
     { match: (value) => value === ROUTES.jobs, icon: BriefcaseBusiness, title: i18n.t('header.titles.jobs') },
+    { match: (value) => value === ROUTES.project.contentUnitEditor, icon: Clapperboard, title: i18n.t('header.titles.shotEditWorkbench') },
     { match: (value) => value === ROUTES.tools.refImageGen, icon: ImageIcon, title: i18n.t('sidebar.items.refImageGen') },
     { match: (value) => value === ROUTES.tools.refVideoGen, icon: Video, title: i18n.t('sidebar.items.refVideoGen') },
     { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
@@ -876,7 +885,6 @@ export default function App() {
               <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
               <Route path={ROUTES.project.legacyScripts} element={<Navigate to={ROUTES.project.scripts} replace />} />
 
-              <Route path={ROUTES.project.production} element={<ProjectGuard><ProductionPage /></ProjectGuard>} />
               <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />
               <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
               <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
@@ -885,7 +893,8 @@ export default function App() {
               <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
               <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><ContentWorkbenchPage /></ProjectGuard>} />
+              <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><ContentWorkbenchRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.contentUnitEditor} element={<ProjectGuard><ContentUnitWorkbenchPage /></ProjectGuard>} />
 
               {/* 用户 */}
               <Route path={ROUTES.user} element={<AccountSettingsRoute tab="profile" />} />
@@ -905,6 +914,8 @@ export default function App() {
 
               {/* 文件 */}
               <Route path={ROUTES.resources} element={<ResourcesPage />} />
+              <Route path={ROUTES.externalResources} element={<ExternalResourcesPage />} />
+              <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
               <Route path={ROUTES.agentConsole} element={<AccountSettingsRoute tab="agentConsole" />} />

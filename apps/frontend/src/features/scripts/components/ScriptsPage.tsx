@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
@@ -8,6 +8,10 @@ import type { Script } from '@/types'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
+  hasExplicitWorkbenchSearchParam,
+  useWorkbenchSessionStore,
+} from '@/features/project-workbenches/application/workbenchSessionStore'
+import {
   AlertTriangle,
   CheckCircle2,
   Check,
@@ -15,6 +19,7 @@ import {
   FileText,
   GitBranch,
   Layers,
+  PanelRightClose,
   Pencil,
   Plus,
   ScrollText,
@@ -24,7 +29,6 @@ import { ScriptCreateForm } from '@/shared/ui/EntityCreateForms'
 import {
   Badge,
   Button,
-  PanelResizeHandle,
   ScriptEditorFieldLabel,
   ScriptEditorInput,
   ScriptBlockCard,
@@ -40,7 +44,6 @@ import {
   ScriptLibraryGroup,
   ScriptLibraryItem,
   ScriptLibraryRail,
-  useResizableOverlapPane,
   ScriptVersionBlockShell,
   ScriptVersionCard,
   ScriptVersionEmptyState,
@@ -54,6 +57,8 @@ import {
   StatusBadge,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
+  OverlapPaneRevealButton,
+  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { ScriptForm } from '@/features/scripts/components/ScriptForm'
 import { useTranslation } from 'react-i18next'
@@ -66,10 +71,11 @@ import {
 
 type ScriptDetailTab = 'edit' | 'versions'
 
-const SCRIPT_RAIL_MIN_WIDTH = 240
-const SCRIPT_RAIL_MAX_WIDTH = 380
-const SCRIPT_RAIL_DEFAULT_WIDTH = 300
-const SCRIPT_RAIL_WIDTH_STORAGE_KEY = 'movscript.scriptWorkbench.railWidth'
+const SCRIPT_LIST_MIN_WIDTH = 240
+const SCRIPT_DETAIL_PANE_MIN_WIDTH = 360
+const SCRIPT_DETAIL_PANE_MAX_WIDTH = 2400
+const SCRIPT_DETAIL_PANE_DEFAULT_WIDTH = 810
+const SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.scriptWorkbench.detailPaneWidth'
 
 type ScriptBlockRecord = SemanticEntityRecord & {
   script_id?: number
@@ -114,7 +120,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detailTab, setDetailTab] = useState<ScriptDetailTab>('edit')
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
@@ -122,14 +128,25 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false)
   const [editingScriptTypeId, setEditingScriptTypeId] = useState<number | null>(null)
   const [scriptTypeDraft, setScriptTypeDraft] = useState('')
-  const [railWidth, setRailWidth] = useState(() => readScriptRailWidth())
-  const railResize = useResizableOverlapPane({
-    size: railWidth,
-    onSizeChange: setRailWidth,
-    minSize: SCRIPT_RAIL_MIN_WIDTH,
-    maxSize: SCRIPT_RAIL_MAX_WIDTH,
-    resizeEdge: 'right',
-    ariaLabel: '调整稿件列表宽度',
+  const restoredSessionRef = useRef(false)
+  const sessionSnapshot = useWorkbenchSessionStore((state) => state.snapshotFor(projectId, 'scripts'))
+  const upsertWorkbenchSessionSnapshot = useWorkbenchSessionStore((state) => state.upsertSnapshot)
+  const hasExplicitSessionSearch = useMemo(
+    () => hasExplicitWorkbenchSearchParam(searchParams, ['script_id']),
+    [searchParams],
+  )
+  const detailPane = usePersistentOverlapPaneController({
+    storageKey: SCRIPT_DETAIL_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: SCRIPT_DETAIL_PANE_DEFAULT_WIDTH,
+    minSize: SCRIPT_DETAIL_PANE_MIN_WIDTH,
+    maxSize: (rect) => Math.max(
+      SCRIPT_DETAIL_PANE_MIN_WIDTH,
+      Math.min(SCRIPT_DETAIL_PANE_MAX_WIDTH, rect.width - SCRIPT_LIST_MIN_WIDTH),
+    ),
+    resizeEdge: 'left',
+    collapseMode: 'after-min',
+    expandMode: 'after-max',
+    ariaLabel: '调整剧本正文宽度',
   })
   const [draft, setDraft] = useState<Partial<Script>>({})
   const scriptBlockConfig = useMemo(() => semanticEntityConfig('scriptBlocks'), [])
@@ -172,8 +189,51 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     if (scripts.some((script) => script.ID === scriptId)) setSelectedId(scriptId)
   }, [scripts, searchParams])
 
+  useEffect(() => {
+    if (hasExplicitSessionSearch || restoredSessionRef.current || !sessionSnapshot || scripts.length === 0) return
+    restoredSessionRef.current = true
+    const snapshotScriptId = sessionSnapshot.selection?.primary?.entityType === 'script'
+      ? sessionSnapshot.selection.primary.entityId
+      : Number(sessionSnapshot.filters?.scriptId) || 0
+    if (!snapshotScriptId || !scripts.some((script) => script.ID === snapshotScriptId)) return
+    setSelectedId(snapshotScriptId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('script_id', String(snapshotScriptId))
+      return next
+    }, { replace: true })
+  }, [hasExplicitSessionSearch, scripts, sessionSnapshot, setSearchParams])
+
+  function selectScript(scriptId: number | null) {
+    setSelectedId(scriptId)
+    upsertWorkbenchSessionSnapshot({
+      projectId,
+      workbenchId: 'scripts',
+      route: ROUTES.project.scripts,
+      search: scriptId ? `script_id=${scriptId}` : '',
+      filters: { scriptId: scriptId ?? null },
+      selection: {
+        ...(scriptId ? { primary: { entityType: 'script', entityId: scriptId } } : {}),
+      },
+    })
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (scriptId) next.set('script_id', String(scriptId))
+      else next.delete('script_id')
+      return next
+    }, { replace: true })
+  }
+
   const scriptGroups = useMemo(() => groupScriptsByCategory(sortedScripts), [sortedScripts])
-  const selected = scripts.find((s) => s.ID === selectedId) ?? sortedScripts[0] ?? null
+  const selected = selectedId ? scripts.find((s) => s.ID === selectedId) ?? null : null
+  const hasSelectedScript = Boolean(selected)
+  const detailPaneLayoutProps = hasSelectedScript
+    ? detailPane.groupProps
+    : {
+        ...detailPane.groupProps,
+        'data-overlap-pane-collapsed': 'true' as const,
+        'data-overlap-pane-expanded': undefined,
+      }
   const versionsForSelected = useMemo(() => {
     if (!selected) return []
     return scriptVersions
@@ -206,10 +266,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     setExpandedVersionId(null)
     setScriptTextSelection(null)
   }, [selected?.ID])
-
-  useEffect(() => {
-    window.localStorage.setItem(SCRIPT_RAIL_WIDTH_STORAGE_KEY, String(railWidth))
-  }, [railWidth])
 
   const updateScript = useMutation({
     mutationFn: (data: Partial<Script>) =>
@@ -345,7 +401,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       qc.invalidateQueries({ queryKey: ['semantic-content-positioning', projectId, 'content-units'] })
       qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('制作项已创建')
-      navigate(withRouteParams(ROUTES.project.contentUnitWorkbench, { content_unit_id: record.ID }))
+      navigate(withRouteParams(ROUTES.project.productionOrchestration, {
+        scene_moment_id: Number(record.scene_moment_id) || undefined,
+        content_unit_id: record.ID,
+      }))
     },
     onError: () => toast.error('创建制作项失败'),
   })
@@ -379,254 +438,300 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     >
       <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted">
         <ScriptWorkspaceShell>
-        <ScriptWorkspaceLayout style={{ '--script-workbench-rail-width': `${railWidth}px` } as CSSProperties}>
-          <ScriptLibraryRail
-            className="script-workbench-rail"
-            icon={<ScrollText size={14} />}
-            title="剧本编辑"
-            action={(
-              <Button size="icon-sm" onClick={() => setShowCreate(true)} aria-label="新建剧本">
-                <Plus size={14} />
-              </Button>
-            )}
-          >
-            {isLoading ? (
-              <p className="px-2 py-4 type-label text-muted-foreground">{t('common.loadingShort')}</p>
-            ) : scripts.length === 0 ? (
-              <ScriptLibraryEmptyState
-                icon={<FileText size={24} />}
-                title={t('pages.scripts.empty')}
-                action={(
-                  <Button variant="ghost" size="xs" onClick={() => setShowCreate(true)}>
-                    {t('pages.scripts.createOne')}
+            <ScriptWorkspaceLayout
+              {...detailPaneLayoutProps}
+            >
+            <ScriptLibraryRail
+              className="script-workbench-rail"
+              icon={<ScrollText size={14} />}
+              title="剧本编辑"
+              action={(
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    title="隐藏剧本正文"
+                    aria-label="隐藏剧本正文"
+                    onClick={() => {
+                      detailPane.collapse()
+                    }}
+                  >
+                    <PanelRightClose size={14} />
                   </Button>
-                )}
-              />
-            ) : (
-              <>
-                {scriptGroups.map((group) => (
-                  <ScriptLibraryGroup key={group.category} label={group.category} count={group.scripts.length}>
-                    {group.scripts.map((script) => {
-                      const vers = scriptVersions.filter((v) => v.script_id === script.ID)
-                      const bodyLength = String(script.content || script.raw_source || '').trim().length
-                      const hasVersions = vers.length > 0
-                      const scriptTypeLabel = categoryLabel(script.script_type)
-                      const isEditingType = editingScriptTypeId === script.ID
-                      return (
-                        <ScriptLibraryItem
-                          key={script.ID}
-                          active={selected?.ID === script.ID}
-                          statusProps={scriptLibraryStatusRecipe(hasVersions, bodyLength)}
-                          title={script.title}
-                          meta={`${bodyLength} 字 · ${hasVersions ? `v${vers[0]?.version_number || vers[0]?.ID}` : '工作稿'}`}
-                          tag={isEditingType ? (
-                            <div className="script-library-item__tag-editor" onClick={(event) => event.stopPropagation()}>
-                              <ScriptEditorFieldLabel htmlFor={`script-library-category-${script.ID}`} className="sr-only">分类标签</ScriptEditorFieldLabel>
-                              <ScriptEditorInput
-                                id={`script-library-category-${script.ID}`}
-                                placeholder="未分类"
-                                value={scriptTypeDraft}
-                                autoFocus
-                                onChange={(event) => setScriptTypeDraft(event.target.value)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    event.preventDefault()
-                                    saveScriptType(script)
-                                  }
-                                  if (event.key === 'Escape') {
-                                    cancelScriptTypeEdit()
-                                  }
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                size="icon-sm"
-                                aria-label="保存分类标签"
-                                disabled={updateScriptCategory.isPending}
-                                onClick={() => saveScriptType(script)}
-                              >
-                                <Check size={13} />
-                              </Button>
+                  <Button size="icon-sm" onClick={() => setShowCreate(true)} aria-label="新建剧本">
+                    <Plus size={14} />
+                  </Button>
+                </>
+              )}
+            >
+              {isLoading ? (
+                <p className="px-2 py-4 type-label text-muted-foreground">{t('common.loadingShort')}</p>
+              ) : scripts.length === 0 ? (
+                <ScriptLibraryEmptyState
+                  icon={<FileText size={24} />}
+                  title={t('pages.scripts.empty')}
+                  action={(
+                    <Button variant="ghost" size="xs" onClick={() => setShowCreate(true)}>
+                      {t('pages.scripts.createOne')}
+                    </Button>
+                  )}
+                />
+              ) : (
+                <>
+                  {scriptGroups.map((group) => (
+                    <ScriptLibraryGroup key={group.category} label={group.category} count={group.scripts.length}>
+                      {group.scripts.map((script) => {
+                        const vers = scriptVersions.filter((v) => v.script_id === script.ID)
+                        const bodyLength = String(script.content || script.raw_source || '').trim().length
+                        const hasVersions = vers.length > 0
+                        const scriptTypeLabel = categoryLabel(script.script_type)
+                        const isEditingType = editingScriptTypeId === script.ID
+                        const scriptVersion = latestScriptVersion(vers)
+                        const versionIdSet = new Set(vers.map((version) => version.ID))
+                        const relatedBlocks = scriptBlocks.filter((block) => Number(block.script_id) === script.ID || versionIdSet.has(Number(block.script_version_id)))
+                        const editState = scriptCardEditState(script, scriptVersion, hasVersions, bodyLength)
+                        return (
+                          <ScriptLibraryItem
+                            key={script.ID}
+                            active={selected?.ID === script.ID}
+                            statusProps={scriptLibraryStatusRecipe(hasVersions, bodyLength)}
+                            title={script.title}
+                            meta={scriptLibraryItemMeta({
+                              bodyLength,
+                              scriptVersion,
+                              scriptTypeLabel,
+                              blockCount: relatedBlocks.length,
+                            })}
+                            statusLabel={editState}
+                            editor={isEditingType ? (
+                              <div className="script-library-item__tag-editor" onClick={(event) => event.stopPropagation()}>
+                                <ScriptEditorFieldLabel htmlFor={`script-library-category-${script.ID}`} className="sr-only">分类标签</ScriptEditorFieldLabel>
+                                <ScriptEditorInput
+                                  id={`script-library-category-${script.ID}`}
+                                  placeholder="未分类"
+                                  value={scriptTypeDraft}
+                                  autoFocus
+                                  onChange={(event) => setScriptTypeDraft(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      saveScriptType(script)
+                                    }
+                                    if (event.key === 'Escape') {
+                                      cancelScriptTypeEdit()
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon-sm"
+                                  aria-label="保存分类标签"
+                                  disabled={updateScriptCategory.isPending}
+                                  onClick={() => saveScriptType(script)}
+                                >
+                                  <Check size={13} />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label="取消编辑分类标签"
+                                  onClick={cancelScriptTypeEdit}
+                                >
+                                  <X size={13} />
+                                </Button>
+                              </div>
+                            ) : null}
+                            action={!isEditingType ? (
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon-sm"
-                                aria-label="取消编辑分类标签"
-                                onClick={cancelScriptTypeEdit}
-                              >
-                                <X size={13} />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="xs"
-                              className="script-library-item__tag-button"
-                              aria-label={`编辑分类标签：${scriptTypeLabel}`}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                beginScriptTypeEdit(script)
-                              }}
-                            >
-                              <span className="script-library-item__tag-label">{scriptTypeLabel}</span>
-                            </Button>
-                          )}
-                          onSelect={() => setSelectedId(script.ID)}
-                        />
-                      )
-                    })}
-                  </ScriptLibraryGroup>
-                ))}
-              </>
-            )}
-            <PanelResizeHandle
-              side="right"
-              className="script-workbench-rail__resize-handle"
-              {...railResize.resizeHandleProps}
-            />
-          </ScriptLibraryRail>
-
-          <ScriptWorkspaceMain>
-        {!selected ? (
-          <ScriptWorkspaceEmptySelection
-            icon={ScrollText}
-            title="选择一份稿件开始创作"
-            action={(
-              <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
-                <Plus size={14} className="mr-1.5" />
-                新建剧本
-              </Button>
-            )}
-          />
-        ) : (
-          <>
-            <ScriptDetailHeader
-              badges={(
-                <>
-                    <ScriptTypeBadge script={selected} />
-                    <ScriptStageBadge versionCount={versionsForSelected.length} />
-                    {latestVersion && (
-                      <Badge variant="outline">
-                        最新版本 v{latestVersion.version_number || latestVersion.ID}
-                      </Badge>
-                    )}
-                </>
-              )}
-              title={selected.title}
-              actions={(
-                <>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDetailTab('versions')}>
-                    <GitBranch size={14} />
-                    定稿记录
-                  </Button>
-                </>
-              )}
-            />
-
-            <ScriptDetailTabs
-              tabs={[
-                { key: 'edit', label: '正文' },
-                { key: 'versions', label: `定稿记录 ${versionsForSelected.length}` },
-              ]}
-              activeKey={detailTab}
-              onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
-            />
-
-            {/* Tab content */}
-            <ScriptWorkspaceDetailContent>
-              {detailTab === 'edit' && (
-                <ScriptForm
-                  script={selected}
-                  draft={draft}
-                  onChange={setDraft}
-                  onSave={(data) => updateScript.mutate(data)}
-                  isSaving={updateScript.isPending}
-                  onCreateVersion={() => createVersion.mutate()}
-                  isCreatingVersion={createVersion.isPending}
-                  canCreateVersion={hasDraftBody && !isDraftPublished}
-                  versionStateLabel={versionStateLabel}
-                  latestVersionLabel={latestVersionLabel}
-                />
-              )}
-
-              {detailTab === 'versions' && (
-                <ScriptVersionHistoryPanel
-                  title="定稿记录"
-                  description="把当前正文保存成一份稳定稿，后续制作引用这份文本。"
-                  action={(
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
-                      onClick={() => createVersion.mutate()}
-                    >
-                      <Plus size={14} />
-                      保存为定稿
-                    </Button>
-                  )}
-                >
-                  {versionsForSelected.length === 0 ? (
-                    <ScriptVersionEmptyState
-                      icon={Layers}
-                      title="还没有定稿"
-                      detail="正文稳定后，可以保存成第一份定稿。"
-                      action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>回到正文</Button>}
-                    />
-                  ) : (
-                    <div>
-                      {versionsForSelected.map((version) => {
-                        const isExpanded = expandedVersionId === version.ID
-                        const content = version.content || version.raw_source || ''
-                        const contentLength = content.trim().length
-                        return (
-                          <ScriptVersionCard
-                            key={version.ID}
-                            versionLabel={`v${version.version_number || version.ID}`}
-                            status={<VersionStatusBadge status={version.status} />}
-                            title={version.title}
-                            meta={`${contentLength} 字 · ${formatDate(version.UpdatedAt)}`}
-                            toggleLabel={contentLength > 0 ? (isExpanded ? '收起' : '查看') : undefined}
-                            onToggle={contentLength > 0 ? () => setExpandedVersionId(isExpanded ? null : version.ID) : undefined}
-                          >
-                            {isExpanded && contentLength > 0 && (
-                              <ScriptVersionBlockPanel
-                                blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
-                                content={content}
-                                sceneMoments={sceneMoments}
-                                segments={segments}
-                                isCreating={createScriptBlock.isPending}
-                                isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
-                                isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
-                                isCreatingSegment={createSegmentFromScriptBlock.isPending}
-                                selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
-                                version={version}
-                                projectId={projectId}
-                                onCreate={() => createScriptBlock.mutate()}
-                                onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
-                                onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
-                                onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
-                                onOpenUsage={(kind, id) => {
-                                  if (kind === 'segment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { segment_id: id }))
-                                  else if (kind === 'scene_moment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { scene_moment_id: id }))
-                                  else navigate(withRouteParams(ROUTES.project.contentUnitWorkbench, { content_unit_id: id }))
+                                size="icon-xs"
+                                className="script-library-item__tag-button"
+                                aria-label={`编辑分类标签：${scriptTypeLabel}`}
+                                title={`编辑分类标签：${scriptTypeLabel}`}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  beginScriptTypeEdit(script)
                                 }}
-                                onSelectionChange={setScriptTextSelection}
-                              />
-                            )}
-                          </ScriptVersionCard>
+                              >
+                                <Pencil size={11} />
+                              </Button>
+                            ) : null}
+                            onSelect={() => selectScript(selectedId === script.ID ? null : script.ID)}
+                          />
                         )
                       })}
-                    </div>
-                  )}
-                </ScriptVersionHistoryPanel>
+                    </ScriptLibraryGroup>
+                  ))}
+                </>
               )}
-            </ScriptWorkspaceDetailContent>
-          </>
-        )}
-          </ScriptWorkspaceMain>
-        </ScriptWorkspaceLayout>
+            </ScriptLibraryRail>
+
+            {hasSelectedScript && !detailPane.collapsed ? (
+              <ScriptWorkspaceMain
+                overlapState={detailPane.overlapState}
+                resizeHandleSide="left"
+                resizeHandleProps={{
+                  ...detailPane.resizeHandleProps,
+                  className: 'script-workbench-main__resize-handle',
+                }}
+              >
+                {!selected ? (
+                  <ScriptWorkspaceEmptySelection
+                    icon={ScrollText}
+                    title="选择一份稿件开始创作"
+                    action={(
+                      <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
+                        <Plus size={14} className="mr-1.5" />
+                        新建剧本
+                      </Button>
+                    )}
+                  />
+                ) : (
+                  <>
+                    <ScriptDetailHeader
+                      badges={(
+                        <>
+                          <ScriptTypeBadge script={selected} />
+                          <ScriptStageBadge versionCount={versionsForSelected.length} />
+                          {latestVersion && (
+                            <Badge variant="outline">
+                              最新版本 v{latestVersion.version_number || latestVersion.ID}
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                      title={selected.title}
+                      actions={(
+                        <>
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setDetailTab('versions')}>
+                            <GitBranch size={14} />
+                            定稿记录
+                          </Button>
+                        </>
+                      )}
+                    />
+
+                    <ScriptDetailTabs
+                      tabs={[
+                        { key: 'edit', label: '正文' },
+                        { key: 'versions', label: `定稿记录 ${versionsForSelected.length}` },
+                      ]}
+                      activeKey={detailTab}
+                      onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
+                    />
+
+                    {/* Tab content */}
+                    <ScriptWorkspaceDetailContent>
+                      {detailTab === 'edit' && (
+                        <ScriptForm
+                          script={selected}
+                          draft={draft}
+                          onChange={setDraft}
+                          onSave={(data) => updateScript.mutate(data)}
+                          isSaving={updateScript.isPending}
+                          onCreateVersion={() => createVersion.mutate()}
+                          isCreatingVersion={createVersion.isPending}
+                          canCreateVersion={hasDraftBody && !isDraftPublished}
+                          versionStateLabel={versionStateLabel}
+                          latestVersionLabel={latestVersionLabel}
+                        />
+                      )}
+
+                      {detailTab === 'versions' && (
+                        <ScriptVersionHistoryPanel
+                          title="定稿记录"
+                          description="把当前正文保存成一份稳定稿，后续制作引用这份文本。"
+                          action={(
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
+                              onClick={() => createVersion.mutate()}
+                            >
+                              <Plus size={14} />
+                              保存为定稿
+                            </Button>
+                          )}
+                        >
+                          {versionsForSelected.length === 0 ? (
+                            <ScriptVersionEmptyState
+                              icon={Layers}
+                              title="还没有定稿"
+                              detail="正文稳定后，可以保存成第一份定稿。"
+                              action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>回到正文</Button>}
+                            />
+                          ) : (
+                            <div>
+                              {versionsForSelected.map((version) => {
+                                const isExpanded = expandedVersionId === version.ID
+                                const content = version.content || version.raw_source || ''
+                                const contentLength = content.trim().length
+                                return (
+                                  <ScriptVersionCard
+                                    key={version.ID}
+                                    versionLabel={`v${version.version_number || version.ID}`}
+                                    status={<VersionStatusBadge status={version.status} />}
+                                    title={version.title}
+                                    meta={`${contentLength} 字 · ${formatDate(version.UpdatedAt)}`}
+                                    toggleLabel={contentLength > 0 ? (isExpanded ? '收起' : '查看') : undefined}
+                                    onToggle={contentLength > 0 ? () => setExpandedVersionId(isExpanded ? null : version.ID) : undefined}
+                                  >
+                                    {isExpanded && contentLength > 0 && (
+                                      <ScriptVersionBlockPanel
+                                        blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
+                                        content={content}
+                                        sceneMoments={sceneMoments}
+                                        segments={segments}
+                                        isCreating={createScriptBlock.isPending}
+                                        isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
+                                        isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
+                                        isCreatingSegment={createSegmentFromScriptBlock.isPending}
+                                        selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
+                                        version={version}
+                                        projectId={projectId}
+                                        onCreate={() => createScriptBlock.mutate()}
+                                        onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
+                                        onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
+                                        onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
+                                        onOpenUsage={(kind, id) => {
+                                          if (kind === 'segment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { segment_id: id }))
+                                          else if (kind === 'scene_moment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { scene_moment_id: id }))
+                                          else navigate(withRouteParams(ROUTES.project.contentUnitEditor, { content_unit_id: id }))
+                                        }}
+                                        onSelectionChange={setScriptTextSelection}
+                                      />
+                                    )}
+                                  </ScriptVersionCard>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </ScriptVersionHistoryPanel>
+                      )}
+                    </ScriptWorkspaceDetailContent>
+                  </>
+                )}
+              </ScriptWorkspaceMain>
+            ) : null}
+            {hasSelectedScript && detailPane.collapsed ? (
+              <OverlapPaneRevealButton
+                action="show"
+                label="显示剧本正文"
+                onClick={detailPane.show}
+              />
+            ) : null}
+            {hasSelectedScript && detailPane.expanded ? (
+              <OverlapPaneRevealButton
+                action="restore"
+                label="还原剧本正文"
+                onClick={detailPane.restore}
+              />
+            ) : null}
+          </ScriptWorkspaceLayout>
         </ScriptWorkspaceShell>
       </WorkbenchProjectBody>
 
@@ -774,96 +879,96 @@ function ScriptVersionBlockPanel({
                 fields={(
                   <>
                     <ScriptBlockSelectField
-                    id={`script-block-target-segment-${block.ID}`}
-                    label="情景归属编排段"
-                    value={targetSegmentValue}
-                    onChange={(event) => setTargetSegmentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
-                    helper={selectedTargetSegment ? `将创建到 ${segmentOptionLabel(selectedTargetSegment)}` : undefined}
-                  >
-                    <option value="">不挂载到编排段</option>
-                    {usages.segments.length > 0 ? (
-                      <optgroup label="当前剧本块相关">
-                        {usages.segments.map((segment) => (
-                          <option key={`related-${segment.ID}`} value={segment.ID}>{segmentOptionLabel(segment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {unrelatedSegments.length > 0 ? (
-                      <optgroup label="全部编排段">
-                        {unrelatedSegments.map((segment) => (
-                          <option key={segment.ID} value={segment.ID}>{segmentOptionLabel(segment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
+                      id={`script-block-target-segment-${block.ID}`}
+                      label="情景归属编排段"
+                      value={targetSegmentValue}
+                      onChange={(event) => setTargetSegmentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
+                      helper={selectedTargetSegment ? `将创建到 ${segmentOptionLabel(selectedTargetSegment)}` : undefined}
+                    >
+                      <option value="">不挂载到编排段</option>
+                      {usages.segments.length > 0 ? (
+                        <optgroup label="当前剧本块相关">
+                          {usages.segments.map((segment) => (
+                            <option key={`related-${segment.ID}`} value={segment.ID}>{segmentOptionLabel(segment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {unrelatedSegments.length > 0 ? (
+                        <optgroup label="全部编排段">
+                          {unrelatedSegments.map((segment) => (
+                            <option key={segment.ID} value={segment.ID}>{segmentOptionLabel(segment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
                     </ScriptBlockSelectField>
                     <ScriptBlockSelectField
-                    id={`script-block-target-content-${block.ID}`}
-                    label="制作项归属"
-                    value={targetContentValue}
-                    onChange={(event) => setTargetContentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
-                    helper={selectedContentTarget ? `将创建到 ${contentTarget.sceneMomentId ? sceneMomentOptionLabel(selectedContentTarget) : segmentOptionLabel(selectedContentTarget)}` : undefined}
-                  >
-                    <option value="">不挂载到情景或编排段</option>
-                    {usages.sceneMoments.length > 0 ? (
-                      <optgroup label="当前剧本块情景">
-                        {usages.sceneMoments.map((moment) => (
-                          <option key={`related-moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {usages.segments.length > 0 ? (
-                      <optgroup label="当前剧本块编排段">
-                        {usages.segments.map((segment) => (
-                          <option key={`related-segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {unrelatedSceneMoments.length > 0 ? (
-                      <optgroup label="全部情景">
-                        {unrelatedSceneMoments.map((moment) => (
-                          <option key={`moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
-                    {unrelatedSegments.length > 0 ? (
-                      <optgroup label="全部编排段">
-                        {unrelatedSegments.map((segment) => (
-                          <option key={`segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
-                        ))}
-                      </optgroup>
-                    ) : null}
+                      id={`script-block-target-content-${block.ID}`}
+                      label="制作项归属"
+                      value={targetContentValue}
+                      onChange={(event) => setTargetContentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
+                      helper={selectedContentTarget ? `将创建到 ${contentTarget.sceneMomentId ? sceneMomentOptionLabel(selectedContentTarget) : segmentOptionLabel(selectedContentTarget)}` : undefined}
+                    >
+                      <option value="">不挂载到情景或编排段</option>
+                      {usages.sceneMoments.length > 0 ? (
+                        <optgroup label="当前剧本块情景">
+                          {usages.sceneMoments.map((moment) => (
+                            <option key={`related-moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {usages.segments.length > 0 ? (
+                        <optgroup label="当前剧本块编排段">
+                          {usages.segments.map((segment) => (
+                            <option key={`related-segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {unrelatedSceneMoments.length > 0 ? (
+                        <optgroup label="全部情景">
+                          {unrelatedSceneMoments.map((moment) => (
+                            <option key={`moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
+                      {unrelatedSegments.length > 0 ? (
+                        <optgroup label="全部编排段">
+                          {unrelatedSegments.map((segment) => (
+                            <option key={`segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
+                          ))}
+                        </optgroup>
+                      ) : null}
                     </ScriptBlockSelectField>
                   </>
                 )}
                 actions={(
                   <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="px-2 type-label"
-                    disabled={isCreatingSegment}
-                    onClick={() => onCreateSegment(block)}
-                  >
-                    生成编排段
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="px-2 type-label"
-                    disabled={isCreatingSceneMoment}
-                    onClick={() => onCreateSceneMoment(block, targetSegmentId > 0 ? targetSegmentId : null)}
-                  >
-                    生成情景
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="px-2 type-label"
-                    disabled={isCreatingContentUnit}
-                    onClick={() => onCreateContentUnit(block, contentTarget)}
-                  >
-                    生成制作项
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="px-2 type-label"
+                      disabled={isCreatingSegment}
+                      onClick={() => onCreateSegment(block)}
+                    >
+                      生成编排段
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="px-2 type-label"
+                      disabled={isCreatingSceneMoment}
+                      onClick={() => onCreateSceneMoment(block, targetSegmentId > 0 ? targetSegmentId : null)}
+                    >
+                      生成情景
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="px-2 type-label"
+                      disabled={isCreatingContentUnit}
+                      onClick={() => onCreateContentUnit(block, contentTarget)}
+                    >
+                      生成制作项
+                    </Button>
                   </>
                 )}
               />
@@ -1014,6 +1119,37 @@ function scriptBlockLabel(block: ScriptBlockRecord) {
   return speaker ? `${kind} · ${speaker}` : kind
 }
 
+function latestScriptVersion(versions: ScriptVersion[]) {
+  return versions
+    .slice()
+    .sort((a, b) => (b.version_number || b.ID) - (a.version_number || a.ID) || b.ID - a.ID)[0] ?? null
+}
+
+function scriptCardEditState(script: Script, latestVersion: ScriptVersion | null, hasVersions: boolean, bodyLength: number) {
+  if (!bodyLength) return '空稿'
+  if (!hasVersions) return '草稿'
+  const draftText = normalizeComparableScriptText(String(script.content ?? script.raw_source ?? ''))
+  const versionText = latestVersion ? normalizeComparableScriptText(scriptVersionSourceText(latestVersion)) : ''
+  if (draftText && versionText && draftText !== versionText) return '有改动'
+  return '已发布'
+}
+
+function scriptLibraryItemMeta({
+  bodyLength,
+  scriptVersion,
+  scriptTypeLabel,
+  blockCount,
+}: {
+  bodyLength: number
+  scriptVersion: ScriptVersion | null
+  scriptTypeLabel: string
+  blockCount: number
+}) {
+  const versionLabel = scriptVersion ? `v${scriptVersion.version_number || scriptVersion.ID}` : '工作稿'
+  const blockLabel = blockCount > 0 ? `剧本块 ${blockCount}` : '暂无剧本块'
+  return `${bodyLength} 字 · ${versionLabel} · ${blockLabel} · ${scriptTypeLabel}`
+}
+
 function titleFromScriptBlock(block: ScriptBlockRecord) {
   const content = String(block.content ?? '').trim()
   const firstLine = content.split(/\r?\n/).find((line) => line.trim())?.trim() ?? ''
@@ -1106,16 +1242,6 @@ function categoryLabel(value?: string) {
   const normalized = String(value ?? '').trim()
   if (!normalized || normalized === 'uncategorized' || normalized === 'main') return '未分类'
   return normalized
-}
-
-function clampScriptRailWidth(width: number) {
-  return Math.min(SCRIPT_RAIL_MAX_WIDTH, Math.max(SCRIPT_RAIL_MIN_WIDTH, Math.round(width)))
-}
-
-function readScriptRailWidth() {
-  if (typeof window === 'undefined') return SCRIPT_RAIL_DEFAULT_WIDTH
-  const stored = Number(window.localStorage.getItem(SCRIPT_RAIL_WIDTH_STORAGE_KEY))
-  return Number.isFinite(stored) ? clampScriptRailWidth(stored) : SCRIPT_RAIL_DEFAULT_WIDTH
 }
 
 async function saveScriptDraft(projectId: number, scriptId: number, draft: Partial<Script>) {

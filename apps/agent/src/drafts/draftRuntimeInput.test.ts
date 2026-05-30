@@ -48,7 +48,6 @@ test('buildRuntimeUpdateDraftInput filters update fields to store-safe values', 
   }), {
     draftId: 'draft_1',
     update: {
-      status: 'applied',
       title: 'Updated',
       content: 'Body',
       target: { field: 'content' },

@@ -12,8 +12,10 @@ export const api = axios.create({
 api.interceptors.request.use(async (config) => {
   await waitForLocalBackendReady()
   const { token, currentOrgID } = useUserStore.getState()
-  config.baseURL = getAPIV1BaseURL()
-  if (token) {
+  if (config.baseURL === undefined || config.baseURL === api.defaults.baseURL) {
+    config.baseURL = getAPIV1BaseURL()
+  }
+  if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`
   }
   if (currentOrgID) {

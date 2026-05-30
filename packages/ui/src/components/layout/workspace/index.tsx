@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, HTMLAttributes, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { cn } from "../../../lib/cn";
+import { Button, type ButtonProps } from "../../primitives";
 import type { LayoutChrome } from "../chrome";
 
 export type WorkspaceShellChrome = Extract<LayoutChrome, "workspace" | "immersive" | "canvas">;
@@ -10,30 +12,101 @@ export type MasterDetailChrome = "split" | "flush";
 export type PanelResizeHandleSide = "left" | "right";
 export type OverlapPaneSide = "left" | "right";
 export type OverlapPaneElement = "section" | "main" | "aside" | "div";
-export type OverlapPaneChrome = "edge" | "card";
+export type OverlapPaneState = "default" | "expanded";
+export type OverlapPaneChrome = "plain" | "card";
 export type OverlapPaneGroupElement = "section" | "main" | "aside" | "div";
+export type OverlapPaneRevealAction = "show" | "restore";
+export type OverlapPaneRevealPlacement = "center" | "top";
 export type OverlapPaneResizeEdge = "left" | "right";
 export type OverlapPaneCollapseMode = "none" | "after-min";
 export type OverlapPaneExpandMode = "none" | "after-max";
 export type OverlapPaneSizeLimit = number | ((containerRect: DOMRectReadOnly) => number);
+export type ResizablePanelEdge = "left" | "right" | "top" | "bottom";
+export type ResizablePanelCollapseMode = "none" | "after-min";
+export type ResizablePanelExpandMode = "none" | "after-max";
+export type ResizablePanelSizeLimit = number | ((containerRect: DOMRectReadOnly) => number);
 
-export interface ResizableOverlapPaneOptions {
+export interface ResizablePanelOptions {
   size: number;
   onSizeChange: (size: number) => void;
-  minSize: number;
-  maxSize: OverlapPaneSizeLimit;
-  resizeEdge: OverlapPaneResizeEdge;
+  minSize: ResizablePanelSizeLimit;
+  maxSize: ResizablePanelSizeLimit;
+  resizeEdge: ResizablePanelEdge;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
-  collapseMode?: OverlapPaneCollapseMode;
+  collapseMode?: ResizablePanelCollapseMode;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
-  expandMode?: OverlapPaneExpandMode;
+  expandMode?: ResizablePanelExpandMode;
   keyboardStep?: number;
   keyboardLargeStep?: number;
   ariaLabel?: string;
   getContainer?: (handle: HTMLElement) => HTMLElement | null;
+  resizingBodyClassNames?: string[];
 }
+
+export interface ResizablePanelState {
+  resizing: boolean;
+  resizeHandleProps: HTMLAttributes<HTMLDivElement> & {
+    active: boolean;
+  };
+}
+
+export interface ResizableOverlapPaneOptions extends ResizablePanelOptions {
+  maxSize: OverlapPaneSizeLimit;
+  resizeEdge: OverlapPaneResizeEdge;
+  collapseMode?: OverlapPaneCollapseMode;
+  expandMode?: OverlapPaneExpandMode;
+}
+
+export interface ResizableOverlapPaneState extends ResizablePanelState {}
+
+export interface OverlapPaneDisclosureOptions {
+  defaultCollapsed?: boolean;
+  defaultExpanded?: boolean;
+}
+
+export interface OverlapPaneDisclosureState {
+  collapsed: boolean;
+  expanded: boolean;
+  setCollapsed: (collapsed: boolean) => void;
+  setExpanded: (expanded: boolean) => void;
+  collapse: () => void;
+  show: () => void;
+  restore: () => void;
+  overlapState: OverlapPaneState | undefined;
+  collapsedDataAttribute: "true" | undefined;
+  expandedDataAttribute: "true" | undefined;
+}
+
+export interface OverlapPaneControllerOptions
+  extends OverlapPaneDisclosureOptions,
+    Omit<ResizableOverlapPaneOptions, "collapsed" | "onCollapsedChange" | "expanded" | "onExpandedChange"> {}
+
+export interface OverlapPaneControllerState extends OverlapPaneDisclosureState, ResizableOverlapPaneState {}
+
+export interface PersistentOverlapPaneControllerOptions
+  extends OverlapPaneDisclosureOptions,
+    Omit<ResizableOverlapPaneOptions, "size" | "onSizeChange" | "collapsed" | "onCollapsedChange" | "expanded" | "onExpandedChange"> {
+  defaultSize: number;
+  storageKey?: string;
+  sizeVariableName?: `--${string}`;
+}
+
+export interface OverlapPaneGroupGeometryProps extends HTMLAttributes<HTMLElement> {
+  "data-overlap-pane-collapsed": "true" | undefined;
+  "data-overlap-pane-expanded": "true" | undefined;
+  "data-overlap-pane-resized": "true" | undefined;
+  style: CSSProperties;
+}
+
+export interface PersistentOverlapPaneControllerState extends OverlapPaneControllerState {
+  size: number;
+  setSize: (size: number) => void;
+  groupProps: OverlapPaneGroupGeometryProps;
+}
+
+const EMPTY_RESIZING_BODY_CLASS_NAMES: string[] = [];
 
 export function WorkspaceShell({
   sidebar,
@@ -159,16 +232,18 @@ export function OverlapPaneGroup({
 export function OverlapPane({
   as = "section",
   side = "left",
-  chrome = "edge",
+  overlapState = "default",
   resizeHandle,
   resizeHandleProps,
   resizeHandleSide,
+  chrome = "plain",
   className,
   children,
   ...props
 }: HTMLAttributes<HTMLElement> & {
   as?: OverlapPaneElement;
   side?: OverlapPaneSide;
+  overlapState?: OverlapPaneState;
   chrome?: OverlapPaneChrome;
   resizeHandle?: ReactNode;
   resizeHandleProps?: HTMLAttributes<HTMLDivElement> & {
@@ -184,7 +259,8 @@ export function OverlapPane({
     <Component
       className={cn("overlap-pane", className)}
       data-overlap-side={side}
-      data-overlap-chrome={chrome}
+      data-overlap-state={overlapState === "default" ? undefined : overlapState}
+      data-overlap-chrome={chrome === "plain" ? undefined : chrome}
       {...props}
     >
       {children}
@@ -199,7 +275,155 @@ export function OverlapPane({
   );
 }
 
+export function OverlapPaneRevealButton({
+  action,
+  label,
+  side = "right",
+  placement = "top",
+  className,
+  type,
+  title,
+  "aria-label": ariaLabel,
+  ...props
+}: Omit<ButtonProps, "children" | "size" | "variant"> & {
+  action: OverlapPaneRevealAction;
+  label: string;
+  side?: OverlapPaneSide;
+  placement?: OverlapPaneRevealPlacement;
+}) {
+  const Icon = action === "show" ? PanelRightOpen : PanelRightClose;
+
+  return (
+    <Button
+      type={type ?? "button"}
+      variant="soft"
+      size="icon-sm"
+      className={cn(
+        "overlap-pane-reveal-button",
+        placement === "top" && "overlap-pane-reveal-button--top",
+        `overlap-pane-reveal-button--${side}`,
+        className,
+      )}
+      title={title ?? label}
+      aria-label={ariaLabel ?? label}
+      {...props}
+    >
+      <Icon size={14} />
+    </Button>
+  );
+}
+
+export function useOverlapPaneDisclosure({
+  defaultCollapsed = false,
+  defaultExpanded = false,
+}: OverlapPaneDisclosureOptions = {}): OverlapPaneDisclosureState {
+  const [collapsed, setCollapsedState] = useState(defaultCollapsed);
+  const [expanded, setExpandedState] = useState(defaultExpanded);
+
+  const setCollapsed = useCallback((nextCollapsed: boolean) => {
+    if (nextCollapsed) setExpandedState(false);
+    setCollapsedState(nextCollapsed);
+  }, []);
+
+  const setExpanded = useCallback((nextExpanded: boolean) => {
+    if (nextExpanded) setCollapsedState(false);
+    setExpandedState(nextExpanded);
+  }, []);
+
+  const collapse = useCallback(() => {
+    setExpandedState(false);
+    setCollapsedState(true);
+  }, []);
+
+  const show = useCallback(() => {
+    setExpandedState(false);
+    setCollapsedState(false);
+  }, []);
+
+  const restore = useCallback(() => setExpandedState(false), []);
+
+  return {
+    collapsed,
+    expanded,
+    setCollapsed,
+    setExpanded,
+    collapse,
+    show,
+    restore,
+    overlapState: expanded ? "expanded" : undefined,
+    collapsedDataAttribute: collapsed ? "true" : undefined,
+    expandedDataAttribute: expanded ? "true" : undefined,
+  };
+}
+
+export function useOverlapPaneController({
+  defaultCollapsed,
+  defaultExpanded,
+  ...resizeOptions
+}: OverlapPaneControllerOptions): OverlapPaneControllerState {
+  const disclosure = useOverlapPaneDisclosure({ defaultCollapsed, defaultExpanded });
+  const resize = useResizableOverlapPane({
+    ...resizeOptions,
+    collapsed: disclosure.collapsed,
+    onCollapsedChange: disclosure.setCollapsed,
+    expanded: disclosure.expanded,
+    onExpandedChange: disclosure.setExpanded,
+  });
+
+  return {
+    ...disclosure,
+    ...resize,
+  };
+}
+
+export function usePersistentOverlapPaneController({
+  defaultSize,
+  storageKey,
+  sizeVariableName = "--overlap-pane-size",
+  minSize,
+  maxSize,
+  ...controllerOptions
+}: PersistentOverlapPaneControllerOptions): PersistentOverlapPaneControllerState {
+  const [size, setSizeState] = useState(() => readStoredOverlapPaneSize(storageKey, defaultSize, minSize, maxSize));
+
+  const setSize = useCallback((nextSize: number) => {
+    const clampedSize = clampStoredOverlapPaneSize(nextSize, minSize, maxSize);
+    setSizeState(clampedSize);
+    writeStoredOverlapPaneSize(storageKey, clampedSize);
+  }, [maxSize, minSize, storageKey]);
+
+  const controller = useOverlapPaneController({
+    ...controllerOptions,
+    minSize,
+    maxSize,
+    size,
+    onSizeChange: setSize,
+  });
+
+  return {
+    ...controller,
+    size,
+    setSize,
+    groupProps: {
+      "data-overlap-pane-collapsed": controller.collapsedDataAttribute,
+      "data-overlap-pane-expanded": controller.expandedDataAttribute,
+      "data-overlap-pane-resized": size !== defaultSize ? "true" : undefined,
+      style: { [sizeVariableName]: `${size}px` } as CSSProperties,
+    },
+  };
+}
+
 export function useResizableOverlapPane({
+  getContainer = defaultOverlapPaneResizeContainer,
+  ...options
+}: ResizableOverlapPaneOptions): ResizableOverlapPaneState {
+  return useResizablePanel({
+    ...options,
+    getContainer,
+  });
+}
+
+export function useResizablePanel({
   size,
   onSizeChange,
   minSize,
@@ -214,28 +438,36 @@ export function useResizableOverlapPane({
   keyboardStep = 12,
   keyboardLargeStep = 32,
   ariaLabel,
-  getContainer = defaultOverlapPaneResizeContainer,
-}: ResizableOverlapPaneOptions) {
-  const resizeStart = useRef({ x: 0, size, maxSize: resolveOverlapPaneSizeLimit(maxSize) });
+  getContainer,
+  resizingBodyClassNames = EMPTY_RESIZING_BODY_CLASS_NAMES,
+}: ResizablePanelOptions): ResizablePanelState {
+  const resizeStart = useRef({
+    coordinate: 0,
+    size,
+    minSize: resolvePanelSizeLimit(minSize),
+    maxSize: resolvePanelSizeLimit(maxSize),
+  });
   const [resizing, setResizing] = useState(false);
-  const ariaMaxSize = resolveOverlapPaneSizeLimit(maxSize);
+  const ariaMinSize = resolvePanelSizeLimit(minSize);
+  const ariaMaxSize = resolvePanelSizeLimit(maxSize);
 
   const applySize = useCallback((nextSize: number, startSize: number) => {
-    const resolvedMaxSize = Math.max(minSize, resizeStart.current.maxSize);
-    if (nextSize < minSize) {
-      if (collapseMode === "after-min" && startSize <= minSize && onCollapsedChange) {
+    const resolvedMinSize = resizeStart.current.minSize;
+    const resolvedMaxSize = Math.max(resolvedMinSize, resizeStart.current.maxSize);
+    if (nextSize < resolvedMinSize) {
+      if (collapseMode === "after-min" && startSize <= resolvedMinSize && onCollapsedChange) {
         onExpandedChange?.(false);
         onCollapsedChange(true);
         setResizing(false);
         return;
       }
       onExpandedChange?.(false);
-      onSizeChange(minSize);
+      onSizeChange(resolvedMinSize);
       return;
     }
     if (nextSize > resolvedMaxSize) {
       if (expanded) return;
-      if (expandMode === "after-max" && startSize >= resolvedMaxSize && onExpandedChange) {
+      if (expandMode === "after-max" && onExpandedChange) {
         onCollapsedChange?.(false);
         onExpandedChange(true);
         setResizing(false);
@@ -246,36 +478,37 @@ export function useResizableOverlapPane({
     }
     if (expanded) onExpandedChange?.(false);
     onCollapsedChange?.(false);
-    onSizeChange(clampOverlapPaneSize(nextSize, minSize, resolvedMaxSize));
-  }, [collapseMode, expandMode, expanded, minSize, onCollapsedChange, onExpandedChange, onSizeChange]);
+    onSizeChange(clampPanelSize(nextSize, resolvedMinSize, resolvedMaxSize));
+  }, [collapseMode, expandMode, expanded, onCollapsedChange, onExpandedChange, onSizeChange]);
 
   useEffect(() => {
     if (!resizing) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      const delta = resizeEdge === "right"
-        ? event.clientX - resizeStart.current.x
-        : resizeStart.current.x - event.clientX;
+      const pointerCoordinate = resizablePanelPointerCoordinate(event, resizeEdge);
+      const delta = resizablePanelPointerDelta(pointerCoordinate, resizeStart.current.coordinate, resizeEdge);
       applySize(resizeStart.current.size + delta, resizeStart.current.size);
     };
     const handlePointerUp = () => setResizing(false);
     const previousCursor = document.body.style.cursor;
     const previousUserSelect = document.body.style.userSelect;
 
-    document.body.style.cursor = "col-resize";
+    if (resizingBodyClassNames.length > 0) document.body.classList.add(...resizingBodyClassNames);
+    document.body.style.cursor = resizablePanelCursor(resizeEdge);
     document.body.style.userSelect = "none";
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerUp);
 
     return () => {
+      if (resizingBodyClassNames.length > 0) document.body.classList.remove(...resizingBodyClassNames);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [applySize, resizeEdge, resizing]);
+  }, [applySize, resizeEdge, resizing, resizingBodyClassNames]);
 
   const startResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (collapsed || event.button !== 0) return;
@@ -283,44 +516,49 @@ export function useResizableOverlapPane({
     event.stopPropagation();
 
     const handle = event.currentTarget;
-    const rect = getContainer(handle)?.getBoundingClientRect();
-    const startSize = expanded && rect ? Math.max(size, rect.width) : size;
+    const rect = getContainer?.(handle)?.getBoundingClientRect();
+    const resolvedMinSize = resolvePanelSizeLimit(minSize, rect);
+    const resolvedMaxSize = Math.max(resolvedMinSize, resolvePanelSizeLimit(maxSize, rect));
+    const startSize = expanded && rect
+      ? Math.max(size, resizablePanelContainerSize(rect, resizeEdge))
+      : clampPanelSize(size, resolvedMinSize, resolvedMaxSize);
     resizeStart.current = {
-      x: event.clientX,
+      coordinate: resizablePanelPointerCoordinate(event, resizeEdge),
       size: startSize,
-      maxSize: resolveOverlapPaneSizeLimit(maxSize, rect),
+      minSize: resolvedMinSize,
+      maxSize: resolvedMaxSize,
     };
     setResizing(true);
-  }, [collapsed, expanded, getContainer, maxSize, size]);
+  }, [collapsed, expanded, getContainer, maxSize, minSize, resizeEdge, size]);
 
   const adjustSize = useCallback((delta: number) => {
     if (collapsed) return;
+    const resolvedMinSize = resolvePanelSizeLimit(minSize);
     resizeStart.current = {
-      x: 0,
+      coordinate: 0,
       size,
-      maxSize: resolveOverlapPaneSizeLimit(maxSize),
+      minSize: resolvedMinSize,
+      maxSize: resolvePanelSizeLimit(maxSize),
     };
     applySize(size + delta, size);
-  }, [applySize, collapsed, maxSize, size]);
+  }, [applySize, collapsed, maxSize, minSize, size]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    if (!resizablePanelKeyboardKeys(resizeEdge).includes(event.key)) return;
     event.preventDefault();
 
     const step = event.shiftKey ? keyboardLargeStep : keyboardStep;
-    const direction = event.key === "ArrowRight" ? 1 : -1;
-    const edgeMultiplier = resizeEdge === "right" ? 1 : -1;
-    adjustSize(direction * edgeMultiplier * step);
+    adjustSize(resizablePanelKeyboardDirection(event.key, resizeEdge) * step);
   }, [adjustSize, keyboardLargeStep, keyboardStep, resizeEdge]);
 
   return {
     resizing,
     resizeHandleProps: {
       role: "separator",
-      "aria-orientation": "vertical" as const,
+      "aria-orientation": resizablePanelAriaOrientation(resizeEdge),
       "aria-label": ariaLabel,
-      "aria-valuemin": minSize,
-      ...(Number.isFinite(ariaMaxSize) ? { "aria-valuemax": Math.max(minSize, ariaMaxSize) } : {}),
+      ...(Number.isFinite(ariaMinSize) ? { "aria-valuemin": ariaMinSize } : {}),
+      ...(Number.isFinite(ariaMaxSize) ? { "aria-valuemax": Math.max(Number.isFinite(ariaMinSize) ? ariaMinSize : 0, ariaMaxSize) } : {}),
       "aria-valuenow": size,
       tabIndex: 0,
       active: resizing,
@@ -334,14 +572,86 @@ function defaultOverlapPaneResizeContainer(handle: HTMLElement): HTMLElement | n
   return handle.closest(".overlap-pane-layout") as HTMLElement | null;
 }
 
-function resolveOverlapPaneSizeLimit(limit: OverlapPaneSizeLimit, containerRect?: DOMRectReadOnly | null): number {
+function resolvePanelSizeLimit(limit: ResizablePanelSizeLimit, containerRect?: DOMRectReadOnly | null): number {
   if (typeof limit === "number") return limit;
   if (containerRect) return limit(containerRect);
   return Number.POSITIVE_INFINITY;
 }
 
-function clampOverlapPaneSize(size: number, minSize: number, maxSize: number): number {
+function clampPanelSize(size: number, minSize: number, maxSize: number): number {
   return Math.min(Math.max(Math.round(size), minSize), maxSize);
+}
+
+function readStoredOverlapPaneSize(
+  storageKey: string | undefined,
+  defaultSize: number,
+  minSize: ResizablePanelSizeLimit,
+  maxSize: ResizablePanelSizeLimit,
+): number {
+  if (!storageKey || typeof window === "undefined") return clampStoredOverlapPaneSize(defaultSize, minSize, maxSize);
+  try {
+    const storedSize = Number(window.localStorage.getItem(storageKey));
+    return Number.isFinite(storedSize)
+      ? clampStoredOverlapPaneSize(storedSize, minSize, maxSize)
+      : clampStoredOverlapPaneSize(defaultSize, minSize, maxSize);
+  } catch {
+    return clampStoredOverlapPaneSize(defaultSize, minSize, maxSize);
+  }
+}
+
+function writeStoredOverlapPaneSize(storageKey: string | undefined, size: number): void {
+  if (!storageKey || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(storageKey, String(size));
+  } catch {
+    // Storage can be unavailable in private browsing or restricted embeds.
+  }
+}
+
+function clampStoredOverlapPaneSize(
+  size: number,
+  minSize: ResizablePanelSizeLimit,
+  maxSize: ResizablePanelSizeLimit,
+): number {
+  const resolvedMinSize = resolveInitialStoredOverlapPaneLimit(minSize, 0);
+  const resolvedMaxSize = resolveInitialStoredOverlapPaneLimit(maxSize, Number.POSITIVE_INFINITY);
+  return clampPanelSize(size, resolvedMinSize, Math.max(resolvedMinSize, resolvedMaxSize));
+}
+
+function resolveInitialStoredOverlapPaneLimit(limit: ResizablePanelSizeLimit, fallback: number): number {
+  return typeof limit === "number" && Number.isFinite(limit) ? limit : fallback;
+}
+
+function resizablePanelPointerCoordinate(event: Pick<PointerEvent | ReactPointerEvent<HTMLDivElement>, "clientX" | "clientY">, edge: ResizablePanelEdge): number {
+  return edge === "top" || edge === "bottom" ? event.clientY : event.clientX;
+}
+
+function resizablePanelPointerDelta(pointerCoordinate: number, startCoordinate: number, edge: ResizablePanelEdge): number {
+  if (edge === "right" || edge === "bottom") return pointerCoordinate - startCoordinate;
+  return startCoordinate - pointerCoordinate;
+}
+
+function resizablePanelContainerSize(rect: DOMRectReadOnly, edge: ResizablePanelEdge): number {
+  return edge === "top" || edge === "bottom" ? rect.height : rect.width;
+}
+
+function resizablePanelCursor(edge: ResizablePanelEdge): string {
+  return edge === "top" || edge === "bottom" ? "row-resize" : "col-resize";
+}
+
+function resizablePanelAriaOrientation(edge: ResizablePanelEdge): "horizontal" | "vertical" {
+  return edge === "top" || edge === "bottom" ? "horizontal" : "vertical";
+}
+
+function resizablePanelKeyboardKeys(edge: ResizablePanelEdge): string[] {
+  return edge === "top" || edge === "bottom" ? ["ArrowUp", "ArrowDown"] : ["ArrowLeft", "ArrowRight"];
+}
+
+function resizablePanelKeyboardDirection(key: string, edge: ResizablePanelEdge): number {
+  if (edge === "right") return key === "ArrowRight" ? 1 : -1;
+  if (edge === "left") return key === "ArrowLeft" ? 1 : -1;
+  if (edge === "bottom") return key === "ArrowDown" ? 1 : -1;
+  return key === "ArrowUp" ? 1 : -1;
 }
 
 function workspaceShellChromeForSurface(surface: WorkspaceShellSurface): WorkspaceShellChrome {

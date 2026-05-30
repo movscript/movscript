@@ -5,7 +5,9 @@ import type { AssetSlotViewModel, CreativeReferenceRecord, ReferenceAssetCluster
 import {
   buildPreProductionFilterParams,
   buildPreProductionReferenceSelectionParams,
+  buildPreProductionSessionRestoreParams,
   buildPreProductionSlotSelectionParams,
+  normalizePreProductionKindFilter,
   resolvePreProductionPageSelection,
 } from './preProductionPageController'
 
@@ -79,6 +81,37 @@ test('pre-production page controller resolves explicit reference and keeps empty
   assert.equal(fallback.selectedCluster, null)
 })
 
+test('pre-production page controller treats kind=all as unfiltered', () => {
+  const imageRow = row(10, 'image')
+  const videoRow = row(20, 'video')
+  const result = resolvePreProductionPageSelection({
+    searchParams: new URLSearchParams('kind=all'),
+    rows: [imageRow, videoRow],
+    clusters: [],
+    referenceById: new Map(),
+  })
+
+  assert.equal(result.kindFilter, 'all')
+  assert.deepEqual(result.filtered.map((item) => item.slot.ID), [10, 20])
+  assert.equal(normalizePreProductionKindFilter(undefined), 'all')
+  assert.equal(normalizePreProductionKindFilter(''), 'all')
+  assert.equal(normalizePreProductionKindFilter('all'), 'all')
+})
+
+test('pre-production page controller ignores stale kind=other when it hides all assets', () => {
+  const imageRow = row(10, 'image')
+  const videoRow = row(20, 'video')
+  const result = resolvePreProductionPageSelection({
+    searchParams: new URLSearchParams('kind=other'),
+    rows: [imageRow, videoRow],
+    clusters: [],
+    referenceById: new Map(),
+  })
+
+  assert.equal(result.kindFilter, 'all')
+  assert.deepEqual(result.filtered.map((item) => item.slot.ID), [10, 20])
+})
+
 test('pre-production page controller builds shared filter params', () => {
   const next = buildPreProductionFilterParams(
     new URLSearchParams('kind=image&asset_slot_id=10&selected=10'),
@@ -121,4 +154,34 @@ test('pre-production page controller toggles selected reference off on repeated 
   const withAssetSelected = buildPreProductionReferenceSelectionParams(new URLSearchParams('reference_id=7&asset_slot_id=10'), 7)
   assert.equal(withAssetSelected.get('reference_id'), '7')
   assert.equal(withAssetSelected.has('asset_slot_id'), false)
+})
+
+test('pre-production page controller restores validated session selection params', () => {
+  const imageRow = row(10, 'image', 7)
+  const person = reference(7, '主角')
+  const restoredSlot = buildPreProductionSessionRestoreParams({
+    searchParams: new URLSearchParams(),
+    rows: [imageRow],
+    referenceById: new Map([[person.ID, person]]),
+    kind: 'image',
+    slotId: 10,
+    referenceId: 7,
+  })
+
+  assert.equal(restoredSlot.get('kind'), 'image')
+  assert.equal(restoredSlot.get('reference_id'), '7')
+  assert.equal(restoredSlot.get('asset_slot_id'), '10')
+
+  const restoredReferenceOnly = buildPreProductionSessionRestoreParams({
+    searchParams: new URLSearchParams('kind=video'),
+    rows: [],
+    referenceById: new Map([[person.ID, person]]),
+    kind: 'image',
+    slotId: 99,
+    referenceId: 7,
+  })
+
+  assert.equal(restoredReferenceOnly.get('kind'), 'video')
+  assert.equal(restoredReferenceOnly.get('reference_id'), '7')
+  assert.equal(restoredReferenceOnly.has('asset_slot_id'), false)
 })

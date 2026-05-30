@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import type { ChangeEvent, CSSProperties } from 'react'
+import type { ChangeEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { buildCommandFirstClientInput } from '@/features/agent/domain/agentCommandInput'
@@ -10,7 +10,6 @@ import type { PublicModel, RawResource } from '@/types'
 import {
   Wand2, Loader2, Bot,
   PanelRightClose,
-  PanelRightOpen,
 } from 'lucide-react'
 import { ModelSelector } from '@/shared/ui/ModelSelector'
 import { ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
@@ -34,14 +33,16 @@ import {
   ToolBrainstormResultCard,
   ToolBrainstormSectionHeader,
   ToolDialogResourcePane,
-  useResizableOverlapPane,
+  OverlapPaneRevealButton,
+  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import {
   TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH,
   TOOL_RESOURCE_PANE_MAX_WIDTH,
   TOOL_RESOURCE_PANE_MIN_WIDTH,
-  usePersistentToolResourcePaneWidth,
+  TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
+  TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
 } from './toolResourcePaneWidth'
 
 const AI_SYSTEM_PROMPT = `你是头脑风暴助手，专注于把用户的模糊想法整理成可执行的创意方向。
@@ -96,23 +97,16 @@ export default function BrainstormPage() {
   const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [latestEntry, setLatestEntry] = useState<BrainstormEntry | null>(null)
   const [isRunning, setIsRunning] = useState(false)
-  const [resourcePaneCollapsed, setResourcePaneCollapsed] = useState(false)
-  const [resourcePaneExpanded, setResourcePaneExpanded] = useState(false)
-  const [resourcePaneWidth, setResourcePaneWidth] = usePersistentToolResourcePaneWidth()
-  const resourcePaneResize = useResizableOverlapPane({
-    size: resourcePaneWidth,
-    onSizeChange: setResourcePaneWidth,
+  const resourcePane = usePersistentOverlapPaneController({
+    storageKey: TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: TOOL_RESOURCE_PANE_DEFAULT_WIDTH,
     minSize: TOOL_RESOURCE_PANE_MIN_WIDTH,
     maxSize: (rect) => Math.max(
       TOOL_RESOURCE_PANE_MIN_WIDTH,
       Math.min(TOOL_RESOURCE_PANE_MAX_WIDTH, rect.width - TOOL_RESOURCE_PANE_MAIN_MIN_WIDTH),
     ),
     resizeEdge: 'left',
-    collapsed: resourcePaneCollapsed,
-    onCollapsedChange: setResourcePaneCollapsed,
     collapseMode: 'after-min',
-    expanded: resourcePaneExpanded,
-    onExpandedChange: setResourcePaneExpanded,
     expandMode: 'after-max',
     ariaLabel: t('common.resize', { defaultValue: '调整宽度' }),
   })
@@ -236,9 +230,7 @@ export default function BrainstormPage() {
     <ToolBrainstormFrame>
       <ToolBrainstormBody
         className="tool-dialog-body--reference-workbench"
-        data-resource-pane-collapsed={resourcePaneCollapsed ? 'true' : undefined}
-        data-resource-pane-expanded={resourcePaneExpanded ? 'true' : undefined}
-        style={{ '--tool-dialog-resource-pane-width': `${resourcePaneWidth}px` } as CSSProperties}
+        {...resourcePane.groupProps}
       >
         <ToolBrainstormMain
           onDragOver={(e) => e.preventDefault()}
@@ -257,17 +249,14 @@ export default function BrainstormPage() {
                   <p className="type-tiny text-muted-foreground">{t('tools.brainstorm.inputHint')}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {!resourcePaneCollapsed ? (
+                  {!resourcePane.collapsed ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
                       title={t('common.hide', { defaultValue: '隐藏' })}
                       aria-label={t('common.hide', { defaultValue: '隐藏' })}
-                      onClick={() => {
-                        setResourcePaneExpanded(false)
-                        setResourcePaneCollapsed(true)
-                      }}
+                      onClick={resourcePane.collapse}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       <PanelRightClose size={14} />
@@ -384,43 +373,29 @@ export default function BrainstormPage() {
             )}
           </ToolBrainstormPanel>
         </ToolBrainstormMain>
-        {!resourcePaneCollapsed ? (
+        {!resourcePane.collapsed ? (
           <ToolDialogResourcePane
+            overlapState={resourcePane.overlapState}
             resizeHandleProps={{
-              ...resourcePaneResize.resizeHandleProps,
+              ...resourcePane.resizeHandleProps,
             }}
           >
             <ResourceLibraryView variant="pane" />
           </ToolDialogResourcePane>
         ) : null}
-        {resourcePaneCollapsed ? (
-          <Button
-            type="button"
-            variant="soft"
-            size="icon-sm"
-            className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
-            title={t('common.show', { defaultValue: '显示' })}
-            aria-label={t('common.show', { defaultValue: '显示' })}
-            onClick={() => {
-              setResourcePaneExpanded(false)
-              setResourcePaneCollapsed(false)
-            }}
-          >
-            <PanelRightOpen size={14} />
-          </Button>
+        {resourcePane.collapsed ? (
+          <OverlapPaneRevealButton
+            action="show"
+            label={t('common.show', { defaultValue: '显示' })}
+            onClick={resourcePane.show}
+          />
         ) : null}
-        {resourcePaneExpanded ? (
-          <Button
-            type="button"
-            variant="soft"
-            size="icon-sm"
-            className="overlap-pane-reveal-button overlap-pane-reveal-button--top overlap-pane-reveal-button--right"
-            title={t('common.restore', { defaultValue: '还原' })}
-            aria-label={t('common.restore', { defaultValue: '还原' })}
-            onClick={() => setResourcePaneExpanded(false)}
-          >
-            <PanelRightClose size={14} />
-          </Button>
+        {resourcePane.expanded ? (
+          <OverlapPaneRevealButton
+            action="restore"
+            label={t('common.restore', { defaultValue: '还原' })}
+            onClick={resourcePane.restore}
+          />
         ) : null}
       </ToolBrainstormBody>
     </ToolBrainstormFrame>

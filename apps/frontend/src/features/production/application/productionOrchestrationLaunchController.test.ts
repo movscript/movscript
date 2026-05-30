@@ -56,6 +56,7 @@ test('production orchestration launch controller merges settled review params', 
   })
 
   assert.equal(next.get('foo'), 'bar')
+  assert.equal(next.get('view'), 'review')
   assert.equal(next.get('draftId'), 'production-draft')
   assert.equal(next.get('productionId'), '12')
   assert.equal(next.get('settingDraftId'), 'setting-draft')

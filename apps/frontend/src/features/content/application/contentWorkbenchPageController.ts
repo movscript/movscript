@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { pickContentWorkbenchRowIdForDeepLink } from '@/features/content/domain/contentWorkbenchRoute'
-import { numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
+import { firstText, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import {
   type ContentGenerationMomentRow,
   type ContentWorkbenchRecord,
 } from '@/features/content/domain/contentWorkbenchModel'
+import {
+  hasExplicitWorkbenchSearchParam,
+  useWorkbenchSessionStore,
+} from '@/features/project-workbenches/application/workbenchSessionStore'
 import { sceneIdentifier } from '@/features/content/domain/productionIdentifiers'
+import type { WorkbenchStatus } from '@/shared/domain/workbenchTypes'
 
 export type ContentWorkbenchScopeLevel = 'production' | 'segment' | 'scene_moment'
+
+const CONTENT_WORKBENCH_SESSION_SEARCH_KEYS = ['productionId', 'scene_moment_id', 'content_unit_id']
 
 export interface ContentWorkbenchFilterOption {
   value: string
@@ -18,6 +25,11 @@ export interface ContentWorkbenchFilterOption {
 
 export interface ContentWorkbenchSceneFilterOption extends ContentWorkbenchFilterOption {
   identifier: string
+  detail: string
+  groupKey: string
+  groupLabel: string
+  missingCount: number
+  status: WorkbenchStatus
 }
 
 export type ContentWorkbenchSearchParamsSetter = (
@@ -98,6 +110,11 @@ export function buildContentWorkbenchSceneMomentFilterOptions(rows: ContentGener
     label: row.title,
     identifier: sceneIdentifier(row.moment) || `#${row.moment.ID}`,
     count: row.units.length,
+    detail: firstText(row.moment.action_text, row.moment.description, row.moment.content, row.moment.prompt, row.scope),
+    groupKey: row.segment?.ID ? `segment-${row.segment.ID}` : 'unassigned',
+    groupLabel: row.segment ? titleOfRecord(row.segment) : '未绑定情绪段',
+    missingCount: row.missingSlots.length,
+    status: row.status,
   }))
 }
 
@@ -116,7 +133,7 @@ export function contentWorkbenchSelectedRow({
 }: {
   visibleRows: ContentGenerationMomentRow[]
   selectedId: string
-  scopeLevel: ContentWorkbenchScopeLevel
+  scopeLevel?: ContentWorkbenchScopeLevel
 }) {
   return visibleRows.find((item) => item.id === selectedId) ?? (scopeLevel === 'scene_moment' ? visibleRows[0] ?? null : null)
 }
@@ -138,12 +155,16 @@ export function contentWorkbenchSelectedUnit({
 }
 
 export function useContentWorkbenchPageController({
+  projectId,
+  route,
   rows,
   productions,
   searchParams,
   setSearchParams,
   matchesSearch,
 }: {
+  projectId?: number
+  route?: string
   rows: ContentGenerationMomentRow[]
   productions: ContentWorkbenchRecord[]
   searchParams: URLSearchParams
@@ -158,8 +179,15 @@ export function useContentWorkbenchPageController({
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
   const [optimisticSelectedUnit, setOptimisticSelectedUnit] = useState<ContentWorkbenchRecord | null>(null)
   const [editingUnit, setEditingUnit] = useState(false)
+  const restoredSessionRef = useRef(false)
+  const sessionSnapshot = useWorkbenchSessionStore((state) => projectId ? state.snapshotFor(projectId, 'content_orchestration') : null)
+  const upsertWorkbenchSessionSnapshot = useWorkbenchSessionStore((state) => state.upsertSnapshot)
 
   const linkedIds = useMemo(() => readContentWorkbenchLinkedIds(searchParams), [searchParams])
+  const hasExplicitSessionSearch = useMemo(
+    () => hasExplicitWorkbenchSearchParam(searchParams, CONTENT_WORKBENCH_SESSION_SEARCH_KEYS),
+    [searchParams],
+  )
   const productionFilteredRows = useMemo(
     () => buildContentWorkbenchProductionRows(rows, productionFilter),
     [productionFilter, rows],
@@ -184,6 +212,92 @@ export function useContentWorkbenchPageController({
     () => buildContentWorkbenchSceneMomentFilterOptions(visibleRows),
     [visibleRows],
   )
+  const selected = useMemo(
+    () => contentWorkbenchSelectedRow({ visibleRows, selectedId, scopeLevel }),
+    [scopeLevel, selectedId, visibleRows],
+  )
+
+  function persistSessionSnapshot(input: {
+    productionFilter?: string
+    segmentFilter?: string
+    sidebarQuery?: string
+    scopeLevel?: ContentWorkbenchScopeLevel
+    row?: ContentGenerationMomentRow | null
+    unitId?: number | null
+  }) {
+    if (!projectId) return
+    const nextScopeLevel = input.scopeLevel ?? scopeLevel
+    const nextRow = input.row === undefined ? selected : input.row
+    const nextUnitId = input.unitId === undefined ? selectedUnitId : input.unitId
+    const selection = nextRow && nextScopeLevel === 'scene_moment'
+      ? {
+          scopeLevel: nextScopeLevel,
+          primary: { entityType: 'scene_moment', entityId: nextRow.moment.ID },
+          ...(nextUnitId ? { secondary: { entityType: 'content_unit', entityId: nextUnitId } } : {}),
+        }
+      : { scopeLevel: nextScopeLevel }
+    upsertWorkbenchSessionSnapshot({
+      projectId,
+      workbenchId: 'content_orchestration',
+      route,
+      search: searchParams.toString(),
+      filters: {
+        productionFilter: input.productionFilter ?? productionFilter,
+        segmentFilter: input.segmentFilter ?? segmentFilter,
+        sidebarQuery: input.sidebarQuery ?? sidebarQuery,
+      },
+      selection,
+    })
+  }
+
+  useEffect(() => {
+    if (!projectId || hasExplicitSessionSearch || restoredSessionRef.current || !sessionSnapshot || rows.length === 0) return
+    restoredSessionRef.current = true
+    const snapshotProductionFilter = typeof sessionSnapshot.filters?.productionFilter === 'string' ? sessionSnapshot.filters.productionFilter : ''
+    const snapshotSegmentFilter = typeof sessionSnapshot.filters?.segmentFilter === 'string' ? sessionSnapshot.filters.segmentFilter : ''
+    const snapshotSidebarQuery = typeof sessionSnapshot.filters?.sidebarQuery === 'string' ? sessionSnapshot.filters.sidebarQuery : ''
+    const nextProductionFilter = snapshotProductionFilter === 'unassigned' || productionFilterOptions.some((option) => option.value === snapshotProductionFilter)
+      ? snapshotProductionFilter
+      : ''
+    const productionRows = buildContentWorkbenchProductionRows(rows, nextProductionFilter)
+    const segmentOptions = buildContentWorkbenchSegmentFilterOptions(productionRows)
+    const nextSegmentFilter = snapshotSegmentFilter === 'unassigned' || segmentOptions.some((option) => option.value === snapshotSegmentFilter)
+      ? snapshotSegmentFilter
+      : ''
+    const scopedRows = buildContentWorkbenchFilteredRows(productionRows, nextSegmentFilter)
+    const sceneMomentId = sessionSnapshot.selection?.primary?.entityType === 'scene_moment'
+      ? sessionSnapshot.selection.primary.entityId
+      : 0
+    const contentUnitId = sessionSnapshot.selection?.secondary?.entityType === 'content_unit'
+      ? sessionSnapshot.selection.secondary.entityId
+      : 0
+    const restoredRowId = pickContentWorkbenchRowIdForDeepLink(scopedRows, { sceneMomentId, contentUnitId })
+    const restoredRow = restoredRowId ? scopedRows.find((row) => row.id === restoredRowId) ?? null : null
+    const restoredUnitId = restoredRow?.units.some((unit) => unit.ID === contentUnitId) ? contentUnitId : null
+    const restoredScopeLevel = restoredRow
+      ? 'scene_moment'
+      : sessionSnapshot.selection?.scopeLevel === 'segment'
+        ? 'segment'
+        : 'production'
+
+    setProductionFilter(nextProductionFilter)
+    setSegmentFilter(nextSegmentFilter)
+    setSidebarQuery(snapshotSidebarQuery)
+    setScopeLevel(restoredScopeLevel)
+    setSelectedId(restoredRow?.id ?? '')
+    setSelectedUnitId(restoredUnitId)
+    setOptimisticSelectedUnit(null)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (nextProductionFilter !== 'unassigned' && Number(nextProductionFilter) > 0) next.set('productionId', nextProductionFilter)
+      else next.delete('productionId')
+      if (restoredRow) next.set('scene_moment_id', String(restoredRow.moment.ID))
+      else next.delete('scene_moment_id')
+      if (restoredUnitId) next.set('content_unit_id', String(restoredUnitId))
+      else next.delete('content_unit_id')
+      return next
+    }, { replace: true })
+  }, [hasExplicitSessionSearch, projectId, productionFilterOptions, rows, sessionSnapshot, setSearchParams])
 
   useEffect(() => {
     const target = linkedIds.linkedProductionId > 0 ? String(linkedIds.linkedProductionId) : ''
@@ -220,11 +334,6 @@ export function useContentWorkbenchPageController({
       setSelectedId('')
     }
   }, [linkedIds.linkedContentUnitId, linkedIds.linkedSceneMomentId, scopeLevel, selectedId, visibleRows])
-
-  const selected = useMemo(
-    () => contentWorkbenchSelectedRow({ visibleRows, selectedId, scopeLevel }),
-    [scopeLevel, selectedId, visibleRows],
-  )
 
   useEffect(() => {
     if (!selected) {
@@ -278,6 +387,7 @@ export function useContentWorkbenchPageController({
       setOptimisticSelectedUnit(null)
       setSelectedUnitId(null)
       setSelectedId('')
+      persistSessionSnapshot({ scopeLevel: segmentFilter ? 'segment' : 'production', row: null, unitId: null })
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
         next.delete('scene_moment_id')
@@ -289,6 +399,7 @@ export function useContentWorkbenchPageController({
     setScopeLevel('scene_moment')
     setOptimisticSelectedUnit(null)
     setSelectedId(rowId)
+    persistSessionSnapshot({ scopeLevel: 'scene_moment', row: row ?? null, unitId: null })
     if (!row) return
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
@@ -301,6 +412,7 @@ export function useContentWorkbenchPageController({
   function selectContentUnit(unitId: number | null, options: { replace?: boolean } = {}) {
     if (!unitId || optimisticSelectedUnit?.ID !== unitId) setOptimisticSelectedUnit(null)
     setSelectedUnitId(unitId)
+    persistSessionSnapshot({ row: selected, unitId })
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (selected?.moment.ID) next.set('scene_moment_id', String(selected.moment.ID))
@@ -315,6 +427,11 @@ export function useContentWorkbenchPageController({
     if (!options.preserveScopeLevel) setScopeLevel('scene_moment')
     setSelectedId(row.id)
     setSelectedUnitId(unitId)
+    persistSessionSnapshot({
+      scopeLevel: options.preserveScopeLevel ? scopeLevel : 'scene_moment',
+      row: options.preserveScopeLevel ? null : row,
+      unitId: options.preserveScopeLevel ? null : unitId,
+    })
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (options.preserveScopeLevel) {
@@ -337,6 +454,7 @@ export function useContentWorkbenchPageController({
     setSelectedId('')
     setProductionFilter(nextValue)
     setSegmentFilter('')
+    persistSessionSnapshot({ productionFilter: nextValue, segmentFilter: '', scopeLevel: 'production', row: null, unitId: null })
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (nextValue !== 'unassigned' && Number(nextValue) > 0) next.set('productionId', nextValue)
@@ -354,6 +472,7 @@ export function useContentWorkbenchPageController({
     setSelectedUnitId(null)
     setSelectedId('')
     setSegmentFilter(nextValue)
+    persistSessionSnapshot({ segmentFilter: nextValue, scopeLevel: nextValue ? 'segment' : 'production', row: null, unitId: null })
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('scene_moment_id')
@@ -367,6 +486,7 @@ export function useContentWorkbenchPageController({
     setOptimisticSelectedUnit(null)
     setSelectedId(row.id)
     setSelectedUnitId(null)
+    persistSessionSnapshot({ scopeLevel: 'scene_moment', row, unitId: null })
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set('scene_moment_id', String(row.moment.ID))
@@ -396,7 +516,10 @@ export function useContentWorkbenchPageController({
     selected,
     selectedUnit,
     selectedProduction,
-    setSidebarQuery,
+    setSidebarQuery: (query: string) => {
+      setSidebarQuery(query)
+      persistSessionSnapshot({ sidebarQuery: query })
+    },
     setScopeLevel,
     setSelectedUnitId,
     setOptimisticSelectedUnit,

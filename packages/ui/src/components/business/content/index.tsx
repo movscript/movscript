@@ -69,6 +69,7 @@ export {
 export {
   ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchCommandCenter,
+  ContentWorkbenchDetailContent,
   ContentWorkbenchDrawerActionRow,
   ContentWorkbenchDrawerOpenButton,
   ContentWorkbenchEmptyActionButton,
@@ -187,6 +188,7 @@ export {
   ContentWorkbenchReviewPanel,
   ContentWorkbenchSceneInfoGrid,
   ContentWorkbenchViewHeader,
+  ContentWorkbenchWorkspaceShell,
   type ContentWorkbenchReviewDiff,
   type ContentWorkbenchReviewDiffKind,
   type ContentWorkbenchReviewDiffState,

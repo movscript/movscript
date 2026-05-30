@@ -8,6 +8,7 @@ func RawResourceFromModel(resource persistencemodel.RawResource) RawResource {
 		OwnerID:              resource.OwnerID,
 		Owner:                UserRefFromModel(resource.Owner),
 		OrgID:                resource.OrgID,
+		BlobID:               resource.BlobID,
 		FolderID:             resource.FolderID,
 		Type:                 resource.Type,
 		Name:                 resource.Name,
@@ -41,6 +42,7 @@ func (resource RawResource) ApplyToModel(target *persistencemodel.RawResource) {
 	target.Model.UpdatedAt = resource.UpdatedAt
 	target.OwnerID = resource.OwnerID
 	target.OrgID = resource.OrgID
+	target.BlobID = resource.BlobID
 	target.FolderID = resource.FolderID
 	target.Type = resource.Type
 	target.Name = resource.Name

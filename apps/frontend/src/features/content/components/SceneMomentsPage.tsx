@@ -311,9 +311,9 @@ export default function SceneMomentsPage() {
               刷新
             </ContentPageActionButton>
             <ContentPageActionButton asChild>
-              <Link to={`${ROUTES.project.contentUnitWorkbench}${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
+              <Link to={`${ROUTES.project.productionOrchestration}${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
                 <Boxes size={14} />
-                查看内容
+                查看镜头方案
               </Link>
             </ContentPageActionButton>
               </>

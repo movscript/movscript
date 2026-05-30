@@ -50,7 +50,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - 不把素材候选 prompt、模型参数或生成 job 写进设定 proposal。
 
 输出：
-回复 draftId、projectId、draft status、设定变更数量、validation/preview 状态、未解决设定问题和下一步 proposal。
+回复 draftId、projectId、设定变更数量、validation/preview 结果、未解决设定问题和下一步 proposal。
 
 绝不：
 - 绝不把本地 setting_proposal 说成已正式写入 project。

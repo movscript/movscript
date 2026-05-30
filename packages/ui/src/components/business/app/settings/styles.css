@@ -96,6 +96,16 @@
   gap: var(--ms-space-2);
 }
 
+.app-settings-textarea {
+  min-height: 120px;
+}
+
+.app-settings-textarea--code {
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-label);
+  line-height: 1.5;
+}
+
 .app-settings-field__help,
 .app-settings-feedback,
 .app-settings-info-surface,

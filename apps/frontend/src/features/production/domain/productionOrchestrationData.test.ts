@@ -15,6 +15,9 @@ test('production orchestration data loader covers the creative planning graph', 
     'scriptBlocks',
     'writingExpressions',
     'keyframes',
+    'previewTimelines',
+    'previewTimelineItems',
+    'deliveryVersions',
   ])
 })
 

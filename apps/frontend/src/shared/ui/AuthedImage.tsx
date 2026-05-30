@@ -67,7 +67,7 @@ function useAuthBlobUrl(src: string | undefined, thumbnailMaxSize?: number): str
 
 async function fetchMediaBlob(src: string): Promise<Blob> {
   if (requiresAPIAuth(src)) {
-    const res = await api.get(normalizeAPIAuthPath(src), { responseType: 'blob' })
+    const res = await api.get(normalizeAPIAuthPath(src), { baseURL: normalizeAPIAuthBaseURL(src), responseType: 'blob' })
     return res.data
   }
   const res = await fetch(src)
@@ -141,6 +141,16 @@ function normalizeAPIAuthPath(src: string): string {
   } catch {
     return src.replace(/^\/api\/v1/, '')
   }
+}
+
+function normalizeAPIAuthBaseURL(src: string): string | undefined {
+  try {
+    const url = new URL(src, window.location.origin)
+    if (url.origin !== window.location.origin) return `${url.origin}/api/v1`
+  } catch {
+    return undefined
+  }
+  return undefined
 }
 
 interface ImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {

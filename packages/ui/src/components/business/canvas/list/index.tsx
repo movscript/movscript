@@ -63,6 +63,67 @@ export function CanvasListLoading({
   return <p className={cn("canvas-list__loading", className)} {...props} />;
 }
 
+export function CanvasListToolbar({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-list__toolbar", className)} {...props} />;
+}
+
+export function CanvasListSearchBox({
+  icon,
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  icon?: ReactNode;
+}) {
+  return (
+    <div className={cn("canvas-list-search", className)} {...props}>
+      {icon ? <span className="canvas-list-search__icon">{icon}</span> : null}
+      {children}
+    </div>
+  );
+}
+
+export const CanvasListSearchInput = forwardRef<HTMLInputElement, InputProps>(
+  ({ className, ...props }, ref) => (
+    <Input ref={ref} className={cn("canvas-list-search__input", className)} {...props} />
+  )
+);
+
+CanvasListSearchInput.displayName = "CanvasListSearchInput";
+
+export function CanvasListFilterGroup({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-list-filter", className)} {...props} />;
+}
+
+export const CanvasListFilterButton = forwardRef<HTMLButtonElement, ButtonProps & {
+  active?: boolean;
+}>(({ active = false, className, ...props }, ref) => (
+  <Button
+    ref={ref}
+    type="button"
+    size="sm"
+    variant={active ? "soft" : "ghost"}
+    className={cn("canvas-list-filter__button", className)}
+    data-active={active ? "true" : undefined}
+    {...props}
+  />
+));
+
+CanvasListFilterButton.displayName = "CanvasListFilterButton";
+
+export function CanvasListSummary({
+  className,
+  ...props
+}: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("canvas-list__summary", className)} {...props} />;
+}
+
 export function CanvasListEmpty({
   icon,
   title,
@@ -102,6 +163,28 @@ export function CanvasListItems({
 }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("canvas-list__items", className)} {...props} />;
 }
+
+export function CanvasListPagination({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-list-pagination", className)} {...props} />;
+}
+
+export function CanvasListPageStatus({
+  className,
+  ...props
+}: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("canvas-list-pagination__status", className)} {...props} />;
+}
+
+export const CanvasListPageButton = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, size = "icon-sm", variant = "outline", ...props }, ref) => (
+    <Button ref={ref} size={size} variant={variant} className={cn("canvas-list-pagination__button", className)} {...props} />
+  )
+);
+
+CanvasListPageButton.displayName = "CanvasListPageButton";
 
 export function CanvasListItem({
   className,

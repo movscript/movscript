@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCw,
+  ScanSearch,
   Search,
   Square,
   X,
@@ -68,7 +69,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { CanvasListView } from '@/features/canvas/components/CanvasListView'
 import { ProjectStandardsContent } from '@/features/project-standards/components/ProjectStandardsPage'
-import { ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
+import { ExternalResourceSearchPage, ResourceLibraryView } from '@/features/resources/components/ResourcesPage'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { isActiveSemanticEntityRecord } from '@/shared/domain/semanticEntityVisibility'
 import { api } from '@/shared/infrastructure/api'
@@ -116,6 +117,12 @@ type AgentBrowserTab =
   }
   | {
     id: string
+    kind: 'external_resources'
+    title: string
+    createdAt: number
+  }
+  | {
+    id: string
     kind: 'canvas_list'
     title: string
     createdAt: number
@@ -132,6 +139,7 @@ interface ProjectNavigationGroup {
   title: string
   description: string
   icon: LucideIcon
+  tone: 'plan' | 'script' | 'asset' | 'production' | 'content'
   items: ProjectNavigationLink[]
   loading: boolean
 }
@@ -292,7 +300,7 @@ export function AgentBrowserPanel() {
     void window.api?.agentBrowserHide?.()
   }
 
-  function openInternalTab(kind: 'resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
+  function openInternalTab(kind: 'resources' | 'external_resources' | 'canvas_list' | 'project_standards', title: string, options?: { replaceActiveBlank?: boolean }) {
     const replaceActiveBlank = options?.replaceActiveBlank && activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url
     if (replaceActiveBlank && activeTab?.kind === 'web') {
       setTabs((current) => current.map((tab) => (
@@ -327,6 +335,14 @@ export function AgentBrowserPanel() {
 
   function openResourceLibraryInCurrentTab() {
     openInternalTab('resources', '资源库', { replaceActiveBlank: true })
+  }
+
+  function openExternalResourceLibraryTab() {
+    openInternalTab('external_resources', '外部资源')
+  }
+
+  function openExternalResourceLibraryInCurrentTab() {
+    openInternalTab('external_resources', '外部资源', { replaceActiveBlank: true })
   }
 
   function openCanvasListInCurrentTab() {
@@ -436,7 +452,7 @@ export function AgentBrowserPanel() {
             {tabs.map((tab) => {
               const active = tab.id === activeTabId
               const webState = tab.kind === 'web' ? webStates[tab.id] : undefined
-              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : Globe2
+              const Icon = tab.kind === 'project_home' ? Home : tab.kind === 'resources' ? HardDrive : tab.kind === 'external_resources' ? ScanSearch : tab.kind === 'canvas_list' ? LayoutTemplate : tab.kind === 'project_standards' ? PenLine : Globe2
               return (
                 <AgentBrowserTabSurface
                   key={tab.id}
@@ -468,6 +484,9 @@ export function AgentBrowserPanel() {
           <AgentBrowserIconButton title="打开资源库" aria-label="打开资源库" onClick={openResourceLibraryTab}>
             <HardDrive size={14} />
           </AgentBrowserIconButton>
+          <AgentBrowserIconButton title="打开外部资源" aria-label="打开外部资源" onClick={openExternalResourceLibraryTab}>
+            <ScanSearch size={14} />
+          </AgentBrowserIconButton>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <AgentBrowserIconButton title="浏览器操作" aria-label="浏览器操作">
@@ -492,6 +511,12 @@ export function AgentBrowserPanel() {
                   <HardDrive size={13} />
                 </AgentBrowserMenuItemIcon>
                 打开资源库
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openExternalResourceLibraryTab}>
+                <AgentBrowserMenuItemIcon>
+                  <ScanSearch size={13} />
+                </AgentBrowserMenuItemIcon>
+                打开外部资源
               </DropdownMenuItem>
               <DropdownMenuItem onClick={openCanvasListTab}>
                 <AgentBrowserMenuItemIcon>
@@ -571,10 +596,19 @@ export function AgentBrowserPanel() {
       </AgentBrowserHeader>
       <AgentBrowserViewport ref={viewportRef}>
         {activeTab?.kind === 'project_home' ? (
-          <ProjectHomeBrowserPage onOpenProjectStandards={openProjectStandardsTab} />
+          <ProjectHomeBrowserPage
+            onOpenProjectStandards={openProjectStandardsTab}
+            onOpenResourceLibrary={openResourceLibraryTab}
+            onOpenExternalResourceLibrary={openExternalResourceLibraryTab}
+            onOpenCanvasList={openCanvasListTab}
+          />
         ) : activeTab?.kind === 'resources' ? (
           <div className="agent-browser-resource-pane">
             <ResourceLibraryView variant="pane" />
+          </div>
+        ) : activeTab?.kind === 'external_resources' ? (
+          <div className="agent-browser-resource-pane">
+            <ExternalResourceSearchPage variant="pane" />
           </div>
         ) : activeTab?.kind === 'canvas_list' ? (
           <div className="agent-browser-internal-pane">
@@ -587,6 +621,7 @@ export function AgentBrowserPanel() {
         ) : activeTab?.kind === 'web' && !(activeWebState?.url || activeTab.url) ? (
           <BlankWebTab
             onOpenResourceLibrary={openResourceLibraryInCurrentTab}
+            onOpenExternalResourceLibrary={openExternalResourceLibraryInCurrentTab}
             onOpenCanvasList={openCanvasListInCurrentTab}
             onSubmit={(url) => {
               setAddressDraft(url)
@@ -604,6 +639,7 @@ export function AgentBrowserPanel() {
 function tabTitle(tab: AgentBrowserTab, webState: WebTabState | undefined, projectName?: string) {
   if (tab.kind === 'project_home') return projectName ? `${projectName}` : '项目首页'
   if (tab.kind === 'resources') return tab.title
+  if (tab.kind === 'external_resources') return tab.title
   if (tab.kind === 'canvas_list') return tab.title
   if (tab.kind === 'project_standards') return tab.title
   return webState?.title || tab.title || webState?.url || tab.url || '空白页'
@@ -611,10 +647,12 @@ function tabTitle(tab: AgentBrowserTab, webState: WebTabState | undefined, proje
 
 function BlankWebTab({
   onOpenResourceLibrary,
+  onOpenExternalResourceLibrary,
   onOpenCanvasList,
   onSubmit,
 }: {
   onOpenResourceLibrary: () => void
+  onOpenExternalResourceLibrary: () => void
   onOpenCanvasList: () => void
   onSubmit: (url: string) => void
 }) {
@@ -625,6 +663,12 @@ function BlankWebTab({
       description: '搜索、上传和预览可引用资源',
       icon: HardDrive,
       action: onOpenResourceLibrary,
+    },
+    {
+      title: '外部资源',
+      description: '搜索外部图片和视频并加入素材库',
+      icon: ScanSearch,
+      action: onOpenExternalResourceLibrary,
     },
     {
       title: '画布列表',
@@ -675,7 +719,17 @@ function BlankWebTab({
   )
 }
 
-function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStandards: () => void }) {
+function ProjectHomeBrowserPage({
+  onOpenProjectStandards,
+  onOpenResourceLibrary,
+  onOpenExternalResourceLibrary,
+  onOpenCanvasList,
+}: {
+  onOpenProjectStandards: () => void
+  onOpenResourceLibrary: () => void
+  onOpenExternalResourceLibrary: () => void
+  onOpenCanvasList: () => void
+}) {
   const project = useProjectStore((state) => state.current)
   const projectId = project?.ID
   const scriptsQuery = useQuery<Script[]>({
@@ -725,6 +779,7 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '项目规范',
       description: '项目级画幅、视觉风格、镜头语言、节奏和负面约束。',
       icon: Home,
+      tone: 'plan',
       loading: false,
       items: [{
         id: project.ID,
@@ -744,6 +799,7 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '剧本列表',
       description: '剧本文本、分块和后续编排引用。',
       icon: FileText,
+      tone: 'script',
       loading: scriptsQuery.isLoading,
       items: (scriptsQuery.data ?? [])
         .slice()
@@ -761,6 +817,7 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '设定列表',
       description: '角色、世界观、风格和可复用创作约束。',
       icon: PenLine,
+      tone: 'plan',
       loading: referencesQuery.isLoading,
       items: visibleRecords(referencesQuery.data).map((record) => ({
         id: record.ID,
@@ -775,6 +832,7 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '素材列表',
       description: '素材需求、候选资源和锁定状态。',
       icon: PackageSearch,
+      tone: 'asset',
       loading: assetSlotsQuery.isLoading,
       items: visibleRecords(assetSlotsQuery.data).map((record) => ({
         id: record.ID,
@@ -792,13 +850,14 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '制作列表',
       description: '制作方案、制作任务和整体进度。',
       icon: Clapperboard,
+      tone: 'production',
       loading: productionsQuery.isLoading,
       items: visibleRecords(productionsQuery.data).map((record) => ({
         id: record.ID,
         title: titleOfRecord(record, '制作'),
         description: firstText(record.description, record.summary, record.kind, '暂无描述'),
         status: stringField(record.status),
-        to: withRouteParams(ROUTES.project.production, { productionId: record.ID }),
+        to: withRouteParams(ROUTES.project.productionOrchestration, { productionId: record.ID }),
       })),
     },
     {
@@ -806,6 +865,7 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '情节列表',
       description: '编排段、情节点和上下游引用关系。',
       icon: Boxes,
+      tone: 'production',
       loading: sceneMomentsQuery.isLoading,
       items: visibleRecords(sceneMomentsQuery.data).map((record) => ({
         id: record.ID,
@@ -823,13 +883,14 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       title: '内容列表',
       description: '内容单元、关键帧、生成上下文和预览挂载。',
       icon: LayoutTemplate,
+      tone: 'content',
       loading: contentUnitsQuery.isLoading,
       items: visibleRecords(contentUnitsQuery.data).map((record) => ({
         id: record.ID,
         title: titleOfRecord(record, '内容'),
         description: firstText(record.description, record.prompt, record.visual_intent, record.kind, '暂无描述'),
         status: stringField(record.status ?? record.kind),
-        to: withRouteParams(ROUTES.project.contentUnitWorkbench, {
+        to: withRouteParams(ROUTES.project.productionOrchestration, {
           productionId: numberField(record.production_id),
           scene_moment_id: numberField(record.scene_moment_id),
           content_unit_id: record.ID,
@@ -837,9 +898,13 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
       })),
     },
   ]
+  const topGroups = groups.slice(0, 4)
+  const productionGroups = groups.slice(4)
+  const totalItems = groups.reduce((sum, group) => sum + group.items.length, 0)
+  const loadingGroups = groups.filter((group) => group.loading).length
 
   return (
-    <AgentBrowserProjectPage>
+    <AgentBrowserProjectPage className="agent-browser-project-page--navigation">
       <AgentBrowserProjectHeader>
         <AgentBrowserProjectHeaderCopy>
           <AgentBrowserProjectMetaLabel icon={<Home size={14} />}>
@@ -847,50 +912,100 @@ function ProjectHomeBrowserPage({ onOpenProjectStandards }: { onOpenProjectStand
           </AgentBrowserProjectMetaLabel>
           <AgentBrowserProjectTitle>内容导航</AgentBrowserProjectTitle>
           <AgentBrowserProjectDescription>
-            {project.name} 的核心内容入口。
+            {project.name}
           </AgentBrowserProjectDescription>
         </AgentBrowserProjectHeaderCopy>
-        <AgentBrowserBadge>导航</AgentBrowserBadge>
+        <div className="agent-browser-content-nav__toolbar" aria-label="常用内容入口">
+          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenProjectStandards}>
+            <PenLine size={13} />
+            <span>规范</span>
+          </button>
+          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenResourceLibrary}>
+            <HardDrive size={13} />
+            <span>资源库</span>
+          </button>
+          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenExternalResourceLibrary}>
+            <ScanSearch size={13} />
+            <span>外部资源</span>
+          </button>
+          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenCanvasList}>
+            <LayoutTemplate size={13} />
+            <span>画布</span>
+          </button>
+        </div>
       </AgentBrowserProjectHeader>
-      <div className="flex flex-col gap-3">
-        {groups.map((group, index) => (
-          <ProjectNavigationGroupSection key={group.key} group={group} index={index} />
+      <section className="agent-browser-content-nav__summary" aria-label="当前项目内容概览">
+        <div className="agent-browser-content-nav__summary-main">
+          <span className="agent-browser-content-nav__summary-label">内容对象</span>
+          <strong>{totalItems}</strong>
+        </div>
+        <div className="agent-browser-content-nav__summary-grid">
+          {groups.map((group) => (
+            <span key={group.key} className="agent-browser-content-nav__summary-item">
+              <span>{group.title.replace('列表', '')}</span>
+              <strong>{group.loading ? '...' : group.items.length}</strong>
+            </span>
+          ))}
+        </div>
+        {loadingGroups > 0 ? (
+          <AgentBrowserBadge>{loadingGroups} 项读取中</AgentBrowserBadge>
+        ) : null}
+      </section>
+
+      <section className="agent-browser-content-nav__matrix" aria-label="核心内容入口">
+        {topGroups.map((group, index) => (
+          <ProjectNavigationGroupSection key={group.key} group={group} index={index} variant="featured" />
         ))}
-      </div>
+      </section>
+
+      <section className="agent-browser-content-nav__flow" aria-label="生产链路内容">
+        {productionGroups.map((group, index) => (
+          <ProjectNavigationGroupSection key={group.key} group={group} index={index + topGroups.length} variant="lane" />
+        ))}
+      </section>
     </AgentBrowserProjectPage>
   )
 }
 
-function ProjectNavigationGroupSection({ group, index }: { group: ProjectNavigationGroup; index: number }) {
+function ProjectNavigationGroupSection({
+  group,
+  index,
+  variant,
+}: {
+  group: ProjectNavigationGroup
+  index: number
+  variant: 'featured' | 'lane'
+}) {
   const Icon = group.icon
+  const previewItems = group.items.slice(0, variant === 'featured' ? 3 : 4)
 
   return (
-    <section className="border border-border bg-background">
-      <div className="grid min-h-[66px] grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2">
-        <span className="flex h-9 w-9 items-center justify-center border border-border bg-muted/45 text-muted-foreground">
+    <section className="agent-browser-content-group" data-tone={group.tone} data-variant={variant}>
+      <div className="agent-browser-content-group__header">
+        <span className="agent-browser-content-group__icon">
           <Icon size={17} />
         </span>
-        <span className="min-w-0">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="type-caption text-muted-foreground tabular-nums">{index + 1}</span>
-            <span className="truncate type-label font-semibold text-foreground">{group.title}</span>
+        <span className="agent-browser-content-group__copy">
+          <span className="agent-browser-content-group__title-row">
+            <span className="agent-browser-content-group__index">{String(index + 1).padStart(2, '0')}</span>
+            <span className="agent-browser-content-group__title">{group.title}</span>
           </span>
-          <span className="mt-1 block truncate type-caption text-muted-foreground">{group.description}</span>
+          <span className="agent-browser-content-group__description">{group.description}</span>
         </span>
-        <AgentBrowserBadge>{group.loading ? '加载中' : `${group.items.length}`}</AgentBrowserBadge>
+        <AgentBrowserBadge>{group.loading ? '读取中' : `${group.items.length}`}</AgentBrowserBadge>
       </div>
-      <div className="flex flex-col">
+      <div className="agent-browser-content-group__items">
         {group.loading ? (
-          <div className="px-3 py-3 type-caption text-muted-foreground">正在读取当前项目数据...</div>
+          <div className="agent-browser-content-group__state">正在读取当前项目数据...</div>
         ) : group.items.length === 0 ? (
-          <div className="px-3 py-3 type-caption text-muted-foreground">暂无数据</div>
+          <div className="agent-browser-content-group__state">暂无数据</div>
         ) : (
-          group.items.map((item) => (
+          previewItems.map((item) => (
             item.to ? (
               <Link
                 key={`${group.key}-${item.id}`}
                 to={item.to}
-                className="grid min-h-[54px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 text-left outline-none last:border-b-0 hover:bg-muted/55 focus-visible:bg-muted"
+                className="agent-browser-content-item"
               >
                 <ProjectNavigationItemContent item={item} />
               </Link>
@@ -899,13 +1014,18 @@ function ProjectNavigationGroupSection({ group, index }: { group: ProjectNavigat
                 key={`${group.key}-${item.id}`}
                 type="button"
                 onClick={item.onClick}
-                className="grid min-h-[54px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2 text-left outline-none last:border-b-0 hover:bg-muted/55 focus-visible:bg-muted"
+                className="agent-browser-content-item"
               >
                 <ProjectNavigationItemContent item={item} />
               </button>
             )
           ))
         )}
+        {!group.loading && group.items.length > previewItems.length ? (
+          <div className="agent-browser-content-group__overflow">
+            另有 {group.items.length - previewItems.length} 项
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -914,13 +1034,13 @@ function ProjectNavigationGroupSection({ group, index }: { group: ProjectNavigat
 function ProjectNavigationItemContent({ item }: { item: ProjectNavigationLink }) {
   return (
     <>
-      <span className="min-w-0">
-        <span className="block truncate type-label font-medium text-foreground">{item.title}</span>
-        <span className="mt-1 block truncate type-caption text-muted-foreground">{item.description}</span>
+      <span className="agent-browser-content-item__copy">
+        <span className="agent-browser-content-item__title">{item.title}</span>
+        <span className="agent-browser-content-item__description">{item.description}</span>
       </span>
-      <span className="flex items-center gap-2">
-        {item.status ? <span className="hidden max-w-[72px] truncate type-caption text-muted-foreground sm:block">{item.status}</span> : null}
-        <ArrowRight size={14} className="text-muted-foreground" />
+      <span className="agent-browser-content-item__meta">
+        {item.status ? <span>{item.status}</span> : null}
+        <ArrowRight size={14} />
       </span>
     </>
   )

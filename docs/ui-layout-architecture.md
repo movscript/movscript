@@ -78,12 +78,48 @@ Use this question order before changing a layout:
 - `AppPageShell` is the lower-level page primitive used by business-specific shells, not a route-level choice in app code. Page title, route-level status, and primary actions belong in `AppPageShellHeader` or the corresponding workbench/header component; `AppPageShellBody` is the default scrolling content region.
 - `WorkbenchProjectShell` owns the project workbench header; `WorkbenchProjectBody` owns the workbench body scroll, padding, and background tone; `WorkbenchProjectViewport` and `WorkbenchProjectPane` own the first internal full-height split/flex layer.
 - `ContentWorkspaceLayout` owns content-style workbench overview, filter, list/detail, preview, and related-section column behavior.
-- `OverlapPane` owns workbench-internal overlap chrome when a main pane visually slides over a neighboring rail or inspector; business components should set semantic class names and local sizing variables, not duplicate the overlap shadow, radius, or border rules.
+- `OverlapPane` owns workbench-internal overlap chrome and pane padding when a main pane visually slides over a neighboring rail or inspector; business components should set semantic class names and sizing parameters, not duplicate or override the overlap shadow, radius, border, padding, or state attributes. The global overlap pane border is always the top, left, and bottom edge, and the default pane inset is `--overlap-pane-padding`; consumers must not add or remove overlap pane borders or override `--overlap-pane-border-*` / `--overlap-pane-radius` in page CSS. Use `usePersistentOverlapPaneController` for page-level overlap panes so collapse/expand/drag state and the user's last resized width share one contract; pass its `groupProps` to `OverlapPaneGroup` and its `overlapState` to `OverlapPane` for full-pane/expanded geometry instead of clearing `margin`, `width`, `border-radius`, or `box-shadow` in page CSS.
+- Non-overlapping resizable workbench panels should use `useResizablePanel` with `PanelResizeHandle` or a domain wrapper around it, rather than hand-rolling pointer listeners, cursor management, keyboard resize, and after-min collapse behavior. App sidebar resizing, detail-mode AI dock resizing, and canvas workflow side-panel resizing follow this shared controller contract.
 - Resource preparation uses `WorkbenchProjectBody` for route-level body behavior and keeps only its resource-specific responsive grid in `ResourcePrepWorkspaceGrid`.
 - `MasterDetail` owns list/detail split lines and accepts `chrome="split" | "flush"`.
 - `AgentPanelShell` owns AI side-panel chrome and accepts `chrome="dock" | "floating"`.
 - `AgentBuiltinChatShell` maps runtime placement to `host="dock-panel" | "floating-panel" | "immersive"`.
 - `AgentComposerSection` accepts `chrome="card" | "bottom-bar" | "flush"` so the same composer can sit inside page, dock, or floating hosts without creating a second large card boundary.
+
+## Overlap pane standard
+
+Use the reference image-generation workbench as the baseline for new overlap-pane pages. The standard shape is a page-specific workbench wrapper around `OverlapPaneGroup`, a normal list/editor pane, and an `OverlapPane` detail/resource pane. The group owns grid/flex columns and state data attributes; `OverlapPane` owns chrome, overlap geometry, resize handle placement, and the global top/left/bottom border.
+
+Drag and resize:
+
+1. Use `usePersistentOverlapPaneController` for every page-level overlap pane. Use `useOverlapPaneController` only for non-persistent internal adapters. Do not combine `useOverlapPaneDisclosure` and `useResizableOverlapPane` in page code.
+2. Pass `controller.resizeHandleProps` into `OverlapPane` or a typed business wrapper such as `ToolDialogResourcePane` / `ResourcePrepWorkbenchMain`.
+3. Pass `controller.groupProps` to `OverlapPaneGroup` and `controller.overlapState` to the pane instead of duplicating collapsed/expanded state, resized state, local width variables, or clearing geometry in CSS.
+4. Use `collapseMode: "after-min"` for panes that can collapse by dragging past the minimum. Use `expandMode: "after-max"` only when dragging past the maximum should become a full-pane state.
+5. Non-overlap horizontal panes use `useResizablePanel` plus `PanelResizeHandle`; overlap pages should not hand-roll pointer listeners, body cursor changes, or keyboard resize handling.
+
+Page layout:
+
+1. `controller.groupProps` puts the persisted width on the workbench group as `--overlap-pane-size` and exposes `data-overlap-pane-collapsed`, `data-overlap-pane-expanded`, and `data-overlap-pane-resized`.
+2. The group CSS owns `grid-template-columns`, collapse columns, expanded columns, and sibling hiding. `OverlapPane` owns the outer pane padding; pane CSS owns internal scroll and content density only.
+3. Consumers may set semantic class names and sizing parameters, but must not target `.overlap-pane` or override `--overlap-pane-border-*` / `--overlap-pane-radius`.
+4. For a right-side detail pane that visually overlaps toward the main area, use `side="left"` and `resizeHandleSide="left"`, matching the reference image-generation workbench.
+5. Use `OverlapPaneRevealButton` for collapsed and expanded affordances instead of hand-written reveal buttons.
+
+List and editor inset:
+
+1. Follow the reference image-generation workbench pattern: define one local base inset on the workbench or pane, then apply it to both inline sides.
+2. When a neighboring `OverlapPane` contributes `--overlap-pane-reserve-inline-end` or `--overlap-pane-reserve-inline-start`, add the reserve only to the affected inline side: `calc(var(--local-inset) + var(--overlap-pane-reserve-inline-end, 0px))`.
+3. Do not hard-code a larger right or left list gutter such as `32px + reserve` when the opposite side uses a different base value. The reserve is a visual overlap compensation, not the list's normal gutter.
+4. For centered editor/history surfaces, use the same base inset on the scroll container and center the content with `margin-inline: auto`, `width: 100%`, and a local `max-width`, matching `ToolDialogMain`, `ToolDialogPanel`, and `ToolDialogHistoryShell`.
+5. Item-level indentation for markers, timelines, or thumbnails must stay inside the item component. The scroll container owns outer list gutters.
+
+Nesting:
+
+1. Nested overlap panes are allowed only when the nested content is itself a workbench-like split, such as resource preparation setting assets.
+2. Each nested split gets its own `OverlapPaneGroup`, `groupProps`, storage key, and `usePersistentOverlapPaneController`.
+3. The outer pane remains responsible for the outer page boundary. The nested pane should not add another page-level frame or override overlap chrome.
+4. If a pane body needs a different density or scroll policy, add a semantic body class or component prop. Do not patch the overlap pane selector from nested CSS.
 
 ## Rules for new UI work
 

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
-import type { Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
+import type { ExternalResourceItem, ExternalResourceSearchResult, ExternalResourceSource, Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File as FileIcon,
   Folder, FolderOpen, Share2,
   ChevronRight, MoreHorizontal, MoveRight,
   Pencil, X as XIcon,
   LayoutGrid, List, ChevronLeft, Download, FileText,
-  Scissors, Play, Pause, CheckSquare,
+  Scissors, Play, Pause, CheckSquare, KeyRound,
 } from 'lucide-react'
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
@@ -95,7 +95,28 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type ResourceScopeFilter = 'all' | 'personal' | 'team' | 'project'
+type ExternalMediaFilter = 'image' | 'video'
+type ExternalOrientationFilter = 'all' | 'landscape' | 'portrait' | 'square'
 type ClipPhase = 'idle' | 'preparing' | 'clipping' | 'uploading'
+
+interface ExternalResourceSearchSnapshot {
+  sourceId?: number
+  query: string
+  submittedQuery: string
+  mediaTypes: ExternalMediaFilter[]
+  orientation: ExternalOrientationFilter
+  page: number
+  result: ExternalResourceSearchResult
+}
+
+const EXTERNAL_ORIENTATION_OPTIONS: { value: ExternalOrientationFilter; label: string }[] = [
+  { value: 'all', label: '任意方向' },
+  { value: 'landscape', label: '横向' },
+  { value: 'portrait', label: '竖向' },
+  { value: 'square', label: '方形' },
+]
+
+const EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY = 'movscript.externalResourceSearch.last'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -131,6 +152,7 @@ const SCOPE_TABS: { labelKey: string; value: ResourceScopeFilter; requiresProjec
 const RESOURCE_PAGE_SIZE_OPTIONS = [12, 30, 60, 120]
 const DEFAULT_RESOURCE_PAGE_SIZE = 30
 const RESOURCE_ACTION_MENU_WIDTH = 160
+const EXTERNAL_RESOURCE_PAGE_SIZE = 24
 
 // ─── Move to Folder Dialog ───────────────────────────────────────────────────
 function MoveDialog({
@@ -1344,6 +1366,593 @@ function ResourceListRowItem({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export interface ResourceLibraryViewProps {
   variant?: 'page' | 'pane'
+}
+
+export function ExternalResourceSearchView() {
+  const qc = useQueryClient()
+  const [searchSnapshot] = useState(() => loadExternalResourceSearchSnapshot())
+  const [selectedSourceId, setSelectedSourceId] = useState<number | null>(searchSnapshot?.sourceId ?? null)
+  const [query, setQuery] = useState(searchSnapshot?.query ?? '')
+  const [submittedQuery, setSubmittedQuery] = useState(searchSnapshot?.submittedQuery ?? '')
+  const [selectedMediaTypes, setSelectedMediaTypes] = useState<Set<ExternalMediaFilter>>(() => new Set(searchSnapshot?.mediaTypes?.length ? searchSnapshot.mediaTypes : ['image', 'video']))
+  const [orientation, setOrientation] = useState<ExternalOrientationFilter>(searchSnapshot?.orientation ?? 'all')
+  const [page, setPage] = useState<number>(searchSnapshot?.page ?? 1)
+  const [selectedExternalKeys, setSelectedExternalKeys] = useState<Set<string>>(() => new Set())
+  const [previewItem, setPreviewItem] = useState<ExternalResourceItem | null>(null)
+
+  const { data: sources = [], isLoading: sourcesLoading } = useQuery<ExternalResourceSource[]>({
+    queryKey: ['external-resource-sources'],
+    queryFn: () => api.get('/external-resource-sources').then(r => r.data),
+  })
+  const enabledSources = useMemo(() => sources.filter(source => source.is_enabled), [sources])
+  const providerOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return enabledSources.filter((source) => {
+      if (seen.has(source.provider_key)) return false
+      seen.add(source.provider_key)
+      return true
+    })
+  }, [enabledSources])
+  const selectedSource = enabledSources.find(source => source.ID === selectedSourceId) ?? enabledSources[0]
+  const selectedProviderKey = selectedSource?.provider_key ?? providerOptions[0]?.provider_key ?? ''
+  const providerSources = useMemo(
+    () => enabledSources.filter(source => source.provider_key === selectedProviderKey),
+    [enabledSources, selectedProviderKey],
+  )
+
+  useEffect(() => {
+    if (enabledSources[0] && (!selectedSourceId || !enabledSources.some(source => source.ID === selectedSourceId))) {
+      setSelectedSourceId(enabledSources[0].ID)
+    }
+  }, [enabledSources, selectedSourceId])
+
+  const mediaTypes = Array.from(selectedMediaTypes).sort() as ExternalMediaFilter[]
+  const mediaTypeKey = mediaTypes.join('|')
+  const searchQuery = useQuery<ExternalResourceSearchResult>({
+    queryKey: ['external-resources', selectedSource?.ID, submittedQuery, mediaTypeKey, orientation, page],
+    queryFn: async () => {
+      const pageSize = Math.max(1, Math.floor(EXTERNAL_RESOURCE_PAGE_SIZE / Math.max(1, mediaTypes.length)))
+      const searchMediaType = (mediaType: ExternalMediaFilter) => {
+        const params = new URLSearchParams()
+        params.set('source_id', String(selectedSource!.ID))
+        params.set('q', submittedQuery)
+        params.set('media_type', mediaType)
+        params.set('page', String(page))
+        params.set('page_size', String(pageSize))
+        if (orientation !== 'all') params.set('orientation', orientation)
+        return api.get(`/external-resources/search?${params}`).then(r => r.data as ExternalResourceSearchResult)
+      }
+      if (mediaTypes.length === 1) return searchMediaType(mediaTypes[0])
+      const results = await Promise.all(mediaTypes.map(searchMediaType))
+      return {
+        total: results.reduce((sum, result) => sum + result.total, 0),
+        items: results.flatMap(result => result.items),
+        page,
+        page_size: EXTERNAL_RESOURCE_PAGE_SIZE,
+        provider: results[0]?.provider ?? selectedSource?.provider_key ?? '',
+        source_name: results[0]?.source_name,
+      }
+    },
+    enabled: Boolean(selectedSource?.ID && submittedQuery.trim() && mediaTypes.length > 0),
+    initialData: () => externalResourceSearchInitialData(searchSnapshot, {
+      sourceId: selectedSource?.ID,
+      submittedQuery,
+      mediaTypeKey,
+      orientation,
+      page,
+    }),
+  })
+
+  useEffect(() => {
+    if (!searchQuery.data || !selectedSource?.ID || !submittedQuery.trim()) return
+    saveExternalResourceSearchSnapshot({
+      sourceId: selectedSource.ID,
+      query: submittedQuery,
+      submittedQuery,
+      mediaTypes,
+      orientation,
+      page,
+      result: searchQuery.data,
+    })
+  }, [mediaTypeKey, orientation, page, searchQuery.data, selectedSource?.ID, submittedQuery])
+
+  function submitSearch() {
+    const nextQuery = query.trim()
+    if (!nextQuery) return
+    setSubmittedQuery(nextQuery)
+    setPage(1)
+    setSelectedExternalKeys(new Set())
+  }
+
+  const items = searchQuery.data?.items ?? []
+  const total = searchQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / EXTERNAL_RESOURCE_PAGE_SIZE))
+  const selectedItems = items.filter(item => selectedExternalKeys.has(externalResourceKey(item)))
+  const allVisibleSelected = items.length > 0 && selectedItems.length === items.length
+  const importExternalResources = useMutation({
+    mutationFn: async (resources: ExternalResourceItem[]) => {
+      const created: RawResource[] = []
+      for (const item of resources) {
+        created.push(await uploadExternalResourceItem(item))
+      }
+      return created
+    },
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ['resources'] })
+      setSelectedExternalKeys(new Set())
+      toast.success(`已加入素材库`, `${created.length} 个外部资源已保存`)
+    },
+    onError: (error) => {
+      toast.error('加入素材库失败', error instanceof Error ? error.message : undefined)
+    },
+  })
+
+  function toggleMediaType(mediaType: ExternalMediaFilter) {
+    setSelectedMediaTypes(current => {
+      const next = new Set(current)
+      if (next.has(mediaType)) {
+        if (next.size === 1) return current
+        next.delete(mediaType)
+      } else {
+        next.add(mediaType)
+      }
+      return next
+    })
+    setPage(1)
+    setSelectedExternalKeys(new Set())
+  }
+
+  function updateOrientation(nextOrientation: ExternalOrientationFilter) {
+    setOrientation(nextOrientation)
+    setPage(1)
+    setSelectedExternalKeys(new Set())
+  }
+
+  function updateSelectedSource(nextSourceId: number) {
+    setSelectedSourceId(nextSourceId)
+    setPage(1)
+    setSelectedExternalKeys(new Set())
+  }
+
+  function updateSelectedProvider(nextProviderKey: string) {
+    const providerSource = enabledSources.find(source => source.provider_key === nextProviderKey)
+    if (!providerSource) return
+    setSelectedSourceId(providerSource.ID)
+    setPage(1)
+    setSelectedExternalKeys(new Set())
+  }
+
+  function toggleExternalSelection(item: ExternalResourceItem, selected: boolean) {
+    const key = externalResourceKey(item)
+    setSelectedExternalKeys(current => {
+      const next = new Set(current)
+      if (selected) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedExternalKeys(current => {
+      const next = new Set(current)
+      if (allVisibleSelected) {
+        items.forEach(item => next.delete(externalResourceKey(item)))
+      } else {
+        items.forEach(item => next.add(externalResourceKey(item)))
+      }
+      return next
+    })
+  }
+
+  return (
+    <>
+      <ResourcePageFilterBar>
+        <ResourcePageSearchField
+          icon={Search}
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter') submitSearch()
+          }}
+          placeholder={selectedSource ? `搜索 ${externalResourceProviderName(selectedSource.provider_key)}` : '搜索外部资源'}
+        />
+        <ResourcePageActionButton size="sm" onClick={submitSearch} disabled={!selectedSource || !query.trim() || searchQuery.isFetching}>
+          <Search size={14} />
+          搜索
+        </ResourcePageActionButton>
+        {providerOptions.length > 1 && (
+          <ResourceDialogSelect
+            className="resource-page__page-size-select resource-page__external-source-select"
+            value={selectedProviderKey}
+            onChange={event => updateSelectedProvider(event.target.value)}
+            aria-label="选择外部资源 provider"
+          >
+            {providerOptions.map(source => (
+              <option key={source.provider_key} value={source.provider_key}>
+                {externalResourceProviderName(source.provider_key)}
+              </option>
+            ))}
+          </ResourceDialogSelect>
+        )}
+        {providerSources.length > 1 && (
+          <ResourceDialogSelect
+            className="resource-page__page-size-select resource-page__external-source-select"
+            value={selectedSource ? String(selectedSource.ID) : ''}
+            onChange={event => updateSelectedSource(Number(event.target.value))}
+            aria-label="选择外部资源来源"
+          >
+            {providerSources.map(source => (
+              <option key={source.ID} value={source.ID}>
+                {source.name || externalResourceProviderName(source.provider_key)}
+              </option>
+            ))}
+          </ResourceDialogSelect>
+        )}
+        <ResourcePageActionGroup>
+          <ResourcePageActionButton size="xs" variant={selectedMediaTypes.has('image') ? 'solid' : 'ghost'} onClick={() => toggleMediaType('image')}>
+            图片
+          </ResourcePageActionButton>
+          <ResourcePageActionButton size="xs" variant={selectedMediaTypes.has('video') ? 'solid' : 'ghost'} onClick={() => toggleMediaType('video')}>
+            视频
+          </ResourcePageActionButton>
+        </ResourcePageActionGroup>
+        <ResourcePageActionGroup>
+          {EXTERNAL_ORIENTATION_OPTIONS.map(option => (
+            <ResourcePageActionButton
+              key={option.value}
+              size="xs"
+              variant={orientation === option.value ? 'solid' : 'ghost'}
+              onClick={() => updateOrientation(option.value)}
+            >
+              {option.label}
+            </ResourcePageActionButton>
+          ))}
+        </ResourcePageActionGroup>
+        <ResourcePageFlexibleSpace />
+        {selectedItems.length > 0 && (
+          <ResourcePageBulkActions>
+            <ResourcePageMutedText>已选择 {selectedItems.length} 个</ResourcePageMutedText>
+            <ResourcePageActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => importExternalResources.mutate(selectedItems)}
+              disabled={importExternalResources.isPending}
+            >
+              <Download size={14} />
+              加入素材库
+            </ResourcePageActionButton>
+            <ResourcePageActionButton variant="outline" size="sm" onClick={() => setSelectedExternalKeys(new Set())}>
+              取消
+            </ResourcePageActionButton>
+          </ResourcePageBulkActions>
+        )}
+        {items.length > 0 && (
+          <ResourcePageActionButton variant="outline" size="sm" onClick={toggleVisibleSelection}>
+            {allVisibleSelected ? '取消全选' : '全选本页'}
+          </ResourcePageActionButton>
+        )}
+      </ResourcePageFilterBar>
+
+      <ResourcePageContent>
+        {sourcesLoading ? (
+          <ResourcePageLoadingState>加载中</ResourcePageLoadingState>
+        ) : !selectedSource ? (
+          <ResourcePageEmptyState icon={KeyRound}>配置外部资源 API Key 后开始搜索</ResourcePageEmptyState>
+        ) : !submittedQuery ? (
+          <ResourcePageEmptyState icon={Search}>输入关键词搜索外部资源</ResourcePageEmptyState>
+        ) : searchQuery.isLoading && items.length === 0 ? (
+          <ResourcePageLoadingState>搜索中</ResourcePageLoadingState>
+        ) : items.length === 0 ? (
+          <ResourcePageEmptyState icon={Search}>没有匹配的外部资源</ResourcePageEmptyState>
+        ) : (
+          <ResourcePageAssetGrid>
+            {items.map(item => (
+              <ExternalResourceCard
+                key={externalResourceKey(item)}
+                item={item}
+                selected={selectedExternalKeys.has(externalResourceKey(item))}
+                onSelectChange={selected => toggleExternalSelection(item, selected)}
+                onPreview={() => setPreviewItem(item)}
+              />
+            ))}
+          </ResourcePageAssetGrid>
+        )}
+      </ResourcePageContent>
+
+      <ResourcePagePager
+        status={`第 ${page} / ${pageCount} 页`}
+        actions={(
+          <>
+            <ResourcePageActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => { setPage(p => Math.max(1, p - 1)); setSelectedExternalKeys(new Set()) }}
+              disabled={page <= 1 || searchQuery.isFetching}
+            >
+              <ChevronLeft size={14} />
+              上一页
+            </ResourcePageActionButton>
+            <ResourcePageActionButton
+              variant="outline"
+              size="sm"
+              onClick={() => { setPage(p => Math.min(pageCount, p + 1)); setSelectedExternalKeys(new Set()) }}
+              disabled={page >= pageCount || searchQuery.isFetching}
+            >
+              下一页
+              <ChevronRight size={14} />
+            </ResourcePageActionButton>
+          </>
+        )}
+      />
+      {previewItem ? (
+        <ExternalResourcePreviewDialog
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
+          onAdd={() => importExternalResources.mutate([previewItem], { onSuccess: () => setPreviewItem(null) })}
+          adding={importExternalResources.isPending}
+        />
+      ) : null}
+    </>
+  )
+}
+
+export function ExternalResourceSearchPage({
+  variant = 'page',
+}: ResourceLibraryViewProps) {
+  return (
+    <ResourcePageLayout data-resource-variant={variant}>
+      <ResourcePageMain>
+        <ExternalResourceSearchView />
+      </ResourcePageMain>
+    </ResourcePageLayout>
+  )
+}
+
+function ExternalResourceCard({
+  item,
+  selected,
+  onSelectChange,
+  onPreview,
+}: {
+  item: ExternalResourceItem
+  selected: boolean
+  onSelectChange: (selected: boolean) => void
+  onPreview: () => void
+}) {
+  const name = item.title || `${item.provider_key} #${item.external_id}`
+  const meta = externalResourceMeta(item)
+
+  return (
+    <ResourceAssetCard
+      selected={selected}
+      title="点击预览"
+      style={{ cursor: 'pointer' }}
+      onClick={onPreview}
+      preview={(
+        <ResourceMediaFillFrame fit="cover">
+          {item.thumbnail_url ? (
+            <img src={item.thumbnail_url} alt={name} loading="lazy" />
+          ) : (
+            <ResourceAssetPreviewFallback>
+              <TypeIcon type={item.media_type} />
+            </ResourceAssetPreviewFallback>
+          )}
+        </ResourceMediaFillFrame>
+      )}
+      selectControl={(
+        <ResourceAssetSelectCheckbox
+          data-resource-interactive="true"
+          checked={selected}
+          onCheckedChange={onSelectChange}
+          inputProps={{ 'aria-label': '选择外部资源' }}
+          onPointerDown={event => event.stopPropagation()}
+          onClick={event => event.stopPropagation()}
+        />
+      )}
+      typeIcon={<TypeIcon type={item.media_type} />}
+      name={<ResourceAssetName title={name}>{name}</ResourceAssetName>}
+      size={meta}
+      owner={item.author_name ? (
+        <span title={item.author_name} style={{ fontSize: 11, lineHeight: '14px' }}>
+          {item.author_name}
+        </span>
+      ) : item.license_label}
+    />
+  )
+}
+
+function ExternalResourcePreviewDialog({
+  item,
+  onClose,
+  onAdd,
+  adding,
+}: {
+  item: ExternalResourceItem
+  onClose: () => void
+  onAdd: () => void
+  adding?: boolean
+}) {
+  const name = item.title || `${item.provider_key} #${item.external_id}`
+  const previewUrl = item.preview_url || item.thumbnail_url
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <ResourceDialogContent size="md" hideClose>
+        <ResourceDialogHeader
+          icon={item.media_type === 'video' ? Video : ImageIcon}
+          title={name}
+          close={<ResourceDialogCloseButton aria-label="关闭"><XIcon size={16} /></ResourceDialogCloseButton>}
+        />
+        <ResourceDialogStack>
+          <div
+            style={{
+              display: 'flex',
+              width: '100%',
+              height: 'min(68vh, 640px)',
+              minHeight: 320,
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderRadius: 8,
+              background: 'var(--ms-color-muted)',
+            }}
+          >
+            {item.media_type === 'video' && previewUrl ? (
+              <video src={previewUrl} poster={item.thumbnail_url} controls playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }} />
+            ) : previewUrl ? (
+              <img src={previewUrl} alt={name} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            ) : (
+              <ResourceAssetPreviewFallback>
+                <TypeIcon type={item.media_type} />
+              </ResourceAssetPreviewFallback>
+            )}
+          </div>
+          <ResourceDialogText tone="foreground">
+            {[externalResourceMeta(item), item.author_name, item.license_label].filter(Boolean).join(' · ')}
+          </ResourceDialogText>
+          {item.description ? <ResourceDialogText>{item.description}</ResourceDialogText> : null}
+        </ResourceDialogStack>
+        <ResourceDialogFooter>
+          <ResourcePageActionButton variant="outline" size="sm" onClick={onClose}>
+            关闭
+          </ResourcePageActionButton>
+          <ResourcePageActionButton size="sm" onClick={onAdd} disabled={adding}>
+            <Download size={14} />
+            加入素材库
+          </ResourcePageActionButton>
+        </ResourceDialogFooter>
+      </ResourceDialogContent>
+    </Dialog>
+  )
+}
+
+function externalResourceKey(item: ExternalResourceItem) {
+  return `${item.provider_key}-${item.media_type}-${item.external_id}`
+}
+
+function externalResourceProviderName(providerKey: string) {
+  switch (providerKey) {
+    case 'pixabay':
+      return 'Pixabay'
+    case 'pexels':
+      return 'Pexels'
+    default:
+      return providerKey
+  }
+}
+
+function loadExternalResourceSearchSnapshot(): ExternalResourceSearchSnapshot | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<ExternalResourceSearchSnapshot>
+    const submittedQuery = typeof parsed.submittedQuery === 'string' ? parsed.submittedQuery.trim() : ''
+    if (!submittedQuery || !parsed.result || !Array.isArray(parsed.result.items)) return null
+    return {
+      sourceId: typeof parsed.sourceId === 'number' ? parsed.sourceId : undefined,
+      query: typeof parsed.query === 'string' && parsed.query.trim() ? parsed.query.trim() : submittedQuery,
+      submittedQuery,
+      mediaTypes: normalizeExternalMediaTypes(parsed.mediaTypes),
+      orientation: normalizeExternalOrientation(parsed.orientation),
+      page: normalizeExternalSnapshotPage(parsed.page),
+      result: parsed.result as ExternalResourceSearchResult,
+    }
+  } catch {
+    return null
+  }
+}
+
+function saveExternalResourceSearchSnapshot(snapshot: ExternalResourceSearchSnapshot) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(EXTERNAL_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(snapshot))
+  } catch {
+    // Best-effort UI state persistence; search remains fully usable without storage.
+  }
+}
+
+function externalResourceSearchInitialData(
+  snapshot: ExternalResourceSearchSnapshot | null,
+  current: {
+    sourceId?: number
+    submittedQuery: string
+    mediaTypeKey: string
+    orientation: ExternalOrientationFilter
+    page: number
+  },
+) {
+  if (!snapshot || !current.sourceId) return undefined
+  if (snapshot.sourceId && snapshot.sourceId !== current.sourceId) return undefined
+  if (snapshot.submittedQuery !== current.submittedQuery.trim()) return undefined
+  if (snapshot.mediaTypes.join('|') !== current.mediaTypeKey) return undefined
+  if (snapshot.orientation !== current.orientation) return undefined
+  if (snapshot.page !== current.page) return undefined
+  return snapshot.result
+}
+
+function normalizeExternalMediaTypes(value: unknown): ExternalMediaFilter[] {
+  const input = Array.isArray(value) ? value : []
+  const output = input.filter((item): item is ExternalMediaFilter => item === 'image' || item === 'video')
+  return output.length > 0 ? (Array.from(new Set(output)).sort() as ExternalMediaFilter[]) : ['image', 'video']
+}
+
+function normalizeExternalOrientation(value: unknown): ExternalOrientationFilter {
+  return value === 'landscape' || value === 'portrait' || value === 'square' ? value : 'all'
+}
+
+function normalizeExternalSnapshotPage(value: unknown) {
+  const page = Number(value)
+  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1
+}
+
+async function uploadExternalResourceItem(item: ExternalResourceItem): Promise<RawResource> {
+  const url = item.preview_url || item.thumbnail_url
+  if (!url) throw new Error('外部资源没有可导入的文件地址')
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`下载外部资源失败：HTTP ${response.status}`)
+  const blob = await response.blob()
+  const file = new window.File(
+    [blob],
+    externalResourceFileName(item, blob.type),
+    { type: blob.type || externalResourceMimeType(item) },
+  )
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/resources/upload', fd).then(r => r.data as RawResource)
+}
+
+function externalResourceFileName(item: ExternalResourceItem, mimeType: string) {
+  const title = item.title || `${item.provider_key}-${item.media_type}-${item.external_id}`
+  const base = title
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || `${item.provider_key}-${item.external_id}`
+  return `${base}-${item.external_id}${externalResourceExtension(item, mimeType)}`
+}
+
+function externalResourceExtension(item: ExternalResourceItem, mimeType: string) {
+  const urlPath = item.preview_url || item.thumbnail_url || ''
+  const urlExtension = urlPath.split('?')[0]?.match(/\.(jpe?g|png|webp|gif|mp4|mov|webm)$/i)?.[0]
+  if (urlExtension) return urlExtension.toLowerCase()
+  if (mimeType.includes('png')) return '.png'
+  if (mimeType.includes('webp')) return '.webp'
+  if (mimeType.includes('gif')) return '.gif'
+  if (mimeType.includes('video/webm')) return '.webm'
+  if (mimeType.includes('video/quicktime')) return '.mov'
+  if (mimeType.includes('video')) return '.mp4'
+  return item.media_type === 'video' ? '.mp4' : '.jpg'
+}
+
+function externalResourceMimeType(item: ExternalResourceItem) {
+  return item.media_type === 'video' ? 'video/mp4' : 'image/jpeg'
+}
+
+function externalResourceMeta(item: ExternalResourceItem) {
+  const dimensions = item.width && item.height ? `${item.width}x${item.height}` : ''
+  const duration = item.duration_seconds ? `${item.duration_seconds}s` : ''
+  return [dimensions, duration].filter(Boolean).join(' · ') || item.media_type
 }
 
 export function ResourceLibraryView({

@@ -58,8 +58,18 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.PUT("/resources/:id", h.resources.Update)
 	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)
 	protected.DELETE("/resources/:id", h.resources.Delete)
+	protected.GET("/external-resource-sources", h.externalResources.ListSources)
+	protected.POST("/external-resource-sources", h.externalResources.CreateSource)
+	protected.PATCH("/external-resource-sources/:id", h.externalResources.UpdateSource)
+	protected.GET("/external-resources/search", h.externalResources.Search)
 	protected.PATCH("/resource-bindings/:id", h.resourceBindings.Patch)
 	protected.DELETE("/resource-bindings/:id", h.resourceBindings.Delete)
+
+	protected.GET("/shot-references", h.shotReferences.List)
+	protected.POST("/shot-references/upload", h.shotReferences.UploadAnalyze)
+	protected.POST("/shot-references/from-resource", h.shotReferences.CreateFromResource)
+	protected.PATCH("/shot-references/:id", h.shotReferences.Patch)
+	protected.DELETE("/shot-references/:id", h.shotReferences.Delete)
 
 	protected.GET("/resource-folders", h.resourceFolders.List)
 	protected.POST("/resource-folders", h.resourceFolders.Create)

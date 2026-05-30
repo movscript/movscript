@@ -63,12 +63,17 @@ export function CreateContentUnitQuickCard({
   const queryClient = useQueryClient()
   const kindOptions = useMemo(() => contentUnitKindOptions(contentUnitConfig), [contentUnitConfig])
   const defaultKind = firstText(defaults?.kind, 'shot')
+  const defaultDurationSec = Number(defaults?.duration_sec) > 0 ? String(Number(defaults?.duration_sec)) : ''
   const [kind, setKind] = useState(kindOptions.some((option) => option.value === defaultKind) ? defaultKind : kindOptions[0]?.value ?? 'shot')
+  const [durationSec, setDurationSec] = useState(defaultDurationSec)
   const selectedKindLabel = trackKindLabel(kind)
+  const durationValue = Number(durationSec)
+  const canCreate = Boolean(projectId) && Number.isFinite(durationValue) && durationValue > 0
 
   useEffect(() => {
     const nextKind = firstText(defaults?.kind, 'shot')
     setKind(kindOptions.some((option) => option.value === nextKind) ? nextKind : kindOptions[0]?.value ?? 'shot')
+    setDurationSec(Number(defaults?.duration_sec) > 0 ? String(Number(defaults?.duration_sec)) : '')
   }, [defaults, kindOptions])
 
   const createUnit = useMutation({
@@ -80,6 +85,7 @@ export function CreateContentUnitQuickCard({
         ...defaults,
         title,
         kind,
+        duration_sec: durationValue,
         status: 'candidate',
         segment_id: selected.segment?.ID ?? null,
         scene_moment_id: selected.moment.ID,
@@ -104,7 +110,7 @@ export function CreateContentUnitQuickCard({
       icon={Boxes}
       title="新建制作项"
       description={`${selected.title} · 候选草稿`}
-      badge="仅类型"
+      badge="需时长"
     >
       <ContentWorkbenchQuickCreateSelectField
         label="类型"
@@ -113,11 +119,22 @@ export function CreateContentUnitQuickCard({
         onChange={setKind}
       />
 
+      <ContentWorkbenchQuickCreateInputField
+        label="秒数"
+        id={`create-content-unit-duration-${selected.moment.ID}`}
+        type="number"
+        min="0.1"
+        step="0.1"
+        value={durationSec}
+        placeholder="例如 3"
+        onChange={(event) => setDurationSec(event.target.value)}
+      />
+
       <ContentWorkbenchQuickCreateActions>
         <ContentWorkbenchQuickCreateActionButton type="button" variant="outline" onClick={onCancel} disabled={createUnit.isPending}>
           取消
         </ContentWorkbenchQuickCreateActionButton>
-        <ContentWorkbenchQuickCreateActionButton type="button" onClick={() => createUnit.mutate()} loading={createUnit.isPending} disabled={!projectId || createUnit.isPending}>
+        <ContentWorkbenchQuickCreateActionButton type="button" onClick={() => createUnit.mutate()} loading={createUnit.isPending} disabled={!canCreate || createUnit.isPending}>
           <Plus size={14} />
           创建
         </ContentWorkbenchQuickCreateActionButton>

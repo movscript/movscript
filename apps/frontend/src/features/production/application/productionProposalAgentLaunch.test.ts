@@ -82,7 +82,7 @@ test('production proposal revision launch routes edits through the draft file', 
   assert.match(payload.clientInput.message, /第二段压缩成两个情节/)
 })
 
-test('production proposal draft can seed proposal from current snapshot for manual proposal mode', async (t) => {
+test('production proposal draft can seed proposal from current snapshot for manual patch review', async (t) => {
   const createdDrafts: Array<{ content: string }> = []
   t.after(() => mock.restoreAll())
   mock.method(localAgentClient, 'getDraft', async () => null as unknown as AgentDraft)

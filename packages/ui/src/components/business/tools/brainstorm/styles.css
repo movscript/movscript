@@ -1,8 +1,9 @@
 .tool-brainstorm-frame {
+  --tool-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   display: flex;
   height: 100%;
   flex-direction: column;
-  background: var(--ms-color-page-background);
+  background: var(--tool-page-background);
 }
 
 .tool-brainstorm-body {

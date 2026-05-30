@@ -1,7 +1,6 @@
 import { isJSONRecord } from '../jsonValue.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 import {
-  normalizeDraftStatus,
   type CreateAgentDraftInput,
   type UpdateAgentDraftInput,
 } from './draftStore.js'
@@ -49,11 +48,9 @@ export function buildRuntimeUpdateDraftInput(input: RuntimeUpdateDraftInput): {
   draftId: string
   update: UpdateAgentDraftInput
 } {
-  const status = normalizeDraftStatus(input.status)
   return {
     draftId: requireRuntimeDraftId(input.draftId, 'update draft'),
     update: {
-      ...(status ? { status } : {}),
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
       ...(isJSONRecord(input.target) ? { target: input.target } : {}),

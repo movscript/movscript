@@ -45,22 +45,19 @@ export function buildApplyDraftPreview(store: AgentDraftStore, input: ApplyDraft
     status: 'preview',
     review,
     draft,
-    message: 'Draft apply preview created. User approval is required before marking the draft applied.',
+    message: 'Draft apply preview created. User approval is required before writing the current draft to the target.',
   }
 }
 
 export function applyDraftAfterApproval(store: AgentDraftStore, input: ApplyDraftInput): ApplyDraftResult {
   const draft = requireDraft(store, input.draftId)
-  if (draft.status === 'applied') {
-    throw new Error(`draft already applied: ${draft.id}`)
-  }
   const review = buildReview(draft, input)
   const applied = markDraftApplied(store, draft, review, input)
   return {
     status: 'applied',
     review,
     draft: applied,
-    message: 'Draft marked applied in the local agent lifecycle. Formal backend entity write is not performed by this runtime path yet.',
+    message: 'Draft apply recorded. The draft remains editable and can be applied again after further review.',
   }
 }
 
@@ -73,7 +70,6 @@ export function markDraftApplied(
 ): AgentDraft {
   const now = new Date().toISOString()
   return store.updateDraft(draft.id, {
-    status: 'applied',
     target: review.target,
     appliedAt: now,
     ...(typeof input.appliedByUserId === 'number' || typeof input.appliedByUserId === 'string'
@@ -83,6 +79,8 @@ export function markDraftApplied(
       ...(isRecord(draft.metadata) ? draft.metadata : {}),
       applyReview: review as unknown as JSONValue,
       appliedBy: 'movscript-agent',
+      lastApplyStatus: 'applied',
+      lastAppliedAt: now,
       backendWritePerformed: false,
       ...metadata,
     },
@@ -92,8 +90,12 @@ export function markDraftApplied(
 export function rejectDraft(store: AgentDraftStore, draftId: unknown, reason: unknown): AgentDraft {
   const draft = requireDraft(store, draftId)
   return store.updateDraft(draft.id, {
-    status: 'rejected',
     rejectedReason: typeof reason === 'string' ? reason : undefined,
+    metadata: {
+      ...(isRecord(draft.metadata) ? draft.metadata : {}),
+      lastReviewStatus: 'rejected',
+      ...(typeof reason === 'string' ? { lastRejectionReason: reason } : {}),
+    },
   })
 }
 
@@ -111,7 +113,7 @@ function buildReview(draft: AgentDraft, input: ApplyDraftInput): ApplyDraftRevie
     currentValue: normalizeJSONValue(input.currentValue, null),
     proposedValue,
     risk: 'write',
-    sideEffect: `Mark draft ${draft.id} as applied for ${target.entityType} ${String(target.entityId)}${target.field ? ` field ${target.field}` : ''}.`,
+    sideEffect: `Apply current draft ${draft.id} to ${target.entityType} ${String(target.entityId)}${target.field ? ` field ${target.field}` : ''}.`,
     requiresBackendApply: true,
   }
 }

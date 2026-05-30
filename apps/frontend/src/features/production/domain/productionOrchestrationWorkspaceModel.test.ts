@@ -5,6 +5,8 @@ import type { SemanticEntityRecord } from '@/shared/infrastructure/api/semanticE
 import type { WritingExpressionRecord } from './productionOrchestrationData'
 import { buildProductionOrchestrationLookup } from '@/features/production/domain/productionOrchestrationEntityModel'
 import {
+  buildProductionSceneMomentReorderPatches,
+  buildProductionSegmentReorderPatches,
   buildProductionOrchestrationWorkspaceView,
   compareProductionOrchestrationOrder,
   filterProductionContentUnitsForProduction,
@@ -43,6 +45,57 @@ test('production orchestration workspace model filters current production graph'
     record({ ID: 102, scene_moment_id: 10 }),
     record({ ID: 103, production_id: 11 }),
   ], 10, segmentIds, momentIds).map((item) => item.ID), [100, 101, 102])
+})
+
+test('production orchestration workspace model builds segment reorder patches', () => {
+  const patches = buildProductionSegmentReorderPatches([
+    record({ ID: 1, order: 1 }),
+    record({ ID: 2, order: 2 }),
+    record({ ID: 3, order: 3 }),
+  ], 3, 1, 'before')
+
+  assert.deepEqual(patches, [
+    { segmentId: 3, payload: { order: 1 } },
+    { segmentId: 1, payload: { order: 2 } },
+    { segmentId: 2, payload: { order: 3 } },
+  ])
+})
+
+test('production orchestration workspace model builds scene moment reorder patches across segments', () => {
+  const patches = buildProductionSceneMomentReorderPatches({
+    sceneMoments: [
+      record({ ID: 10, segment_id: 1, order: 1 }),
+      record({ ID: 11, segment_id: 1, order: 2 }),
+      record({ ID: 20, segment_id: 2, order: 1 }),
+      record({ ID: 21, segment_id: 2, order: 2 }),
+    ],
+    draggedMomentId: 11,
+    targetSegmentId: 2,
+    targetMomentId: 20,
+    position: 'after',
+  })
+
+  assert.deepEqual(patches, [
+    { momentId: 11, payload: { order: 2, segment_id: 2 } },
+    { momentId: 21, payload: { order: 3 } },
+  ])
+})
+
+test('production orchestration workspace model appends scene moment into empty segment', () => {
+  const patches = buildProductionSceneMomentReorderPatches({
+    sceneMoments: [
+      record({ ID: 10, segment_id: 1, order: 1 }),
+      record({ ID: 11, segment_id: 1, order: 2 }),
+    ],
+    draggedMomentId: 10,
+    targetSegmentId: 2,
+    targetMomentId: null,
+  })
+
+  assert.deepEqual(patches, [
+    { momentId: 11, payload: { order: 1 } },
+    { momentId: 10, payload: { order: 1, segment_id: 2 } },
+  ])
 })
 
 test('production orchestration workspace model builds selected writing view', () => {
@@ -121,6 +174,37 @@ test('production orchestration workspace model builds selected writing view', ()
       ],
     },
   ])
+})
+
+test('production orchestration workspace model preserves empty selection', () => {
+  const segments = [record({ ID: 1, title: '开场', status: 'active', kind: 'setup', order: 1 })]
+  const sceneMoments = [record({ ID: 10, segment_id: 1, scene_code: 'A01', title: '敲门' })]
+  const lookup = buildProductionOrchestrationLookup({
+    scriptText: '',
+    scriptVersionTitle: '',
+    segments,
+    sceneMoments,
+    creativeReferences: [],
+    creativeReferenceUsages: [],
+    assetSlots: [],
+    contentUnits: [],
+  })
+
+  const view = buildProductionOrchestrationWorkspaceView({
+    segments,
+    sceneMoments,
+    writingExpressions: [],
+    scriptBlocks: [],
+    selectedMomentId: null,
+    lookup,
+  })
+
+  assert.equal(view.selectedMoment, null)
+  assert.equal(view.selectedSegment, null)
+  assert.deepEqual(view.segmentNavigatorItems.map((item) => ({
+    active: item.active,
+    moments: item.moments.map((moment) => moment.active),
+  })), [{ active: false, moments: [false] }])
 })
 
 test('production orchestration workspace model falls back to readable record titles', () => {

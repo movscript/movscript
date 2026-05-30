@@ -71,7 +71,7 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。
 
 输出：
-回复 draftId、projectId、draft status、validation 状态、剧本依据、项目规范摘要和未解决的镜头/风格决策。
+回复 draftId、projectId、validation/preview 结果、剧本依据、项目规范摘要和未解决的镜头/风格决策。
 
 绝不：
 - 绝不把本地规范 draft 描述为已正式写入 project。

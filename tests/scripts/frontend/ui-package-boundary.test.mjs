@@ -6050,7 +6050,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   const deliveryWorkbenchModelSource = readProjectFile('apps/frontend/src/features/delivery/domain/deliveryWorkbenchModel.ts')
   const deliveryWorkbenchOverviewModelSource = readProjectFile('apps/frontend/src/features/delivery/domain/deliveryWorkbenchOverviewModel.ts')
   const productionOrchestrationSource = readProjectFile('apps/frontend/src/features/production/components/ProductionOrchestrationPage.tsx')
-  const productionPageSource = readProjectFile('apps/frontend/src/features/production/components/ProductionPage.tsx')
   const productionPagePackageSource = readProjectFile('packages/ui/src/components/business/production/page/index.tsx')
   const productionPagePackageCss = readProjectFile('packages/ui/src/components/business/production/page/styles.css')
   const productionOrchestrationPackageSource = readProjectFile('packages/ui/src/components/business/production/orchestration/index.tsx')
@@ -6296,19 +6295,21 @@ test('production workspace pages use package semantic and accent contracts', () 
   for (const exportName of [
     'ProductionOrchestrationGenerationNotice',
     'ProductionOrchestrationHeaderAction',
-    'ProductionOrchestrationHeaderBadge',
     'ProductionOrchestrationHeaderMetaBadge',
-    'ProductionOrchestrationMain',
-    'ProductionOrchestrationProposalBanner',
-    'ProductionOrchestrationProductionSelectTrigger',
+    'ProductionOrchestrationProductionCard',
+    'ProductionOrchestrationProductionCardBreadcrumbs',
+    'ProductionOrchestrationProductionCardScriptBinding',
+    'ProductionOrchestrationProductionCardScriptSelectTrigger',
+    'ProductionOrchestrationProductionDeck',
+    'ProductionOrchestrationProductionDeckGrid',
+    'ProductionOrchestrationProductionDeckHeader',
+    'ProductionOrchestrationProductionEmptyState',
+    'ProductionOrchestrationProductionPager',
     'ProductionOrchestrationReviewDialogContent',
     'ProductionOrchestrationReviewDialogTitle',
     'ProductionOrchestrationReviewEmptyNotice',
     'ProductionOrchestrationRevisionDialogContent',
     'ProductionOrchestrationSkeleton',
-    'ProductionOrchestrationViewport',
-    'ProductionOrchestrationWorkspaceBody',
-    'ProductionOrchestrationWorkspaceFrame',
   ]) {
     assert.match(productionOrchestrationSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by ProductionOrchestrationPage`)
     assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
@@ -6319,14 +6320,16 @@ test('production workspace pages use package semantic and accent contracts', () 
     assert.doesNotMatch(productionOrchestrationSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not leak into ProductionOrchestrationPage`)
   }
   for (const className of [
-    'production-orchestration-viewport',
-    'production-orchestration-main',
-    'production-orchestration-workspace-frame',
-    'production-orchestration-workspace-body',
     'production-orchestration-header-badge',
     'production-orchestration-header-action',
-    'production-orchestration-production-select-trigger',
-    'production-orchestration-proposal-banner',
+    'production-orchestration-production-card',
+    'production-orchestration-production-card-breadcrumbs',
+    'production-orchestration-production-card-script',
+    'production-orchestration-production-card-script-select',
+    'production-orchestration-production-deck',
+    'production-orchestration-production-deck__grid',
+    'production-orchestration-production-empty',
+    'production-orchestration-production-pager',
     'production-orchestration-generation-notice',
     'production-orchestration-review-dialog-content',
     'production-orchestration-review-dialog-title',
@@ -6339,9 +6342,8 @@ test('production workspace pages use package semantic and accent contracts', () 
   ]) {
     assert.match(productionOrchestrationPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
-  assert.match(productionOrchestrationSource, /proposalModeActive[\s\S]*?<ProductionOrchestrationProposalBanner/)
   assert.match(productionOrchestrationSource, /orchestrationStage !== 'idle'[\s\S]*?<ProductionOrchestrationGenerationNotice/)
-  assert.match(productionOrchestrationSource, /proposalReviewOpen[\s\S]*?<ProductionOrchestrationReviewDialogContent/)
+  assert.match(productionOrchestrationSource, /reviewOpen[\s\S]*?<ProductionOrchestrationReviewDialogContent/)
   assert.match(productionOrchestrationSource, /proposalRevisionDialogOpen[\s\S]*?<ProductionOrchestrationRevisionDialogContent/)
   assert.match(productionSemanticUiSource, /import \{ defineFeatureStatusRecipeGroup, type UiStatusRecipe \} from '@\/shared\/presentation\/semanticRecipe'/)
   assert.match(productionSemanticUiSource, /export type ProductionStatusRecipe = UiStatusRecipe/)
@@ -6354,8 +6356,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.match(deliverySemanticUiSource, /deliveryOverviewMetricRecipe/)
   assert.match(deliverySemanticUiSource, /deliveryTimelineItemRecipe/)
   assert.match(deliveryPageSource, /deliveryWorkbenchStatusRecipe/)
-  assert.match(productionPageSource, /productionStatusRecipe/)
-  assert.match(productionPageSource, /productionUnitStatusRecipe/)
   assert.match(deliveryWorkbenchSource, /deliveryWorkbenchStatusRecipe/)
   assert.match(deliveryWorkbenchPanelsSource, /deliveryWorkbenchStatusRecipe/)
   assert.match(deliveryWorkbenchPanelsSource, /deliveryGateStatusRecipe/)
@@ -6378,17 +6378,12 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bmetric\.tone\b/)
   assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\bSemanticTone\b/)
   assert.doesNotMatch(deliveryWorkbenchPanelsSource, /\b(?:toneTextClass|toneSurfaceClass)\b/)
-  assert.match(productionOrchestrationSource, /productionProposalModeRecipe/)
   assert.match(workbenchStatusBadgeSource, /StatusBadgeProps/)
   assert.match(workbenchStatusBadgeSource, /\.\.\.statusProps/)
   assert.match(productionPagePackageSource, /\bAppIconFrame\b/, 'production page package components own icon frame styling')
   assert.match(productionPagePackageSource, /\bAppMarkerDot\b/, 'production page package components own timeline marker styling')
   assert.match(productionPagePackageSource, /\bAppSection\b/, 'production page package components own section styling')
   assert.match(productionPagePackageSource, /\bWorkbenchListItem\b/, 'production page package components own next action row styling')
-  assert.doesNotMatch(productionPageSource, /\bAppIconFrame\b/, 'ProductionPage must use production page wrappers instead of app icon frame')
-  assert.doesNotMatch(productionPageSource, /\bAppMarkerDot\b/, 'ProductionPage must use production page wrappers instead of app marker dot')
-  assert.doesNotMatch(productionPageSource, /\bAppSection\b/, 'ProductionPage must use production page wrappers instead of app section')
-  assert.doesNotMatch(productionPageSource, /\bWorkbenchListItem\b/, 'ProductionPage must use production page wrappers instead of workbench list item')
   for (const exportName of [
     'ProductionPageActionButton',
     'ProductionPageActivityStack',
@@ -6439,7 +6434,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   ]) {
     assert.match(productionPagePackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
     assert.match(businessIndexSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from @movscript/ui`)
-    assert.match(productionPageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by ProductionPage`)
   }
   for (const className of [
     'production-page-action-button',
@@ -6485,12 +6479,6 @@ test('production workspace pages use package semantic and accent contracts', () 
     assert.match(productionPagePackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
   assert.match(productionPagePackageSource, /ProductionPageListCard[\s\S]*?<WorkbenchSurfaceItem[\s\S]*?<Button[\s\S]*?onClick=\{onSelect\}/)
-  assert.doesNotMatch(productionPageSource, /function ProductionListCard[\s\S]*?<WorkbenchSurfaceItem/)
-  assert.doesNotMatch(productionPageSource, /function AreaCard[\s\S]*?<WorkbenchSurfaceItem/)
-  assert.doesNotMatch(productionPageSource, /function ProductionUnitRow[\s\S]*?grid grid-cols-\[92px_minmax/)
-  assert.doesNotMatch(productionPageSource, /\b(?:AppContentLayout|AppEmptyState|AppMetricCard|Badge|Button|Progress|StatusBadge)\b/)
-  assert.doesNotMatch(productionPageSource, /className=|bodyClassName=|<(?:div|main|p|section|span)\b/)
-  assert.doesNotMatch(productionPageSource, /<button type="button" onClick=\{onSelect\} className="block w-full text-left"/)
   assert.doesNotMatch(productionOrchestrationSource, /rounded-lg border border-border bg-background p-4/)
   assert.doesNotMatch(productionOrchestrationSource, /h-[345] w-[^"]+ rounded bg-muted/)
   assert.doesNotMatch(productionOrchestrationSource, /rounded-full bg-muted px-1\.5/)
@@ -6595,8 +6583,6 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.doesNotMatch(contentUnitsSource, /\bAppSection\b/, 'content units page must use content page section wrapper instead of app section')
   assert.doesNotMatch(contentUnitsSource, /\bAppTextEmptyState\b/, 'content units page must use content page empty wrapper instead of app text empty state')
   assert.doesNotMatch(contentUnitsSource, /\b(?:AppEmptyState|AppKeyValue|AppMetricCard|toneTextClass)\b/, 'content units page must use content page wrappers instead of app display primitives')
-  assert.doesNotMatch(productionPageSource, /flex h-[68] w-[68] shrink-0 items-center justify-center rounded-md bg-muted/)
-  assert.doesNotMatch(productionPageSource, /h-2 w-2 shrink-0 rounded-full bg-muted-foreground/)
   assert.doesNotMatch(contentUnitsSource, /flex h-8 w-8 (?:shrink-0 )?items-center justify-center rounded-md bg-muted/)
   assert.match(contentUnitsSource, /function ContentUnitCard[\s\S]*?ContentPageListCard/)
   assert.match(contentUnitsSource, /function RelatedPanel[\s\S]*?ContentPageRelatedStack/)
@@ -6678,7 +6664,7 @@ test('production workspace pages use package semantic and accent contracts', () 
   assert.match(sources, /StatusBadge/)
   assert.match(`${contentPagePackageSource}\n${productionDeliveryCenterPackageSource}\n${productionPagePackageSource}`, /accent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class/)
   assert.doesNotMatch(sources, /\baccent(?:Text|Surface|Soft|Badge|Dot|Gradient|Port)Class\b/)
-  assert.doesNotMatch(`${deliveryPageSource}\n${productionPageSource}\n${productionOrchestrationSource}`, /<StatusBadge\b[^>]*\btone=|<StatusDot\b[^>]*\btone=|function (?:deliveryStatusTone|productionStatusTone|unitStatusTone)\b/)
+  assert.doesNotMatch(`${deliveryPageSource}\n${productionOrchestrationSource}`, /<StatusBadge\b[^>]*\btone=|<StatusDot\b[^>]*\btone=|function (?:deliveryStatusTone|productionStatusTone|unitStatusTone)\b/)
   assert.doesNotMatch(`${deliveryWorkbenchSource}\n${deliveryWorkbenchPanelsSource}`, /<WorkbenchStatusBadge\b[^>]*\btone=\{deliveryWorkbenchStatusTone/)
   assert.doesNotMatch(`${deliveryWorkbenchSource}\n${deliveryWorkbenchPanelsSource}\n${deliveryWorkbenchModelSource}`, /deliveryWorkbenchStatusTone|DeliveryWorkbenchStatusTone/)
   assert.doesNotMatch(productionOrchestrationModelSource, /\bstatusTone\b|ProductionSegmentStatusTone/)

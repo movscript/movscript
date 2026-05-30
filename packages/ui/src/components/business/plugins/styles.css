@@ -8,7 +8,7 @@
 .plugin-page-header {
   flex-shrink: 0;
   border-bottom: 1px solid var(--ms-color-border);
-  background: var(--ms-color-page-background);
+  background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   padding: var(--ms-space-3) var(--ms-space-5);
 }
 
@@ -284,10 +284,11 @@
 }
 
 .plugin-tool-root {
+  --tool-page-background: var(--app-shell-slot-center-background, var(--ms-app-shell-slot-center-background, var(--ms-color-page-background)));
   display: flex;
   height: 100%;
   flex-direction: column;
-  background: var(--ms-color-page-background);
+  background: var(--tool-page-background);
 }
 
 .plugin-tool-native-layout {

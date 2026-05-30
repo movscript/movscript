@@ -45,6 +45,37 @@
   backdrop-filter: none !important;
 }
 
+.canvas-flow--overview .react-flow__handle,
+.canvas-flow--overview .canvas-media-node-card__controls,
+.canvas-flow--overview .canvas-node-card-action-button {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.canvas-flow--overview .canvas-media-node-card__controls,
+.canvas-flow--overview .canvas-node-card-action-button {
+  visibility: hidden !important;
+}
+
+.canvas-flow--overview .react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+  stroke: color-mix(in srgb, var(--ms-color-muted-foreground) 42%, transparent);
+}
+
+.canvas-flow--overview .canvas-node-card {
+  --ui-surface-shadow: none;
+}
+
+.canvas-flow--overview .canvas-node-card,
+.canvas-flow--overview .canvas-tool-action-card,
+.canvas-flow--overview .canvas-workflow-reference-card {
+  box-shadow: none !important;
+}
+
+.canvas-flow--overview .canvas-media-node-info__crumb:not(.canvas-media-node-info__name) {
+  display: none;
+}
+
 .canvas-flow .react-flow__edges,
 .canvas-flow .react-flow__connectionline,
 .canvas-flow .react-flow__edgelabel-renderer {

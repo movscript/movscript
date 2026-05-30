@@ -1035,7 +1035,7 @@ test('agent does not apply drafts as a model-visible tool', async () => {
   assert.equal(backendApplyClient.calls.length, 0)
 })
 
-test('UI apply_draft API marks draft applied without creating an agent approval run', async () => {
+test('UI apply_draft API applies current draft without creating an agent approval run', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
@@ -1057,12 +1057,28 @@ test('UI apply_draft API marks draft applied without creating an agent approval 
 
   assert.equal(applied.status, 'applied')
   assert.equal(applied.review.currentValue, 'Old content-unit description')
-  assert.equal(runtime.getDraft(draft.id)?.status, 'applied')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(runtime.getDraft(draft.id)?.metadata?.lastApplyStatus, 'applied')
   assert.equal((runtime.getDraft(draft.id)?.metadata?.applyReview as any)?.requiresBackendApply, true)
   assert.equal(runtime.getDraft(draft.id)?.metadata?.backendWritePerformed, true)
   assert.equal((runtime.getDraft(draft.id)?.metadata?.backendApply as any)?.method, 'PATCH')
   assert.equal(backendApplyClient.calls.length, 1)
   assert.equal(runtime.listRuns().length, 0)
+
+  runtime.updateDraft({
+    draftId: draft.id,
+    content: 'Revised content-unit description',
+  })
+  const appliedAgain = await runtime.applyDraftFromUI({
+    draftId: draft.id,
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+    currentValue: 'New content-unit description',
+    proposedValue: 'Revised content-unit description',
+  }) as any
+
+  assert.equal(appliedAgain.status, 'applied')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(backendApplyClient.calls.length, 2)
 })
 
 test('UI apply_draft API passes explicit user id to backend apply client', async () => {
@@ -1144,7 +1160,7 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
   assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
 })
 
-test('rejectDraft marks local draft rejected with reason', () => {
+test('rejectDraft records review rejection without closing local draft', () => {
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
   const draft = runtime.createLocalDraft({
     projectId: 42,
@@ -1155,8 +1171,9 @@ test('rejectDraft marks local draft rejected with reason', () => {
 
   const rejected = runtime.rejectDraft({ draftId: draft.id, reason: 'out of scope' })
 
-  assert.equal(rejected.status, 'rejected')
+  assert.equal(rejected.status, 'draft')
   assert.equal(rejected.rejectedReason, 'out of scope')
+  assert.equal(rejected.metadata?.lastReviewStatus, 'rejected')
 })
 
 test('sandbox mode intercepts agent write-risk tools', async () => {

@@ -38,6 +38,6 @@
   "schemaRefs": [
     "schema://movscript.production_proposal.v1"
   ],
-  "outputContract": "回复 draftId、projectId、productionId、draft status、最近一次 preview_apply 的 ok/stage、segments/scene moments 数量和未解决上游缺口。",
+  "outputContract": "回复 draftId、projectId、productionId、最近一次 preview_apply 的 ok/stage、segments/scene moments 数量和未解决上游缺口。",
   "instructionTemplatePath": "instruction.md"
 }

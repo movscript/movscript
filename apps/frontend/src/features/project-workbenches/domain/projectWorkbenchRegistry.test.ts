@@ -42,7 +42,7 @@ test('project workbench definitions own proposal kinds at the correct layer', ()
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('setting_proposal')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('asset_proposal')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('production_proposal')?.id, 'orchestration_production')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('content_unit_proposal')?.id, 'content_orchestration')
+  assert.equal(getProjectWorkbenchDefinitionForProposalKind('content_unit_proposal')?.id, 'orchestration_production')
 })
 
 test('project workbench review paths are generated from review query contracts', () => {
@@ -76,7 +76,7 @@ test('project workbench review paths are generated from review query contracts',
       entityType: 'production',
       entityId: 301,
     }),
-    '/project/production/orchestration?productionId=301&draftId=draft-d',
+    '/project/production/orchestration?view=review&draftId=draft-d&productionId=301',
   )
 })
 

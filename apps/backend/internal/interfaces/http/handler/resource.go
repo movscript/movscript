@@ -295,6 +295,10 @@ func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
 	case errors.Is(err, appresource.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	case errors.Is(err, appresource.ErrDuplicateName):
+		c.JSON(http.StatusConflict, gin.H{"code": "RESOURCE_NAME_CONFLICT", "error": "resource filename already exists"})
+	case errors.Is(err, appresource.ErrResourceInUse):
+		c.JSON(http.StatusConflict, gin.H{"code": "RESOURCE_IN_USE", "error": "resource is still referenced"})
 	case errors.Is(err, ai.ErrImageVerificationRequired):
 		c.JSON(http.StatusForbidden, gin.H{"error": "image verification required", "code": "IMAGE_VERIFICATION_REQUIRED"})
 	default:

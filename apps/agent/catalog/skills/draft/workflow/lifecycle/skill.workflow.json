@@ -33,6 +33,6 @@
     "tool://core_user_input_request"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回 draftId、kind、status、是否读取过现有 draft、validation/preview 状态，以及下一步 review 或 apply 动作。",
+  "outputContract": "返回 draftId、kind、是否读取过现有 draft、validation/preview/apply 结果，以及下一步 review 或 apply 动作。",
   "instructionTemplatePath": "instruction.md"
 }

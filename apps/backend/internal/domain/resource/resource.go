@@ -47,6 +47,7 @@ type UpdateSpec struct {
 	FilePath             *string
 	StorageKey           *string
 	StorageBackend       *string
+	BlobID               *uint
 	Type                 *string
 	Name                 *string
 	MimeType             *string
@@ -66,6 +67,7 @@ type RawResource struct {
 	OwnerID              uint       `json:"owner_id"`
 	Owner                *UserRef   `json:"owner,omitempty"`
 	OrgID                *uint      `json:"org_id,omitempty"`
+	BlobID               *uint      `json:"blob_id,omitempty"`
 	FolderID             *uint      `json:"folder_id,omitempty"`
 	Type                 string     `json:"type"`
 	Name                 string     `json:"name"`
@@ -100,6 +102,7 @@ func (spec UpdateSpec) Empty() bool {
 	return spec.FilePath == nil &&
 		spec.StorageKey == nil &&
 		spec.StorageBackend == nil &&
+		spec.BlobID == nil &&
 		spec.Type == nil &&
 		spec.Name == nil &&
 		spec.MimeType == nil &&
@@ -123,6 +126,10 @@ func (resource *RawResource) ApplyUpdate(spec UpdateSpec) {
 	}
 	if spec.StorageBackend != nil {
 		resource.StorageBackend = *spec.StorageBackend
+	}
+	if spec.BlobID != nil {
+		blobID := *spec.BlobID
+		resource.BlobID = &blobID
 	}
 	if spec.Type != nil {
 		resource.Type = *spec.Type
@@ -259,6 +266,14 @@ func GenerateStorageKey(resourceID uint, filename string) string {
 	ext := filepath.Ext(filename)
 	base := sanitizeName(strings.TrimSuffix(filename, ext))
 	return fmt.Sprintf("%d_%s%s", resourceID, base, ext)
+}
+
+func GenerateBlobStorageKey(hash string) string {
+	hash = strings.ToLower(strings.TrimSpace(hash))
+	if len(hash) >= 4 {
+		return fmt.Sprintf("blobs/%s/%s/%s", hash[:2], hash[2:4], hash)
+	}
+	return "blobs/" + sanitizeName(hash)
 }
 
 func sanitizeName(s string) string {

@@ -11,7 +11,6 @@ import {
   type ProposalSegmentNode,
 } from './productionProposalReviewModel'
 import { buildProductionDraftSeedMetadata } from './productionOrchestrationDraftSeed'
-import { buildProductionCurrentOverview } from './productionOrchestrationOverview'
 
 const source = readFileSync(resolve('src/features/production/components/ProductionOrchestrationPage.tsx'), 'utf8')
 const panelSource = readFileSync(resolve('src/features/production/components/proposals/ProductionProposalReviewPanel.tsx'), 'utf8')
@@ -23,7 +22,6 @@ const orchestrationLaunchControllerSource = readFileSync(resolve('src/features/p
 const modelSource = readFileSync(resolve('src/features/production/domain/productionProposalReviewModel.ts'), 'utf8')
 const draftSeedSource = readFileSync(resolve('src/features/production/domain/productionOrchestrationDraftSeed.ts'), 'utf8')
 const agentLaunchSource = readFileSync(resolve('src/features/production/application/productionProposalAgentLaunch.ts'), 'utf8')
-const overviewSource = readFileSync(resolve('src/features/production/domain/productionOrchestrationOverview.ts'), 'utf8')
 const dataSource = readFileSync(resolve('src/features/production/domain/productionOrchestrationData.ts'), 'utf8')
 const sceneWritingSource = readFileSync(resolve('src/features/production/components/ProductionSceneWriting.tsx'), 'utf8')
 const writingModelSource = readFileSync(resolve('src/features/production/domain/productionWritingExpressions.ts'), 'utf8')
@@ -39,7 +37,6 @@ test('production proposal review applies accepted changes over the current snaps
   assert.match(agentLaunchSource, /productionSnapshot: input\.productionSnapshot/)
   assert.match(agentLaunchSource, /seed: buildProductionDraftSeedMetadata\(/)
   assert.match(draftSeedSource, /export function buildProductionDraftSeedMetadata/)
-  assert.match(overviewSource, /export function buildProductionCurrentOverview/)
   assert.match(agentLaunchSource, /export async function ensureProductionProposalDraft/)
   assert.match(agentLaunchSource, /seedProposalFromSnapshot/)
   assert.match(agentLaunchSource, /proposal: \{\s+segments: input\.productionSnapshot\.segments/)
@@ -49,15 +46,17 @@ test('production proposal review applies accepted changes over the current snaps
   assert.match(orchestrationReviewControllerSource, /buildProposalReviewSegments\(proposalPreviewDraft\.proposal\.segments, currentProductionSnapshot\)/)
   assert.match(orchestrationReviewControllerSource, /parseProductionProposalDraft\(draft\)/)
   assert.match(orchestrationReviewControllerSource, /localAgentClient\.getDraft/)
-  assert.match(source, /buildProductionProposalDraftWorkspaceData/)
-  assert.match(source, /updateProductionProposalDraftText/)
-  assert.match(source, /openedDraftQuery\.data\?\.kind === 'production_proposal'/)
-  assert.match(source, /workspaceSegments/)
-  assert.match(source, /text: '待补表达'/)
-  assert.match(source, /canDeleteFallbackContentUnits=\{proposalModeActive\}/)
-  assert.match(source, /正式项目当前只读/)
-  assert.match(source, /localAgentClient\.updateDraft/)
-  assert.match(source, /让 Agent 调整提案/)
+  assert.match(source, /openProposalPatchDialog/)
+  assert.match(source, /<Dialog open=\{reviewOpen\}/)
+  assert.match(source, /提案 Patch/)
+  assert.doesNotMatch(source, /buildProductionProposalDraftWorkspaceData/)
+  assert.doesNotMatch(source, /updateProductionProposalDraftText/)
+  assert.doesNotMatch(source, /proposalModeActive/)
+  assert.doesNotMatch(source, /workspaceSegments/)
+  assert.doesNotMatch(source, /canDeleteFallbackContentUnits=\{proposalModeActive\}/)
+  assert.doesNotMatch(source, /正式项目当前只读/)
+  assert.doesNotMatch(source, /localAgentClient\.updateDraft/)
+  assert.match(source, /Agent 调整提案/)
   assert.match(source, /proposalRevisionInstruction/)
   assert.match(source, /Agent 会读取并编辑当前 production proposal draft 文件/)
   assert.match(source, /<ProductionProposalReviewPanel/)
@@ -67,48 +66,6 @@ test('production proposal review applies accepted changes over the current snaps
   assert.match(controllerSource, /return buildMergedProductionProposal\(currentSnapshot, segments, nodeDecisions\)/)
   assert.match(controllerSource, /previewProductionProposalApply\(projectId/)
   assert.match(controllerSource, /applyProductionProposal\(projectId/)
-})
-
-test('production current overview summarizes script binding and next step', () => {
-  const withoutScript = buildProductionCurrentOverview({
-    production: { ID: 301, name: '制作 A', status: 'draft' },
-    scriptVersion: null,
-    segments: [],
-    sceneMoments: [],
-    creativeReferences: [],
-    assetSlots: [],
-    contentUnits: [],
-  })
-  assert.deepEqual(withoutScript.position, ['制作：制作 A', '剧本：未绑定'])
-  assert.equal(withoutScript.sourceLabel, '当前现状')
-  assert.deepEqual(withoutScript.nextStep, ['先选择一份剧本正文，再继续写情节。'])
-
-  const withScript = buildProductionCurrentOverview({
-    production: { ID: 301, name: '制作 A', status: 'active' },
-    scriptVersion: {
-      ID: 12,
-      project_id: 7,
-      script_id: 3,
-      version_number: 1,
-      title: '剧本版本',
-      source_type: 'manual',
-      summary: '剧本摘要',
-      status: 'active',
-      content: '正文',
-      raw_source: '',
-      CreatedAt: '2026-01-01T00:00:00.000Z',
-      UpdatedAt: '2026-01-03T00:00:00.000Z',
-    },
-    segments: [{ ID: 1, title: '段落' }],
-    sceneMoments: [{ ID: 10, title: '情节' }],
-    creativeReferences: [{ ID: 20, name: '人物' }],
-    assetSlots: [{ ID: 50, name: '素材' }],
-    contentUnits: [{ ID: 30, title: '内容' }],
-  })
-  assert.equal(withScript.sourceLabel, '剧本版本')
-  assert.deepEqual(withScript.source, ['编排段 1', '情节 1', '设定资料 1', '素材需求 1'])
-  assert.deepEqual(withScript.relations, ['最新编排段：段落', '最新情节：情节', '素材需求已覆盖部分当前制作上下文'])
-  assert.deepEqual(withScript.nextStep, ['继续确认每个情节里的对白、动作、旁白和镜头描述。'])
 })
 
 test('production proposal draft seed metadata records source versions and script brief', () => {
@@ -358,9 +315,10 @@ test('production proposal review merge applies accepted updates and strips inter
   assert.doesNotMatch(JSON.stringify(merged), /__delete/)
 })
 
-test('production proposal entry point uses screenwriter-facing wording', () => {
-  assert.match(source, /生成编排提案/)
+test('production proposal entry point is not exposed as a header action', () => {
+  assert.doesNotMatch(source, /生成编排提案/)
   assert.doesNotMatch(source, /生成创作方案/)
+  assert.doesNotMatch(source, /审阅提案/)
 })
 
 test('production orchestration writing surface removes redundant expression controls', () => {

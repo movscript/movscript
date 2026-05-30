@@ -108,3 +108,25 @@ export interface VideoClipStatus {
   platform?: NodeJS.Platform
   arch?: string
 }
+
+export interface VideoShotCutInput {
+  sourceData?: ArrayBuffer | Uint8Array
+  sourceName?: string
+  durationSec?: number
+  sceneThreshold?: number
+  minShotDurationSec?: number
+  maxShotDurationSec?: number
+}
+
+export interface VideoShotCutSegment {
+  startSec: number
+  endSec: number
+}
+
+export interface VideoShotCutResult {
+  ok: boolean
+  strategy?: 'scene_detection' | 'even'
+  shots?: VideoShotCutSegment[]
+  error?: string
+  code?: string
+}

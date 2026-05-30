@@ -98,7 +98,7 @@ function inferRouteFromLabels(labels: string[] | undefined) {
   const list = labels ?? []
   if (list.some((label) => /production-orchestration/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
   if (list.some((label) => /pre-production/i.test(label))) return { pathname: ROUTES.project.preProduction }
-  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.contentUnitWorkbench }
+  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
   return undefined
 }
 

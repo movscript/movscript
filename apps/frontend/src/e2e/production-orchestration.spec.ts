@@ -11,11 +11,16 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /提案模式/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /审阅提案|生成编排提案/ })).toHaveCount(0)
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
-  await expect(page.getByText('制作剧本', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('当前编排段', { exact: true })).toBeVisible()
+  await expect(page.getByText('剧本', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('当前编排段', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('情节编辑', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('所属编排段', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('戏剧任务', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('表达数量', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '添加情节到 进入空间' })).toBeVisible()
   await expect(page.getByText('绑定剧本块', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /选择剧本块/ })).toBeVisible()
   await expect(page.getByText('表达条目', { exact: true })).toBeVisible()
@@ -31,16 +36,6 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
   await expect(page.getByRole('button', { name: '扩选下文' })).toBeVisible()
   await expect(page.getByRole('button', { name: '绑定主剧本块' })).toBeVisible()
   await page.keyboard.press('Escape')
-
-  await page.getByRole('button', { name: /提案模式/ }).click()
-
-  await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible()
-  await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Agent 调整提案' }).click()
-  await expect(page.getByRole('dialog').getByRole('heading', { name: '让 Agent 调整提案' })).toBeVisible()
-  await page.getByPlaceholder('例如：把开场压缩成一个情节；强化主角和产品设定的关联；补齐缺少素材需求的镜头。').fill('强化主角和空间设定的关联')
-  await expect(page.getByText('Agent 会读取并编辑当前 production proposal draft 文件', { exact: false })).toBeVisible()
-  await page.getByRole('button', { name: '取消' }).click()
 })
 
 test('production orchestration keeps the screenwriter workspace readable on mobile width', async ({ page }, testInfo) => {
@@ -48,19 +43,19 @@ test('production orchestration keeps the screenwriter workspace readable on mobi
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /提案模式/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /审阅提案|生成编排提案/ })).toHaveCount(0)
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
   await expect(page.getByText('按编排段、情节和表达条目写清楚这一段戏', { exact: true })).toBeVisible()
 })
 
-test('production orchestration opens production proposal mode for active drafts', async ({ page }, testInfo) => {
+test('production orchestration opens production proposal patch dialog for active drafts', async ({ page }, testInfo) => {
   await openProductionOrchestrationPage(page, testInfo, {
+    view: 'review',
     draftId: 'production-draft-e2e',
   })
 
-  await expect(page.getByText('提案模式', { exact: true })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('提案 Patch', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('button', { name: '应用提案到项目' })).toBeVisible({ timeout: 10_000 })
   await page.getByRole('button', { name: 'Agent 调整提案' }).click()
@@ -282,7 +277,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
   })
 }
 
-async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, params?: { draftId?: string; projectDraftId?: string }) {
+async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, params?: { view?: string; draftId?: string; projectDraftId?: string }) {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('production orchestrate E2E requires a baseURL')
 
@@ -300,6 +295,11 @@ async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, p
   await mockGenerationAppShell(page)
   await mockProductionOrchestrationEntities(page)
 
-  const search = new URLSearchParams({ productionId: '301', ...(params?.draftId ? { draftId: params.draftId } : {}), ...(params?.projectDraftId ? { projectDraftId: params.projectDraftId } : {}) })
+  const search = new URLSearchParams({
+    productionId: '301',
+    ...(params?.view ? { view: params.view } : {}),
+    ...(params?.draftId ? { draftId: params.draftId } : {}),
+    ...(params?.projectDraftId ? { projectDraftId: params.projectDraftId } : {}),
+  })
   await page.goto(`/project/production/orchestration?${search.toString()}`)
 }

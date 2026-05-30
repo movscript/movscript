@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-const STORAGE_KEY = 'movscript:tools:resource-pane-width'
+export const TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY = 'movscript:tools:resource-pane-width'
 export const TOOL_RESOURCE_PANE_DEFAULT_WIDTH = 520
 export const TOOL_RESOURCE_PANE_MIN_WIDTH = 360
 export const TOOL_RESOURCE_PANE_MAX_WIDTH = 760
@@ -14,7 +14,7 @@ export function clampToolResourcePaneWidth(width: number, maxWidth = TOOL_RESOUR
 function readStoredToolResourcePaneWidth(): number {
   if (typeof window === 'undefined') return TOOL_RESOURCE_PANE_DEFAULT_WIDTH
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY)
     const parsed = raw ? Number(raw) : NaN
     return Number.isFinite(parsed)
       ? clampToolResourcePaneWidth(parsed)
@@ -27,7 +27,7 @@ function readStoredToolResourcePaneWidth(): number {
 function saveToolResourcePaneWidth(width: number) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(STORAGE_KEY, String(clampToolResourcePaneWidth(width)))
+    window.localStorage.setItem(TOOL_RESOURCE_PANE_WIDTH_STORAGE_KEY, String(clampToolResourcePaneWidth(width)))
   } catch {
     // Ignore storage failures and keep the in-memory width for this session.
   }

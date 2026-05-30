@@ -1,10 +1,10 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, X } from 'lucide-react'
 
 import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/shared/ui/SemanticEntityInlineEditor'
-import { EmptyPreview, SlotStatusBadge, SlotThumb } from '@/features/pre-production/components/PreProductionAssetBoard'
+import { EmptyPreview, SlotStatusBadge } from '@/features/pre-production/components/PreProductionAssetBoard'
 import { AssetSlotDetail } from '@/features/pre-production/components/PreProductionAssetDetail'
 import { PreProductionResourceLibraryDialog } from '@/features/pre-production/components/PreProductionResourceLibraryDialog'
 import { PreProductionReviewWorkspace } from '@/features/pre-production/components/PreProductionReviewWorkspace'
@@ -44,8 +44,12 @@ import { usePreProductionReviewController } from '@/features/pre-production/appl
 import { usePreProductionUploadInput } from '@/features/pre-production/application/preProductionUploadInput'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
+import { ROUTES } from '@/routes/projectRoutes'
 import {
   Dialog,
+  OverlapPane,
+  OverlapPaneGroup,
+  OverlapPaneRevealButton,
   ResourcePrepActionButton,
   ResourcePrepContextMenu,
   ResourcePrepContextMenuButton,
@@ -57,15 +61,11 @@ import {
   ResourcePrepDialogBody,
   ResourcePrepDialogHeader,
   ResourcePrepHiddenFileInput,
-  ResourcePrepInspectorActionButton,
-  ResourcePrepInspectorActions,
   ResourcePrepInspectorBody,
   ResourcePrepInspectorHeader,
   ResourcePrepInspectorPanel,
   ResourcePrepInspectorRoot,
   ResourcePrepInspectorStack,
-  ResourcePrepInspectorTabButton,
-  ResourcePrepInspectorTabs,
   ResourcePrepReviewDialogContent,
   ResourcePrepScreenReaderTitle,
   ResourcePrepSelect,
@@ -78,16 +78,26 @@ import {
   ResourcePrepWorkbenchMain,
   ResourcePrepWorkbenchRail,
   ResourcePrepWorkbenchRailHeader,
-  ResourcePrepWorkbenchRailItem,
   ResourcePrepWorkbenchRailList,
   ResourcePrepWorkbenchShell,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
+  usePersistentOverlapPaneController,
 } from '@movscript/ui'
 import { preProductionMissingCountRecipe } from '@/features/pre-production/presentation/preProductionSemanticUi'
 
+const PREP_SETTING_ASSET_PANE_MIN_WIDTH = 360
+const PREP_SETTING_ASSET_PANE_MAX_WIDTH = 720
+const PREP_SETTING_ASSET_LIST_MIN_WIDTH = 240
+const PREP_WORKBENCH_DETAIL_PANE_MIN_WIDTH = 420
+const PREP_WORKBENCH_DETAIL_PANE_MAX_WIDTH = 960
+const PREP_WORKBENCH_RAIL_MIN_WIDTH = 260
+const PREP_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH = 760
+const PREP_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY = 'movscript.preProduction.detailPaneWidth'
+const PREP_SETTING_ASSET_PANE_DEFAULT_WIDTH = 460
+const PREP_SETTING_ASSET_PANE_WIDTH_STORAGE_KEY = 'movscript.preProduction.settingAssetPaneWidth'
+
 type PreProductionWorkbenchView = 'setting' | 'asset'
-type PreProductionSettingDetailView = 'setting' | 'assets'
 type PreProductionCardContextTarget = { type: 'asset'; id: number } | { type: 'reference'; id: number }
 type PreProductionDeleteTarget =
   | { type: 'asset'; record: AssetSlotRecord }
@@ -126,6 +136,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     clusters,
   } = preProductionData
   const pageController = usePreProductionPageController({
+    projectId,
+    route: ROUTES.project.preProduction,
     searchParams,
     setSearchParams,
     rows,
@@ -276,14 +288,9 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   }
 
   const workbenchView = normalizePreProductionWorkbenchView(readStringParam(searchParams, 'prep_view'))
-  const settingDetailView = normalizePreProductionSettingDetailView(readStringParam(searchParams, 'prep_detail'))
 
   function setWorkbenchView(view: PreProductionWorkbenchView) {
-    setFilter({ prep_view: view, prep_detail: view === 'setting' ? settingDetailView : null })
-  }
-
-  function setSettingDetailView(view: PreProductionSettingDetailView) {
-    setFilter({ prep_view: 'setting', prep_detail: view })
+    setFilter({ prep_view: view })
   }
 
   async function refreshPreProduction() {
@@ -314,7 +321,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const mainWorkspace = (
     <PreProductionWorkspace
       workbenchView={workbenchView}
-      settingDetailView={settingDetailView}
       loading={preProductionData.isLoading}
       clusters={filteredClusters}
       selectedCluster={selectedCluster}
@@ -329,7 +335,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       slotConfig={slotConfig}
       setFilter={setFilter}
       setWorkbenchView={setWorkbenchView}
-      setSettingDetailView={setSettingDetailView}
       startCreate={openAssetCreateDialog}
       startCreateReference={openReferenceCreateDialog}
       createSlotPending={createSlotMutation.isPending}
@@ -485,7 +490,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   if (compact) {
     return (
       <>
-        <WorkbenchProjectBody scroll="responsive" className="resource-prep-page-body">
+        <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted" className="resource-prep-page-body">
           {mainWorkspace}
         </WorkbenchProjectBody>
         {resourceLibraryDialog}
@@ -498,7 +503,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
 
   return (
     <WorkbenchProjectShell {...workbenchShellProps}>
-      <WorkbenchProjectBody scroll="responsive" className="resource-prep-page-body">
+      <WorkbenchProjectBody padding="none" scroll="hidden" tone="muted" className="resource-prep-page-body">
         {mainWorkspace}
       </WorkbenchProjectBody>
       {resourceLibraryDialog}
@@ -511,7 +516,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
 
 function PreProductionWorkspace({
   workbenchView,
-  settingDetailView,
   loading,
   clusters,
   selectedCluster,
@@ -526,7 +530,6 @@ function PreProductionWorkspace({
   slotConfig,
   setFilter,
   setWorkbenchView,
-  setSettingDetailView,
   startCreate,
   startCreateReference,
   createSlotPending,
@@ -552,7 +555,6 @@ function PreProductionWorkspace({
   onDeleteReference,
 }: {
   workbenchView: PreProductionWorkbenchView
-  settingDetailView: PreProductionSettingDetailView
   loading: boolean
   clusters: ReferenceAssetCluster[]
   selectedCluster: ReferenceAssetCluster | null
@@ -567,7 +569,6 @@ function PreProductionWorkspace({
   slotConfig: SemanticEntityConfig
   setFilter: (updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) => void
   setWorkbenchView: (view: PreProductionWorkbenchView) => void
-  setSettingDetailView: (view: PreProductionSettingDetailView) => void
   startCreate: () => void
   startCreateReference: () => void
   createSlotPending: boolean
@@ -594,12 +595,29 @@ function PreProductionWorkspace({
 }) {
   const busy = updateSlotMutationPending || lockCandidatePending || rejectCandidatePending || uploadCandidatePending || attachLibraryCandidatePending
   const creatingReference = Boolean(newReferenceEditKey)
-  const [assetEditing, setAssetEditing] = useState(false)
-  const [referenceEditing, setReferenceEditing] = useState(creatingReference)
-  const [assetControl, setAssetControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
-  const [referenceControl, setReferenceControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
-  const [assetResetToken, setAssetResetToken] = useState(0)
-  const [referenceResetToken, setReferenceResetToken] = useState(0)
+  const [editingAssetSlotId, setEditingAssetSlotId] = useState<number | null>(null)
+  const [editingReferenceId, setEditingReferenceId] = useState<number | null>(null)
+  const detailPane = usePersistentOverlapPaneController({
+    storageKey: PREP_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: PREP_WORKBENCH_DETAIL_PANE_DEFAULT_WIDTH,
+    minSize: PREP_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
+    maxSize: (rect) => Math.max(
+      PREP_WORKBENCH_DETAIL_PANE_MIN_WIDTH,
+      Math.min(PREP_WORKBENCH_DETAIL_PANE_MAX_WIDTH, rect.width - PREP_WORKBENCH_RAIL_MIN_WIDTH),
+    ),
+    resizeEdge: 'left',
+    collapseMode: 'after-min',
+    expandMode: 'after-max',
+    ariaLabel: '调整详情宽度',
+  })
+  const hasDetailSelection = workbenchView === 'setting' ? Boolean(selectedReference) : Boolean(selected)
+  const detailPaneLayoutProps = hasDetailSelection
+    ? detailPane.groupProps
+    : {
+        ...detailPane.groupProps,
+        'data-overlap-pane-collapsed': 'true' as const,
+        'data-overlap-pane-expanded': undefined,
+      }
   const [cardContextMenu, setCardContextMenu] = useState<{
     x: number
     y: number
@@ -607,12 +625,8 @@ function PreProductionWorkspace({
   } | null>(null)
 
   useEffect(() => {
-    setReferenceEditing(creatingReference)
-  }, [creatingReference, selectedReference?.ID])
-
-  useEffect(() => {
-    setAssetEditing(false)
-  }, [selected?.slot.ID])
+    if (creatingReference) setEditingReferenceId(null)
+  }, [creatingReference])
 
   useEffect(() => {
     if (!cardContextMenu) return
@@ -642,13 +656,13 @@ function PreProductionWorkspace({
     setCardContextMenu(null)
     if (target.type === 'asset') {
       onOpenSlot(target.id)
-      setFilter({ prep_view: 'asset' })
-      setAssetEditing(true)
+      setFilter({ prep_view: workbenchView === 'setting' ? 'setting' : 'asset' })
+      setEditingAssetSlotId(target.id)
       return
     }
     onOpenReference(target.id)
-    setFilter({ prep_view: 'setting', prep_detail: 'setting' })
-    setReferenceEditing(true)
+    setFilter({ prep_view: 'setting' })
+    setEditingReferenceId(target.id)
   }
 
   function deleteCardTarget(target: PreProductionCardContextTarget) {
@@ -663,12 +677,14 @@ function PreProductionWorkspace({
   return (
     <>
       <ResourcePrepWorkbenchShell>
-        <ResourcePrepWorkbenchLayout>
+        <ResourcePrepWorkbenchLayout
+          {...detailPaneLayoutProps}
+        >
           <ResourcePrepWorkbenchRail>
             <ResourcePrepWorkbenchRailHeader
               icon={workbenchView === 'setting' ? <Sparkles size={14} /> : <PackageCheck size={14} />}
               title={workbenchView === 'setting' ? '设定视图' : '素材视图'}
-              detail={workbenchView === 'setting' ? `${clusters.length} 个设定` : `${rows.length} 个素材`}
+              detail={workbenchView === 'setting' ? referenceCountLabel(clusters.filter((cluster) => cluster.reference).length, rows.length) : `${rows.length} 个素材`}
               action={(
                 <ResourcePrepActionButton
                   size="icon-sm"
@@ -693,28 +709,80 @@ function PreProductionWorkspace({
               {workbenchView === 'setting' ? (
                 <>
                   {creatingReference ? (
-                    <ResourcePrepWorkbenchRailItem
+                    <ReferenceInlineCard
+                      projectId={projectId}
+                      referenceConfig={referenceConfig}
+                      cluster={null}
                       active
-                      media={<SlotThumb fit="cover" />}
-                      title="未命名设定"
-                      meta="编辑中"
+                      editing
+                      editKey={newReferenceEditKey}
+                      onSelect={() => undefined}
+                      onEdit={() => undefined}
+                      onEditingChange={() => undefined}
+                      onSaved={(record) => {
+                        onReferenceSaved(record)
+                        setEditingReferenceId(null)
+                      }}
+                      onDeleted={onReferenceDeleted}
                     />
                   ) : null}
                   {clusters.map((cluster) => {
                     const reference = cluster.reference
-                    if (!reference) return null
+                    if (!reference) {
+                      return cluster.rows.map((row) => (
+                        <AssetSlotInlineCard
+                          key={`unbound-${row.slot.ID}`}
+                          projectId={projectId}
+                          slotConfig={slotConfig}
+                          row={row}
+                          reference={null}
+                          active={selected?.slot.ID === row.slot.ID}
+                          editing={editingAssetSlotId === row.slot.ID}
+                          editKey={row.slot.ID === newSlotEditId ? newSlotEditId : null}
+                          onSelect={() => {
+                            setWorkbenchView('asset')
+                            onSelectSlot(row.slot.ID)
+                          }}
+                          onEdit={() => {
+                            setWorkbenchView('asset')
+                            onOpenSlot(row.slot.ID)
+                          }}
+                          onEditingChange={(editing) => {
+                            setEditingAssetSlotId(editing ? row.slot.ID : null)
+                          }}
+                          onSaved={(record) => {
+                            onSaved(record)
+                            setEditingAssetSlotId(null)
+                          }}
+                          onDeleted={onDeleted}
+                          onContextMenu={(event) => openCardContextMenu(event, { type: 'asset', id: row.slot.ID })}
+                        />
+                      ))
+                    }
                     return (
-                      <ResourcePrepWorkbenchRailItem
+                      <ReferenceInlineCard
                         key={reference.ID}
-                        active={selectedReference?.ID === reference.ID && !selected}
-                        media={<ReferenceRailMedia cluster={cluster} />}
-                        title={referenceTitle(reference)}
-                        meta={`${referenceKindLabel(reference.kind)} · ${cluster.rows.length} 个素材`}
-                        status={<ResourcePrepShellBadge>{cluster.rows.length}</ResourcePrepShellBadge>}
-                        onClick={() => {
+                        projectId={projectId}
+                        referenceConfig={referenceConfig}
+                        cluster={cluster}
+                        active={selectedReference?.ID === reference.ID}
+                        editing={editingReferenceId === reference.ID}
+                        onSelect={() => {
                           setWorkbenchView('setting')
                           onSelectReference(reference.ID)
                         }}
+                        onEdit={() => {
+                          setWorkbenchView('setting')
+                          onOpenReference(reference.ID)
+                        }}
+                        onEditingChange={(editing) => {
+                          setEditingReferenceId(editing ? reference.ID : null)
+                        }}
+                        onSaved={(record) => {
+                          onReferenceSaved(record)
+                          setEditingReferenceId(null)
+                        }}
+                        onDeleted={onReferenceDeleted}
                         onContextMenu={(event) => openCardContextMenu(event, { type: 'reference', id: reference.ID })}
                       />
                     )
@@ -722,17 +790,31 @@ function PreProductionWorkspace({
                 </>
               ) : (
                 rows.map((row) => (
-                  <ResourcePrepWorkbenchRailItem
+                  <AssetSlotInlineCard
                     key={row.slot.ID}
+                    projectId={projectId}
+                    slotConfig={slotConfig}
+                    row={row}
+                    reference={referenceForRow(clusters, row)}
                     active={selected?.slot.ID === row.slot.ID}
-                    media={<SlotThumb slot={row.lockedSlot ?? row.slot} fit="cover" />}
-                    title={row.slot.name || `素材 #${row.slot.ID}`}
-                    meta={`${assetKindLabel(row.kind)} · ${referenceTitle(referenceForRow(clusters, row))}`}
-                    status={<SlotStatusBadge status={normalizeSlotStatus(row.slot.status)} />}
-                    onClick={() => {
+                    editing={editingAssetSlotId === row.slot.ID}
+                    editKey={row.slot.ID === newSlotEditId ? newSlotEditId : null}
+                    onSelect={() => {
                       setWorkbenchView('asset')
                       onSelectSlot(row.slot.ID)
                     }}
+                    onEdit={() => {
+                      setWorkbenchView('asset')
+                      onOpenSlot(row.slot.ID)
+                    }}
+                    onEditingChange={(editing) => {
+                      setEditingAssetSlotId(editing ? row.slot.ID : null)
+                    }}
+                    onSaved={(record) => {
+                      onSaved(record)
+                      setEditingAssetSlotId(null)
+                    }}
+                    onDeleted={onDeleted}
                     onContextMenu={(event) => openCardContextMenu(event, { type: 'asset', id: row.slot.ID })}
                   />
                 ))
@@ -740,59 +822,65 @@ function PreProductionWorkspace({
             </ResourcePrepWorkbenchRailList>
           </ResourcePrepWorkbenchRail>
 
-          <ResourcePrepWorkbenchMain>
-            <ResourcePrepWorkbenchDetailContent>
-              {workbenchView === 'setting' ? (
-                <PreProductionSettingDetail
-                  projectId={projectId}
-                  referenceConfig={referenceConfig}
-                  selectedReference={selectedReference}
-                  selectedCluster={selectedCluster}
-                  newReferenceEditKey={newReferenceEditKey}
-                  detailView={settingDetailView}
-                  onDetailViewChange={setSettingDetailView}
-                  referenceEditing={referenceEditing}
-                  onReferenceEditingChange={setReferenceEditing}
-                  referenceControl={referenceControl}
-                  onReferenceControlChange={setReferenceControl}
-                  referenceResetToken={referenceResetToken}
-                  onReferenceReset={() => setReferenceResetToken((value) => value + 1)}
-                  onReferenceSaved={onReferenceSaved}
-                  onReferenceDeleted={onReferenceDeleted}
-                  selected={selected}
-                  clusters={clusters}
-                  rows={selectedCluster?.rows ?? []}
-                  onSelectSlot={(slotId) => {
-                    setWorkbenchView('asset')
-                    onSelectSlot(slotId)
-                  }}
-                  onCardContextMenu={openCardContextMenu}
-                />
-              ) : (
-                <PreProductionAssetDetailPanel
-                  projectId={projectId}
-                  slotConfig={slotConfig}
-                  selected={selected}
-                  selectedReference={selectedReference}
-                  newSlotEditId={newSlotEditId}
-                  assetEditing={assetEditing}
-                  onAssetEditingChange={setAssetEditing}
-                  assetControl={assetControl}
-                  onAssetControlChange={setAssetControl}
-                  assetResetToken={assetResetToken}
-                  onAssetReset={() => setAssetResetToken((value) => value + 1)}
-                  onSaved={onSaved}
-                  onDeleted={onDeleted}
-                  onLock={onLock}
-                  onReject={onReject}
-                  onUploadCandidate={onUploadCandidate}
-                  onOpenResourceLibrary={onOpenResourceLibrary}
-                  busy={busy}
-                  uploading={uploading}
-                />
-              )}
-            </ResourcePrepWorkbenchDetailContent>
-          </ResourcePrepWorkbenchMain>
+          {hasDetailSelection && !detailPane.collapsed ? (
+            <ResourcePrepWorkbenchMain
+              overlapState={detailPane.overlapState}
+              resizeHandleSide="left"
+              resizeHandleProps={{
+                ...detailPane.resizeHandleProps,
+              }}
+            >
+              <ResourcePrepWorkbenchDetailContent className={workbenchView === 'setting' ? 'resource-prep-workbench-detail--nested-pane' : undefined}>
+                {workbenchView === 'setting' ? (
+                  <PreProductionSettingDetail
+                    projectId={projectId}
+                    selectedReference={selectedReference}
+                    slotConfig={slotConfig}
+                    rows={selectedCluster?.rows ?? []}
+                    selected={selected}
+                    newSlotEditId={newSlotEditId}
+                    onAssetSaved={onSaved}
+                    onLock={onLock}
+                    onReject={onReject}
+                    onUploadCandidate={onUploadCandidate}
+                    onOpenResourceLibrary={onOpenResourceLibrary}
+                    busy={busy}
+                    uploading={uploading}
+                    editingAssetSlotId={editingAssetSlotId}
+                    onEditingAssetSlotChange={setEditingAssetSlotId}
+                    onSelectSlot={onSelectSlot}
+                    onOpenSlot={onOpenSlot}
+                    onCardContextMenu={openCardContextMenu}
+                  />
+                ) : (
+                  <PreProductionAssetDetailPanel
+                    selected={selected}
+                    selectedReference={selectedReference}
+                    onLock={onLock}
+                    onReject={onReject}
+                    onUploadCandidate={onUploadCandidate}
+                    onOpenResourceLibrary={onOpenResourceLibrary}
+                    busy={busy}
+                    uploading={uploading}
+                  />
+                )}
+              </ResourcePrepWorkbenchDetailContent>
+            </ResourcePrepWorkbenchMain>
+          ) : null}
+          {hasDetailSelection && detailPane.collapsed ? (
+            <OverlapPaneRevealButton
+              action="show"
+              label="显示详情"
+              onClick={detailPane.show}
+            />
+          ) : null}
+          {hasDetailSelection && detailPane.expanded ? (
+            <OverlapPaneRevealButton
+              action="restore"
+              label="还原详情"
+              onClick={detailPane.restore}
+            />
+          ) : null}
         </ResourcePrepWorkbenchLayout>
       </ResourcePrepWorkbenchShell>
       {cardContextMenu ? (
@@ -837,290 +925,514 @@ function PreProductionCardContextMenu({
   )
 }
 
-function PreProductionSettingDetail({
+function ReferenceInlineCard({
   projectId,
   referenceConfig,
-  selectedReference,
-  selectedCluster,
-  newReferenceEditKey,
-  detailView,
-  onDetailViewChange,
-  referenceEditing,
-  onReferenceEditingChange,
-  referenceControl,
-  onReferenceControlChange,
-  referenceResetToken,
-  onReferenceReset,
-  onReferenceSaved,
-  onReferenceDeleted,
-  rows,
-  clusters,
-  selected,
-  onSelectSlot,
-  onCardContextMenu,
+  cluster,
+  active,
+  editing,
+  editKey,
+  onSelect,
+  onEdit,
+  onEditingChange,
+  onSaved,
+  onDeleted,
+  onContextMenu,
 }: {
   projectId?: number
   referenceConfig: SemanticEntityConfig
-  selectedReference: CreativeReferenceRecord | null
-  selectedCluster: ReferenceAssetCluster | null
-  newReferenceEditKey: string | number | null
-  detailView: PreProductionSettingDetailView
-  onDetailViewChange: (view: PreProductionSettingDetailView) => void
-  referenceEditing: boolean
-  onReferenceEditingChange: (editing: boolean) => void
-  referenceControl: SemanticEntityInlineEditorControlState | null
-  onReferenceControlChange: (control: SemanticEntityInlineEditorControlState | null) => void
-  referenceResetToken: number
-  onReferenceReset: () => void
-  onReferenceSaved: (record: SemanticEntityRecord) => void
-  onReferenceDeleted: () => void
-  rows: AssetSlotViewModel[]
-  clusters: ReferenceAssetCluster[]
-  selected: AssetSlotViewModel | null
-  onSelectSlot: (slotId: number) => void
-  onCardContextMenu?: (event: MouseEvent, target: PreProductionCardContextTarget) => void
+  cluster: ReferenceAssetCluster | null
+  active?: boolean
+  editing: boolean
+  editKey?: string | number | null
+  onSelect: () => void
+  onEdit: () => void
+  onEditingChange: (editing: boolean) => void
+  onSaved: (record: SemanticEntityRecord) => void
+  onDeleted: () => void
+  onContextMenu?: (event: MouseEvent) => void
 }) {
-  const creatingReference = Boolean(newReferenceEditKey)
-  const title = creatingReference
-    ? '未命名设定'
-    : selectedReference?.name || selectedReference?.alias || (selectedReference ? `设定 #${selectedReference.ID}` : '选择设定')
-  const showSaveActions = Boolean(referenceControl?.isEditing || creatingReference)
-  const canUseActions = Boolean(referenceControl && (selectedReference || creatingReference))
+  const reference = cluster?.reference ?? null
+  const [control, setControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
+  const [resetToken, setResetToken] = useState(0)
+  const isCreating = !reference
+  const isEditing = editing || isCreating
+  const effectiveEditKey = isEditing ? (editKey ?? reference?.ID ?? 'new-reference') : null
+  const title = referenceTitle(reference)
 
-  function cancelEditing() {
-    onReferenceReset()
-    onReferenceEditingChange(false)
+  function cancelEditing(event: MouseEvent) {
+    event.stopPropagation()
+    setResetToken((value) => value + 1)
+    if (!isCreating) onEditingChange(false)
+  }
+
+  function startEditing(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onEdit()
+    onEditingChange(true)
   }
 
   return (
-    <ResourcePrepInspectorRoot>
-      <ResourcePrepInspectorPanel>
-        <ResourcePrepInspectorHeader
-          icon={<Sparkles size={16} />}
-          title={title}
-          subtitle={creatingReference ? '补充人物、地点、道具或风格设定，之后再关联素材。' : '维护当前设定资料，并检查它下面的素材准备情况。'}
-          actions={(
-            <ResourcePrepInspectorActions>
-              {showSaveActions ? (
-                <>
-                  {selectedReference ? (
-                    <ResourcePrepInspectorActionButton
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={cancelEditing}
-                      disabled={referenceControl?.isSaving}
-                    >
-                      <X size={14} />
-                      取消
-                    </ResourcePrepInspectorActionButton>
-                  ) : null}
-                  <ResourcePrepInspectorActionButton
-                    form={referenceControl?.formId}
-                    size="sm"
-                    loading={referenceControl?.isSaving}
-                    disabled={!referenceControl?.canSave}
-                  >
-                    <Save size={14} />
-                    保存
-                  </ResourcePrepInspectorActionButton>
-                </>
-              ) : (
-                <ResourcePrepInspectorActionButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onReferenceEditingChange(true)}
-                  disabled={!canUseActions || referenceControl?.isImmutableRecord}
-                >
-                  <Pencil size={14} />
-                  编辑
-                </ResourcePrepInspectorActionButton>
-              )}
-            </ResourcePrepInspectorActions>
-          )}
-        >
-          <ResourcePrepInspectorTabs>
-            <ResourcePrepInspectorTabButton
-              active={detailView === 'setting'}
-              variant={detailView === 'setting' ? 'soft' : 'ghost'}
-              onClick={() => onDetailViewChange('setting')}
-            >
-              <Sparkles size={14} />
-              设定信息
-            </ResourcePrepInspectorTabButton>
-            <ResourcePrepInspectorTabButton
-              active={detailView === 'assets'}
-              variant={detailView === 'assets' ? 'soft' : 'ghost'}
-              disabled={!selectedReference && !selectedCluster}
-              onClick={() => onDetailViewChange('assets')}
-            >
-              <PackageCheck size={14} />
-              素材信息
-            </ResourcePrepInspectorTabButton>
-          </ResourcePrepInspectorTabs>
-        </ResourcePrepInspectorHeader>
+    <section
+      className="resource-prep-inline-card"
+      data-active={active ? 'true' : undefined}
+      data-editing={isEditing ? 'true' : undefined}
+      onContextMenu={onContextMenu}
+    >
+      <div className="resource-prep-inline-card__header">
+        <button type="button" className="resource-prep-inline-card__select" onClick={onSelect}>
+          <span className="resource-prep-inline-card__copy">
+            <span className="resource-prep-inline-card__title">{isCreating ? '未命名设定' : title}</span>
+            <span className="resource-prep-inline-card__meta">{isCreating ? '编辑中' : `${referenceKindLabel(reference?.kind)} · ${cluster?.rows.length ?? 0} 个素材`}</span>
+          </span>
+          <span className="resource-prep-inline-card__status">
+            <ResourcePrepShellBadge>{cluster?.rows.length ?? '新建'}</ResourcePrepShellBadge>
+          </span>
+        </button>
+        {!isCreating ? (
+          <ResourcePrepActionButton
+            type="button"
+            size="icon-xs"
+            variant={isEditing ? 'soft' : 'ghost'}
+            className="resource-prep-inline-card__detail-button"
+            aria-label={`编辑设定「${title}」`}
+            title="编辑"
+            onClick={startEditing}
+          >
+            <Pencil size={13} />
+          </ResourcePrepActionButton>
+        ) : null}
+      </div>
 
-        <ResourcePrepInspectorBody>
-          {detailView === 'setting' ? (
-            <SemanticEntityInlineEditor
-              projectId={projectId}
-              config={referenceConfig}
-              record={newReferenceEditKey ? null : selectedReference}
-              defaults={newReferenceEditKey ? { kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' } : undefined}
-              queryKey={preProductionCreativeReferencesQueryKey(projectId)}
-              editKey={newReferenceEditKey}
-              title="设定字段"
-              primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
-              surface="embedded"
-              hideHeaderCopy
-              hideHeaderActions
-              hideDeleteAction
-              hiddenFieldKeys={['status']}
-              showAdvancedFields={false}
-              editing={referenceEditing}
-              onEditingChange={onReferenceEditingChange}
-              onControlStateChange={onReferenceControlChange}
-              resetToken={referenceResetToken}
-              emptyTitle="选择或新建设定"
-              emptyDescription="从左侧准备清单选择设定，或点击新建设定开始准备。"
-              onSaved={onReferenceSaved}
-              onDeleted={onReferenceDeleted}
-            />
-          ) : (
-            <SettingAssetList
-              rows={rows}
-              selected={selected}
-              onSelectSlot={onSelectSlot}
-              onCardContextMenu={onCardContextMenu}
-            />
-          )}
-        </ResourcePrepInspectorBody>
-      </ResourcePrepInspectorPanel>
-    </ResourcePrepInspectorRoot>
+      {!isEditing ? (
+        null
+      ) : (
+        <InlineCardEditorFrame onClick={(event) => event.stopPropagation()}>
+          <SemanticEntityInlineEditor
+            projectId={projectId}
+            config={referenceConfig}
+            record={reference}
+            defaults={isCreating ? { kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' } : undefined}
+            queryKey={preProductionCreativeReferencesQueryKey(projectId)}
+            editKey={effectiveEditKey}
+            title="设定字段"
+            primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
+            surface="embedded"
+            hideHeaderCopy
+            hideHeaderActions
+            hideDeleteAction
+            hiddenFieldKeys={['status']}
+            showAdvancedFields={false}
+            editing={isEditing}
+            onEditingChange={onEditingChange}
+            onControlStateChange={setControl}
+            resetToken={resetToken}
+            idScope={`prep-reference-card-${reference?.ID ?? 'new'}`}
+            onSaved={onSaved}
+            onDeleted={onDeleted}
+          />
+          <InlineCardEditorActions
+            formId={control?.formId}
+            canSave={Boolean(control?.canSave)}
+            saving={Boolean(control?.isSaving)}
+            canCancel={!isCreating}
+            onCancel={cancelEditing}
+          />
+        </InlineCardEditorFrame>
+      )}
+    </section>
   )
 }
 
-function PreProductionAssetDetailPanel({
+function AssetSlotInlineCard({
   projectId,
   slotConfig,
-  selected,
-  selectedReference,
-  newSlotEditId,
-  assetEditing,
-  onAssetEditingChange,
-  assetControl,
-  onAssetControlChange,
-  assetResetToken,
-  onAssetReset,
+  row,
+  reference,
+  active,
+  editing,
+  editKey,
+  onSelect,
+  onEdit,
+  onEditingChange,
   onSaved,
   onDeleted,
+  onContextMenu,
+}: {
+  projectId?: number
+  slotConfig: SemanticEntityConfig
+  row: AssetSlotViewModel
+  reference: CreativeReferenceRecord | null
+  active?: boolean
+  editing: boolean
+  editKey?: string | number | null
+  onSelect: () => void
+  onEdit: () => void
+  onEditingChange: (editing: boolean) => void
+  onSaved: (record: SemanticEntityRecord) => void
+  onDeleted: () => void
+  onContextMenu?: (event: MouseEvent) => void
+}) {
+  const [control, setControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
+  const [resetToken, setResetToken] = useState(0)
+  const slot = row.slot
+  const status = normalizeSlotStatus(slot.status)
+  const effectiveEditKey = editing ? (editKey ?? slot.ID) : null
+
+  function cancelEditing(event: MouseEvent) {
+    event.stopPropagation()
+    setResetToken((value) => value + 1)
+    onEditingChange(false)
+  }
+
+  function startEditing(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onEdit()
+    onEditingChange(true)
+  }
+
+  return (
+    <section
+      className="resource-prep-inline-card resource-prep-inline-card--asset"
+      data-active={active ? 'true' : undefined}
+      data-editing={editing ? 'true' : undefined}
+      onContextMenu={onContextMenu}
+    >
+      <div className="resource-prep-inline-card__header">
+        <button type="button" className="resource-prep-inline-card__select" onClick={onSelect}>
+          <span className="resource-prep-inline-card__copy">
+            <span className="resource-prep-inline-card__title">{slot.name || `素材 #${slot.ID}`}</span>
+            <span className="resource-prep-inline-card__meta">{assetSlotRailMeta(row, reference)}</span>
+          </span>
+          <span className="resource-prep-inline-card__status">
+            <SlotStatusBadge status={status} />
+          </span>
+        </button>
+        <ResourcePrepActionButton
+          type="button"
+          size="icon-xs"
+          variant={editing ? 'soft' : 'ghost'}
+          className="resource-prep-inline-card__detail-button"
+          aria-label={`编辑素材「${slot.name || `素材 #${slot.ID}`}」`}
+          title="编辑"
+          onClick={startEditing}
+        >
+          <Pencil size={13} />
+        </ResourcePrepActionButton>
+      </div>
+
+      {!editing ? (
+        null
+      ) : (
+        <InlineCardEditorFrame onClick={(event) => event.stopPropagation()}>
+          <SemanticEntityInlineEditor
+            projectId={projectId}
+            config={slotConfig}
+            record={slot}
+            queryKey={preProductionAssetSlotsQueryKey(projectId)}
+            editKey={effectiveEditKey}
+            title="素材字段"
+            primaryFieldKeys={['name', 'kind', 'priority', 'description', 'prompt_hint', 'creative_reference_id', 'creative_reference_state_id']}
+            surface="embedded"
+            hideHeaderCopy
+            hideHeaderActions
+            hideDeleteAction
+            hiddenFieldKeys={['status']}
+            showAdvancedFields={false}
+            editing={editing}
+            onEditingChange={onEditingChange}
+            onControlStateChange={setControl}
+            resetToken={resetToken}
+            idScope={`prep-asset-card-${slot.ID}`}
+            onSaved={onSaved}
+            onDeleted={onDeleted}
+          />
+          <InlineCardEditorActions
+            formId={control?.formId}
+            canSave={Boolean(control?.canSave)}
+            saving={Boolean(control?.isSaving)}
+            canCancel
+            onCancel={cancelEditing}
+          />
+        </InlineCardEditorFrame>
+      )}
+    </section>
+  )
+}
+
+function InlineCardEditorFrame({ children, onClick }: { children: ReactNode; onClick: (event: MouseEvent<HTMLDivElement>) => void }) {
+  return (
+    <div className="resource-prep-inline-card__editor" onClick={onClick}>
+      {children}
+    </div>
+  )
+}
+
+function InlineCardEditorActions({
+  formId,
+  canSave,
+  saving,
+  canCancel,
+  onCancel,
+}: {
+  formId?: string
+  canSave: boolean
+  saving: boolean
+  canCancel: boolean
+  onCancel: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <div className="resource-prep-inline-card__editor-actions">
+      {canCancel ? (
+        <ResourcePrepActionButton type="button" size="sm" variant="outline" onClick={onCancel} disabled={saving}>
+          <X size={14} />
+          取消
+        </ResourcePrepActionButton>
+      ) : null}
+      <ResourcePrepActionButton form={formId} size="sm" loading={saving} disabled={!canSave}>
+        <Save size={14} />
+        保存
+      </ResourcePrepActionButton>
+    </div>
+  )
+}
+
+function PreProductionSettingDetail({
+  projectId,
+  selectedReference,
+  slotConfig,
+  rows,
+  selected,
+  newSlotEditId,
+  onAssetSaved,
   onLock,
   onReject,
   onUploadCandidate,
   onOpenResourceLibrary,
   busy,
   uploading,
+  editingAssetSlotId,
+  onEditingAssetSlotChange,
+  onSelectSlot,
+  onOpenSlot,
+  onCardContextMenu,
 }: {
   projectId?: number
-  slotConfig: SemanticEntityConfig
-  selected: AssetSlotViewModel | null
   selectedReference: CreativeReferenceRecord | null
+  slotConfig: SemanticEntityConfig
+  rows: AssetSlotViewModel[]
+  selected: AssetSlotViewModel | null
   newSlotEditId: number | null
-  assetEditing: boolean
-  onAssetEditingChange: (editing: boolean) => void
-  assetControl: SemanticEntityInlineEditorControlState | null
-  onAssetControlChange: (control: SemanticEntityInlineEditorControlState | null) => void
-  assetResetToken: number
-  onAssetReset: () => void
-  onSaved: (record: SemanticEntityRecord) => void
-  onDeleted: () => void
+  onAssetSaved: (record: SemanticEntityRecord) => void
   onLock: (candidate: AssetSlotCandidateRecord) => void
   onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
   onOpenResourceLibrary: () => void
   busy: boolean
   uploading: boolean
+  editingAssetSlotId: number | null
+  onEditingAssetSlotChange: (slotId: number | null) => void
+  onSelectSlot: (slotId: number) => void
+  onOpenSlot: (slotId: number) => void
+  onCardContextMenu?: (event: MouseEvent, target: PreProductionCardContextTarget) => void
 }) {
-  const showSaveActions = Boolean(assetControl?.isEditing)
-  const canUseActions = Boolean(assetControl && selected)
+  const title = selectedReference?.name || selectedReference?.alias || (selectedReference ? `设定 #${selectedReference.ID}` : '选择设定')
+  return (
+    <ResourcePrepInspectorRoot>
+      <ResourcePrepInspectorPanel className="resource-prep-inspector__panel--nested-pane">
+        <ResourcePrepInspectorHeader
+          icon={<Sparkles size={16} />}
+          title={title}
+          subtitle={selectedReference ? '当前设定下的素材列表。字段信息和编辑入口都在素材卡片上。' : '从左侧设定列表选择一个设定。'}
+        />
+        <ResourcePrepInspectorBody className="resource-prep-inspector__body--nested-pane">
+          <SettingAssetPane
+            projectId={projectId}
+            slotConfig={slotConfig}
+            rows={rows}
+            selected={selected}
+            selectedReference={selectedReference}
+            newSlotEditId={newSlotEditId}
+            onSaved={onAssetSaved}
+            onLock={onLock}
+            onReject={onReject}
+            onUploadCandidate={onUploadCandidate}
+            onOpenResourceLibrary={onOpenResourceLibrary}
+            busy={busy}
+            uploading={uploading}
+            editingAssetSlotId={editingAssetSlotId}
+            onEditingAssetSlotChange={onEditingAssetSlotChange}
+            onSelectSlot={onSelectSlot}
+            onOpenSlot={onOpenSlot}
+            onCardContextMenu={onCardContextMenu}
+          />
+        </ResourcePrepInspectorBody>
+      </ResourcePrepInspectorPanel>
+    </ResourcePrepInspectorRoot>
+  )
+}
 
-  function cancelEditing() {
-    onAssetReset()
-    onAssetEditingChange(false)
+function SettingAssetPane({
+  projectId,
+  slotConfig,
+  rows,
+  selected,
+  selectedReference,
+  newSlotEditId,
+  onSaved,
+  onLock,
+  onReject,
+  onUploadCandidate,
+  onOpenResourceLibrary,
+  busy,
+  uploading,
+  editingAssetSlotId,
+  onEditingAssetSlotChange,
+  onSelectSlot,
+  onOpenSlot,
+  onCardContextMenu,
+}: {
+  projectId?: number
+  slotConfig: SemanticEntityConfig
+  rows: AssetSlotViewModel[]
+  selected: AssetSlotViewModel | null
+  selectedReference: CreativeReferenceRecord | null
+  newSlotEditId: number | null
+  onSaved: (record: SemanticEntityRecord) => void
+  onLock: (candidate: AssetSlotCandidateRecord) => void
+  onReject: (candidate: AssetSlotCandidateRecord) => void
+  onUploadCandidate: () => void
+  onOpenResourceLibrary: () => void
+  busy: boolean
+  uploading: boolean
+  editingAssetSlotId: number | null
+  onEditingAssetSlotChange: (slotId: number | null) => void
+  onSelectSlot: (slotId: number) => void
+  onOpenSlot: (slotId: number) => void
+  onCardContextMenu?: (event: MouseEvent, target: PreProductionCardContextTarget) => void
+}) {
+  const selectedInPane = selected && rows.some((row) => row.slot.ID === selected.slot.ID) ? selected : null
+  const assetPane = usePersistentOverlapPaneController({
+    storageKey: PREP_SETTING_ASSET_PANE_WIDTH_STORAGE_KEY,
+    defaultSize: PREP_SETTING_ASSET_PANE_DEFAULT_WIDTH,
+    minSize: PREP_SETTING_ASSET_PANE_MIN_WIDTH,
+    maxSize: (rect) => Math.max(
+      PREP_SETTING_ASSET_PANE_MIN_WIDTH,
+      Math.min(PREP_SETTING_ASSET_PANE_MAX_WIDTH, rect.width - PREP_SETTING_ASSET_LIST_MIN_WIDTH),
+    ),
+    resizeEdge: 'left',
+    collapseMode: 'after-min',
+    expandMode: 'after-max',
+    ariaLabel: '调整素材详情宽度',
+  })
+  const hasSelectedAsset = Boolean(selectedInPane)
+  const assetPaneLayoutProps = hasSelectedAsset
+    ? assetPane.groupProps
+    : {
+        ...assetPane.groupProps,
+        'data-overlap-pane-collapsed': 'true' as const,
+        'data-overlap-pane-expanded': undefined,
+      }
+
+  if (rows.length === 0) {
+    return <EmptyPreview title="没有关联素材" description="为这个设定创建图片、视频、音频或文本素材。" />
   }
 
   return (
-    <ResourcePrepInspectorRoot>
+    <OverlapPaneGroup
+      className="resource-prep-setting-assets"
+      {...assetPaneLayoutProps}
+    >
+      <div className="resource-prep-setting-assets__list" aria-label="设定关联素材">
+        <SettingAssetList
+          projectId={projectId}
+          slotConfig={slotConfig}
+          rows={rows}
+          selected={selectedInPane}
+          selectedReference={selectedReference}
+          editingAssetSlotId={editingAssetSlotId}
+          newSlotEditId={newSlotEditId}
+          onEditingAssetSlotChange={onEditingAssetSlotChange}
+          onSaved={onSaved}
+          onSelectSlot={onSelectSlot}
+          onOpenSlot={onOpenSlot}
+          onCardContextMenu={onCardContextMenu}
+        />
+      </div>
+      {hasSelectedAsset && !assetPane.collapsed ? (
+        <OverlapPane
+          as="section"
+          side="left"
+          overlapState={assetPane.overlapState}
+          resizeHandleSide="left"
+          resizeHandleProps={{
+            ...assetPane.resizeHandleProps,
+          }}
+          className="resource-prep-setting-assets__detail"
+        >
+          <PreProductionAssetDetailPanel
+            selected={selectedInPane}
+            selectedReference={selectedReference}
+            onLock={onLock}
+            onReject={onReject}
+            onUploadCandidate={onUploadCandidate}
+            onOpenResourceLibrary={onOpenResourceLibrary}
+            busy={busy}
+            uploading={uploading}
+            nestedPane
+          />
+        </OverlapPane>
+      ) : null}
+      {hasSelectedAsset && assetPane.collapsed ? (
+        <OverlapPaneRevealButton
+          action="show"
+          label="显示素材详情"
+          onClick={assetPane.show}
+        />
+      ) : null}
+      {hasSelectedAsset && assetPane.expanded ? (
+        <OverlapPaneRevealButton
+          action="restore"
+          label="还原素材详情"
+          onClick={assetPane.restore}
+        />
+      ) : null}
+    </OverlapPaneGroup>
+  )
+}
+
+function PreProductionAssetDetailPanel({
+  selected,
+  selectedReference,
+  onLock,
+  onReject,
+  onUploadCandidate,
+  onOpenResourceLibrary,
+  busy,
+  uploading,
+  nestedPane = false,
+}: {
+  selected: AssetSlotViewModel | null
+  selectedReference: CreativeReferenceRecord | null
+  onLock: (candidate: AssetSlotCandidateRecord) => void
+  onReject: (candidate: AssetSlotCandidateRecord) => void
+  onUploadCandidate: () => void
+  onOpenResourceLibrary: () => void
+  busy: boolean
+  uploading: boolean
+  nestedPane?: boolean
+}) {
+  return (
+    <ResourcePrepInspectorRoot className={nestedPane ? 'resource-prep-asset-detail-panel--nested' : undefined}>
       <ResourcePrepInspectorPanel>
         <ResourcePrepInspectorHeader
           icon={<PackageCheck size={16} />}
           title={selected?.slot.name || (selected ? `素材 #${selected.slot.ID}` : '选择素材')}
-          subtitle={selected ? `${assetKindLabel(selected.kind)} · ${referenceTitle(selectedReference)}` : '从左侧素材列表选择素材后，在这里维护字段和候选素材。'}
-          actions={(
-            <ResourcePrepInspectorActions>
-              {showSaveActions ? (
-                <>
-                  <ResourcePrepInspectorActionButton
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={cancelEditing}
-                    disabled={assetControl?.isSaving}
-                  >
-                    <X size={14} />
-                    取消
-                  </ResourcePrepInspectorActionButton>
-                  <ResourcePrepInspectorActionButton
-                    form={assetControl?.formId}
-                    size="sm"
-                    loading={assetControl?.isSaving}
-                    disabled={!assetControl?.canSave}
-                  >
-                    <Save size={14} />
-                    保存
-                  </ResourcePrepInspectorActionButton>
-                </>
-              ) : (
-                <ResourcePrepInspectorActionButton
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onAssetEditingChange(true)}
-                  disabled={!canUseActions || assetControl?.isImmutableRecord}
-                >
-                  <Pencil size={14} />
-                  编辑
-                </ResourcePrepInspectorActionButton>
-              )}
-            </ResourcePrepInspectorActions>
-          )}
+          subtitle={selected ? `${assetKindLabel(selected.kind)} · ${referenceTitle(selectedReference)}` : '从左侧素材列表选择素材后，在这里处理候选素材和锁定选择。'}
         />
         <ResourcePrepInspectorBody>
           {selected ? (
             <ResourcePrepInspectorStack>
-              <SemanticEntityInlineEditor
-                projectId={projectId}
-                config={slotConfig}
-                record={selected.slot}
-                queryKey={preProductionAssetSlotsQueryKey(projectId)}
-                editKey={selected.slot.ID === newSlotEditId ? newSlotEditId : null}
-                title="素材字段"
-                description="名称、类型、状态、用途说明和提示词线索。"
-                primaryFieldKeys={['name', 'kind', 'priority', 'description', 'prompt_hint', 'creative_reference_id', 'creative_reference_state_id']}
-                surface="embedded"
-                hideHeaderCopy
-                hideHeaderActions
-                hideDeleteAction
-                hiddenFieldKeys={['status']}
-                showAdvancedFields={false}
-                editing={assetEditing}
-                onEditingChange={onAssetEditingChange}
-                onControlStateChange={onAssetControlChange}
-                resetToken={assetResetToken}
-                onSaved={onSaved}
-                onDeleted={onDeleted}
-              />
               <AssetSlotDetail
                 row={selected}
                 onLock={onLock}
@@ -1141,14 +1453,30 @@ function PreProductionAssetDetailPanel({
 }
 
 function SettingAssetList({
+  projectId,
+  slotConfig,
   rows,
   selected,
+  selectedReference,
+  editingAssetSlotId,
+  newSlotEditId,
+  onEditingAssetSlotChange,
+  onSaved,
   onSelectSlot,
+  onOpenSlot,
   onCardContextMenu,
 }: {
+  projectId?: number
+  slotConfig: SemanticEntityConfig
   rows: AssetSlotViewModel[]
   selected: AssetSlotViewModel | null
+  selectedReference: CreativeReferenceRecord | null
+  editingAssetSlotId: number | null
+  newSlotEditId: number | null
+  onEditingAssetSlotChange: (slotId: number | null) => void
+  onSaved: (record: SemanticEntityRecord) => void
   onSelectSlot: (slotId: number) => void
+  onOpenSlot: (slotId: number) => void
   onCardContextMenu?: (event: MouseEvent, target: PreProductionCardContextTarget) => void
 }) {
   if (rows.length === 0) {
@@ -1157,24 +1485,32 @@ function SettingAssetList({
   return (
     <ResourcePrepInspectorStack>
       {rows.map((row) => (
-        <ResourcePrepWorkbenchRailItem
+        <AssetSlotInlineCard
           key={row.slot.ID}
+          projectId={projectId}
+          slotConfig={slotConfig}
+          row={row}
+          reference={selectedReference}
           active={selected?.slot.ID === row.slot.ID}
-          media={<SlotThumb slot={row.lockedSlot ?? row.slot} fit="cover" />}
-          title={row.slot.name || `素材 #${row.slot.ID}`}
-          meta={`${assetKindLabel(row.kind)} · ${row.candidates.length} 个候选`}
-          status={<SlotStatusBadge status={normalizeSlotStatus(row.slot.status)} />}
-          onClick={() => onSelectSlot(row.slot.ID)}
+          editing={editingAssetSlotId === row.slot.ID}
+          editKey={row.slot.ID === newSlotEditId ? newSlotEditId : null}
+          onSelect={() => onSelectSlot(row.slot.ID)}
+          onEdit={() => onOpenSlot(row.slot.ID)}
+          onEditingChange={(editing) => {
+            onEditingAssetSlotChange(editing ? row.slot.ID : null)
+          }}
+          onSaved={(record) => {
+            onSaved(record)
+            onEditingAssetSlotChange(null)
+          }}
+          onDeleted={() => {
+            onEditingAssetSlotChange(null)
+          }}
           onContextMenu={(event) => onCardContextMenu?.(event, { type: 'asset', id: row.slot.ID })}
         />
       ))}
     </ResourcePrepInspectorStack>
   )
-}
-
-function ReferenceRailMedia({ cluster }: { cluster: ReferenceAssetCluster }) {
-  const preview = cluster.rows.find((row) => row.lockedSlot || row.slot)?.lockedSlot ?? cluster.rows[0]?.slot
-  return <SlotThumb slot={preview} fit="cover" />
 }
 
 function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewModel) {
@@ -1202,12 +1538,14 @@ function referenceKindLabel(kind?: string) {
   return labels[String(kind ?? '').toLowerCase()] ?? '设定资料'
 }
 
-function normalizePreProductionWorkbenchView(value?: string): PreProductionWorkbenchView {
-  return value === 'asset' ? 'asset' : 'setting'
+function assetSlotRailMeta(row: AssetSlotViewModel, reference?: CreativeReferenceRecord | null) {
+  const candidateLabel = row.candidates.length > 0 ? `候选 ${row.candidates.length}` : '暂无候选'
+  const resourceLabel = row.lockedSlot || row.hasResource ? '已关联资源' : '未关联资源'
+  return `${assetKindLabel(row.kind)} · ${candidateLabel} · ${resourceLabel} · ${referenceTitle(reference)}`
 }
 
-function normalizePreProductionSettingDetailView(value?: string): PreProductionSettingDetailView {
-  return value === 'assets' ? 'assets' : 'setting'
+function normalizePreProductionWorkbenchView(value?: string): PreProductionWorkbenchView {
+  return value === 'asset' ? 'asset' : 'setting'
 }
 
 function referenceCountLabel(referenceCount: number, assetCount: number) {
