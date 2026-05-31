@@ -1,3 +1,5 @@
+import { Clock3, Film } from 'lucide-react'
+
 import { ContentWorkbenchScenePreview } from '@/features/content/components/ContentWorkbenchScenePreview'
 import { UnitProductionTrack } from '@/features/content/components/ContentWorkbenchUnitTrack'
 import type {
@@ -8,6 +10,8 @@ import { numberOf } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import type { ContentWorkbenchDropPosition } from '@/features/content/domain/contentWorkbenchTimeline'
 import type { Job } from '@/types'
 import {
+  Badge,
+  ProductionOrchestrationDetailSectionHeader,
   ProductionSceneEditorSection,
   WorkbenchEmptyState,
 } from '@movscript/ui'
@@ -53,38 +57,60 @@ export function ProductionShotPlanPanel({
   const runningJobCount = jobs.filter((job) => job.status === 'pending' || job.status === 'running').length
 
   return (
-    <ProductionSceneEditorSection>
-      <div className="production-shot-plan-panel" data-testid="production-shot-plan-panel">
-        {!row ? (
-          <WorkbenchEmptyState compact title="尚未选择情节" description="从左侧编排结构选择一个情节后，可以继续拆分镜头和调整时间轴。" />
-        ) : (
-          <>
+    <>
+      <ProductionSceneEditorSection className="production-orchestration-detail-stage">
+        <ProductionOrchestrationDetailSectionHeader
+          icon={Film}
+          title="情节预览"
+          description="查看当前情节的预览挂载、选中镜头和生成提示。"
+          actions={row ? (
+            <>
+              <Badge variant={previewItemCount > 0 ? 'soft' : 'outline'}>{previewItemCount > 0 ? `${previewItemCount} 段预览` : '未挂载预览'}</Badge>
+              {runningJobCount > 0 ? <Badge>{runningJobCount} 个任务中</Badge> : null}
+            </>
+          ) : null}
+        />
+        <div className="production-shot-plan-panel" data-testid="production-shot-plan-panel">
+          {!row ? (
+            <WorkbenchEmptyState compact title="尚未选择情节" description="从左侧编排结构选择一个情节后，可以继续拆分镜头和调整时间轴。" />
+          ) : (
             <ContentWorkbenchScenePreview
               row={row}
               selectedUnit={selectedUnit}
               keyframes={selectedUnitKeyframes}
               previewItemCount={previewItemCount}
               runningJobCount={runningJobCount}
+              showHeader={false}
             />
-            <UnitProductionTrack
-              row={row}
-              selectedUnitId={selectedUnit?.ID}
-              showInlineEditor={false}
-              onSelectUnit={onSelectUnit}
-              onOpenUnitEditor={onOpenUnitEditor}
-              onCreateUnit={onCreateUnit}
-              onAiSuggest={onAiSuggest}
-              onSelectFirstMoment={onSelectFirstMoment}
-              onReorderUnit={onReorderUnit}
-              onMoveUnitOnTimeline={onMoveUnitOnTimeline}
-              projectId={projectId}
-              queryKey={queryKey}
-              jobs={jobs}
-              isReordering={isReordering}
-            />
-          </>
-        )}
-      </div>
-    </ProductionSceneEditorSection>
+          )}
+        </div>
+      </ProductionSceneEditorSection>
+      <ProductionSceneEditorSection className="production-orchestration-detail-stage">
+        <ProductionOrchestrationDetailSectionHeader
+          icon={Clock3}
+          title="时间轴"
+          description="按镜头类型筛选、调整镜头顺序，并管理当前情节的时间位置。"
+        />
+        <div className="production-shot-plan-panel" data-testid="production-shot-timeline-panel">
+          <UnitProductionTrack
+            row={row}
+            selectedUnitId={selectedUnit?.ID}
+            showInlineEditor={false}
+            showSceneBrief={false}
+            onSelectUnit={onSelectUnit}
+            onOpenUnitEditor={onOpenUnitEditor}
+            onCreateUnit={onCreateUnit}
+            onAiSuggest={onAiSuggest}
+            onSelectFirstMoment={onSelectFirstMoment}
+            onReorderUnit={onReorderUnit}
+            onMoveUnitOnTimeline={onMoveUnitOnTimeline}
+            projectId={projectId}
+            queryKey={queryKey}
+            jobs={jobs}
+            isReordering={isReordering}
+          />
+        </div>
+      </ProductionSceneEditorSection>
+    </>
   )
 }

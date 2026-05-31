@@ -18,6 +18,7 @@ export interface WorkbenchScenePreviewPanelProps {
   unitKindLabel: ReactNode;
   shotLabel?: ReactNode;
   unitCountLabel: ReactNode;
+  showHeader?: boolean;
 }
 
 export function WorkbenchScenePreviewPanel({
@@ -33,20 +34,21 @@ export function WorkbenchScenePreviewPanel({
   unitKindLabel,
   shotLabel,
   unitCountLabel,
+  showHeader = true,
 }: WorkbenchScenePreviewPanelProps) {
   return (
     <WorkbenchPanel
-      title={title}
-      icon={icon}
+      title={showHeader ? title : undefined}
+      icon={showHeader ? icon : undefined}
       emphasis="unframed"
       className="workbench-scene-preview-panel"
       bodyClassName="workbench-scene-preview-panel__body"
-      action={(
+      action={showHeader ? (
         <div className="workbench-scene-preview-panel__actions">
           <Badge variant={previewMounted ? "soft" : "outline"}>{previewBadgeLabel}</Badge>
           {runningJobLabel ? <Badge>{runningJobLabel}</Badge> : null}
         </div>
-      )}
+      ) : undefined}
     >
       <div className="workbench-scene-preview-panel__frame" data-testid="content-workbench-scene-preview">
         <WorkbenchThumbnail ratio="banner" className="workbench-scene-preview-panel__thumbnail">

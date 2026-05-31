@@ -10,6 +10,7 @@ import (
 	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
+	"gorm.io/gorm"
 )
 
 func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
@@ -45,6 +46,15 @@ func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	if !containsString(created.Intent, "reveal_information") || !containsString(created.Pattern, "slow_push_in") {
 		t.Fatalf("unexpected analysis: intent=%v pattern=%v", created.Intent, created.Pattern)
 	}
+	if created.VisualAnalysis.CameraMovement.Type != "push_in" {
+		t.Fatalf("camera movement = %q, want push_in", created.VisualAnalysis.CameraMovement.Type)
+	}
+	if created.NarrativeFunction.Primary != "delayed_reveal" {
+		t.Fatalf("narrative primary = %q, want delayed_reveal", created.NarrativeFunction.Primary)
+	}
+	if created.ReusablePattern.Principle == "" || !strings.Contains(created.SearchIndex.SearchText, "delayed reveal") {
+		t.Fatalf("missing reusable/search schema: pattern=%+v search=%q", created.ReusablePattern, created.SearchIndex.SearchText)
+	}
 
 	page, err := service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "reveal slow_push", Page: 1, PageSize: 10})
 	if err != nil {
@@ -52,6 +62,13 @@ func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != created.ID {
 		t.Fatalf("search page = %+v, want created reference", page)
+	}
+	page, err = service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "角色发现真相前", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("list shot references by natural-language query: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != created.ID {
+		t.Fatalf("natural-language search page = %+v, want created reference", page)
 	}
 }
 
@@ -162,6 +179,118 @@ func TestCreateFromResourceAppendsToExistingGroup(t *testing.T) {
 		if reference.Order != wantOrder {
 			t.Fatalf("reference %d order = %d, want %d", i, reference.Order, wantOrder)
 		}
+	}
+}
+
+func TestNextGroupOrderUsesPostgresSafeOrderIdentifier(t *testing.T) {
+	db := testutil.OpenPostgresDryRun(t)
+	sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		var maxOrder int
+		return tx.Model(&model.ShotReference{}).
+			Select(shotReferenceMaxGroupOrderSQL).
+			Where("group_id = ?", 12).
+			Where("org_id IS NULL AND owner_id = ?", 7).
+			Scan(&maxOrder)
+	})
+	if strings.Contains(sql, "`order`") {
+		t.Fatalf("next group order sql uses mysql quoting: %s", sql)
+	}
+	if !strings.Contains(sql, `max("order")`) {
+		t.Fatalf("next group order sql = %s, want quoted order identifier", sql)
+	}
+}
+
+func TestCreateFromResourceUsesManualGroupTitle(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-manual-group-title.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	service := NewService(db, fakeShotStorage{}, nil)
+
+	duration := 7.5
+	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:      7,
+		Filename:    "source_clip.mp4",
+		MimeType:    "video/mp4",
+		Size:        12,
+		Data:        []byte("video-bytes"),
+		DurationSec: &duration,
+	})
+	if err != nil {
+		t.Fatalf("seed resource: %v", err)
+	}
+
+	references, err := service.CreateFromResource(context.Background(), CreateFromResourceInput{
+		UserID:      7,
+		ResourceID:  created.ResourceID,
+		GroupTitle:  "雨夜楼道",
+		DurationSec: &duration,
+		Shots: []domainshotreference.UpdateInput{
+			{Title: strPtr("shot a")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create manual group: %v", err)
+	}
+	if len(references) != 1 {
+		t.Fatalf("reference count = %d, want 1", len(references))
+	}
+	if references[0].Group == nil || references[0].Group.Title != "雨夜楼道" {
+		t.Fatalf("group title = %#v, want manual title", references[0].Group)
+	}
+}
+
+func TestUpdatePersistsManualProfessionalAnnotationFields(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-manual-fields.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	service := NewService(db, fakeShotStorage{}, nil)
+
+	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:   7,
+		Filename: "manual_fields.mp4",
+		MimeType: "video/mp4",
+		Size:     12,
+		Data:     []byte("video-bytes"),
+	})
+	if err != nil {
+		t.Fatalf("upload and analyze: %v", err)
+	}
+
+	updated, err := service.Update(context.Background(), created.ID, domainshotreference.ListInput{UserID: 7}, domainshotreference.UpdateInput{
+		VisualAnalysis: domainshotreference.VisualAnalysis{
+			ShotSize: "extreme_close_up",
+			CameraMovement: domainshotreference.MovementAnalysis{
+				Type:      "locked_off",
+				Stability: "tripod",
+			},
+		},
+		VisualAnalysisSet: true,
+		NarrativeFunction: domainshotreference.NarrativeFunction{
+			Primary:          "realization",
+			InformationState: "new_information_lands",
+		},
+		NarrativeFunctionSet: true,
+		ReusablePattern: domainshotreference.ReusablePattern{
+			PatternIDs: []string{"reaction_close_up"},
+			Principle:  "Hold on the face until the decision becomes readable.",
+		},
+		ReusablePatternSet: true,
+	})
+	if err != nil {
+		t.Fatalf("update manual fields: %v", err)
+	}
+	if updated.VisualAnalysis.ShotSize != "extreme_close_up" {
+		t.Fatalf("shot size = %q, want manual value", updated.VisualAnalysis.ShotSize)
+	}
+	if updated.NarrativeFunction.Primary != "realization" {
+		t.Fatalf("narrative primary = %q, want realization", updated.NarrativeFunction.Primary)
+	}
+	if updated.ReusablePattern.Principle != "Hold on the face until the decision becomes readable." {
+		t.Fatalf("principle = %q", updated.ReusablePattern.Principle)
+	}
+
+	page, err := service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "realization extreme_close_up", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("search updated fields: %v", err)
+	}
+	if page.Total != 1 || page.Items[0].ID != created.ID {
+		t.Fatalf("search page = %+v, want updated reference", page)
 	}
 }
 

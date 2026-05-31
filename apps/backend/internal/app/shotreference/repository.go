@@ -24,6 +24,8 @@ type gormRepository struct {
 	db *gorm.DB
 }
 
+const shotReferenceMaxGroupOrderSQL = `coalesce(max("order"), 0)`
+
 func (r *gormRepository) CreateGroup(ctx context.Context, group *domainshotreference.ShotReferenceGroup) error {
 	model := group.ToModel()
 	if err := r.db.WithContext(ctx).Create(&model).Error; err != nil {
@@ -51,7 +53,7 @@ func (r *gormRepository) GetGroup(ctx context.Context, id uint, input domainshot
 
 func (r *gormRepository) NextGroupOrder(ctx context.Context, groupID uint, input domainshotreference.ListInput) (int, error) {
 	var maxOrder int
-	q := r.db.WithContext(ctx).Model(&persistencemodel.ShotReference{}).Select("coalesce(max(`order`), 0)").Where("group_id = ?", groupID)
+	q := r.db.WithContext(ctx).Model(&persistencemodel.ShotReference{}).Select(shotReferenceMaxGroupOrderSQL).Where("group_id = ?", groupID)
 	q = applyScope(q, input)
 	if err := q.Scan(&maxOrder).Error; err != nil {
 		return 0, err

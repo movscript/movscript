@@ -1,7 +1,5 @@
 import { type DragEvent, useEffect, useState } from 'react'
 import {
-  ArrowLeft,
-  ArrowRight,
   Clock3,
   FileText,
   Plus,
@@ -40,13 +38,11 @@ import { unitIdentifier } from '@/features/content/domain/productionIdentifiers'
 import type { Job } from '@/types'
 import {
   Badge,
-  ContentWorkbenchShotListActionBar,
   ContentWorkbenchUnitControlBar,
   ContentWorkbenchUnitExecutionGrid,
   ContentWorkbenchUnitExecutionRegion,
   ContentWorkbenchUnitKindFilterButton,
   ContentWorkbenchUnitKindFilterGroup,
-  ContentWorkbenchUnitMoveButton,
   ContentWorkbenchUnitScheduleEmpty,
   ContentWorkbenchUnitScheduleFrame,
   ContentWorkbenchUnitScheduleHeader,
@@ -77,6 +73,7 @@ export function UnitProductionTrack({
   row,
   selectedUnitId,
   showInlineEditor = true,
+  showSceneBrief = true,
   onSelectUnit,
   onCreateUnit,
   onOpenUnitEditor,
@@ -97,6 +94,7 @@ export function UnitProductionTrack({
   row: ContentGenerationMomentRow | null
   selectedUnitId?: number
   showInlineEditor?: boolean
+  showSceneBrief?: boolean
   onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
   onOpenUnitEditor?: (unitId: number) => void
@@ -176,29 +174,29 @@ export function UnitProductionTrack({
           header={(
             <ContentWorkbenchUnitScheduleHeader
               icon={<Clock3 size={14} />}
-              title="镜头方案"
+              title="内容方案"
               badge={<Badge variant="outline">等待输入</Badge>}
             />
           )}
         >
           <ContentWorkbenchUnitScheduleEmpty
-            title={row ? '当前情节还没有镜头方案' : '先选择一个情节'}
+            title={row ? '当前情节还没有内容方案' : '先选择一个情节'}
             detail={
               row
-                ? '先把情节拆成一组镜头，再逐个补齐时间位置、对白/声音、关键帧和素材缺口。'
-                : '选择情节后，这里会显示该情节的镜头方案和右侧可编辑详情。'
+                ? '先把情节拆成一组内容条目，再逐个补齐时间位置、对白/声音、关键帧和素材缺口。'
+                : '选择情节后，这里会显示该情节的内容方案和右侧可编辑详情。'
             }
             actions={row ? (
               <>
                 {onAiSuggest ? (
                   <ContentWorkbenchUnitTrackActionButton onClick={onAiSuggest}>
                     <Sparkles size={14} />
-                    AI 规划镜头方案
+                    AI 规划内容方案
                   </ContentWorkbenchUnitTrackActionButton>
                 ) : null}
                 <ContentWorkbenchUnitTrackActionButton variant="outline" onClick={onCreateUnit}>
                   <Plus size={14} />
-                  手动添加镜头
+                  手动添加条目
                 </ContentWorkbenchUnitTrackActionButton>
               </>
             ) : (
@@ -225,11 +223,11 @@ export function UnitProductionTrack({
   const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? null
   const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
   const focusedTimeline = timelineOriginSec > 0
-  const canDragUnits = Boolean(row && visibleSummary.total > 0 && !isReordering)
+  const canDragTimelineItems = Boolean(row && timelineMemberItems.length > 0 && !isReordering)
   const sceneIntentText = row ? firstText(row.moment.description, row.moment.content, row.moment.prompt, row.title) : ''
   const scenePlanMeta = row
     ? [
-        `${summary.items.length} 个镜头`,
+        `${summary.items.length} 个条目`,
         row.references.length > 0 ? `${row.references.length} 个设定` : '',
         row.scriptBlocks.length > 0 ? `${row.scriptBlocks.length} 条内容` : '',
         summary.blockedCount > 0 ? `${summary.blockedCount} 个待补齐` : `${summary.readyCount} 个可生成`,
@@ -242,7 +240,7 @@ export function UnitProductionTrack({
     onSelectUnit(unitId)
   }
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
-    if (!canDragUnits) return
+    if (!canDragTimelineItems || source !== 'timeline') return
     setDraggedUnitId(unitId)
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('application/x-movscript-content-unit-id', String(unitId))
@@ -251,17 +249,6 @@ export function UnitProductionTrack({
     const pointerRatio = box.width > 0 ? Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) : 0
     const offsetSec = source === 'timeline' && item ? pointerRatio * item.durationSec : 0
     event.dataTransfer.setData('application/x-movscript-timeline-drag-offset-sec', String(offsetSec))
-  }
-  function handleUnitDrop(event: DragEvent<HTMLElement>, targetUnitId: number) {
-    event.preventDefault()
-    event.stopPropagation()
-    const rawUnitId = event.dataTransfer.getData('application/x-movscript-content-unit-id')
-    const sourceUnitId = Number(rawUnitId || draggedUnitId || 0)
-    setDraggedUnitId(null)
-    if (!sourceUnitId || sourceUnitId === targetUnitId) return
-    const box = event.currentTarget.getBoundingClientRect()
-    const position: ContentWorkbenchDropPosition = event.clientX > box.left + box.width / 2 ? 'after' : 'before'
-    onReorderUnit(sourceUnitId, targetUnitId, position)
   }
   function handleTimelineLaneDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault()
@@ -301,7 +288,7 @@ export function UnitProductionTrack({
         const sceneText = item.sceneMomentTitle ? `情节：${item.sceneMomentTitle}` : ''
         return {
           item,
-          title: `${String(item.order).padStart(2, '0')} ${item.title}`,
+          title: item.title,
           detail: kind === 'shot' ? [sceneText, keyframeText, gapText].filter(Boolean).join(' · ') : firstText(sceneText, item.scriptCue, item.soundCue, item.summary, gapText),
           muted: kind === 'shot' ? item.requiresKeyframe && item.keyframeTitles.length === 0 : !item.scriptCue && !item.soundCue && !item.summary,
         }
@@ -332,7 +319,7 @@ export function UnitProductionTrack({
           <>
             <ContentWorkbenchUnitTrackMeta
               items={[
-                { label: `${summary.total} 镜头` },
+                { label: `${summary.total} 条目` },
                 { label: formatTrackDuration(summary.durationSec) },
                 { label: `${summary.keyframeCount} 关键帧`, tone: summary.keyframeCount > 0 ? 'neutral' : 'warning' },
               ]}
@@ -340,46 +327,36 @@ export function UnitProductionTrack({
             {onAiSuggest ? (
               <ContentWorkbenchUnitTrackActionButton onClick={onAiSuggest} data-testid="content-workbench-ai-shot-taskGraph">
                 <Sparkles size={14} />
-                AI 规划镜头方案
+                AI 规划内容方案
               </ContentWorkbenchUnitTrackActionButton>
             ) : null}
             <ContentWorkbenchUnitTrackActionButton variant="outline" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
               <Plus size={14} />
-              手动添加镜头
+              手动添加条目
             </ContentWorkbenchUnitTrackActionButton>
           </>
         )}
       />
 
-      <ContentWorkbenchUnitSceneBrief
-        title="情节表达目标"
-        detail={sceneIntentText || '这个情节还缺少可用于拆分镜头的描述。'}
-        badges={scenePlanMeta.map((item) => (
-          <Badge key={item} variant="outline">{item}</Badge>
-        ))}
-      />
+      {showSceneBrief ? (
+        <ContentWorkbenchUnitSceneBrief
+          title="情节表达目标"
+          detail={sceneIntentText || '这个情节还缺少可用于拆分内容条目的描述。'}
+          badges={scenePlanMeta.map((item) => (
+            <Badge key={item} variant="outline">{item}</Badge>
+          ))}
+        />
+      ) : null}
 
       <ContentWorkbenchUnitExecutionRegion>
         {visibleSummary.items.length > 0 ? (
           <ContentWorkbenchUnitExecutionGrid>
-              {visibleSummary.items.map((item, index) => {
-                const previousItem = visibleSummary.items[index - 1]
-                const nextItem = visibleSummary.items[index + 1]
+              {visibleSummary.items.map((item) => {
                 return (
                   <CompactShotListCard
                     key={item.id}
                     active={item.selected}
-                    draggable={canDragUnits}
                     data-track-item-id={item.id}
-                    aria-grabbed={draggedUnitId === Number(item.id)}
-                    onDragStart={(event) => handleUnitDragStart(event, Number(item.id))}
-                    onDragOver={(event) => {
-                      if (!canDragUnits) return
-                      event.preventDefault()
-                      event.dataTransfer.dropEffect = 'move'
-                    }}
-                    onDrop={(event) => handleUnitDrop(event, Number(item.id))}
-                    onDragEnd={() => setDraggedUnitId(null)}
                     kind={trackKindLabel(item.kind)}
                     title={item.title}
                     frameCount={item.keyframeTitles.length}
@@ -389,40 +366,12 @@ export function UnitProductionTrack({
                     context={shotMetaText(item)}
                     onOpen={() => selectUnit(Number(item.id))}
                     onEdit={onOpenUnitEditor ? () => onOpenUnitEditor(Number(item.id)) : undefined}
-                    actions={canDragUnits ? (
-                      <ContentWorkbenchShotListActionBar>
-                        <ContentWorkbenchUnitMoveButton
-                          data-testid="content-workbench-unit-move-earlier"
-                          aria-label={`前移 ${item.title}`}
-                          title="前移"
-                          disabled={!previousItem || isReordering}
-                          onClick={() => {
-                            if (!previousItem) return
-                            onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
-                          }}
-                        >
-                          <ArrowLeft size={12} />
-                        </ContentWorkbenchUnitMoveButton>
-                        <ContentWorkbenchUnitMoveButton
-                          data-testid="content-workbench-unit-move-later"
-                          aria-label={`后移 ${item.title}`}
-                          title="后移"
-                          disabled={!nextItem || isReordering}
-                          onClick={() => {
-                            if (!nextItem) return
-                            onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
-                          }}
-                        >
-                          <ArrowRight size={12} />
-                        </ContentWorkbenchUnitMoveButton>
-                      </ContentWorkbenchShotListActionBar>
-                    ) : null}
                   />
                 )
               })}
           </ContentWorkbenchUnitExecutionGrid>
         ) : (
-          <WorkbenchEmptyState compact title="当前类型下没有镜头。" />
+          <WorkbenchEmptyState compact title="当前类型下没有条目。" />
         )}
       </ContentWorkbenchUnitExecutionRegion>
 
@@ -514,7 +463,7 @@ export function UnitProductionTrack({
                     <ContentWorkbenchTimelineLane
                       laneKind={lane.key}
                       onDragOver={(event) => {
-                        if (!canDragUnits) return
+                        if (!canDragTimelineItems) return
                         event.preventDefault()
                         event.dataTransfer.dropEffect = 'move'
                       }}
@@ -542,12 +491,12 @@ export function UnitProductionTrack({
                           active={item.selected}
                           data-lane-key={lane.key}
                           data-track-item-id={item.id}
-                          draggable={canDragUnits}
+                          draggable={canDragTimelineItems}
                           aria-grabbed={draggedUnitId === Number(item.id)}
-                          title={canDragUnits ? '拖动到时间轴空白处调整开始时间' : undefined}
+                          title={canDragTimelineItems ? '拖动到时间轴空白处调整开始时间' : undefined}
                           onDragStart={(event) => handleUnitDragStart(event, Number(item.id), 'timeline')}
                           onDragOver={(event) => {
-                            if (!canDragUnits) return
+                            if (!canDragTimelineItems) return
                             event.preventDefault()
                             event.dataTransfer.dropEffect = 'move'
                           }}

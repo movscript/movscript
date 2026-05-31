@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -478,7 +479,7 @@ func (s *Service) searchPexels(ctx context.Context, config map[string]string, in
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, fmt.Errorf("%w: pexels http %d", ErrProviderFailed, resp.StatusCode)
+		return SearchResult{}, providerHTTPError("pexels", resp)
 	}
 	if mediaType == "video" {
 		var decoded pexelsVideoSearchResponse
@@ -522,6 +523,9 @@ func (s *Service) searchPixabay(ctx context.Context, config map[string]string, i
 	values.Set("page", strconv.Itoa(page))
 	values.Set("per_page", strconv.Itoa(pageSize))
 	values.Set("safesearch", "true")
+	if pixabayLang := pixabaySearchLanguage(input.Query); pixabayLang != "" {
+		values.Set("lang", pixabayLang)
+	}
 	if mediaType == "image" {
 		values.Set("image_type", "photo")
 		if orientation := pixabayOrientation(input.Orientation); orientation != "" {
@@ -546,7 +550,7 @@ func (s *Service) searchPixabay(ctx context.Context, config map[string]string, i
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, fmt.Errorf("%w: pixabay http %d", ErrProviderFailed, resp.StatusCode)
+		return SearchResult{}, providerHTTPError("pixabay", resp)
 	}
 	var decoded pixabaySearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
@@ -572,6 +576,24 @@ func pixabayOrientation(orientation string) string {
 	default:
 		return ""
 	}
+}
+
+func pixabaySearchLanguage(query string) string {
+	for _, r := range query {
+		if r >= '\u4E00' && r <= '\u9FFF' {
+			return "zh"
+		}
+	}
+	return ""
+}
+
+func providerHTTPError(provider string, resp *http.Response) error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		return fmt.Errorf("%w: %s http %d", ErrProviderFailed, provider, resp.StatusCode)
+	}
+	return fmt.Errorf("%w: %s http %d: %s", ErrProviderFailed, provider, resp.StatusCode, message)
 }
 
 func pexelsPhotoItem(photo pexelsPhoto) ExternalResourceItem {

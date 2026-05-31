@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import type { ExternalResourceItem, ExternalResourceSearchResult, ExternalResourceSource, Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
@@ -73,6 +73,11 @@ import {
   ResourcePageMutedText,
   ResourcePagePager,
   ResourcePageSearchField,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   ResourceStateMessage,
   ResourcePanelThumb,
   ResourcePanelThumbFallback,
@@ -1561,32 +1566,46 @@ export function ExternalResourceSearchView() {
           搜索
         </ResourcePageActionButton>
         {providerOptions.length > 1 && (
-          <ResourceDialogSelect
-            className="resource-page__page-size-select resource-page__external-source-select"
+          <Select
             value={selectedProviderKey}
-            onChange={event => updateSelectedProvider(event.target.value)}
-            aria-label="选择外部资源 provider"
+            onValueChange={updateSelectedProvider}
           >
-            {providerOptions.map(source => (
-              <option key={source.provider_key} value={source.provider_key}>
-                {externalResourceProviderName(source.provider_key)}
-              </option>
-            ))}
-          </ResourceDialogSelect>
+            <SelectTrigger
+              size="sm"
+              className="resource-page__external-provider-trigger"
+              aria-label="选择外部资源 provider"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {providerOptions.map(source => (
+                <SelectItem key={source.provider_key} value={source.provider_key}>
+                  {externalResourceProviderName(source.provider_key)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         {providerSources.length > 1 && (
-          <ResourceDialogSelect
-            className="resource-page__page-size-select resource-page__external-source-select"
+          <Select
             value={selectedSource ? String(selectedSource.ID) : ''}
-            onChange={event => updateSelectedSource(Number(event.target.value))}
-            aria-label="选择外部资源来源"
+            onValueChange={value => updateSelectedSource(Number(value))}
           >
-            {providerSources.map(source => (
-              <option key={source.ID} value={source.ID}>
-                {source.name || externalResourceProviderName(source.provider_key)}
-              </option>
-            ))}
-          </ResourceDialogSelect>
+            <SelectTrigger
+              size="sm"
+              className="resource-page__external-source-trigger"
+              aria-label="选择外部资源来源"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {providerSources.map(source => (
+                <SelectItem key={source.ID} value={String(source.ID)}>
+                  {source.name || externalResourceProviderName(source.provider_key)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         <ResourcePageActionGroup>
           <ResourcePageActionButton size="xs" variant={selectedMediaTypes.has('image') ? 'solid' : 'ghost'} onClick={() => toggleMediaType('image')}>
@@ -1774,32 +1793,32 @@ function ExternalResourcePreviewDialog({
 }) {
   const name = item.title || `${item.provider_key} #${item.external_id}`
   const previewUrl = item.preview_url || item.thumbnail_url
+  const aspectRatio = externalResourceAspectRatio(item)
+  const dialogStyle = {
+    '--external-resource-aspect-ratio': aspectRatio,
+    '--external-resource-dialog-preferred-width': `${roundCssNumber(aspectRatio * 68)}vh`,
+    '--external-resource-dialog-max-by-media': `${Math.max(320, Math.round(aspectRatio * 640))}px`,
+  } as CSSProperties
+
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <ResourceDialogContent size="md" hideClose>
+      <ResourceDialogContent
+        size="md"
+        hideClose
+        className="resource-page__external-preview-dialog"
+        style={dialogStyle}
+      >
         <ResourceDialogHeader
           icon={item.media_type === 'video' ? Video : ImageIcon}
           title={name}
           close={<ResourceDialogCloseButton aria-label="关闭"><XIcon size={16} /></ResourceDialogCloseButton>}
         />
-        <ResourceDialogStack>
-          <div
-            style={{
-              display: 'flex',
-              width: '100%',
-              height: 'min(68vh, 640px)',
-              minHeight: 320,
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              borderRadius: 8,
-              background: 'var(--ms-color-muted)',
-            }}
-          >
+        <ResourceDialogStack className="resource-page__external-preview-stack">
+          <div className="resource-page__external-preview-stage" data-media-type={item.media_type}>
             {item.media_type === 'video' && previewUrl ? (
-              <video src={previewUrl} poster={item.thumbnail_url} controls playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }} />
+              <video src={previewUrl} poster={item.thumbnail_url} controls playsInline />
             ) : previewUrl ? (
-              <img src={previewUrl} alt={name} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <img src={previewUrl} alt={name} />
             ) : (
               <ResourceAssetPreviewFallback>
                 <TypeIcon type={item.media_type} />
@@ -1953,6 +1972,19 @@ function externalResourceMeta(item: ExternalResourceItem) {
   const dimensions = item.width && item.height ? `${item.width}x${item.height}` : ''
   const duration = item.duration_seconds ? `${item.duration_seconds}s` : ''
   return [dimensions, duration].filter(Boolean).join(' · ') || item.media_type
+}
+
+function externalResourceAspectRatio(item: ExternalResourceItem) {
+  const width = Number(item.width)
+  const height = Number(item.height)
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return item.media_type === 'video' ? 16 / 9 : 1
+  }
+  return clamp(width / height, 0.25, 3.2)
+}
+
+function roundCssNumber(value: number) {
+  return Math.round(value * 1000) / 1000
 }
 
 export function ResourceLibraryView({

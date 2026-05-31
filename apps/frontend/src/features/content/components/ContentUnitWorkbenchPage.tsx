@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, BadgeCheck, ChevronDown, ChevronUp, Clapperboard, Wand2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Clapperboard, Search } from 'lucide-react'
 
 import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
 import {
@@ -22,19 +22,17 @@ import {
 import {
   byOrder,
   firstText,
-  numberOf,
   titleOfRecord,
 } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import { contentUnitWorkStatus, normalizeAssetSlotStatus } from '@/features/content/domain/contentWorkbenchStatus'
 import { contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
-import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
+import { contentUnitKindOptions, trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import {
   keyframeFrameRoleLabel,
   keyframeOrderForRole,
   nextKeyframeFrameRole,
 } from '@/features/content/domain/contentWorkbenchEditModel'
 import { pickContentWorkbenchUploadTarget } from '@/features/content/domain/contentWorkbenchUploadTarget'
-import { pickContentWorkbenchRelevantJobs } from '@/features/content/domain/contentWorkbenchJobScope'
 import {
   buildContentWorkbenchUploadCandidateMutationOptions,
   useContentWorkbenchCandidateUploadInput,
@@ -47,11 +45,10 @@ import {
   Button,
   ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchWorkspaceShell,
-  ContentWorkbenchUnitExecutionDetail,
-  ContentWorkbenchUnitExecutionDetailGrid,
   ContentWorkbenchUnitInspectorHeader,
   ContentWorkbenchUnitInspectorShell,
-  ContentWorkbenchUnitNextActionCard,
+  Input,
+  NativeSelect,
   WorkbenchEmptyState,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
@@ -68,6 +65,7 @@ type ContentUnitWorkbenchShotItem = {
   row: ContentGenerationMomentRow
   unit: WorkbenchRecord
   productionTitle: string
+  segmentTitle: string
   missingCount: number
   keyframeCount: number
 }
@@ -77,16 +75,38 @@ function ContentUnitWorkbenchShotGrid({
   selectedUnitId,
   collapsed,
   page,
+  query,
+  kindValue,
+  productionValue,
+  segmentValue,
+  kindOptions,
+  productionOptions,
+  segmentOptions,
   onCollapsedChange,
   onPageChange,
+  onQueryChange,
+  onKindChange,
+  onProductionChange,
+  onSegmentChange,
   onSelectUnit,
 }: {
   items: ContentUnitWorkbenchShotItem[]
   selectedUnitId?: number | null
   collapsed: boolean
   page: number
+  query: string
+  kindValue: string
+  productionValue: string
+  segmentValue: string
+  kindOptions: Array<{ value: string; label: string }>
+  productionOptions: Array<{ value: string; label: string }>
+  segmentOptions: Array<{ value: string; label: string }>
   onCollapsedChange: (collapsed: boolean) => void
   onPageChange: (page: number) => void
+  onQueryChange: (query: string) => void
+  onKindChange: (value: string) => void
+  onProductionChange: (value: string) => void
+  onSegmentChange: (value: string) => void
   onSelectUnit: (row: ContentGenerationMomentRow, unitId: number) => void
 }) {
   const pageCount = Math.max(1, Math.ceil(items.length / SHOT_LIST_PAGE_SIZE))
@@ -97,8 +117,8 @@ function ContentUnitWorkbenchShotGrid({
     <aside className="content-unit-workbench-list-panel" data-testid="content-unit-workbench-list-panel">
       <div className="content-unit-workbench-list-panel__header">
         <div className="content-unit-workbench-list-panel__title-block">
-          <span className="content-unit-workbench-list-panel__kicker">镜头列表</span>
-          <h2 className="content-unit-workbench-list-panel__title">待编辑镜头</h2>
+          <span className="content-unit-workbench-list-panel__kicker">内容编辑</span>
+          <h2 className="content-unit-workbench-list-panel__title">内容列表</h2>
         </div>
         <div className="content-unit-workbench-list-panel__controls">
           <Badge variant="outline">{items.length}</Badge>
@@ -108,21 +128,62 @@ function ContentUnitWorkbenchShotGrid({
             variant="ghost"
             onClick={() => onCollapsedChange(!collapsed)}
             aria-expanded={!collapsed}
-            aria-controls="content-unit-workbench-shot-grid"
+            aria-controls="content-unit-workbench-content-grid"
           >
             {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             {collapsed ? '展开' : '折叠'}
           </Button>
         </div>
       </div>
+      <div className="content-unit-workbench-list-panel__filters" aria-label="内容列表筛选">
+        <label className="content-unit-workbench-list-panel__filter">
+          <span>分类</span>
+          <NativeSelect controlSize="sm" variant="subtle" value={kindValue} onChange={(event) => onKindChange(event.target.value)}>
+            <option value="">全部分类</option>
+            {kindOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="content-unit-workbench-list-panel__filter">
+          <span>制作</span>
+          <NativeSelect controlSize="sm" variant="subtle" value={productionValue} onChange={(event) => onProductionChange(event.target.value)}>
+            <option value="">全部制作</option>
+            {productionOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="content-unit-workbench-list-panel__filter">
+          <span>情绪段</span>
+          <NativeSelect controlSize="sm" variant="subtle" value={segmentValue} onChange={(event) => onSegmentChange(event.target.value)}>
+            <option value="">全部情绪段</option>
+            {segmentOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="content-unit-workbench-list-panel__filter content-unit-workbench-list-panel__filter--search">
+          <span>情节搜索</span>
+          <div className="content-unit-workbench-list-panel__search">
+            <Search size={14} className="content-unit-workbench-list-panel__search-icon" />
+            <Input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="搜索情节、内容或提示"
+              className="content-unit-workbench-list-panel__search-input"
+            />
+          </div>
+        </label>
+      </div>
 
       <div
-        id="content-unit-workbench-shot-grid"
+        id="content-unit-workbench-content-grid"
         className="content-unit-workbench-list-panel__viewport"
         data-collapsed={collapsed ? 'true' : undefined}
       >
         {items.length === 0 ? (
-          <WorkbenchEmptyState compact title="暂无镜头" description="从创作编排工作台创建镜头后，可在这里选择并进入下方编辑。" />
+          <WorkbenchEmptyState compact title="暂无内容" description="调整分类、制作、情绪段或情节搜索，或从创作编排工作台创建内容。" />
         ) : (
           pageItems.map((item) => (
             <CompactShotListCard
@@ -134,7 +195,7 @@ function ContentUnitWorkbenchShotGrid({
               expression={firstText(item.unit.description, item.unit.prompt, '未填写镜头表达')}
               cue={`情节 · ${item.row.title}`}
               status={item.keyframeCount > 0 ? '已有关键帧' : '待补关键帧'}
-              context={`制作 · ${item.productionTitle} / 情绪段 · ${item.row.segment ? titleOfRecord(item.row.segment) : '未绑定'}`}
+              context={`制作 · ${item.productionTitle} / 情绪段 · ${item.segmentTitle}`}
               onOpen={() => onSelectUnit(item.row, item.unit.ID)}
             />
           ))
@@ -142,7 +203,7 @@ function ContentUnitWorkbenchShotGrid({
       </div>
 
       {!collapsed && items.length > SHOT_LIST_PAGE_SIZE ? (
-        <div className="content-unit-workbench-list-panel__pagination" aria-label="镜头列表翻页">
+        <div className="content-unit-workbench-list-panel__pagination" aria-label="内容列表翻页">
           <Button
             type="button"
             size="sm"
@@ -168,6 +229,21 @@ function ContentUnitWorkbenchShotGrid({
   )
 }
 
+function contentUnitWorkbenchItemMatchesSearch(item: ContentUnitWorkbenchShotItem, query: string) {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+  return [
+    item.row.title,
+    item.row.scope,
+    item.productionTitle,
+    item.segmentTitle,
+    trackKindLabel(String(item.unit.kind || 'shot')),
+    titleOfRecord(item.unit),
+    firstText(item.unit.description, item.unit.prompt, item.unit.content),
+    firstText(item.unit.status),
+  ].join(' ').toLowerCase().includes(normalizedQuery)
+}
+
 export function ContentUnitWorkbenchPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
@@ -182,6 +258,10 @@ export function ContentUnitWorkbenchPage() {
   const [editingUnit, setEditingUnit] = useState(false)
   const [shotListCollapsed, setShotListCollapsed] = useState(false)
   const [shotListPage, setShotListPage] = useState(0)
+  const [contentListQuery, setContentListQuery] = useState('')
+  const [contentListKindFilter, setContentListKindFilter] = useState('')
+  const [contentListProductionFilter, setContentListProductionFilter] = useState('')
+  const [contentListSegmentFilter, setContentListSegmentFilter] = useState('')
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['workbench', 'production', projectId],
@@ -206,8 +286,43 @@ export function ContentUnitWorkbenchPage() {
     selectContentUnitFromRow,
     setOptimisticSelectedUnit,
   } = pageController
+  const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
   const productionsById = useMemo(() => new Map((data?.productions ?? []).map((production) => [production.ID, production])), [data?.productions])
-  const shotListItems = useMemo<ContentUnitWorkbenchShotItem[]>(() => visibleRows.flatMap((row) => (
+  const contentListKindOptions = useMemo(() => contentUnitKindOptions(contentUnitConfig), [contentUnitConfig])
+  const contentListProductionOptions = useMemo(() => {
+    const unassignedCount = visibleRows.filter((row) => row.productionIds.length === 0).reduce((sum, row) => sum + row.units.length, 0)
+    return [
+      ...(unassignedCount > 0 ? [{ value: 'unassigned', label: `未绑定制作 (${unassignedCount})` }] : []),
+      ...(data?.productions ?? [])
+        .map((production) => {
+          const count = visibleRows.filter((row) => row.productionIds.includes(production.ID)).reduce((sum, row) => sum + row.units.length, 0)
+          return { value: String(production.ID), label: `${titleOfRecord(production)} (${count})`, count }
+        })
+        .filter((option) => option.count > 0)
+        .map(({ value, label }) => ({ value, label })),
+    ]
+  }, [data?.productions, visibleRows])
+  const contentListSegmentOptions = useMemo(() => {
+    const segmentMap = new Map<string, { value: string; label: string; count: number }>()
+    let unassignedCount = 0
+    for (const row of visibleRows) {
+      if (!row.segment?.ID) {
+        unassignedCount += row.units.length
+        continue
+      }
+      const key = String(row.segment.ID)
+      const existing = segmentMap.get(key)
+      if (existing) existing.count += row.units.length
+      else segmentMap.set(key, { value: key, label: titleOfRecord(row.segment), count: row.units.length })
+    }
+    return [
+      ...(unassignedCount > 0 ? [{ value: 'unassigned', label: `未绑定情绪段 (${unassignedCount})` }] : []),
+      ...Array.from(segmentMap.values())
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'))
+        .map((option) => ({ value: option.value, label: `${option.label} (${option.count})` })),
+    ]
+  }, [visibleRows])
+  const allShotListItems = useMemo<ContentUnitWorkbenchShotItem[]>(() => visibleRows.flatMap((row) => (
     row.units.map((unit) => {
       const missingSlots = row.assetSlots.filter((slot) => (
         slot.owner_type === 'content_unit' &&
@@ -223,11 +338,20 @@ export function ContentUnitWorkbenchPage() {
           .map((production) => titleOfRecord(production))
           .slice(0, 2)
           .join('、') || '未绑定',
+        segmentTitle: row.segment ? titleOfRecord(row.segment) : '未绑定',
         missingCount: missingSlots.length,
         keyframeCount: row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).length,
       }
     })
   )), [productionsById, visibleRows])
+  const shotListItems = useMemo(() => allShotListItems.filter((item) => {
+    if (contentListKindFilter && String(item.unit.kind || 'shot') !== contentListKindFilter) return false
+    if (contentListProductionFilter === 'unassigned' && item.row.productionIds.length > 0) return false
+    if (contentListProductionFilter && contentListProductionFilter !== 'unassigned' && !item.row.productionIds.includes(Number(contentListProductionFilter))) return false
+    if (contentListSegmentFilter === 'unassigned' && item.row.segment?.ID) return false
+    if (contentListSegmentFilter && contentListSegmentFilter !== 'unassigned' && item.row.segment?.ID !== Number(contentListSegmentFilter)) return false
+    return contentUnitWorkbenchItemMatchesSearch(item, contentListQuery)
+  }), [allShotListItems, contentListKindFilter, contentListProductionFilter, contentListQuery, contentListSegmentFilter])
 
   useEffect(() => {
     if (!selectedUnit?.ID) return
@@ -236,7 +360,10 @@ export function ContentUnitWorkbenchPage() {
     setShotListPage(Math.floor(index / SHOT_LIST_PAGE_SIZE))
   }, [selectedUnit?.ID, shotListItems])
 
-  const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
+  useEffect(() => {
+    setShotListPage(0)
+  }, [contentListKindFilter, contentListProductionFilter, contentListQuery, contentListSegmentFilter])
+
   const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const productionWorkbenchQueryKey = ['workbench', 'production', projectId] as const
@@ -247,23 +374,12 @@ export function ContentUnitWorkbenchPage() {
     ? selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === selectedUnit.ID)
     : []
   const selectedUnitMissingSlots = selectedUnitAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
-  const selectedUnitResourceIds = [
-    ...selectedUnitAssetSlots.map((slot) => numberOf(slot.resource_id)),
-    ...selectedUnitKeyframes.map((keyframe) => numberOf(keyframe.resource_id)),
-  ].filter((id) => id > 0)
-  const selectedUnitJobs = pickContentWorkbenchRelevantJobs({
-    jobs: data?.jobs ?? [],
-    contentUnitId: selectedUnit?.ID,
-    contentUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
-    resourceIds: selectedUnitResourceIds,
-  })
   const uploadTargetSlot = pickContentWorkbenchUploadTarget({
     selectedUnitAssetSlots,
     momentAssetSlots: selected?.assetSlots ?? [],
   })
   const selectedUnitRequiresKeyframe = selectedUnit ? contentWorkbenchUnitRequiresKeyframe(selectedUnit.kind) : true
   const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
-  const selectedUnitActionTone = selectedUnitStatus === 'ready' ? 'ready' : selectedUnitStatus === 'blocked' ? 'blocked' : 'idle'
   const nextKeyframeRole = nextKeyframeFrameRole(selectedUnitKeyframes)
   const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
     if (!selected || !selectedUnit) return undefined
@@ -414,8 +530,19 @@ export function ContentUnitWorkbenchPage() {
                 selectedUnitId={selectedUnit?.ID}
                 collapsed={shotListCollapsed}
                 page={shotListPage}
+                query={contentListQuery}
+                kindValue={contentListKindFilter}
+                productionValue={contentListProductionFilter}
+                segmentValue={contentListSegmentFilter}
+                kindOptions={contentListKindOptions}
+                productionOptions={contentListProductionOptions}
+                segmentOptions={contentListSegmentOptions}
                 onCollapsedChange={setShotListCollapsed}
                 onPageChange={setShotListPage}
+                onQueryChange={setContentListQuery}
+                onKindChange={setContentListKindFilter}
+                onProductionChange={setContentListProductionFilter}
+                onSegmentChange={setContentListSegmentFilter}
                 onSelectUnit={(row, unitId) => selectContentUnitFromRow(row, unitId)}
               />
               <ContentWorkbenchUnitInspectorShell className="content-unit-workbench-shell__body">
@@ -431,22 +558,6 @@ export function ContentUnitWorkbenchPage() {
                     </>
                   )}
                 />
-                {selectedUnit ? (
-                  <ContentWorkbenchUnitNextActionCard
-                    tone={selectedUnitActionTone}
-                    icon={selectedUnitStatus === 'ready' ? <BadgeCheck size={15} /> : <Wand2 size={15} />}
-                    label={selectedUnitStatus === 'ready' ? '进入生成画布' : '补齐镜头输入'}
-                    detail={selectedUnitStatus === 'ready' ? '当前镜头核心输入已具备，可以进入生成画布检查并发起生成。' : '先在下方补齐提示词、素材缺口、关键帧和视觉调度。'}
-                    actionText={selectedUnitStatus === 'ready' ? '生成画布' : '让 AI 起草'}
-                    onAction={selectedUnitStatus === 'ready' ? openSelectedUnitCanvas : () => openAiVisualTaskGraph(selectedUnit)}
-                  />
-                ) : null}
-                <ContentWorkbenchUnitExecutionDetailGrid>
-                  <ContentWorkbenchUnitExecutionDetail label="情节" value={selected?.title ?? '未选择'} />
-                  <ContentWorkbenchUnitExecutionDetail label="素材缺口" value={selectedUnitMissingSlots.length} meta={selectedUnitMissingSlots.length ? '需要补齐' : '无显性缺口'} />
-                  <ContentWorkbenchUnitExecutionDetail label="关键帧" value={selectedUnitKeyframes.length} meta={selectedUnitRequiresKeyframe ? '必需' : '可选'} />
-                  <ContentWorkbenchUnitExecutionDetail label="任务" value={selectedUnitJobs.length} meta="关联生成任务" />
-                </ContentWorkbenchUnitExecutionDetailGrid>
                 <ContentUnitEditCards
                   projectId={projectId}
                   queryKey={productionWorkbenchQueryKey}

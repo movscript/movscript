@@ -70,6 +70,7 @@ type CreateFromResourceInput struct {
 	OrgID       *uint
 	ResourceID  uint
 	GroupID     *uint
+	GroupTitle  string
 	DurationSec *float64
 	Width       int
 	Height      int
@@ -126,6 +127,10 @@ func (s *Service) CreateFromResource(ctx context.Context, input CreateFromResour
 	}
 	group := domainshotreference.NewGroupForResource(resource)
 	group.CutStrategy = "manual_review"
+	if title := strings.TrimSpace(input.GroupTitle); title != "" {
+		group.Title = title
+		group.Summary = title + " shot reference group."
+	}
 	if input.GroupID != nil {
 		existing, err := s.repo.GetGroup(ctx, *input.GroupID, domainshotreference.ListInput{UserID: input.UserID, OrgID: input.OrgID})
 		if err != nil {
@@ -269,6 +274,23 @@ func scoreReference(reference domainshotreference.ShotReference, terms []string)
 		{strings.Join(reference.ShotFunction, " "), 4},
 		{strings.Join(reference.VisualPreference, " "), 3},
 		{strings.Join(reference.EmotionalEffect, " "), 3},
+		{reference.SearchIndex.SearchText, 5},
+		{strings.Join(reference.SearchIndex.NaturalLanguageQueries, " "), 6},
+		{strings.Join(reference.SearchIndex.VisualFacets, " "), 4},
+		{strings.Join(reference.SearchIndex.NarrativeFacets, " "), 5},
+		{strings.Join(reference.SearchIndex.EmotionFacets, " "), 5},
+		{strings.Join(reference.SearchIndex.PatternFacets, " "), 5},
+		{strings.Join(reference.SearchIndex.ProductionFacets, " "), 3},
+		{reference.VisualAnalysis.ShotSize, 3},
+		{strings.Join(reference.VisualAnalysis.Composition, " "), 4},
+		{strings.Join(reference.VisualAnalysis.Framing, " "), 4},
+		{reference.VisualAnalysis.CameraMovement.Type, 4},
+		{reference.VisualAnalysis.CameraMovement.Motivation, 4},
+		{reference.VisualAnalysis.Focus.Behavior, 3},
+		{reference.NarrativeFunction.Primary, 5},
+		{reference.NarrativeFunction.InformationState, 4},
+		{reference.EmotionalProfile.ViewerPosition, 4},
+		{reference.ReusablePattern.Principle, 4},
 	}
 	if reference.Resource != nil {
 		haystacks = append(haystacks, struct {

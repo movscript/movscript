@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	appresource "github.com/movscript/movscript/internal/app/resource"
 	appshotreference "github.com/movscript/movscript/internal/app/shotreference"
 	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
 	"github.com/movscript/movscript/internal/infra/ai"
@@ -109,6 +110,7 @@ func (h *ShotReferenceHandler) CreateFromResource(c *gin.Context) {
 		OrgID:       currentOrgID(c),
 		ResourceID:  req.ResourceID,
 		GroupID:     req.GroupID,
+		GroupTitle:  req.GroupTitle,
 		DurationSec: req.DurationSec,
 		Width:       req.Width,
 		Height:      req.Height,
@@ -160,22 +162,29 @@ func (h *ShotReferenceHandler) Patch(c *gin.Context) {
 }
 
 type patchShotReferenceRequest struct {
-	Title            *string   `json:"title"`
-	Summary          *string   `json:"summary"`
-	Intent           *[]string `json:"intent"`
-	Pattern          *[]string `json:"pattern"`
-	ShotFunction     *[]string `json:"shot_function"`
-	VisualPreference *[]string `json:"visual_preference"`
-	EmotionalEffect  *[]string `json:"emotional_effect"`
-	StartSec         *float64  `json:"start_sec"`
-	StartSecSet      *bool     `json:"start_sec_set"`
-	EndSec           *float64  `json:"end_sec"`
-	EndSecSet        *bool     `json:"end_sec_set"`
+	Title             *string                                `json:"title"`
+	Summary           *string                                `json:"summary"`
+	Intent            *[]string                              `json:"intent"`
+	Pattern           *[]string                              `json:"pattern"`
+	ShotFunction      *[]string                              `json:"shot_function"`
+	VisualPreference  *[]string                              `json:"visual_preference"`
+	EmotionalEffect   *[]string                              `json:"emotional_effect"`
+	StartSec          *float64                               `json:"start_sec"`
+	StartSecSet       *bool                                  `json:"start_sec_set"`
+	EndSec            *float64                               `json:"end_sec"`
+	EndSecSet         *bool                                  `json:"end_sec_set"`
+	ExecutionDetails  *domainshotreference.ExecutionDetails  `json:"execution_details"`
+	VisualAnalysis    *domainshotreference.VisualAnalysis    `json:"visual_analysis"`
+	SceneSemantics    *domainshotreference.SceneSemantics    `json:"scene_semantics"`
+	NarrativeFunction *domainshotreference.NarrativeFunction `json:"narrative_function"`
+	EmotionalProfile  *domainshotreference.EmotionalProfile  `json:"emotional_profile"`
+	ReusablePattern   *domainshotreference.ReusablePattern   `json:"reusable_pattern"`
 }
 
 type createShotReferencesFromResourceRequest struct {
 	ResourceID  uint                        `json:"resource_id"`
 	GroupID     *uint                       `json:"group_id"`
+	GroupTitle  string                      `json:"group_title"`
 	DurationSec *float64                    `json:"duration_sec"`
 	Width       int                         `json:"width"`
 	Height      int                         `json:"height"`
@@ -215,6 +224,30 @@ func (req patchShotReferenceRequest) toUpdateInput() domainshotreference.UpdateI
 		input.EndSec = req.EndSec
 		input.EndSecSet = true
 	}
+	if req.ExecutionDetails != nil {
+		input.ExecutionDetails = *req.ExecutionDetails
+		input.ExecutionDetailsSet = true
+	}
+	if req.VisualAnalysis != nil {
+		input.VisualAnalysis = *req.VisualAnalysis
+		input.VisualAnalysisSet = true
+	}
+	if req.SceneSemantics != nil {
+		input.SceneSemantics = *req.SceneSemantics
+		input.SceneSemanticsSet = true
+	}
+	if req.NarrativeFunction != nil {
+		input.NarrativeFunction = *req.NarrativeFunction
+		input.NarrativeFunctionSet = true
+	}
+	if req.EmotionalProfile != nil {
+		input.EmotionalProfile = *req.EmotionalProfile
+		input.EmotionalProfileSet = true
+	}
+	if req.ReusablePattern != nil {
+		input.ReusablePattern = *req.ReusablePattern
+		input.ReusablePatternSet = true
+	}
 	return input
 }
 
@@ -233,6 +266,10 @@ func (h *ShotReferenceHandler) writeShotReferenceError(c *gin.Context, err error
 		stage = stageErr.Stage
 	}
 	switch {
+	case errors.Is(err, appresource.ErrNotFound):
+		c.JSON(http.StatusNotFound, shotReferenceErrorBody("resource not found", stage))
+	case errors.Is(err, appresource.ErrForbidden):
+		c.JSON(http.StatusForbidden, shotReferenceErrorBody("resource access denied", stage))
 	case errors.Is(err, appshotreference.ErrInvalidVideo):
 		c.JSON(http.StatusBadRequest, shotReferenceErrorBody("shot reference requires a video resource", stage))
 	case errors.Is(err, appshotreference.ErrNotFound):

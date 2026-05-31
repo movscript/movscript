@@ -915,7 +915,113 @@ Source 配置：
       "execution_details": {
         "duration_sec": 9.2,
         "resolution": "1920x1080",
-        "aspect_ratio": "16:9"
+        "aspect_ratio": "16:9",
+        "transition_in": "cut",
+        "transition_out": "cut_to_next_beat",
+        "coverage_role": "reference_shot",
+        "difficulty": "medium",
+        "requirements": ["video_reference", "slow_dolly_or_gimbal"],
+        "blocking": "stage the subject so the camera relationship expresses the selected pattern"
+      },
+      "visual_analysis": {
+        "shot_size": "medium_shot",
+        "framing": ["landscape_frame"],
+        "composition": ["held_composition"],
+        "camera_angle": "eye_level",
+        "camera_height": "standing_eye_level",
+        "lens": {
+          "focal_length_class": "normal_lens",
+          "depth_of_field": "moderate_depth"
+        },
+        "focus": {
+          "behavior": "hold_focus",
+          "final_focus": "subject"
+        },
+        "camera_movement": {
+          "type": "push_in",
+          "speed": "slow",
+          "stability": "smooth",
+          "motivation": "psychological_pressure"
+        },
+        "lighting": {
+          "style": "low_key",
+          "contrast": "medium_high"
+        },
+        "color": {
+          "palette": "cool_muted",
+          "contrast": "medium",
+          "saturation": "low"
+        },
+        "environment": {
+          "location_type": "unspecified",
+          "spatial_feeling": ["reference_space"]
+        },
+        "characters": [
+          {
+            "role": "subject",
+            "visibility": "readable",
+            "expression": "unspecified",
+            "action": "reference_action"
+          }
+        ]
+      },
+      "scene_semantics": {
+        "genre": ["drama", "thriller"],
+        "scene_type": "discovery",
+        "location_type": "unspecified",
+        "conflict_level": "medium_high",
+        "story_beat": "reveal",
+        "production_scale": "small_to_medium"
+      },
+      "narrative_function": {
+        "primary": "delayed_reveal",
+        "secondary": ["tension_buildup", "emotional_pause", "build_tension"],
+        "information_state": "withhold_then_reveal",
+        "sequence_position": "setup_or_payoff",
+        "relation_to_previous": "narrows_attention",
+        "relation_to_next": "prepares_reaction"
+      },
+      "emotional_profile": {
+        "names": ["suspense", "unease"],
+        "valence": "negative",
+        "arousal": "medium_high",
+        "dominance": "low",
+        "viewer_position": "hidden_observer",
+        "intensity": 0.78
+      },
+      "reusable_pattern": {
+        "pattern_ids": ["slow_push_in"],
+        "principle": "Reuse slow_push_in when the scene needs reveal_information / create_tension.",
+        "works_when": [
+          "the scene needs a reusable visual method",
+          "the audience should understand the shot through image structure"
+        ],
+        "avoid_when": [
+          "the story beat requires a simpler or more direct shot"
+        ],
+        "variables": {
+          "camera_distance_change": "slow_push_in",
+          "reveal_speed": "slow"
+        }
+      },
+      "search_index": {
+        "search_text": "slow push reveal ... delayed reveal before discovery ...",
+        "natural_language_queries": [
+          "角色发现真相前的延迟揭示",
+          "慢推近制造压迫感"
+        ],
+        "tags": ["reveal_information", "slow_push_in", "suspense"],
+        "visual_facets": ["medium_shot", "push_in", "slow", "psychological_pressure"],
+        "narrative_facets": ["delayed_reveal", "withhold_then_reveal"],
+        "emotion_facets": ["suspense", "unease", "hidden_observer"],
+        "pattern_facets": ["slow_push_in"],
+        "production_facets": ["16:9", "reference_shot", "slow_dolly_or_gimbal"],
+        "confidence": {
+          "visual_analysis": 0.64,
+          "narrative_function": 0.7,
+          "emotional_effect": 0.68,
+          "reusable_pattern": 0.66
+        }
       },
       "retrieval_text": "slow push reveal tension",
       "CreatedAt": "2026-05-30T00:00:00Z",
@@ -928,6 +1034,17 @@ Source 配置：
 ```
 
 如果 `resource.url` 是相对路径，前端会按该 source 的 `baseURL` 解析；如果是绝对 URL 或 `direct_url`，则直接使用。只读 source 不展示删除和上传能力。
+
+### 当前 v1 搜索机制
+
+AI 接入前，系统先使用确定性的“AI 式搜索”：
+
+1. 上传或手工入库时，系统从文件名、时长、画幅和人工标签派生 `visual_analysis / scene_semantics / narrative_function / emotional_profile / reusable_pattern`。
+2. 系统把这些结构化字段展开为 `search_index`，包含自然语言查询示例、视觉 facet、叙事 facet、情绪 facet、方法 facet 和执行 facet。
+3. `GET /api/v1/shot-references?q=...` 同时匹配旧标签字段和新的 `search_index`。例如 `角色发现真相前` 可以命中 `natural_language_queries` 里的延迟揭示镜头。
+4. 前端详情页直接展示专业画面拆解、叙事功能、场景语义、可复用方法和搜索索引，用户可以验证一个镜头为什么被搜出来。
+
+这一步不调用外部 AI 服务，但数据结构已经按未来 embedding / rerank / 多向量检索准备好。
 
 ### Goal 2：镜头库浏览体验
 

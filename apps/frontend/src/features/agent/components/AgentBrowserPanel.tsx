@@ -173,7 +173,7 @@ export function AgentBrowserPanel() {
   const [tabs, setTabs] = useState<AgentBrowserTab[]>(() => [{
     id: 'project_home',
     kind: 'project_home',
-    title: '项目首页',
+    title: '内容导航',
     createdAt: Date.now(),
   }])
   const [activeTabId, setActiveTabId] = useState('project_home')
@@ -283,7 +283,7 @@ export function AgentBrowserPanel() {
       setTabs((current) => [{
         id: 'project_home',
         kind: 'project_home',
-        title: '项目首页',
+        title: '内容导航',
         createdAt: Date.now(),
       }, ...current])
     }
@@ -404,7 +404,7 @@ export function AgentBrowserPanel() {
       const fallback: AgentBrowserTab = {
         id: 'project_home',
         kind: 'project_home',
-        title: '项目首页',
+        title: '内容导航',
         createdAt: Date.now(),
       }
       setTabs([fallback])
@@ -504,7 +504,7 @@ export function AgentBrowserPanel() {
                 <AgentBrowserMenuItemIcon>
                   <Home size={13} />
                 </AgentBrowserMenuItemIcon>
-                打开项目首页
+                打开内容导航
               </DropdownMenuItem>
               <DropdownMenuItem onClick={openResourceLibraryTab}>
                 <AgentBrowserMenuItemIcon>
@@ -637,7 +637,7 @@ export function AgentBrowserPanel() {
 }
 
 function tabTitle(tab: AgentBrowserTab, webState: WebTabState | undefined, projectName?: string) {
-  if (tab.kind === 'project_home') return projectName ? `${projectName}` : '项目首页'
+  if (tab.kind === 'project_home') return projectName ? `${projectName}` : '内容导航'
   if (tab.kind === 'resources') return tab.title
   if (tab.kind === 'external_resources') return tab.title
   if (tab.kind === 'canvas_list') return tab.title

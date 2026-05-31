@@ -8,6 +8,7 @@ import {
   mergeShotReferences,
   normalizeShotLibrarySources,
   searchShotReferences,
+  searchShotReferenceResults,
   shotLibraryEntryFromApi,
   type ShotLibraryVideoInput,
 } from './shotReferenceLibrary'
@@ -35,6 +36,10 @@ test('analyzeShotReference derives searchable shot semantics from video metadata
   assert.ok(entry.intent.includes('slow_viewer_down'))
   assert.ok(entry.pattern.includes('slow_push_in'))
   assert.ok(entry.visualPreference.includes('landscape_frame'))
+  assert.equal(entry.visualAnalysis.camera_movement?.type, 'push_in')
+  assert.equal(entry.narrativeFunction.primary, 'delayed_reveal')
+  assert.match(entry.reusablePattern.principle ?? '', /Reuse|Place/)
+  assert.ok(entry.searchIndex.natural_language_queries?.some(query => query.includes('角色发现真相前')))
   assert.match(entry.retrievalText, /slow_push_in/)
 })
 
@@ -46,6 +51,29 @@ test('searchShotReferences scores semantic matches before filename-only matches'
 
   assert.equal(results[0].ID, reveal.ID)
   assert.equal(results.length, 1)
+})
+
+test('searchShotReferences matches AI-style natural-language search index queries', () => {
+  const reveal = analyzeShotReference(resource, { name: 'slow_push_reveal.mp4', size: 4096 }, { durationSec: 9 })
+  const other = analyzeShotReference({ ...resource, ID: 43, name: 'office_reference.mp4' }, { name: 'office_reference.mp4', size: 4096 }, { durationSec: 2 })
+
+  const results = searchShotReferences([other, reveal], '角色发现真相前')
+
+  assert.equal(results.length, 1)
+  assert.equal(results[0].ID, reveal.ID)
+})
+
+test('searchShotReferenceResults exposes match reasons and facet filtering', () => {
+  const reveal = analyzeShotReference(resource, { name: 'slow_push_reveal.mp4', size: 4096 }, { durationSec: 9 })
+  const other = analyzeShotReference({ ...resource, ID: 43, name: 'office_reference.mp4' }, { name: 'office_reference.mp4', size: 4096 }, { durationSec: 2 })
+
+  const results = searchShotReferenceResults([other, reveal], '角色发现真相前', { narrative: ['delayed_reveal'] })
+
+  assert.equal(results.length, 1)
+  assert.equal(results[0].entry.ID, reveal.ID)
+  assert.ok(results[0].score > 0)
+  assert.ok(results[0].matches.some(match => match.category === 'narrative' && match.value === 'delayed_reveal'))
+  assert.ok(results[0].matches.some(match => match.term === '角色发现真相前'))
 })
 
 test('mergeShotReferences replaces existing references for the same resource', () => {

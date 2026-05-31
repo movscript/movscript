@@ -198,10 +198,26 @@ export function useProductionOrchestrationPageController({
     const nextMomentId = selectedWritingMomentId === momentId ? null : momentId
     setSelectedWritingMomentId(nextMomentId)
     persistSessionSnapshot({ sceneMomentId: nextMomentId })
+    const currentMomentId = searchParams.get('scene_moment_id')
+    if (nextMomentId && currentMomentId === String(nextMomentId)) return
+    if (!nextMomentId && !currentMomentId) return
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       if (nextMomentId) next.set('scene_moment_id', String(nextMomentId))
       else next.delete('scene_moment_id')
+      return next
+    }, { replace: true })
+  }
+
+  function focusSceneMoment(momentId: number) {
+    if (selectedWritingMomentId !== momentId) {
+      setSelectedWritingMomentId(momentId)
+      persistSessionSnapshot({ sceneMomentId: momentId })
+    }
+    if (searchParams.get('scene_moment_id') === String(momentId)) return
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('scene_moment_id', String(momentId))
       return next
     }, { replace: true })
   }
@@ -278,6 +294,7 @@ export function useProductionOrchestrationPageController({
     createDialog,
     handleSelectProduction,
     selectSceneMoment,
+    focusSceneMoment,
     createSegment,
     createSceneMoment,
   }

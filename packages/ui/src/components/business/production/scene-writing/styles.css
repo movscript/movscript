@@ -191,6 +191,22 @@
   margin-top: var(--ms-space-3);
 }
 
+.production-scene-writing-dialog-content {
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow: hidden;
+}
+
+.production-scene-writing-dialog-content--wide {
+  width: min(880px, calc(100vw - 32px));
+}
+
+.production-scene-writing-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .production-scene-writing-select-trigger {
   height: 2rem;
   font-size: var(--ms-text-label);
@@ -306,10 +322,162 @@
   gap: 8px;
 }
 
+.production-scene-moment-summary-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+  margin-top: 12px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  padding: 12px;
+}
+
+.production-scene-moment-summary-card__copy {
+  min-width: 0;
+}
+
+.production-scene-moment-summary-card__topline {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.production-scene-moment-summary-card__title {
+  min-width: 0;
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: var(--ms-leading-body);
+}
+
+.production-scene-moment-summary-card__time {
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-full);
+  padding: 2px 8px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.production-scene-moment-summary-card__description,
+.production-scene-moment-summary-card__mood {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  margin: 6px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: 1.45;
+}
+
+.production-scene-moment-summary-card__description {
+  -webkit-line-clamp: 3;
+}
+
+.production-scene-moment-summary-card__mood {
+  -webkit-line-clamp: 2;
+}
+
+.production-scene-moment-summary-card__actions {
+  flex: 0 0 auto;
+}
+
 .production-expression-line-stack {
   display: grid;
   gap: var(--ms-space-2);
   margin-top: var(--ms-space-3);
+}
+
+.production-expression-card-grid {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.production-expression-card {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--ms-color-border);
+  border-radius: var(--ms-radius-md);
+  background: var(--ms-color-surface);
+  padding: 8px;
+  transition: border-color var(--ms-duration-fast) var(--ms-easing-standard), background-color var(--ms-duration-fast) var(--ms-easing-standard);
+}
+
+.production-expression-card:hover {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 35%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-primary) 5%, var(--ms-color-surface));
+}
+
+.production-expression-card__main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+}
+
+.production-expression-card__index {
+  color: var(--ms-color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.production-expression-card__copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.production-expression-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.production-expression-card__speaker {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.production-expression-card__preview,
+.production-expression-card__meta {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  margin-top: 4px;
+}
+
+.production-expression-card__preview {
+  -webkit-line-clamp: 2;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  line-height: 20px;
+}
+
+.production-expression-card__meta {
+  -webkit-line-clamp: 1;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: 16px;
+}
+
+.production-expression-card__actions {
+  flex: 0 0 auto;
 }
 
 .production-expression-delete-button {

@@ -174,6 +174,11 @@ export function Sidebar({
         </AppSidebarHeader>
       ) : null}
       <AppSidebarNav collapsed={collapsed}>
+        <AppSidebarSection title={t('sidebar.sections.global')} collapsed={collapsed}>
+          <NavItem to={ROUTES.root} icon={Home} label={t('sidebar.items.home')} collapsed={collapsed} end />
+        </AppSidebarSection>
+
+        <AppSidebarDivider collapsed={collapsed} />
 
         {current && (
           <>
@@ -192,7 +197,6 @@ export function Sidebar({
                   />
                 </AppSidebarProjectRow>
               )}
-              <NavItem to={ROUTES.project.overview} icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.delivery} icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} end />
             </AppSidebarSection>

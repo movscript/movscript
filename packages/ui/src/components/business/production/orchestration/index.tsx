@@ -53,6 +53,33 @@ export function ProductionOrchestrationDetailContent({ className, ...props }: HT
   return <div className={cn("production-orchestration-detail-content", className)} {...props} />;
 }
 
+export function ProductionOrchestrationDetailSectionHeader({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  className,
+}: {
+  icon?: ProductionOrchestrationIcon;
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("production-orchestration-detail-section-header", className)}>
+      <div className="production-orchestration-detail-section-header__copy">
+        <div className="production-orchestration-detail-section-header__title-row">
+          {Icon ? <Icon size={14} className="production-orchestration-detail-section-header__icon" /> : null}
+          <h3 className="production-orchestration-detail-section-header__title">{title}</h3>
+        </div>
+        {description ? <p className="production-orchestration-detail-section-header__description">{description}</p> : null}
+      </div>
+      {actions ? <div className="production-orchestration-detail-section-header__actions">{actions}</div> : null}
+    </div>
+  );
+}
+
 export function ProductionStructureWorkspaceLayout({
   sidebar,
   children,

@@ -30,12 +30,14 @@ export function ContentWorkbenchScenePreview({
   keyframes,
   previewItemCount,
   runningJobCount,
+  showHeader = true,
 }: {
   row: ContentWorkbenchScenePreviewRow | null
   selectedUnit: ContentWorkbenchScenePreviewRecord | null
   keyframes: ContentWorkbenchScenePreviewRecord[]
   previewItemCount: number
   runningJobCount: number
+  showHeader?: boolean
 }) {
   const primaryKeyframe = keyframes.find((keyframe) => numberOf(keyframe.resource_id) > 0) ?? keyframes[0]
   const unitTitle = selectedUnit ? titleOfRecord(selectedUnit) : '未选择制作项'
@@ -66,6 +68,7 @@ export function ContentWorkbenchScenePreview({
       unitKindLabel={unitKind}
       shotLabel={selectedIndex >= 0 ? `Shot ${String(selectedIndex + 1).padStart(2, '0')}` : undefined}
       unitCountLabel={row ? `${sortedUnits.length} 个制作项` : '等待情节'}
+      showHeader={showHeader}
     />
   )
 }

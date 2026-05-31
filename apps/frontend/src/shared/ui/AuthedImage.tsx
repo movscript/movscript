@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 import { api } from '@/shared/infrastructure/api'
 import { acquireCachedResourceMediaUrl } from '@/features/resources/domain/resourceMediaCache'
 import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui'
@@ -233,7 +233,7 @@ function compactMediaRect(element: HTMLElement) {
   return `${Math.round(rect.width)}x${Math.round(rect.height)}+${Math.round(rect.left)}+${Math.round(rect.top)}`
 }
 
-export function AuthedVideo({ src, diagnosticLabel, onLoadedMetadata, onError, ...props }: VideoProps) {
+export const AuthedVideo = forwardRef<HTMLVideoElement, VideoProps>(function AuthedVideo({ src, diagnosticLabel, onLoadedMetadata, onError, ...props }, ref) {
   const blobUrl = useAuthBlobUrl(src)
   useEffect(() => {
     if (!mediaDiagnosticsEnabled() || !src) return
@@ -251,6 +251,7 @@ export function AuthedVideo({ src, diagnosticLabel, onLoadedMetadata, onError, .
   if (!src) return null
   return (
     <ResourceAuthVideo
+      ref={ref}
       src={blobUrl}
       onLoadedMetadata={(event) => {
         if (mediaDiagnosticsEnabled()) {
@@ -272,7 +273,7 @@ export function AuthedVideo({ src, diagnosticLabel, onLoadedMetadata, onError, .
       {...props}
     />
   )
-}
+})
 
 interface AudioProps extends React.AudioHTMLAttributes<HTMLAudioElement> {
   src: string | undefined

@@ -329,8 +329,8 @@ export default function ProductionOrchestrationPage() {
       }, { replace: true })
       return
     }
-    pageController.selectSceneMoment(rowForUnit.moment.ID)
-  }, [currentSceneMomentIds, pageController, selectedContentUnitId, setSearchParams, shotPlanRows])
+    pageController.focusSceneMoment(rowForUnit.moment.ID)
+  }, [currentSceneMomentIds, pageController.selectedWritingMomentId, selectedContentUnitId, setSearchParams, shotPlanRows])
 
   useEffect(() => {
     return () => proposalRevisionCleanupRef.current?.()

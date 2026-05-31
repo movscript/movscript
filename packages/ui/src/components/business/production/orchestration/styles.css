@@ -87,26 +87,99 @@
   min-height: 0;
   flex: 1 1 auto;
   align-content: start;
-  gap: var(--ms-space-3);
+  gap: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0;
 }
 
-.production-orchestration-detail-content .production-scene-editor-section,
-.production-orchestration-detail-content .production-scene-writing-section--divided,
+.production-orchestration-detail-stage {
+  display: grid;
+  gap: var(--ms-space-3);
+  min-width: 0;
+  padding: var(--ms-space-4);
+}
+
+.production-orchestration-detail-stage + .production-orchestration-detail-stage {
+  border-top: 1px solid var(--ms-color-border);
+}
+
+.production-orchestration-detail-section-header {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-3);
+}
+
+.production-orchestration-detail-section-header__copy {
+  min-width: 0;
+}
+
+.production-orchestration-detail-section-header__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.production-orchestration-detail-section-header__icon {
+  flex: 0 0 auto;
+  color: var(--ms-color-muted-foreground);
+}
+
+.production-orchestration-detail-section-header__title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-body);
+  font-weight: 600;
+  line-height: var(--ms-leading-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.production-orchestration-detail-section-header__description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: var(--ms-space-1) 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}
+
+.production-orchestration-detail-section-header__actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ms-space-2);
+}
+
+.production-orchestration-detail-stage.production-scene-writing-section--divided {
+  margin-top: 0;
+}
+
+.production-orchestration-detail-stage .production-scene-writing-section--divided,
+.production-orchestration-detail-stage .production-script-binding-panel--divided {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.production-orchestration-detail-content .production-scene-editor-section:not(.production-orchestration-detail-stage),
 .production-orchestration-detail-content .production-expression-line,
 .production-orchestration-detail-content .production-expression-line__body,
 .production-orchestration-detail-content .production-scene-reference-group {
   border: 0;
 }
 
-.production-orchestration-detail-content .production-scene-editor-section {
+.production-orchestration-detail-content .production-scene-editor-section:not(.production-orchestration-detail-stage) {
   padding-bottom: 0;
-}
-
-.production-orchestration-detail-content .production-scene-writing-section--divided {
-  padding-top: 0;
 }
 
 .production-orchestration-detail-content .production-scene-reference-group {

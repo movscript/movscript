@@ -210,6 +210,14 @@
   width: 128px;
 }
 
+.resource-page__external-provider-trigger {
+  width: 92px;
+}
+
+.resource-page__external-source-trigger {
+  width: 112px;
+}
+
 .resource-page__external-config-input {
   width: 152px;
   height: 30px;

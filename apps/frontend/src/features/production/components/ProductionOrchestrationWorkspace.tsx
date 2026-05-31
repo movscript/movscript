@@ -6,6 +6,7 @@ import {
   ProductionWritingExpressionsPanel,
   SceneMomentSettingsEditor,
 } from '@/features/production/components/ProductionSceneWriting'
+import { SceneMomentScriptBlockBinder } from '@/features/production/components/ProductionScriptBinding'
 import { ProductionShotPlanPanel } from '@/features/production/components/ProductionShotPlanPanel'
 import {
   ProductionStructureWorkspaceLayout,
@@ -210,7 +211,7 @@ export function ProductionOrchestrationWorkspace({
             resizeHandleSide="left"
           >
             <ProductionOrchestrationDetailContent>
-              <ProductionSceneEditorSection>
+              <ProductionSceneEditorSection className="production-orchestration-detail-stage">
                 <SceneMomentSettingsEditor
                   moment={view.selectedMoment}
                   creativeReferences={creativeReferences}
@@ -228,6 +229,7 @@ export function ProductionOrchestrationWorkspace({
                   isSaving={isSavingSceneMoment}
                   isDeleting={isDeletingSceneMoment}
                   isBindingScriptBlock={isBindingSceneMomentScriptBlock}
+                  showScriptBinding={false}
                   allowCreateAndBindMomentScriptBlock={allowCreateAndBindSceneMomentScriptBlock}
                   onSave={onSaveSceneMoment}
                   onDelete={onDeleteSceneMoment}
@@ -236,7 +238,22 @@ export function ProductionOrchestrationWorkspace({
                 />
               </ProductionSceneEditorSection>
 
+              <ProductionSceneEditorSection className="production-orchestration-detail-stage">
+                <SceneMomentScriptBlockBinder
+                  selectedMoment={view.selectedMoment}
+                  momentBlock={view.selectedMomentScriptBlock}
+                  scriptBlocks={scriptBlocks}
+                  scriptSourceText={scriptSourceText}
+                  isSaving={isBindingSceneMomentScriptBlock}
+                  divided={false}
+                  allowCreateFromScriptRange={allowCreateAndBindSceneMomentScriptBlock}
+                  onBindMomentScriptBlock={onBindSceneMomentScriptBlock}
+                  onCreateAndBindMomentScriptBlock={onCreateAndBindSceneMomentScriptBlock}
+                />
+              </ProductionSceneEditorSection>
+
               <ProductionWritingExpressionsPanel
+                className="production-orchestration-detail-stage"
                 selectedMoment={view.selectedMoment}
                 selectedMomentScriptBlock={view.selectedMomentScriptBlock}
                 expressionLines={view.expressionLines}

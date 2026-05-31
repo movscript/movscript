@@ -26,6 +26,7 @@ import {
   ProductionScriptBindingPresenceBadge,
   ProductionScriptBindingSelectTrigger,
   ProductionScriptBindingSpinner,
+  ProductionOrchestrationDetailSectionHeader,
   ProductionScriptBlockBoundBadge,
   ProductionScriptBlockList,
   ProductionScriptBlockListItem,
@@ -183,6 +184,7 @@ export function SceneMomentScriptBlockBinder({
   scriptBlocks,
   scriptSourceText,
   isSaving,
+  divided = true,
   allowCreateFromScriptRange = true,
   onBindMomentScriptBlock,
   onCreateAndBindMomentScriptBlock,
@@ -192,16 +194,17 @@ export function SceneMomentScriptBlockBinder({
   scriptBlocks: ProductionScriptBlockRecord[]
   scriptSourceText: string
   isSaving: boolean
+  divided?: boolean
   allowCreateFromScriptRange?: boolean
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <ProductionScriptBindingPanel flushTop>
-      <ProductionScriptBindingHeader
+    <ProductionScriptBindingPanel divided={divided} flushTop>
+      <ProductionOrchestrationDetailSectionHeader
         icon={ScrollText}
-        eyebrow="绑定剧本块"
+        title="剧本绑定"
         description="先选当前情节对应的主剧本块；弹窗里可以查看上下文并扩选范围。"
         actions={isSaving ? <ProductionScriptBindingSpinner icon={Loader2} /> : null}
       />

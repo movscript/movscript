@@ -335,6 +335,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.ExternalResourceSource{})
 			},
 		},
+		{
+			Version: "000036",
+			Name:    "add_professional_shot_reference_schema",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ShotReference{})
+			},
+		},
 	}
 	return core
 }

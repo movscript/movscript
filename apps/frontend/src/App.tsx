@@ -38,7 +38,7 @@ import ExternalResourcesPage from './pages/resources/ExternalResourcesPage'
 import ShotLibraryPage from './pages/shot-library/ShotLibraryPage'
 import JobsPage from './pages/jobs/JobsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
-import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
+import GlobalHomePage from './pages/home/GlobalHomePage'
 import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
@@ -219,7 +219,7 @@ function ProjectGuard({ children }: { children: React.ReactNode }) {
   const current = useProjectStore((s) => s.current)
   const hydrated = useProjectStore((s) => s.hydrated)
   if (!hydrated) return <LoadingScreen />
-  if (!current) return <Navigate to={ROUTES.resources} replace />
+  if (!current) return <Navigate to={ROUTES.root} replace />
   return <>{children}</>
 }
 
@@ -269,12 +269,6 @@ function AccountSettingsRoute({ tab }: { tab: AccountSettingsDialogTab }) {
   }, [currentProject, navigate, openAccountSettings, tab, workMode])
 
   return null
-}
-
-function DefaultRouteRedirect() {
-  const currentProject = useProjectStore((s) => s.current)
-  const workMode = useAppSettingsStore((s) => s.settings.workMode)
-  return <Navigate to={routeForWorkMode(workMode, !!currentProject)} replace />
 }
 
 function ProjectRequiredDialog() {
@@ -863,9 +857,9 @@ export default function App() {
           <Route path="*" element={
             <ShellLayout>
               <Routes>
-                <Route path={ROUTES.root} element={<DefaultRouteRedirect />} />
-                <Route path={ROUTES.projects} element={<DefaultRouteRedirect />} />
-                <Route path="/admin/*" element={<DefaultRouteRedirect />} />
+                <Route path={ROUTES.root} element={<GlobalHomePage />} />
+                <Route path={ROUTES.projects} element={<GlobalHomePage />} />
+                <Route path="/admin/*" element={<Navigate to={ROUTES.root} replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path={ROUTES.project.preProduction} element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
@@ -889,7 +883,7 @@ export default function App() {
               <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
               <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
               <Route path={ROUTES.project.deliveryWorkbench} element={<ProjectGuard><DeliveryWorkbenchPage /></ProjectGuard>} />
-              <Route path={ROUTES.project.overview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
+              <Route path={ROUTES.project.overview} element={<Navigate to={ROUTES.project.productionOrchestration} replace />} />
               <Route path={ROUTES.project.agent} element={<ProjectAgentModeRoute />} />
               <Route path={ROUTES.project.agentCanvases} element={<ProjectGuard><AgentModeRoute><AgentModeCanvasListPage /></AgentModeRoute></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />

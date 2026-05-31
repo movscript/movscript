@@ -13,8 +13,8 @@ export function WorkbenchPanel({
   className,
   bodyClassName,
 }: {
-  title: string;
-  icon: WorkbenchIconComponent;
+  title?: ReactNode;
+  icon?: WorkbenchIconComponent;
   children: ReactNode;
   action?: ReactNode;
   emphasis?: SurfaceEmphasis;
