@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown, ChevronUp, Clapperboard, Search } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
 import {
@@ -24,8 +24,7 @@ import {
   firstText,
   titleOfRecord,
 } from '@/features/content/domain/contentWorkbenchRecordUtils'
-import { contentUnitWorkStatus, normalizeAssetSlotStatus } from '@/features/content/domain/contentWorkbenchStatus'
-import { contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
+import { normalizeAssetSlotStatus } from '@/features/content/domain/contentWorkbenchStatus'
 import { contentUnitKindOptions, trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import {
   keyframeFrameRoleLabel,
@@ -45,7 +44,6 @@ import {
   Button,
   ContentWorkbenchCandidateUploadInput,
   ContentWorkbenchWorkspaceShell,
-  ContentWorkbenchUnitInspectorHeader,
   ContentWorkbenchUnitInspectorShell,
   Input,
   NativeSelect,
@@ -135,72 +133,72 @@ function ContentUnitWorkbenchShotGrid({
           </Button>
         </div>
       </div>
-      <div className="content-unit-workbench-list-panel__filters" aria-label="内容列表筛选">
-        <label className="content-unit-workbench-list-panel__filter">
-          <span>分类</span>
-          <NativeSelect controlSize="sm" variant="subtle" value={kindValue} onChange={(event) => onKindChange(event.target.value)}>
-            <option value="">全部分类</option>
-            {kindOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </NativeSelect>
-        </label>
-        <label className="content-unit-workbench-list-panel__filter">
-          <span>制作</span>
-          <NativeSelect controlSize="sm" variant="subtle" value={productionValue} onChange={(event) => onProductionChange(event.target.value)}>
-            <option value="">全部制作</option>
-            {productionOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </NativeSelect>
-        </label>
-        <label className="content-unit-workbench-list-panel__filter">
-          <span>情绪段</span>
-          <NativeSelect controlSize="sm" variant="subtle" value={segmentValue} onChange={(event) => onSegmentChange(event.target.value)}>
-            <option value="">全部情绪段</option>
-            {segmentOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </NativeSelect>
-        </label>
-        <label className="content-unit-workbench-list-panel__filter content-unit-workbench-list-panel__filter--search">
-          <span>情节搜索</span>
-          <div className="content-unit-workbench-list-panel__search">
-            <Search size={14} className="content-unit-workbench-list-panel__search-icon" />
-            <Input
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="搜索情节、内容或提示"
-              className="content-unit-workbench-list-panel__search-input"
-            />
+      {!collapsed ? (
+        <>
+          <div className="content-unit-workbench-list-panel__filters" aria-label="内容列表筛选">
+            <label className="content-unit-workbench-list-panel__filter">
+              <span>分类</span>
+              <NativeSelect controlSize="sm" variant="subtle" value={kindValue} onChange={(event) => onKindChange(event.target.value)}>
+                <option value="">全部分类</option>
+                {kindOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </NativeSelect>
+            </label>
+            <label className="content-unit-workbench-list-panel__filter">
+              <span>制作</span>
+              <NativeSelect controlSize="sm" variant="subtle" value={productionValue} onChange={(event) => onProductionChange(event.target.value)}>
+                <option value="">全部制作</option>
+                {productionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </NativeSelect>
+            </label>
+            <label className="content-unit-workbench-list-panel__filter">
+              <span>情绪段</span>
+              <NativeSelect controlSize="sm" variant="subtle" value={segmentValue} onChange={(event) => onSegmentChange(event.target.value)}>
+                <option value="">全部情绪段</option>
+                {segmentOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </NativeSelect>
+            </label>
+            <label className="content-unit-workbench-list-panel__filter content-unit-workbench-list-panel__filter--search">
+              <span>情节搜索</span>
+              <div className="content-unit-workbench-list-panel__search">
+                <Search size={14} className="content-unit-workbench-list-panel__search-icon" />
+                <Input
+                  value={query}
+                  onChange={(event) => onQueryChange(event.target.value)}
+                  placeholder="搜索情节、内容或提示"
+                  className="content-unit-workbench-list-panel__search-input"
+                />
+              </div>
+            </label>
           </div>
-        </label>
-      </div>
 
-      <div
-        id="content-unit-workbench-content-grid"
-        className="content-unit-workbench-list-panel__viewport"
-        data-collapsed={collapsed ? 'true' : undefined}
-      >
-        {items.length === 0 ? (
-          <WorkbenchEmptyState compact title="暂无内容" description="调整分类、制作、情绪段或情节搜索，或从创作编排工作台创建内容。" />
-        ) : (
-          pageItems.map((item) => (
-            <CompactShotListCard
-              key={item.unit.ID}
-              active={selectedUnitId === item.unit.ID}
-              kind={trackKindLabel(String(item.unit.kind || 'shot'))}
-              title={titleOfRecord(item.unit)}
-              frameCount={item.keyframeCount}
-              expression={firstText(item.unit.description, item.unit.prompt, '未填写镜头表达')}
-              cue={`情节 · ${item.row.title}`}
-              status={item.keyframeCount > 0 ? '已有关键帧' : '待补关键帧'}
-              context={`制作 · ${item.productionTitle} / 情绪段 · ${item.segmentTitle}`}
-              onOpen={() => onSelectUnit(item.row, item.unit.ID)}
-            />
-          ))
-        )}
-      </div>
+          <div id="content-unit-workbench-content-grid" className="content-unit-workbench-list-panel__viewport">
+            {items.length === 0 ? (
+              <WorkbenchEmptyState compact title="暂无内容" description="调整分类、制作、情绪段或情节搜索，或从创作编排工作台创建内容。" />
+            ) : (
+              pageItems.map((item) => (
+                <CompactShotListCard
+                  key={item.unit.ID}
+                  active={selectedUnitId === item.unit.ID}
+                  kind={trackKindLabel(String(item.unit.kind || 'shot'))}
+                  title={titleOfRecord(item.unit)}
+                  frameCount={item.keyframeCount}
+                  expression={firstText(item.unit.description, item.unit.prompt, '未填写镜头表达')}
+                  cue={`情节 · ${item.row.title}`}
+                  status={item.keyframeCount > 0 ? '已有关键帧' : '待补关键帧'}
+                  context={`制作 · ${item.productionTitle} / 情绪段 · ${item.segmentTitle}`}
+                  onOpen={() => onSelectUnit(item.row, item.unit.ID)}
+                />
+              ))
+            )}
+          </div>
+        </>
+      ) : null}
 
       {!collapsed && items.length > SHOT_LIST_PAGE_SIZE ? (
         <div className="content-unit-workbench-list-panel__pagination" aria-label="内容列表翻页">
@@ -378,8 +376,6 @@ export function ContentUnitWorkbenchPage() {
     selectedUnitAssetSlots,
     momentAssetSlots: selected?.assetSlots ?? [],
   })
-  const selectedUnitRequiresKeyframe = selectedUnit ? contentWorkbenchUnitRequiresKeyframe(selectedUnit.kind) : true
-  const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const nextKeyframeRole = nextKeyframeFrameRole(selectedUnitKeyframes)
   const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
     if (!selected || !selectedUnit) return undefined
@@ -546,18 +542,6 @@ export function ContentUnitWorkbenchPage() {
                 onSelectUnit={(row, unitId) => selectContentUnitFromRow(row, unitId)}
               />
               <ContentWorkbenchUnitInspectorShell className="content-unit-workbench-shell__body">
-                <ContentWorkbenchUnitInspectorHeader
-                  icon={<Clapperboard size={14} />}
-                  kicker="内容编辑"
-                  title={selectedUnit ? titleOfRecord(selectedUnit) : selected ? '选择或创建镜头' : '等待选择情节'}
-                detail={selected ? `${selected.title} · ${selected.scope}` : '从创作编排页进入，或返回选择一个情节和镜头。'}
-                  actions={(
-                    <>
-                      {selectedUnit ? <Badge variant="outline">{selectedUnitRequiresKeyframe ? '需要关键帧' : '无需关键帧'}</Badge> : null}
-                      {selectedUnit ? <Badge variant="outline">{selectedUnitStatus}</Badge> : null}
-                    </>
-                  )}
-                />
                 <ContentUnitEditCards
                   projectId={projectId}
                   queryKey={productionWorkbenchQueryKey}

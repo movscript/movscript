@@ -25,6 +25,7 @@ func TestShotReferenceCreateFromResourceReturnsForbiddenForInvisibleResource(t *
 		&model.RawResource{},
 		&model.ShotReferenceGroup{},
 		&model.ShotReference{},
+		&model.ShotVectorDocument{},
 	)
 	owner := model.User{Username: "owner", Status: "active"}
 	if err := db.Create(&owner).Error; err != nil {
@@ -83,6 +84,7 @@ func TestShotReferencePatchAcceptsProfessionalAnnotationFields(t *testing.T) {
 		&model.RawResource{},
 		&model.ShotReferenceGroup{},
 		&model.ShotReference{},
+		&model.ShotVectorDocument{},
 	)
 	user := model.User{Username: "owner", Status: "active"}
 	if err := db.Create(&user).Error; err != nil {

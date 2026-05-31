@@ -47,3 +47,17 @@ type ShotReferenceGroup struct {
 	AnalysisStatus   string      `gorm:"not null;default:'ready';index" json:"analysis_status"`
 	CutStrategy      string      `gorm:"not null;default:'manual_single';index" json:"cut_strategy"`
 }
+
+type ShotVectorDocument struct {
+	gorm.Model
+	DocumentID     string `gorm:"size:255;not null;uniqueIndex" json:"document_id"`
+	ReferenceID    uint   `gorm:"not null;index" json:"reference_id"`
+	SourceID       string `gorm:"size:128;not null;index" json:"source_id"`
+	Locale         string `gorm:"size:32;not null;index" json:"locale"`
+	Kind           string `gorm:"size:64;not null;index" json:"kind"`
+	Text           string `gorm:"type:text;not null" json:"text"`
+	Metadata       string `gorm:"type:text;default:'{}'" json:"metadata"`
+	EmbeddingModel string `gorm:"size:128;not null;default:'';index" json:"embedding_model"`
+	EmbeddingDim   int    `gorm:"not null;default:0;index" json:"embedding_dim"`
+	Embedding      string `gorm:"type:text;default:'[]'" json:"embedding"`
+}

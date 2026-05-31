@@ -22,7 +22,7 @@ import {
   ContentWorkbenchInputDrawerTabList,
   StatusBadge,
 } from '@movscript/ui'
-import { contentGapRecipe, contentOptionalReadinessRecipe, contentReadinessRecipe } from '@/features/content/presentation/contentSemanticUi'
+import { contentGapRecipe } from '@/features/content/presentation/contentSemanticUi'
 import {
   ContentUnitStoryboardBriefEditor,
   ContentUnitVisualPlanEditor,
@@ -53,8 +53,6 @@ export function ContentUnitGenerationInputsPanel({
   requiresKeyframe,
   visualPlanReady,
   storyboardBriefReady,
-  hasPrompt,
-  blockers,
   reorderPending,
   deletePending,
   savePending,
@@ -92,8 +90,6 @@ export function ContentUnitGenerationInputsPanel({
   requiresKeyframe: boolean
   visualPlanReady: boolean
   storyboardBriefReady: boolean
-  hasPrompt: boolean
-  blockers: string[]
   reorderPending: boolean
   deletePending: boolean
   savePending: boolean
@@ -233,19 +229,10 @@ export function ContentUnitGenerationInputsPanel({
           )}
         />
 
-          <ContentWorkbenchInputDrawerPanel data-testid={`content-workbench-input-drawer-panel-${activeInputDrawer}`}>
-            {activeInputDrawer === 'generation' ? (
+        <ContentWorkbenchInputDrawerPanel data-testid={`content-workbench-input-drawer-panel-${activeInputDrawer}`}>
+          {activeInputDrawer === 'generation' ? (
             <ContentWorkbenchGenerationReadiness
-              summary={blockers.length > 0 ? `先处理：${blockers.join('、')}` : '当前制作项已有可进入生成的核心输入。'}
-              badges={(
-                <>
-                  <StatusBadge {...contentReadinessRecipe(hasPrompt)}>{hasPrompt ? '有提示' : '缺提示'}</StatusBadge>
-                  <StatusBadge {...contentReadinessRecipe(visualPlanReady)}>{visualPlanReady ? '有视觉调度' : '缺视觉调度'}</StatusBadge>
-                  <StatusBadge {...contentReadinessRecipe(storyboardBriefReady)}>{storyboardBriefReady ? '有故事板简述' : '缺故事板简述'}</StatusBadge>
-                  <StatusBadge {...contentGapRecipe(missingSlots.length)}>{missingSlots.length > 0 ? `${missingSlots.length} 素材缺口` : '素材可用'}</StatusBadge>
-                  <StatusBadge {...contentOptionalReadinessRecipe(keyframes.length > 0, requiresKeyframe)}>{requiresKeyframe ? `${keyframes.length} 关键帧` : '无需关键帧'}</StatusBadge>
-                </>
-              )}
+              summary="当前制作项输入在上方卡片管理，可继续打开生成画布。"
               action={onOpenCanvas ? (
                 <ContentWorkbenchInputActionButton onClick={onOpenCanvas}>
                   <Play size={14} />
@@ -319,7 +306,7 @@ export function ContentUnitGenerationInputsPanel({
               onAiVisualTaskGraph={onAiVisualTaskGraph}
             />
           ) : null}
-          </ContentWorkbenchInputDrawerPanel>
+        </ContentWorkbenchInputDrawerPanel>
       </ContentWorkbenchInputDrawer>
     </>
   )

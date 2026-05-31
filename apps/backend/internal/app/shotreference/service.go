@@ -44,12 +44,14 @@ func (e StageError) Unwrap() error {
 type Service struct {
 	repo      repository
 	resources *appresource.Service
+	vectors   domainshotreference.VectorStore
 }
 
 func NewService(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *Service {
 	return &Service{
 		repo:      &gormRepository{db: db},
 		resources: appresource.NewService(db, store, verifier, cacheStore...),
+		vectors:   NewLocalVectorStore(db),
 	}
 }
 
@@ -111,6 +113,9 @@ func (s *Service) UploadAndAnalyze(ctx context.Context, input UploadInput) (doma
 	if err := s.repo.Upsert(ctx, &reference); err != nil {
 		return domainshotreference.ShotReference{}, StageError{Stage: StagePersistResult, Err: err}
 	}
+	if err := s.indexReferenceVectors(ctx, reference); err != nil {
+		return domainshotreference.ShotReference{}, StageError{Stage: StagePersistResult, Err: err}
+	}
 	references := []domainshotreference.ShotReference{reference}
 	s.populateResourceURLs(references)
 	reference = references[0]
@@ -163,6 +168,9 @@ func (s *Service) CreateFromResource(ctx context.Context, input CreateFromResour
 		if err := s.repo.Upsert(ctx, &reference); err != nil {
 			return nil, StageError{Stage: StagePersistResult, Err: err}
 		}
+		if err := s.indexReferenceVectors(ctx, reference); err != nil {
+			return nil, StageError{Stage: StagePersistResult, Err: err}
+		}
 		references = append(references, reference)
 	}
 	s.populateResourceURLs(references)
@@ -176,6 +184,9 @@ func (s *Service) Update(ctx context.Context, id uint, scope domainshotreference
 	}
 	reference = domainshotreference.ApplyUpdate(reference, input)
 	if err := s.repo.Update(ctx, &reference); err != nil {
+		return domainshotreference.ShotReference{}, err
+	}
+	if err := s.indexReferenceVectors(ctx, reference); err != nil {
 		return domainshotreference.ShotReference{}, err
 	}
 	references := []domainshotreference.ShotReference{reference}
@@ -216,6 +227,135 @@ func (s *Service) Delete(ctx context.Context, id uint, input domainshotreference
 	if !deleted {
 		return ErrNotFound
 	}
+	if s.vectors != nil {
+		if err := s.vectors.DeleteByReference(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) SearchVectorDocuments(ctx context.Context, request domainshotreference.VectorSearchRequest) ([]domainshotreference.VectorSearchResult, error) {
+	if s.vectors == nil {
+		return nil, nil
+	}
+	return s.vectors.Search(ctx, request)
+}
+
+func (s *Service) VectorStats(ctx context.Context) (VectorStoreStats, error) {
+	stats := VectorStoreStats{ByKind: map[string]int64{}, ByLocale: map[string]int64{}, ByEmbeddingModel: map[string]int64{}}
+	if provider, ok := s.vectors.(interface {
+		Stats(context.Context) (VectorStoreStats, error)
+	}); ok {
+		provided, err := provider.Stats(ctx)
+		if err != nil {
+			return stats, err
+		}
+		stats = provided
+	}
+	if stats.ByKind == nil {
+		stats.ByKind = map[string]int64{}
+	}
+	if stats.ByLocale == nil {
+		stats.ByLocale = map[string]int64{}
+	}
+	if stats.ByEmbeddingModel == nil {
+		stats.ByEmbeddingModel = map[string]int64{}
+	}
+	references, err := s.repo.ListAll(ctx)
+	if err != nil {
+		return stats, err
+	}
+	stats.SourceReferences = int64(len(references))
+	sourceIDs := map[uint]struct{}{}
+	for _, reference := range references {
+		sourceIDs[reference.ID] = struct{}{}
+	}
+	indexedIDs := map[uint]struct{}{}
+	if provider, ok := s.vectors.(interface {
+		ReferenceIDs(context.Context) ([]uint, error)
+	}); ok {
+		ids, err := provider.ReferenceIDs(ctx)
+		if err != nil {
+			return stats, err
+		}
+		for _, id := range ids {
+			indexedIDs[id] = struct{}{}
+		}
+	} else {
+		stats.UnindexedReferences = stats.SourceReferences - stats.References
+		if stats.UnindexedReferences < 0 {
+			stats.UnindexedReferences = 0
+		}
+		if stats.SourceReferences > 0 {
+			stats.IndexCoverage = float64(stats.SourceReferences-stats.UnindexedReferences) / float64(stats.SourceReferences)
+		}
+		return stats, nil
+	}
+	var indexedSourceReferences int64
+	for id := range sourceIDs {
+		if _, ok := indexedIDs[id]; ok {
+			indexedSourceReferences++
+		} else {
+			stats.UnindexedReferences++
+		}
+	}
+	for id := range indexedIDs {
+		if _, ok := sourceIDs[id]; !ok {
+			stats.OrphanReferences++
+		}
+	}
+	if stats.SourceReferences > 0 {
+		stats.IndexCoverage = float64(indexedSourceReferences) / float64(stats.SourceReferences)
+	}
+	return stats, nil
+}
+
+func (s *Service) ReindexVectorDocuments(ctx context.Context, input domainshotreference.ListInput) (int, error) {
+	references, err := s.repo.List(ctx, input)
+	if err != nil {
+		return 0, err
+	}
+	for _, reference := range references {
+		if err := s.indexReferenceVectors(ctx, reference); err != nil {
+			return 0, err
+		}
+	}
+	return len(references), nil
+}
+
+func (s *Service) AdminReindexVectorDocuments(ctx context.Context) (int, error) {
+	references, err := s.repo.ListAll(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if resetter, ok := s.vectors.(interface {
+		DeleteAll(context.Context) error
+	}); ok {
+		if err := resetter.DeleteAll(ctx); err != nil {
+			return 0, err
+		}
+	}
+	for _, reference := range references {
+		if err := s.indexReferenceVectors(ctx, reference); err != nil {
+			return 0, err
+		}
+	}
+	return len(references), nil
+}
+
+func (s *Service) indexReferenceVectors(ctx context.Context, reference domainshotreference.ShotReference) error {
+	if s.vectors == nil {
+		return nil
+	}
+	if err := s.vectors.DeleteByReference(ctx, reference.ID); err != nil {
+		return err
+	}
+	for _, document := range domainshotreference.BuildVectorDocuments(reference, "default", "zh-CN") {
+		if err := s.vectors.Upsert(ctx, document); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -232,13 +372,13 @@ func (s *Service) populateResourceURLs(items []domainshotreference.ShotReference
 }
 
 func applySearch(items []domainshotreference.ShotReference, query string) []domainshotreference.ShotReference {
-	terms := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
-	if len(terms) == 0 {
+	translation := translateShotQuery(query)
+	if len(translation.Terms) == 0 {
 		return items
 	}
 	scored := make([]scoredReference, 0, len(items))
 	for _, item := range items {
-		score := scoreReference(item, terms)
+		score := scoreReference(item, translation)
 		if score > 0 {
 			scored = append(scored, scoredReference{reference: item, score: score})
 		}
@@ -261,7 +401,7 @@ type scoredReference struct {
 	score     int
 }
 
-func scoreReference(reference domainshotreference.ShotReference, terms []string) int {
+func scoreReference(reference domainshotreference.ShotReference, translation shotQueryTranslation) int {
 	haystacks := []struct {
 		text   string
 		weight int
@@ -299,11 +439,37 @@ func scoreReference(reference domainshotreference.ShotReference, terms []string)
 		}{reference.Resource.Name, 3})
 	}
 	score := 0
-	for _, term := range terms {
+	score += scoreCanonicalTagMatches(reference, translation)
+	for _, term := range translation.Terms {
 		for _, item := range haystacks {
 			if strings.Contains(strings.ToLower(item.text), term) {
 				score += item.weight
 			}
+		}
+	}
+	return score
+}
+
+func scoreCanonicalTagMatches(reference domainshotreference.ShotReference, translation shotQueryTranslation) int {
+	score := 0
+	score += scoreCanonicalValues(reference.Intent, translation.CanonicalTags["intent"], 10)
+	score += scoreCanonicalValues(reference.Pattern, translation.CanonicalTags["pattern"], 10)
+	score += scoreCanonicalValues(reference.ShotFunction, translation.CanonicalTags["shotFunction"], 8)
+	score += scoreCanonicalValues(reference.VisualPreference, translation.CanonicalTags["visualPreference"], 6)
+	score += scoreCanonicalValues(reference.EmotionalEffect, translation.CanonicalTags["emotionalEffect"], 6)
+	score += scoreCanonicalValues(referenceFacetValues(reference, "visual"), translation.CanonicalTags["visual"], 5)
+	score += scoreCanonicalValues(referenceFacetValues(reference, "narrative"), translation.CanonicalTags["narrative"], 8)
+	score += scoreCanonicalValues(referenceFacetValues(reference, "emotion"), translation.CanonicalTags["emotion"], 5)
+	score += scoreCanonicalValues(referenceFacetValues(reference, "pattern"), translation.CanonicalTags["pattern"], 6)
+	score += scoreCanonicalValues(referenceFacetValues(reference, "production"), translation.CanonicalTags["production"], 4)
+	return score
+}
+
+func scoreCanonicalValues(referenceValues []string, queryValues []string, weight int) int {
+	score := 0
+	for _, value := range queryValues {
+		if stringSliceContains(referenceValues, value) {
+			score += weight
 		}
 	}
 	return score

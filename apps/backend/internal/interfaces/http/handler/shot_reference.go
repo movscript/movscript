@@ -12,6 +12,7 @@ import (
 	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
+	"github.com/movscript/movscript/internal/infra/observability"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
 )
@@ -46,6 +47,51 @@ func (h *ShotReferenceHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, page)
+}
+
+func (h *ShotReferenceHandler) AdminVectorStats(c *gin.Context) {
+	stats, err := h.service.VectorStats(c.Request.Context())
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
+func (h *ShotReferenceHandler) AdminVectorSearch(c *gin.Context) {
+	topK := parseInt(c.DefaultQuery("top_k", "20"))
+	if topK <= 0 {
+		topK = 20
+	}
+	results, err := h.service.SearchVectorDocuments(c.Request.Context(), domainshotreference.VectorSearchRequest{
+		Query:     c.Query("q"),
+		Locale:    c.DefaultQuery("locale", "zh-CN"),
+		SourceIDs: c.QueryArray("source_id"),
+		TopK:      topK,
+	})
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": results})
+}
+
+func (h *ShotReferenceHandler) AdminVectorMetrics(c *gin.Context) {
+	c.JSON(http.StatusOK, observability.DefaultVectorMetrics().Snapshot())
+}
+
+func (h *ShotReferenceHandler) AdminVectorReindex(c *gin.Context) {
+	count, err := h.service.AdminReindexVectorDocuments(c.Request.Context())
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	stats, err := h.service.VectorStats(c.Request.Context())
+	if err != nil {
+		h.writeShotReferenceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"reindexed": count, "stats": stats})
 }
 
 func (h *ShotReferenceHandler) UploadAnalyze(c *gin.Context) {

@@ -14,6 +14,7 @@ import { DebugPage } from '@admin/pages/admin/DebugPage'
 import { UsageLogsPage } from '@admin/pages/admin/UsageLogsPage'
 import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
 import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
+import { ShotVectorPage } from '@admin/pages/admin/ShotVectorPage'
 import { SystemSettingsPage } from '@admin/pages/admin/SystemSettingsPage'
 import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
@@ -155,6 +156,7 @@ const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: bool
   { to: '/projects', labelKey: 'admin.tabs.projects', icon: FolderKanban },
   { to: '/audit-logs', labelKey: 'admin.tabs.auditLogs', icon: ScrollText },
   { to: '/usage-logs', labelKey: 'admin.tabs.logs', icon: BarChart3 },
+  { to: '/shot-vectors', labelKey: 'admin.tabs.shotVectors', icon: Database },
   { to: '/storage', labelKey: 'admin.tabs.storage', icon: HardDrive },
   { to: '/cloud-files', labelKey: 'admin.tabs.cloudFiles', icon: CloudUpload },
   { to: '/settings', labelKey: 'admin.tabs.settings', icon: Settings },
@@ -402,6 +404,7 @@ function App() {
         <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
         <Route path="/audit-logs" element={<AdminShell><AuditLogsPage /></AdminShell>} />
         <Route path="/usage-logs" element={<AdminShell><UsageLogsPage /></AdminShell>} />
+        <Route path="/shot-vectors" element={<AdminShell><ShotVectorPage /></AdminShell>} />
         <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
         <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
         <Route path="/settings" element={<AdminShell><SystemSettingsPage /></AdminShell>} />

@@ -14,7 +14,7 @@ import (
 )
 
 func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 	duration := 9.2
 
@@ -55,6 +55,87 @@ func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	if created.ReusablePattern.Principle == "" || !strings.Contains(created.SearchIndex.SearchText, "delayed reveal") {
 		t.Fatalf("missing reusable/search schema: pattern=%+v search=%q", created.ReusablePattern, created.SearchIndex.SearchText)
 	}
+	vectorResults, err := service.SearchVectorDocuments(context.Background(), domainshotreference.VectorSearchRequest{
+		Query:  "delayed reveal",
+		Locale: "zh-CN",
+		TopK:   3,
+	})
+	if err != nil {
+		t.Fatalf("search vector documents: %v", err)
+	}
+	if len(vectorResults) == 0 || vectorResults[0].Document.ReferenceID != created.ID {
+		t.Fatalf("vector results = %+v, want created reference", vectorResults)
+	}
+	stats, err := service.VectorStats(context.Background())
+	if err != nil {
+		t.Fatalf("vector stats: %v", err)
+	}
+	if stats.Documents == 0 || stats.EmbeddedDocuments != stats.Documents || stats.ByEmbeddingModel[localEmbeddingModel] != stats.Documents {
+		t.Fatalf("vector stats = %+v, want embedded documents with model %q", stats, localEmbeddingModel)
+	}
+	if stats.SourceReferences != 1 || stats.References != 1 || stats.UnindexedReferences != 0 || stats.OrphanReferences != 0 || stats.IndexCoverage != 1 {
+		t.Fatalf("vector coverage stats = %+v, want complete coverage", stats)
+	}
+	if err := db.Unscoped().Where("reference_id = ?", created.ID).Delete(&model.ShotVectorDocument{}).Error; err != nil {
+		t.Fatalf("delete vector documents before reindex: %v", err)
+	}
+	reindexed, err := service.ReindexVectorDocuments(context.Background(), domainshotreference.ListInput{UserID: 7})
+	if err != nil {
+		t.Fatalf("reindex vector documents: %v", err)
+	}
+	if reindexed != 1 {
+		t.Fatalf("reindexed = %d, want 1", reindexed)
+	}
+	vectorResults, err = service.SearchVectorDocuments(context.Background(), domainshotreference.VectorSearchRequest{
+		Query:  "delayed reveal",
+		Locale: "zh-CN",
+		TopK:   3,
+	})
+	if err != nil {
+		t.Fatalf("search vector documents after reindex: %v", err)
+	}
+	if len(vectorResults) == 0 || vectorResults[0].Document.ReferenceID != created.ID {
+		t.Fatalf("vector results after reindex = %+v, want created reference", vectorResults)
+	}
+	if err := db.Create(&model.ShotVectorDocument{
+		DocumentID:  "orphan:999:zh-CN:combined",
+		ReferenceID: 999,
+		SourceID:    "orphan",
+		Locale:      "zh-CN",
+		Kind:        "combined",
+		Text:        "stale orphan document",
+		Metadata:    "{}",
+	}).Error; err != nil {
+		t.Fatalf("create orphan vector document: %v", err)
+	}
+	stats, err = service.VectorStats(context.Background())
+	if err != nil {
+		t.Fatalf("vector stats with orphan: %v", err)
+	}
+	if stats.OrphanReferences != 1 {
+		t.Fatalf("orphan references = %d, want 1 in stats %+v", stats.OrphanReferences, stats)
+	}
+	adminReindexed, err := service.AdminReindexVectorDocuments(context.Background())
+	if err != nil {
+		t.Fatalf("admin reindex vector documents: %v", err)
+	}
+	if adminReindexed != 1 {
+		t.Fatalf("admin reindexed = %d, want 1", adminReindexed)
+	}
+	var orphanCount int64
+	if err := db.Model(&model.ShotVectorDocument{}).Where("reference_id = ?", 999).Count(&orphanCount).Error; err != nil {
+		t.Fatalf("count orphan vector documents: %v", err)
+	}
+	if orphanCount != 0 {
+		t.Fatalf("orphan vector documents = %d, want 0", orphanCount)
+	}
+	stats, err = service.VectorStats(context.Background())
+	if err != nil {
+		t.Fatalf("vector stats after admin reindex: %v", err)
+	}
+	if stats.OrphanReferences != 0 || stats.UnindexedReferences != 0 || stats.IndexCoverage != 1 {
+		t.Fatalf("vector stats after admin reindex = %+v, want healthy index", stats)
+	}
 
 	page, err := service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "reveal slow_push", Page: 1, PageSize: 10})
 	if err != nil {
@@ -70,10 +151,70 @@ func TestUploadAndAnalyzePersistsSearchableShotReference(t *testing.T) {
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != created.ID {
 		t.Fatalf("natural-language search page = %+v, want created reference", page)
 	}
+	page, err = service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "气氛慢慢变紧", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("list shot references by localized alias query: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != created.ID {
+		t.Fatalf("localized alias search page = %+v, want created reference", page)
+	}
+}
+
+func TestSearchTranslatesLocalizedQueryToCanonicalTags(t *testing.T) {
+	db := testutil.OpenSQLite(t, "shot-reference-localized-search.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
+	service := NewService(db, fakeShotStorage{}, nil)
+	duration := 9.2
+
+	reveal, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:      7,
+		Filename:    "slow_push_reveal.mp4",
+		MimeType:    "video/mp4",
+		Size:        12,
+		Data:        []byte("video-bytes"),
+		DurationSec: &duration,
+		Width:       1920,
+		Height:      1080,
+	})
+	if err != nil {
+		t.Fatalf("upload reveal reference: %v", err)
+	}
+	otherDuration := 2.0
+	other, err := service.UploadAndAnalyze(context.Background(), UploadInput{
+		UserID:      7,
+		Filename:    "office_reference.mp4",
+		MimeType:    "video/mp4",
+		Size:        12,
+		Data:        []byte("video-bytes"),
+		DurationSec: &otherDuration,
+		Width:       1920,
+		Height:      1080,
+	})
+	if err != nil {
+		t.Fatalf("upload other reference: %v", err)
+	}
+
+	page, err := service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "角色发现真相前，镜头慢慢靠近脸", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("localized semantic search: %v", err)
+	}
+	if page.Total == 0 || len(page.Items) == 0 {
+		t.Fatalf("localized semantic search returned no results")
+	}
+	if page.Items[0].ID != reveal.ID {
+		t.Fatalf("first result = %d, want reveal reference %d; other=%d page=%+v", page.Items[0].ID, reveal.ID, other.ID, page)
+	}
+
+	page, err = service.List(context.Background(), domainshotreference.ListInput{UserID: 7, Query: "气氛慢慢变紧", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("localized tension search: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != reveal.ID {
+		t.Fatalf("localized tension page = %+v, want only reveal reference", page)
+	}
 }
 
 func TestDeleteRemovesShotReferenceButKeepsResource(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference-delete.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference-delete.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 
 	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
@@ -103,13 +244,20 @@ func TestDeleteRemovesShotReferenceButKeepsResource(t *testing.T) {
 	if resourceCount != 1 {
 		t.Fatalf("resource count = %d, want original resource retained", resourceCount)
 	}
+	var vectorCount int64
+	if err := db.Model(&model.ShotVectorDocument{}).Where("reference_id = ?", created.ID).Count(&vectorCount).Error; err != nil {
+		t.Fatalf("count vector documents: %v", err)
+	}
+	if vectorCount != 0 {
+		t.Fatalf("vector document count = %d, want deleted vectors", vectorCount)
+	}
 	if err := service.Delete(context.Background(), created.ID, domainshotreference.ListInput{UserID: 7}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second delete error = %v, want not found", err)
 	}
 }
 
 func TestUploadAndAnalyzeRejectsNonVideoBeforeResourceCreate(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference-invalid.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference-invalid.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 
 	_, err := service.UploadAndAnalyze(context.Background(), UploadInput{
@@ -136,7 +284,7 @@ func TestUploadAndAnalyzeRejectsNonVideoBeforeResourceCreate(t *testing.T) {
 }
 
 func TestCreateFromResourceAppendsToExistingGroup(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference-group.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference-group.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 
 	duration := 9.2
@@ -201,7 +349,7 @@ func TestNextGroupOrderUsesPostgresSafeOrderIdentifier(t *testing.T) {
 }
 
 func TestCreateFromResourceUsesManualGroupTitle(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference-manual-group-title.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference-manual-group-title.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 
 	duration := 7.5
@@ -238,7 +386,7 @@ func TestCreateFromResourceUsesManualGroupTitle(t *testing.T) {
 }
 
 func TestUpdatePersistsManualProfessionalAnnotationFields(t *testing.T) {
-	db := testutil.OpenSQLite(t, "shot-reference-manual-fields.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{})
+	db := testutil.OpenSQLite(t, "shot-reference-manual-fields.db", &model.User{}, &model.RawResource{}, &model.ShotReferenceGroup{}, &model.ShotReference{}, &model.ShotVectorDocument{})
 	service := NewService(db, fakeShotStorage{}, nil)
 
 	created, err := service.UploadAndAnalyze(context.Background(), UploadInput{
@@ -291,6 +439,18 @@ func TestUpdatePersistsManualProfessionalAnnotationFields(t *testing.T) {
 	}
 	if page.Total != 1 || page.Items[0].ID != created.ID {
 		t.Fatalf("search page = %+v, want updated reference", page)
+	}
+	vectorResults, err := service.SearchVectorDocuments(context.Background(), domainshotreference.VectorSearchRequest{
+		Query:   "extreme_close_up realization",
+		Locale:  "zh-CN",
+		Filters: map[string][]string{"visual": []string{"extreme_close_up"}},
+		TopK:    5,
+	})
+	if err != nil {
+		t.Fatalf("search updated vector documents: %v", err)
+	}
+	if len(vectorResults) == 0 || vectorResults[0].Document.ReferenceID != created.ID {
+		t.Fatalf("updated vector results = %+v, want updated reference", vectorResults)
 	}
 }
 

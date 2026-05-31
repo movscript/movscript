@@ -31,7 +31,7 @@ import {
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { byOrder, firstText, formatDuration, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import { apiErrorMessage, contentUnitWorkStatus, normalizeAssetSlotStatus, statusLabel } from '@/features/content/domain/contentWorkbenchStatus'
-import { contentGapRecipe, contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
+import { contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
 import { contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
 import {
   contentUnitStoryboardBriefPromptText,
@@ -48,12 +48,10 @@ import {
   ContentWorkbenchEditorSelectField,
   ContentWorkbenchUnitEditActionButton,
   ContentWorkbenchUnitEditActionRow,
-  ContentWorkbenchUnitEditBlockerRow,
   ContentWorkbenchUnitEditEmptyState,
   ContentWorkbenchUnitEditGrid,
   ContentWorkbenchUnitEditRoot,
   ContentWorkbenchUnitEditSection,
-  ContentWorkbenchUnitEditTextarea,
   ContentWorkbenchUnitSummaryHeader,
   Input,
   StatusBadge,
@@ -150,7 +148,6 @@ export function ContentUnitEditCards({
   const keyframes = row && unit
     ? row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).slice().sort(byOrder)
     : []
-  const hasPrompt = Boolean(firstText(draft.prompt, draft.description))
   const visualPlanReady = hasStructuredText(
     draft.visual_task_graph_space,
     draft.visual_task_graph_blocking,
@@ -167,13 +164,6 @@ export function ContentUnitEditCards({
   )
   const requiresKeyframe = unit ? contentWorkbenchUnitRequiresKeyframe(unit.kind) : true
   const workStatus = unit ? contentUnitWorkStatus(unit, missingSlots) : 'blocked'
-  const blockers = [
-    hasPrompt ? '' : '缺提示',
-    requiresKeyframe && !visualPlanReady ? '缺视觉调度' : '',
-    requiresKeyframe && !storyboardBriefReady ? '缺故事板简述' : '',
-    missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '',
-    requiresKeyframe && keyframes.length === 0 ? '缺关键帧' : '',
-  ].filter(Boolean)
   const unchanged = unit ? contentUnitEditDraftEqualsRecord(draft, unit) : true
   const [selectedKeyframeId, setSelectedKeyframeId] = useState<number | null>(null)
   const selectedKeyframe = keyframes.find((keyframe) => keyframe.ID === selectedKeyframeId) ?? keyframes[0] ?? null
@@ -364,7 +354,7 @@ export function ContentUnitEditCards({
       <ContentWorkbenchUnitEditRoot data-testid="content-workbench-unit-edit-cards">
         <ContentWorkbenchUnitEditEmptyState
           title="选择或创建制作项"
-          detail="卡片内会编辑标题、时长、创作目标、prompt、素材和关键帧输入。"
+          detail="卡片内会编辑标题、时长、镜头参数、素材和关键帧输入。"
           action={(
             <ContentWorkbenchUnitEditActionRow>
               {row.units.slice().sort(byOrder).slice(0, 4).map((item) => (
@@ -441,34 +431,6 @@ export function ContentUnitEditCards({
             <ContentWorkbenchEditorSelectField label="机位角度" value={draft.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateDraft('camera_angle', value)} />
             <ContentWorkbenchEditorSelectField label="运镜方式" value={draft.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateDraft('camera_motion', value)} />
           </ContentWorkbenchEditorFieldGrid>
-          <ContentWorkbenchUnitEditBlockerRow>
-            {blockers.length > 0 ? blockers.map((item) => (
-              <StatusBadge key={item} {...contentGapRecipe(1)}>{item}</StatusBadge>
-            )) : <StatusBadge {...contentGapRecipe(0)}>核心输入可用</StatusBadge>}
-          </ContentWorkbenchUnitEditBlockerRow>
-        </ContentWorkbenchUnitEditSection>
-
-        <ContentWorkbenchUnitEditSection wide={!compact} data-testid="content-workbench-edit-goal-card">
-          <ContentWorkbenchEditorFieldGrid compact={compact}>
-            <ContentWorkbenchEditorField label="要做什么" htmlFor={`content-unit-description-${unit.ID}`}>
-              <ContentWorkbenchUnitEditTextarea
-                id={`content-unit-description-${unit.ID}`}
-                compact={compact}
-                value={draft.description}
-                placeholder="描述这个内容单元要完成的叙事、动作、信息或声音目标。"
-                onChange={(event) => updateDraft('description', event.target.value)}
-              />
-            </ContentWorkbenchEditorField>
-            <ContentWorkbenchEditorField label="创作提示" htmlFor={`content-unit-prompt-${unit.ID}`}>
-              <ContentWorkbenchUnitEditTextarea
-                id={`content-unit-prompt-${unit.ID}`}
-                compact={compact}
-                value={draft.prompt}
-                placeholder="写给生成模型的提示词，包含画面、动作、风格、限制和参考。"
-                onChange={(event) => updateDraft('prompt', event.target.value)}
-              />
-            </ContentWorkbenchEditorField>
-          </ContentWorkbenchEditorFieldGrid>
         </ContentWorkbenchUnitEditSection>
 
         <ContentUnitGenerationInputsPanel
@@ -489,8 +451,6 @@ export function ContentUnitEditCards({
           requiresKeyframe={requiresKeyframe}
           visualPlanReady={visualPlanReady}
           storyboardBriefReady={storyboardBriefReady}
-          hasPrompt={hasPrompt}
-          blockers={blockers}
           reorderPending={reorderKeyframe.isPending}
           deletePending={deleteKeyframe.isPending}
           savePending={saveKeyframe.isPending}

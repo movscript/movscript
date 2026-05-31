@@ -322,6 +322,7 @@ func (m *HTTPMetrics) PrometheusText() string {
 	for _, route := range snapshot.Routes {
 		fmt.Fprintf(&b, "movscript_http_route_errors_total{method=%q,route=%q} %d\n", escapePromLabel(route.Method), escapePromLabel(route.Route), route.Errors)
 	}
+	b.WriteString(DefaultVectorMetrics().PrometheusText())
 	return b.String()
 }
 

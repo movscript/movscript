@@ -2,6 +2,16 @@ import type { RawResource } from '@/types'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import type { ShotLibrarySourceConfig } from '@/shared/contracts/appSettings'
+import {
+  localizeAnyShotValue,
+  localizeShotFieldValue,
+  localizeShotSemanticValue,
+  localizeShotTerm,
+  translateShotQuery,
+  type ShotQueryTranslation,
+} from './shotVocabulary'
+
+export { localizeAnyShotValue, localizeShotField, localizeShotFieldValue, localizeShotSemanticValue, localizeShotTerm, localizeShotFacetValue, shotSearchBackendQuery, translateShotQuery } from './shotVocabulary'
 
 export type ShotLibraryAnalysisStatus = 'analyzing' | 'ready' | 'failed'
 export type ShotLibrarySemanticCategory = 'intent' | 'pattern' | 'shotFunction' | 'visualPreference' | 'emotionalEffect'
@@ -263,12 +273,55 @@ export interface ShotSearchResult {
   matches: ShotSearchMatch[]
 }
 
+export interface ShotSearchRequest {
+  query: string
+  locale: string
+  filters?: ShotLibraryFacetFilters
+  topK?: number
+}
+
+export interface ShotSearchEngine {
+  search(entries: ShotLibraryEntry[], request: ShotSearchRequest): ShotSearchResult[]
+}
+
 export interface ShotLibraryFacetFilters {
   visual?: string[]
   narrative?: string[]
   emotion?: string[]
   pattern?: string[]
   production?: string[]
+}
+
+export type ShotVectorDocumentKind = 'combined' | 'tags' | 'visual' | 'narrative' | 'reusable_pattern' | 'production'
+
+export interface ShotVectorDocument {
+  id: string
+  referenceId: number
+  sourceId: string
+  locale: string
+  kind: ShotVectorDocumentKind
+  text: string
+  metadata: Record<string, unknown>
+}
+
+export interface ShotVectorSearchRequest {
+  query: string
+  locale: string
+  sourceIds?: string[]
+  filters?: ShotLibraryFacetFilters
+  topK?: number
+}
+
+export interface ShotVectorSearchResult {
+  document: ShotVectorDocument
+  score: number
+}
+
+export interface ShotVectorStore {
+  upsert(document: ShotVectorDocument): Promise<void>
+  search(request: ShotVectorSearchRequest): Promise<ShotVectorSearchResult[]>
+  deleteByReference(referenceId: number): Promise<void>
+  reindex(scope?: { sourceIds?: string[]; referenceIds?: number[] }): Promise<void>
 }
 
 export interface CreateShotReferencesFromResourceInput {
@@ -351,7 +404,7 @@ export function analyzeShotReference(
     resolution,
     aspectRatio,
   }, visualAnalysis, inferredPattern)
-  const searchIndex = buildSearchIndex({
+  const searchIndex = buildShotSearchIndex({
     title,
     summary,
     resourceName: video.name,
@@ -554,24 +607,12 @@ export async function updateShotReferenceInSource(
   return shotLibraryEntryFromApi(response.data, source)
 }
 
-export function searchShotReferences(entries: ShotLibraryEntry[], query: string): ShotLibraryEntry[] {
-  return searchShotReferenceResults(entries, query).map(result => result.entry)
+export function searchShotReferences(entries: ShotLibraryEntry[], query: string, locale = 'zh-CN'): ShotLibraryEntry[] {
+  return searchShotReferenceResults(entries, query, {}, locale).map(result => result.entry)
 }
 
-export function searchShotReferenceResults(entries: ShotLibraryEntry[], query: string, filters: ShotLibraryFacetFilters = {}): ShotSearchResult[] {
-  const terms = query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-  const filtered = entries.filter(entry => matchesFacetFilters(entry, filters))
-  if (terms.length === 0) {
-    return filtered.map(entry => ({ entry, score: 0, matches: facetFilterMatches(entry, filters) }))
-  }
-  return filtered
-    .map(entry => scoreShotReference(entry, terms, filters))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score || b.entry.updatedAt.localeCompare(a.entry.updatedAt))
+export function searchShotReferenceResults(entries: ShotLibraryEntry[], query: string, filters: ShotLibraryFacetFilters = {}, locale = 'zh-CN'): ShotSearchResult[] {
+  return localKeywordShotSearchEngine.search(entries, { query, filters, locale })
 }
 
 export function mergeShotReferences(entries: ShotLibraryEntry[], next: ShotLibraryEntry): ShotLibraryEntry[] {
@@ -582,16 +623,11 @@ export function mergeShotReferences(entries: ShotLibraryEntry[], next: ShotLibra
   return [next, ...withoutExisting]
 }
 
-export function localizeShotSemanticValue(category: ShotLibrarySemanticCategory, value: string, language: string): string {
-  if (!language.toLowerCase().startsWith('zh')) return value
-  return SHOT_SEMANTIC_LABELS_ZH[category]?.[value] ?? value
-}
-
 export function localizeShotSummary(entry: Pick<ShotLibraryEntry, 'title' | 'intent' | 'pattern' | 'executionDetails'>, language: string): string {
   if (!language.toLowerCase().startsWith('zh')) {
     const duration = entry.executionDetails.durationSec ? `${formatDuration(entry.executionDetails.durationSec)} reference` : 'video reference'
     const quality = entry.executionDetails.resolution ? ` at ${entry.executionDetails.resolution}` : ''
-    return `${entry.title} is a ${duration}${quality}; inferred intents include ${entry.intent.slice(0, 2).join(', ')} and reusable patterns include ${entry.pattern.slice(0, 2).join(', ')}.`
+    return `${entry.title} is a ${duration}${quality}; inferred intents include ${entry.intent.slice(0, 2).map(value => localizeShotTerm('intent', value, language)).join(', ')} and reusable patterns include ${entry.pattern.slice(0, 2).map(value => localizeShotTerm('pattern', value, language)).join(', ')}.`
   }
   const duration = entry.executionDetails.durationSec ? `${formatDurationZh(entry.executionDetails.durationSec)}镜头参考` : '镜头视频参考'
   const quality = entry.executionDetails.resolution ? `，分辨率 ${entry.executionDetails.resolution}` : ''
@@ -600,47 +636,22 @@ export function localizeShotSummary(entry: Pick<ShotLibraryEntry, 'title' | 'int
   return `${entry.title} 是一条${duration}${quality}；它主要用于${intents}，可复用的镜头模式包括${patterns}。`
 }
 
-const SHOT_SEMANTIC_LABELS_ZH: Record<ShotLibrarySemanticCategory, Record<string, string>> = {
-  intent: {
-    reveal_information: '揭示信息',
-    create_tension: '制造紧张感',
-    isolate_character: '突出角色孤立',
-    evoke_memory: '唤起回忆',
-    show_power_shift: '表现权力变化',
-    slow_viewer_down: '让观众放慢感受',
-    guide_attention: '引导注意力',
-  },
-  pattern: {
-    slow_push_in: '慢推近',
-    handheld_follow: '手持跟拍',
-    foreground_obstruction: '前景遮挡',
-    negative_space_pressure: '留白压迫',
-    reaction_close_up: '反应特写',
-    static_observation: '静态观察',
-    insert_detail: '细节插入',
-  },
-  shotFunction: {
-    reference_moment: '参考片刻',
-    visual_cue: '视觉提示',
-    tension_buildup: '铺垫紧张',
-    emotional_pause: '情绪停顿',
-  },
-  visualPreference: {
-    landscape_frame: '横构图',
-    vertical_frame: '竖构图',
-    square_frame: '方构图',
-    restrained_pacing: '克制节奏',
-    compact_pacing: '紧凑节奏',
-    video_reference: '视频参考',
-  },
-  emotionalEffect: {
-    reference_mood: '参考氛围',
-    suspense: '悬疑感',
-    isolation: '孤立感',
+export const localKeywordShotSearchEngine: ShotSearchEngine = {
+  search(entries, request) {
+    const translation = translateShotQuery(request.query, request.locale)
+    const filters = request.filters ?? {}
+    const filtered = entries.filter(entry => matchesFacetFilters(entry, filters))
+    const results = translation.terms.length === 0
+      ? filtered.map(entry => ({ entry, score: 0, matches: facetFilterMatches(entry, filters) }))
+      : filtered
+        .map(entry => scoreShotReference(entry, translation, filters))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score || b.entry.updatedAt.localeCompare(a.entry.updatedAt))
+    return request.topK ? results.slice(0, request.topK) : results
   },
 }
 
-function scoreShotReference(entry: ShotLibraryEntry, terms: string[], filters: ShotLibraryFacetFilters = {}): ShotSearchResult {
+function scoreShotReference(entry: ShotLibraryEntry, translation: ShotQueryTranslation, filters: ShotLibraryFacetFilters = {}): ShotSearchResult {
   const haystacks = [
     { category: 'text' as const, label: 'title', text: entry.title, weight: 6 },
     { category: 'text' as const, label: 'summary', text: entry.summary, weight: 4 },
@@ -673,7 +684,8 @@ function scoreShotReference(entry: ShotLibraryEntry, terms: string[], filters: S
   ].map(item => ({ ...item, normalized: item.text.toLowerCase() }))
   const matches: ShotSearchMatch[] = facetFilterMatches(entry, filters)
   let score = 0
-  for (const term of terms) {
+  score += scoreCanonicalTagMatches(entry, translation, matches)
+  for (const term of translation.terms) {
     for (const item of haystacks) {
       if (!item.normalized.includes(term)) continue
       score += item.weight
@@ -681,6 +693,27 @@ function scoreShotReference(entry: ShotLibraryEntry, terms: string[], filters: S
     }
   }
   return { entry, score, matches: dedupeMatches(matches) }
+}
+
+function scoreCanonicalTagMatches(entry: ShotLibraryEntry, translation: ShotQueryTranslation, matches: ShotSearchMatch[]): number {
+  let score = 0
+  const addMatches = (category: ShotLibrarySemanticCategory | 'narrative' | 'visual' | 'emotion' | 'production', values: string[] | undefined, entryValues: string[], weight: number) => {
+    for (const value of values ?? []) {
+      if (!entryValues.includes(value)) continue
+      score += weight
+      matches.push({ category: category === 'shotFunction' || category === 'visualPreference' || category === 'intent' ? 'tag' : category === 'emotionalEffect' ? 'emotion' : category, value, weight, term: translation.originalQuery })
+    }
+  }
+  addMatches('intent', translation.canonicalTags.intent, entry.intent, 10)
+  addMatches('pattern', translation.canonicalTags.pattern, entry.pattern, 10)
+  addMatches('shotFunction', translation.canonicalTags.shotFunction, entry.shotFunction, 8)
+  addMatches('visualPreference', translation.canonicalTags.visualPreference, entry.visualPreference, 6)
+  addMatches('emotionalEffect', translation.canonicalTags.emotionalEffect, entry.emotionalEffect, 6)
+  addMatches('visual', translation.canonicalTags.visual, facetValuesForEntry(entry, 'visual'), 5)
+  addMatches('narrative', translation.canonicalTags.narrative, facetValuesForEntry(entry, 'narrative'), 8)
+  addMatches('emotion', translation.canonicalTags.emotion, facetValuesForEntry(entry, 'emotion'), 5)
+  addMatches('production', translation.canonicalTags.production, facetValuesForEntry(entry, 'production'), 4)
+  return score
 }
 
 function matchesFacetFilters(entry: ShotLibraryEntry, filters: ShotLibraryFacetFilters): boolean {
@@ -778,7 +811,7 @@ function buildSummary(title: string, durationSec: number | undefined, resolution
   return `${title} is a ${duration}${quality}; inferred intents include ${intent.slice(0, 2).join(', ')} and reusable patterns include ${pattern.slice(0, 2).join(', ')}.`
 }
 
-interface SearchIndexBuildInput {
+export interface SearchIndexBuildInput {
   title: string
   summary: string
   resourceName: string
@@ -965,7 +998,7 @@ function enrichExecutionDetails(details: ShotLibraryEntry['executionDetails'], v
   }
 }
 
-function buildSearchIndex(input: SearchIndexBuildInput): ShotSearchIndex {
+export function buildShotSearchIndex(input: SearchIndexBuildInput): ShotSearchIndex {
   const visualFacets = visualFacetValues(input.visualAnalysis)
   const narrativeFacets = unique([
     input.narrativeFunction.primary,
@@ -1024,6 +1057,114 @@ function buildSearchIndex(input: SearchIndexBuildInput): ShotSearchIndex {
       reusable_pattern: 0.66,
     },
   }
+}
+
+export function buildShotSearchIndexFromEntry(entry: ShotLibraryEntry): ShotSearchIndex {
+  return buildShotSearchIndex({
+    title: entry.title,
+    summary: entry.summary,
+    resourceName: entry.resourceName,
+    intent: entry.intent,
+    pattern: entry.pattern,
+    shotFunction: entry.shotFunction,
+    visualPreference: entry.visualPreference,
+    emotionalEffect: entry.emotionalEffect,
+    visualAnalysis: entry.visualAnalysis,
+    sceneSemantics: entry.sceneSemantics,
+    narrativeFunction: entry.narrativeFunction,
+    emotionalProfile: entry.emotionalProfile,
+    reusablePattern: entry.reusablePattern,
+    executionDetails: entry.executionDetails,
+  })
+}
+
+export function buildShotRetrievalText(entry: ShotLibraryEntry, locale = 'zh-CN'): string {
+  const index = buildShotSearchIndexFromEntry(entry)
+  const semanticValues = unique([
+    ...entry.intent,
+    ...entry.pattern,
+    ...entry.shotFunction,
+    ...entry.visualPreference,
+    ...entry.emotionalEffect,
+    ...(index.visual_facets ?? []),
+    ...(index.narrative_facets ?? []),
+    ...(index.emotion_facets ?? []),
+    ...(index.pattern_facets ?? []),
+    ...(index.production_facets ?? []),
+  ])
+  const localizedValues = semanticValues.map(value => localizeAnyShotValue(value, locale))
+  return unique([
+    entry.title,
+    entry.summary,
+    entry.resourceName,
+    index.search_text,
+    ...(index.natural_language_queries ?? []),
+    ...semanticValues,
+    ...localizedValues,
+    entry.reusablePattern.principle,
+    ...(entry.reusablePattern.works_when ?? []),
+    ...(entry.reusablePattern.avoid_when ?? []),
+    entry.executionDetails.blocking,
+  ].filter((value): value is string => Boolean(value?.trim()))).join(' ')
+}
+
+export function buildShotVectorDocuments(entry: ShotLibraryEntry, locale = 'zh-CN'): ShotVectorDocument[] {
+  const index = buildShotSearchIndexFromEntry(entry)
+  const baseMetadata = {
+    referenceId: entry.ID,
+    sourceId: entry.sourceId,
+    title: entry.title,
+    tags: index.tags ?? [],
+    visualFacets: index.visual_facets ?? [],
+    narrativeFacets: index.narrative_facets ?? [],
+    emotionFacets: index.emotion_facets ?? [],
+    patternFacets: index.pattern_facets ?? [],
+    productionFacets: index.production_facets ?? [],
+  }
+  const doc = (kind: ShotVectorDocumentKind, parts: Array<string | undefined>): ShotVectorDocument | null => {
+    const text = unique(parts.filter((value): value is string => Boolean(value?.trim()))).join(' ')
+    if (!text) return null
+    return {
+      id: `${entry.sourceId}:${entry.ID}:${locale}:${kind}`,
+      referenceId: entry.ID,
+      sourceId: entry.sourceId,
+      locale,
+      kind,
+      text,
+      metadata: { ...baseMetadata, kind },
+    }
+  }
+  return [
+    doc('combined', [buildShotRetrievalText(entry, locale)]),
+    doc('tags', [
+      ...(index.tags ?? []),
+      ...(index.tags ?? []).map(value => localizeAnyShotValue(value, locale)),
+    ]),
+    doc('visual', [
+      ...(index.visual_facets ?? []),
+      ...(index.visual_facets ?? []).map(value => localizeShotFieldValue('visual_facets', value, locale)),
+    ]),
+    doc('narrative', [
+      entry.narrativeFunction.primary,
+      entry.narrativeFunction.information_state,
+      ...(entry.narrativeFunction.secondary ?? []),
+      ...(index.narrative_facets ?? []).map(value => localizeShotFieldValue('narrative_facets', value, locale)),
+    ]),
+    doc('reusable_pattern', [
+      entry.reusablePattern.principle,
+      ...(entry.reusablePattern.pattern_ids ?? []),
+      ...(entry.reusablePattern.works_when ?? []),
+      ...(entry.reusablePattern.avoid_when ?? []),
+      ...Object.entries(entry.reusablePattern.variables ?? {}).map(([key, value]) => `${key}: ${value}`),
+    ]),
+    doc('production', [
+      entry.executionDetails.coverageRole,
+      entry.executionDetails.difficulty,
+      entry.executionDetails.blocking,
+      ...(entry.executionDetails.requirements ?? []),
+      ...(index.production_facets ?? []).map(value => localizeShotFieldValue('production_facets', value, locale)),
+    ]),
+  ].filter((value): value is ShotVectorDocument => value !== null)
 }
 
 function visualFacetValues(visual: ShotVisualAnalysis): string[] {

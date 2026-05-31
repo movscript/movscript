@@ -88,6 +88,12 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.DELETE("/resource-storage/resources/:id", h.resourceAdmin.DeleteResource)
 	admin.POST("/resource-storage/blobs/gc", h.resourceAdmin.CollectUnusedBlobs)
 
+	// shot vector library management
+	admin.GET("/shot-vectors/stats", h.shotReferences.AdminVectorStats)
+	admin.GET("/shot-vectors/search", h.shotReferences.AdminVectorSearch)
+	admin.GET("/shot-vectors/metrics", h.shotReferences.AdminVectorMetrics)
+	admin.POST("/shot-vectors/reindex", h.shotReferences.AdminVectorReindex)
+
 	// cloud file storage configs
 	admin.GET("/cloud-file-configs", h.cloudFileConfig.List)
 	admin.POST("/cloud-file-configs", h.cloudFileConfig.Create)

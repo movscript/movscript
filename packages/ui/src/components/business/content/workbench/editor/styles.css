@@ -275,6 +275,11 @@
   padding-top: var(--ms-space-3);
 }
 
+.content-workbench-unit-edit-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .content-workbench-unit-summary {
   display: flex;
   flex-wrap: wrap;

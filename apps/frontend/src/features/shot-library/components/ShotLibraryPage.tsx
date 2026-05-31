@@ -52,10 +52,15 @@ import {
   createShotReferencesFromResourceInSource,
   deleteShotReferenceFromSource,
   listShotLibrarySource,
+  localizeAnyShotValue,
+  localizeShotFacetValue,
+  localizeShotField,
+  localizeShotFieldValue,
   localizeShotSemanticValue,
   localizeShotSummary,
   normalizeShotLibrarySources,
   searchShotReferenceResults,
+  shotSearchBackendQuery,
   type ShotLibraryEntry,
   type ShotLibraryFacetFilters,
   type ShotLibrarySource,
@@ -223,9 +228,10 @@ export default function ShotLibraryPage() {
   })
 
   const { data: sourceResults, isLoading } = useQuery({
-    queryKey: ['shot-references', enabledSources.map(source => `${source.id}:${source.apiV1BaseURL}`).join('|'), query],
+    queryKey: ['shot-references', enabledSources.map(source => `${source.id}:${source.apiV1BaseURL}`).join('|'), query, i18n.language],
     queryFn: async () => {
-      return Promise.all(enabledSources.map(source => listShotLibrarySource(api, source, query)))
+      const backendQuery = shotSearchBackendQuery(query, i18n.language)
+      return Promise.all(enabledSources.map(source => listShotLibrarySource(api, source, backendQuery)))
     },
     enabled: enabledSources.length > 0,
   })
@@ -292,7 +298,7 @@ export default function ShotLibraryPage() {
     () => activeSourceId === 'all' ? entries : entries.filter(entry => entry.sourceId === activeSourceId),
     [activeSourceId, entries],
   )
-  const searchResults = useMemo(() => searchShotReferenceResults(sourceFilteredEntries, query, facetFilters), [sourceFilteredEntries, query, facetFilters])
+  const searchResults = useMemo(() => searchShotReferenceResults(sourceFilteredEntries, query, facetFilters, i18n.language), [sourceFilteredEntries, query, facetFilters, i18n.language])
   const visibleEntries = useMemo(() => searchResults.map(result => result.entry), [searchResults])
   const shotPageCount = Math.max(1, Math.ceil(visibleEntries.length / SHOT_LIBRARY_PAGE_SIZE))
   const normalizedShotPage = Math.min(shotPage, shotPageCount)
@@ -727,7 +733,7 @@ function ShotFacetFilters({
   value: ShotLibraryFacetFilters
   onChange: (value: ShotLibraryFacetFilters) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const categories: ShotFacetCategory[] = ['visual', 'narrative', 'emotion', 'pattern', 'production']
   const hasActive = categories.some(category => (value[category] ?? []).length > 0)
   return (
@@ -741,7 +747,7 @@ function ShotFacetFilters({
           >
             <option value="">{t('pages.shotLibrary.allFacetValues')}</option>
             {options[category].slice(0, 80).map(option => (
-              <option key={`${category}:${option}`} value={option}>{option}</option>
+              <option key={`${category}:${option}`} value={option}>{localizeShotFacetValue(category, option, i18n.language)}</option>
             ))}
           </select>
         </label>
@@ -1579,24 +1585,24 @@ function ShotReferenceDetail({
             <DetailGroup title={t('pages.shotLibrary.shotFunction')} category="shotFunction" values={entry.shotFunction} />
             <DetailGroup title={t('pages.shotLibrary.visualPreference')} category="visualPreference" values={entry.visualPreference} />
             <DetailGroup title={t('pages.shotLibrary.emotionalEffect')} category="emotionalEffect" values={entry.emotionalEffect} />
-            <DetailGroup title={t('pages.shotLibrary.visualAnalysis')} values={visualAnalysisDetails(entry).map(value => ({ value }))} />
-            <DetailGroup title={t('pages.shotLibrary.narrativeFunction')} values={narrativeFunctionDetails(entry).map(value => ({ value }))} />
-            <DetailGroup title={t('pages.shotLibrary.sceneSemantics')} values={sceneSemanticsDetails(entry).map(value => ({ value }))} />
-            <DetailGroup title={t('pages.shotLibrary.reusablePattern')} values={reusablePatternDetails(entry).map(value => ({ value }))} />
-            <DetailGroup title={t('pages.shotLibrary.searchIndex')} values={searchIndexDetails(entry).map(value => ({ value }))} />
+            <DetailGroup title={t('pages.shotLibrary.visualAnalysis')} values={visualAnalysisDetails(entry, i18n.language)} />
+            <DetailGroup title={t('pages.shotLibrary.narrativeFunction')} values={narrativeFunctionDetails(entry, i18n.language)} />
+            <DetailGroup title={t('pages.shotLibrary.sceneSemantics')} values={sceneSemanticsDetails(entry, i18n.language)} />
+            <DetailGroup title={t('pages.shotLibrary.reusablePattern')} values={reusablePatternDetails(entry, i18n.language)} />
+            <DetailGroup title={t('pages.shotLibrary.searchIndex')} values={searchIndexDetails(entry, i18n.language)} />
             <DetailGroup title={t('pages.shotLibrary.executionDetails')} values={[
-              entry.startSec !== undefined ? `${t('pages.shotLibrary.startSec')}: ${entry.startSec}` : '',
-              entry.endSec !== undefined ? `${t('pages.shotLibrary.endSec')}: ${entry.endSec}` : '',
-              entry.executionDetails.durationSec ? `${t('pages.shotLibrary.duration')}: ${formatDuration(entry.executionDetails.durationSec, i18n.language)}` : '',
-              entry.executionDetails.resolution ? `${t('pages.shotLibrary.resolution')}: ${entry.executionDetails.resolution}` : '',
-              entry.executionDetails.aspectRatio ? `${t('pages.shotLibrary.aspectRatio')}: ${entry.executionDetails.aspectRatio}` : '',
-              entry.executionDetails.coverageRole ? `${t('pages.shotLibrary.coverageRole')}: ${entry.executionDetails.coverageRole}` : '',
-              entry.executionDetails.transitionIn ? `${t('pages.shotLibrary.transitionIn')}: ${entry.executionDetails.transitionIn}` : '',
-              entry.executionDetails.transitionOut ? `${t('pages.shotLibrary.transitionOut')}: ${entry.executionDetails.transitionOut}` : '',
-              entry.executionDetails.difficulty ? `${t('pages.shotLibrary.difficulty')}: ${entry.executionDetails.difficulty}` : '',
-              entry.executionDetails.blocking ? `${t('pages.shotLibrary.blocking')}: ${entry.executionDetails.blocking}` : '',
-              ...(entry.executionDetails.requirements ?? []).map(value => `${t('pages.shotLibrary.requirement')}: ${value}`),
-            ].filter(Boolean).map(value => ({ value }))} />
+              entry.startSec !== undefined ? { field: localizeShotField('start_sec', i18n.language), value: String(entry.startSec) } : null,
+              entry.endSec !== undefined ? { field: localizeShotField('end_sec', i18n.language), value: String(entry.endSec) } : null,
+              entry.executionDetails.durationSec ? { field: localizeShotField('duration', i18n.language), value: formatDuration(entry.executionDetails.durationSec, i18n.language) } : null,
+              entry.executionDetails.resolution ? { field: localizeShotField('resolution', i18n.language), value: entry.executionDetails.resolution } : null,
+              entry.executionDetails.aspectRatio ? { field: localizeShotField('aspect_ratio', i18n.language), value: entry.executionDetails.aspectRatio } : null,
+              entry.executionDetails.coverageRole ? { field: localizeShotField('coverage_role', i18n.language), value: localizeShotFieldValue('coverage_role', entry.executionDetails.coverageRole, i18n.language) } : null,
+              entry.executionDetails.transitionIn ? { field: localizeShotField('transition_in', i18n.language), value: localizeShotFieldValue('transition_in', entry.executionDetails.transitionIn, i18n.language) } : null,
+              entry.executionDetails.transitionOut ? { field: localizeShotField('transition_out', i18n.language), value: localizeShotFieldValue('transition_out', entry.executionDetails.transitionOut, i18n.language) } : null,
+              entry.executionDetails.difficulty ? { field: localizeShotField('difficulty', i18n.language), value: localizeShotFieldValue('difficulty', entry.executionDetails.difficulty, i18n.language) } : null,
+              entry.executionDetails.blocking ? { field: localizeShotField('blocking', i18n.language), value: entry.executionDetails.blocking } : null,
+              ...(entry.executionDetails.requirements ?? []).map(value => ({ field: localizeShotField('requirement', i18n.language), value: localizeShotFieldValue('requirement', value, i18n.language) })),
+            ].filter((value): value is { field: string; value: string } => Boolean(value))} />
           </>
         )}
       </CardContent>
@@ -1604,7 +1610,7 @@ function ShotReferenceDetail({
   )
 }
 
-function DetailGroup({ title, category, values }: { title: string; category?: ShotLibrarySemanticCategory; values: Array<string | { value: string; category?: ShotLibrarySemanticCategory }> }) {
+function DetailGroup({ title, category, values }: { title: string; category?: ShotLibrarySemanticCategory; values: Array<string | { value: string; category?: ShotLibrarySemanticCategory; field?: string }> }) {
   return (
     <section className="shot-library-page__detail-group">
       <h2>{title}</h2>
@@ -1613,8 +1619,27 @@ function DetailGroup({ title, category, values }: { title: string; category?: Sh
   )
 }
 
+function localizeMatchCategory(category: ShotSearchMatch['category'], language: string): string {
+  const labels: Record<ShotSearchMatch['category'], string> = {
+    text: localizeShotField('queries', language),
+    tag: language.toLowerCase().startsWith('zh') ? '标签' : 'Tag',
+    visual: language.toLowerCase().startsWith('zh') ? '画面' : 'Visual',
+    narrative: language.toLowerCase().startsWith('zh') ? '叙事' : 'Narrative',
+    emotion: language.toLowerCase().startsWith('zh') ? '情绪' : 'Emotion',
+    pattern: language.toLowerCase().startsWith('zh') ? '方法' : 'Pattern',
+    production: language.toLowerCase().startsWith('zh') ? '执行' : 'Production',
+  }
+  return labels[category]
+}
+
+function localizeMatchValue(match: ShotSearchMatch, language: string): string {
+  if (match.category === 'tag') return localizeAnyShotValue(match.value, language)
+  if (match.category === 'text') return localizeShotField(match.value, language)
+  return localizeShotFieldValue(match.category, match.value, language)
+}
+
 function SearchMatchPanel({ score, matches }: { score: number; matches: ShotSearchMatch[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   if (score <= 0 && matches.length === 0) return null
   return (
     <section className="shot-library-page__match-panel">
@@ -1622,7 +1647,7 @@ function SearchMatchPanel({ score, matches }: { score: number; matches: ShotSear
       <div className="shot-library-page__match-score">{t('pages.shotLibrary.matchScore', { score })}</div>
       <TagRow
         values={matches.map(match => ({
-          value: `${match.category}: ${match.term ? `${match.term} -> ` : ''}${match.value}`,
+          value: `${localizeMatchCategory(match.category, i18n.language)}: ${match.term ? `${match.term} -> ` : ''}${localizeMatchValue(match, i18n.language)}`,
         }))}
         empty="-"
       />
@@ -1639,52 +1664,52 @@ function StructuredShotEditor({
   disabled?: boolean
   onChange: (patch: Partial<ReturnType<typeof detailDraftFromEntry>>) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className="shot-library-structured-editor">
       <h2>{t('pages.shotLibrary.structuredAnnotation')}</h2>
       <div className="shot-library-manual-form__grid">
-        <TextDraftField label="shot_size" value={draft.shotSize} disabled={disabled} onChange={value => onChange({ shotSize: value })} />
-        <TextDraftField label="camera_angle" value={draft.cameraAngle} disabled={disabled} onChange={value => onChange({ cameraAngle: value })} />
-        <TextDraftField label="camera_height" value={draft.cameraHeight} disabled={disabled} onChange={value => onChange({ cameraHeight: value })} />
-        <TextDraftField label="camera_movement.type" value={draft.cameraMovementType} disabled={disabled} onChange={value => onChange({ cameraMovementType: value })} />
-        <TextDraftField label="camera_movement.speed" value={draft.cameraMovementSpeed} disabled={disabled} onChange={value => onChange({ cameraMovementSpeed: value })} />
-        <TextDraftField label="camera_movement.stability" value={draft.cameraMovementStability} disabled={disabled} onChange={value => onChange({ cameraMovementStability: value })} />
-        <TextDraftField label="camera_movement.motivation" value={draft.cameraMovementMotivation} disabled={disabled} onChange={value => onChange({ cameraMovementMotivation: value })} />
-        <TextDraftField label="lens.focal_length_class" value={draft.lensFocalLength} disabled={disabled} onChange={value => onChange({ lensFocalLength: value })} />
-        <TextDraftField label="lens.depth_of_field" value={draft.lensDepthOfField} disabled={disabled} onChange={value => onChange({ lensDepthOfField: value })} />
-        <TextDraftField label="focus.behavior" value={draft.focusBehavior} disabled={disabled} onChange={value => onChange({ focusBehavior: value })} />
-        <TextDraftField label="lighting.style" value={draft.lightingStyle} disabled={disabled} onChange={value => onChange({ lightingStyle: value })} />
-        <TextDraftField label="lighting.contrast" value={draft.lightingContrast} disabled={disabled} onChange={value => onChange({ lightingContrast: value })} />
-        <TextDraftField label="color.palette" value={draft.colorPalette} disabled={disabled} onChange={value => onChange({ colorPalette: value })} />
-        <TextDraftField label="color.saturation" value={draft.colorSaturation} disabled={disabled} onChange={value => onChange({ colorSaturation: value })} />
-        <TextDraftField label="environment.location_type" value={draft.environmentLocationType} disabled={disabled} onChange={value => onChange({ environmentLocationType: value })} />
-        <TextDraftField label="narrative.primary" value={draft.narrativePrimary} disabled={disabled} onChange={value => onChange({ narrativePrimary: value })} />
-        <TextDraftField label="narrative.information_state" value={draft.informationState} disabled={disabled} onChange={value => onChange({ informationState: value })} />
-        <TextDraftField label="scene.scene_type" value={draft.sceneType} disabled={disabled} onChange={value => onChange({ sceneType: value })} />
-        <TextDraftField label="scene.location_type" value={draft.sceneLocationType} disabled={disabled} onChange={value => onChange({ sceneLocationType: value })} />
-        <TextDraftField label="scene.conflict_level" value={draft.conflictLevel} disabled={disabled} onChange={value => onChange({ conflictLevel: value })} />
-        <TextDraftField label="emotion.valence" value={draft.emotionValence} disabled={disabled} onChange={value => onChange({ emotionValence: value })} />
-        <TextDraftField label="emotion.arousal" value={draft.emotionArousal} disabled={disabled} onChange={value => onChange({ emotionArousal: value })} />
-        <TextDraftField label="emotion.viewer_position" value={draft.viewerPosition} disabled={disabled} onChange={value => onChange({ viewerPosition: value })} />
-        <TextDraftField label="execution.coverage_role" value={draft.coverageRole} disabled={disabled} onChange={value => onChange({ coverageRole: value })} />
-        <TextDraftField label="execution.difficulty" value={draft.difficulty} disabled={disabled} onChange={value => onChange({ difficulty: value })} />
+        <TextDraftField label={localizeShotField('shot_size', i18n.language)} value={draft.shotSize} disabled={disabled} onChange={value => onChange({ shotSize: value })} />
+        <TextDraftField label={localizeShotField('camera_angle', i18n.language)} value={draft.cameraAngle} disabled={disabled} onChange={value => onChange({ cameraAngle: value })} />
+        <TextDraftField label={localizeShotField('camera_height', i18n.language)} value={draft.cameraHeight} disabled={disabled} onChange={value => onChange({ cameraHeight: value })} />
+        <TextDraftField label={localizeShotField('movement', i18n.language)} value={draft.cameraMovementType} disabled={disabled} onChange={value => onChange({ cameraMovementType: value })} />
+        <TextDraftField label={localizeShotField('camera_movement.speed', i18n.language)} value={draft.cameraMovementSpeed} disabled={disabled} onChange={value => onChange({ cameraMovementSpeed: value })} />
+        <TextDraftField label={localizeShotField('camera_movement.stability', i18n.language)} value={draft.cameraMovementStability} disabled={disabled} onChange={value => onChange({ cameraMovementStability: value })} />
+        <TextDraftField label={localizeShotField('camera_movement.motivation', i18n.language)} value={draft.cameraMovementMotivation} disabled={disabled} onChange={value => onChange({ cameraMovementMotivation: value })} />
+        <TextDraftField label={localizeShotField('lens', i18n.language)} value={draft.lensFocalLength} disabled={disabled} onChange={value => onChange({ lensFocalLength: value })} />
+        <TextDraftField label={localizeShotField('lens.depth_of_field', i18n.language)} value={draft.lensDepthOfField} disabled={disabled} onChange={value => onChange({ lensDepthOfField: value })} />
+        <TextDraftField label={localizeShotField('focus', i18n.language)} value={draft.focusBehavior} disabled={disabled} onChange={value => onChange({ focusBehavior: value })} />
+        <TextDraftField label={localizeShotField('lighting', i18n.language)} value={draft.lightingStyle} disabled={disabled} onChange={value => onChange({ lightingStyle: value })} />
+        <TextDraftField label={localizeShotField('lighting.contrast', i18n.language)} value={draft.lightingContrast} disabled={disabled} onChange={value => onChange({ lightingContrast: value })} />
+        <TextDraftField label={localizeShotField('color', i18n.language)} value={draft.colorPalette} disabled={disabled} onChange={value => onChange({ colorPalette: value })} />
+        <TextDraftField label={localizeShotField('color.saturation', i18n.language)} value={draft.colorSaturation} disabled={disabled} onChange={value => onChange({ colorSaturation: value })} />
+        <TextDraftField label={localizeShotField('environment', i18n.language)} value={draft.environmentLocationType} disabled={disabled} onChange={value => onChange({ environmentLocationType: value })} />
+        <TextDraftField label={localizeShotField('primary', i18n.language)} value={draft.narrativePrimary} disabled={disabled} onChange={value => onChange({ narrativePrimary: value })} />
+        <TextDraftField label={localizeShotField('information_state', i18n.language)} value={draft.informationState} disabled={disabled} onChange={value => onChange({ informationState: value })} />
+        <TextDraftField label={localizeShotField('scene_type', i18n.language)} value={draft.sceneType} disabled={disabled} onChange={value => onChange({ sceneType: value })} />
+        <TextDraftField label={localizeShotField('location_type', i18n.language)} value={draft.sceneLocationType} disabled={disabled} onChange={value => onChange({ sceneLocationType: value })} />
+        <TextDraftField label={localizeShotField('conflict_level', i18n.language)} value={draft.conflictLevel} disabled={disabled} onChange={value => onChange({ conflictLevel: value })} />
+        <TextDraftField label={localizeShotField('emotion.valence', i18n.language)} value={draft.emotionValence} disabled={disabled} onChange={value => onChange({ emotionValence: value })} />
+        <TextDraftField label={localizeShotField('emotion.arousal', i18n.language)} value={draft.emotionArousal} disabled={disabled} onChange={value => onChange({ emotionArousal: value })} />
+        <TextDraftField label={localizeShotField('emotion.viewer_position', i18n.language)} value={draft.viewerPosition} disabled={disabled} onChange={value => onChange({ viewerPosition: value })} />
+        <TextDraftField label={localizeShotField('coverage_role', i18n.language)} value={draft.coverageRole} disabled={disabled} onChange={value => onChange({ coverageRole: value })} />
+        <TextDraftField label={localizeShotField('difficulty', i18n.language)} value={draft.difficulty} disabled={disabled} onChange={value => onChange({ difficulty: value })} />
       </div>
-      <TextDraftField label="framing" value={draft.framing} disabled={disabled} onChange={value => onChange({ framing: value })} />
-      <TextDraftField label="composition" value={draft.composition} disabled={disabled} onChange={value => onChange({ composition: value })} />
-      <TextDraftField label="lens.optical_effects" value={draft.opticalEffects} disabled={disabled} onChange={value => onChange({ opticalEffects: value })} />
-      <TextDraftField label="environment.spatial_feeling" value={draft.spatialFeeling} disabled={disabled} onChange={value => onChange({ spatialFeeling: value })} />
-      <TextDraftField label="scene.genre" value={draft.genre} disabled={disabled} onChange={value => onChange({ genre: value })} />
-      <TextDraftField label="narrative.secondary" value={draft.narrativeSecondary} disabled={disabled} onChange={value => onChange({ narrativeSecondary: value })} />
-      <TextDraftField label="emotion.names" value={draft.emotionNames} disabled={disabled} onChange={value => onChange({ emotionNames: value })} />
-      <TextDraftField label="reusable.pattern_ids" value={draft.patternIds} disabled={disabled} onChange={value => onChange({ patternIds: value })} />
-      <ManualField label="reusable.principle">
+      <TextDraftField label={localizeShotField('framing', i18n.language)} value={draft.framing} disabled={disabled} onChange={value => onChange({ framing: value })} />
+      <TextDraftField label={localizeShotField('composition', i18n.language)} value={draft.composition} disabled={disabled} onChange={value => onChange({ composition: value })} />
+      <TextDraftField label={localizeShotField('lens.optical_effects', i18n.language)} value={draft.opticalEffects} disabled={disabled} onChange={value => onChange({ opticalEffects: value })} />
+      <TextDraftField label={localizeShotField('environment.spatial_feeling', i18n.language)} value={draft.spatialFeeling} disabled={disabled} onChange={value => onChange({ spatialFeeling: value })} />
+      <TextDraftField label={localizeShotField('genre', i18n.language)} value={draft.genre} disabled={disabled} onChange={value => onChange({ genre: value })} />
+      <TextDraftField label={localizeShotField('secondary', i18n.language)} value={draft.narrativeSecondary} disabled={disabled} onChange={value => onChange({ narrativeSecondary: value })} />
+      <TextDraftField label={localizeShotField('emotion.names', i18n.language)} value={draft.emotionNames} disabled={disabled} onChange={value => onChange({ emotionNames: value })} />
+      <TextDraftField label={localizeShotField('pattern_ids', i18n.language)} value={draft.patternIds} disabled={disabled} onChange={value => onChange({ patternIds: value })} />
+      <ManualField label={localizeShotField('principle', i18n.language)}>
         <Textarea value={draft.reusablePrinciple} disabled={disabled} rows={3} onChange={event => onChange({ reusablePrinciple: event.target.value })} />
       </ManualField>
-      <TextDraftField label="reusable.works_when" value={draft.worksWhen} disabled={disabled} onChange={value => onChange({ worksWhen: value })} />
-      <TextDraftField label="reusable.avoid_when" value={draft.avoidWhen} disabled={disabled} onChange={value => onChange({ avoidWhen: value })} />
-      <TextDraftField label="execution.requirements" value={draft.requirements} disabled={disabled} onChange={value => onChange({ requirements: value })} />
-      <ManualField label="execution.blocking">
+      <TextDraftField label={localizeShotField('works_when', i18n.language)} value={draft.worksWhen} disabled={disabled} onChange={value => onChange({ worksWhen: value })} />
+      <TextDraftField label={localizeShotField('avoid_when', i18n.language)} value={draft.avoidWhen} disabled={disabled} onChange={value => onChange({ avoidWhen: value })} />
+      <TextDraftField label={localizeShotField('requirement', i18n.language)} value={draft.requirements} disabled={disabled} onChange={value => onChange({ requirements: value })} />
+      <ManualField label={localizeShotField('blocking', i18n.language)}>
         <Textarea value={draft.blocking} disabled={disabled} rows={2} onChange={event => onChange({ blocking: event.target.value })} />
       </ManualField>
     </div>
@@ -1699,73 +1724,82 @@ function TextDraftField({ label, value, disabled = false, onChange }: { label: s
   )
 }
 
-function visualAnalysisDetails(entry: ShotLibraryEntry): string[] {
+function visualAnalysisDetails(entry: ShotLibraryEntry, language: string): Array<{ field: string; value: string }> {
   const visual = entry.visualAnalysis
   return [
-    labeledValue('shot_size', visual.shot_size),
-    labeledValue('camera_angle', visual.camera_angle),
-    labeledValue('camera_height', visual.camera_height),
-    labeledValue('framing', visual.framing?.join(', ')),
-    labeledValue('composition', visual.composition?.join(', ')),
-    labeledValue('lens', [visual.lens?.focal_length_class, visual.lens?.depth_of_field, ...(visual.lens?.optical_effects ?? [])].filter(Boolean).join(', ')),
-    labeledValue('focus', [visual.focus?.behavior, visual.focus?.initial_focus, visual.focus?.final_focus].filter(Boolean).join(' -> ')),
-    labeledValue('movement', [visual.camera_movement?.type, visual.camera_movement?.speed, visual.camera_movement?.stability, visual.camera_movement?.motivation].filter(Boolean).join(', ')),
-    labeledValue('lighting', [visual.lighting?.style, visual.lighting?.contrast, visual.lighting?.direction].filter(Boolean).join(', ')),
-    labeledValue('color', [visual.color?.palette, visual.color?.contrast, visual.color?.saturation].filter(Boolean).join(', ')),
-    labeledValue('environment', [visual.environment?.location_type, ...(visual.environment?.spatial_feeling ?? [])].filter(Boolean).join(', ')),
-    ...(visual.characters ?? []).map((character, index) => labeledValue(`character_${index + 1}`, [character.role, character.visibility, character.expression, character.action].filter(Boolean).join(', '))),
-  ].filter(Boolean)
+    detailValue('shot_size', visual.shot_size, language),
+    detailValue('camera_angle', visual.camera_angle, language),
+    detailValue('camera_height', visual.camera_height, language),
+    detailValue('framing', visual.framing, language),
+    detailValue('composition', visual.composition, language),
+    detailValue('lens', [visual.lens?.focal_length_class, visual.lens?.depth_of_field, ...(visual.lens?.optical_effects ?? [])], language),
+    detailValue('focus', [visual.focus?.behavior, visual.focus?.initial_focus, visual.focus?.final_focus], language, ' -> '),
+    detailValue('movement', [visual.camera_movement?.type, visual.camera_movement?.speed, visual.camera_movement?.stability, visual.camera_movement?.motivation], language),
+    detailValue('lighting', [visual.lighting?.style, visual.lighting?.contrast, visual.lighting?.direction], language),
+    detailValue('color', [visual.color?.palette, visual.color?.contrast, visual.color?.saturation], language),
+    detailValue('environment', [visual.environment?.location_type, ...(visual.environment?.spatial_feeling ?? [])], language),
+    ...(visual.characters ?? []).map((character, index) => detailValue(`character_${index + 1}`, [character.role, character.visibility, character.expression, character.action], language)),
+  ].filter(isDetailValue)
 }
 
-function narrativeFunctionDetails(entry: ShotLibraryEntry): string[] {
+function narrativeFunctionDetails(entry: ShotLibraryEntry, language: string): Array<{ field: string; value: string }> {
   const fn = entry.narrativeFunction
   return [
-    labeledValue('primary', fn.primary),
-    labeledValue('secondary', fn.secondary?.join(', ')),
-    labeledValue('information_state', fn.information_state),
-    labeledValue('sequence_position', fn.sequence_position),
-    labeledValue('relation_to_previous', fn.relation_to_previous),
-    labeledValue('relation_to_next', fn.relation_to_next),
-  ].filter(Boolean)
+    detailValue('primary', fn.primary, language),
+    detailValue('secondary', fn.secondary, language),
+    detailValue('information_state', fn.information_state, language),
+    detailValue('sequence_position', fn.sequence_position, language),
+    detailValue('relation_to_previous', fn.relation_to_previous, language),
+    detailValue('relation_to_next', fn.relation_to_next, language),
+  ].filter(isDetailValue)
 }
 
-function sceneSemanticsDetails(entry: ShotLibraryEntry): string[] {
+function sceneSemanticsDetails(entry: ShotLibraryEntry, language: string): Array<{ field: string; value: string }> {
   const semantics = entry.sceneSemantics
   return [
-    labeledValue('genre', semantics.genre?.join(', ')),
-    labeledValue('scene_type', semantics.scene_type),
-    labeledValue('location_type', semantics.location_type),
-    labeledValue('relationship_state', semantics.relationship_state),
-    labeledValue('conflict_level', semantics.conflict_level),
-    labeledValue('story_beat', semantics.story_beat),
-    labeledValue('production_scale', semantics.production_scale),
-  ].filter(Boolean)
+    detailValue('genre', semantics.genre, language),
+    detailValue('scene_type', semantics.scene_type, language),
+    detailValue('location_type', semantics.location_type, language),
+    detailValue('relationship_state', semantics.relationship_state, language),
+    detailValue('conflict_level', semantics.conflict_level, language),
+    detailValue('story_beat', semantics.story_beat, language),
+    detailValue('production_scale', semantics.production_scale, language),
+  ].filter(isDetailValue)
 }
 
-function reusablePatternDetails(entry: ShotLibraryEntry): string[] {
+function reusablePatternDetails(entry: ShotLibraryEntry, language: string): Array<{ field: string; value: string }> {
   const pattern = entry.reusablePattern
   return [
-    labeledValue('principle', pattern.principle),
-    labeledValue('pattern_ids', pattern.pattern_ids?.join(', ')),
-    ...(pattern.works_when ?? []).map(value => labeledValue('works_when', value)),
-    ...(pattern.avoid_when ?? []).map(value => labeledValue('avoid_when', value)),
-    ...Object.entries(pattern.variables ?? {}).map(([key, value]) => labeledValue(key, value)),
-  ].filter(Boolean)
+    detailValue('principle', pattern.principle, language, ', ', false),
+    detailValue('pattern_ids', pattern.pattern_ids, language),
+    ...(pattern.works_when ?? []).map(value => detailValue('works_when', value, language, ', ', false)),
+    ...(pattern.avoid_when ?? []).map(value => detailValue('avoid_when', value, language, ', ', false)),
+    ...Object.entries(pattern.variables ?? {}).map(([key, value]) => detailValue(key, value, language)),
+  ].filter(isDetailValue)
 }
 
-function searchIndexDetails(entry: ShotLibraryEntry): string[] {
+function searchIndexDetails(entry: ShotLibraryEntry, language: string): Array<{ field: string; value: string }> {
   const index = entry.searchIndex
   return [
-    labeledValue('queries', index.natural_language_queries?.slice(0, 4).join(' | ')),
-    labeledValue('visual_facets', index.visual_facets?.slice(0, 8).join(', ')),
-    labeledValue('narrative_facets', index.narrative_facets?.slice(0, 8).join(', ')),
-    labeledValue('emotion_facets', index.emotion_facets?.slice(0, 8).join(', ')),
-    labeledValue('pattern_facets', index.pattern_facets?.slice(0, 8).join(', ')),
-  ].filter(Boolean)
+    detailValue('queries', index.natural_language_queries?.slice(0, 4), language, ' | ', false),
+    detailValue('visual_facets', index.visual_facets?.slice(0, 8), language),
+    detailValue('narrative_facets', index.narrative_facets?.slice(0, 8), language),
+    detailValue('emotion_facets', index.emotion_facets?.slice(0, 8), language),
+    detailValue('pattern_facets', index.pattern_facets?.slice(0, 8), language),
+  ].filter(isDetailValue)
 }
 
-function labeledValue(label: string, value?: string): string {
-  return value && value.trim() ? `${label}: ${value}` : ''
+function detailValue(field: string, value: string | Array<string | undefined> | undefined, language: string, separator = ', ', localizeValue = true): { field: string; value: string } | null {
+  const values = Array.isArray(value) ? value : [value]
+  const text = values
+    .filter((item): item is string => Boolean(item?.trim()))
+    .map(item => localizeValue ? localizeShotFieldValue(field, item, language) : item)
+    .join(separator)
+  return text ? { field: localizeShotField(field, language), value: text } : null
+}
+
+function isDetailValue(value: { field: string; value: string } | null): value is { field: string; value: string } {
+  return value !== null
 }
 
 function ManualField({ label, children }: { label: string; children: ReactNode }) {
@@ -2332,7 +2366,7 @@ function optionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
 }
 
-function TagRow({ values, empty }: { values: Array<string | { value: string; category?: ShotLibrarySemanticCategory }>; empty?: string }) {
+function TagRow({ values, empty }: { values: Array<string | { value: string; category?: ShotLibrarySemanticCategory; field?: string }>; empty?: string }) {
   const { i18n } = useTranslation()
   if (values.length === 0) return empty ? <span className="shot-library-page__muted">{empty}</span> : null
   return (
@@ -2340,10 +2374,9 @@ function TagRow({ values, empty }: { values: Array<string | { value: string; cat
       {values.map((item) => {
         const value = typeof item === 'string' ? item : item.value
         const category = typeof item === 'string' ? undefined : item.category
-        const label = category ? localizeShotSemanticValue(category, value, i18n.language) : value
-        return (
-          <StatusBadge key={`${category ?? 'value'}:${value}`} intent="neutral" emphasis="soft">{label}</StatusBadge>
-        )
+        const field = typeof item === 'string' ? undefined : item.field
+        const label = category ? localizeShotSemanticValue(category, value, i18n.language) : field ? `${field}: ${value}` : value
+        return <StatusBadge key={`${category ?? field ?? 'value'}:${value}`} intent="neutral" emphasis="soft">{label}</StatusBadge>
       })}
     </div>
   )

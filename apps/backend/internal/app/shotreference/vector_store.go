@@ -1,0 +1,478 @@
+package shotreference
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"hash/fnv"
+	"math"
+	"sort"
+	"strings"
+	"time"
+	"unicode"
+
+	domainshotreference "github.com/movscript/movscript/internal/domain/shotreference"
+	"github.com/movscript/movscript/internal/infra/observability"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type LocalVectorStore struct {
+	db *gorm.DB
+}
+
+const (
+	localEmbeddingModel = "movscript-local-hash-v1"
+	localEmbeddingDim   = 384
+)
+
+type VectorStoreStats struct {
+	Documents           int64            `json:"documents"`
+	EmbeddedDocuments   int64            `json:"embedded_documents"`
+	References          int64            `json:"references"`
+	SourceReferences    int64            `json:"source_references"`
+	UnindexedReferences int64            `json:"unindexed_references"`
+	OrphanReferences    int64            `json:"orphan_references"`
+	IndexCoverage       float64          `json:"index_coverage"`
+	ByKind              map[string]int64 `json:"by_kind"`
+	ByLocale            map[string]int64 `json:"by_locale"`
+	ByEmbeddingModel    map[string]int64 `json:"by_embedding_model"`
+	LastUpdatedAt       string           `json:"last_updated_at,omitempty"`
+}
+
+func NewLocalVectorStore(db *gorm.DB) *LocalVectorStore {
+	return &LocalVectorStore{db: db}
+}
+
+func (s *LocalVectorStore) Upsert(ctx context.Context, document domainshotreference.VectorDocument) error {
+	start := time.Now()
+	metadata, err := json.Marshal(document.Metadata)
+	if err != nil {
+		recordVectorStoreOperation("upsert", start, 0, err)
+		return err
+	}
+	embedding := embedVectorText(document.Text)
+	embeddingJSON, err := json.Marshal(embedding)
+	if err != nil {
+		recordVectorStoreOperation("upsert", start, 0, err)
+		return err
+	}
+	row := persistencemodel.ShotVectorDocument{
+		DocumentID:     document.ID,
+		ReferenceID:    document.ReferenceID,
+		SourceID:       document.SourceID,
+		Locale:         document.Locale,
+		Kind:           string(document.Kind),
+		Text:           document.Text,
+		Metadata:       string(metadata),
+		EmbeddingModel: localEmbeddingModel,
+		EmbeddingDim:   localEmbeddingDim,
+		Embedding:      string(embeddingJSON),
+	}
+	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "document_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"reference_id",
+			"source_id",
+			"locale",
+			"kind",
+			"text",
+			"metadata",
+			"embedding_model",
+			"embedding_dim",
+			"embedding",
+			"updated_at",
+		}),
+	}).Create(&row).Error
+	recordVectorStoreOperation("upsert", start, 1, err)
+	return err
+}
+
+func (s *LocalVectorStore) Search(ctx context.Context, request domainshotreference.VectorSearchRequest) ([]domainshotreference.VectorSearchResult, error) {
+	start := time.Now()
+	q := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{})
+	if len(request.SourceIDs) > 0 {
+		q = q.Where("source_id IN ?", request.SourceIDs)
+	}
+	if request.Locale != "" {
+		q = q.Where("locale = ?", request.Locale)
+	}
+	rows := []persistencemodel.ShotVectorDocument{}
+	if err := q.Find(&rows).Error; err != nil {
+		recordVectorStoreOperation("search", start, 0, err)
+		return nil, err
+	}
+	terms := vectorSearchTerms(request.Query)
+	queryEmbedding := embedVectorText(request.Query)
+	results := []domainshotreference.VectorSearchResult{}
+	for _, row := range rows {
+		document, err := vectorDocumentFromModel(row)
+		if err != nil {
+			recordVectorStoreOperation("search", start, len(results), err)
+			return nil, err
+		}
+		if !vectorDocumentMatchesFilters(document, request.Filters) {
+			continue
+		}
+		embedding, err := vectorEmbeddingFromModel(row)
+		if err != nil {
+			recordVectorStoreOperation("search", start, len(results), err)
+			return nil, err
+		}
+		score := scoreVectorDocument(document, terms, queryEmbedding, embedding)
+		if strings.TrimSpace(request.Query) != "" && score <= 0 {
+			continue
+		}
+		results = append(results, domainshotreference.VectorSearchResult{
+			Document: document,
+			Score:    score,
+		})
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].Score == results[j].Score {
+			return results[i].Document.ID < results[j].Document.ID
+		}
+		return results[i].Score > results[j].Score
+	})
+	if request.TopK > 0 && len(results) > request.TopK {
+		results = results[:request.TopK]
+	}
+	recordVectorStoreOperation("search", start, len(results), nil)
+	return results, nil
+}
+
+func (s *LocalVectorStore) DeleteByReference(ctx context.Context, referenceID uint) error {
+	start := time.Now()
+	result := s.db.WithContext(ctx).
+		Unscoped().
+		Where("reference_id = ?", referenceID).
+		Delete(&persistencemodel.ShotVectorDocument{})
+	err := result.Error
+	recordVectorStoreOperation("delete_by_reference", start, int(result.RowsAffected), err)
+	return err
+}
+
+func (s *LocalVectorStore) DeleteAll(ctx context.Context) error {
+	start := time.Now()
+	result := s.db.WithContext(ctx).
+		Unscoped().
+		Where("1 = 1").
+		Delete(&persistencemodel.ShotVectorDocument{})
+	err := result.Error
+	recordVectorStoreOperation("delete_all", start, int(result.RowsAffected), err)
+	return err
+}
+
+func (s *LocalVectorStore) Reindex(ctx context.Context, scope domainshotreference.VectorReindexScope) error {
+	start := time.Now()
+	q := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{})
+	if len(scope.ReferenceIDs) > 0 {
+		q = q.Where("reference_id IN ?", scope.ReferenceIDs)
+	}
+	if len(scope.SourceIDs) > 0 {
+		q = q.Where("source_id IN ?", scope.SourceIDs)
+	}
+	err := q.Count(new(int64)).Error
+	recordVectorStoreOperation("reindex", start, 0, err)
+	return err
+}
+
+func (s *LocalVectorStore) ReferenceIDs(ctx context.Context) ([]uint, error) {
+	var ids []uint
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Distinct("reference_id").Pluck("reference_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *LocalVectorStore) Stats(ctx context.Context) (VectorStoreStats, error) {
+	stats := VectorStoreStats{
+		ByKind:           map[string]int64{},
+		ByLocale:         map[string]int64{},
+		ByEmbeddingModel: map[string]int64{},
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Count(&stats.Documents).Error; err != nil {
+		return stats, err
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Where("embedding_dim > 0 AND embedding <> '' AND embedding <> '[]'").Count(&stats.EmbeddedDocuments).Error; err != nil {
+		return stats, err
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Distinct("reference_id").Count(&stats.References).Error; err != nil {
+		return stats, err
+	}
+	var kindRows []struct {
+		Kind  string
+		Count int64
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Select("kind, count(*) as count").Group("kind").Scan(&kindRows).Error; err != nil {
+		return stats, err
+	}
+	for _, row := range kindRows {
+		stats.ByKind[row.Kind] = row.Count
+	}
+	var localeRows []struct {
+		Locale string
+		Count  int64
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Select("locale, count(*) as count").Group("locale").Scan(&localeRows).Error; err != nil {
+		return stats, err
+	}
+	for _, row := range localeRows {
+		stats.ByLocale[row.Locale] = row.Count
+	}
+	var embeddingRows []struct {
+		EmbeddingModel string
+		Count          int64
+	}
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.ShotVectorDocument{}).Select("embedding_model, count(*) as count").Group("embedding_model").Scan(&embeddingRows).Error; err != nil {
+		return stats, err
+	}
+	for _, row := range embeddingRows {
+		if strings.TrimSpace(row.EmbeddingModel) == "" {
+			stats.ByEmbeddingModel["missing"] = row.Count
+		} else {
+			stats.ByEmbeddingModel[row.EmbeddingModel] = row.Count
+		}
+	}
+	var latest persistencemodel.ShotVectorDocument
+	if err := s.db.WithContext(ctx).Order("updated_at desc").First(&latest).Error; err == nil {
+		stats.LastUpdatedAt = latest.UpdatedAt.Format(time.RFC3339Nano)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return stats, err
+	}
+	return stats, nil
+}
+
+func vectorEmbeddingFromModel(row persistencemodel.ShotVectorDocument) ([]float64, error) {
+	if strings.TrimSpace(row.Embedding) == "" || strings.TrimSpace(row.Embedding) == "[]" {
+		return embedVectorText(row.Text), nil
+	}
+	var embedding []float64
+	if err := json.Unmarshal([]byte(row.Embedding), &embedding); err != nil {
+		return nil, err
+	}
+	if len(embedding) == 0 {
+		return embedVectorText(row.Text), nil
+	}
+	return embedding, nil
+}
+
+func vectorDocumentFromModel(row persistencemodel.ShotVectorDocument) (domainshotreference.VectorDocument, error) {
+	metadata := map[string]interface{}{}
+	if strings.TrimSpace(row.Metadata) != "" {
+		if err := json.Unmarshal([]byte(row.Metadata), &metadata); err != nil {
+			return domainshotreference.VectorDocument{}, err
+		}
+	}
+	return domainshotreference.VectorDocument{
+		ID:          row.DocumentID,
+		ReferenceID: row.ReferenceID,
+		SourceID:    row.SourceID,
+		Locale:      row.Locale,
+		Kind:        domainshotreference.VectorDocumentKind(row.Kind),
+		Text:        row.Text,
+		Metadata:    metadata,
+	}, nil
+}
+
+func vectorSearchTerms(query string) []string {
+	clean := normalizeVectorText(query)
+	terms := []string{}
+	for _, term := range strings.Fields(clean) {
+		if usefulSearchTerm(term) && !stringSliceContains(terms, term) {
+			terms = append(terms, term)
+		}
+	}
+	return terms
+}
+
+func scoreVectorDocument(document domainshotreference.VectorDocument, terms []string, queryEmbedding []float64, documentEmbedding []float64) float64 {
+	vectorScore := cosineSimilarity(queryEmbedding, documentEmbedding)
+	text := normalizeVectorText(document.Text)
+	keywordScore := 0.0
+	for _, term := range terms {
+		if strings.Contains(text, term) {
+			keywordScore += 1
+		}
+	}
+	score := vectorScore
+	if keywordScore > 0 {
+		score += math.Log1p(keywordScore) * 0.08
+	}
+	switch document.Kind {
+	case domainshotreference.VectorDocumentCombined:
+		score *= 1.15
+	case domainshotreference.VectorDocumentTags:
+		score *= 1.1
+	case domainshotreference.VectorDocumentNarrative:
+		score *= 1.05
+	}
+	return score
+}
+
+func embedVectorText(text string) []float64 {
+	vector := make([]float64, localEmbeddingDim)
+	features := vectorEmbeddingFeatures(text)
+	if len(features) == 0 {
+		return vector
+	}
+	for _, feature := range features {
+		hash := hashVectorFeature(feature)
+		index := int(hash % uint64(localEmbeddingDim))
+		weight := 1.0
+		if (hash>>63)&1 == 1 {
+			weight = -1
+		}
+		vector[index] += weight
+	}
+	normalizeVector(vector)
+	return vector
+}
+
+func vectorEmbeddingFeatures(text string) []string {
+	clean := normalizeVectorText(text)
+	if clean == "" {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	features := []string{}
+	add := func(feature string) {
+		feature = strings.TrimSpace(feature)
+		if feature == "" {
+			return
+		}
+		if _, ok := seen[feature]; ok {
+			return
+		}
+		seen[feature] = struct{}{}
+		features = append(features, feature)
+	}
+	for _, term := range strings.Fields(clean) {
+		if usefulSearchTerm(term) {
+			add("tok:" + term)
+		}
+		runes := []rune(term)
+		for size := 3; size <= 5; size++ {
+			for i := 0; i+size <= len(runes); i++ {
+				add("sub:" + string(runes[i:i+size]))
+			}
+		}
+	}
+	runes := compactEmbeddingRunes(clean)
+	for size := 2; size <= 3; size++ {
+		for i := 0; i+size <= len(runes); i++ {
+			add("ng:" + string(runes[i:i+size]))
+		}
+	}
+	return features
+}
+
+func compactEmbeddingRunes(text string) []rune {
+	runes := []rune{}
+	for _, r := range text {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			runes = append(runes, r)
+		}
+	}
+	return runes
+}
+
+func hashVectorFeature(feature string) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(feature))
+	return h.Sum64()
+}
+
+func normalizeVector(vector []float64) {
+	var sum float64
+	for _, value := range vector {
+		sum += value * value
+	}
+	if sum == 0 {
+		return
+	}
+	norm := math.Sqrt(sum)
+	for i := range vector {
+		vector[i] = vector[i] / norm
+	}
+}
+
+func cosineSimilarity(a []float64, b []float64) float64 {
+	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
+		return 0
+	}
+	var score float64
+	for i := range a {
+		score += a[i] * b[i]
+	}
+	return score
+}
+
+func normalizeVectorText(value string) string {
+	clean := strings.ToLower(strings.TrimSpace(value))
+	clean = searchPunctuationPattern.ReplaceAllString(clean, " ")
+	return strings.Join(strings.Fields(clean), " ")
+}
+
+func vectorDocumentMatchesFilters(document domainshotreference.VectorDocument, filters map[string][]string) bool {
+	if len(filters) == 0 {
+		return true
+	}
+	for category, selected := range filters {
+		if len(selected) == 0 {
+			continue
+		}
+		values := metadataStrings(document.Metadata[vectorFilterMetadataKey(category)])
+		for _, value := range selected {
+			if !stringSliceContains(values, value) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func vectorFilterMetadataKey(category string) string {
+	switch category {
+	case "visual":
+		return "visual_facets"
+	case "narrative":
+		return "narrative_facets"
+	case "emotion":
+		return "emotion_facets"
+	case "pattern":
+		return "pattern_facets"
+	case "production":
+		return "production_facets"
+	default:
+		return category
+	}
+}
+
+func metadataStrings(value interface{}) []string {
+	items, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := []string{}
+	for _, item := range items {
+		if text, ok := item.(string); ok {
+			result = append(result, text)
+		}
+	}
+	return result
+}
+
+func recordVectorStoreOperation(operation string, start time.Time, documents int, err error) {
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+	observability.DefaultVectorMetrics().Record(observability.VectorOperationSample{
+		Operation: operation,
+		Status:    status,
+		Duration:  time.Since(start),
+		Documents: documents,
+	})
+}

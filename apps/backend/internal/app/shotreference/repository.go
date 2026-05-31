@@ -17,6 +17,7 @@ type repository interface {
 	Get(ctx context.Context, id uint, input domainshotreference.ListInput) (domainshotreference.ShotReference, error)
 	Update(ctx context.Context, reference *domainshotreference.ShotReference) error
 	List(ctx context.Context, input domainshotreference.ListInput) ([]domainshotreference.ShotReference, error)
+	ListAll(ctx context.Context) ([]domainshotreference.ShotReference, error)
 	Delete(ctx context.Context, id uint, input domainshotreference.ListInput) (bool, error)
 }
 
@@ -103,6 +104,21 @@ func (r *gormRepository) List(ctx context.Context, input domainshotreference.Lis
 	q = applyScope(q, input)
 	var rows []persistencemodel.ShotReference
 	if err := q.Find(&rows).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return []domainshotreference.ShotReference{}, nil
+		}
+		return nil, err
+	}
+	result := make([]domainshotreference.ShotReference, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domainshotreference.FromModel(row))
+	}
+	return result, nil
+}
+
+func (r *gormRepository) ListAll(ctx context.Context) ([]domainshotreference.ShotReference, error) {
+	var rows []persistencemodel.ShotReference
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.ShotReference{}).Preload("Resource").Preload("Group").Preload("Group.SourceResource").Order("updated_at desc").Find(&rows).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []domainshotreference.ShotReference{}, nil
 		}

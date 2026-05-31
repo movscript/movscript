@@ -342,6 +342,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.ShotReference{})
 			},
 		},
+		{
+			Version: "000037",
+			Name:    "add_shot_vector_documents",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ShotVectorDocument{})
+			},
+		},
 	}
 	return core
 }
@@ -1246,6 +1253,7 @@ func allModels() []any {
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
+		&persistencemodel.ShotVectorDocument{},
 		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},
@@ -1322,6 +1330,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ExternalResourceSource{},
 		&persistencemodel.ShotReferenceGroup{},
 		&persistencemodel.ShotReference{},
+		&persistencemodel.ShotVectorDocument{},
 		&persistencemodel.ResourceBinding{},
 		&persistencemodel.Canvas{},
 		&persistencemodel.CanvasNode{},
