@@ -39,10 +39,7 @@ func RegisteredMigrations() []Migration {
 			Version: "000001",
 			Name:    "create_schema",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(allModels()...); err != nil {
-					return err
-				}
-				return seedFeatureConfigs(db)
+				return db.AutoMigrate(allModels()...)
 			},
 		},
 		{
@@ -57,7 +54,6 @@ func RegisteredMigrations() []Migration {
 					&persistencemodel.OrgInvitation{},
 					&persistencemodel.Project{},
 					&persistencemodel.AICredential{},
-					&persistencemodel.FeatureConfig{},
 					&persistencemodel.ResourceFolder{},
 					&persistencemodel.GatewayAPIKey{},
 					&persistencemodel.UsageLog{},
@@ -347,6 +343,13 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_shot_vector_documents",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&persistencemodel.ShotVectorDocument{})
+			},
+		},
+		{
+			Version: "000038",
+			Name:    "drop_feature_configs_after_convergence",
+			Up: func(db *gorm.DB) error {
+				return dropFeatureConfigsTable(db)
 			},
 		},
 	}
@@ -1027,49 +1030,18 @@ func seedDefaultOrg(db *gorm.DB) error {
 	return nil
 }
 
-func seedFeatureConfigs(db *gorm.DB) error {
-	features := []persistencemodel.FeatureConfig{
-		{FeatureKey: "script_analyze", DisplayName: "剧本 AI 分析", Description: "对剧本内容进行智能分析，提取人物、背景、场景等关键信息", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "main_script_analyze", DisplayName: "主剧本 AI 分析", Description: "拆解主剧本，提取制作剧本、分场剧本和项目设定候选", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "episode_script_analyze", DisplayName: "制作剧本 AI 分析", Description: "分析制作剧本，提取标题、描述、提纲、钩子和涉及分场", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "scene_script_analyze", DisplayName: "分场剧本 AI 分析", Description: "分析分场剧本，提取时间、人物、场景、情节、氛围和提纲", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "assistant_chat", DisplayName: "助手对话", Description: "侧边栏助手，用于项目创作辅助对话", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "canvas_text", DisplayName: "画布·文本生成", Description: "画布工作流中的文本生成节点", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "canvas_image", DisplayName: "画布·图像生成", Description: "画布工作流中的图像生成节点", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "canvas_video", DisplayName: "画布·视频生成", Description: "画布工作流中的视频生成节点", Capability: "video", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "shot_ref_image", DisplayName: "分镜·参考图生成", Description: "根据分镜描述生成参考图", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "shot_ref_video", DisplayName: "分镜·参考视频生成", Description: "根据参考图或描述生成参考视频", Capability: "video", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "ref_image_gen", DisplayName: "参考生图", Description: "以参考图为基础，生成新的图像；同时支持纯文本生图", Capability: "image", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "ref_video_gen", DisplayName: "参考生视频", Description: "以参考图或描述为基础，生成视频", Capability: "video", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "motion_imitation", DisplayName: "动作迁移", Description: "将参考视频的动作迁移到目标角色", Capability: "video_v2v", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "video_edit", DisplayName: "剪辑工具", Description: "基于源视频和剪辑指令生成处理后的视频", Capability: "video_v2v", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "style_transfer", DisplayName: "画风迁移", Description: "将参考图的画风迁移到目标图像", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "multi_angle", DisplayName: "多角度", Description: "从单张参考图生成多角度视图", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Description: "AI 多轮对话，辅助创意发散与剧本构思", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+func dropFeatureConfigsTable(db *gorm.DB) error {
+	if !db.Migrator().HasTable("feature_configs") {
+		return nil
 	}
-	for _, feature := range features {
-		var existing persistencemodel.FeatureConfig
-		err := db.Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
-		if err == nil {
-			continue
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("lookup feature %s: %w", feature.FeatureKey, err)
-		}
-		if err := db.Create(&feature).Error; err != nil {
-			return fmt.Errorf("seed feature %s: %w", feature.FeatureKey, err)
-		}
-	}
-	return nil
+	return db.Migrator().DropTable("feature_configs")
 }
 
 func removeProductionOrchestrateFeatureConfig(db *gorm.DB) error {
-	if !db.Migrator().HasTable(&persistencemodel.FeatureConfig{}) {
+	if !db.Migrator().HasTable("feature_configs") {
 		return nil
 	}
-	if err := db.Unscoped().
-		Where("feature_key = ?", "production_orchestrate").
-		Delete(&persistencemodel.FeatureConfig{}).Error; err != nil {
+	if err := db.Exec("DELETE FROM feature_configs WHERE feature_key = ?", "production_orchestrate").Error; err != nil {
 		return fmt.Errorf("delete production_orchestrate feature config: %w", err)
 	}
 	return nil
@@ -1197,6 +1169,9 @@ func acceptsLegacyMigrationChecksum(migration Migration, checksum string) bool {
 		"000010": {
 			"117f6dcc99612418640970bab33d24a3c08a183fc4b886e97e534ba061be11ad": {},
 		},
+		"000029": {
+			"83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972": {},
+		},
 	}
 	versionChecksums, ok := legacyChecksums[migration.Version]
 	if !ok {
@@ -1262,7 +1237,6 @@ func allModels() []any {
 		&persistencemodel.CanvasTask{},
 		&persistencemodel.CanvasEntityWriteAudit{},
 		&persistencemodel.CanvasOutput{},
-		&persistencemodel.FeatureConfig{},
 		&persistencemodel.Job{},
 		&persistencemodel.Plugin{},
 		&persistencemodel.PluginTool{},
@@ -1339,7 +1313,6 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.CanvasTask{},
 		&persistencemodel.CanvasEntityWriteAudit{},
 		&persistencemodel.CanvasOutput{},
-		&persistencemodel.FeatureConfig{},
 		&persistencemodel.Job{},
 		&persistencemodel.Plugin{},
 		&persistencemodel.PluginTool{},

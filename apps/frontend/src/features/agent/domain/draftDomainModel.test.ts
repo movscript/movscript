@@ -93,7 +93,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'production_proposal',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/production/orchestration?productionId=301&draftId=draft-production',
+    '/project/production/orchestration?view=review&draftId=draft-production&productionId=301',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -109,7 +109,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'scene_moment', entityId: 77 },
     })),
-    '/project/content-units/workbench?view=review&draftId=draft-content-unit&scene_moment_id=77',
+    '/project/production/orchestration?view=review&draftId=draft-content-unit&scene_moment_id=77',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -117,7 +117,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/content-units/workbench?view=review&draftId=draft-content-unit-production&productionId=301',
+    '/project/production/orchestration?view=review&draftId=draft-content-unit-production&productionId=301',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -125,7 +125,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'content_unit', entityId: 801 },
     })),
-    '/project/content-units/workbench?view=review&draftId=draft-content-unit-existing&content_unit_id=801',
+    '/project/production/orchestration?view=review&draftId=draft-content-unit-existing&content_unit_id=801',
   )
 })
 
@@ -146,7 +146,7 @@ test('draft artifact review path does not require loading the full draft first',
       draftKind: 'production_proposal',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/project/production/orchestration?productionId=301&draftId=draft-production',
+    '/project/production/orchestration?view=review&draftId=draft-production&productionId=301',
   )
   assert.equal(
     buildDraftArtifactReviewPath({

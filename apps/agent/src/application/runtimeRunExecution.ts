@@ -1,5 +1,4 @@
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -8,6 +7,15 @@ import type { MCPClient } from '../mcpClient.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import type { AgentStore } from '../state/store.js'
 import type { AgentCapabilitiesResponse } from '../state/types.js'
+import type { DraftApplyPort } from '../ports/draft/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../ports/draft/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../ports/draft/proposalSnapshotHydrationPort.js'
+import type { CoreResourceFilePort } from '../ports/core/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../ports/core/videoFrameExtractionPort.js'
+import type { MovscriptProjectStandardsPort } from '../ports/movscript/projectStandardsPort.js'
+import type { RuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import type { ExternalToolGatewayPort } from '../ports/tools/externalToolGatewayPort.js'
+import type { AgentToolResultStore } from '../state/toolResultStore.js'
 import { runBackendAuthMetadata, type RuntimeRunAuthRegistry } from './runAuth.js'
 import type { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
 import { applyRuntimeRunAgentGraphResultHandling } from './runtimeRunAgentGraphResultHandling.js'
@@ -39,12 +47,20 @@ export interface RuntimeRunExecutionDependencies {
   postRunRecords: RuntimePostRunRecordsBridge
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   draftStore: AgentDraftStore
-  backendApplyClient: BackendApplyClient
+  externalToolGatewayPort: ExternalToolGatewayPort
+  draftApplyPort: DraftApplyPort
+  draftApplyPreviewPort: DraftApplyPreviewPort
+  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  resourceFilePort: CoreResourceFilePort
+  videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  projectStandardsPort: MovscriptProjectStandardsPort
   memoryStore: AgentMemoryStore
   memoryManager: MemoryManager
   knowledgeManager: KnowledgeManager
   contractResolver: AgentRuntimeContractResolver
   catalogManager: AgentCatalogToolManager
+  toolResultStore?: AgentToolResultStore
+  runtimeToolHandlers: RuntimeToolHandlerRegistry
   updateState?: AgentCapabilitiesResponse['updates']
 }
 
@@ -176,10 +192,16 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       memoryStore: input.memoryStore,
       contractResolver: input.contractResolver,
       catalogSnapshot,
-      mcpClient: input.mcpClient,
       draftStore: input.draftStore,
-      backendApplyClient: input.backendApplyClient,
+      externalToolGatewayPort: input.externalToolGatewayPort,
+      draftApplyPort: input.draftApplyPort,
+      draftApplyPreviewPort: input.draftApplyPreviewPort,
+      proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+      resourceFilePort: input.resourceFilePort,
+      videoFrameExtractionPort: input.videoFrameExtractionPort,
+      projectStandardsPort: input.projectStandardsPort,
       memoryManager: input.memoryManager,
+      runtimeToolHandlers: input.runtimeToolHandlers,
       knowledgeManager: input.knowledgeManager,
       catalogManager: input.catalogManager,
       signal: input.signal,
@@ -202,11 +224,19 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       auth: input.runAuth.get(run.id),
       mcpClient: input.mcpClient,
       draftStore: input.draftStore,
-      backendApplyClient: input.backendApplyClient,
+      externalToolGatewayPort: input.externalToolGatewayPort,
+      draftApplyPort: input.draftApplyPort,
+      draftApplyPreviewPort: input.draftApplyPreviewPort,
+      proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+      resourceFilePort: input.resourceFilePort,
+      videoFrameExtractionPort: input.videoFrameExtractionPort,
+      projectStandardsPort: input.projectStandardsPort,
       contractResolver: input.contractResolver,
+      runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,
       knowledgeManager: input.knowledgeManager,
       catalogManager: input.catalogManager,
+      ...(input.toolResultStore ? { toolResultStore: input.toolResultStore } : {}),
       ...(clientInput ? { clientInput } : {}),
       updateState: input.updateState,
       setupRound,

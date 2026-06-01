@@ -42,7 +42,6 @@ const navigationGroups: NavigationMenuGroup[] = [
       { label: 'Motion Imitation', route: '/tools/motion-imitation' },
       { label: 'Style Transfer', route: '/tools/style-transfer' },
       { label: 'Multi-angle', route: '/tools/multi-angle' },
-      { label: 'Brainstorm', route: '/tools/brainstorm' },
     ],
   },
   {

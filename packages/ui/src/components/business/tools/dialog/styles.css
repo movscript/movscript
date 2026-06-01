@@ -29,8 +29,7 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-dialog-main,
-.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-brainstorm-main {
+.tool-dialog-body--reference-workbench[data-overlap-pane-expanded="true"] .tool-dialog-main {
   display: none;
 }
 
@@ -340,10 +339,6 @@
 
   .tool-dialog-body--reference-workbench .tool-dialog-main {
     overflow: visible;
-    padding: 20px var(--tool-dialog-main-inset);
-  }
-
-  .tool-dialog-body--reference-workbench .tool-brainstorm-main {
     padding: 20px var(--tool-dialog-main-inset);
   }
 

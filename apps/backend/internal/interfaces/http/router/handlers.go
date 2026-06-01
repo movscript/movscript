@@ -23,7 +23,6 @@ type handlers struct {
 	resourceAdmin     *handler.ResourceAdminHandler
 	canvases          *handler.CanvasHandler
 	models            *handler.ModelsHandler
-	feature           *handler.FeatureHandler
 	jobs              *handler.JobHandler
 	modelGateway      *handler.ModelGatewayHandler
 	debug             *handler.DebugHandler
@@ -71,7 +70,6 @@ func newHandlers(deps Dependencies) handlers {
 		resourceAdmin:     handler.NewResourceAdminHandler(db, store),
 		canvases:          handler.NewCanvasHandler(db, registry, aiService, store),
 		models:            handler.NewModelsHandler(aiService, cacheStore),
-		feature:           handler.NewFeatureHandler(db),
 		jobs:              handler.NewJobHandler(db, aiService),
 		modelGateway:      handler.NewModelGatewayHandler(db, aiService),
 		debug:             handler.NewDebugHandler(db, deps.EncryptionKey),

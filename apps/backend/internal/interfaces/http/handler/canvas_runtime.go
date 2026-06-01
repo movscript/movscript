@@ -25,7 +25,6 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 	var req struct {
 		ModelID       string         `json:"model_id"`
 		ModelConfigID uint           `json:"model_config_id"`
-		FeatureKey    string         `json:"feature_key"`
 		Prompt        string         `json:"prompt"`
 		Params        map[string]any `json:"params"`
 		ProjectID     *uint          `json:"project_id"`
@@ -40,18 +39,14 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 		return
 	}
 
-	featureKey := strings.TrimSpace(req.FeatureKey)
-	if featureKey == "" {
-		featureKey = "canvas_text"
-	}
-	route, err := h.resolveCanvasRuntimeTextRoute(req.ModelID, req.ModelConfigID, featureKey)
+	route, err := h.resolveCanvasRuntimeTextRoute(req.ModelID, req.ModelConfigID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	textReq := ai.TextRequest{
-		PromptName:  featureKey,
+		PromptName:  "canvas_runtime_text",
 		Messages:    []ai.Message{{Role: "user", Content: req.Prompt}},
 		MaxTokens:   intParam(req.Params, "max_tokens", 0),
 		Temperature: floatParam(req.Params, "temperature", -1),
@@ -74,7 +69,7 @@ func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
 	})
 }
 
-func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(modelID string, modelConfigID uint, featureKey string) (ai.ModelRoute, error) {
+func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(modelID string, modelConfigID uint) (ai.ModelRoute, error) {
 	if strings.TrimSpace(modelID) != "" || modelConfigID != 0 {
 		return h.aiService.ResolveModelRoute(ai.ModelRouteRequest{
 			ModelID:       modelID,
@@ -82,7 +77,7 @@ func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(modelID string, modelConfi
 			Capability:    ai.CapabilityText,
 		})
 	}
-	modelConfigID, modelID, err := h.aiService.GetForFeature(featureKey)
+	modelConfigID, modelID, err := h.aiService.GetAnyTextModel()
 	if err != nil {
 		return ai.ModelRoute{}, err
 	}

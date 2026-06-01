@@ -9,6 +9,7 @@ import type {
   AgentTraceEventKind,
   ToolCallOutcome,
 } from '../state/types.js'
+import { summarizeRollbackRecordsTrace } from '../domains/trace/rollbackTrace.js'
 import { buildToolRollbackRecords } from '../tools/toolRollbackRecords.js'
 import type { RuntimeDeferredTaskRegistry } from './runtimeDeferredTasks.js'
 
@@ -135,7 +136,7 @@ export function recordRuntimeRollbackTrace(input: {
     round: input.round,
     data: {
       eventType: 'rollback_policy',
-      rollbackRecords: records,
+      rollbackSummary: summarizeRollbackRecordsTrace(records),
     },
   })
   return records.length

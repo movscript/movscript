@@ -19,7 +19,7 @@ function testRun(): AgentRun {
 test('buildModelToolResultContext summarizes oversized tool result bodies', () => {
   const result = buildModelToolResultContext({
     run: testRun(),
-    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
+    call: { id: 'call_script_1', name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{
@@ -34,6 +34,11 @@ test('buildModelToolResultContext summarizes oversized tool result bodies', () =
   assert.equal(result.content.length <= 1000, true)
   assert.match(result.content, /contextBoundary/)
   assert.match(result.content, /contextControl/)
+  assert.equal(result.resultRef?.key.startsWith('tool_result:call_script_1:sha256:'), true)
+  assert.match(result.resultRef?.hash ?? '', /^sha256:/)
+  const payload = JSON.parse(result.content)
+  assert.equal(payload.contextControl.resultRef.key, result.resultRef?.key)
+  assert.equal(payload.contextControl.resultRef.lookup.resultHash, result.resultRef?.hash)
   assert.match(result.content, /omitted_text_body/)
   assert.doesNotMatch(result.content, /雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。/)
 })
@@ -46,6 +51,7 @@ test('buildModelToolResultContext leaves small tool results intact', () => {
   })
 
   assert.equal(result.dropped, false)
+  assert.equal(result.resultRef?.key.startsWith('tool_result:movscript_focus_get:sha256:'), true)
   assert.deepEqual(JSON.parse(result.content), {
     result: { projectId: 42 },
     call: { name: 'movscript.focus_get', args: {} },
@@ -101,6 +107,24 @@ test('buildModelToolResultContext reads context budget from agent manifest metad
   assert.equal(result.dropped, true)
   assert.equal(result.content.length <= 1000, true)
   assert.match(result.content, /omitted_text_body/)
+})
+
+test('buildModelToolResultContext respects tool-level result size limits', () => {
+  const result = buildModelToolResultContext({
+    run: {
+      ...testRun(),
+      metadata: { limits: { maxRetrievedContextChars: 2000 } },
+    },
+    call: { name: 'knowledge_get', args: { id: 'knowledge.storyboard' } },
+    result: {
+      id: 'knowledge.storyboard',
+      content: '镜头规划'.repeat(500),
+    },
+    maxResultSizeChars: 700,
+  })
+
+  assert.equal(result.dropped, true)
+  assert.equal(result.content.length <= 700, true)
 })
 
 test('buildModelToolResultContext keeps script bodies up to the inline limit in summarized results', () => {

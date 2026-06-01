@@ -347,7 +347,9 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(listModelsTool.description, /contract_version 1/)
   assert.match(listModelsTool.description, /supported_param_keys/)
   const listModelsProperties = schemaProperties(listModelsTool.inputSchema)
-  assert.ok(listModelsProperties.feature_key)
+  assert.ok(listModelsProperties.capability)
+  assert.equal(listModelsProperties.feature, undefined)
+  assert.equal(listModelsProperties.feature_key, undefined)
   assert.ok(listModelsProperties.provider_variants)
   assert.ok(listModelsProperties.include_provider_variants)
   const listModelsOutputProperties = schemaProperties(listModelsTool.outputSchema)
@@ -563,6 +565,7 @@ test('manual script reading skill is discovered before it exposes script tools',
   const discoveredScriptSkill = coreOnly.skillDiscovery.availableSkills.find((skill) => skill.id === 'movscript.workflow.script_reading')
   assert.ok(discoveredScriptSkill)
   assert.equal(discoveredScriptSkill.loadMode, 'manual')
+  assert.deepEqual(coreOnly.trace.skillOmissions.filter((skill) => skill.skillId === 'movscript.workflow.script_reading').map((skill) => skill.stage), ['manual_not_loaded'])
 
   const coreTools = resolveToolCatalog({
     mcpTools: [],
@@ -657,6 +660,7 @@ test('manual script reading skill overrides tool-policy deny for its script tool
   })
   assert.equal(loadedTools.byName.movscript_script_locate?.available, true)
   assert.equal(loadedTools.byName.movscript_script_locate?.granted, true)
+  assert.equal(loaded.trace.skillOmissions.some((skill) => skill.skillId === 'movscript.workflow.script_reading'), false)
 })
 
 test('visual generation prompt exposes backend generation validation error codes', () => {

@@ -4,6 +4,7 @@ import {
   RUN_DEBUG_LEDGER_MAX_CHARS,
   applyTraceEventToDebugLedger,
   createRunDebugLedger,
+  findRunDebugEvidenceRefs,
   resolveRunDebugEvidence,
 } from './runDebugLedger.js'
 import { defaultRunPolicy } from './runPolicy.js'
@@ -54,12 +55,25 @@ test('run debug ledger projects prompt, model, tool, and attention trace into a 
         charCount: 1200,
         messageCount: 4,
         systemMessageCount: 2,
+        contextBundleId: 'ctxb_1',
+        contextBundleRef: { id: 'ctxb_1', promptHash: 'sha256:prompt' },
         skillIds: ['policy.core'],
         availableToolNames: ['movscript_read_project'],
         blockedToolCount: 1,
         promptStats: {
           totalChars: 1200,
           byContextLayer: { runtime_contract: 500, focus: 700 },
+          budgetLedger: {
+            decisionCount: 1,
+            decisions: [{
+              action: 'drop',
+              stage: 'low_priority',
+              partId: 'skill.low',
+              reason: 'prompt.size.exceeded: dropped non-critical skill skill.low',
+              originalChars: 400,
+              renderedChars: 0,
+            }],
+          },
         },
       },
     }),
@@ -119,11 +133,24 @@ test('run debug ledger projects prompt, model, tool, and attention trace into a 
       roundIndex: 1,
       toolName: 'movscript_read_project',
       summary: 'project not found',
-      data: { args: { projectId: 404 }, error: 'project not found', result: { error: 'project not found' } },
+      data: {
+        args: { projectId: 404 },
+        error: 'project not found',
+        resultHash: 'sha256:tool_result',
+        resultChars: 29,
+        resultMode: 'summary',
+        contextRefs: [{
+          key: 'tool_result:call_1:sha256:tool_result',
+          ref: { type: 'tool_result', id: 'call_1', hash: 'sha256:tool_result' },
+        }],
+      },
     }),
   })
 
   assert.equal(ledger.context.promptChars, 1200)
+  assert.equal(ledger.context.droppedSummary.count, 1)
+  assert.equal(ledger.context.droppedSummary.totalOriginalChars, 400)
+  assert.equal(ledger.context.droppedSummary.samples[0]?.reason, 'prompt.size.exceeded: dropped non-critical skill skill.low')
   assert.deepEqual(ledger.context.activeSkillIds, ['policy.core'])
   assert.equal(ledger.modelCalls.length, 1)
   assert.equal(ledger.modelCalls[0]?.status, 'complete')
@@ -136,6 +163,10 @@ test('run debug ledger projects prompt, model, tool, and attention trace into a 
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'model_response'), true)
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'tool_args'), true)
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'tool_result'), true)
+  assert.equal(ledger.evidenceIndex.some((item) => item.contextBundleIds?.includes('ctxb_1')), true)
+  const toolResultEvidence = ledger.evidenceIndex.find((item) => item.kind === 'tool_result')
+  assert.equal(toolResultEvidence?.resultHashes?.includes('sha256:tool_result'), true)
+  assert.equal(toolResultEvidence?.refKeys?.includes('tool_result:call_1:sha256:tool_result'), true)
 })
 
 test('run debug ledger enforces a hard serialized size budget under noisy trace input', () => {
@@ -203,4 +234,211 @@ test('run debug evidence resolves tool call arguments', () => {
 
   assert.equal(evidence?.kind, 'tool_args')
   assert.deepEqual(evidence?.value, { projectId: 42 })
+})
+
+test('run debug ledger indexes assistant content hashes for evidence lookup', () => {
+  const event = trace({
+    id: 'trace_assistant',
+    kind: 'assistant',
+    title: 'Assistant message created',
+    status: 'completed',
+    data: {
+      messageId: 'msg_1',
+      contentHash: 'sha256:assistant_content',
+      contentChars: 12,
+      contentMode: 'summary',
+      source: 'model',
+    },
+  })
+  let ledger = createRunDebugLedger(run())
+  ledger = applyTraceEventToDebugLedger({ ledger, event, run: run() })
+
+  const evidence = ledger.evidenceIndex.find((item) => item.contentHashes?.includes('sha256:assistant_content'))
+  assert.equal(evidence?.kind, 'raw_event')
+  assert.equal(evidence?.eventId, 'trace_assistant')
+})
+
+test('run debug ledger finds evidence refs by context refs and hashes without scanning callers', () => {
+  let ledger = createRunDebugLedger(run())
+  ledger = applyTraceEventToDebugLedger({
+    ledger,
+    run: run(),
+    event: trace({
+      id: 'trace_prompt_ref',
+      kind: 'prompt',
+      title: 'Prompt composed',
+      data: {
+        contextBundleId: 'ctxb_lookup',
+        contextBundleRef: { id: 'ctxb_lookup', promptHash: 'sha256:prompt' },
+      },
+    }),
+  })
+  ledger = applyTraceEventToDebugLedger({
+    ledger,
+    run: run(),
+    event: trace({
+      id: 'trace_tool_ref',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_read_project',
+      toolName: 'movscript_read_project',
+      data: {
+        resultHash: 'sha256:tool_lookup',
+        resultMode: 'summary',
+        contextRefs: [{
+          key: 'tool_result:call_lookup:sha256:tool_lookup',
+          ref: { type: 'tool_result', id: 'call_lookup', hash: 'sha256:tool_lookup' },
+        }],
+      },
+    }),
+  })
+  ledger = applyTraceEventToDebugLedger({
+    ledger,
+    run: run(),
+    event: trace({
+      id: 'trace_context_mutation',
+      kind: 'context',
+      title: 'Context ledger updated',
+      data: {
+        eventType: 'context.ledger_updated',
+        retrievedCount: 2,
+        activeCount: 1,
+        amendedCount: 1,
+        deletedCount: 0,
+        mutationSummary: {
+          schema: 'movscript.context-mutation-summary.v1',
+          total: 2,
+          appended: 1,
+          amended: 1,
+          deleted: 0,
+          affectedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old', 'knowledge:storyboard.rhythm.basic:sha256:new'],
+          appendedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old'],
+          amendedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old', 'knowledge:storyboard.rhythm.basic:sha256:new'],
+          deletedContextKeys: [],
+          latest: {
+            id: 'ctx_mut_amend_1',
+            type: 'amend',
+            createdAt: '2026-05-21T00:00:04.000Z',
+            reason: 'knowledge refreshed',
+          },
+        },
+        refs: [{
+          key: 'knowledge:storyboard.rhythm.basic:sha256:new',
+          type: 'knowledge',
+          id: 'storyboard.rhythm.basic',
+          status: 'active',
+          hash: 'sha256:new',
+        }],
+      },
+    }),
+  })
+  ledger = applyTraceEventToDebugLedger({
+    ledger,
+    run: run(),
+    event: trace({
+      id: 'trace_message_ref',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      data: {
+        contentHash: 'sha256:message_lookup',
+        contentChars: 20,
+        contentMode: 'summary',
+      },
+    }),
+  })
+
+  assert.deepEqual(
+    findRunDebugEvidenceRefs({ ledger, contextBundleId: 'ctxb_lookup' }).map((item) => item.evidenceId),
+    ['trace_prompt_ref:raw_event'],
+  )
+  assert.deepEqual(
+    findRunDebugEvidenceRefs({ ledger, refKey: 'tool_result:call_lookup:sha256:tool_lookup', resultHash: 'sha256:tool_lookup', kind: 'tool_result' }).map((item) => item.evidenceId),
+    ['trace_tool_ref:tool_result'],
+  )
+  assert.deepEqual(
+    findRunDebugEvidenceRefs({ ledger, contentHash: 'sha256:message_lookup' }).map((item) => item.evidenceId),
+    ['trace_message_ref:raw_event'],
+  )
+  assert.deepEqual(
+    findRunDebugEvidenceRefs({ ledger, refKey: 'knowledge:storyboard.rhythm.basic:sha256:new', kind: 'raw_event' }).map((item) => item.evidenceId),
+    ['trace_context_mutation:raw_event'],
+  )
+  const contextMutationEvidence = ledger.evidenceIndex.find((item) => item.evidenceId === 'trace_context_mutation:raw_event')
+  assert.equal(contextMutationEvidence?.refKeys?.includes('knowledge:storyboard.rhythm.basic:sha256:old'), true)
+  assert.equal(contextMutationEvidence?.refKeys?.includes('knowledge:storyboard.rhythm.basic:sha256:new'), true)
+  assert.equal(contextMutationEvidence?.preview.includes('movscript.context-mutation-summary.v1'), true)
+  assert.deepEqual(findRunDebugEvidenceRefs({ ledger, kind: 'raw_event' }), [])
+  assert.deepEqual(findRunDebugEvidenceRefs({ ledger, resultHash: 'missing' }), [])
+})
+
+test('run debug ledger indexes dropped tool result refs for reread evidence lookup', () => {
+  let ledger = createRunDebugLedger(run())
+  ledger = applyTraceEventToDebugLedger({
+    ledger,
+    run: run(),
+    event: trace({
+      id: 'trace_drop_ref',
+      kind: 'context',
+      title: 'Tool result body summarized',
+      data: {
+        eventType: 'context.item_dropped',
+        reason: 'summarized',
+        originalChars: 5000,
+        renderedChars: 900,
+        resultHash: 'sha256:dropped_tool',
+        refKey: 'tool_result:call_dropped:sha256:dropped_tool',
+        resultRef: {
+          key: 'tool_result:call_dropped:sha256:dropped_tool',
+          hash: 'sha256:dropped_tool',
+          evidenceKind: 'tool_result',
+          lookup: {
+            refKey: 'tool_result:call_dropped:sha256:dropped_tool',
+            resultHash: 'sha256:dropped_tool',
+          },
+        },
+      },
+    }),
+  })
+
+  assert.equal(ledger.context.droppedSummary.samples[0]?.resultHash, 'sha256:dropped_tool')
+  assert.deepEqual(
+    findRunDebugEvidenceRefs({ ledger, refKey: 'tool_result:call_dropped:sha256:dropped_tool', resultHash: 'sha256:dropped_tool', kind: 'raw_event' }).map((item) => item.evidenceId),
+    ['trace_drop_ref:raw_event'],
+  )
+  const evidence = resolveRunDebugEvidence({ runId: 'run_ledger', events: [trace({
+    id: 'trace_drop_ref',
+    kind: 'context',
+    title: 'Tool result body summarized',
+    data: {
+      eventType: 'context.item_dropped',
+      resultHash: 'sha256:dropped_tool',
+      refKey: 'tool_result:call_dropped:sha256:dropped_tool',
+    },
+  })], evidenceId: 'trace_drop_ref:raw_event' })
+  assert.equal((evidence?.value as any).data.resultHash, 'sha256:dropped_tool')
+})
+
+test('run debug ledger records prompt-too-long recovery projection decisions', () => {
+  const currentRun = run()
+  const ledger = applyTraceEventToDebugLedger({
+    ledger: createRunDebugLedger(currentRun),
+    run: currentRun,
+    event: trace({
+      id: 'trace_prompt_too_long',
+      kind: 'context',
+      title: 'Prompt too long recovery projected',
+      summary: '2 history message(s) collapsed before retrying the model call.',
+      data: {
+        eventType: 'context.prompt_too_long_recovery',
+        droppedHistoryMessageCount: 2,
+        retainedHistoryMessageCount: 0,
+        summaryChars: 240,
+      },
+    }),
+  })
+
+  assert.equal(ledger.context.droppedSummary.count, 2)
+  assert.equal(ledger.context.droppedSummary.totalRenderedChars, 240)
+  assert.equal(ledger.context.droppedSummary.samples[0]?.reason, 'prompt.too_long.recovery')
+  assert.equal(ledger.decisions[0]?.kind, 'context')
+  assert.match(ledger.decisions[0]?.impact ?? '', /2 条历史消息折叠为 240 字符摘要/)
 })

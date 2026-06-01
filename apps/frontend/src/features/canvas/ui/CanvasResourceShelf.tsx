@@ -3,18 +3,20 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { File, FileText, HardDrive, Image, Search, Video } from 'lucide-react'
 
-import { AuthedImage } from '@/shared/ui/AuthedImage'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { api } from '@/shared/infrastructure/api'
 import {
   CanvasMediaEmptyIcon,
   CanvasMediaFill,
+  CanvasResourceShelfLazyFrame,
+  CanvasResourceShelfMetadataProbe,
+  CanvasResourceShelfMetadataText,
   CanvasResourceShelfView,
   type CanvasResourceShelfItem,
 } from '@movscript/ui'
 import type { PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { ResourceImage } from '@/shared/ui/ResourceImage'
 
 const RESOURCE_SHELF_THUMB_MAX_SIZE = 160
 
@@ -78,7 +80,6 @@ export function CanvasResourceShelf({
 }
 
 function ResourceThumb({ resource, disablePreview }: { resource: RawResource; disablePreview?: boolean }) {
-  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
   useEffect(() => {
     if (!disablePreview || !mediaDiagnosticsEnabled()) return
     console.info(`[canvas:media] ${resource.type} suppressed label=canvas-shelf:${resource.ID} reason=debug-disabled`)
@@ -90,7 +91,7 @@ function ResourceThumb({ resource, disablePreview }: { resource: RawResource; di
     }
     return <LazyResourcePreview fallback={<CanvasMediaEmptyIcon><File size={14} /></CanvasMediaEmptyIcon>}>
       <CanvasMediaFill>
-        <AuthedImage src={url} alt="" diagnosticLabel={`canvas-shelf:${resource.ID}`} thumbnailMaxSize={RESOURCE_SHELF_THUMB_MAX_SIZE} />
+        <ResourceImage resource={resource} alt="" diagnosticLabel={`canvas-shelf:${resource.ID}`} thumbnailMaxSize={RESOURCE_SHELF_THUMB_MAX_SIZE} />
       </CanvasMediaFill>
     </LazyResourcePreview>
   }
@@ -121,49 +122,50 @@ function ResourceThumb({ resource, disablePreview }: { resource: RawResource; di
 }
 
 function ResourceDetailMeta({ resource }: { resource: RawResource }) {
-  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
   const [detail, setDetail] = useState(() => fallbackResourceDetail(resource))
 
-  if (resource.type === 'image' && url) {
+  if (resource.type === 'image' && resource.url) {
     return (
       <>
-        <span>{detail}</span>
-        <AuthedImage
-          src={url}
-          alt=""
-          aria-hidden
-          className="canvas-resource-shelf__metadata-probe"
-          onLoad={(event) => {
-            const image = event.currentTarget
-            if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
-          }}
-        />
+        <CanvasResourceShelfMetadataText>{detail}</CanvasResourceShelfMetadataText>
+        <CanvasResourceShelfMetadataProbe>
+          <ResourceImage
+            resource={resource}
+            alt=""
+            aria-hidden
+            onLoad={(event) => {
+              const image = event.currentTarget
+              if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
+            }}
+          />
+        </CanvasResourceShelfMetadataProbe>
       </>
     )
   }
 
-  if (resource.type === 'video' && url) {
+  if (resource.type === 'video' && resource.url) {
     return (
       <>
-        <span>{detail}</span>
-        <MediaViewer
-          resource={resource}
-          lightbox={false}
-          className="canvas-resource-shelf__metadata-probe"
-          onVideoLoadedMetadata={(event) => {
-            const video = event.currentTarget
-            const parts = [
-              video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
-              Number.isFinite(video.duration) ? formatDuration(video.duration) : undefined,
-            ].filter(Boolean)
-            if (parts.length > 0) setDetail(parts.join(' · '))
-          }}
-        />
+        <CanvasResourceShelfMetadataText>{detail}</CanvasResourceShelfMetadataText>
+        <CanvasResourceShelfMetadataProbe>
+          <MediaViewer
+            resource={resource}
+            lightbox={false}
+            onVideoLoadedMetadata={(event) => {
+              const video = event.currentTarget
+              const parts = [
+                video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
+                Number.isFinite(video.duration) ? formatDuration(video.duration) : undefined,
+              ].filter(Boolean)
+              if (parts.length > 0) setDetail(parts.join(' · '))
+            }}
+          />
+        </CanvasResourceShelfMetadataProbe>
       </>
     )
   }
 
-  return <span>{detail}</span>
+  return <CanvasResourceShelfMetadataText>{detail}</CanvasResourceShelfMetadataText>
 }
 
 function fallbackResourceDetail(resource: RawResource) {
@@ -188,7 +190,7 @@ function LazyResourcePreview({ children, fallback }: { children: ReactNode; fall
     return () => observer.disconnect()
   }, [])
 
-  return <div ref={ref} className="size-full">{visible ? children : fallback}</div>
+  return <CanvasResourceShelfLazyFrame ref={ref}>{visible ? children : fallback}</CanvasResourceShelfLazyFrame>
 }
 
 function mediaDiagnosticsEnabled() {

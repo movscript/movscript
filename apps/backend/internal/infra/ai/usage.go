@@ -41,7 +41,7 @@ type UsageEstimate struct {
 }
 
 func (s *AIService) EstimateTextCost(modelConfigID uint, req TextRequest) (UsageEstimate, error) {
-	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityText)
+	cfg, _, def, _, err := s.loadTextConfig(modelConfigID)
 	if err != nil {
 		return UsageEstimate{}, err
 	}

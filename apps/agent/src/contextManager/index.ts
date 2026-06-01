@@ -7,7 +7,14 @@ export {
   renderPromptBudgetParts,
   stripPromptExamplesSection,
 } from './contextBudgeter.js'
-export { createEmptyContextLedger } from './contextLedger.js'
+export {
+  amendContextLedgerRecord,
+  applyContextMutations,
+  createEmptyContextLedger,
+  deleteContextLedgerRecord,
+  previewToolResultContextRefs,
+  summarizeContextMutations,
+} from './contextLedger.js'
 export {
   appendFinalSourceSummary,
   buildFinalSourceSummary,
@@ -45,6 +52,8 @@ export type {
   BuiltContext,
   ContextBuilderInput,
   ContextPromptLayer,
+  PromptBudgetDecision,
+  PromptBudgetLedger,
   PromptLayer,
   PromptStats,
 } from './modelContextBuilder.js'
@@ -56,8 +65,12 @@ export type { SourceBoundary } from './sourceBoundary.js'
 export type { ModelToolResultContext } from './toolResultContext.js'
 export type {
   ContextLayer,
+  ContextBundle,
   ContextLedger,
+  ContextMutation,
+  ContextMutationSummary,
   ContextRef,
+  ContextRecordStatus,
   ContextScope,
   ContextSource,
   EvidenceLevel,

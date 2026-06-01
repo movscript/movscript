@@ -1,6 +1,9 @@
 import { type DragEvent, useEffect, useState } from 'react'
 import {
+  ArrowDown,
+  ArrowUp,
   Clock3,
+  Edit3,
   FileText,
   Plus,
   Route,
@@ -35,14 +38,33 @@ import {
 import { buildContentWorkbenchUnitTrack, contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { unitIdentifier } from '@/features/content/domain/productionIdentifiers'
+import { contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
 import type { Job } from '@/types'
 import {
   Badge,
+  ContentWorkbenchShotList,
+  ContentWorkbenchShotListActionBar,
+  ContentWorkbenchShotListCard,
+  ContentWorkbenchShotListFieldButton,
+  ContentWorkbenchShotListFieldGrid,
+  ContentWorkbenchShotListGrid,
+  ContentWorkbenchShotListHeader,
   ContentWorkbenchUnitControlBar,
+  ContentWorkbenchUnitExecutionActionRow,
+  ContentWorkbenchUnitExecutionCard,
+  ContentWorkbenchUnitExecutionDetail,
+  ContentWorkbenchUnitExecutionDetailGrid,
   ContentWorkbenchUnitExecutionGrid,
   ContentWorkbenchUnitExecutionRegion,
+  ContentWorkbenchUnitExecutionStatus,
   ContentWorkbenchUnitKindFilterButton,
   ContentWorkbenchUnitKindFilterGroup,
+  ContentWorkbenchUnitMoveButton,
+  ContentWorkbenchUnitInspectorHeader,
+  ContentWorkbenchUnitInspectorShell,
+  ContentWorkbenchUnitNextActionCard,
+  ContentWorkbenchUnitPanelSwitcher,
+  ContentWorkbenchUnitPanelTab,
   ContentWorkbenchUnitScheduleEmpty,
   ContentWorkbenchUnitScheduleFrame,
   ContentWorkbenchUnitScheduleHeader,
@@ -62,11 +84,12 @@ import {
   ContentWorkbenchTimelineViewport,
   ContentWorkbenchTimelineZoomControl,
   ContentWorkbenchUnitTrackActionButton,
+  ContentWorkbenchUnitTrackHeader,
   ContentWorkbenchUnitTrackMeta,
   ContentWorkbenchUnitTrackShell,
+  StatusBadge,
   WorkbenchEmptyState,
 } from '@movscript/ui'
-import { CompactShotListCard } from './CompactShotListCard'
 import { ContentUnitEditCards } from './ContentUnitEditCards'
 
 export function UnitProductionTrack({
@@ -175,7 +198,7 @@ export function UnitProductionTrack({
             <ContentWorkbenchUnitScheduleHeader
               icon={<Clock3 size={14} />}
               title="内容方案"
-              badge={<Badge variant="outline">等待输入</Badge>}
+              badge={<StatusBadge {...contentWorkbenchStatusRecipe('blocked')}>等待输入</StatusBadge>}
             />
           )}
         >
@@ -239,6 +262,17 @@ export function UnitProductionTrack({
   function selectUnit(unitId: number) {
     onSelectUnit(unitId)
   }
+  function selectOrClearUnit(unitId: number) {
+    onSelectUnit(selectedUnitId === unitId ? null : unitId)
+  }
+  function moveUnitInList(unitId: number, direction: 'earlier' | 'later') {
+    const index = visibleSummary.items.findIndex((item) => Number(item.id) === unitId)
+    const target = direction === 'earlier'
+      ? visibleSummary.items[index - 1]
+      : visibleSummary.items[index + 1]
+    if (!target) return
+    onReorderUnit(unitId, Number(target.id), direction === 'earlier' ? 'before' : 'after')
+  }
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
     if (!canDragTimelineItems || source !== 'timeline') return
     setDraggedUnitId(unitId)
@@ -298,6 +332,20 @@ export function UnitProductionTrack({
 
   return (
     <ContentWorkbenchUnitTrackShell>
+      <ContentWorkbenchUnitTrackHeader
+        icon={<Route size={14} />}
+        title="内容方案"
+        detail={row ? firstText(row.title, row.moment.title, '当前情节') : '先选择情节'}
+        aside={(
+          <ContentWorkbenchUnitTrackMeta
+            items={[
+              { label: `${summary.total} 条目` },
+              { label: formatTrackDuration(summary.durationSec) },
+              { label: `${summary.blockedCount} 待补齐`, tone: summary.blockedCount > 0 ? 'warning' : 'neutral' },
+            ]}
+          />
+        )}
+      />
       <ContentWorkbenchUnitControlBar
         filters={(
           <ContentWorkbenchUnitKindFilterGroup>
@@ -350,26 +398,123 @@ export function UnitProductionTrack({
 
       <ContentWorkbenchUnitExecutionRegion>
         {visibleSummary.items.length > 0 ? (
-          <ContentWorkbenchUnitExecutionGrid>
-              {visibleSummary.items.map((item) => {
-                return (
-                  <CompactShotListCard
+          <>
+            <ContentWorkbenchUnitExecutionGrid>
+              {visibleSummary.items.map((item, index) => (
+                <ContentWorkbenchUnitExecutionCard
+                  key={item.id}
+                  active={item.selected}
+                  data-track-item-id={item.id}
+                  identifier={item.identifier}
+                  heading={item.title}
+                  summary={shotExpressionText(item)}
+                  status={(
+                    <ContentWorkbenchUnitExecutionStatus tone={item.state === 'blocked' ? 'blocked' : 'ready'}>
+                      {shotStatusText(item)}
+                    </ContentWorkbenchUnitExecutionStatus>
+                  )}
+                  details={(
+                    <ContentWorkbenchUnitExecutionDetailGrid>
+                      <ContentWorkbenchUnitExecutionDetail label="画面目标" value={shotExpressionText(item)} />
+                      <ContentWorkbenchUnitExecutionDetail label="声音/对白" value={shotCueText(item)} />
+                      <ContentWorkbenchUnitExecutionDetail label="制作上下文" value={shotMetaText(item)} />
+                    </ContentWorkbenchUnitExecutionDetailGrid>
+                  )}
+                  actions={(
+                    <ContentWorkbenchUnitExecutionActionRow>
+                      <ContentWorkbenchUnitMoveButton
+                        aria-label="上移内容条目"
+                        data-testid="content-workbench-unit-move-earlier"
+                        disabled={index === 0 || isReordering}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          moveUnitInList(Number(item.id), 'earlier')
+                        }}
+                      >
+                        <ArrowUp size={12} />
+                      </ContentWorkbenchUnitMoveButton>
+                      <ContentWorkbenchUnitMoveButton
+                        aria-label="下移内容条目"
+                        data-testid="content-workbench-unit-move-later"
+                        disabled={index === visibleSummary.items.length - 1 || isReordering}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          moveUnitInList(Number(item.id), 'later')
+                        }}
+                      >
+                        <ArrowDown size={12} />
+                      </ContentWorkbenchUnitMoveButton>
+                    </ContentWorkbenchUnitExecutionActionRow>
+                  )}
+                  onClick={() => selectOrClearUnit(Number(item.id))}
+                />
+              ))}
+            </ContentWorkbenchUnitExecutionGrid>
+            <ContentWorkbenchShotList title="镜头明细" badge={<Badge variant="outline">{visibleSummary.items.length} 条</Badge>}>
+              <ContentWorkbenchShotListGrid>
+                {visibleSummary.items.map((item, index) => (
+                  <ContentWorkbenchShotListCard
                     key={item.id}
                     active={item.selected}
                     data-track-item-id={item.id}
-                    kind={trackKindLabel(item.kind)}
-                    title={item.title}
-                    frameCount={item.keyframeTitles.length}
-                    expression={shotExpressionText(item)}
-                    cue={shotCueText(item)}
-                    status={shotStatusText(item)}
-                    context={shotMetaText(item)}
-                    onOpen={() => selectUnit(Number(item.id))}
-                    onEdit={onOpenUnitEditor ? () => onOpenUnitEditor(Number(item.id)) : undefined}
-                  />
-                )
-              })}
-          </ContentWorkbenchUnitExecutionGrid>
+                    actions={(
+                      <ContentWorkbenchShotListActionBar>
+                        <ContentWorkbenchUnitMoveButton
+                          aria-label="上移镜头"
+                          data-testid="content-workbench-shot-list-move-earlier"
+                          disabled={index === 0 || isReordering}
+                          onClick={() => moveUnitInList(Number(item.id), 'earlier')}
+                        >
+                          <ArrowUp size={12} />
+                        </ContentWorkbenchUnitMoveButton>
+                        <ContentWorkbenchUnitMoveButton
+                          aria-label="下移镜头"
+                          data-testid="content-workbench-shot-list-move-later"
+                          disabled={index === visibleSummary.items.length - 1 || isReordering}
+                          onClick={() => moveUnitInList(Number(item.id), 'later')}
+                        >
+                          <ArrowDown size={12} />
+                        </ContentWorkbenchUnitMoveButton>
+                        {onOpenUnitEditor ? (
+                          <ContentWorkbenchUnitMoveButton aria-label="编辑镜头" onClick={() => onOpenUnitEditor(Number(item.id))}>
+                            <Edit3 size={12} />
+                          </ContentWorkbenchUnitMoveButton>
+                        ) : null}
+                      </ContentWorkbenchShotListActionBar>
+                    )}
+                  >
+                    <ContentWorkbenchShotListHeader
+                      identifier={item.identifier}
+                      title={item.title}
+                      summary={shotExpressionText(item)}
+                      status={<Badge variant="outline">{shotStatusText(item)}</Badge>}
+                      onOpen={() => selectOrClearUnit(Number(item.id))}
+                    />
+                    <ContentWorkbenchShotListFieldGrid>
+                      <ContentWorkbenchShotListFieldButton
+                        label="关键帧"
+                        value={`${item.keyframeTitles.length} 帧`}
+                        fieldTone={item.requiresKeyframe && item.keyframeTitles.length === 0 ? 'warning' : 'neutral'}
+                        onClick={() => selectOrClearUnit(Number(item.id))}
+                      />
+                      <ContentWorkbenchShotListFieldButton
+                        label="声音/对白"
+                        value={shotCueText(item)}
+                        wide
+                        onClick={() => selectOrClearUnit(Number(item.id))}
+                      />
+                      <ContentWorkbenchShotListFieldButton
+                        label="上下文"
+                        value={shotMetaText(item)}
+                        wide
+                        onClick={() => selectOrClearUnit(Number(item.id))}
+                      />
+                    </ContentWorkbenchShotListFieldGrid>
+                  </ContentWorkbenchShotListCard>
+                ))}
+              </ContentWorkbenchShotListGrid>
+            </ContentWorkbenchShotList>
+          </>
         ) : (
           <WorkbenchEmptyState compact title="当前类型下没有条目。" />
         )}
@@ -379,14 +524,16 @@ export function UnitProductionTrack({
         header={(
           <ContentWorkbenchUnitScheduleToolbar
             switcher={(
-              <div className="content-workbench-unit-schedule-toolbar__title">
-                {schedulePanel === 'edit' ? (
-                  <FileText size={14} />
-                ) : (
+              <ContentWorkbenchUnitPanelSwitcher>
+                <ContentWorkbenchUnitPanelTab active={schedulePanel === 'timeline'} onClick={() => setSchedulePanel('timeline')}>
                   <Clock3 size={14} />
-                )}
-                {schedulePanel === 'edit' ? '内容编辑' : '方案时间轴'}
-              </div>
+                  方案时间轴
+                </ContentWorkbenchUnitPanelTab>
+                <ContentWorkbenchUnitPanelTab active={schedulePanel === 'edit'} disabled={!selectedUnit || !showInlineEditor} onClick={() => setSchedulePanel('edit')}>
+                  <FileText size={14} />
+                  内容编辑
+                </ContentWorkbenchUnitPanelTab>
+              </ContentWorkbenchUnitPanelSwitcher>
             )}
             controls={(
               <ContentWorkbenchTimelineStatusGroup>
@@ -516,21 +663,43 @@ export function UnitProductionTrack({
               </ContentWorkbenchTimelineLaneStack>
         </ContentWorkbenchTimelineViewport>
         </>) : (
-        <ContentUnitEditCards
-          projectId={projectId}
-          queryKey={queryKey}
-          jobs={jobs}
-          row={row}
-          unit={selectedUnit}
-          onSelectUnit={onSelectUnit}
-          onCreateUnit={onCreateUnit}
-          onAiSuggest={onAiSuggest}
-          onCreateAssetSlot={onCreateAssetSlot}
-          onCreateKeyframe={onCreateKeyframe}
-          onOpenCanvas={onOpenCanvas}
-          onUploadMissingAssets={onUploadMissingAssets}
-          onDeleteUnit={onDeleteUnit}
-        />
+        <ContentWorkbenchUnitInspectorShell>
+          <ContentWorkbenchUnitInspectorHeader
+            icon={<FileText size={14} />}
+            kicker="内容编辑"
+            title={selectedUnit ? titleOfRecord(selectedUnit) : '未选择内容条目'}
+            detail={selectedUnit ? firstText(selectedUnit.description, selectedUnit.prompt, '补齐画面目标、声音和生成输入。') : '从上方内容方案里选择一个条目。'}
+            actions={selectedUnit && onOpenUnitEditor ? (
+              <ContentWorkbenchUnitTrackActionButton size="xs" variant="outline" onClick={() => onOpenUnitEditor(selectedUnit.ID)}>
+                <Edit3 size={14} />
+                打开详情
+              </ContentWorkbenchUnitTrackActionButton>
+            ) : null}
+          />
+          <ContentWorkbenchUnitNextActionCard
+            tone={selectedUnit ? 'ready' : 'blocked'}
+            icon={<Sparkles size={14} />}
+            label={selectedUnit ? '补齐生成输入' : '选择内容条目'}
+            detail={selectedUnit ? '完善关键帧、素材缺口和提示词后，就可以进入生成或画布检查。' : '选择一个内容条目后，这里会显示可编辑的制作输入。'}
+            actionText={selectedUnit && onOpenCanvas ? '打开画布' : undefined}
+            onAction={selectedUnit && onOpenCanvas ? onOpenCanvas : undefined}
+          />
+          <ContentUnitEditCards
+            projectId={projectId}
+            queryKey={queryKey}
+            jobs={jobs}
+            row={row}
+            unit={selectedUnit}
+            onSelectUnit={onSelectUnit}
+            onCreateUnit={onCreateUnit}
+            onAiSuggest={onAiSuggest}
+            onCreateAssetSlot={onCreateAssetSlot}
+            onCreateKeyframe={onCreateKeyframe}
+            onOpenCanvas={onOpenCanvas}
+            onUploadMissingAssets={onUploadMissingAssets}
+            onDeleteUnit={onDeleteUnit}
+          />
+        </ContentWorkbenchUnitInspectorShell>
         )}
       </ContentWorkbenchUnitScheduleFrame>
     </ContentWorkbenchUnitTrackShell>

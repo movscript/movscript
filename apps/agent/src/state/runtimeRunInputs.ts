@@ -1,4 +1,4 @@
-import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
+import { isJSONRecord } from '../jsonValue.js'
 import type { AgentMessage, AgentRun, JSONValue } from './types.js'
 
 const RUNTIME_INPUT_KIND = 'runtime_input'
@@ -65,13 +65,4 @@ function isRuntimeInputMessageForRun(message: AgentMessage, runId: string): bool
   const metadata = message.metadata
   if (!metadata || metadata.kind !== RUNTIME_INPUT_KIND) return false
   return metadata.targetRunId === runId || message.runId === runId
-}
-
-export function cloneRuntimeInputMessagesForTrace(messages: AgentMessage[]): JSONValue {
-  return messages.map((message) => ({
-    id: message.id,
-    content: message.content,
-    createdAt: message.createdAt,
-    ...(message.metadata ? { metadata: cloneJSONValue(message.metadata) } : {}),
-  }))
 }

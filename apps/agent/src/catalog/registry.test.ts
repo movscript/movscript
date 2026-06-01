@@ -33,6 +33,28 @@ test('toolDefinitionFromRegisteredTool rejects non-plain schema records', () => 
   assert.equal(definition.outputSchema, undefined)
 })
 
+test('toolDefinitionFromRegisteredTool preserves execution metadata', () => {
+  const definition = toolDefinitionFromRegisteredTool(tool({
+    execution: {
+      readOnly: true,
+      destructive: false,
+      concurrencySafe: true,
+      interruptBehavior: 'cancel',
+      maxResultSizeChars: 2048,
+      resultRefStrategy: 'summary_ref',
+    },
+  }))
+
+  assert.deepEqual(definition.execution, {
+    readOnly: true,
+    destructive: false,
+    concurrencySafe: true,
+    interruptBehavior: 'cancel',
+    maxResultSizeChars: 2048,
+    resultRefStrategy: 'summary_ref',
+  })
+})
+
 function tool(overrides: Partial<RegisteredTool> = {}): RegisteredTool {
   return {
     name: 'tool_a',

@@ -2,13 +2,12 @@ import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL } from '@/shared/infrastructure/config'
 import type { PaginatedResponse, RawResource, ResourceBinding, ResourceBindingOwnerType, ResourceBindingRole } from '@/types'
 import { Library, Paperclip, X, Upload } from 'lucide-react'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from './ResourceLibraryPicker'
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import {
   ResourceAttachmentActionTile,
   ResourceAttachmentFallback,
@@ -31,8 +30,6 @@ interface Props {
   libraryTypeOptions?: ResourceTypeFilter[]
   accept?: string
 }
-
-const BASE = API_BASE_URL
 
 export function ResourceAttachments({
   ownerType,
@@ -142,14 +139,12 @@ export function ResourceAttachments({
               </ResourceAttachmentRemoveButton>
             )}
           >
-              {resource.type === 'image' ? (
-                <AuthedImage
-                  src={`${BASE}${resource.url}`}
-                  alt={resource.name}
-                />
-              ) : resource.type === 'video' ? (
-                <AuthedVideo
-                  src={`${BASE}${resource.url}`}
+              {resource.type === 'image' || resource.type === 'video' ? (
+                <MediaViewer
+                  resource={resource}
+                  className="h-full w-full"
+                  fit="cover"
+                  lightbox={false}
                 />
               ) : (
                 <ResourceAttachmentFallback>

@@ -13,6 +13,9 @@
       },
       "memoryId": {
         "type": "string"
+      },
+      "projectId": {
+        "description": "Runtime-injected current project id."
       }
     }
   },

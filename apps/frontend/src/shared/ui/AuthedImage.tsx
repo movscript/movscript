@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useState } from 'react'
-import { api } from '@/shared/infrastructure/api'
-import { acquireCachedResourceMediaUrl } from '@/features/resources/domain/resourceMediaCache'
+import { loadResourceUrlBlob } from '@/shared/ui/resourceBlob'
+import { acquireCachedResourceMediaUrl } from '@/shared/ui/resourceMediaCache'
 import { ResourceAuthAudio, ResourceAuthImage, ResourceAuthVideo } from '@movscript/ui'
 
 const HEIC_MIME_TYPES = new Set([
@@ -40,7 +40,7 @@ function useAuthBlobUrl(src: string | undefined, thumbnailMaxSize?: number): str
     }
     let active = true
     let releaseObjectUrl: (() => void) | undefined
-    acquireCachedResourceMediaUrl(src, async () => displayableImageBlob(await fetchMediaBlob(src)), thumbnailMaxSize
+    acquireCachedResourceMediaUrl(src, async () => displayableImageBlob(await loadResourceUrlBlob(src)), thumbnailMaxSize
       ? {
           variantKey: `thumb:${thumbnailMaxSize}`,
           transformBlob: (blob) => downscaleImageBlob(blob, thumbnailMaxSize),
@@ -63,16 +63,6 @@ function useAuthBlobUrl(src: string | undefined, thumbnailMaxSize?: number): str
   }, [src, thumbnailMaxSize])
 
   return blobUrl
-}
-
-async function fetchMediaBlob(src: string): Promise<Blob> {
-  if (requiresAPIAuth(src)) {
-    const res = await api.get(normalizeAPIAuthPath(src), { baseURL: normalizeAPIAuthBaseURL(src), responseType: 'blob' })
-    return res.data
-  }
-  const res = await fetch(src)
-  if (!res.ok) throw new Error(`Failed to load media: ${res.status}`)
-  return res.blob()
 }
 
 async function displayableImageBlob(blob: Blob): Promise<Blob> {
@@ -123,34 +113,6 @@ async function isHeicBlob(blob: Blob): Promise<boolean> {
     if (HEIC_BRANDS.has(brand)) return true
   }
   return false
-}
-
-function requiresAPIAuth(src: string): boolean {
-  try {
-    const url = new URL(src, window.location.origin)
-    return url.pathname.startsWith('/api/v1/resources/')
-  } catch {
-    return src.startsWith('/api/v1/resources/')
-  }
-}
-
-function normalizeAPIAuthPath(src: string): string {
-  try {
-    const url = new URL(src, window.location.origin)
-    return url.pathname.replace(/^\/api\/v1/, '') + url.search
-  } catch {
-    return src.replace(/^\/api\/v1/, '')
-  }
-}
-
-function normalizeAPIAuthBaseURL(src: string): string | undefined {
-  try {
-    const url = new URL(src, window.location.origin)
-    if (url.origin !== window.location.origin) return `${url.origin}/api/v1`
-  } catch {
-    return undefined
-  }
-  return undefined
 }
 
 interface ImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -251,7 +213,7 @@ export const AuthedVideo = forwardRef<HTMLVideoElement, VideoProps>(function Aut
   if (!src) return null
   return (
     <ResourceAuthVideo
-      ref={ref}
+      videoRef={ref}
       src={blobUrl}
       onLoadedMetadata={(event) => {
         if (mediaDiagnosticsEnabled()) {

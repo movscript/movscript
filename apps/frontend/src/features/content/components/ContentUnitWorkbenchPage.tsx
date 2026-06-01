@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import {
   buildContentWorkbenchAiSuggestLaunchInput,
   buildContentWorkbenchVisualPlanLaunchInput,

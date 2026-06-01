@@ -35,6 +35,8 @@ export type EvidenceLevel =
   | 'summary'
   | 'unknown'
 
+export type ContextRecordStatus = 'active' | 'amended' | 'deleted' | 'expired'
+
 export interface ContextRef {
   type:
     | 'knowledge'
@@ -55,7 +57,10 @@ export interface ContextRef {
 }
 
 export interface RetrievedContextRecord {
+  id?: string
+  version?: string
   ref: ContextRef
+  status?: ContextRecordStatus
   source: ContextSource
   evidence: EvidenceLevel
   title: string
@@ -65,6 +70,13 @@ export interface RetrievedContextRecord {
   retrievedAt: string
   usedInPrompt: boolean
   reusedFromRunId?: string
+  supersedes?: string
+  amendedBy?: string
+  deletedBy?: string
+  deletedAt?: string
+  deleteReason?: string
+  mutationId?: string
+  updatedAt?: string
 }
 
 export interface FactRecord {
@@ -93,6 +105,113 @@ export interface ContextLedger {
     blocking: boolean
     source: ContextSource
   }>
+  mutations?: ContextMutation[]
   createdAt: string
   updatedAt: string
+}
+
+export type ContextMutation =
+  | {
+    id: string
+    type: 'append'
+    record: RetrievedContextRecord
+    reason?: string
+    createdAt: string
+  }
+  | {
+    id: string
+    type: 'amend'
+    targetKey: string
+    record: RetrievedContextRecord
+    reason?: string
+    createdAt: string
+  }
+  | {
+    id: string
+    type: 'delete'
+    targetKey: string
+    reason?: string
+    createdAt: string
+  }
+
+export interface ContextMutationSummary {
+  schema: 'movscript.context-mutation-summary.v1'
+  total: number
+  appended: number
+  amended: number
+  deleted: number
+  affectedContextKeys: string[]
+  appendedContextKeys: string[]
+  amendedContextKeys: string[]
+  deletedContextKeys: string[]
+  latest?: {
+    id: string
+    type: ContextMutation['type']
+    createdAt: string
+    reason?: string
+  }
+}
+
+export interface ContextBundle {
+  schema: 'movscript.context-bundle.v1'
+  id: string
+  runId?: string
+  threadId?: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  createdAt: string
+  promptHash: string
+  messageCount: number
+  toolCount: number
+  systemMessageCount: number
+  promptChars: number
+  budget?: {
+    usedChars: number
+    limitChars: number
+    remainingChars: number
+    pressure: 'low' | 'medium' | 'high' | 'over'
+  }
+  promptParts: Array<{
+    id: string
+    kind: string
+    title: string
+    charCount: number
+    hash: string
+    layer?: string
+    contextLayer?: string
+  }>
+  promptBudget?: {
+    initialSystemChars: number
+    finalSystemChars: number
+    decisionCount: number
+    decisions: Array<{
+      action: string
+      stage: string
+      partId: string
+      partTitle: string
+      partKind: string
+      reason: string
+      originalChars: number
+      renderedChars: number
+      promptCharsBefore: number
+      promptCharsAfter: number
+      limitChars: number
+      priority?: number
+    }>
+  }
+  contextRefs: Array<{
+    key: string
+    ref: ContextRef
+    status: ContextRecordStatus
+    title: string
+    source: ContextSource
+    evidence: EvidenceLevel
+    version?: string
+    contentHash?: string
+    charCount?: number
+  }>
+  activeContextKeys: string[]
+  amendedContextKeys: string[]
+  deletedContextKeys: string[]
 }

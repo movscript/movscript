@@ -4,8 +4,8 @@ var modelPresetSources = []ModelDef{
 
 	// ─── OpenAI ────────────────────────────────────────────────────────────────
 
-	{ID: "openai:gpt-5.5", ModelID: "gpt-5.5",
-		DisplayName: "GPT-5.5 (推理)", Capabilities: []string{CapabilityText, CapabilityReasoning},
+	{ID: "openai:gpt-5.2", ModelID: "gpt-5.2",
+		DisplayName: "GPT-5.2 (推理)", Capabilities: []string{CapabilityText, CapabilityReasoning},
 		PricingMode: PricingPerToken, AdapterType: AdapterOpenAICompat},
 
 	{ID: "openai:gpt-4o", ModelID: "gpt-4o",

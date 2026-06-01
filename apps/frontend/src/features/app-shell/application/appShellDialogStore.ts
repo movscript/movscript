@@ -4,7 +4,6 @@ export type AccountSettingsDialogTab =
   | 'profile'
   | 'settings'
   | 'workspace'
-  | 'agentConsole'
   | `runtime:${string}`
 
 interface AppShellDialogStore {

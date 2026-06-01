@@ -50,11 +50,11 @@ import {
 
 const CANVAS_NODE_IMAGE_THUMB_MAX_SIZE = 320
 
-function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video', featureKey?: string) {
+function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video') {
   const { data = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', capability, featureKey],
+    queryKey: ['models', capability],
     queryFn: () => capability
-      ? api.get(`/models?capability=${capability}${featureKey ? `&feature=${featureKey}` : ''}`).then((r) => r.data)
+      ? api.get(`/models?capability=${capability}`).then((r) => r.data)
       : Promise.resolve([]),
     enabled: !!capability,
   })
@@ -399,13 +399,13 @@ function CanvasTextGenerationResultPanel({ data }: { data: NodeDataWithHandlers 
 
 // ── Tool nodes ─────────────────────────────────────────────────────────────────
 
-const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; featureKey: string; inputType: 'image' | 'video' | 'image+video' }> = {
-  canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  ref_image_gen:    { icon: <Palette size={12} />, labelKey: 'canvas.nodeLabels.ref_image_gen',    outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'video' },
-  multi_angle:      { icon: <RotateCw size={12} />, labelKey: 'canvas.nodeLabels.multi_angle',     outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  style_transfer:   { icon: <Brush size={12} />, labelKey: 'canvas.nodeLabels.style_transfer',    outputType: 'image', capability: 'image', featureKey: 'canvas_image', inputType: 'image' },
-  motion_imitation: { icon: <PersonStanding size={12} />, labelKey: 'canvas.nodeLabels.motion_imitation', outputType: 'video', capability: 'video', featureKey: 'canvas_video', inputType: 'image+video' },
+const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; inputType: 'image' | 'video' | 'image+video' }> = {
+  canvas:           { icon: <Layers3 size={12} />, labelKey: 'canvas.nodeLabels.canvas',           outputType: 'image', capability: 'image', inputType: 'image' },
+  ref_image_gen:    { icon: <Palette size={12} />, labelKey: 'canvas.nodeLabels.ref_image_gen',    outputType: 'image', capability: 'image', inputType: 'image' },
+  ref_video_gen:    { icon: <Camera size={12} />, labelKey: 'canvas.nodeLabels.ref_video_gen',     outputType: 'video', capability: 'video', inputType: 'video' },
+  multi_angle:      { icon: <RotateCw size={12} />, labelKey: 'canvas.nodeLabels.multi_angle',     outputType: 'image', capability: 'image', inputType: 'image' },
+  style_transfer:   { icon: <Brush size={12} />, labelKey: 'canvas.nodeLabels.style_transfer',    outputType: 'image', capability: 'image', inputType: 'image' },
+  motion_imitation: { icon: <PersonStanding size={12} />, labelKey: 'canvas.nodeLabels.motion_imitation', outputType: 'video', capability: 'video', inputType: 'image+video' },
 }
 
 function WorkflowReferenceCard({ data, selected }: { data: NodeDataWithHandlers; selected?: boolean }) {
@@ -450,7 +450,8 @@ function WorkflowReferenceCard({ data, selected }: { data: NodeDataWithHandlers;
         }))}
         primaryAction={data.onRun ? {
           label: isRunning ? t('canvas.runStatus.running') : t('canvas.editor.runNode', { defaultValue: 'Run' }),
-          icon: isRunning ? <Loader2 size={12} className="canvas-workflow-reference-card__spin" /> : <Play size={12} />,
+          icon: isRunning ? <Loader2 size={12} /> : <Play size={12} />,
+          loading: isRunning,
           onClick: data.onRun,
           disabled: isRunning,
         } : undefined}
@@ -466,7 +467,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     return <WorkflowReferenceCard data={data} selected={selected} />
   }
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, featureKey: 'canvas_image', inputType: 'image' as const }
+  const meta = TOOL_META[type] ?? { icon: <Wrench size={12} />, labelKey: type, outputType: 'image' as const, capability: 'image' as const, inputType: 'image' as const }
   const metaLabel = type in TOOL_META ? t(meta.labelKey) : meta.labelKey
   const Icon = type === 'canvas' ? Layers3
     : type === 'ref_image_gen' ? Palette
@@ -477,7 +478,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     : Wrench
   const isRunning = status === 'pending' || status === 'running'
   const isGenerationTool = type !== 'canvas'
-  const models = useCanvasGenerationModels(isGenerationTool ? meta.capability : undefined, isGenerationTool ? meta.featureKey : undefined)
+  const models = useCanvasGenerationModels(isGenerationTool ? meta.capability : undefined)
   const selectedModel = selectedCanvasModel(data, models)
 
   return (
@@ -487,7 +488,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         tone="violet"
         icon={Icon}
         title={data.label || metaLabel}
-        subtitle={`${meta.featureKey} · 输出 ${meta.outputType}`}
+        subtitle={`${meta.capability} · 输出 ${meta.outputType}`}
         status={nodeStatusLabel(status)}
         selected={selected}
         labels={canvasToolActionCardLabels(t)}
@@ -545,7 +546,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const isRunning = status === 'pending' || status === 'running'
-  const models = useCanvasGenerationModels('text', 'canvas_text')
+  const models = useCanvasGenerationModels('text')
   const selectedModel = selectedCanvasModel(data, models)
   return (
     <ToolCardNodeFrame nodeType="text_gen" data={data}>
@@ -554,7 +555,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         tone="violet"
         icon={Sparkles}
         title={data.label || t('canvas.nodeLabels.text_gen')}
-        subtitle="canvas_text · 输出 text"
+        subtitle="text · 输出 text"
         status={nodeStatusLabel(status)}
         selected={selected}
         labels={canvasToolActionCardLabels(t)}
@@ -583,7 +584,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video' | 'text'
   const isRunning = status === 'pending' || status === 'running'
-  const models = useCanvasGenerationModels(outputType, `canvas_${outputType}`)
+  const models = useCanvasGenerationModels(outputType)
   const selectedModel = selectedCanvasModel(data, models)
   const outputSlots = toolOutputSlots('ai_gen', data, t).map((slot) => ({
     ...slot,

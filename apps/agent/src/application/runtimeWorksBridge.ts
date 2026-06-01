@@ -1,8 +1,8 @@
 import type { RuntimeWorkManager } from '../runtimeWork/runtimeWorkManager.js'
 import type { RuntimeWork, RuntimeWorkKind } from '../runtimeWork/runtimeWork.js'
 import type { AgentRun, AgentTraceEvent, JSONValue } from '../state/types.js'
-import { buildGenerationEvent } from '../generation/generationEvents.js'
 import type { RuntimeWakeCoordinator } from './runtimeWakeCoordinator.js'
+import { summarizeRuntimeWorkTrace, summarizeRuntimeWorkWaitTrace } from '../domains/trace/toolTrace.js'
 
 export interface RuntimeWorksBridge {
   startWork: (run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }) => Promise<JSONValue>
@@ -71,7 +71,7 @@ export function createRuntimeWorksBridge(input: {
         summary: result.message,
         status: result.status === 'failed' ? 'failed' : result.done ? 'completed' : 'info',
         toolName: 'core_work_wait',
-        data: { runtimeWorkWait: result },
+        data: summarizeRuntimeWorkWaitTrace(result),
       })
       return result as unknown as JSONValue
     },
@@ -91,7 +91,6 @@ function recordWorkTrace(
   toolName: string,
   work: RuntimeWork,
 ): void {
-  const generation = generationTraceForWork(toolName, work)
   recordTrace?.(run, {
     kind: 'tool_call',
     title: `Runtime work ${work.status}: ${work.kind}`,
@@ -100,23 +99,8 @@ function recordWorkTrace(
       : `Work ${work.id} is ${work.status}.`,
     status: work.status === 'failed' ? 'failed' : work.status === 'completed' ? 'completed' : 'info',
     toolName,
-    data: { runtimeWork: work, ...(generation ? { generation } : {}) },
+    data: summarizeRuntimeWorkTrace({ toolName, work }),
   })
-}
-
-function generationTraceForWork(toolName: string, work: RuntimeWork) {
-  if (work.kind !== 'generation_job' || work.result === undefined) return undefined
-  const jobId = work.externalHandle?.id
-  const request = work.request && typeof work.request === 'object' && !Array.isArray(work.request)
-    ? work.request as Record<string, JSONValue>
-    : {}
-  const args = typeof jobId === 'number' ? { jobId } : request
-  const backendToolName = toolName === 'core_work_start'
-    ? 'generation_job_create'
-    : toolName === 'core_work_cancel'
-      ? 'generation_job_cancel'
-      : 'generation_job_get'
-  return buildGenerationEvent({ name: backendToolName, args }, work.result as JSONValue | undefined)
 }
 
 function normalizeKind(value: unknown): RuntimeWorkKind {

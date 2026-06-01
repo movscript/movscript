@@ -58,7 +58,6 @@
     "cancelUnsupported": "This provider does not support video task cancellation",
     "cancelVideoOnly": "Only video generation jobs can be cancelled",
     "cannotGrantSelf": "You cannot grant permission to yourself",
-    "capabilityOrFeatureRequired": "Capability or feature query parameter is required",
     "canvasNotFound": "Canvas not found",
     "conflict": "The request conflicts with the current state",
     "credentialNotFound": "Credential not found",
@@ -72,7 +71,6 @@
     "failedReadFile": "Failed to read file",
     "failedRetrieveFile": "Failed to retrieve file",
     "failedStoreFile": "Failed to store file",
-    "featureNotFound": "Feature not found",
     "finalVideoNotFound": "Final video not found",
     "fileRequired": "File is required",
     "folderNotFound": "Folder not found",
@@ -248,7 +246,7 @@
     "returnToLogin": "Back to login",
     "adminConsole": "Admin Console",
     "openAdminConsole": "Open Admin Console",
-    "adminConsoleHelp": "In local mode, use the admin console to add provider credentials, enable models, configure feature routing, and debug generation jobs.",
+    "adminConsoleHelp": "In local mode, use the admin console to add provider credentials, enable models, configure model capabilities, and debug generation jobs.",
     "resourceStorageTitle": "Resource Storage Maintenance",
     "resourceStorageHint": "Clean up physical file objects that no active resource record references. Run a dry check before cleanup.",
     "resourceBlobGCEndpoint": "Cleanup endpoint",
@@ -749,6 +747,7 @@
       "searchFilesPlaceholder": "Search filenames...",
       "uploading": "Uploading...",
       "uploadFile": "Upload File",
+      "empty": "No resources",
       "filesCount": "{{count}} files",
       "noMatchedFiles": "No matching files",
       "noResourcesUpload": "No resources. Click upload.",
@@ -1605,9 +1604,10 @@
       "refresh": "Refresh",
       "modelPanel": "Model Config",
       "modelLabel": "Runtime text model",
-      "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text model and save it to the local Agent Runtime model-config.",
+      "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text/reasoning model and save it to the local Agent Runtime model-config.",
       "providerModelIdLabel": "Provider model ID",
       "providerModelIdHelp": "For direct OpenAI or Anthropic modes, enter the provider model ID directly. It does not need a matching backend model catalog entry.",
+      "providerModelIdPlaceholder": "Enter a configured model ID",
       "providerModelPanel": "Provider Model",
       "providerModelPanelHelp": "Enter the model ID. When Base URL is empty or points to the MovScript backend, the backend login credential is used; only external provider URLs need an API key here.",
       "modelRequired": "Select a model or enter a provider model ID first.",
@@ -1791,7 +1791,7 @@
         "saveTestReady": "Saved configuration is ready for the model connectivity test."
       },
       "selectModel": "Select model",
-      "noTextModels": "No text models are available. Enable a text model in model management first.",
+      "noTextModels": "No text/reasoning models are available. Enable a text or reasoning model in model management first.",
       "useForChat": "Use for chat",
       "useForChatHelp": "Use this model for regular AI Assistant conversations.",
       "useForPlanner": "Use for planning",
@@ -1944,6 +1944,9 @@
       },
       "currentRuntime": "Current Runtime",
       "configurationMapPanel": "Configuration Map",
+      "managementShortcutsPanel": "Skills / Tools Management Views",
+      "managementShortcutsHelp": "Open Catalog, Policy, or Runtime directly instead of hunting through one mixed panel.",
+      "focusedManagementRoute": "Showing only the {{area}} {{layer}} management view. Full settings remain available from the Configuration Map.",
       "sectionDescriptions": {
         "model": "Choose call mode, model, and usage routes.",
         "runPresets": "Save common run limits and planning preferences.",
@@ -2250,9 +2253,78 @@
         "enabled": "Enabled",
         "disabled": "Disabled"
       },
-      "availableModels": "Available Text Models",
+      "availableModels": "Available Text/Reasoning Models",
       "configured": "Configured",
       "notConfigured": "Not configured",
+      "managementLayers": {
+        "catalog": "Catalog",
+        "policy": "Policy",
+        "runtime": "Runtime"
+      },
+      "managementViewSwitch": "Management view",
+      "managementStatus": {
+        "ready": "Clear",
+        "review": "Review",
+        "action": "Action",
+        "unsaved": "Unsaved"
+      },
+      "skillManagementMapPanel": "Skill management map",
+      "skillManagementMapHelp": "Splits skills into Catalog, Policy, and Runtime layers: source/install state, Profile switches, then runtime load behavior.",
+      "skillManagementLayerHelp": {
+        "catalog": "Installed skills, trust/source review, and bundle lifecycle live here.",
+        "policy": "Profile-level enable/disable choices and dependency or conflict fixes live here.",
+        "runtime": "Activation, prompt-context inclusion, and tool-linked runtime behavior live here."
+      },
+      "skillRuntimeListPanel": "Runtime skill list",
+      "skillRuntimeListHelp": "Read-only backend explanations for runtime state: base-context inclusion, activation mode, Profile role, dependencies/conflicts, and linked tools.",
+      "skillManagementDetails": {
+        "catalog": "{{installed}} installed; core {{core}}, on-demand {{onDemand}}, manual {{manual}}, plugin {{plugin}}.",
+        "policy": "{{enabled}} catalog-enabled, {{disabled}} disabled; {{profileEnabled}} selected by the current Profile; {{issues}} dependency/conflict issue(s).",
+        "runtime": "{{baseContext}} enter base context, {{triggered}} trigger on demand, {{manual}} manual-load, {{excluded}} excluded; {{toolLinked}} grant tools, {{review}} source(s) need review."
+      },
+      "skillRuntimeFields": {
+        "activation": "Activation",
+        "context": "Context",
+        "profileRole": "Profile role",
+        "toolGrants": "Linked tools",
+        "baseContext": "Base context",
+        "triggered": "Triggered",
+        "manual": "Manual",
+        "excluded": "Excluded"
+      },
+      "skillRuntimeActivation": {
+        "always": "Default active",
+        "triggered": "Triggered",
+        "manual": "Manual load",
+        "disabled": "Disabled"
+      },
+      "skillRuntimeContext": {
+        "base_context": "Base context",
+        "on_demand": "On demand",
+        "manual": "Manual",
+        "excluded": "Excluded"
+      },
+      "skillRuntimeProfileRoles": {
+        "persona": "Persona",
+        "workflow": "Workflow",
+        "policy": "Policy",
+        "expertise": "Expertise",
+        "none": "Not selected"
+      },
+      "toolManagementMapPanel": "Tool management map",
+      "toolManagementMapHelp": "Splits tools into Catalog, Policy, and Runtime layers: what exists, what the Profile grants, and what can actually execute now.",
+      "toolManagementLayerHelp": {
+        "catalog": "Discovered tools, source mix, project scope, and risk shape live here.",
+        "policy": "Profile grants, local draft edits, filters, bulk edits, and save/reset actions live here.",
+        "runtime": "Resolved runtime grants, execution traits, approval gates, and availability live here."
+      },
+      "toolRuntimeListPanel": "Runtime tool list",
+      "toolRuntimeListHelp": "Read-only view of tools the runtime currently sees: availability, Profile grant, approval reason, execution traits, and result context strategy.",
+      "toolManagementDetails": {
+        "catalog": "{{discovered}} discovered; runtime {{runtime}}, plugin {{plugin}}, mcp {{mcp}}.",
+        "policy": "{{grants}} Profile grant(s); allow {{allow}}, deny {{deny}}. Runtime sees allow {{runtimeAllow}}, deny {{runtimeDeny}}, missing {{runtimeNone}}; {{issues}} draft issue(s).",
+        "runtime": "{{available}} executable, {{blocked}} blocked, {{approval}} need approval; {{writeRisk}} available write-risk, {{readOnly}} read-only, {{concurrencySafe}} concurrent-safe."
+      },
       "skillStatus": {
         "enabled": "Enabled",
         "disabled": "Disabled"
@@ -2313,12 +2385,29 @@
       },
       "toolPolicyModes": {
         "allow": "Allow",
-        "deny": "Deny"
+        "deny": "Deny",
+        "none": "Not granted"
       },
       "toolPolicyApprovals": {
         "never": "No approval",
         "onWrite": "Approve on write",
         "always": "Always approve"
+      },
+      "toolApprovalReasons": {
+        "none": "No approval gate",
+        "explicit_always": "Always approval",
+        "on_write": "Write-risk approval",
+        "tool_default": "Tool default",
+        "unknown_tool": "Unknown tool"
+      },
+      "toolInterruptBehaviors": {
+        "cancel": "Cancelable",
+        "block": "Blocks until done"
+      },
+      "toolResultRefStrategies": {
+        "inline": "Inline result",
+        "summary_ref": "Summary ref",
+        "auto": "Auto"
       },
       "toolPolicyFields": {
         "discovered": "Discovered",
@@ -2331,7 +2420,18 @@
         "registered": "Registered",
         "granted": "Granted",
         "mode": "Mode",
-        "approval": "Approval"
+        "approval": "Approval",
+        "grantMode": "Runtime grant",
+        "approvalReason": "Approval reason",
+        "runtimeReason": "Runtime reason",
+        "runtimeAllow": "Runtime allow",
+        "runtimeDeny": "Runtime deny",
+        "runtimeNone": "Runtime missing",
+        "readOnly": "Read-only",
+        "concurrencySafe": "Concurrent safe",
+        "destructive": "Destructive",
+        "interruptBehavior": "Interrupt",
+        "resultRefStrategy": "Result context"
       },
       "fields": {
         "baseUrl": "Base URL",
@@ -3108,7 +3208,6 @@
       "multi_angle": "Multi-angle Image",
       "style_transfer": "Style Transfer",
       "motion_imitation": "Motion Imitation",
-      "video_edit": "Video Edit",
       "input": "Input",
       "output": "Output",
       "resource_sink": "Save Resource",
@@ -3513,20 +3612,6 @@
       "response": "Response",
       "adapterError": "Adapter Error"
     },
-    "brainstorm": {
-      "prompt": "Prompt",
-      "description": "Chat freely with AI to spark creative ideas. Each submission is an independent request.",
-      "latestResult": "Latest Result",
-      "newQuestion": "New Question",
-      "startQuestion": "Start Asking",
-      "promptPlaceholder": "Enter your idea... Type @ to reference images from the resource library, Cmd+Enter to send",
-      "selectModelFirst": "Select an AI model first",
-      "inputHint": "Cmd+Enter to send · Type @ to reference images",
-      "history": "History",
-      "empty": "No conversations yet",
-      "emptyHint": "Enter an idea to start brainstorming",
-      "requestFailed": "Request failed. Check the model configuration and try again."
-    },
     "defs": {
       "refImageGen": {
         "name": "Reference Image",
@@ -3547,11 +3632,6 @@
         "name": "Multi-angle",
         "description": "Generate multiple angle views of a character or object from a single image.",
         "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
-      },
-      "videoEdit": {
-        "name": "Video Edit",
-        "description": "Generate an edited video from a source video and edit instructions.",
-        "promptPlaceholder": "Describe the edit target, such as trimming, pacing, shot reordering, or style processing... Type @ to reference videos from the resource library"
       },
       "styleTransfer": {
         "name": "Style Transfer",
@@ -3613,7 +3693,6 @@
     "subtitle": "AI model configuration, user credits, and usage analytics",
     "tabs": {
       "models": "Models",
-      "features": "Features",
       "users": "Users",
       "projects": "Projects",
       "logs": "Usage Logs",
@@ -3793,7 +3872,8 @@
       "add": "Add",
       "test": "Test",
       "noModelsHint": "No models added yet. Click \"Add Model\" to start.",
-      "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one."
+      "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one.",
+      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx"
     },
     "credentials": {
       "selectAdapter": "Select Adapter",
@@ -3865,104 +3945,6 @@
         "text": "Text",
         "image": "Image generation",
         "video": "Video generation"
-      }
-    },
-    "features": {
-      "title": "Feature Configuration",
-      "description": "Assign available models for each tool feature. When unrestricted, all enabled models of that type are available.",
-      "systemPrompt": "System prompt",
-      "prompt": "Prompt",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "defaultSystemPrompt": "Default system prompt",
-      "defaultSystemPromptHint": "(from business FeatureDef, read-only)",
-      "noSystemPrompt": "(No system prompt)",
-      "outputSchema": "Output format (OutputSchema)",
-      "customOverride": "Custom override",
-      "customOverrideHint": "(blank = use default)",
-      "saved": "Saved ✓",
-      "saveOverride": "Save override",
-      "availableModels": "Available models",
-      "unrestrictedModelsHint": "(unrestricted, use all available models of this type)",
-      "selectedModelsHint": "({{count}} selected)",
-      "noConfiguredModels": "No configured {{capability}} model",
-      "goToModels": "Go to model management ->",
-      "imageInputMark": "· image input",
-      "editModelConfig": "Edit model config",
-      "leaveBlankUseModelId": "Leave blank to use model ID",
-      "modelIdOverridePlaceholder": "e.g. ep-xxx or a specific model ID",
-      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx",
-      "priority": "Priority",
-      "defaultModel": "Default model",
-      "defaultModelHint": "(preselected when users open the tool)",
-      "autoHighestPriority": "Auto (highest priority)",
-      "accessRoles": "Access roles",
-      "accessRolesHint": "(blank = available to all roles)",
-      "systemFeatures": "System features",
-      "toolFeatures": "Tool features",
-      "empty": "No configurable features",
-      "catalog": {
-        "script_analyze": {
-          "name": "Script AI Analysis",
-          "description": "Analyze script content and extract key information such as characters, background, and scenes."
-        },
-        "assistant_chat": {
-          "name": "Assistant Chat",
-          "description": "Sidebar assistant for project creation support."
-        },
-        "canvas_text": {
-          "name": "Canvas Text Generation",
-          "description": "Text generation node in canvas workflows."
-        },
-        "canvas_image": {
-          "name": "Canvas Image Generation",
-          "description": "Image generation node in canvas workflows."
-        },
-        "canvas_video": {
-          "name": "Canvas Video Generation",
-          "description": "Video generation node in canvas workflows."
-        },
-        "shot_ref_image": {
-          "name": "Shot Reference Image Generation",
-          "description": "Generate reference images from storyboard descriptions."
-        },
-        "shot_ref_video": {
-          "name": "Shot Reference Video Generation",
-          "description": "Generate reference videos from reference images or descriptions."
-        },
-        "ref_image_gen": {
-          "name": "Reference Image",
-          "description": "Generate a new image from reference images, with text-to-image also supported."
-        },
-        "ref_video_gen": {
-          "name": "Reference Video",
-          "description": "Generate video from reference images or descriptions."
-        },
-        "motion_imitation": {
-          "name": "Motion Imitation",
-          "description": "Transfer motion from a reference video to target characters."
-        },
-        "video_edit": {
-          "name": "Video Edit",
-          "description": "Generate an edited video from a source video and edit instructions."
-        },
-        "style_transfer": {
-          "name": "Style Transfer",
-          "description": "Transfer the reference image's art style to the target image."
-        },
-        "multi_angle": {
-          "name": "Multi-angle",
-          "description": "Generate multi-angle views from a single reference image."
-        },
-        "brainstorm": {
-          "name": "Brainstorm",
-          "description": "Multi-turn AI chat for creative exploration and script ideation."
-        }
-      },
-      "roles": {
-        "owner": "Project owner",
-        "editor": "Editor",
-        "viewer": "Viewer"
       }
     },
     "storage": {
@@ -4229,8 +4211,6 @@
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",
-      "videoEdit": "Video Edit",
-      "brainstorm": "Brainstorm",
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",

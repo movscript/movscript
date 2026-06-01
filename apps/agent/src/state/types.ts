@@ -7,6 +7,7 @@ import type {
   CompiledPromptPreview as ProtocolCompiledPromptPreview,
   AgentDebugContextPanel as ProtocolAgentDebugContextPanel,
   AgentDebugTool as ProtocolAgentDebugTool,
+  AgentToolRuntimeExplanation as ProtocolAgentToolRuntimeExplanation,
   AgentClientInput as ProtocolAgentClientInput,
   AgentInputChoice as ProtocolAgentInputChoice,
   AgentInputRequest as ProtocolAgentInputRequest,
@@ -221,6 +222,7 @@ export interface AgentClientAttachmentRef {
   mimeType?: string
   size?: number
   resourceId?: number
+  dataUrl?: string
 }
 
 export interface AgentClientResourceRef {
@@ -270,6 +272,7 @@ export type AgentClientInput = Partial<ProtocolAgentClientInput>
 export type ResolvedAgentSkill = ProtocolResolvedAgentSkill
 export type { ToolUnavailableReason }
 export type AgentDebugTool = ProtocolAgentDebugTool
+export type AgentToolRuntimeExplanation = ProtocolAgentToolRuntimeExplanation
 export type ResolvedToolCatalog = ProtocolResolvedToolCatalog
 
 export type AgentRunPolicy = ProtocolAgentRunPolicy
@@ -290,8 +293,17 @@ export type AgentCapabilitiesResponse = Omit<ProtocolAgentCapabilitiesResponse, 
 export interface AgentRuntimeRouterOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('./store.js').AgentStore
+  toolResultStore?: import('./toolResultStore.js').AgentToolResultStore
   draftStore?: AgentDraftStore
   backendApplyClient?: BackendApplyClient
+  externalToolGatewayPort?: import('../ports/tools/externalToolGatewayPort.js').ExternalToolGatewayPort
+  draftApplyPort?: import('../ports/draft/draftApplyPort.js').DraftApplyPort
+  draftApplyPreviewPort?: import('../ports/draft/draftApplyPreviewPort.js').DraftApplyPreviewPort
+  proposalSnapshotHydrationPort?: import('../ports/draft/proposalSnapshotHydrationPort.js').DraftProposalSnapshotHydrationPort
+  resourceFilePort?: import('../ports/core/resourceFilePort.js').CoreResourceFilePort
+  videoFrameExtractionPort?: import('../ports/core/videoFrameExtractionPort.js').CoreVideoFrameExtractionPort
+  projectStandardsPort?: import('../ports/movscript/projectStandardsPort.js').MovscriptProjectStandardsPort
+  runtimeToolHandlers?: import('../ports/runtime/runtimeToolHandlerPort.js').RuntimeToolHandlerRegistry
   memoryStore?: import('../memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry

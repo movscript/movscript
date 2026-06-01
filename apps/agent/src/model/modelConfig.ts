@@ -10,8 +10,16 @@ import type {
 } from '@movscript/protocol'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 import { isRecord } from '../jsonValue.js'
+import {
+  runtimeModelTextContent,
+} from '../domains/message/modelMessage.js'
 
 export { RUNTIME_MODEL_API_KINDS }
+export {
+  ensureJSONModeMessages,
+  runtimeModelContentText,
+  runtimeModelTextContent,
+} from '../domains/message/modelMessage.js'
 export type {
   RuntimeModelAPIKind,
   RuntimeModelConfigPublic,
@@ -78,10 +86,28 @@ export interface RuntimeModelChatToolCall {
 
 export interface RuntimeModelChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string | null
+  content: RuntimeModelContentPart[]
   tool_call_id?: string
   tool_calls?: RuntimeModelChatToolCall[]
 }
+
+export type RuntimeModelContentPart = RuntimeModelTextContentPart | RuntimeModelImageContentPart
+
+export interface RuntimeModelTextContentPart {
+  type: 'text'
+  text: string
+}
+
+export interface RuntimeModelImageContentPart {
+  type: 'image'
+  source: RuntimeModelImageSource
+  detail?: 'low' | 'high' | 'auto'
+}
+
+export type RuntimeModelImageSource =
+  | { type: 'url'; url: string }
+  | { type: 'data_url'; dataUrl: string }
+  | { type: 'file_id'; fileId: string }
 
 export interface RuntimeModelChatTool {
   type: 'function'
@@ -136,7 +162,7 @@ export type RuntimeModelTraceCallback = (event: {
 }) => void
 
 const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
-const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'openai_chat_completions'
+const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'openai_responses'
 const SENSITIVE_RUNTIME_MODEL_URL_PARAM_PATTERN = /^(token|access_token|refresh_token|id_token|api_key|apikey|key|signature|sig|secret)$/i
 const AUTHORIZATION_INLINE_SECRET_PATTERN = /\bauthorization\s*[:=]\s*(?:bearer\s+)?[^\s"',;&]+/i
 const NAMED_INLINE_SECRET_PATTERN = /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret|password)\s*[:=]\s*[^\s"',;&]+/i
@@ -384,21 +410,6 @@ export function resolveRuntimePlannerModelConfig(store = new RuntimeModelConfigS
   return config?.model?.trim() && config.useForPlanner ? config : undefined
 }
 
-export function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
-  if (messages.some((message) => containsJSONKeyword(message.content ?? ''))) return messages
-  return [
-    {
-      role: 'system',
-      content: 'JSON mode is enabled. Return only a valid JSON object with no markdown fences.',
-    },
-    ...messages,
-  ]
-}
-
-function containsJSONKeyword(content: string): boolean {
-  return /\bjson\b/i.test(content)
-}
-
 function normalizeRuntimeModelAPIKind(value: unknown): RuntimeModelAPIKind | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
@@ -456,11 +467,11 @@ function buildTestMessages(message: string): RuntimeModelChatMessage[] {
   return [
     {
       role: 'system',
-      content: 'You are a concise connection test for MovScript Agent.',
+      content: runtimeModelTextContent('You are a concise connection test for MovScript Agent.'),
     },
     {
       role: 'user',
-      content: message,
+      content: runtimeModelTextContent(message),
     },
   ]
 }

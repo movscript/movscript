@@ -1,4 +1,4 @@
-import type { ToolSource } from '../orchestration/toolExecutor.js'
+import type { ToolSource } from '../ports/tools/toolExecutionSource.js'
 import type { ContextRef, ContextSource, EvidenceLevel } from './types.js'
 
 export interface SourceBoundary {

@@ -30,9 +30,51 @@ test('runtime catalog read helpers expose registered tools, skills, and default 
   const layeredRegistry = makeRegistry({ skills: [skill], profiles: [profile] })
 
   assert.deepEqual(listRuntimeRegisteredTools(registry).map((tool) => tool.name), ['movscript_test_tool'])
-  assert.deepEqual(listRuntimeSkillCatalog(layeredRegistry), [skill])
+  const listedSkills = listRuntimeSkillCatalog(layeredRegistry, { ...DEFAULT_AGENT_MANIFEST, metadata: { profileId: profile.id } })
+  assert.equal(listedSkills[0]?.id, skill.id)
+  assert.equal(listedSkills[0]?.runtime.profileRole, 'none')
+  assert.equal(listedSkills[0]?.runtime.defaultActivation, 'disabled')
   assert.deepEqual(listRuntimeProfileCatalog(layeredRegistry), [profile])
   assert.equal(getRuntimeDefaultAgentManifest(DEFAULT_AGENT_MANIFEST), DEFAULT_AGENT_MANIFEST)
+})
+
+test('listRuntimeSkillCatalog explains profile and runtime skill behavior', () => {
+  const persona = makeSkill('persona_default')
+  const workflow = makeSkill('workflow_visual', {
+    kind: 'workflow',
+    loadMode: 'on_demand',
+    dependencies: ['persona_default'],
+    conflicts: ['workflow_script'],
+    toolRefs: ['tool://tool_a'],
+  })
+  const manual = makeSkill('style_manual', {
+    kind: 'expertise',
+    loadMode: 'manual',
+  })
+  const profile = makeProfile({
+    persona: persona.id,
+    enabledWorkflows: [workflow.id],
+  })
+  const registry = makeRegistry({
+    skills: [persona, workflow, manual],
+    tools: [makeTool('tool_a')],
+    profiles: [profile],
+  })
+
+  const listed = listRuntimeSkillCatalog(registry, {
+    ...DEFAULT_AGENT_MANIFEST,
+    metadata: { profileId: profile.id },
+  })
+
+  assert.equal(listed.find((skill) => skill.id === persona.id)?.runtime.profileRole, 'persona')
+  assert.equal(listed.find((skill) => skill.id === persona.id)?.runtime.contextBehavior, 'base_context')
+  const workflowRuntime = listed.find((skill) => skill.id === workflow.id)?.runtime
+  assert.equal(workflowRuntime?.profileRole, 'workflow')
+  assert.equal(workflowRuntime?.defaultActivation, 'triggered')
+  assert.deepEqual(workflowRuntime?.dependencyIds, ['persona_default'])
+  assert.deepEqual(workflowRuntime?.conflictIds, ['workflow_script'])
+  assert.deepEqual(workflowRuntime?.toolGrantNames, ['tool_a'])
+  assert.equal(listed.find((skill) => skill.id === manual.id)?.runtime.defaultActivation, 'manual')
 })
 
 test('inspectRuntimeAgentCatalog reads the captured run catalog snapshot and active skill view', () => {
@@ -324,10 +366,13 @@ function makeRegistry(input: {
 function makeSkill(id: string, overrides: {
   conflicts?: string[]
   dependencies?: string[]
+  kind?: SkillDefinition['kind']
+  loadMode?: SkillDefinition['loadMode']
+  toolRefs?: string[]
 } = {}): SkillDefinition {
   return {
     id,
-    kind: 'persona',
+    kind: overrides.kind ?? 'persona',
     version: '1.0.0',
     name: id,
     description: `${id} description`,
@@ -335,7 +380,8 @@ function makeSkill(id: string, overrides: {
     enabled: true,
     instructionTemplate: 'Use this skill.',
     ...overrides,
-  }
+    ...(overrides.kind === 'workflow' ? { triggers: [{ kind: 'always' }], toolRefs: overrides.toolRefs ?? [] } : {}),
+  } as SkillDefinition
 }
 
 function makeTool(name: string): ToolDefinition {
@@ -357,6 +403,8 @@ function makeTool(name: string): ToolDefinition {
 function makeProfile(input: {
   enabledPacks?: string[]
   persona?: string | null
+  enabledWorkflows?: string[]
+  enabledPolicies?: string[]
 } = {}): AgentProfile {
   return {
     schema: 'movscript.agent.profile.v1',
@@ -365,8 +413,8 @@ function makeProfile(input: {
     name: 'Profile A',
     enabledPacks: input.enabledPacks ?? [],
     persona: input.persona ?? null,
-    enabledWorkflows: [],
-    enabledPolicies: [],
+    enabledWorkflows: input.enabledWorkflows ?? [],
+    enabledPolicies: input.enabledPolicies ?? [],
     toolGrants: [{ name: 'tool_a', mode: 'allow', approval: 'never' }],
   }
 }

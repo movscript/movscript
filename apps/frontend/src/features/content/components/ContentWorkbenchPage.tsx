@@ -41,6 +41,7 @@ import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import {
   Badge,
+  ContentWorkbenchBody,
   ContentWorkbenchCommandCenter,
   ContentWorkbenchDetailContent,
   ContentWorkbenchEmptyActionButton,
@@ -412,34 +413,35 @@ export function ContentWorkbenchPage() {
           <WorkbenchEmptyState title="内容编排数据加载失败" description="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
           <ContentWorkbenchWorkspaceShell>
-            <ContentWorkbenchCommandCenter
-            {...detailPaneLayoutProps}
-            sidebar={(
-              <ContentWorkbenchFilterSidebar
-                productionOptions={productionFilterOptions}
-                productionValue={productionFilter}
-                segmentOptions={segmentFilterOptions}
-                segmentValue={segmentFilter}
-                sceneOptions={sceneMomentFilterOptions}
-                sceneValue={scopeLevel === 'scene_moment' ? selected?.id ?? '' : ''}
-                query={sidebarQuery}
-                resultCount={visibleRows.length}
-                unitCount={totalUnitCount}
-                onQueryChange={setSidebarQuery}
-                onSelectProduction={selectProductionFilter}
-                onSelectSegment={selectSegmentFilter}
-                onSelectScene={selectSceneMoment}
-                onDeleteScene={deleteSceneMomentFromSidebar}
-              />
-            )}
-          >
-            {hasSelectedRow && !detailPane.collapsed ? (
-              <ContentWorkbenchMainColumn
-                overlapState={detailPane.overlapState}
-                resizeHandleProps={detailPane.resizeHandleProps}
-                resizeHandleSide="left"
+            <ContentWorkbenchBody>
+              <ContentWorkbenchCommandCenter
+                {...detailPaneLayoutProps}
+                sidebar={(
+                  <ContentWorkbenchFilterSidebar
+                    productionOptions={productionFilterOptions}
+                    productionValue={productionFilter}
+                    segmentOptions={segmentFilterOptions}
+                    segmentValue={segmentFilter}
+                    sceneOptions={sceneMomentFilterOptions}
+                    sceneValue={scopeLevel === 'scene_moment' ? selected?.id ?? '' : ''}
+                    query={sidebarQuery}
+                    resultCount={visibleRows.length}
+                    unitCount={totalUnitCount}
+                    onQueryChange={setSidebarQuery}
+                    onSelectProduction={selectProductionFilter}
+                    onSelectSegment={selectSegmentFilter}
+                    onSelectScene={selectSceneMoment}
+                    onDeleteScene={deleteSceneMomentFromSidebar}
+                  />
+                )}
               >
-                <ContentWorkbenchDetailContent>
+                {hasSelectedRow && !detailPane.collapsed ? (
+                  <ContentWorkbenchMainColumn
+                    overlapState={detailPane.overlapState}
+                    resizeHandleProps={detailPane.resizeHandleProps}
+                    resizeHandleSide="left"
+                  >
+                    <ContentWorkbenchDetailContent>
                       <ContentWorkbenchViewHeader
                         icon={<Wand2 size={14} />}
                         kicker="编排视图"
@@ -534,23 +536,24 @@ export function ContentWorkbenchPage() {
                         </>
                       )}
                     </ContentWorkbenchDetailContent>
-            </ContentWorkbenchMainColumn>
-            ) : null}
-            {hasSelectedRow && detailPane.collapsed ? (
-              <OverlapPaneRevealButton
-                action="show"
-                label="显示内容详情"
-                onClick={detailPane.show}
-              />
-            ) : null}
-            {hasSelectedRow && detailPane.expanded ? (
-              <OverlapPaneRevealButton
-                action="restore"
-                label="还原内容详情"
-                onClick={detailPane.restore}
-              />
-            ) : null}
-            </ContentWorkbenchCommandCenter>
+                  </ContentWorkbenchMainColumn>
+                ) : null}
+                {hasSelectedRow && detailPane.collapsed ? (
+                  <OverlapPaneRevealButton
+                    action="show"
+                    label="显示内容详情"
+                    onClick={detailPane.show}
+                  />
+                ) : null}
+                {hasSelectedRow && detailPane.expanded ? (
+                  <OverlapPaneRevealButton
+                    action="restore"
+                    label="还原内容详情"
+                    onClick={detailPane.restore}
+                  />
+                ) : null}
+              </ContentWorkbenchCommandCenter>
+            </ContentWorkbenchBody>
           </ContentWorkbenchWorkspaceShell>
         )}
       </WorkbenchProjectBody>

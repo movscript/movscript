@@ -21,6 +21,7 @@ export class BackendBootError extends Error {
 }
 
 let readyPromise: Promise<void> | null = null
+const LOCAL_BACKEND_HEALTH_TIMEOUT_MS = 1_500
 
 export function isBackendBootError(error: unknown): error is BackendBootError {
   return error instanceof BackendBootError || (
@@ -126,10 +127,19 @@ async function waitForLocalBackendReadyOnce(timeoutMs: number): Promise<void> {
 }
 
 async function isLocalBackendHTTPReady(baseURL: string): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = globalThis.setTimeout(() => {
+    if (!controller.signal.aborted) controller.abort()
+  }, LOCAL_BACKEND_HEALTH_TIMEOUT_MS)
   try {
-    const response = await fetch(`${normalizeAPIBaseURL(baseURL)}/health`, { cache: 'no-store' })
+    const response = await fetch(`${normalizeAPIBaseURL(baseURL)}/health`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
     return response.ok
   } catch {
     return false
+  } finally {
+    globalThis.clearTimeout(timer)
   }
 }

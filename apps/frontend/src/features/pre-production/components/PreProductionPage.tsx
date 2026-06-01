@@ -12,7 +12,7 @@ import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/ap
 import { deleteSemanticEntity, type SemanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { readStringParam, type ContentFilterKey } from '@/features/content/presentation/contentFilters'
 import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatus'
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import {
   normalizeSlotStatus,
   assetKindLabel,
@@ -60,12 +60,15 @@ import {
   ResourcePrepDialogActions,
   ResourcePrepDialogBody,
   ResourcePrepDialogHeader,
+  ResourcePrepEntityCard,
   ResourcePrepHiddenFileInput,
   ResourcePrepInspectorBody,
   ResourcePrepInspectorHeader,
   ResourcePrepInspectorPanel,
   ResourcePrepInspectorRoot,
   ResourcePrepInspectorStack,
+  ResourcePrepInspectorTabButton,
+  ResourcePrepInspectorTabs,
   ResourcePrepReviewDialogContent,
   ResourcePrepScreenReaderTitle,
   ResourcePrepSelect,
@@ -98,6 +101,7 @@ const PREP_SETTING_ASSET_PANE_DEFAULT_WIDTH = 460
 const PREP_SETTING_ASSET_PANE_WIDTH_STORAGE_KEY = 'movscript.preProduction.settingAssetPaneWidth'
 
 type PreProductionWorkbenchView = 'setting' | 'asset'
+type PreProductionSettingDetailView = 'setting' | 'assets'
 type PreProductionCardContextTarget = { type: 'asset'; id: number } | { type: 'reference'; id: number }
 type PreProductionDeleteTarget =
   | { type: 'asset'; record: AssetSlotRecord }
@@ -980,15 +984,13 @@ function ReferenceInlineCard({
       onContextMenu={onContextMenu}
     >
       <div className="resource-prep-inline-card__header">
-        <button type="button" className="resource-prep-inline-card__select" onClick={onSelect}>
-          <span className="resource-prep-inline-card__copy">
-            <span className="resource-prep-inline-card__title">{isCreating ? '未命名设定' : title}</span>
-            <span className="resource-prep-inline-card__meta">{isCreating ? '编辑中' : `${referenceKindLabel(reference?.kind)} · ${cluster?.rows.length ?? 0} 个素材`}</span>
-          </span>
-          <span className="resource-prep-inline-card__status">
-            <ResourcePrepShellBadge>{cluster?.rows.length ?? '新建'}</ResourcePrepShellBadge>
-          </span>
-        </button>
+        <ResourcePrepEntityCard
+          className="resource-prep-inline-card__select"
+          onClick={onSelect}
+          title={isCreating ? '未命名设定' : title}
+          description={isCreating ? '编辑中' : `${referenceKindLabel(reference?.kind)} · ${cluster?.rows.length ?? 0} 个素材`}
+          status={<ResourcePrepShellBadge>{cluster?.rows.length ?? '新建'}</ResourcePrepShellBadge>}
+        />
         {!isCreating ? (
           <ResourcePrepActionButton
             type="button"
@@ -1099,15 +1101,13 @@ function AssetSlotInlineCard({
       onContextMenu={onContextMenu}
     >
       <div className="resource-prep-inline-card__header">
-        <button type="button" className="resource-prep-inline-card__select" onClick={onSelect}>
-          <span className="resource-prep-inline-card__copy">
-            <span className="resource-prep-inline-card__title">{slot.name || `素材 #${slot.ID}`}</span>
-            <span className="resource-prep-inline-card__meta">{assetSlotRailMeta(row, reference)}</span>
-          </span>
-          <span className="resource-prep-inline-card__status">
-            <SlotStatusBadge status={status} />
-          </span>
-        </button>
+        <ResourcePrepEntityCard
+          className="resource-prep-inline-card__select"
+          onClick={onSelect}
+          title={slot.name || `素材 #${slot.ID}`}
+          description={assetSlotRailMeta(row, reference)}
+          status={<SlotStatusBadge status={status} />}
+        />
         <ResourcePrepActionButton
           type="button"
           size="icon-xs"
@@ -1236,6 +1236,7 @@ function PreProductionSettingDetail({
   onOpenSlot: (slotId: number) => void
   onCardContextMenu?: (event: MouseEvent, target: PreProductionCardContextTarget) => void
 }) {
+  const [detailView, setDetailView] = useState<PreProductionSettingDetailView>('assets')
   const title = selectedReference?.name || selectedReference?.alias || (selectedReference ? `设定 #${selectedReference.ID}` : '选择设定')
   return (
     <ResourcePrepInspectorRoot>
@@ -1244,28 +1245,50 @@ function PreProductionSettingDetail({
           icon={<Sparkles size={16} />}
           title={title}
           subtitle={selectedReference ? '当前设定下的素材列表。字段信息和编辑入口都在素材卡片上。' : '从左侧设定列表选择一个设定。'}
-        />
+        >
+          <ResourcePrepInspectorTabs>
+            <ResourcePrepInspectorTabButton active={detailView === 'setting'} onClick={() => setDetailView('setting')}>
+              设定
+            </ResourcePrepInspectorTabButton>
+            <ResourcePrepInspectorTabButton active={detailView === 'assets'} onClick={() => setDetailView('assets')}>
+              素材
+            </ResourcePrepInspectorTabButton>
+          </ResourcePrepInspectorTabs>
+        </ResourcePrepInspectorHeader>
         <ResourcePrepInspectorBody className="resource-prep-inspector__body--nested-pane">
-          <SettingAssetPane
-            projectId={projectId}
-            slotConfig={slotConfig}
-            rows={rows}
-            selected={selected}
-            selectedReference={selectedReference}
-            newSlotEditId={newSlotEditId}
-            onSaved={onAssetSaved}
-            onLock={onLock}
-            onReject={onReject}
-            onUploadCandidate={onUploadCandidate}
-            onOpenResourceLibrary={onOpenResourceLibrary}
-            busy={busy}
-            uploading={uploading}
-            editingAssetSlotId={editingAssetSlotId}
-            onEditingAssetSlotChange={onEditingAssetSlotChange}
-            onSelectSlot={onSelectSlot}
-            onOpenSlot={onOpenSlot}
-            onCardContextMenu={onCardContextMenu}
-          />
+          {detailView === 'setting' ? (
+            <ResourcePrepInspectorStack>
+              {selectedReference ? (
+                <>
+                  <ResourcePrepShellBadge>{referenceKindLabel(selectedReference.kind)}</ResourcePrepShellBadge>
+                  <p>{selectedReference.description || selectedReference.content || '这个设定还没有补充描述。'}</p>
+                </>
+              ) : (
+                <EmptyPreview title="选择设定" description="从左侧设定列表选择人物、地点、道具或风格设定。" />
+              )}
+            </ResourcePrepInspectorStack>
+          ) : (
+            <SettingAssetPane
+              projectId={projectId}
+              slotConfig={slotConfig}
+              rows={rows}
+              selected={selected}
+              selectedReference={selectedReference}
+              newSlotEditId={newSlotEditId}
+              onSaved={onAssetSaved}
+              onLock={onLock}
+              onReject={onReject}
+              onUploadCandidate={onUploadCandidate}
+              onOpenResourceLibrary={onOpenResourceLibrary}
+              busy={busy}
+              uploading={uploading}
+              editingAssetSlotId={editingAssetSlotId}
+              onEditingAssetSlotChange={onEditingAssetSlotChange}
+              onSelectSlot={onSelectSlot}
+              onOpenSlot={onOpenSlot}
+              onCardContextMenu={onCardContextMenu}
+            />
+          )}
         </ResourcePrepInspectorBody>
       </ResourcePrepInspectorPanel>
     </ResourcePrepInspectorRoot>

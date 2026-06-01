@@ -15,30 +15,58 @@ import (
 )
 
 func gatewayMessageContent(raw json.RawMessage) (string, error) {
+	content, _, err := gatewayMessageContentAndParts(raw)
+	return content, err
+}
+
+func gatewayMessageContentAndParts(raw json.RawMessage) (string, []ai.MessageContentPart, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return "", nil
+		return "", nil, nil
 	}
 
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		return s, nil
+		return s, nil, nil
 	}
 
-	var parts []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	}
+	var parts []map[string]any
 	if err := json.Unmarshal(raw, &parts); err != nil {
-		return "", fmt.Errorf("must be a string or an array of text parts")
+		return "", nil, fmt.Errorf("must be a string or an array of OpenAI content parts")
 	}
 
 	var builder strings.Builder
-	for _, part := range parts {
-		if part.Type == "" || part.Type == "text" || part.Type == "input_text" || part.Type == "output_text" {
-			builder.WriteString(part.Text)
+	contentParts := make([]ai.MessageContentPart, 0, len(parts))
+	for i, part := range parts {
+		partType, _ := part["type"].(string)
+		switch partType {
+		case "", "text", "input_text", "output_text":
+			text, _ := part["text"].(string)
+			builder.WriteString(text)
+			normalizedType := partType
+			if normalizedType == "" {
+				normalizedType = "text"
+			}
+			contentParts = append(contentParts, ai.MessageContentPart{
+				"type": normalizedType,
+				"text": text,
+			})
+		case "image_url":
+			if _, ok := part["image_url"]; !ok {
+				return "", nil, fmt.Errorf("content[%d].image_url is required", i)
+			}
+			contentParts = append(contentParts, ai.MessageContentPart(part))
+		case "input_image":
+			if _, hasImageURL := part["image_url"]; !hasImageURL {
+				if _, hasFileID := part["file_id"]; !hasFileID {
+					return "", nil, fmt.Errorf("content[%d] input_image requires image_url or file_id", i)
+				}
+			}
+			contentParts = append(contentParts, ai.MessageContentPart(part))
+		default:
+			return "", nil, fmt.Errorf("unsupported OpenAI content part type %q", partType)
 		}
 	}
-	return builder.String(), nil
+	return builder.String(), contentParts, nil
 }
 
 func writeOpenAIError(c *gin.Context, status int, message, typ, param, code string) {
@@ -105,11 +133,11 @@ func responsesInputMessages(raw json.RawMessage) ([]ai.Message, error) {
 		if role != "system" && role != "user" && role != "assistant" {
 			return nil, fmt.Errorf("items[%d].role must be system, user, or assistant", i)
 		}
-		content, err := gatewayMessageContent(item["content"])
+		content, contentParts, err := gatewayMessageContentAndParts(item["content"])
 		if err != nil {
 			return nil, fmt.Errorf("items[%d].content: %w", i, err)
 		}
-		messages = append(messages, ai.Message{Role: role, Content: content})
+		messages = append(messages, ai.Message{Role: role, Content: content, ContentParts: contentParts})
 	}
 	return messages, nil
 }

@@ -55,7 +55,6 @@
     "cancelUnsupported": "该服务商不支持取消视频任务",
     "cancelVideoOnly": "只有视频生成任务可以取消",
     "cannotGrantSelf": "不能给自己授权",
-    "capabilityOrFeatureRequired": "需要提供 capability 或 feature 查询参数",
     "canvasNotFound": "画布不存在",
     "conflict": "请求与当前状态冲突",
     "credentialNotFound": "凭据不存在",
@@ -69,7 +68,6 @@
     "failedReadFile": "读取文件失败",
     "failedRetrieveFile": "获取文件失败",
     "failedStoreFile": "存储文件失败",
-    "featureNotFound": "功能不存在",
     "finalVideoNotFound": "成片不存在",
     "fileRequired": "请选择文件",
     "folderNotFound": "文件夹不存在",
@@ -1522,7 +1520,6 @@
       "multi_angle": "图像多角度",
       "style_transfer": "风格迁移",
       "motion_imitation": "动作模仿",
-      "video_edit": "剪辑工具",
       "input": "输入",
       "output": "输出",
       "resource_sink": "保存资源",
@@ -1931,20 +1928,6 @@
       "response": "响应",
       "adapterError": "Adapter 错误"
     },
-    "brainstorm": {
-      "prompt": "提示词",
-      "description": "与 AI 自由对话，激发创作灵感。每次提交为独立请求。",
-      "latestResult": "最新结果",
-      "newQuestion": "新建提问",
-      "startQuestion": "开始提问",
-      "promptPlaceholder": "输入你的想法… 输入 @ 可引用资源库中的图片，⌘+Enter 发送",
-      "selectModelFirst": "请先选择 AI 模型",
-      "inputHint": "⌘+Enter 发送 · 输入 @ 引用图片",
-      "history": "历史记录",
-      "empty": "还没有对话记录",
-      "emptyHint": "输入你的想法，开始激发灵感",
-      "requestFailed": "请求失败，请检查模型配置后重试"
-    },
     "defs": {
       "refImageGen": {
         "name": "参考生图",
@@ -1965,11 +1948,6 @@
         "name": "多角度",
         "description": "从单张图片生成角色或物体的多个角度视图",
         "promptPlaceholder": "描述你想要生成的角度或视角… 输入 @ 可引用资源库中的图片"
-      },
-      "videoEdit": {
-        "name": "剪辑工具",
-        "description": "基于源视频和剪辑指令生成处理后的视频",
-        "promptPlaceholder": "描述剪辑目标，例如裁切片段、节奏调整、镜头重组、风格处理… 输入 @ 可引用资源库中的视频"
       },
       "styleTransfer": {
         "name": "画风迁移",
@@ -2074,7 +2052,6 @@
     },
     "tabs": {
       "models": "模型管理",
-      "features": "功能配置",
       "users": "用户管理",
       "orgs": "组织管理",
       "projects": "项目管理",
@@ -2102,7 +2079,6 @@
       },
       "sections": {
         "models": "供应商凭证、模型启用、价格与参数配置。",
-        "features": "功能到模型的路由、默认模型和系统提示词。",
         "users": "查看用户资料、系统角色和账号状态。",
         "orgs": "查看团队/个人组织，调整套餐和组织状态。",
         "projects": "当前 {{count}} 个项目，可筛选、删除或强制调整 Owner。",
@@ -2364,7 +2340,8 @@
       "add": "添加",
       "test": "测试",
       "noModelsHint": "暂无已添加的模型，点击「添加模型」开始配置",
-      "noCredentialsHint": "暂无凭据配置，点击右上角「添加凭据」开始接入"
+      "noCredentialsHint": "暂无凭据配置，点击右上角「添加凭据」开始接入",
+      "modelIdOverrideShortPlaceholder": "如 ep-xxx"
     },
     "credentials": {
       "selectAdapter": "选择适配器",
@@ -2754,108 +2731,6 @@
         "byActor": "按操作者汇总"
       }
     },
-    "features": {
-      "title": "功能配置",
-      "description": "为每个工具功能指定可用模型。未限制时使用该类型下所有已启用模型。",
-      "systemPrompt": "系统提示词",
-      "prompt": "提示词",
-      "enabled": "已启用",
-      "disabled": "已禁用",
-      "confirmEnable": "确定启用功能「{{name}}」？用户会立即看到可用入口。",
-      "confirmDisable": "确定禁用功能「{{name}}」？相关工具会立即不可用。",
-      "defaultSystemPrompt": "默认系统提示词",
-      "defaultSystemPromptHint": "（来自业务层 FeatureDef，只读）",
-      "noSystemPrompt": "（无系统提示词）",
-      "outputSchema": "输出格式（OutputSchema）",
-      "customOverride": "自定义覆盖",
-      "customOverrideHint": "（留空 = 使用默认）",
-      "maxTokensOverride": "最大 Token 覆盖",
-      "maxTokensOverrideHint": "留空或 0 = 使用默认值",
-      "saved": "已保存 ✓",
-      "saveOverride": "保存覆盖",
-      "availableModels": "可用模型",
-      "unrestrictedModelsHint": "（未限制，使用所有该类型下的可用模型）",
-      "selectedModelsHint": "（已选 {{count}} 个）",
-      "noConfiguredModels": "暂无已配置的{{capability}}模型",
-      "goToModels": "前往模型管理添加 →",
-      "imageInputMark": "·图输入",
-      "editModelConfig": "编辑模型配置",
-      "leaveBlankUseModelId": "留空使用 model ID",
-      "modelIdOverridePlaceholder": "如 ep-xxx 或具体 model ID",
-      "modelIdOverrideShortPlaceholder": "如 ep-xxx",
-      "priority": "优先级",
-      "defaultModel": "默认模型",
-      "defaultModelHint": "（用户打开工具时预选）",
-      "autoHighestPriority": "自动（优先级最高）",
-      "accessRoles": "访问权限",
-      "accessRolesHint": "（留空 = 所有角色可用）",
-      "systemFeatures": "系统功能",
-      "toolFeatures": "工具功能",
-      "empty": "暂无可配置功能",
-      "catalog": {
-        "script_analyze": {
-          "name": "剧本 AI 分析",
-          "description": "对剧本内容进行智能分析，提取人物、背景、场景等关键信息。"
-        },
-        "assistant_chat": {
-          "name": "助手对话",
-          "description": "侧边栏助手，用于项目创作辅助对话。"
-        },
-        "canvas_text": {
-          "name": "画布·文本生成",
-          "description": "画布工作流中的文本生成节点。"
-        },
-        "canvas_image": {
-          "name": "画布·图像生成",
-          "description": "画布工作流中的图像生成节点。"
-        },
-        "canvas_video": {
-          "name": "画布·视频生成",
-          "description": "画布工作流中的视频生成节点。"
-        },
-        "shot_ref_image": {
-          "name": "分镜·参考图生成",
-          "description": "根据分镜描述生成参考图。"
-        },
-        "shot_ref_video": {
-          "name": "分镜·参考视频生成",
-          "description": "根据参考图或描述生成参考视频。"
-        },
-        "ref_image_gen": {
-          "name": "参考生图",
-          "description": "以参考图为基础生成新的图像，同时支持纯文本生图。"
-        },
-        "ref_video_gen": {
-          "name": "参考生视频",
-          "description": "以参考图或描述为基础生成视频。"
-        },
-        "motion_imitation": {
-          "name": "动作迁移",
-          "description": "将参考视频的动作迁移到目标角色。"
-        },
-        "video_edit": {
-          "name": "剪辑工具",
-          "description": "基于源视频和剪辑指令生成处理后的视频。"
-        },
-        "style_transfer": {
-          "name": "画风迁移",
-          "description": "将参考图的画风迁移到目标图像。"
-        },
-        "multi_angle": {
-          "name": "多角度",
-          "description": "从单张参考图生成多角度视图。"
-        },
-        "brainstorm": {
-          "name": "AI生文",
-          "description": "AI 多轮对话，辅助创意发散与剧本构思。"
-        }
-      },
-      "roles": {
-        "owner": "项目所有者",
-        "editor": "编辑者",
-        "viewer": "查看者"
-      }
-    },
     "storage": {
       "internalStorage": "内部资源存储",
       "internalStorageDescription": "存放用户上传、画布中间产物和模型输出结果。这里的 URL 只保证 MovScript 后端可读，不作为服务商输入 URL。",
@@ -3082,7 +2957,7 @@
         "noProviderCalls": "没有捕获到 provider HTTP 调用，查看上方状态机和错误信息。",
         "debugInfoRaw": "Debug 信息（原始）",
         "filters": {
-          "featureKey": "Feature Key",
+          "featureKey": "来源标识",
           "jobId": "任务 ID",
           "jobType": "任务类型",
           "modelConfigId": "模型配置 ID",
@@ -3092,7 +2967,7 @@
         },
         "fields": {
           "executionState": "执行状态",
-          "featureKey": "Feature Key",
+          "featureKey": "来源标识",
           "finished": "完成时间",
           "inputResources": "输入资源",
           "jobId": "任务 ID",
@@ -3242,8 +3117,6 @@
       "motionImitation": "动作迁移",
       "styleTransfer": "画风迁移",
       "multiAngle": "多角度",
-      "videoEdit": "剪辑工具",
-      "brainstorm": "AI生文",
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",

@@ -1,5 +1,6 @@
 import type { MCPTool } from '../types.js'
 import { isRecord } from '../jsonValue.js'
+import { normalizeToolExecutionMetadata } from '../tools/toolRegistry.js'
 import type { CapabilityPack, ToolDefinition } from './types.js'
 import type { JSONSchema7 } from '@movscript/drafts'
 
@@ -49,6 +50,7 @@ function mcpToolDefinition(serverId: string, tool: MCPTool): ToolDefinition {
       approval: 'always',
     },
     source: 'mcp',
+    execution: normalizeToolExecutionMetadata(undefined, 'write'),
     mcpServerId: serverId,
     capability: tool.description,
   }

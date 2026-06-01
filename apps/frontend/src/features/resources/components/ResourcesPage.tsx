@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import type { ExternalResourceItem, ExternalResourceSearchResult, ExternalResourceSource, Project, RawResource, ResourceBinding, ResourceFolder, PaginatedResponse } from '@/types'
@@ -10,10 +10,20 @@ import {
   LayoutGrid, List, ChevronLeft, Download, FileText,
   Scissors, Play, Pause, CheckSquare, KeyRound,
 } from 'lucide-react'
-import { MediaViewer, downloadResource, resolveResourceUrl } from '@/shared/ui/MediaViewer'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
+import { loadResourceBlob } from '@/shared/ui/resourceBlob'
+import { downloadResource } from '@/shared/ui/resourceDownload'
+import { UrlImage, UrlMediaPreview, UrlVideo } from '@/shared/ui/UrlMedia'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/shared/ui/ResourceCandidateAttachPanel'
 import {
   Dialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  ProjectSurfaceHeader,
   ResourceAssetActionButton,
   ResourceAssetCard,
   ResourceAssetName,
@@ -41,6 +51,7 @@ import {
   ResourceClipTime,
   ResourceContextMenu,
   ResourceContextMenuButton,
+  ResourceDangerMenuItem,
   ResourceDialogCloseButton,
   ResourceDialogContent,
   ResourceDialogField,
@@ -54,6 +65,7 @@ import {
   ResourceDialogText,
   ResourceDialogTitle,
   ResourceFolderOption,
+  ResourceFolderTreeItem,
   ResourceMediaFillFrame,
   ResourcePageActionButton,
   ResourcePageActionGroup,
@@ -73,18 +85,24 @@ import {
   ResourcePageMutedText,
   ResourcePagePager,
   ResourcePageSearchField,
+  ResourcePermissionActionGroup,
+  ResourcePermissionEmpty,
+  ResourcePermissionSection,
+  ResourcePermissionShareRow,
+  ResourcePermissionUserRow,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
+  ResourceSharedIndicator,
   ResourceStateMessage,
   ResourcePanelThumb,
   ResourcePanelThumbFallback,
-  resourceDangerTextClass,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { toast } from '@/shared/ui/toastStore'
 import {
   clipOutputNameError,
@@ -156,7 +174,6 @@ const SCOPE_TABS: { labelKey: string; value: ResourceScopeFilter; requiresProjec
 
 const RESOURCE_PAGE_SIZE_OPTIONS = [12, 30, 60, 120]
 const DEFAULT_RESOURCE_PAGE_SIZE = 30
-const RESOURCE_ACTION_MENU_WIDTH = 160
 const EXTERNAL_RESOURCE_PAGE_SIZE = 24
 
 // ─── Move to Folder Dialog ───────────────────────────────────────────────────
@@ -195,10 +212,10 @@ function MoveDialog({
               onClick={() => setTargetFolder(null)}
             />
             {folders.map(f => (
-              <FolderOption
+              <FolderItem
                 key={f.ID}
-                label={f.name}
-                selected={targetFolder === f.ID}
+                folder={f}
+                active={targetFolder === f.ID}
                 onClick={() => setTargetFolder(f.ID)}
               />
             ))}
@@ -363,9 +380,7 @@ function VideoClipDialog({
         active = false
       }
     }
-    api.get(resolveResourceUrl(resource), {
-      baseURL: '',
-      responseType: 'blob',
+    loadResourceBlob(resource, {
       signal: controller.signal,
       onDownloadProgress: (event) => {
         if (!active) return
@@ -375,16 +390,15 @@ function VideoClipDialog({
         })
       },
     })
-      .then((response) => {
+      .then((blob) => {
         if (!active) return
-        const blob = response.data as Blob
         const downloadedSourceError = clipSourceError(blob.size)
         if (downloadedSourceError) {
           setSourceError(sourceErrorMessage(downloadedSourceError, blob.size, t))
           setSourceErrorRetryable(false)
           return
         }
-        objectUrl = URL.createObjectURL(blob)
+        objectUrl = createObjectUrl(blob)
         setSourceBlob(blob)
         setSourceUrl(objectUrl)
       })
@@ -400,7 +414,7 @@ function VideoClipDialog({
     return () => {
       active = false
       controller.abort()
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      revokeObjectUrl(objectUrl)
     }
   }, [resource, sourceLoadAttempt, t])
 
@@ -830,6 +844,23 @@ function FolderOption({ label, selected, onClick }: {
   )
 }
 
+function FolderItem({ folder, active, onClick }: {
+  folder: ResourceFolder
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <ResourceFolderTreeItem
+      active={active}
+      icon={active ? <FolderOpen size={12} /> : <Folder size={12} />}
+      label={folder.name}
+      subtitle={folder.storage_backend || undefined}
+      badge={folder.resource_count}
+      onClick={onClick}
+    />
+  )
+}
+
 function resourceIDs(resources: RawResource[]) {
   return Array.from(new Set(resources.map(resource => resource.ID).filter(id => Number.isFinite(id) && id > 0)))
 }
@@ -878,14 +909,6 @@ function isResourceInteractiveTarget(target: EventTarget | null) {
   return target instanceof Element && Boolean(target.closest('[data-resource-interactive="true"]'))
 }
 
-function menuPositionFromButton(button: HTMLElement) {
-  const rect = button.getBoundingClientRect()
-  return {
-    x: Math.max(8, Math.min(rect.right - RESOURCE_ACTION_MENU_WIDTH, window.innerWidth - RESOURCE_ACTION_MENU_WIDTH - 8)),
-    y: Math.min(rect.bottom + 4, window.innerHeight - 8),
-  }
-}
-
 // ─── Share To Project Dialog ─────────────────────────────────────────────────
 function ShareToProjectDialog({
   resources,
@@ -920,6 +943,13 @@ function ShareToProjectDialog({
                 defaultValue: `将 ${resources.length} 个资源加入项目引用，项目成员可读取这些资源。`,
               })}
             </ResourceDialogText>
+            <ResourcePermissionSection title={t('pages.resources.permissionPreview', { defaultValue: '权限预览' })}>
+              <ResourcePermissionShareRow
+                title={t('pages.resources.projectReadPermission', { defaultValue: '项目成员可读' })}
+                description={t('pages.resources.projectReadPermissionHint', { defaultValue: '资源仍保留在当前资源库，项目只获得引用权限。' })}
+                control={<Switch checked disabled aria-label={t('pages.resources.projectReadPermission', { defaultValue: '项目成员可读' })} />}
+              />
+            </ResourcePermissionSection>
             <ResourceDialogSelect
               value={projectID}
               onChange={event => setProjectID(Number(event.target.value))}
@@ -928,9 +958,26 @@ function ShareToProjectDialog({
                 <option key={project.ID} value={project.ID}>{project.name}</option>
               ))}
             </ResourceDialogSelect>
-            {projects.length === 0 && (
-              <ResourceDialogText>{t('pages.resources.noProjectsToShare', { defaultValue: '当前团队没有可分享的项目。' })}</ResourceDialogText>
-            )}
+            <ResourcePermissionSection title={t('pages.resources.shareTargets', { defaultValue: '分享目标' })} divided>
+              {projects.length === 0 ? (
+                <ResourcePermissionEmpty>{t('pages.resources.noProjectsToShare', { defaultValue: '当前团队没有可分享的项目。' })}</ResourcePermissionEmpty>
+              ) : (
+                projects.slice(0, 3).map(project => (
+                  <ResourcePermissionUserRow
+                    key={project.ID}
+                    name={project.name}
+                    meta={t('pages.resources.projectReadMeta', { defaultValue: '读取权限' })}
+                    actions={(
+                      <ResourcePermissionActionGroup>
+                        <ResourcePageActionButton size="xs" variant={projectID === project.ID ? 'solid' : 'ghost'} onClick={() => setProjectID(project.ID)}>
+                          {projectID === project.ID ? t('common.selected') : t('common.select')}
+                        </ResourcePageActionButton>
+                      </ResourcePermissionActionGroup>
+                    )}
+                  />
+                ))
+              )}
+            </ResourcePermissionSection>
           </ResourceDialogStack>
           <ResourceDialogFooter>
             <ResourcePageActionButton variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</ResourcePageActionButton>
@@ -1078,13 +1125,90 @@ function ResourceItemActionMenu({
           {t('pages.resources.clipVideo')}
         </ResourceContextMenuButton>
       )}
-      {!isSharedView && onDelete && (
-        <ResourceContextMenuButton className={resourceDangerTextClass()} onClick={() => run(onDelete)}>
+      {onDelete && (
+        <ResourceContextMenuButton tone="danger" onClick={() => run(onDelete)}>
           <Trash2 size={14} />
           {t('common.delete')}
         </ResourceContextMenuButton>
       )}
     </ResourceContextMenu>
+  )
+}
+
+function ResourceItemDropdownMenu({
+  trigger,
+  isSharedView,
+  canShareToTeam,
+  resourceType,
+  onDownload,
+  onRename,
+  onShareToTeam,
+  onShareToProject,
+  onMove,
+  onClip,
+  onDelete,
+}: {
+  trigger: ReactNode
+  isSharedView?: boolean
+  canShareToTeam: boolean
+  resourceType: RawResource['type']
+  onDownload: () => void
+  onRename: () => void
+  onShareToTeam?: () => void
+  onShareToProject: () => void
+  onMove: () => void
+  onClip?: () => void
+  onDelete?: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={event => event.stopPropagation()}>
+        <DropdownMenuItem onSelect={onDownload}>
+          <Download size={14} />
+          {t('shared.mediaViewer.download')}
+        </DropdownMenuItem>
+        {!isSharedView && (
+          <DropdownMenuItem onSelect={onRename}>
+            <Pencil size={14} />
+            {t('pages.resources.renameResource')}
+          </DropdownMenuItem>
+        )}
+        {canShareToTeam && onShareToTeam && (
+          <DropdownMenuItem onSelect={onShareToTeam}>
+            <Share2 size={14} />
+            {t('pages.resources.shareToTeam', { defaultValue: '加入团队资源库' })}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={onShareToProject}>
+          <FolderOpen size={14} />
+          {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
+        </DropdownMenuItem>
+        {!isSharedView && (
+          <DropdownMenuItem onSelect={onMove}>
+            <MoveRight size={14} />
+            {t('pages.resources.moveToFolder')}
+          </DropdownMenuItem>
+        )}
+        {!isSharedView && resourceType === 'video' && onClip && (
+          <DropdownMenuItem onSelect={onClip}>
+            <Scissors size={14} />
+            {t('pages.resources.clipVideo')}
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <ResourceDangerMenuItem onSelect={onDelete}>
+              <Trash2 size={14} />
+              {t('common.delete')}
+            </ResourceDangerMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -1125,7 +1249,7 @@ function ResourceCard({
   previewProjectId?: number
 }) {
   const { t } = useTranslation()
-  const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null)
+  const scopeLabel = resourceScopeLabel(resource, currentUserID, currentOrgID, t)
 
   return (
     <ResourceAssetCard
@@ -1161,7 +1285,7 @@ function ResourceCard({
           </ResourceAssetPreviewFallback>
         )
       )}
-      selectControl={selectionMode && onSelectChange ? (
+      selectControl={onSelectChange ? (
           <ResourceAssetSelectCheckbox
             data-resource-interactive="true"
             checked={Boolean(selected)}
@@ -1172,44 +1296,32 @@ function ResourceCard({
           />
         ) : undefined}
       actionControl={(
-        <>
-          <ResourceAssetActionButton
-            data-resource-interactive="true"
-            draggable={false}
-            title={t('pages.resources.actions')}
-            aria-expanded={Boolean(actionMenu)}
-            onPointerDown={event => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onClick={event => {
-              event.preventDefault()
-              event.stopPropagation()
-              setActionMenu(current => current ? null : menuPositionFromButton(event.currentTarget))
-            }}
-            onDragStart={event => event.preventDefault()}
-          >
-            <MoreHorizontal size={12} />
-          </ResourceAssetActionButton>
-          {actionMenu && (
-            <ResourceItemActionMenu
-              x={actionMenu.x}
-              y={actionMenu.y}
-              isSharedView={isSharedView}
-              canShareToTeam={Boolean(onShareToTeam)}
-              resourceType={resource.type}
-              onClose={() => setActionMenu(null)}
-              onDownload={onDownload}
-              onRename={onRename}
-              onShareToTeam={onShareToTeam}
-              onShareToProject={onShareToProject}
-              onMove={onMove}
-              onClip={onClip}
-              onDelete={onDelete}
-            />
+        <ResourceItemDropdownMenu
+          trigger={(
+            <ResourceAssetActionButton
+              data-resource-interactive="true"
+              draggable={false}
+              title={t('pages.resources.actions')}
+              onPointerDown={event => event.stopPropagation()}
+              onClick={event => event.stopPropagation()}
+              onDragStart={event => event.preventDefault()}
+            >
+              <MoreHorizontal size={12} />
+            </ResourceAssetActionButton>
           )}
-        </>
+          isSharedView={isSharedView}
+          canShareToTeam={Boolean(onShareToTeam)}
+          resourceType={resource.type}
+          onDownload={onDownload}
+          onRename={onRename}
+          onShareToTeam={onShareToTeam}
+          onShareToProject={onShareToProject}
+          onMove={onMove}
+          onClip={onClip}
+          onDelete={onDelete}
+        />
       )}
+      sharedBadge={scopeLabel ? <ResourceSharedIndicator>{scopeLabel}</ResourceSharedIndicator> : undefined}
       typeIcon={<TypeIcon type={resource.type} />}
       name={<ResourceAssetName title={resource.name}>{resource.name}</ResourceAssetName>}
       size={formatBytes(resource.size)}
@@ -1224,9 +1336,7 @@ function ResourceListRowItem({
   currentOrgID,
   isSharedView,
   selectionMode,
-  selected,
-  onSelectChange,
-  onContextMenu,
+  selectControl,
   onDelete,
   onMove,
   onRename,
@@ -1234,16 +1344,13 @@ function ResourceListRowItem({
   onClip,
   onShareToTeam,
   onShareToProject,
-  previewProjectId,
 }: {
   resource: RawResource
   currentUserID?: number
   currentOrgID?: number
   isSharedView?: boolean
   selectionMode?: boolean
-  selected: boolean
-  onSelectChange: (selected: boolean) => void
-  onContextMenu: (event: MouseEvent, resource: RawResource) => void
+  selectControl?: ReactNode
   onDelete?: () => void
   onMove: () => void
   onRename: () => void
@@ -1251,119 +1358,61 @@ function ResourceListRowItem({
   onClip?: () => void
   onShareToTeam?: () => void
   onShareToProject: () => void
-  previewProjectId?: number
 }) {
   const { t } = useTranslation()
-  const [preview, setPreview] = useState(false)
-  const [actionMenu, setActionMenu] = useState<{ x: number; y: number } | null>(null)
-  const draggable = !selected
   const scopeLabel = resourceScopeLabel(resource, currentUserID, currentOrgID, t)
-
-  function handleDragStart(event: DragEvent<HTMLDivElement>) {
-    if (isResourceInteractiveTarget(event.target)) {
-      event.preventDefault()
-      return
-    }
-    event.dataTransfer.setData('application/resource-id', String(resource.ID))
-    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-    event.dataTransfer.effectAllowed = 'copy'
-  }
 
   return (
     <>
-      <ResourcePageListRow
-        selected={selected}
-        draggable={draggable}
-        onDragStart={draggable ? handleDragStart : undefined}
-        onClick={() => setPreview(true)}
-        onContextMenu={event => onContextMenu(event, resource)}
-        title={selected ? t('common.selected') : t('shared.resourcePanel.previewDragTitle')}
-      >
-        {selectionMode && (
-          <ResourcePageListCheckbox
+      {selectionMode ? selectControl : null}
+      <ResourcePanelThumb size="md">
+        {resource.type === 'image' || resource.type === 'video' || resource.type === 'text' ? (
+          <MediaViewer resource={resource} lightbox={false} />
+        ) : (
+          <ResourcePanelThumbFallback>
+            <TypeIcon type={resource.type} />
+          </ResourcePanelThumbFallback>
+        )}
+      </ResourcePanelThumb>
+      <div className="resource-page__list-body">
+        <span className="resource-page__list-name" title={resource.name}>{resource.name}</span>
+        <span className="resource-page__list-meta">
+          <span className="resource-page__list-meta-item">
+            <TypeIcon type={resource.type} />
+            {resourceTypeLabel(resource, t)}
+          </span>
+          <span>{formatBytes(resource.size)}</span>
+          {scopeLabel ? <ResourceSharedIndicator muted>{scopeLabel}</ResourceSharedIndicator> : null}
+        </span>
+      </div>
+      <ResourceItemDropdownMenu
+        trigger={(
+          <ResourcePageActionButton
             data-resource-interactive="true"
-            checked={selected}
-            onCheckedChange={onSelectChange}
-            inputProps={{ 'aria-label': t('pages.resources.selectResource', { defaultValue: '选择资源' }) }}
+            draggable={false}
+            type="button"
+            variant="ghost"
+            size="icon-xs"
             onPointerDown={event => event.stopPropagation()}
             onClick={event => event.stopPropagation()}
-          />
+            onDragStart={event => event.preventDefault()}
+            title={t('pages.resources.actions')}
+          >
+            <MoreHorizontal size={14} />
+          </ResourcePageActionButton>
         )}
-        <ResourcePanelThumb size="md">
-          {resource.type === 'image' || resource.type === 'video' || resource.type === 'text' ? (
-            <MediaViewer resource={resource} lightbox={false} />
-          ) : (
-            <ResourcePanelThumbFallback>
-              <TypeIcon type={resource.type} />
-            </ResourcePanelThumbFallback>
-          )}
-        </ResourcePanelThumb>
-        <div className="resource-page__list-body">
-          <span className="resource-page__list-name" title={resource.name}>{resource.name}</span>
-          <span className="resource-page__list-meta">
-            <span className="resource-page__list-meta-item">
-              <TypeIcon type={resource.type} />
-              {resourceTypeLabel(resource, t)}
-            </span>
-            <span>{formatBytes(resource.size)}</span>
-            {scopeLabel ? <span>{scopeLabel}</span> : null}
-          </span>
-        </div>
-        <ResourcePageActionButton
-          data-resource-interactive="true"
-          draggable={false}
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-expanded={Boolean(actionMenu)}
-          onPointerDown={event => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          onClick={event => {
-            event.preventDefault()
-            event.stopPropagation()
-            setActionMenu(current => current ? null : menuPositionFromButton(event.currentTarget))
-          }}
-          onDragStart={event => event.preventDefault()}
-          title={t('pages.resources.actions')}
-        >
-          <MoreHorizontal size={14} />
-        </ResourcePageActionButton>
-        {actionMenu && (
-          <ResourceItemActionMenu
-            x={actionMenu.x}
-            y={actionMenu.y}
-            isSharedView={isSharedView}
-            canShareToTeam={Boolean(onShareToTeam)}
-            resourceType={resource.type}
-            onClose={() => setActionMenu(null)}
-            onDownload={onDownload}
-            onRename={onRename}
-            onShareToTeam={onShareToTeam}
-            onShareToProject={onShareToProject}
-            onMove={onMove}
-            onClip={onClip}
-            onDelete={onDelete}
-          />
-        )}
-      </ResourcePageListRow>
+        isSharedView={isSharedView}
+        canShareToTeam={Boolean(onShareToTeam)}
+        resourceType={resource.type}
+        onDownload={onDownload}
+        onRename={onRename}
+        onShareToTeam={onShareToTeam}
+        onShareToProject={onShareToProject}
+        onMove={onMove}
+        onClip={onClip}
+        onDelete={onDelete}
+      />
 
-      {preview && (
-        <MediaViewer
-          resource={resource}
-          open
-          onOpenChange={open => !open && setPreview(false)}
-          fit="contain"
-          sidePanel={(
-            <ResourceCandidateAttachPanel
-              resources={[candidateResourceFromRawResource(resource)]}
-              projectId={previewProjectId}
-              compact
-            />
-          )}
-        />
-      )}
     </>
   )
 }
@@ -1750,7 +1799,7 @@ function ExternalResourceCard({
       preview={(
         <ResourceMediaFillFrame fit="cover">
           {item.thumbnail_url ? (
-            <img src={item.thumbnail_url} alt={name} loading="lazy" />
+            <UrlImage src={item.thumbnail_url} alt={name} loading="lazy" />
           ) : (
             <ResourceAssetPreviewFallback>
               <TypeIcon type={item.media_type} />
@@ -1815,10 +1864,13 @@ function ExternalResourcePreviewDialog({
         />
         <ResourceDialogStack className="resource-page__external-preview-stack">
           <div className="resource-page__external-preview-stage" data-media-type={item.media_type}>
-            {item.media_type === 'video' && previewUrl ? (
-              <video src={previewUrl} poster={item.thumbnail_url} controls playsInline />
-            ) : previewUrl ? (
-              <img src={previewUrl} alt={name} />
+            {previewUrl ? (
+              <UrlMediaPreview
+                src={previewUrl}
+                type={item.media_type}
+                poster={item.thumbnail_url}
+                alt={name}
+              />
             ) : (
               <ResourceAssetPreviewFallback>
                 <TypeIcon type={item.media_type} />
@@ -2002,6 +2054,7 @@ export function ResourceLibraryView({
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
   const [renameResource, setRenameResource] = useState<RawResource | null>(null)
   const [clipResource, setClipResource] = useState<RawResource | null>(null)
+  const [previewResource, setPreviewResource] = useState<RawResource | null>(null)
   const [selectedResourceIDs, setSelectedResourceIDs] = useState<Set<number>>(() => new Set())
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; resources: RawResource[] } | null>(null)
   const [shareProjectResources, setShareProjectResources] = useState<RawResource[] | null>(null)
@@ -2053,6 +2106,13 @@ export function ResourceLibraryView({
     enabled: isProjectScope && Boolean(currentProject?.ID),
   })
   const projectResources = isProjectScope ? projectScopeResources(projectBindings, filter, search) : []
+  const projectBindingByResourceID = useMemo(() => {
+    const map = new Map<number, number>()
+    projectBindings.forEach(binding => {
+      if (binding.resource_id && binding.ID) map.set(binding.resource_id, binding.ID)
+    })
+    return map
+  }, [projectBindings])
   const resources = isProjectScope ? paginateResources(projectResources, page, pageSize) : resourcesData?.items ?? []
   const total = isProjectScope ? projectResources.length : resourcesData?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
@@ -2116,11 +2176,24 @@ export function ResourceLibraryView({
     },
   })
 
-  const isSharedView = false
+  const revoke = useMutation({
+    mutationFn: (bindingID: number) => api.delete(`/resource-bindings/${bindingID}`),
+    onSuccess: () => {
+      setContextMenu(null)
+      setSelectedResourceIDs(new Set())
+      qc.invalidateQueries({ queryKey: ['resource-bindings'] })
+      toast.success(t('pages.resources.revokedFromProjectSuccess', { defaultValue: '已从项目移除引用' }))
+    },
+  })
+
+  const isSharedView = isProjectScope
 
   const visible = resources
   const selectedResources = visible.filter(resource => selectedResourceIDs.has(resource.ID))
   const selectedIDs = resourceIDs(selectedResources)
+  const selectedProjectBindingIDs = selectedIDs
+    .map(id => projectBindingByResourceID.get(id))
+    .filter((id): id is number => Boolean(id))
   const selectedPersonalStagingResources = selectedResources.filter(canAdoptToTeam)
 
   useEffect(() => {
@@ -2145,6 +2218,12 @@ export function ResourceLibraryView({
     setSelectionMode(current => !current)
   }
 
+  function setTab(tab: 'mine' | 'team' | 'project') {
+    setScope(tab === 'mine' ? 'personal' : tab)
+    setPage(1)
+    setSelectedResourceIDs(new Set())
+  }
+
   function contextMenuResources(resource: RawResource) {
     if (selectedResourceIDs.has(resource.ID)) {
       const selected = visible.filter(item => selectedResourceIDs.has(item.ID))
@@ -2156,6 +2235,16 @@ export function ResourceLibraryView({
   function openResourceContextMenu(event: MouseEvent, resource: RawResource) {
     event.preventDefault()
     setContextMenu({ x: event.clientX, y: event.clientY, resources: contextMenuResources(resource) })
+  }
+
+  function handleResourceRowDragStart(event: DragEvent<HTMLDivElement>, resource: RawResource) {
+    if (isResourceInteractiveTarget(event.target)) {
+      event.preventDefault()
+      return
+    }
+    event.dataTransfer.setData('application/resource-id', String(resource.ID))
+    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
+    event.dataTransfer.effectAllowed = 'copy'
   }
 
   function shareResourcesToTeam(resourcesToShare: RawResource[]) {
@@ -2189,6 +2278,60 @@ export function ResourceLibraryView({
           }}
         />
 
+        <ProjectSurfaceHeader
+          icon={FolderOpen}
+          title={t('pages.resources.title', { defaultValue: '资源库' })}
+          description={t('pages.resources.description', { defaultValue: '统一管理个人、团队和项目引用资源。' })}
+          meta={<ResourcePageMutedText>{t('pages.resources.filesCount', { count: total })}</ResourcePageMutedText>}
+          actions={(
+            <>
+              <ResourcePageActionGroup>
+                <ResourcePageActionButton
+                  size="xs"
+                  variant={scope === 'personal' ? 'solid' : 'ghost'}
+                  onClick={() => setTab('mine')}
+                >
+                  {t('pages.resources.scopes.personal')}
+                </ResourcePageActionButton>
+                <ResourcePageActionButton
+                  size="xs"
+                  variant={scope === 'team' ? 'solid' : 'ghost'}
+                  onClick={() => setTab('team')}
+                  disabled={!currentOrgID}
+                >
+                  {t('pages.resources.scopes.team')}
+                </ResourcePageActionButton>
+                <ResourcePageActionButton
+                  size="xs"
+                  variant={scope === 'project' ? 'solid' : 'ghost'}
+                  onClick={() => setTab('project')}
+                  disabled={!currentProject?.ID}
+                >
+                  {t('pages.resources.scopes.project')}
+                </ResourcePageActionButton>
+              </ResourcePageActionGroup>
+              <ResourcePageActionGroup>
+                <ResourcePageActionButton
+                  size="icon-xs"
+                  variant={viewMode === 'grid' ? 'solid' : 'ghost'}
+                  onClick={() => setViewMode('grid')}
+                  title={t('pages.resources.gridTitle')}
+                >
+                  <LayoutGrid size={14} />
+                </ResourcePageActionButton>
+                <ResourcePageActionButton
+                  size="icon-xs"
+                  variant={viewMode === 'list' ? 'solid' : 'ghost'}
+                  onClick={() => setViewMode('list')}
+                  title={t('pages.resources.listTitle')}
+                >
+                  <List size={14} />
+                </ResourcePageActionButton>
+              </ResourcePageActionGroup>
+            </>
+          )}
+        />
+
         <ResourcePageFilterBar>
           <ResourcePageSearchField
             icon={Search}
@@ -2205,24 +2348,6 @@ export function ResourceLibraryView({
             <Upload size={14} />
             {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
           </ResourcePageActionButton>
-          <ResourcePageActionGroup>
-            <ResourcePageActionButton
-              size="icon-xs"
-              variant={viewMode === 'grid' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('grid')}
-              title={t('pages.resources.gridTitle')}
-            >
-              <LayoutGrid size={14} />
-            </ResourcePageActionButton>
-            <ResourcePageActionButton
-              size="icon-xs"
-              variant={viewMode === 'list' ? 'solid' : 'ghost'}
-              onClick={() => setViewMode('list')}
-              title={t('pages.resources.listTitle')}
-            >
-              <List size={14} />
-            </ResourcePageActionButton>
-          </ResourcePageActionGroup>
           <ResourcePageActionButton
             size="sm"
             variant={selectionMode ? 'solid' : 'outline'}
@@ -2275,6 +2400,12 @@ export function ResourceLibraryView({
                 <FolderOpen size={14} />
                 {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
               </ResourcePageActionButton>
+              {isProjectScope && selectedProjectBindingIDs.length > 0 && (
+                <ResourcePageActionButton variant="ghost" tone="danger" size="sm" onClick={() => selectedProjectBindingIDs.forEach(id => revoke.mutate(id))} disabled={revoke.isPending}>
+                  <Trash2 size={14} />
+                  {t('pages.resources.revokeFromProject', { defaultValue: '移出项目' })}
+                </ResourcePageActionButton>
+              )}
               <ResourcePageActionButton variant="outline" size="sm" onClick={() => setSelectedResourceIDs(new Set())}>
                 {t('common.cancel')}
               </ResourcePageActionButton>
@@ -2300,13 +2431,15 @@ export function ResourceLibraryView({
                   currentOrgID={currentOrgID ?? undefined}
                   isSharedView={isSharedView}
                   selectionMode={selectionMode}
-                  onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
+                  onDelete={isProjectScope
+                    ? (projectBindingByResourceID.get(r.ID) ? () => revoke.mutate(projectBindingByResourceID.get(r.ID)!) : undefined)
+                    : () => remove.mutate(r.ID)}
                   onMove={() => setMoveResource(r)}
                   onRename={() => setRenameResource(r)}
                   onClip={() => setClipResource(r)}
                   onShareToTeam={canAdoptToTeam(r) ? () => shareResourcesToTeam([r]) : undefined}
                   onShareToProject={() => openShareToProject([r])}
-                  onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
+                  onDownload={() => downloadResource(r)}
                   selected={selectionMode && selectedResourceIDs.has(r.ID)}
                   onSelectChange={selectionMode ? selected => setResourceSelected(r, selected) : undefined}
                   onContextMenu={openResourceContextMenu}
@@ -2317,25 +2450,42 @@ export function ResourceLibraryView({
           ) : (
             <ResourcePageAssetList>
               {visible.map(r => (
-                <ResourceListRowItem
+                <ResourcePageListRow
                   key={r.ID}
-                  resource={r}
-                  currentUserID={currentUser?.ID}
-                  currentOrgID={currentOrgID ?? undefined}
-                  isSharedView={isSharedView}
-                  selectionMode={selectionMode}
-                  selected={selectionMode && selectedResourceIDs.has(r.ID)}
-                  onSelectChange={selected => setResourceSelected(r, selected)}
-                  onContextMenu={openResourceContextMenu}
-                  onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
-                  onMove={() => setMoveResource(r)}
-                  onRename={() => setRenameResource(r)}
-                  onClip={() => setClipResource(r)}
-                  onShareToTeam={canAdoptToTeam(r) ? () => shareResourcesToTeam([r]) : undefined}
-                  onShareToProject={() => openShareToProject([r])}
-                  onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
-                  previewProjectId={currentProject?.ID}
-                />
+                  selected={selectedResourceIDs.has(r.ID)}
+                  draggable={!selectedResourceIDs.has(r.ID)}
+                  onDragStart={!selectedResourceIDs.has(r.ID) ? event => handleResourceRowDragStart(event, r) : undefined}
+                  onClick={() => setPreviewResource(r)}
+                  onContextMenu={event => openResourceContextMenu(event, r)}
+                  title={selectedResourceIDs.has(r.ID) ? t('common.selected') : t('shared.resourcePanel.previewDragTitle')}
+                >
+                  <ResourceListRowItem
+                    resource={r}
+                    currentUserID={currentUser?.ID}
+                    currentOrgID={currentOrgID ?? undefined}
+                    isSharedView={isSharedView}
+                    selectionMode={selectionMode}
+                    selectControl={selectedResourceIDs.has(r.ID) || selectionMode ? (
+                      <ResourcePageListCheckbox
+                        data-resource-interactive="true"
+                        checked={selectedResourceIDs.has(r.ID)}
+                        onCheckedChange={checked => setResourceSelected(r, checked)}
+                        inputProps={{ 'aria-label': t('pages.resources.selectResource', { defaultValue: '选择资源' }) }}
+                        onPointerDown={event => event.stopPropagation()}
+                        onClick={event => event.stopPropagation()}
+                      />
+                    ) : undefined}
+                    onDelete={isProjectScope
+                      ? (projectBindingByResourceID.get(r.ID) ? () => revoke.mutate(projectBindingByResourceID.get(r.ID)!) : undefined)
+                      : () => remove.mutate(r.ID)}
+                    onMove={() => setMoveResource(r)}
+                    onRename={() => setRenameResource(r)}
+                    onClip={() => setClipResource(r)}
+                    onShareToTeam={canAdoptToTeam(r) ? () => shareResourcesToTeam([r]) : undefined}
+                    onShareToProject={() => openShareToProject([r])}
+                    onDownload={() => downloadResource(r)}
+                  />
+                </ResourcePageListRow>
               ))}
             </ResourcePageAssetList>
           )}
@@ -2404,6 +2554,21 @@ export function ResourceLibraryView({
           onClose={() => setShareProjectResources(null)}
           isSharing={shareToProject.isPending}
           onShare={(projectID) => shareToProject.mutate({ projectID, ids: resourceIDs(shareProjectResources) })}
+        />
+      )}
+      {previewResource && (
+        <MediaViewer
+          resource={previewResource}
+          open
+          onOpenChange={open => !open && setPreviewResource(null)}
+          fit="contain"
+          sidePanel={(
+            <ResourceCandidateAttachPanel
+              resources={[candidateResourceFromRawResource(previewResource)]}
+              projectId={currentProject?.ID}
+              compact
+            />
+          )}
         />
       )}
       {contextMenu && (

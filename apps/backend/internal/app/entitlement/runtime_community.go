@@ -83,11 +83,3 @@ func (s *communityService) CanUse(ctx context.Context, subject domainentitlement
 		Reason:  "capability is not included in the current runtime",
 	}, nil
 }
-
-func (s *communityService) CanAccessFeature(ctx context.Context, subject domainentitlement.SubjectRef, featureKey string) (domainentitlement.Decision, error) {
-	_, err := s.Resolve(ctx, subject)
-	if err != nil {
-		return domainentitlement.Decision{}, err
-	}
-	return domainentitlement.Decision{Allowed: true}, nil
-}

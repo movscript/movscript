@@ -17,23 +17,12 @@ func NewModelsHandler(svc *ai.AIService, cacheStore ...cache.Cache) *ModelsHandl
 	return &ModelsHandler{service: catalogapp.NewService(svc, cacheStore...)}
 }
 
-// ListByCapability returns enabled models for the given capability or feature.
-// ?feature=<key>  — returns all models compatible with that feature (may span multiple capabilities)
-// ?capability=<c> — returns all enabled models with that single capability
-// ?feature takes precedence when both are supplied.
+// ListByCapability returns enabled models for one or more runtime capabilities.
+// Product use-case selection is intentionally kept out of this API; callers
+// choose the capability/model shape they need and may keep source labels for
+// audit only.
 func (h *ModelsHandler) ListByCapability(c *gin.Context) {
-	featureKey := c.Query("feature")
 	providerVariants := c.Query("provider_variants") == "true" || c.Query("include_provider_variants") == "true"
-	if featureKey != "" {
-		models, err := h.service.ListForFeature(c.Request.Context(), featureKey, providerVariants)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, models)
-		return
-	}
-
 	capability := c.Query("capability")
 	models, err := h.service.ListByCapability(c.Request.Context(), capability, providerVariants)
 	if err != nil {

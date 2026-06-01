@@ -1,11 +1,9 @@
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import { memoryStorePath, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory } from '../memory/types.js'
-import type { MCPClient } from '../mcpClient.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type { AgentStore } from '../state/store.js'
@@ -22,6 +20,14 @@ import type { AgentRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
 import { applyRuntimeLocalCommandDispatch, type RuntimeLocalCommandTraceInput } from './runtimeLocalCommandDispatch.js'
 import { executeRuntimeLocalGenerationTool } from './runtimeLocalGenerationToolExecution.js'
 import type { RuntimeRunSetupResolution } from './runtimeRunSetupResolution.js'
+import type { DraftApplyPort } from '../ports/draft/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../ports/draft/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../ports/draft/proposalSnapshotHydrationPort.js'
+import type { CoreResourceFilePort } from '../ports/core/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../ports/core/videoFrameExtractionPort.js'
+import type { MovscriptProjectStandardsPort } from '../ports/movscript/projectStandardsPort.js'
+import type { RuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import type { ExternalToolGatewayPort } from '../ports/tools/externalToolGatewayPort.js'
 
 export interface RuntimeRunLocalCommandHandlingTraceInput {
   kind: AgentTraceEventKind
@@ -47,10 +53,16 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
   memoryStore: AgentMemoryStore
   contractResolver: AgentRuntimeContractResolver
   catalogSnapshot: AgentRuntimeCatalogSnapshot
-  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
   draftStore: AgentDraftStore
-  backendApplyClient: BackendApplyClient
+  externalToolGatewayPort: ExternalToolGatewayPort
+  draftApplyPort: DraftApplyPort
+  draftApplyPreviewPort: DraftApplyPreviewPort
+  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  resourceFilePort: CoreResourceFilePort
+  videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  projectStandardsPort: MovscriptProjectStandardsPort
   memoryManager: MemoryManager
+  runtimeToolHandlers: RuntimeToolHandlerRegistry
   knowledgeManager: KnowledgeManager
   catalogManager: AgentCatalogToolManager
   signal?: AbortSignal
@@ -84,10 +96,16 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
     executeGenerationTool: (call) => executeRuntimeLocalGenerationTool({
       call,
       run: input.run,
-      mcpClient: input.mcpClient,
       draftStore: input.draftStore,
-      backendApplyClient: input.backendApplyClient,
+      externalToolGatewayPort: input.externalToolGatewayPort,
+      draftApplyPort: input.draftApplyPort,
+      draftApplyPreviewPort: input.draftApplyPreviewPort,
+      proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+      resourceFilePort: input.resourceFilePort,
+      videoFrameExtractionPort: input.videoFrameExtractionPort,
+      projectStandardsPort: input.projectStandardsPort,
       registry: input.catalogSnapshot.toolRegistry,
+      runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,
       knowledgeManager: input.knowledgeManager,
       catalogManager: input.catalogManager,

@@ -34,51 +34,9 @@ import {
 import { generationParamLabel, generationSlotLabel } from '@/shared/domain/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
 import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
-import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
-
-// Fetch a media URL for a resource. Backend resource URLs become revocable blob URLs;
-// public direct URLs can be assigned as-is.
-async function fetchChipMediaUrl(resource: RawResource): Promise<string> {
-  if (resource.direct_url) return resource.direct_url
-  const src = `${API_BASE}${resource.url}`
-  const res = await api.get(src, { baseURL: '', responseType: 'blob' })
-  return URL.createObjectURL(res.data)
-}
-
-// Builds a chip DOM node with a placeholder thumb container.
-// Returns the chip element and the img/video element inside it so the caller can set src later.
-function buildChipElement(resource: RawResource): { chip: HTMLElement; media: HTMLImageElement | HTMLVideoElement } {
-  const chip = document.createElement('span')
-  chip.contentEditable = 'false'
-  chip.dataset.resourceName = resource.name
-  chip.dataset.resourceId = String(resource.ID)
-  chip.className = 'generation-input-chip'
-
-  let media: HTMLImageElement | HTMLVideoElement
-  if (resource.type === 'video') {
-    const vid = document.createElement('video')
-    vid.muted = true
-    vid.playsInline = true
-    vid.preload = 'metadata'
-    vid.className = 'generation-input-chip__media'
-    chip.appendChild(vid)
-    media = vid
-  } else {
-    const img = document.createElement('img')
-    img.alt = resource.name
-    img.className = 'generation-input-chip__media'
-    chip.appendChild(img)
-    media = img
-  }
-
-  const label = document.createElement('span')
-  label.textContent = resource.name
-  label.className = 'generation-input-chip__label'
-  chip.appendChild(label)
-
-  return { chip, media }
-}
+import { applyResourceChipMediaUrl, buildResourceChipElement, loadResourceChipMediaUrl } from '@/shared/ui/ResourceChipDom'
+import { revokeObjectUrls } from '@/shared/ui/objectUrl'
+import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 
 function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove: () => void }) {
   const { t } = useTranslation()
@@ -254,7 +212,7 @@ export function GenInputCard({
       }
     }
 
-    const { chip, media } = buildChipElement(resource)
+    const { chip, media } = buildResourceChipElement(resource)
 
     const space = document.createTextNode('​')
     const insertRange = sel.getRangeAt(0)
@@ -270,37 +228,25 @@ export function GenInputCard({
     setMentionQuery(null)
     onPromptChange(serialize(editorRef.current))
 
-    // Fetch media URL via authed api and set directly on the media element.
     // Errors are suppressed (no toast) because responseType=blob is excluded in the interceptor.
-    fetchChipMediaUrl(resource).then((mediaUrl) => {
-      // If the media element was detached by the browser's editing engine, find it again by resource ID
-      let target: HTMLImageElement | HTMLVideoElement | null = media
-      if (!media.isConnected && editorRef.current) {
-        const chip = editorRef.current.querySelector(`[data-resource-id="${resource.ID}"]`)
-        target = chip?.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null
-      }
-      if (target) {
-        if (target.src.startsWith('blob:')) {
-          URL.revokeObjectURL(target.src)
-          chipObjectUrlsRef.current.delete(target.src)
-        }
-        target.src = mediaUrl
-        if (mediaUrl.startsWith('blob:')) chipObjectUrlsRef.current.add(mediaUrl)
-        if (resource.type === 'video') {
-          const vid = target as HTMLVideoElement
-          vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0.1 }, { once: true })
-        }
-      } else if (mediaUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(mediaUrl)
-      }
-    }).catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
+    loadResourceChipMediaUrl(resource)
+      .then((mediaUrl) => {
+        applyResourceChipMediaUrl({
+          root: editorRef.current,
+          resource,
+          media,
+          mediaUrl,
+          objectUrls: chipObjectUrlsRef.current,
+        })
+      })
+      .catch((e) => { console.error('[chip thumb] fetch failed', resource.url, e?.response?.status, e?.message) })
   }
 
   // Keep editor DOM in sync when prompt is cleared externally (e.g. after generate)
   const prevPromptRef = useRef(prompt)
   useEffect(() => {
     if (prompt === '' && prevPromptRef.current !== '' && editorRef.current) {
-      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+      revokeObjectUrls(chipObjectUrlsRef.current)
       chipObjectUrlsRef.current.clear()
       editorRef.current.innerHTML = ''
     }
@@ -309,7 +255,7 @@ export function GenInputCard({
 
   useEffect(() => {
     return () => {
-      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+      revokeObjectUrls(chipObjectUrlsRef.current)
       chipObjectUrlsRef.current.clear()
     }
   }, [])

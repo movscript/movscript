@@ -6,6 +6,7 @@ import {
   appendTraceEvent,
   buildRunStep,
   buildRunTracePage,
+  buildVolatileTraceEvent,
   completeRunStep,
   normalizeTracePageLimit,
 } from './runTrace.js'
@@ -211,6 +212,34 @@ test('appendTraceEvent stringifies non-plain trace data objects instead of dropp
 
   assert.match(String(data.at), /2026/)
   assert.equal(data.map, '[object Map]')
+})
+
+test('buildVolatileTraceEvent uses live ids and bounded trace data without updating the run', () => {
+  const run = buildRun()
+  const circular: Record<string, unknown> = { kind: 'delta' }
+  circular.self = circular
+
+  const event = buildVolatileTraceEvent({
+    id: 'trace_1',
+    run,
+    now: '2026-05-06T00:00:01.000Z',
+    kind: 'tool_call',
+    title: 'Tool delta',
+    status: 'info',
+    roundIndex: 2,
+    roundLabel: 'Model turn 2',
+    roundSource: 'model',
+    volatileKey: 'tool_call_1',
+    data: { circular, skipped: undefined },
+  })
+
+  assert.equal(event.id, 'trace_live_tool_call_1')
+  assert.equal(event.roundId, 'round_2')
+  assert.equal(event.roundSource, 'model')
+  assert.equal(run.updatedAt, '2026-05-06T00:00:00.000Z')
+  const data = event.data as Record<string, any>
+  assert.equal(data.circular.self, '[Circular]')
+  assert.equal('skipped' in data, false)
 })
 
 test('normalizeTracePageLimit clamps invalid and oversized page sizes', () => {

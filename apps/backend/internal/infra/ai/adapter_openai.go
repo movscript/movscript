@@ -399,10 +399,14 @@ func buildOpenAIChatBody(req TextRequest, stream bool) (map[string]any, error) {
 			msg["content"] = m.Content
 			msg["tool_call_id"] = m.ToolCallID
 		} else {
-			if len(m.ToolCalls) > 0 && m.Content == "" {
+			content, err := openAIChatMessageContent(m)
+			if err != nil {
+				return nil, err
+			}
+			if len(m.ToolCalls) > 0 && m.Content == "" && len(m.ContentParts) == 0 {
 				msg["content"] = nil
 			} else {
-				msg["content"] = m.Content
+				msg["content"] = content
 			}
 			if len(m.ToolCalls) > 0 {
 				msg["tool_calls"] = m.ToolCalls
@@ -506,10 +510,10 @@ func openAIResponsesInput(req ResponsesRequest) (any, error) {
 		}
 		return input, nil
 	}
-	return openAIResponsesInputFromMessages(req.Text.Messages), nil
+	return openAIResponsesInputFromMessages(req.Text.Messages)
 }
 
-func openAIResponsesInputFromMessages(messages []Message) []map[string]any {
+func openAIResponsesInputFromMessages(messages []Message) ([]map[string]any, error) {
 	input := make([]map[string]any, 0, len(messages))
 	for _, message := range messages {
 		if message.Role == "tool" {
@@ -521,8 +525,12 @@ func openAIResponsesInputFromMessages(messages []Message) []map[string]any {
 			continue
 		}
 		if message.Role == "assistant" && len(message.ToolCalls) > 0 {
-			if message.Content != "" {
-				input = append(input, openAIResponsesMessageItem(message.Role, "output_text", message.Content))
+			if message.Content != "" || len(message.ContentParts) > 0 {
+				item, err := openAIResponsesMessageItemFromMessage(message)
+				if err != nil {
+					return nil, err
+				}
+				input = append(input, item)
 			}
 			for _, toolCall := range message.ToolCalls {
 				input = append(input, map[string]any{
@@ -534,13 +542,13 @@ func openAIResponsesInputFromMessages(messages []Message) []map[string]any {
 			}
 			continue
 		}
-		contentType := "input_text"
-		if message.Role == "assistant" {
-			contentType = "output_text"
+		item, err := openAIResponsesMessageItemFromMessage(message)
+		if err != nil {
+			return nil, err
 		}
-		input = append(input, openAIResponsesMessageItem(message.Role, contentType, message.Content))
+		input = append(input, item)
 	}
-	return input
+	return input, nil
 }
 
 func openAIResponsesMessageItem(role, contentType, text string) map[string]any {
@@ -551,6 +559,183 @@ func openAIResponsesMessageItem(role, contentType, text string) map[string]any {
 			"text": text,
 		}},
 	}
+}
+
+func openAIChatMessageContent(message Message) (any, error) {
+	if len(message.ContentParts) == 0 {
+		return message.Content, nil
+	}
+	parts := make([]map[string]any, 0, len(message.ContentParts))
+	for _, part := range message.ContentParts {
+		converted, err := openAIChatContentPart(part)
+		if err != nil {
+			return nil, err
+		}
+		if converted != nil {
+			parts = append(parts, converted)
+		}
+	}
+	return parts, nil
+}
+
+func openAIChatContentPart(part MessageContentPart) (map[string]any, error) {
+	partType, _ := part["type"].(string)
+	switch partType {
+	case "", "text", "input_text", "output_text":
+		return map[string]any{
+			"type": "text",
+			"text": stringValueAI(part["text"]),
+		}, nil
+	case "image_url":
+		imageURL, ok := openAIChatImageURLValue(part)
+		if !ok {
+			return nil, fmt.Errorf("image_url content part requires image_url")
+		}
+		return map[string]any{
+			"type":      "image_url",
+			"image_url": imageURL,
+		}, nil
+	case "input_image":
+		imageURL, ok := openAIChatImageURLValue(part)
+		if !ok {
+			return nil, fmt.Errorf("input_image content part requires image_url for chat completions")
+		}
+		return map[string]any{
+			"type":      "image_url",
+			"image_url": imageURL,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported OpenAI content part type %q", partType)
+	}
+}
+
+func openAIChatImageURLValue(part MessageContentPart) (map[string]any, bool) {
+	raw, ok := part["image_url"]
+	if !ok {
+		return nil, false
+	}
+	switch value := raw.(type) {
+	case string:
+		out := map[string]any{"url": value}
+		if detail := stringValueAI(part["detail"]); detail != "" {
+			out["detail"] = detail
+		}
+		return out, true
+	case map[string]any:
+		out := copyMapAI(value)
+		if detail := stringValueAI(part["detail"]); detail != "" {
+			if _, exists := out["detail"]; !exists {
+				out["detail"] = detail
+			}
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func openAIResponsesMessageItemFromMessage(message Message) (map[string]any, error) {
+	if len(message.ContentParts) == 0 {
+		contentType := "input_text"
+		if message.Role == "assistant" {
+			contentType = "output_text"
+		}
+		return openAIResponsesMessageItem(message.Role, contentType, message.Content), nil
+	}
+	content, err := openAIResponsesContentParts(message.Role, message.ContentParts)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"role":    message.Role,
+		"content": content,
+	}, nil
+}
+
+func openAIResponsesContentParts(role string, parts []MessageContentPart) ([]map[string]any, error) {
+	out := make([]map[string]any, 0, len(parts))
+	textType := "input_text"
+	if role == "assistant" {
+		textType = "output_text"
+	}
+	for _, part := range parts {
+		converted, err := openAIResponsesContentPart(textType, part)
+		if err != nil {
+			return nil, err
+		}
+		if converted != nil {
+			out = append(out, converted)
+		}
+	}
+	return out, nil
+}
+
+func openAIResponsesContentPart(textType string, part MessageContentPart) (map[string]any, error) {
+	partType, _ := part["type"].(string)
+	switch partType {
+	case "", "text", "input_text", "output_text":
+		return map[string]any{
+			"type": textType,
+			"text": stringValueAI(part["text"]),
+		}, nil
+	case "image_url":
+		imageURL, ok := openAIResponsesImageURLString(part["image_url"])
+		if !ok {
+			return nil, fmt.Errorf("image_url content part requires image_url")
+		}
+		out := map[string]any{
+			"type":      "input_image",
+			"image_url": imageURL,
+		}
+		if detail := stringValueAI(part["detail"]); detail != "" {
+			out["detail"] = detail
+		}
+		return out, nil
+	case "input_image":
+		out := map[string]any{"type": "input_image"}
+		if imageURL, ok := openAIResponsesImageURLString(part["image_url"]); ok {
+			out["image_url"] = imageURL
+		}
+		if fileID := stringValueAI(part["file_id"]); fileID != "" {
+			out["file_id"] = fileID
+		}
+		if _, hasImageURL := out["image_url"]; !hasImageURL {
+			if _, hasFileID := out["file_id"]; !hasFileID {
+				return nil, fmt.Errorf("input_image content part requires image_url or file_id")
+			}
+		}
+		if detail := stringValueAI(part["detail"]); detail != "" {
+			out["detail"] = detail
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("unsupported OpenAI content part type %q", partType)
+	}
+}
+
+func openAIResponsesImageURLString(raw any) (string, bool) {
+	switch value := raw.(type) {
+	case string:
+		return value, value != ""
+	case map[string]any:
+		url := stringValueAI(value["url"])
+		return url, url != ""
+	default:
+		return "", false
+	}
+}
+
+func stringValueAI(raw any) string {
+	value, _ := raw.(string)
+	return value
+}
+
+func copyMapAI(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
 }
 
 func openAIResponsesTools(raw json.RawMessage) (any, error) {
@@ -576,8 +761,7 @@ func openAIResponsesTools(raw json.RawMessage) (any, error) {
 
 func ensureOpenAIJSONModeMessages(messages []map[string]any) []map[string]any {
 	for _, msg := range messages {
-		content, ok := msg["content"].(string)
-		if ok && containsJSONWordAI(content) {
+		if containsJSONWordAI(openAIMessageContentText(msg["content"])) {
 			return messages
 		}
 	}
@@ -585,6 +769,37 @@ func ensureOpenAIJSONModeMessages(messages []map[string]any) []map[string]any {
 		"role":    "system",
 		"content": "JSON mode is enabled. Return only a valid JSON object with no markdown fences.",
 	}}, messages...)
+}
+
+func openAIMessageContentText(content any) string {
+	switch value := content.(type) {
+	case string:
+		return value
+	case []map[string]any:
+		var builder strings.Builder
+		for _, part := range value {
+			switch part["type"] {
+			case "text", "input_text", "output_text":
+				builder.WriteString(stringValueAI(part["text"]))
+			}
+		}
+		return builder.String()
+	case []any:
+		var builder strings.Builder
+		for _, item := range value {
+			part, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			switch part["type"] {
+			case "text", "input_text", "output_text":
+				builder.WriteString(stringValueAI(part["text"]))
+			}
+		}
+		return builder.String()
+	default:
+		return ""
+	}
 }
 
 func containsJSONWordAI(content string) bool {

@@ -43,8 +43,12 @@ import {
 import { api } from '@/shared/infrastructure/api'
 import { normalizeAPIBaseURL } from '@/shared/infrastructure/config'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
-import { MediaViewer, resolveResourceUrl } from '@/shared/ui/MediaViewer'
-import { AuthedVideo } from '@/shared/ui/AuthedImage'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { ResourceVideo } from '@/shared/ui/ResourceVideo'
+import { UrlImage } from '@/shared/ui/UrlMedia'
+import { captureVideoThumbnails, loadVideoProbeMetadataFromObjectUrl } from '@/shared/ui/VideoProbe'
+import { createObjectUrl, revokeObjectUrl, withObjectUrl } from '@/shared/ui/objectUrl'
+import { loadResourceBlob } from '@/shared/ui/resourceBlob'
 import { toast } from '@/shared/ui/toastStore'
 import type { PaginatedResponse, RawResource } from '@/types'
 import {
@@ -118,53 +122,21 @@ const SHOT_IMPORT_DRAFT_REVEAL_DELAY_MS = 110
 const SHOT_IMPORT_THUMBNAIL_WIDTH = 320
 const EMPTY_FACET_FILTERS: ShotLibraryFacetFilters = {}
 
-async function loadVideoMetadata(file: File): Promise<ShotLibraryVideoMetadata> {
-  const url = URL.createObjectURL(file)
-  return loadVideoMetadataFromObjectUrl(url, () => URL.revokeObjectURL(url))
-}
-
-async function loadVideoMetadataFromBlob(blob: Blob): Promise<ShotLibraryVideoMetadata> {
-  const url = URL.createObjectURL(blob)
-  return loadVideoMetadataFromObjectUrl(url, () => URL.revokeObjectURL(url))
+async function loadVideoMetadata(source: Blob): Promise<ShotLibraryVideoMetadata> {
+  return withObjectUrl(source, url => loadVideoMetadataFromObjectUrl(url, () => {}))
 }
 
 async function loadVideoMetadataFromObjectUrl(url: string, cleanup: () => void): Promise<ShotLibraryVideoMetadata> {
-  return new Promise(resolve => {
-    const video = document.createElement('video')
-    let settled = false
-    const done = (metadata: ShotLibraryVideoMetadata) => {
-      if (settled) return
-      settled = true
-      window.clearTimeout(timeout)
-      cleanup()
-      resolve(metadata)
-    }
-    const timeout = window.setTimeout(() => done({}), VIDEO_METADATA_TIMEOUT_MS)
-    video.preload = 'metadata'
-    video.muted = true
-    video.playsInline = true
-    video.onloadedmetadata = () => {
-      done({
-        durationSec: Number.isFinite(video.duration) ? video.duration : undefined,
-        width: video.videoWidth || undefined,
-        height: video.videoHeight || undefined,
-      })
-    }
-    video.onerror = () => done({})
-    video.src = url
-  })
+  return loadVideoProbeMetadataFromObjectUrl(url, cleanup, VIDEO_METADATA_TIMEOUT_MS)
 }
 
 async function loadResourceVideoBlob(resource: RawResource, onProgress?: (percent: number | undefined) => void): Promise<Blob> {
-  const response = await api.get(resolveResourceUrl(resource), {
-    baseURL: '',
-    responseType: 'blob',
+  return loadResourceBlob(resource, {
     onDownloadProgress: (event) => {
       const total = event.total || resource.size || 0
       onProgress?.(total > 0 ? Math.min(99, Math.round((event.loaded / total) * 100)) : undefined)
     },
   })
-  return response.data as Blob
 }
 
 export default function ShotLibraryPage() {
@@ -320,7 +292,7 @@ export default function ShotLibraryPage() {
 
   useEffect(() => {
     return () => {
-      if (importSession?.objectUrl) URL.revokeObjectURL(importSession.objectUrl)
+      revokeObjectUrl(importSession?.objectUrl)
     }
   }, [importSession?.objectUrl])
 
@@ -339,7 +311,7 @@ export default function ShotLibraryPage() {
       toast.error(t('pages.shotLibrary.uploadFailed'), t('pages.shotLibrary.videoOnly'))
       return
     }
-    const objectUrl = URL.createObjectURL(file)
+    const objectUrl = createObjectUrl(file)
     const resource = tempResourceFromFile(file, objectUrl)
     const sourceKey = `file:${file.name}:${file.size}:${file.lastModified}`
     setImportSession({
@@ -400,7 +372,7 @@ export default function ShotLibraryPage() {
           progressPercent,
         } : current)
       })
-      thumbnailObjectUrl = URL.createObjectURL(blob)
+      thumbnailObjectUrl = createObjectUrl(blob)
       metadata = await loadVideoMetadataFromObjectUrl(thumbnailObjectUrl, () => {})
       setImportSession(current => current?.sourceKey === sourceKey ? {
         ...current,
@@ -420,7 +392,7 @@ export default function ShotLibraryPage() {
         : buildImportDrafts(resource, metadata)
       await revealImportDrafts(sourceKey, metadata, drafts, uploadErrorMessage(error, t('pages.shotLibrary.uploadFailed')))
     } finally {
-      if (thumbnailObjectUrl) URL.revokeObjectURL(thumbnailObjectUrl)
+      revokeObjectUrl(thumbnailObjectUrl)
     }
   }
 
@@ -449,7 +421,7 @@ export default function ShotLibraryPage() {
     setImportDialogOpen(false)
     setSelectedLibraryResource(null)
     setImportSession(current => {
-      if (current?.objectUrl) URL.revokeObjectURL(current.objectUrl)
+      revokeObjectUrl(current?.objectUrl)
       return null
     })
   }
@@ -962,7 +934,7 @@ function ShotImportDialog({
                           className="shot-import-dialog__draft-thumb"
                           style={{ '--shot-import-draft-aspect-ratio': previewAspectRatio } as CSSProperties}
                         >
-                          {draft.thumbnailUrl ? <img src={draft.thumbnailUrl} alt="" /> : <Film size={18} />}
+                          {draft.thumbnailUrl ? <UrlImage src={draft.thumbnailUrl} alt="" /> : <Film size={18} />}
                           <span>{formatDraftRange(draft)}</span>
                         </span>
                         <span className="shot-import-dialog__draft-card-body">
@@ -1283,11 +1255,11 @@ function ShotDraftClipPlayer({
 
   return (
     <div className="shot-import-clip-player">
-      <AuthedVideo
+      <ResourceVideo
         ref={videoRef}
         key={previewKey}
         className="shot-import-dialog__preview-video"
-        src={resolveResourceUrl(resource)}
+        resource={resource}
         playsInline
         preload="metadata"
         diagnosticLabel={`shot-import:${resource.ID}:${draft?.id ?? 'source'}`}
@@ -2143,92 +2115,16 @@ async function buildImportDraftThumbnails(sourceUrl: string, drafts: ShotImportD
 }
 
 async function captureDraftThumbnails(sourceUrl: string, drafts: ShotImportDraft[]): Promise<Array<string | undefined>> {
-  const video = document.createElement('video')
-  video.muted = true
-  video.playsInline = true
-  video.preload = 'metadata'
-  video.src = sourceUrl
-  try {
-    await waitForVideoMetadata(video)
-    const result: Array<string | undefined> = []
-    for (const draft of drafts) {
-      result.push(await captureDraftThumbnail(video, draft))
-    }
-    return result
-  } finally {
-    video.removeAttribute('src')
-    video.load()
-  }
-}
-
-function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
-  if (video.readyState >= 1) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      window.clearTimeout(timeout)
-      video.onloadedmetadata = null
-      video.onerror = null
-    }
-    const timeout = window.setTimeout(() => {
-      cleanup()
-      resolve()
-    }, VIDEO_METADATA_TIMEOUT_MS)
-    video.onloadedmetadata = () => {
-      cleanup()
-      resolve()
-    }
-    video.onerror = () => {
-      cleanup()
-      reject(new Error('video metadata unavailable'))
-    }
-  })
-}
-
-function captureDraftThumbnail(video: HTMLVideoElement, draft: ShotImportDraft): Promise<string | undefined> {
-  return new Promise(resolve => {
-    const start = optionalNumber(draft.startSec) ?? 0
-    const duration = Number.isFinite(video.duration) ? video.duration : undefined
-    const target = duration === undefined ? start : Math.min(start + 0.05, Math.max(0, duration - 0.05))
-    const cleanup = () => {
-      window.clearTimeout(timeout)
-      video.onseeked = null
-      video.onerror = null
-    }
-    const draw = () => {
-      cleanup()
-      resolve(drawVideoThumbnail(video))
-    }
-    const timeout = window.setTimeout(() => {
-      cleanup()
-      resolve(undefined)
-    }, 2500)
-    video.onseeked = draw
-    video.onerror = () => {
-      cleanup()
-      resolve(undefined)
-    }
-    if (Math.abs(video.currentTime - target) <= 0.04 && video.readyState >= 2) {
-      draw()
-      return
-    }
-    video.currentTime = target
-  })
-}
-
-function drawVideoThumbnail(video: HTMLVideoElement): string | undefined {
-  if (!video.videoWidth || !video.videoHeight) return undefined
-  const width = SHOT_IMPORT_THUMBNAIL_WIDTH
-  const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context) return undefined
-  const scale = Math.max(width / video.videoWidth, height / video.videoHeight)
-  const drawWidth = video.videoWidth * scale
-  const drawHeight = video.videoHeight * scale
-  context.drawImage(video, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight)
-  return canvas.toDataURL('image/jpeg', 0.76)
+  return captureVideoThumbnails(
+    sourceUrl,
+    drafts.map((draft) => optionalNumber(draft.startSec) ?? 0),
+    {
+      width: SHOT_IMPORT_THUMBNAIL_WIDTH,
+      metadataTimeoutMs: VIDEO_METADATA_TIMEOUT_MS,
+      seekTimeoutMs: 2500,
+      quality: 0.76,
+    },
+  )
 }
 
 function buildImportDrafts(resource: RawResource, metadata: ShotLibraryVideoMetadata, ranges?: ShotCutRange[]): ShotImportDraft[] {

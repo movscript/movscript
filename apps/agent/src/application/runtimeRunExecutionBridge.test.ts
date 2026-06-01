@@ -21,7 +21,7 @@ test('createRuntimeRunExecutionBridge binds runtime execution dependencies', asy
     postRunRecords: { label: 'postRunRecords' },
     mcpClient: { label: 'mcpClient' },
     draftStore: { label: 'draftStore' },
-    backendApplyClient: { label: 'backendApplyClient' },
+    externalToolGatewayPort: { label: 'externalToolGatewayPort' },
     memoryStore: { label: 'memoryStore' },
     memoryManager: { label: 'memoryManager' },
     knowledgeManager: { label: 'knowledgeManager' },
@@ -51,7 +51,7 @@ test('createRuntimeRunExecutionBridge binds runtime execution dependencies', asy
   assert.equal(captured?.postRunRecords, dependencies.postRunRecords)
   assert.equal(captured?.mcpClient, dependencies.mcpClient)
   assert.equal(captured?.draftStore, dependencies.draftStore)
-  assert.equal(captured?.backendApplyClient, dependencies.backendApplyClient)
+  assert.equal(captured?.externalToolGatewayPort, dependencies.externalToolGatewayPort)
   assert.equal(captured?.memoryStore, dependencies.memoryStore)
   assert.equal(captured?.memoryManager, dependencies.memoryManager)
   assert.equal(captured?.knowledgeManager, dependencies.knowledgeManager)

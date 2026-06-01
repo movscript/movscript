@@ -247,7 +247,7 @@ export function CanvasTextNodeView({
   const isRunning = status === "pending" || status === "running";
   const canEdit = editable ?? manual;
   return (
-    <CanvasNodeCard selected={selected} className="canvas-text-node-card">
+    <CanvasNodeCard selected={selected}>
       {ports}
       <CanvasMediaNodeInfo>
         {meta ?? (
@@ -370,6 +370,30 @@ export function CanvasMediaNodeInfo({
       {children}
     </div>
   );
+}
+
+export function CanvasMediaNodeInfoCrumbs({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-media-node-info__crumbs", className)} {...props} />;
+}
+
+export function CanvasMediaNodeInfoCrumb({
+  name = false,
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & {
+  name?: boolean;
+}) {
+  return <span className={cn("canvas-media-node-info__crumb", name ? "canvas-media-node-info__name" : undefined, className)} {...props} />;
+}
+
+export function CanvasMediaNodeInfoProbe({
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("canvas-media-node-info__probe", className)} {...props} />;
 }
 
 export function CanvasNodeFooterText({

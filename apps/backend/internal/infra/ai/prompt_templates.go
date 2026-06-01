@@ -46,28 +46,6 @@ const MovScriptSystemPrompt = `你是 MovScript 的制作系统助手。MovScrip
 - 如果调用方要求 JSON 输出，只在最终答案中输出 JSON 对象；不要用 Markdown 代码块包裹。
 - JSON 输出中的长文本字段仍然写自然语言，不要再嵌套 JSON 字符串。`
 
-func BuildFeaturePrompt(featureKey, systemPrompt, userPrompt string, jsonMode bool, maxTokens int, temperature float32, isReasoning bool) CompiledPrompt {
-	system := strings.TrimSpace(systemPrompt)
-	if system == "" {
-		system = MovScriptSystemPrompt
-	}
-	prompt := BuildTextPrompt(CompiledPrompt{
-		Name:        NormalizeFeatureKey(featureKey),
-		System:      system,
-		User:        userPrompt,
-		JSONMode:    jsonMode,
-		MaxTokens:   maxTokens,
-		Temperature: temperature,
-	})
-	if isReasoning && prompt.System != "" {
-		merged := strings.TrimSpace(prompt.System + "\n\n" + prompt.User)
-		prompt.Messages = []Message{{Role: "user", Content: merged}}
-		prompt.DebugMessages = []DebugPromptMessage{{Role: "user", Content: merged}}
-		prompt.Compiled = compileDebugPrompt(prompt.Name, prompt.DebugMessages)
-	}
-	return prompt
-}
-
 func BuildTextPrompt(prompt CompiledPrompt) CompiledPrompt {
 	prompt.System = strings.TrimSpace(prompt.System)
 	prompt.User = strings.TrimSpace(prompt.User)

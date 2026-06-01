@@ -8,11 +8,12 @@ import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
-import type { AgentGraphInput } from '../orchestration/agentGraph.js'
+import type { AgentGraphInput } from '../orchestration/agentGraphTypes.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import { InMemoryAgentStore } from '../state/store.js'
 import type {
   AgentCapabilitiesResponse,
+  AgentMessage,
   AgentPlan,
   AgentRun,
   AgentRunStep,
@@ -27,6 +28,33 @@ import {
   invokeRuntimeAgentGraph,
   type RuntimeAgentGraphInvocationTraceInput,
 } from './runtimeAgentGraphInvocation.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from './runtimeToolHandlers.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 const setupRound = { roundId: 'round_0', roundIndex: 0, roundLabel: 'Setup', roundSource: 'setup' as const }
 const command: AgentCommandRuntime = {
@@ -209,6 +237,46 @@ test('invokeRuntimeAgentGraph exposes catalog refresh callback with latest snaps
   assert.deepEqual(refreshResult?.capabilities.available.map((tool) => tool.name), ['tool_refreshed'])
 })
 
+test('invokeRuntimeAgentGraph records consumed runtime input as message refs without content', async () => {
+  const run = makeRun()
+  const traces: RuntimeAgentGraphInvocationTraceInput[] = []
+  const runtimeInput: AgentMessage = {
+    id: 'msg_runtime_1',
+    threadId: run.threadId,
+    role: 'user',
+    content: 'large late user content should not be copied into trace',
+    createdAt: '2026-01-01T00:00:02.000Z',
+    metadata: {
+      kind: 'runtime_input',
+      targetRunId: run.id,
+      mode: 'soft',
+      status: 'accepted',
+    },
+  }
+
+  await invokeRuntimeAgentGraph({
+    ...baseInvocationInput(run),
+    recordTrace: (_run, trace) => traces.push(trace),
+    invokeGraph: async (input) => {
+      input.onRuntimeInputConsumed?.([runtimeInput], {
+        roundIndex: 1,
+        roundLabel: 'Model turn 1',
+        roundSource: 'model',
+      })
+      return { status: 'completed', finalContent: 'done', assistantContents: ['done'], toolOutcomes: [], warnings: [] }
+    },
+  })
+
+  const trace = traces.find((item) => item.title === 'Runtime input consumed')
+  const data = trace?.data as { messageIds?: string[]; messages?: Array<Record<string, unknown>> } | undefined
+  assert.deepEqual(data?.messageIds, ['msg_runtime_1'])
+  assert.equal(data?.messages?.[0]?.id, 'msg_runtime_1')
+  assert.equal(data?.messages?.[0]?.content, undefined)
+  assert.equal(data?.messages?.[0]?.chars, runtimeInput.content.length)
+  assert.match(String(data?.messages?.[0]?.contentHash), /^sha256:/)
+  assert.equal(data?.messages?.[0]?.contentMode, 'summary')
+})
+
 test('invokeRuntimeAgentGraph fails before graph execution when model config is missing', async () => {
   await assert.rejects(
     () => invokeRuntimeAgentGraph({
@@ -235,6 +303,7 @@ function baseInvocationInput(run: AgentRun, options: { currentPlan?: AgentPlan }
   })
   store.createRun(run)
   const memoryManager = new MemoryManager(new InMemoryAgentMemoryStore())
+  const mcpClient = new FakeMCPClient()
   return {
     run,
     threadMessages: [],
@@ -248,10 +317,17 @@ function baseInvocationInput(run: AgentRun, options: { currentPlan?: AgentPlan }
     userMessage: 'hello',
     auth: {},
     policy: run.policy,
-    mcpClient: new FakeMCPClient(),
+    mcpClient,
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: { applyDraft: async () => ({ ok: true }) } as any,
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     registry: new StaticToolRegistry([tool('tool_a')]),
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     contractResolver: emptyContractResolver(),
     memoryManager,
     knowledgeManager: new KnowledgeManager({ listCollections: () => [], search: () => [] } as any),

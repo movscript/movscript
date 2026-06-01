@@ -4,7 +4,7 @@
   "description": "MovScript CLI — init, build, and manage plugins",
   "type": "module",
   "bin": {
-    "movcli": "./dist/index.js"
+    "movcli": "./bin/movcli.mjs"
   },
   "scripts": {
     "build": "tsup",

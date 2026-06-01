@@ -9,81 +9,31 @@ import (
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-// CallForFeature is the business-layer entry point for text-based features.
-// It resolves feature -> model config -> provider, applies the feature's system
-// prompt (with optional DB override), and handles reasoning-model formatting.
-func (s *AIService) CallForFeature(ctx context.Context, userID uint, featureKey string, userMsg string) (TextResponse, error) {
-	def := GetFeatureDef(featureKey)
-	sysPrompt := ""
-	maxTokens := 0
-	temp := float32(-1)
-	if def != nil {
-		sysPrompt = def.SystemPrompt
-		maxTokens = def.MaxTokens
-		temp = def.Temperature
-	}
-
-	var fcfg persistencemodel.FeatureConfig
-	if err := s.db.Where("feature_key = ?", featureKey).First(&fcfg).Error; err == nil {
-		if fcfg.SystemPromptOverride != "" {
-			sysPrompt = fcfg.SystemPromptOverride
-		}
-		if fcfg.MaxTokensOverride > 0 {
-			maxTokens = fcfg.MaxTokensOverride
-		}
-	}
-
-	modelConfigID, _, err := s.GetForFeature(featureKey)
-	if err != nil {
-		return TextResponse{}, err
-	}
-
-	var mcfg persistencemodel.AIModelConfig
-	if err := s.db.First(&mcfg, modelConfigID).Error; err != nil {
-		return TextResponse{}, fmt.Errorf("model config %d not found", modelConfigID)
-	}
-	var cred persistencemodel.AICredential
-	s.db.First(&cred, mcfg.CredentialID)
-	mdef := resolveDefFromConfig(mcfg, cred.AdapterType)
-	isReasoning := false
-	for _, cap := range mdef.Capabilities {
-		if cap == CapabilityReasoning {
-			isReasoning = true
-			break
-		}
-	}
-
-	prompt := BuildFeaturePrompt(featureKey, sysPrompt, userMsg, def != nil && def.OutputSchema != "", maxTokens, temp, isReasoning)
-	return s.CallText(ctx, userID, modelConfigID, TextRequest{
-		PromptName:  prompt.Name,
-		Messages:    prompt.Messages,
-		MaxTokens:   prompt.MaxTokens,
-		Temperature: prompt.Temperature,
-		IsReasoning: isReasoning,
-		JSONMode:    prompt.JSONMode,
-	})
-}
-
 // CallText calls a text generation model by AIModelConfig DB ID.
 func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, req TextRequest) (TextResponse, error) {
 	return s.CallTextWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
 func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (TextResponse, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
+	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return TextResponse{}, err
 	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, "text_reasoning"), candidates)
 	var lastErr error
 	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
+		capability := attempt.capability
+		if capability == "" {
+			capability = CapabilityText
+		}
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		attemptReq := req
 		attemptReq.Model = resolveModelID(cfg, def)
+		attemptReq.IsReasoning = attemptReq.IsReasoning || modelHasCapability(def, CapabilityReasoning)
 		attachTextPromptDebug(ctx, attemptReq)
 		if usage.ReservationID == nil {
 			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq), maxPositive(attemptReq.MaxTokens, 1024), 0, 1)
@@ -125,24 +75,29 @@ func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID
 		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
 		return TextResponse{}, lastErr
 	}
-	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
+	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
 }
 
 func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelConfigID uint, req ResponsesRequest, usage UsageContext) (TextResponse, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
+	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return TextResponse{}, err
 	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, "text_reasoning"), candidates)
 	var lastErr error
 	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
+		capability := attempt.capability
+		if capability == "" {
+			capability = CapabilityText
+		}
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		attemptReq := req
 		attemptReq.Text.Model = resolveModelID(cfg, def)
+		attemptReq.Text.IsReasoning = attemptReq.Text.IsReasoning || modelHasCapability(def, CapabilityReasoning)
 		attachTextPromptDebug(ctx, attemptReq.Text)
 		if usage.ReservationID == nil {
 			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq.Text), maxPositive(attemptReq.Text.MaxTokens, 1024), 0, 1)
@@ -190,7 +145,7 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
 		return TextResponse{}, lastErr
 	}
-	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
+	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
 }
 
 // CallTextStream calls a text model through a provider streaming API.
@@ -202,11 +157,11 @@ func (s *AIService) CallTextStream(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
-	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
+	candidates, err := s.runtimeTextModelCandidates(modelConfigID)
 	if err != nil {
 		return nil, err
 	}
-	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, "text_reasoning"), candidates)
 	var (
 		upstream        <-chan TextStreamEvent
 		attemptConfig   persistencemodel.AIModelConfig
@@ -218,7 +173,11 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 		lastErr         error
 	)
 	for _, attempt := range attempts {
-		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
+		capability := attempt.capability
+		if capability == "" {
+			capability = CapabilityText
+		}
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
 			lastErr = err
 			continue
@@ -230,6 +189,7 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 		}
 		attemptReq = req
 		attemptReq.Model = resolveModelID(cfg, def)
+		attemptReq.IsReasoning = attemptReq.IsReasoning || modelHasCapability(def, CapabilityReasoning)
 		attachTextPromptDebug(ctx, attemptReq)
 		if usage.ReservationID == nil {
 			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq), maxPositive(attemptReq.MaxTokens, 1024), 0, 1)
@@ -272,7 +232,7 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 			_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
 			return nil, lastErr
 		}
-		return nil, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
+		return nil, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
 	}
 
 	out := make(chan TextStreamEvent)

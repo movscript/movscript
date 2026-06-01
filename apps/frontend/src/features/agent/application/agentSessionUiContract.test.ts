@@ -197,7 +197,7 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.doesNotMatch(chatPageLayoutSource, /chrome="card"/)
   assert.doesNotMatch(composerSectionSource, /回答请求/)
   assert.doesNotMatch(composerSectionSource, /ai-agent-panel-input-header/)
-  assert.doesNotMatch(composerSectionSource, /AgentSurfaceBlock/)
+  assert.match(composerSectionSource, /AgentSurfaceBlock/)
   assert.doesNotMatch(mentionEditorSource, /AgentSurfaceBlock/)
   assert.match(mentionEditorSource, /function ComposerAttachmentChip/)
   assert.match(mentionEditorSource, /className="flex min-w-0 items-center gap-2 border-t border-border px-0 py-1/)
@@ -330,9 +330,9 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-card__header-copy \{[\s\S]*flex: 1 1 11rem;/)
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-card__header-copy:last-child \{[\s\S]*justify-content: flex-end;[\s\S]*margin-left: auto;/)
   assert.doesNotMatch(uiAgentGeneratedFeedbackSource(), /AgentGeneratedIntentSurfaceBlock/)
-  assert.doesNotMatch(sourceFunctionBlock(uiAgentGeneratedFeedbackSource(), 'AgentGeneratedCard'), /AgentSurfaceBlock/)
+  assert.match(uiAgentGeneratedFeedbackSource(), /function AgentGeneratedCard[\s\S]*?AgentSurfaceBlock/)
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-card \{[\s\S]*background: transparent;[\s\S]*box-shadow: none;/)
-  assert.doesNotMatch(sourceFunctionBlock(uiAgentGeneratedFeedbackSource(), 'AgentGeneratedItem'), /AgentSurfaceBlock/)
+  assert.match(uiAgentGeneratedFeedbackSource(), /function AgentGeneratedItem[\s\S]*?AgentSurfaceBlock/)
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-stack > \.agent-generated-item \+ \.agent-generated-item \{[\s\S]*border-top: 1px solid/)
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-stat-grid \.agent-generated-item \{[\s\S]*padding: 0;/)
   assert.match(uiAgentGeneratedFeedbackCssSource, /\.agent-generated-item__header \{[\s\S]*flex-wrap: wrap;[\s\S]*align-items: flex-start;/)
@@ -628,7 +628,7 @@ test('agent session UI renders generation job approvals as summary cards', () =>
   assert.match(workflowBubbleSource, /view\.prompt/)
   assert.match(workflowBubbleSource, /referenceResourceIds/)
   assert.match(workflowBubbleSource, /ApprovalResourceThumbnail resourceId=\{previewResourceId\}/)
-  assert.match(workflowBubbleSource, /resourceFileUrl\(resourceId\)/)
+  assert.match(workflowBubbleSource, /ResourceFileImage/)
   assert.match(workflowBubbleSource, /safeJSONStringify\(approval\.args\)/)
 })
 
@@ -642,7 +642,7 @@ test('agent session UI renders asset slot candidate approvals as summary cards',
   assert.match(workflowBubbleSource, /只加入候选集，不会锁定、采纳或替换当前素材。/)
   assert.match(workflowBubbleSource, /output_resource_id/)
   assert.match(workflowBubbleSource, /resource_id/)
-  assert.match(workflowBubbleSource, /AuthedImage/)
+  assert.match(workflowBubbleSource, /ResourceFileImage/)
 })
 
 test('agent panel keeps recent resources as mention candidates, not automatic context labels', () => {

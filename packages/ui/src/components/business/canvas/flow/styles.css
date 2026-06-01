@@ -1,5 +1,5 @@
 .canvas-flow {
-  background: var(--ms-color-canvas-background);
+  background: var(--ms-color-page-background);
 }
 
 .canvas-flow .react-flow__pane {

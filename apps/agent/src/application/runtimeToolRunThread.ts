@@ -17,7 +17,7 @@ import {
 } from './runExecutionInput.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
 
 export interface RuntimeToolRunThreadPreparation {
   thread: AgentThread

@@ -6,10 +6,14 @@ import type { AgentChatMessage } from '@movscript/protocol'
 
 test('sendRuntimeInputMessage creates a pending local message and binds the accepted runtime input by id', async () => {
   const messages: AgentChatMessage[] = []
-  const createInputs: Array<{ threadId: string; sourceMessageId?: string }> = []
+  const createInputs: Array<{ threadId: string; sourceMessageId?: string; clientInput?: unknown }> = []
 
   await sendRuntimeInputMessage({
     content: 'Add this constraint',
+    clientInput: {
+      message: 'Add this constraint',
+      attachments: [{ id: 'att_1', type: 'image', dataUrl: 'data:image/png;base64,AAAA' }],
+    },
     deps: {
       userId: 'user_1',
       conversationId: 'conv_1',
@@ -17,7 +21,7 @@ test('sendRuntimeInputMessage creates a pending local message and binds the acce
       run: { id: 'run_1' },
       messageStore: messageStore(messages),
       createMessageRun: async (threadId, input) => {
-        createInputs.push({ threadId, sourceMessageId: input.sourceMessageId })
+        createInputs.push({ threadId, sourceMessageId: input.sourceMessageId, clientInput: input.clientInput })
         return {
           run: { id: 'run_1' },
           message: { id: input.sourceMessageId ?? 'msg_runtime_input', threadId, role: 'user', content: input.message, createdAt: NOW },
@@ -36,6 +40,10 @@ test('sendRuntimeInputMessage creates a pending local message and binds the acce
 
   assert.equal(createInputs[0]?.threadId, 'thread_1')
   assert.equal(createInputs[0]?.sourceMessageId, 'local_1')
+  assert.deepEqual(createInputs[0]?.clientInput, {
+    message: 'Add this constraint',
+    attachments: [{ id: 'att_1', type: 'image', dataUrl: 'data:image/png;base64,AAAA' }],
+  })
   assert.deepEqual(messages[0]?.meta?.runtimeInput, {
     threadId: 'thread_1',
     runId: 'run_1',

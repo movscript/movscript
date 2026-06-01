@@ -19,16 +19,31 @@ import {
   XCircle,
 } from 'lucide-react'
 
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
 import { api } from '@/shared/infrastructure/api'
 import {
-  Button,
   CanvasMediaFill,
   CanvasRunStatusBadge,
   CanvasWorkflowHistoryDuration,
   CanvasWorkflowHistoryView,
+  CanvasWorkflowReferenceAddButton,
+  CanvasWorkflowReferenceBody,
+  CanvasWorkflowReferenceChip,
+  CanvasWorkflowReferenceChips,
+  CanvasWorkflowReferenceList,
+  CanvasWorkflowReferencePickerCard,
+  CanvasWorkflowReferencePickerCardIcon,
+  CanvasWorkflowReferencePickerCardMain,
+  CanvasWorkflowReferencePickerCardMeta,
+  CanvasWorkflowReferencePickerCardText,
+  CanvasWorkflowReferencePickerCardTitle,
+  CanvasWorkflowReferencePickerShell,
+  CanvasWorkflowReferenceSearch,
+  CanvasWorkflowReferenceSearchInput,
+  CanvasWorkflowReferenceState,
   CanvasWorkflowRunResultsView,
+  CanvasWorkflowResizeHandle,
   CanvasWorkflowSideBody,
   CanvasWorkflowSideIconButton,
   CanvasWorkflowSidePanel,
@@ -36,8 +51,6 @@ import {
   type CanvasWorkflowHistoryItem,
   type CanvasWorkflowHistoryStatusFilter,
   type CanvasWorkflowRunResultsItem,
-  Input,
-  PanelResizeHandle,
   useResizablePanel,
 } from '@movscript/ui'
 import type { Canvas, CanvasRunStatus, ResourceBinding } from '@/types'
@@ -222,68 +235,65 @@ function WorkflowReferencePicker({
   }
 
   return (
-    <div className="canvas-workflow-reference-picker">
-      <div className="canvas-workflow-reference-picker__search">
+    <CanvasWorkflowReferencePickerShell>
+      <CanvasWorkflowReferenceSearch>
         <Search size={12} />
-        <Input
+        <CanvasWorkflowReferenceSearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder={t('canvas.editor.workflowReferences.search', { defaultValue: 'Search workflows' })}
         />
-      </div>
-      <div className="canvas-workflow-reference-picker__body">
+      </CanvasWorkflowReferenceSearch>
+      <CanvasWorkflowReferenceBody>
         {isLoading ? (
-          <div className="canvas-workflow-reference-picker__state">
+          <CanvasWorkflowReferenceState>
             <Loader2 size={14} />
             {t('common.loadingShort')}
-          </div>
+          </CanvasWorkflowReferenceState>
         ) : workflows.length === 0 ? (
-          <div className="canvas-workflow-reference-picker__state">
+          <CanvasWorkflowReferenceState>
             {t('canvas.editor.workflowReferences.empty', { defaultValue: 'No workflow canvases available.' })}
-          </div>
+          </CanvasWorkflowReferenceState>
         ) : (
-          <div className="canvas-workflow-reference-picker__list">
+          <CanvasWorkflowReferenceList>
             {workflows.map((canvas) => {
               const detailedCanvas = workflowDetailById.get(canvas.ID) ?? canvas
               const ports = deriveCanvasReferencePorts(detailedCanvas)
               return (
-                <div
+                <CanvasWorkflowReferencePickerCard
                   key={canvas.ID}
                   draggable
                   onDragStart={(event) => dragWorkflow(event, detailedCanvas)}
-                  className="canvas-workflow-reference-picker__card"
                 >
-                  <div className="canvas-workflow-reference-picker__card-main">
-                    <span className="canvas-workflow-reference-picker__card-icon">
+                  <CanvasWorkflowReferencePickerCardMain>
+                    <CanvasWorkflowReferencePickerCardIcon>
                       <Workflow size={14} />
-                    </span>
-                    <div className="canvas-workflow-reference-picker__card-text">
-                      <div className="canvas-workflow-reference-picker__card-title">{canvas.name}</div>
-                      <div className="canvas-workflow-reference-picker__card-meta">
+                    </CanvasWorkflowReferencePickerCardIcon>
+                    <CanvasWorkflowReferencePickerCardText>
+                      <CanvasWorkflowReferencePickerCardTitle>{canvas.name}</CanvasWorkflowReferencePickerCardTitle>
+                      <CanvasWorkflowReferencePickerCardMeta>
                         {t('canvas.editor.workflowReferences.portSummary', { inputs: ports.inputs.length, outputs: ports.outputs.length, defaultValue: `${ports.inputs.length} inputs · ${ports.outputs.length} outputs` })}
-                      </div>
-                    </div>
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
+                      </CanvasWorkflowReferencePickerCardMeta>
+                    </CanvasWorkflowReferencePickerCardText>
+                    <CanvasWorkflowReferenceAddButton
                       title={t('canvas.editor.workflowReferences.add', { defaultValue: 'Add workflow reference' })}
                       aria-label={t('canvas.editor.workflowReferences.add', { defaultValue: 'Add workflow reference' })}
                       onClick={() => onAddWorkflowReference(detailedCanvas)}
                     >
                       <Plus size={13} />
-                    </Button>
-                  </div>
-                  <div className="canvas-workflow-reference-picker__chips">
-                    {ports.inputs.slice(0, 3).map((port) => <span key={`in-${port.id}`}>in:{port.label ?? port.id}</span>)}
-                    {ports.outputs.slice(0, 2).map((port) => <span key={`out-${port.id}`}>out:{port.label ?? port.id}</span>)}
-                  </div>
-                </div>
+                    </CanvasWorkflowReferenceAddButton>
+                  </CanvasWorkflowReferencePickerCardMain>
+                  <CanvasWorkflowReferenceChips>
+                    {ports.inputs.slice(0, 3).map((port) => <CanvasWorkflowReferenceChip key={`in-${port.id}`}>in:{port.label ?? port.id}</CanvasWorkflowReferenceChip>)}
+                    {ports.outputs.slice(0, 2).map((port) => <CanvasWorkflowReferenceChip key={`out-${port.id}`}>out:{port.label ?? port.id}</CanvasWorkflowReferenceChip>)}
+                  </CanvasWorkflowReferenceChips>
+                </CanvasWorkflowReferencePickerCard>
               )
             })}
-          </div>
+          </CanvasWorkflowReferenceList>
         )}
-      </div>
-    </div>
+      </CanvasWorkflowReferenceBody>
+    </CanvasWorkflowReferencePickerShell>
   )
 }
 
@@ -378,9 +388,8 @@ export function WorkflowSidePanel({
       </CanvasWorkflowSideRail>
       {!collapsed ? (
         <CanvasWorkflowSidePanel width={width}>
-          <PanelResizeHandle
+          <CanvasWorkflowResizeHandle
             {...sidePanelResize.resizeHandleProps}
-            className="canvas-workflow-side-panel__resize-handle"
             side="left"
           />
           <CanvasWorkflowSideBody>
@@ -433,7 +442,7 @@ export function WorkflowRunResultsDialog({
   const resultItems: CanvasWorkflowRunResultsItem[] = items.map((item) => {
     const resource = item.resource
     const removed = !!resource && removedResourceIds.includes(resource.ID)
-    const resourceUrl = resource ? `${API_BASE}${resource.url}` : undefined
+    const resourceUrl = resource ? resolveResourceUrl(resource) : undefined
     return {
       key: item.key,
       title: item.label,
@@ -441,10 +450,8 @@ export function WorkflowRunResultsDialog({
       meta: resource ? `#${resource.ID} · ${resource.name}` : item.key,
       removed,
       removedLabel: t('canvas.editor.runResults.removed', { defaultValue: 'Removed from resource library' }),
-      media: !removed && resource && item.value.type === 'image'
-        ? <CanvasMediaFill fit="contain"><AuthedImage src={resourceUrl!} alt={item.label} /></CanvasMediaFill>
-        : !removed && resource && item.value.type === 'video'
-          ? <CanvasMediaFill fit="contain"><AuthedVideo src={resourceUrl!} controls /></CanvasMediaFill>
+      media: !removed && resource && (item.value.type === 'image' || item.value.type === 'video')
+        ? <CanvasMediaFill fit="contain"><MediaViewer resource={resource} fit="contain" lightbox={false} /></CanvasMediaFill>
           : undefined,
       code: canvasPortValuePreviewText(item.value) || t('common.empty', { defaultValue: 'Empty' }),
       actions: resource && !removed

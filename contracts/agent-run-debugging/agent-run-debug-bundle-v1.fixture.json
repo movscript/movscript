@@ -7,6 +7,7 @@
     "readinessChecklist",
     "modelCallContexts",
     "promptDetails",
+    "contextMutations",
     "messageWrites",
     "toolCalls",
     "attentionEvents",
@@ -228,6 +229,44 @@
           "contextLayer": "thread",
           "source": "message",
           "chars": "42"
+        }
+      ]
+    }
+  ],
+  "contextMutations": [
+    {
+      "eventId": "evt_context_ledger",
+      "title": "上下文变动",
+      "total": 2,
+      "appended": 1,
+      "amended": 1,
+      "deleted": 0,
+      "affectedContextKeys": [
+        "knowledge:storyboard.rhythm.basic:sha256:old",
+        "knowledge:storyboard.rhythm.basic:sha256:new"
+      ],
+      "appendedContextKeys": [
+        "knowledge:storyboard.rhythm.basic:sha256:old"
+      ],
+      "amendedContextKeys": [
+        "knowledge:storyboard.rhythm.basic:sha256:old",
+        "knowledge:storyboard.rhythm.basic:sha256:new"
+      ],
+      "deletedContextKeys": [],
+      "latest": {
+        "id": "ctx_mut_amend_fixture",
+        "type": "amend",
+        "createdAt": "2026-05-16T08:00:02.500Z",
+        "reason": "knowledge refreshed"
+      },
+      "refs": [
+        {
+          "kind": "context",
+          "label": "knowledge:storyboard.rhythm.basic",
+          "key": "knowledge:storyboard.rhythm.basic:sha256:new",
+          "id": "storyboard.rhythm.basic",
+          "type": "knowledge",
+          "hash": "sha256:new"
         }
       ]
     }

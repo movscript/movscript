@@ -2,12 +2,13 @@ import { useRef } from 'react'
 import { Upload, Wand2, Download, Loader2, AlertCircle, Plus } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/features/tools/application/useToolCanvas'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { ResourcePanel } from '@/shared/ui/ResourcePanel'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
+import { GenerationOutputPreview } from '@/shared/ui/GenerationOutputPreview'
 import {
   Button,
   NativeSelect,
@@ -29,7 +30,7 @@ import {
   ToolUploadTile
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
-import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 
 export interface ToolDef {
   name: string
@@ -74,9 +75,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
     },
   })
 
-  const outputSrc = state.outputResource
-    ? state.outputResource.direct_url ?? `${API_BASE}${state.outputResource.url}`
-    : undefined
+  const outputSrc = state.outputResource ? resolveResourceUrl(state.outputResource) : undefined
   const selectedModelValue = state.modelId
     || (models[0] ? publicModelId(models[0]) : '')
 
@@ -98,10 +97,8 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
               <ToolResourceTile
                 key={r.ID}
                 name={r.name}
-                media={r.type === 'image' ? (
-                  r.direct_url
-                    ? <img src={r.direct_url} alt={r.name} />
-                    : <AuthedImage src={`${API_BASE}${r.url}`} alt={r.name} />
+                media={r.type === 'image' || r.type === 'video' ? (
+                  <MediaViewer resource={r} lightbox={false} />
                 ) : (
                   <span className="tool-resource-tile__placeholder">{t('canvas.paramTypes.video')}</span>
                 )}
@@ -190,7 +187,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 <p>{state.error ?? t('canvas.generationFailed')}</p>
               </ToolOutputState>
             )}
-            {!isRunning && state.status === 'done' && outputSrc && (
+            {!isRunning && state.status === 'done' && state.outputResource && outputSrc && (
               <ToolOutputMediaShell
                 action={(
                   <ToolOutputDownloadAction>
@@ -200,15 +197,11 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                   </ToolOutputDownloadAction>
                 )}
               >
-                {def.outputType === 'image' ? (
-                  state.outputResource?.direct_url
-                    ? <img src={outputSrc} alt={t('shared.generation.resultAlt')} />
-                    : <AuthedImage src={outputSrc} alt={t('shared.generation.resultAlt')} />
-                ) : (
-                  state.outputResource?.direct_url
-                    ? <video src={outputSrc} controls />
-                    : <AuthedVideo src={outputSrc} controls />
-                )}
+                <GenerationOutputPreview
+                  resource={state.outputResource}
+                  outputType={def.outputType}
+                  alt={t('shared.generation.resultAlt')}
+                />
               </ToolOutputMediaShell>
             )}
           </ToolOutputStage>

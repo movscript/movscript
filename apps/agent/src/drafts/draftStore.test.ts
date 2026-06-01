@@ -46,7 +46,7 @@ test('listDrafts filters by threadId and runId', () => {
   )
   assert.deepEqual(
     store.listDrafts({ runId: 'run-9' }).map((draft) => draft.kind),
-    ['note'],
+    ['project_standards_proposal'],
   )
 })
 

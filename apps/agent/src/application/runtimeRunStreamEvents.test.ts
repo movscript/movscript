@@ -88,9 +88,10 @@ test('emitRuntimeVolatileTraceEvent emits transient reasoning traces without ass
 
   assert.deepEqual(events.map((event) => event.type), ['trace'])
   assert.equal(events[0]?.type === 'trace' ? events[0].event.id : undefined, 'trace_live_model-reasoning-stream:2')
-  assert.deepEqual(events[0]?.type === 'trace' ? events[0].event.data : undefined, {
-    stream: { kind: 'reasoning', delta: 'Checking context', accumulated: 'Checking context' },
-  })
+  const data = events[0]?.type === 'trace' ? events[0].event.data as Record<string, unknown> : undefined
+  assert.match(JSON.stringify(data), /deltaHash/)
+  assert.match(JSON.stringify(data), /accumulatedHash/)
+  assert.doesNotMatch(JSON.stringify(data), /Checking context/)
 })
 
 test('replayRuntimeRunStream replays snapshot, title, trace progress, assistant message, and done', () => {

@@ -139,7 +139,8 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.match(listModels.description, /contract_version 1/)
   assert.match(listModels.description, /input_requirements/)
   assert.match(listModels.description, /supported_param_keys/)
-  assert.ok(listModels.inputSchema.properties?.feature_key)
+  assert.equal(listModels.inputSchema.properties?.feature, undefined)
+  assert.equal(listModels.inputSchema.properties?.feature_key, undefined)
   assert.ok(listModels.inputSchema.properties?.provider_variants)
   assert.ok(listModels.inputSchema.properties?.include_provider_variants)
   assert.ok(listModels.outputSchema?.properties?.count)
@@ -262,7 +263,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(waitJobs.outputSchema?.properties?.cancelled)
   assert.ok(waitJobs.outputSchema?.properties?.output_resource_ids)
 
-  for (const field of ['feature_key', 'provider_variants', 'include_provider_variants']) {
+  for (const field of ['capability', 'provider_variants', 'include_provider_variants']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(listModels.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticListModels.inputSchema.properties?.[field]),
@@ -2217,7 +2218,7 @@ test('listModels returns raw models plus compact agent contracts from backend mo
   }
 })
 
-test('listModels treats common generation feature aliases as capabilities', async () => {
+test('listModels queries backend by runtime capability only', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/models?capability=image_edit': [minimalBackendModelFixture(41, ['image_edit'])],
@@ -2226,19 +2227,11 @@ test('listModels treats common generation feature aliases as capabilities', asyn
   const previousBaseURL = 'http://localhost:8765'
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const imageEdit = await listModels({ feature: 'image_to_image' }) as Record<string, any>
+    const imageEdit = await listModels({ capability: 'image_edit' }) as Record<string, any>
     assert.deepEqual(imageEdit.queries, ['capability:image_edit'])
     assert.equal(imageEdit.model_contracts[0].model_id, 'model.41')
 
-    const textToImage = await listModels({ feature_key: 'text_to_image' }) as Record<string, any>
-    assert.deepEqual(textToImage.queries, ['capability:image'])
-    assert.equal(textToImage.model_contracts[0].model_id, 'model.42')
-
-    const workflowImageTemplate = await listModels({ feature: 'image-generation' }) as Record<string, any>
-    assert.deepEqual(workflowImageTemplate.queries, ['capability:image'])
-    assert.equal(workflowImageTemplate.model_contracts[0].model_id, 'model.42')
-
-    const imageCapability = await listModels({ feature: 'image' }) as Record<string, any>
+    const imageCapability = await listModels({ capability: 'image' }) as Record<string, any>
     assert.deepEqual(imageCapability.queries, ['capability:image'])
     assert.equal(imageCapability.model_contracts[0].model_id, 'model.42')
   } finally {

@@ -56,7 +56,7 @@ func (h *JobHandler) List(c *gin.Context) {
 		OrgID:      currentOrgID(c),
 		ProjectID:  projectID,
 		Status:     c.Query("status"),
-		FeatureKey: c.Query("feature"),
+		FeatureKey: c.Query("feature_key"),
 		JobType:    c.Query("type"),
 		ExactType:  c.Query("exact_type") == "1",
 		Limit:      limit,

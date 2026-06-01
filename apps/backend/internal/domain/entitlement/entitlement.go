@@ -65,24 +65,10 @@ type EntitlementSnapshot struct {
 type EntitlementService interface {
 	Resolve(ctx context.Context, subject SubjectRef) (EntitlementSnapshot, error)
 	CanUse(ctx context.Context, subject SubjectRef, capability Capability) (Decision, error)
-	CanAccessFeature(ctx context.Context, subject SubjectRef, featureKey string) (Decision, error)
-}
-
-type ModelAccessPolicy struct {
-	Allowed          bool     `json:"allowed"`
-	Reason           string   `json:"reason,omitempty"`
-	AllowedModelIDs  []uint   `json:"allowed_model_ids,omitempty"`
-	AllowedProviders []string `json:"allowed_providers,omitempty"`
-}
-
-type GatewayPolicyService interface {
-	ResolveModelAccess(ctx context.Context, subject SubjectRef, featureKey string) (ModelAccessPolicy, error)
-	CanSeeRawKey(ctx context.Context, subject SubjectRef, orgID uint) (bool, error)
 }
 
 type UsageRequest struct {
 	Capability      string  `json:"capability"`
-	FeatureKey      string  `json:"feature_key,omitempty"`
 	EstimatedCost   float64 `json:"estimated_cost"`
 	GatewayAPIKeyID *uint   `json:"gateway_api_key_id,omitempty"`
 }

@@ -52,6 +52,7 @@ import {
   AgentPageShellHeader,
   TabsTrigger,
 } from '@movscript/ui'
+import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import {
   localAgentClient,
   type AgentDraft,
@@ -562,14 +563,14 @@ export default function AIAgentDebugPage() {
   function downloadDebugBundle() {
     const text = currentDebugBundleText()
     const blob = new Blob([text], { type: 'application/json;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
+    const url = createObjectUrl(blob)
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = `agent-debug-bundle-${new Date().toISOString().slice(0, 10)}.json`
     document.body.append(anchor)
     anchor.click()
     anchor.remove()
-    URL.revokeObjectURL(url)
+    revokeObjectUrl(url)
     setDownloaded(true)
     window.setTimeout(() => setDownloaded(false), 1500)
   }

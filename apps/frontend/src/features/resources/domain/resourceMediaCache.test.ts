@@ -6,7 +6,7 @@ import {
   acquireCachedResourceMediaUrl,
   isResourceFileUrl,
   resourceMediaCacheKey,
-} from '@/features/resources/domain/resourceMediaCache'
+} from '@/shared/ui/resourceMediaCache'
 
 test('isResourceFileUrl recognizes backend resource file endpoints', () => {
   assert.equal(isResourceFileUrl('/api/v1/resources/42/file'), true)

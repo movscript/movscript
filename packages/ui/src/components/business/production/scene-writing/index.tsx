@@ -1,4 +1,4 @@
-import type { ComponentType, HTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ComponentType, HTMLAttributes, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
@@ -7,6 +7,7 @@ import { WorkbenchEmptyState } from "../../workbench";
 import {
   Badge,
   Button,
+  DialogContent,
   SelectTrigger,
   StatusBadge,
   Textarea,
@@ -178,6 +179,28 @@ export function ProductionSceneReferenceRemoveButton({
   return <Button size="icon-xs" variant="ghost" tone="danger" className={cn("production-scene-reference-remove-button", className)} {...props} />;
 }
 
+export function ProductionSceneWritingDialogContent({
+  wide = false,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<typeof DialogContent> & {
+  wide?: boolean;
+}) {
+  return (
+    <DialogContent
+      className={cn("production-scene-writing-dialog-content", wide && "production-scene-writing-dialog-content--wide", className)}
+      {...props}
+    />
+  );
+}
+
+export function ProductionSceneWritingDialogBody({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("production-scene-writing-dialog-body", className)} {...props} />;
+}
+
 export function ProductionSceneReferenceEmptyState({ title }: { title: ReactNode }) {
   return <WorkbenchEmptyState compact className="production-scene-reference-empty-state" title={title} />;
 }
@@ -303,15 +326,6 @@ export function ProductionExpressionLineStack({
   return <div className={cn("production-expression-line-stack", className)}>{children}</div>;
 }
 
-export function ProductionExpressionCardGrid({
-  children,
-  className,
-}: HTMLAttributes<HTMLDivElement> & {
-  children: ReactNode;
-}) {
-  return <div className={cn("production-expression-card-grid", className)}>{children}</div>;
-}
-
 export function ProductionExpressionEmptyState({ title }: { title: ReactNode }) {
   return <WorkbenchEmptyState compact title={title} />;
 }
@@ -367,42 +381,6 @@ export function ProductionExpressionLineShell({
       </summary>
       <div className="production-expression-line__body">{children}</div>
     </details>
-  );
-}
-
-export function ProductionExpressionCard({
-  index,
-  badges,
-  speaker,
-  preview,
-  meta,
-  actions,
-  onEdit,
-  className,
-}: HTMLAttributes<HTMLDivElement> & {
-  index: number;
-  badges?: ReactNode;
-  speaker?: ReactNode;
-  preview: ReactNode;
-  meta?: ReactNode;
-  actions?: ReactNode;
-  onEdit: () => void;
-}) {
-  return (
-    <div className={cn("production-expression-card", className)} onClick={onEdit}>
-      <button type="button" className="production-expression-card__main" onClick={onEdit}>
-        <AppIconFrame className="production-expression-card__index">{String(index + 1).padStart(2, "0")}</AppIconFrame>
-        <span className="production-expression-card__copy">
-          <span className="production-expression-card__badges">
-            {badges}
-            {speaker ? <span className="production-expression-card__speaker">{speaker}</span> : null}
-          </span>
-          <span className="production-expression-card__preview">{preview}</span>
-          {meta ? <span className="production-expression-card__meta">{meta}</span> : null}
-        </span>
-      </button>
-      {actions ? <div className="production-expression-card__actions">{actions}</div> : null}
-    </div>
   );
 }
 

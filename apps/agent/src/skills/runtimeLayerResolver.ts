@@ -23,7 +23,23 @@ export interface RuntimeLayerResolution {
     workflowIds: string[]
     intentSignals: RuntimeIntentSignal[]
     workflowTriggers: WorkflowTriggerTrace[]
+    skillOmissions: RuntimeSkillOmission[]
   }
+}
+
+export interface RuntimeSkillOmission {
+  skillId: string
+  name: string
+  kind: SkillDefinition['kind']
+  stage: 'explicit_unloaded' | 'dependency_missing' | 'dependency_inactive' | 'conflict_active' | 'trigger_over_limit' | 'trigger_not_matched' | 'manual_not_loaded' | 'not_selected'
+  reason: string
+  matched?: boolean
+  selected?: boolean
+  triggerReason?: string
+  dependencyIds?: string[]
+  missingDependencyIds?: string[]
+  inactiveDependencyIds?: string[]
+  conflictSkillIds?: string[]
 }
 
 export function resolveRuntimeLayers(input: {
@@ -104,6 +120,13 @@ export function resolveRuntimeLayers(input: {
     activeSkillIds: skills.map((skill) => skill.id),
     workflowTriggers: selected.trace,
   })
+  const skillOmissions = buildRuntimeSkillOmissions({
+    registry: input.registry,
+    profile: resolvedProfile.profile,
+    activeSkillIds: skills.map((skill) => skill.id),
+    workflowTriggers: selected.trace,
+    unloadedSkillIds: input.unloadedSkillIds ?? [],
+  })
 
   const manifest = addSkillToolGrantsToManifest(
     manifestFromProfile(input.baseManifest, resolvedProfile.profile),
@@ -127,6 +150,7 @@ export function resolveRuntimeLayers(input: {
       workflowIds: mergedWorkflows.map((skill) => skill.id),
       intentSignals: intentResolution.signals,
       workflowTriggers: selected.trace,
+      skillOmissions,
     },
   }
 }
@@ -373,6 +397,123 @@ function buildSkillDiscoverySummary(input: {
     catalogVersion: input.registry.version,
     enabledPackIds,
     availableSkills,
+  }
+}
+
+function buildRuntimeSkillOmissions(input: {
+  registry: CatalogRegistry
+  profile: RuntimeContext['profile']
+  activeSkillIds: string[]
+  workflowTriggers: WorkflowTriggerTrace[]
+  unloadedSkillIds: string[]
+}): RuntimeSkillOmission[] {
+  const activeIds = new Set(input.activeSkillIds)
+  const unloadedIds = new Set(input.unloadedSkillIds)
+  const workflowTraceById = new Map(input.workflowTriggers.map((trace) => [trace.id, trace]))
+  const candidateIds = uniqueStrings([
+    ...collectEnabledPackClosure(input.profile.enabledPacks, input.registry.packs)
+      .flatMap((packId) => input.registry.packs.get(packId)?.skills ?? []),
+    ...(input.profile.persona ? [input.profile.persona] : []),
+    ...input.profile.enabledPolicies,
+    ...input.profile.enabledWorkflows,
+  ])
+  const omissions: RuntimeSkillOmission[] = []
+  for (const id of candidateIds) {
+    if (activeIds.has(id)) continue
+    const skill = input.registry.skills.get(id)
+    if (!skill || skill.enabled === false) continue
+    const omission = runtimeSkillOmissionForSkill({
+      skill,
+      activeIds,
+      unloadedIds,
+      workflowTrace: workflowTraceById.get(id),
+      registry: input.registry,
+    })
+    if (omission) omissions.push(omission)
+  }
+  return omissions.sort((left, right) => skillOmissionRank(left.stage) - skillOmissionRank(right.stage) || left.skillId.localeCompare(right.skillId))
+}
+
+function runtimeSkillOmissionForSkill(input: {
+  skill: SkillDefinition
+  activeIds: Set<string>
+  unloadedIds: Set<string>
+  workflowTrace?: WorkflowTriggerTrace
+  registry: CatalogRegistry
+}): RuntimeSkillOmission | undefined {
+  const base = {
+    skillId: input.skill.id,
+    name: input.skill.name,
+    kind: input.skill.kind,
+  }
+  if (input.unloadedIds.has(input.skill.id)) {
+    return {
+      ...base,
+      stage: 'explicit_unloaded',
+      reason: 'Skill was explicitly unloaded for this run.',
+    }
+  }
+  const missingDependencyIds = (input.skill.dependencies ?? []).filter((id) => !input.registry.skills.has(id))
+  if (missingDependencyIds.length > 0) {
+    return {
+      ...base,
+      stage: 'dependency_missing',
+      reason: `Required skill dependencies are missing: ${missingDependencyIds.join(', ')}.`,
+      dependencyIds: [...(input.skill.dependencies ?? [])],
+      missingDependencyIds,
+    }
+  }
+  const inactiveDependencyIds = (input.skill.dependencies ?? []).filter((id) => !input.activeIds.has(id))
+  if (inactiveDependencyIds.length > 0) {
+    return {
+      ...base,
+      stage: 'dependency_inactive',
+      reason: `Required skill dependencies are not active in this run: ${inactiveDependencyIds.join(', ')}.`,
+      dependencyIds: [...(input.skill.dependencies ?? [])],
+      inactiveDependencyIds,
+    }
+  }
+  const conflictSkillIds = (input.skill.conflicts ?? []).filter((id) => input.activeIds.has(id))
+  if (conflictSkillIds.length > 0) {
+    return {
+      ...base,
+      stage: 'conflict_active',
+      reason: `Conflicting active skill(s) selected in this run: ${conflictSkillIds.join(', ')}.`,
+      conflictSkillIds,
+    }
+  }
+  if (input.workflowTrace && !input.workflowTrace.selected) {
+    return {
+      ...base,
+      stage: input.workflowTrace.matched ? 'trigger_over_limit' : 'trigger_not_matched',
+      reason: input.workflowTrace.matched
+        ? 'Workflow trigger matched but was not selected because the active workflow limit was reached.'
+        : 'Workflow trigger did not match the current request/context.',
+      matched: input.workflowTrace.matched,
+      selected: input.workflowTrace.selected,
+      triggerReason: input.workflowTrace.reason,
+    }
+  }
+  if (input.skill.loadMode === 'manual') {
+    return {
+      ...base,
+      stage: 'manual_not_loaded',
+      reason: 'Manual skill is available but was not loaded for this run.',
+    }
+  }
+  return undefined
+}
+
+function skillOmissionRank(stage: RuntimeSkillOmission['stage']): number {
+  switch (stage) {
+    case 'explicit_unloaded': return 0
+    case 'dependency_missing': return 1
+    case 'dependency_inactive': return 2
+    case 'conflict_active': return 3
+    case 'trigger_over_limit': return 4
+    case 'trigger_not_matched': return 5
+    case 'manual_not_loaded': return 6
+    default: return 7
   }
 }
 

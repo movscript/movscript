@@ -80,6 +80,8 @@ test('applyRuntimeRunCompletion creates assistant message, completion traces, me
   assert.deepEqual(completedStep?.result, { messageId: 'msg_assistant' })
   assert.equal(traces[0]?.kind, 'assistant')
   assert.equal(traces[0]?.stepId, 'step_1')
+  assert.equal(traces[0]?.summary, `Assistant message created (${assistant.content.length} chars).`)
+  assert.doesNotMatch(traces[0]?.summary ?? '', /Final answer/)
   assert.equal(traces[1]?.kind, 'run')
   assert.equal(traces[1]?.status, 'info')
   assert.deepEqual(assistantMessages.map((message) => message.id), ['msg_assistant'])

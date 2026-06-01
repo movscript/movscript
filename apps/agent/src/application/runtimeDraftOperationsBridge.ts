@@ -11,8 +11,8 @@ import {
   rejectRuntimeDraft,
   simulateRuntimeDraftApply,
   updateRuntimeDraft,
-  type RuntimeDraftBackendApplyClient,
 } from './runtimeDraftOperations.js'
+import type { RuntimeDraftBackendApplyPort } from '../ports/draft/runtimeDraftBackendApplyPort.js'
 
 export interface RuntimeDraftOperationsBridge {
   listDrafts: (query?: Parameters<typeof listRuntimeDrafts>[0]['query']) => AgentDraft[]
@@ -27,7 +27,7 @@ export interface RuntimeDraftOperationsBridge {
 
 export function createRuntimeDraftOperationsBridge(input: {
   draftStore: AgentDraftStore
-  backendApplyClient: RuntimeDraftBackendApplyClient
+  backendApplyPort: RuntimeDraftBackendApplyPort
   now?: () => string
 }): RuntimeDraftOperationsBridge {
   const now = input.now ?? isoNow
@@ -39,12 +39,12 @@ export function createRuntimeDraftOperationsBridge(input: {
     previewApplyDraft: (applyInput) => previewRuntimeDraftApply({ draftStore: input.draftStore, applyInput }),
     simulateApplyDraft: (applyInput) => simulateRuntimeDraftApply({
       draftStore: input.draftStore,
-      backendApplyClient: input.backendApplyClient,
+      backendApplyPort: input.backendApplyPort,
       applyInput,
     }),
     applyDraftFromUI: (applyInput) => applyRuntimeDraftFromUI({
       draftStore: input.draftStore,
-      backendApplyClient: input.backendApplyClient,
+      backendApplyPort: input.backendApplyPort,
       applyInput,
       now,
     }),

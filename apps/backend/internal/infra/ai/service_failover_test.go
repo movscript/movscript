@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -18,11 +19,11 @@ func TestRuntimeModelAttemptOrderUsesCapacityWeight(t *testing.T) {
 	runtimeProviderHealth.Delete(uint(102))
 	candidates := []runtimeModelCandidate{
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 101}, ModelDefID: "gpt-5.5", Priority: 10, CapacityWeight: 2},
+			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 101}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 2},
 			priority: 10,
 		},
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 102}, ModelDefID: "gpt-5.5", Priority: 10, CapacityWeight: 1},
+			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 102}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 1},
 			priority: 10,
 		},
 	}
@@ -47,11 +48,11 @@ func TestRuntimeModelAttemptOrderAvoidsSaturatedProvider(t *testing.T) {
 	defer finish(nil)
 	candidates := []runtimeModelCandidate{
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 201}, ModelDefID: "gpt-5.5", Priority: 10, CapacityWeight: 10, MaxConcurrency: 1},
+			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 201}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 10, MaxConcurrency: 1},
 			priority: 10,
 		},
 		{
-			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 202}, ModelDefID: "gpt-5.5", Priority: 10, CapacityWeight: 1},
+			cfg:      persistencemodel.AIModelConfig{Model: gorm.Model{ID: 202}, ModelDefID: "gpt-5.2", Priority: 10, CapacityWeight: 1},
 			priority: 10,
 		},
 	}
@@ -190,8 +191,8 @@ func TestCallImageWithUsageFailsOverToNextProviderVariant(t *testing.T) {
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
 	)
-	createProviderVariant(t, db, 1, "Busy provider", "gpt-image-1", 10)
-	createProviderVariant(t, db, 2, "Healthy provider", "gpt-image-1", 10)
+	createProviderVariant(t, db, 1, "Busy provider", "gpt-image-1", 10, CapabilityImage)
+	createProviderVariant(t, db, 2, "Healthy provider", "gpt-image-1", 10, CapabilityImage)
 
 	calls := map[string]int{}
 	registry := NewRegistry(db, nil)
@@ -224,12 +225,16 @@ func findProviderHealth(items []RuntimeProviderHealth, modelConfigID uint) *Runt
 }
 
 func resetFailoverTestState() {
-	priorityRoundRobinCounters.Delete("service.runtime_model:text:gpt-5.5:attempts:10")
+	priorityRoundRobinCounters.Delete("service.runtime_model:text:gpt-5.2:attempts:10")
 	runtimeProviderHealth.Delete(uint(1))
 	runtimeProviderHealth.Delete(uint(2))
 }
 
 func createTextProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName string) {
+	createProviderVariant(t, db, id, providerName, "gpt-5.2", 10, CapabilityText)
+}
+
+func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName string, modelDefID string, priority int, capabilities ...string) {
 	t.Helper()
 	cred := persistencemodel.AICredential{
 		Model:       gorm.Model{ID: id},
@@ -243,11 +248,11 @@ func createTextProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName 
 	cfg := persistencemodel.AIModelConfig{
 		Model:              gorm.Model{ID: id},
 		CredentialID:       cred.ID,
-		ModelDefID:         "gpt-5.5",
+		ModelDefID:         modelDefID,
 		IsEnabled:          true,
-		Priority:           10,
-		CustomDisplayName:  "GPT 5.5",
-		CustomCapabilities: CapabilityText,
+		Priority:           priority,
+		CustomDisplayName:  modelDefID,
+		CustomCapabilities: strings.Join(capabilities, ","),
 	}
 	if err := db.Create(&cfg).Error; err != nil {
 		t.Fatalf("create model config: %v", err)
@@ -263,8 +268,8 @@ func (p failoverTextProvider) Ping(context.Context) error { return nil }
 
 func (p failoverTextProvider) TextGenerate(_ context.Context, req TextRequest) (TextResponse, error) {
 	p.calls[p.name]++
-	if req.Model != "gpt-5.5" {
-		return TextResponse{}, fmt.Errorf("model = %q, want gpt-5.5", req.Model)
+	if req.Model != "gpt-5.2" {
+		return TextResponse{}, fmt.Errorf("model = %q, want gpt-5.2", req.Model)
 	}
 	if p.name == "Busy provider" {
 		return TextResponse{}, fmt.Errorf("provider busy")
@@ -277,8 +282,8 @@ func (p failoverTextProvider) TextGenerate(_ context.Context, req TextRequest) (
 
 func (p failoverTextProvider) TextStream(_ context.Context, req TextRequest) (<-chan TextStreamEvent, error) {
 	p.calls[p.name]++
-	if req.Model != "gpt-5.5" {
-		return nil, fmt.Errorf("model = %q, want gpt-5.5", req.Model)
+	if req.Model != "gpt-5.2" {
+		return nil, fmt.Errorf("model = %q, want gpt-5.2", req.Model)
 	}
 	if p.name == "Busy provider" {
 		return nil, fmt.Errorf("provider busy")

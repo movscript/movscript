@@ -1,19 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
-import type { BackendApplyResult } from '../drafts/backendApplyClient.js'
+import type { RuntimeDraftBackendApplyResult } from '../ports/draft/runtimeDraftBackendApplyPort.js'
 import { createRuntimeDraftOperationsBridge } from './runtimeDraftOperationsBridge.js'
 
 test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', async () => {
   const draftStore = new InMemoryAgentDraftStore()
-  const backendApply: BackendApplyResult = { performed: false, skippedReason: 'test' }
-  const backendApplyClient = {
-    previewApplyReview: async () => backendApply,
+  const backendApply: RuntimeDraftBackendApplyResult = { performed: false, skippedReason: 'test' }
+  const backendApplyPort = {
+    previewApplyReview: async () => ({ ok: true, backendApply } as const),
     applyReview: async () => backendApply,
   }
   const bridge = createRuntimeDraftOperationsBridge({
     draftStore,
-    backendApplyClient,
+    backendApplyPort,
     now: () => '2026-01-01T00:00:00.000Z',
   })
 
@@ -37,7 +37,7 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
     targetEntityType: 'script',
     targetEntityId: 1,
     targetField: 'content',
-  }) as { ok?: boolean; backendApply?: BackendApplyResult }
+  }) as { ok?: boolean; backendApply?: RuntimeDraftBackendApplyResult }
   const rejected = bridge.rejectDraft({ draftId: draft.id, reason: 'not needed' })
 
   assert.equal(bridge.listDrafts({ projectId: 42 }).length, 1)

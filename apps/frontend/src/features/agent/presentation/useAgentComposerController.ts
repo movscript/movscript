@@ -13,6 +13,7 @@ import {
   serializeMentionEditor,
   setCaretAtEnd,
 } from '@/features/agent/presentation/agentMentionEditorModel'
+import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import { useAgentStore, type AgentAttachment } from '@/features/agent/state/agentStore'
 import type { RawResource } from '@/types'
 
@@ -107,18 +108,16 @@ export function useAgentComposerController({
 
   function revokeAttachmentPreviewUrls(items: AgentAttachment[]) {
     for (const attachment of items) {
-      if (attachment.previewUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(attachment.previewUrl)
-      }
+      revokeObjectUrl(attachment.previewUrl)
     }
   }
 
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files)
     if (list.length === 0) return
-    const pending = list.map((file) => {
+    const pending = await Promise.all(list.map(async (file) => {
       const kind = attachmentKind(file.type, file.name)
-      const previewUrl = (kind === 'image' || kind === 'video') ? URL.createObjectURL(file) : undefined
+      const previewUrl = (kind === 'image' || kind === 'video') ? createObjectUrl(file) : undefined
       return {
         id: `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
         name: file.name,
@@ -126,8 +125,9 @@ export function useAgentComposerController({
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
         previewUrl,
+        ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
       } satisfies AgentAttachment
-    })
+    }))
     const currentAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
     updateDraft({ attachments: [...currentAttachments, ...pending] })
     setUploading(true)
@@ -141,6 +141,7 @@ export function useAgentComposerController({
           ...attachmentFromResource(data as RawResource),
           id: pending[index]?.id ?? `res-${(data as RawResource).ID}`,
           previewUrl: pending[index]?.previewUrl,
+          ...(pending[index]?.dataUrl ? { dataUrl: pending[index].dataUrl } : {}),
         })
       }
       const latestAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
@@ -161,6 +162,15 @@ export function useAgentComposerController({
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  function fileToDataURL(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result ?? ''))
+      reader.onerror = () => reject(reader.error ?? new Error('failed to read image attachment'))
+      reader.readAsDataURL(file)
+    })
   }
 
   function dataTransferTypes(event: DragEvent) {
@@ -300,7 +310,7 @@ export function useAgentComposerController({
   function removeAttachment(id: string) {
     const removed = composerAttachments.find((a) => a.id === id)
     updateDraft({ attachments: attachments.filter((a) => a.id !== id) })
-    if (removed?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(removed.previewUrl)
+    revokeObjectUrl(removed?.previewUrl)
     if (removed?.resourceId !== undefined) {
       const tokenPattern = new RegExp(`\\s*@\\[resource:${removed.resourceId}\\]\\s*`, 'g')
       updateDraft({ input: normalizeInlineSpacing(input.replace(tokenPattern, ' ')) })

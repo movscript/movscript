@@ -1,6 +1,8 @@
 # Binaries
 apps/backend/bin/
 apps/backend/main
+apps/backend/.gocache
+apps/backend/.cache
 apps/frontend/dist/
 apps/frontend/dist-electron/
 apps/frontend/out/

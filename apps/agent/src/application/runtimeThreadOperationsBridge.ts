@@ -1,4 +1,5 @@
 import type { AgentStore, AgentThreadClearResult, AgentThreadDeletionResult } from '../state/store.js'
+import { isExecutingRunStatus } from '../state/runStatus.js'
 import type {
   AgentMessage,
   AgentSession,
@@ -69,13 +70,19 @@ export function createRuntimeThreadOperationsBridge(input: {
       update,
       now: now(),
     }),
-    deleteThread: (id) => deleteRuntimeThread({
-      store: input.store,
-      threadId: id,
-    }),
-    deleteAllThreads: () => deleteAllRuntimeThreads({
-      store: input.store,
-    }),
+    deleteThread: (id) => {
+      assertThreadHasNoActiveRuns(input.store, id)
+      return deleteRuntimeThread({
+        store: input.store,
+        threadId: id,
+      })
+    },
+    deleteAllThreads: () => {
+      assertNoActiveRuns(input.store)
+      return deleteAllRuntimeThreads({
+        store: input.store,
+      })
+    },
     addMessage: (id, messageInput) => addRuntimeThreadMessage({
       store: input.store,
       threadId: id,
@@ -84,6 +91,16 @@ export function createRuntimeThreadOperationsBridge(input: {
       messageInput,
     }),
   }
+}
+
+function assertThreadHasNoActiveRuns(store: AgentStore, threadId: string): void {
+  const activeRun = store.listRuns({ threadId }).find((run) => isExecutingRunStatus(run.status))
+  if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
+}
+
+function assertNoActiveRuns(store: AgentStore): void {
+  const activeRun = store.listRuns().find((run) => isExecutingRunStatus(run.status))
+  if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
 }
 
 function messageInputId(input: CreateMessageInput): string | undefined {

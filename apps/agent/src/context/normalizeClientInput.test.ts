@@ -149,7 +149,36 @@ test('buildRuntimeUserMessage includes sanitized attachment references only', ()
       '',
       '[用户附件引用]',
       '1. Board (image, unknown, 10 bytes, id=att_1)',
-      '当前 runtime 只接收附件引用和元数据；需要理解媒体内容时必须使用可用工具读取资源上下文，不能假设已经读取二进制内容。',
+      '图片附件如果包含 data_url，会直接传给支持 vision 的模型；没有 data_url 的附件只能作为元数据或通过工具读取。',
+      '视频附件不会作为视频 payload 发送给模型；如需理解画面内容，调用 core_video_extract_frames 按 resource_id 本地抽帧，抽出的帧会作为图片输入传给模型。',
     ].join('\n'),
   )
+})
+
+test('buildRuntimeUserMessage marks video attachments as metadata-only with extraction guidance', () => {
+  const normalized = normalizeClientInput({
+    visibleMessage: '看看这个视频',
+    attachments: [{ id: 'att_v', name: 'clip.mp4', type: 'video', mimeType: 'video/mp4', size: 200, resourceId: 99 }],
+  })
+
+  assert.ok(normalized)
+  const message = buildRuntimeUserMessage(normalized)
+  assert.match(message, /video_payload=metadata_only/)
+  assert.match(message, /core_video_extract_frames/)
+  assert.doesNotMatch(message, /data:image/)
+})
+
+test('normalizeClientInput preserves standard image data URLs', () => {
+  const normalized = normalizeClientInput({
+    message: 'review',
+    attachments: [
+      { id: 'att_1', name: 'Board', type: 'image', dataUrl: 'data:image/png;base64,AAAA' },
+      { id: 'att_2', name: 'Bad', type: 'image', dataUrl: 'https://example.com/not-data-url.png' },
+    ],
+  })
+
+  assert.deepEqual(normalized?.attachments, [
+    { id: 'att_1', name: 'Board', type: 'image', dataUrl: 'data:image/png;base64,AAAA' },
+    { id: 'att_2', name: 'Bad', type: 'image' },
+  ])
 })

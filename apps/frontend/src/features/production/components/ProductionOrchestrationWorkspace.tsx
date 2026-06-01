@@ -211,7 +211,7 @@ export function ProductionOrchestrationWorkspace({
             resizeHandleSide="left"
           >
             <ProductionOrchestrationDetailContent>
-              <ProductionSceneEditorSection className="production-orchestration-detail-stage">
+              <ProductionSceneEditorSection>
                 <SceneMomentSettingsEditor
                   moment={view.selectedMoment}
                   creativeReferences={creativeReferences}
@@ -238,7 +238,7 @@ export function ProductionOrchestrationWorkspace({
                 />
               </ProductionSceneEditorSection>
 
-              <ProductionSceneEditorSection className="production-orchestration-detail-stage">
+              <ProductionSceneEditorSection>
                 <SceneMomentScriptBlockBinder
                   selectedMoment={view.selectedMoment}
                   momentBlock={view.selectedMomentScriptBlock}
@@ -252,19 +252,20 @@ export function ProductionOrchestrationWorkspace({
                 />
               </ProductionSceneEditorSection>
 
-              <ProductionWritingExpressionsPanel
-                className="production-orchestration-detail-stage"
-                selectedMoment={view.selectedMoment}
-                selectedMomentScriptBlock={view.selectedMomentScriptBlock}
-                expressionLines={view.expressionLines}
-                creativeReferences={creativeReferences}
-                lookup={lookup}
-                isSavingExpressionLine={isSavingExpressionLine}
-                canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
-                onAddExpressionLine={onAddExpressionLine}
-                onSaveExpressionLine={onSaveExpressionLine}
-                onDeleteExpressionLine={onDeleteExpressionLine}
-              />
+              <ProductionSceneEditorSection>
+                <ProductionWritingExpressionsPanel
+                  selectedMoment={view.selectedMoment}
+                  selectedMomentScriptBlock={view.selectedMomentScriptBlock}
+                  expressionLines={view.expressionLines}
+                  creativeReferences={creativeReferences}
+                  lookup={lookup}
+                  isSavingExpressionLine={isSavingExpressionLine}
+                  canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
+                  onAddExpressionLine={onAddExpressionLine}
+                  onSaveExpressionLine={onSaveExpressionLine}
+                  onDeleteExpressionLine={onDeleteExpressionLine}
+                />
+              </ProductionSceneEditorSection>
               <ProductionShotPlanPanel
                 row={shotPlanRow}
                 selectedUnit={selectedContentUnit}

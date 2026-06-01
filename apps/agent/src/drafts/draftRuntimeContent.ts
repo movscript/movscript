@@ -1,7 +1,6 @@
 import type { JSONValue } from '../types.js'
 import { isJSONRecord, isRecord } from '../jsonValue.js'
 import { isValidAgentReferenceId } from '../context/runtimeContext.js'
-import type { BackendApplyResult } from './backendApplyClient.js'
 import type { AgentDraft, AgentDraftSource } from './draftStore.js'
 
 export function assetProposalContainsAssetSlots(content: string): boolean {
@@ -15,7 +14,7 @@ export function assetProposalContainsAssetSlots(content: string): boolean {
   }
 }
 
-export function canonicalizeProjectStandardsProposalDraftContent(draft: AgentDraft, backendApply: BackendApplyResult): string | undefined {
+export function canonicalizeProjectStandardsProposalDraftContent(draft: AgentDraft, backendApply: { response?: unknown }): string | undefined {
   if (draft.kind !== 'setting_proposal' && draft.kind !== 'asset_proposal' && draft.kind !== 'project_standards_proposal') return undefined
   const response = isRecord(backendApply.response) ? backendApply.response : undefined
   const canonicalSnapshot = isJSONRecord(response?.canonical_snapshot) ? response.canonical_snapshot : undefined

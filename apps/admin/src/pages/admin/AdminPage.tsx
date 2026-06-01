@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -31,16 +31,13 @@ import { publicModelLabel } from '@/lib/modelDisplay'
 import {
   cloudFileConfigToggleConfirmKey,
   credentialToggleConfirmKey,
-  featureToggleConfirmKey,
   modelConfigDisplayName,
   nextCredentialEnabledState,
-  type AdminFeatureUpdatePayload,
 } from '@/lib/adminActionGuards'
 import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryParams'
 import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@/lib/adminLogQueryParams'
 import { gatewayKeyAuditHref, gatewayKeyUsageHref } from '@/lib/adminGatewayKeyLinks'
 import { adminHref } from '@/lib/adminRoutes'
-import { groupAdminFeatures } from '@/lib/adminFeatureGroups'
 import {
   emptyProjectListFilters,
   projectFiltersFromSearchParams,
@@ -88,14 +85,6 @@ function adapterDescription(adapter: Pick<AdapterDef, 'adapter_type' | 'descript
 
 function credentialFieldLabel(key: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
   return t(`admin.credentialFields.${key}`, { defaultValue: fallback })
-}
-
-function featureDisplayName(feature: FeatureConfig, t: (key: string, options?: Record<string, unknown>) => string) {
-  return t(`admin.features.catalog.${feature.feature_key}.name`, { defaultValue: feature.display_name })
-}
-
-function featureDescription(feature: FeatureConfig, t: (key: string, options?: Record<string, unknown>) => string) {
-  return t(`admin.features.catalog.${feature.feature_key}.description`, { defaultValue: feature.description })
 }
 
 function runtimeModelConfigFromAdmin(cred: AICredential, cfg: AIModelConfig, defaultBaseURL?: string) {
@@ -579,13 +568,15 @@ function CredentialForm({
   async function handleCreateAndTest() {
     setTestState({ loading: true, result: null })
     try {
-      const cred: AICredential = await api.post('/admin/credentials', buildPayload()).then((r) => r.data)
+      await api.post('/admin/credentials', { ...buildPayload(), require_test_success: true }).then((r) => r.data)
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      const res = await api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
-      setTestState({ loading: false, result: res })
-      if (res.success) onSuccess(adapter.adapter_type)
+      setTestState({ loading: false, result: { success: true, message: '连接正常', latency_ms: 0 } })
+      onSuccess(adapter.adapter_type)
     } catch (e: any) {
-      setTestState({ loading: false, result: { success: false, message: translateAPIRequestError(e), latency_ms: 0 } })
+      setTestState({
+        loading: false,
+        result: e?.response?.data?.test_result ?? { success: false, message: translateAPIRequestError(e), latency_ms: 0 },
+      })
     }
   }
 
@@ -1996,11 +1987,13 @@ export function ModelManagementPage() {
                           {addAcceptsImage && (
                             <div className="flex items-center gap-1.5">
                               <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
-                              <input
+                              <Input
                                 type="number"
                                 min={-1}
                                 step={1}
-                                className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                                controlSize="sm"
+                                invalid={!isValidInputLimit(addMaxInputImages)}
+                                className="w-16 text-xs"
                                 value={addMaxInputImages}
                                 onChange={e => setAddMaxInputImages(Number(e.target.value))}
                                 placeholder="1"
@@ -2009,11 +2002,13 @@ export function ModelManagementPage() {
                           )}
                           <div className="flex items-center gap-1.5">
                             <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
-                            <input
+                            <Input
                               type="number"
                               min={-1}
                               step={1}
-                              className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                              controlSize="sm"
+                              invalid={!isValidInputLimit(addMaxInputVideos)}
+                              className="w-16 text-xs"
                               value={addMaxInputVideos}
                               onChange={e => setAddMaxInputVideos(Number(e.target.value))}
                               placeholder="0"
@@ -2101,7 +2096,13 @@ export function ModelManagementPage() {
                             )}
                           </div>
                           {caps.length > 0 && (
-                            <span className="text-muted-foreground">{caps.join(',')}</span>
+                            <div className="flex flex-wrap items-center justify-end gap-1">
+                              {caps.map((cap) => (
+                                <StatusBadge key={cap} intent={CAPABILITY_STATUS_INTENT[cap] ?? 'neutral'} className="text-xs">
+                                  {CAPABILITY_TRANSLATION_KEYS[cap] ? t(CAPABILITY_TRANSLATION_KEYS[cap]) : cap}
+                                </StatusBadge>
+                              ))}
+                            </div>
                           )}
                           {pricing && (
                             <span className="text-muted-foreground/50">{PRICING_LABEL_KEYS[pricing] ? t(PRICING_LABEL_KEYS[pricing]) : pricing}</span>
@@ -2188,7 +2189,7 @@ export function ModelManagementPage() {
                                   className="text-xs font-mono"
                                   value={editForm.model_id_override}
                                   onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
-                                  placeholder={t('admin.features.modelIdOverrideShortPlaceholder')}
+                                  placeholder={t('admin.models.modelIdOverrideShortPlaceholder', { defaultValue: 'e.g. ep-xxx' })}
                                 />
                               </div>
                             </div>
@@ -2295,11 +2296,13 @@ export function ModelManagementPage() {
                               {editForm.accepts_image && (
                                 <div className="flex items-center gap-1.5">
                                   <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
-                                  <input
+                                  <Input
                                     type="number"
                                     min={-1}
                                     step={1}
-                                    className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                                    controlSize="sm"
+                                    invalid={!isValidInputLimit(editForm.max_input_images)}
+                                    className="w-16 text-xs"
                                     value={editForm.max_input_images}
                                     onChange={(e) => setEditForm((f) => ({ ...f, max_input_images: Number(e.target.value) }))}
                                     placeholder="1"
@@ -2308,11 +2311,13 @@ export function ModelManagementPage() {
                               )}
                               <div className="flex items-center gap-1.5">
                                 <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
-                                <input
+                                <Input
                                   type="number"
                                   min={-1}
                                   step={1}
-                                  className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                                  controlSize="sm"
+                                  invalid={!isValidInputLimit(editForm.max_input_videos)}
+                                  className="w-16 text-xs"
                                   value={editForm.max_input_videos}
                                   onChange={(e) => setEditForm((f) => ({ ...f, max_input_videos: Number(e.target.value) }))}
                                   placeholder="0"
@@ -3413,503 +3418,6 @@ const CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps['intent']> = {
   video_v2v: 'neutral',
 }
 
-function FeatureRow({
-  feature,
-  onUpdate,
-  onUpdatePrompt,
-  onGoToModels,
-  isPending,
-}: {
-  feature: FeatureConfig
-  onUpdate: (data: { is_enabled?: boolean; allowed_model_ids?: number[]; default_model_id?: number | null; allowed_roles?: string[] }) => void
-  onUpdatePrompt: (data: { system_prompt_override?: string; max_tokens_override?: number }) => void
-  onGoToModels: () => void
-  isPending: boolean
-}) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [promptOverride, setPromptOverride] = useState(feature.system_prompt_override)
-  const [maxTokensOverride, setMaxTokensOverride] = useState(() => feature.max_tokens_override > 0 ? String(feature.max_tokens_override) : '')
-  const [promptSaved, setPromptSaved] = useState(false)
-  // Inline model editing state: modelId → edit form open
-  const [editingModelId, setEditingModelId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<{ custom_display_name: string; short_name: string; model_id_override: string; priority: string; capacity_weight: string; max_concurrency: string }>({
-    custom_display_name: '', short_name: '', model_id_override: '', priority: '0', capacity_weight: '1', max_concurrency: '0',
-  })
-
-  // Query models for this specific feature — backend decides which capabilities are compatible.
-  const { data: availableModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'feature', feature.feature_key, 'provider-variants'],
-    queryFn: () => api.get(`/models?feature=${feature.feature_key}&provider_variants=true`).then((r) => r.data),
-  })
-
-  const allowed = new Set(feature.allowed_model_ids)
-  const parsedMaxTokensOverride = maxTokensOverride.trim() === '' ? 0 : Number(maxTokensOverride)
-  const maxTokensOverrideValid = Number.isInteger(parsedMaxTokensOverride) && parsedMaxTokensOverride >= 0
-
-  const patchModel = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
-      api.patch(`/admin/model-configs/${id}`, data).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['models'] })
-      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      setEditingModelId(null)
-    },
-  })
-
-  function toggleModel(id: number) {
-    const next = new Set(allowed)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    onUpdate({ allowed_model_ids: Array.from(next) })
-  }
-
-  function openEdit(m: PublicModel) {
-    setEditingModelId(m.id)
-    setEditForm({
-      custom_display_name: m.display_name,
-      short_name: m.short_name ?? '',
-      model_id_override: m.model_id_override ?? '',
-      priority: String(m.priority ?? 0),
-      capacity_weight: String(m.capacity_weight ?? 1),
-      max_concurrency: String(m.max_concurrency ?? 0),
-    })
-  }
-
-  function saveEdit(id: number) {
-    patchModel.mutate({
-      id,
-      data: {
-        custom_display_name: editForm.custom_display_name,
-        short_name: editForm.short_name,
-        model_id_override: editForm.model_id_override,
-        priority: Number(editForm.priority),
-        capacity_weight: Math.max(1, parseInt(editForm.capacity_weight, 10) || 1),
-        max_concurrency: Math.max(0, parseInt(editForm.max_concurrency, 10) || 0),
-      },
-    })
-  }
-
-  function savePrompt() {
-    if (!maxTokensOverrideValid) return
-    onUpdatePrompt({
-      system_prompt_override: promptOverride,
-      max_tokens_override: parsedMaxTokensOverride,
-    })
-    setPromptSaved(true)
-    setTimeout(() => setPromptSaved(false), 2000)
-  }
-
-  useEffect(() => {
-    setPromptOverride(feature.system_prompt_override)
-    setMaxTokensOverride(feature.max_tokens_override > 0 ? String(feature.max_tokens_override) : '')
-  }, [feature.feature_key, feature.system_prompt_override, feature.max_tokens_override])
-
-  const effectivePrompt = promptOverride || feature.default_system_prompt
-  const hasOverride = promptOverride !== '' && promptOverride !== feature.default_system_prompt
-  const isTextCap = feature.capability === 'text' || feature.capability === 'reasoning'
-
-  return (
-    <div className="border border-border rounded-lg bg-background overflow-hidden">
-      {/* Header row */}
-      <div className="flex items-start gap-3 px-4 py-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-foreground">{featureDisplayName(feature, t)}</p>
-            <StatusBadge intent={CAPABILITY_STATUS_INTENT[feature.capability] ?? 'neutral'} className="text-xs">
-              {CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability}
-            </StatusBadge>
-            <span className="text-xs text-muted-foreground font-mono">{feature.feature_key}</span>
-            {feature.max_tokens > 0 && (
-              <span className="text-xs text-muted-foreground/60">max {feature.max_tokens}t</span>
-            )}
-          </div>
-          {feature.description && (
-            <p className="text-xs text-muted-foreground mt-0.5">{featureDescription(feature, t)}</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0 mt-0.5">
-          {isTextCap && (
-            <button
-              onClick={() => setShowPrompt(!showPrompt)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-              title={t('admin.features.systemPrompt')}
-            >
-              {showPrompt ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              {t('admin.features.prompt')}{hasOverride && <AppMarkerDot tone="warning" size="2xs" />}
-            </button>
-          )}
-          <button
-            disabled={isPending}
-            onClick={() => onUpdate({ is_enabled: !feature.is_enabled })}
-            className={cn(
-              'text-xs px-2 py-0.5 rounded-full transition-colors',
-              feature.is_enabled ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'
-            )}
-          >
-            {feature.is_enabled ? t('admin.features.enabled') : t('admin.features.disabled')}
-          </button>
-        </div>
-      </div>
-
-      {/* System prompt section — text features only */}
-      {isTextCap && showPrompt && (
-        <div className="border-t border-border px-4 py-3 bg-card space-y-2">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              {t('admin.features.defaultSystemPrompt')}
-              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.defaultSystemPromptHint')}</span>
-            </p>
-            <pre className="text-xs font-mono bg-muted/50 rounded p-2 whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
-              {feature.default_system_prompt || t('admin.features.noSystemPrompt')}
-            </pre>
-          </div>
-          {feature.output_schema && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1">{t('admin.features.outputSchema')}</p>
-              <pre className="text-xs font-mono bg-muted/50 rounded p-2 whitespace-pre-wrap break-all leading-relaxed text-muted-foreground">
-                {feature.output_schema}
-              </pre>
-            </div>
-          )}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">
-              {t('admin.features.customOverride')}
-              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.customOverrideHint')}</span>
-            </p>
-            <textarea
-              value={promptOverride}
-              onChange={(e) => setPromptOverride(e.target.value)}
-              placeholder={effectivePrompt}
-              rows={3}
-              className="w-full text-xs font-mono border border-border rounded p-2 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <div className="mt-2 flex items-end justify-end gap-3">
-              <div className="mr-auto max-w-[180px]">
-                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.features.maxTokensOverride')}</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={maxTokensOverride}
-                  onChange={(event) => setMaxTokensOverride(event.target.value)}
-                  placeholder={feature.max_tokens > 0 ? String(feature.max_tokens) : '0'}
-                  invalid={!maxTokensOverrideValid}
-                  className="h-7 text-xs"
-                />
-                <p className="mt-1 text-[10px] text-muted-foreground">{t('admin.features.maxTokensOverrideHint')}</p>
-              </div>
-              <button
-                onClick={savePrompt}
-                disabled={isPending || !maxTokensOverrideValid}
-                className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {promptSaved ? t('admin.features.saved') : t('admin.features.saveOverride')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Model selector */}
-      <div className="border-t border-border px-4 py-3 bg-card space-y-2">
-        <p className="text-xs text-muted-foreground">
-          {t('admin.features.availableModels')}
-          <span className="ml-1 text-muted-foreground/60">
-            {allowed.size === 0 ? t('admin.features.unrestrictedModelsHint') : t('admin.features.selectedModelsHint', { count: allowed.size })}
-          </span>
-        </p>
-        {availableModels.length === 0 ? (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground/60">{t('admin.features.noConfiguredModels', { capability: CAPABILITY_TRANSLATION_KEYS[feature.capability] ? t(CAPABILITY_TRANSLATION_KEYS[feature.capability]) : feature.capability })}</p>
-            <button
-              onClick={onGoToModels}
-              className="text-xs text-primary hover:underline"
-            >
-              {t('admin.features.goToModels')}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {availableModels.map((m) => (
-              <div key={m.id}>
-                {/* Model chip row */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    disabled={isPending}
-                    onClick={() => toggleModel(m.id)}
-                    className={cn(
-                      'flex-1 text-xs px-2.5 py-1 rounded border transition-colors text-left',
-                      allowed.has(m.id)
-                        ? 'border-ring bg-accent text-foreground font-medium'
-                        : 'border-border bg-background text-muted-foreground hover:border-ring/50 hover:text-foreground'
-                    )}
-                  >
-                    {publicModelLabel(m, true)}
-                    {m.model_id_override && (
-                      <span className="ml-1.5 font-mono text-muted-foreground/50">{m.model_id_override}</span>
-                    )}
-                    {m.accepts_image_input && (
-                      <span className="ml-1.5 text-muted-foreground/50">{t('admin.features.imageInputMark')}</span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => editingModelId === m.id ? setEditingModelId(null) : openEdit(m)}
-                    className="text-muted-foreground/40 hover:text-muted-foreground p-1"
-                    title={t('admin.features.editModelConfig')}
-                  >
-                    {editingModelId === m.id ? <X size={12} /> : <Pencil size={12} />}
-                  </button>
-                </div>
-
-                {/* Inline edit panel */}
-                {editingModelId === m.id && (
-                  <div className="ml-0 mt-1 border border-border rounded bg-muted/30 p-3 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.displayName')}</Label>
-                        <Input
-                          className="text-xs h-7"
-                          value={editForm.custom_display_name}
-                          onChange={(e) => setEditForm((f) => ({ ...f, custom_display_name: e.target.value }))}
-                          placeholder={t('admin.features.leaveBlankUseModelId')}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.shortName')}</Label>
-                        <Input
-                          className="text-xs h-7"
-                          value={editForm.short_name}
-                          onChange={(e) => setEditForm((f) => ({ ...f, short_name: e.target.value }))}
-                          placeholder={t('admin.models.shortNamePlaceholder')}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('common.modelIdOverride')}</Label>
-                        <Input
-                          className="text-xs h-7 font-mono"
-                          value={editForm.model_id_override}
-                          onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
-                          placeholder={t('admin.features.modelIdOverridePlaceholder')}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24">
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.features.priority')}</Label>
-                        <Input
-                          type="number"
-                          className="text-xs h-7"
-                          value={editForm.priority}
-                          onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value }))}
-                        />
-                      </div>
-                      <div className="w-28">
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          className="text-xs h-7"
-                          value={editForm.capacity_weight}
-                          onChange={(e) => setEditForm((f) => ({ ...f, capacity_weight: e.target.value }))}
-                        />
-                      </div>
-                      <div className="w-32">
-                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
-                          className="text-xs h-7"
-                          value={editForm.max_concurrency}
-                          onChange={(e) => setEditForm((f) => ({ ...f, max_concurrency: e.target.value }))}
-                        />
-                      </div>
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => saveEdit(m.id)}
-                          disabled={patchModel.isPending}
-                        >
-                          {patchModel.isPending ? '…' : t('common.save')}
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingModelId(null)}>
-                          {t('common.cancel')}
-                        </Button>
-                      </div>
-                    </div>
-                    {patchModel.isError && (
-                      <AppFeedbackText>{translateApiError((patchModel.error as any)?.response?.data)}</AppFeedbackText>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Default model selector */}
-        {availableModels.length > 0 && (
-          <div className="pt-1 border-t border-border/50">
-            <p className="text-xs text-muted-foreground mb-1">
-              {t('admin.features.defaultModel')}
-              <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.defaultModelHint')}</span>
-            </p>
-            <select
-              disabled={isPending}
-              value={feature.default_model_id ?? ''}
-              onChange={(e) => {
-                const val = e.target.value
-                onUpdate({ default_model_id: val === '' ? null : Number(val) })
-              }}
-              className="text-xs border border-border rounded px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">{t('admin.features.autoHighestPriority')}</option>
-              {availableModels.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {publicModelLabel(m, true)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Allowed roles */}
-        <div className="pt-1 border-t border-border/50">
-          <p className="text-xs text-muted-foreground mb-1">
-            {t('admin.features.accessRoles')}
-            <span className="ml-1 text-muted-foreground/50 font-normal">{t('admin.features.accessRolesHint')}</span>
-          </p>
-          <div className="flex items-center gap-3">
-            {(['owner', 'editor', 'viewer'] as const).map((role) => {
-              const checked = feature.allowed_roles.includes(role)
-              const roleLabel: Record<string, string> = { owner: t('admin.features.roles.owner'), editor: t('admin.features.roles.editor'), viewer: t('admin.features.roles.viewer') }
-              return (
-                <label key={role} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={isPending}
-                    onChange={() => {
-                      const next = checked
-                        ? feature.allowed_roles.filter((r) => r !== role)
-                        : [...feature.allowed_roles, role]
-                      onUpdate({ allowed_roles: next })
-                    }}
-                    className="rounded border-border"
-                  />
-                  <span className="text-xs text-foreground">{roleLabel[role]}</span>
-                </label>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function FeatureConfigPage() {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [featureError, setFeatureError] = useState('')
-
-  const { data: features = [], error: featuresQueryError } = useQuery<FeatureConfig[]>({
-    queryKey: ['admin', 'features'],
-    queryFn: () => api.get('/admin/features').then((r) => r.data),
-  })
-
-  const update = useMutation({
-    mutationFn: ({ key, data }: { key: string; data: { is_enabled?: boolean; allowed_model_ids?: number[]; default_model_id?: number | null; allowed_roles?: string[] } }) =>
-      api.put(`/admin/features/${key}`, data).then((r) => r.data),
-    onMutate: () => setFeatureError(''),
-    onSuccess: () => {
-      setFeatureError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'features'] })
-      qc.invalidateQueries({ queryKey: ['models'] })
-    },
-    onError: (err: any) => setFeatureError(translateAPIRequestError(err)),
-  })
-
-  const updatePrompt = useMutation({
-    mutationFn: ({ key, data }: { key: string; data: { system_prompt_override?: string; max_tokens_override?: number } }) =>
-      api.put(`/admin/features/${key}/prompt`, data).then((r) => r.data),
-    onMutate: () => setFeatureError(''),
-    onSuccess: () => {
-      setFeatureError('')
-      qc.invalidateQueries({ queryKey: ['admin', 'features'] })
-    },
-    onError: (err: any) => setFeatureError(translateAPIRequestError(err)),
-  })
-
-  function updateFeature(feature: FeatureConfig, data: AdminFeatureUpdatePayload) {
-    const key = featureToggleConfirmKey(feature, data)
-    if (key) {
-      if (!window.confirm(t(key, { name: featureDisplayName(feature, t) }))) return
-    }
-    update.mutate({ key: feature.feature_key, data })
-  }
-
-  const { toolFeatures, systemFeatures } = groupAdminFeatures(features)
-  const featureGroups = [
-    { key: 'tool', title: t('admin.features.toolFeatures'), items: toolFeatures },
-    { key: 'system', title: t('admin.features.systemFeatures'), items: systemFeatures },
-  ].filter((group) => group.items.length > 0)
-
-  return (
-    <div className="space-y-4 max-w-2xl">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t('admin.features.title')}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {t('admin.features.description')}
-        </p>
-      </div>
-
-      {features.length === 0 && !featuresQueryError && (
-        <p className="text-sm text-muted-foreground text-center py-8">{t('common.loadingShort')}</p>
-      )}
-
-      {featureError && (
-        <AppInlineError className="flex items-start gap-2">
-          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-          <span>{featureError}</span>
-        </AppInlineError>
-      )}
-
-      {featuresQueryError && (
-        <AppInlineError className="flex items-start gap-2">
-          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-          <span>{translateAPIRequestError(featuresQueryError)}</span>
-        </AppInlineError>
-      )}
-
-      <div className="space-y-3">
-        {featureGroups.map((group) => (
-          <div key={group.key} className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">{group.title}</p>
-            {group.items.map((f) => (
-              <FeatureRow
-                key={f.feature_key}
-                feature={f}
-                isPending={update.isPending || updatePrompt.isPending}
-                onUpdate={(data) => updateFeature(f, data)}
-                onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
-                onGoToModels={() => navigateToAdminSection('models')}
-              />
-            ))}
-          </div>
-        ))}
-        {!featuresQueryError && featureGroups.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">{t('admin.features.empty')}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
 type ResourceAdminDetail = {
   resource: RawResource
@@ -4044,6 +3552,7 @@ export function StoragePage() {
         <div className="flex gap-3 flex-wrap">
           {(backends?.backends ?? []).map(b => (
             <div key={b.name} className="flex items-center gap-2 border border-border rounded-lg px-4 py-2.5 text-sm">
+              <AppMarkerDot tone={b.available ? 'success' : 'danger'} size="xs" />
               {b.name === 'local'
                 ? <span className="i-lucide-hard-drive text-muted-foreground" />
                 : <span className="i-lucide-cloud text-info" />
@@ -4719,11 +4228,10 @@ export function CloudFileConfigPage() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type AdminSectionKey = 'models' | 'features' | 'users' | 'orgs' | 'projects' | 'audit-logs' | 'usage-logs' | 'storage' | 'cloud-files' | 'debug'
+type AdminSectionKey = 'models' | 'users' | 'orgs' | 'projects' | 'audit-logs' | 'usage-logs' | 'storage' | 'cloud-files' | 'debug'
 
 const adminSectionHref: Record<AdminSectionKey, string> = {
   models: '/models',
-  features: '/features',
   users: '/user-management',
   orgs: '/orgs',
   projects: '/projects',
@@ -5255,7 +4763,6 @@ export default function AdminPage() {
 
   const sectionCards = [
     { label: t('admin.tabs.models'), detail: t('admin.home.sections.models'), icon: Settings2, href: '/models' },
-    { label: t('admin.tabs.features'), detail: t('admin.home.sections.features'), icon: Route, href: '/features' },
     { label: t('admin.tabs.users'), detail: t('admin.home.sections.users'), icon: UsersRound, href: '/user-management' },
     { label: t('admin.tabs.orgs'), detail: t('admin.home.sections.orgs'), icon: Building2, href: '/orgs' },
     { label: t('admin.tabs.projects'), detail: t('admin.home.sections.projects', { count: formatAdminNumber(overview?.projects.total) }), icon: FolderKanban, href: '/projects' },

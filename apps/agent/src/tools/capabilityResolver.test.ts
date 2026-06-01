@@ -29,6 +29,61 @@ test('resolveToolCatalog keeps plan updates visible without an active workflow',
   assert.equal(catalog.byName.core_update_plan?.approval, 'never')
 })
 
+test('resolveToolCatalog exposes registered tool execution metadata', () => {
+  const registry = new StaticToolRegistry([
+    {
+      name: 'studio.preview',
+      description: 'Preview draft changes.',
+      permission: 'draft.preview',
+      risk: 'draft',
+      source: 'runtime',
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+      execution: {
+        readOnly: true,
+        destructive: false,
+        concurrencySafe: true,
+        interruptBehavior: 'cancel',
+        resultRefStrategy: 'summary_ref',
+      },
+    },
+  ])
+  const catalog = resolveToolCatalog({
+    mcpTools: [],
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [{ name: 'studio.preview', mode: 'allow', approval: 'never' }],
+    },
+  })
+
+  assert.deepEqual(catalog.byName['studio.preview'].execution, {
+    readOnly: true,
+    destructive: false,
+    concurrencySafe: true,
+    interruptBehavior: 'cancel',
+    resultRefStrategy: 'summary_ref',
+  })
+  assert.deepEqual(catalog.byName['studio.preview'].runtime, {
+    registered: true,
+    source: 'runtime',
+    grantMode: 'allow',
+    grantSource: 'manifest',
+    approval: 'never',
+    approvalRequired: false,
+    approvalReason: 'none',
+    available: true,
+    execution: {
+      readOnly: true,
+      destructive: false,
+      concurrencySafe: true,
+      interruptBehavior: 'cancel',
+      resultRefStrategy: 'summary_ref',
+    },
+    reason: 'Tool is available as a read-only runtime operation.',
+  })
+})
+
 test('resolveToolCatalog scopes business tools to active workflow hints', () => {
   const registry = new StaticToolRegistry([
     {
@@ -121,6 +176,54 @@ test('resolveToolCatalog scopes business tools to active workflow hints', () => 
     grantSource: 'manifest',
     approval: 'never',
     activeSkillIds: ['skill.production'],
+  })
+})
+
+test('resolveToolCatalog treats active skill tool refs as first-class grants', () => {
+  const registry = new StaticToolRegistry([
+    {
+      name: 'studio.skill_context',
+      description: 'Read skill-scoped context.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'runtime',
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    },
+  ])
+  const catalog = resolveToolCatalog({
+    mcpTools: [],
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [],
+    },
+    activeSkills: [{
+      id: 'skill.context',
+      name: 'Context skill',
+      description: '',
+      enabled: true,
+      category: 'expertise',
+      instruction: '',
+      toolRefs: ['tool://studio.skill_context'],
+      resolvedPriority: 1,
+      activationReason: 'trigger',
+      compiledInstruction: '',
+      warnings: [],
+    }],
+  })
+
+  assert.equal(catalog.byName['studio.skill_context'].available, true)
+  assert.equal(catalog.byName['studio.skill_context'].granted, true)
+  assert.equal(catalog.byName['studio.skill_context'].runtime?.grantSource, 'skill')
+  assert.equal(catalog.byName['studio.skill_context'].runtime?.grantMode, 'allow')
+  assert.deepEqual(catalog.byName['studio.skill_context'].resolution, {
+    authorized: true,
+    visible: true,
+    grantSource: 'skill',
+    approval: 'never',
+    activeSkillIds: ['skill.context'],
+    grantingSkillIds: ['skill.context'],
   })
 })
 

@@ -431,7 +431,7 @@ test('validateSettingsSnapshotReferences rejects missing backend model reference
 test('validateSettingsSnapshotReferences allows direct API model ids outside backend model catalog', () => {
   const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
     modelConfig: {
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
     },
   }), {

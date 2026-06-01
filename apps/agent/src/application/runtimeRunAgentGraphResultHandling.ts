@@ -1,4 +1,4 @@
-import type { AgentGraphResult } from '../orchestration/agentGraph.js'
+import type { AgentGraphResult } from '../orchestration/agentGraphResult.js'
 import { memoryStorePath, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'

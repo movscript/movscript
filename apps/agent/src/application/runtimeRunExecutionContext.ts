@@ -19,6 +19,7 @@ import {
   resolveRunExecutionInput,
   type ResolvedRunExecutionInput,
 } from './runExecutionInput.js'
+import { summarizeUserMessageTrace } from '../domains/trace/messageTrace.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
 
@@ -59,11 +60,15 @@ export function loadRuntimeRunExecutionContext(input: {
   input.recordTrace(input.run, {
     kind: 'message',
     title: 'User message loaded',
-    summary: userMessage.slice(0, 180),
+    summary: `User message loaded (${userMessage.length} chars).`,
     status: 'completed',
     round: input.setupRound,
     data: {
-      messageId: lastUser.id,
+      ...summarizeUserMessageTrace({
+        messageId: lastUser.id,
+        content: userMessage,
+        source: input.run.input ? 'run_input' : executionInput.sourceUser ? 'thread_message' : 'synthetic',
+      }),
       runInputFrozen: Boolean(input.run.input),
       hasClientInput: Boolean(clientInput),
       attachmentCount: clientInput?.attachments.length ?? 0,

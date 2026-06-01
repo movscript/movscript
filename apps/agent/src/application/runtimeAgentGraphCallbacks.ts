@@ -1,4 +1,4 @@
-import type { AgentGraphInput, AgentGraphTraceInput } from '../orchestration/agentGraph.js'
+import type { AgentGraphInput, AgentGraphTraceInput } from '../orchestration/agentGraphTypes.js'
 import type { GenerationEvent } from '../generation/generationEvents.js'
 import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind, JSONValue } from '../state/types.js'
 import type { AgentStore } from '../state/store.js'

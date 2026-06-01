@@ -4,6 +4,8 @@ import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import type { ContextLedger } from './types.js'
 import { contextManager } from './contextManager.js'
+import { runtimeModelTextContent } from '../model/modelConfig.js'
+import { refKey, selectRetrievedContext, buildRetrievedContextStore } from './retrievedContextStore.js'
 
 test('ContextManager composes model context with prompt memory filtering', () => {
   const built = contextManager.composeModelContext({
@@ -104,17 +106,73 @@ test('ContextManager composes a full model turn with tool-loop history and audit
     warnings: ['watch budget'],
     history: [{ id: 'msg_1', threadId: 'thread_1', role: 'assistant', content: 'Earlier answer', createdAt: '2026-01-01T00:00:00.000Z' }],
     userMessage: 'hello',
-    toolLoopHistory: [{ role: 'tool', tool_call_id: 'call_1', content: '{"ok":true}' }],
+    toolLoopHistory: [{ role: 'tool', tool_call_id: 'call_1', content: runtimeModelTextContent('{"ok":true}') }],
   })
 
   assert.equal(turn.promptTrace.data.eventType, 'prompt.composed')
   assert.equal(turn.promptTrace.data.contextEventType, 'context.prompt_composed')
   assert.equal(Array.isArray(turn.promptTrace.data.skillIds), true)
+  const skillContextProjection = turn.promptTrace.data.skillContextProjection as any[]
+  assert.equal(skillContextProjection[0]?.skillId, 'skill.test')
+  assert.equal(skillContextProjection[0]?.includedInPrompt, true)
+  assert.equal(skillContextProjection[0]?.activationReason, 'trigger')
+  assert.equal((turn.promptTrace.data.promptStats as any)?.budgetLedger?.decisionCount, 0)
+  assert.equal((turn.promptTrace.data.toolLoopProjection as any)?.messageCount, 1)
+  assert.equal(turn.contextBundle.promptBudget?.decisionCount, 0)
   assert.equal(turn.messages.some((message) => message.role === 'tool'), true)
   assert.equal(turn.messages.at(-1)?.role, 'user')
   assert.equal(turn.tools[0]?.function.name, 'core_catalog_inspect')
   const parameters = turn.tools[0]?.function.parameters as any
   assert.equal(parameters?.properties?.view?.enum?.includes('knowledge'), true)
+})
+
+test('ContextManager reactively compacts oversized tool-loop and inline attachments', () => {
+  const turn = contextManager.composeModelTurn({
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      metadata: {
+        ...(DEFAULT_AGENT_MANIFEST.metadata ?? {}),
+        contextWindowCharLimit: 3000,
+      },
+    },
+    skills: [],
+    context: {
+      route: { pathname: '/project/42' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: 'describe this image',
+    clientInput: {
+      visibleMessage: 'describe this image',
+      attachments: [{
+        id: 'att_1',
+        name: 'large.png',
+        type: 'image',
+        mimeType: 'image/png',
+        size: 8192,
+        dataUrl: `data:image/png;base64,${'A'.repeat(6000)}`,
+      }],
+    },
+    toolLoopHistory: [{
+      role: 'tool',
+      tool_call_id: 'call_large',
+      content: runtimeModelTextContent('x'.repeat(6000)),
+    }],
+  })
+
+  assert.equal(turn.messages.some((message) => message.role === 'tool'), false)
+  assert.equal(turn.messages.at(-1)?.content.some((part) => part.type === 'image'), false)
+  assert.equal((turn.promptTrace.data.toolLoopProjection as any)?.compactedCount, 1)
+  assert.equal((turn.promptTrace.data.attachmentProjection as any)?.droppedInlineImageCount, 1)
+  assert.equal((turn.promptTrace.data.attachmentProjection as any)?.decisions.some((decision: any) => decision.action === 'drop'), true)
 })
 
 test('ContextManager builds knowledge observability traces from ledger refs', () => {
@@ -242,6 +300,130 @@ test('ContextManager builds ledger and dedupe context trace payloads', () => {
   assert.equal(dedupeTrace?.data.dedupedCount, 1)
 })
 
+test('ContextManager supports amend and delete mutations for active context records', () => {
+  const ledger = contextManager.recordToolResult({
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'snapshot_1',
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
+    result: {
+      id: 'storyboard.rhythm.basic',
+      title: '分镜节奏基础',
+      collectionId: 'film.knowledge.storyboard',
+      contentHash: 'hash_1',
+      content: '旧版本',
+    },
+    source: 'runtime',
+    now: '2026-01-01T00:00:00.000Z',
+  }).ledger
+  const original = ledger.retrieved[0]!
+  const originalKey = refKey(original.ref)
+
+  const amended = contextManager.amendContextRecord({
+    ledger,
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'snapshot_1',
+    targetKey: originalKey,
+    record: {
+      ...original,
+      ref: { ...original.ref, hash: 'hash_2' },
+      contentHash: 'hash_2',
+      retrievedAt: '2026-01-01T00:00:01.000Z',
+      usedInPrompt: true,
+    },
+    reason: 'knowledge item refreshed',
+    now: '2026-01-01T00:00:01.000Z',
+  })
+  const amendedOriginal = amended.retrieved.find((record) => refKey(record.ref) === originalKey)
+  const replacement = amended.retrieved.find((record) => record.contentHash === 'hash_2')
+  assert.equal(amendedOriginal?.status, 'amended')
+  assert.equal(amendedOriginal?.usedInPrompt, false)
+  assert.equal(replacement?.status, 'active')
+  assert.equal(replacement?.supersedes, originalKey)
+  assert.equal(amended.mutations?.map((mutation) => mutation.type).join(','), 'append,amend')
+
+  const deleted = contextManager.deleteContextRecord({
+    ledger: amended,
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'snapshot_1',
+    targetKey: refKey(replacement!.ref),
+    reason: 'user asked to ignore this knowledge item',
+    now: '2026-01-01T00:00:02.000Z',
+  })
+  const active = selectRetrievedContext({ store: buildRetrievedContextStore(deleted) })
+  assert.equal(deleted.retrieved.find((record) => record.contentHash === 'hash_2')?.status, 'deleted')
+  assert.equal(active.length, 0)
+
+  const trace = contextManager.buildLedgerUpdatedTrace(deleted)
+  assert.equal(trace.data.eventType, 'context.ledger_updated')
+  assert.equal(trace.data.activeCount, 0)
+  assert.equal(trace.data.amendedCount, 1)
+  assert.equal(trace.data.deletedCount, 1)
+  const mutationSummary = trace.data.mutationSummary as any
+  assert.equal(mutationSummary.schema, 'movscript.context-mutation-summary.v1')
+  assert.equal(mutationSummary.appended, 1)
+  assert.equal(mutationSummary.amended, 1)
+  assert.equal(mutationSummary.deleted, 1)
+  assert.equal(mutationSummary.latest.type, 'delete')
+  const refs = trace.data.refs as any[]
+  assert.equal(refs.some((record) => record.status === 'amended'), true)
+  assert.equal(refs.some((record) => record.status === 'deleted'), true)
+  assert.equal(JSON.stringify(trace.data).includes('旧版本'), false)
+})
+
+test('ContextManager emits context bundle refs so model trace does not need HTTP payload bodies', () => {
+  const ledger = contextManager.recordToolResult({
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'snapshot_1',
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
+    result: {
+      id: 'storyboard.rhythm.basic',
+      title: '分镜节奏基础',
+      collectionId: 'film.knowledge.storyboard',
+      contentHash: 'hash_1',
+      charCount: 1200,
+      content: '起承转合',
+    },
+    source: 'runtime',
+    now: '2026-01-01T00:00:00.000Z',
+  }).ledger
+
+  const turn = contextManager.composeModelTurn({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: {
+      route: { pathname: '/project/42' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: 'hello',
+    ledger,
+    runId: 'run_1',
+    threadId: 'thread_1',
+    roundIndex: 1,
+    roundLabel: 'Model turn 1',
+  })
+
+  assert.equal(turn.promptTrace.data.contextBundleId, undefined)
+  assert.equal(turn.contextBundle.runId, 'run_1')
+  assert.equal(turn.contextBundle.activeContextKeys.length, 1)
+  assert.equal(turn.contextBundle.contextRefs[0]?.contentHash, ledger.retrieved[0]?.contentHash)
+  assert.equal(turn.contextBundle.contextRefs[0]?.ref.hash, 'hash_1')
+  assert.equal(JSON.stringify(turn.contextBundle).includes('起承转合'), false)
+  assert.equal(turn.contextBundle.promptParts.length > 0, true)
+})
+
 test('ContextManager builds bounded tool-result drop trace only when content is reduced', () => {
   const dropped = contextManager.buildToolResultContext({
     run: {
@@ -261,4 +443,6 @@ test('ContextManager builds bounded tool-result drop trace only when content is 
 
   assert.equal(trace?.data.eventType, 'context.item_dropped')
   assert.equal(typeof trace?.data.originalChars, 'number')
+  assert.match(String(trace?.data.resultHash), /^sha256:/)
+  assert.match(String(trace?.data.refKey), /^tool_result:/)
 })

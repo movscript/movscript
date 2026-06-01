@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type AudioHTMLAttributes, type ImgHTMLAttributes, type VideoHTMLAttributes } from "react";
+import type { AudioHTMLAttributes, ImgHTMLAttributes, Ref, VideoHTMLAttributes } from "react";
 
 import { cn } from "../../../../lib/cn";
 import { AppSkeleton } from "../../app";
@@ -24,11 +24,12 @@ export function ResourceAuthImage({
 
 export interface ResourceAuthVideoProps extends VideoHTMLAttributes<HTMLVideoElement> {
   src?: string;
+  videoRef?: Ref<HTMLVideoElement>;
 }
 
-export const ResourceAuthVideo = forwardRef<HTMLVideoElement, ResourceAuthVideoProps>(function ResourceAuthVideo({ src, ...props }, ref) {
-  return <video ref={ref} src={src} {...props} />;
-});
+export function ResourceAuthVideo({ src, videoRef, ...props }: ResourceAuthVideoProps) {
+  return <video ref={videoRef} src={src} {...props} />;
+}
 
 export interface ResourceAuthAudioProps extends AudioHTMLAttributes<HTMLAudioElement> {
   src?: string;

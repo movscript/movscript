@@ -63,7 +63,10 @@ export function createRuntimeCatalogOperationsBridge(input: {
       })
     },
     listRegisteredTools: () => listRuntimeRegisteredTools(input.getState().toolRegistry),
-    listSkillCatalog: () => listRuntimeSkillCatalog(input.getState().layeredRegistry),
+    listSkillCatalog: () => {
+      const state = input.getState()
+      return listRuntimeSkillCatalog(state.layeredRegistry, state.defaultAgentManifest)
+    },
     listProfileCatalog: () => listRuntimeProfileCatalog(input.getState().layeredRegistry),
     getDefaultAgentManifest: () => getRuntimeDefaultAgentManifest(input.getState().defaultAgentManifest),
     reloadAgentCatalog: () => {

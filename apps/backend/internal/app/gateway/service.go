@@ -229,7 +229,7 @@ func (s *Service) ListChatModels(_ context.Context, principal Principal) ([]ai.P
 	if err := s.policy.CanListChatModels(principal); err != nil {
 		return nil, err
 	}
-	return s.ai.GetModelsByCapability(ai.CapabilityText)
+	return s.ai.GetModelsByAnyCapability([]string{ai.CapabilityText, ai.CapabilityReasoning})
 }
 
 func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, error) {
@@ -326,7 +326,7 @@ func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, strin
 }
 
 func (s *Service) ResolveTextModel(_ context.Context, modelID string) (uint, string, error) {
-	models, err := s.ai.GetModelsByCapability(ai.CapabilityText)
+	models, err := s.ai.GetModelsByAnyCapability([]string{ai.CapabilityText, ai.CapabilityReasoning})
 	if err != nil {
 		return 0, strings.TrimSpace(modelID), err
 	}

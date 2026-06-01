@@ -23,12 +23,13 @@ func (h *AIHandler) ListCredentials(c *gin.Context) {
 
 func (h *AIHandler) CreateCredential(c *gin.Context) {
 	var req struct {
-		AdapterType     string            `json:"adapter_type" binding:"required"`
-		DisplayName     string            `json:"display_name" binding:"required"`
-		Credentials     map[string]string `json:"credentials"`
-		FilesAPIEnabled bool              `json:"files_api_enabled"`
-		FilesAPIBaseURL string            `json:"files_api_base_url"`
-		FilesAPIKey     string            `json:"files_api_key"`
+		AdapterType        string            `json:"adapter_type" binding:"required"`
+		DisplayName        string            `json:"display_name" binding:"required"`
+		Credentials        map[string]string `json:"credentials"`
+		FilesAPIEnabled    bool              `json:"files_api_enabled"`
+		FilesAPIBaseURL    string            `json:"files_api_base_url"`
+		FilesAPIKey        string            `json:"files_api_key"`
+		RequireTestSuccess bool              `json:"require_test_success"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -47,12 +48,13 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 	}
 
 	cred, err := h.service.CreateCredential(c.Request.Context(), adminai.CreateCredentialInput{
-		AdapterType:     req.AdapterType,
-		DisplayName:     req.DisplayName,
-		Credentials:     req.Credentials,
-		FilesAPIEnabled: req.FilesAPIEnabled,
-		FilesAPIBaseURL: req.FilesAPIBaseURL,
-		FilesAPIKey:     req.FilesAPIKey,
+		AdapterType:        req.AdapterType,
+		DisplayName:        req.DisplayName,
+		Credentials:        req.Credentials,
+		FilesAPIEnabled:    req.FilesAPIEnabled,
+		FilesAPIBaseURL:    req.FilesAPIBaseURL,
+		FilesAPIKey:        req.FilesAPIKey,
+		RequireTestSuccess: req.RequireTestSuccess,
 	})
 	if err != nil {
 		writeCredentialError(c, err)
@@ -188,6 +190,11 @@ func (h *AIHandler) TestCredential(c *gin.Context) {
 }
 
 func writeCredentialError(c *gin.Context, err error) {
+	var testErr adminai.CredentialTestFailedError
+	if errors.As(err, &testErr) {
+		c.JSON(http.StatusBadGateway, gin.H{"error": testErr.Error(), "test_result": testErr.Result})
+		return
+	}
 	if errors.Is(err, adminai.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return

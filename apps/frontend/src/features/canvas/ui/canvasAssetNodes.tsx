@@ -3,14 +3,17 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Eye, FileText, Image, Loader2, Pencil, Play, Save, Video, XCircle } from 'lucide-react'
-import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { canvasTextNodeEditState } from '@/features/canvas/editor/nodeFactory'
-import { AuthedImage } from '@/shared/ui/AuthedImage'
-import { MediaViewer, resolveResourceUrl } from '@/shared/ui/MediaViewer'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
+import { ResourceImage } from '@/shared/ui/ResourceImage'
+import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
+import { loadResourceTextUrl } from '@/shared/ui/resourceText'
 import type { RawResource } from '@/types'
 import {
   CanvasImageNodeView,
+  CanvasMediaNodeInfoCrumb,
+  CanvasMediaNodeInfoCrumbs,
+  CanvasMediaNodeInfoProbe,
   CanvasNodeCardActionButton,
   CanvasTextNodeView,
   CanvasVideoNodeView,
@@ -39,7 +42,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
   const textResourceUrl = textResource ? resolveResourceUrl(textResource) : ''
   const { data: resourceText, isLoading: resourceTextLoading } = useQuery({
     queryKey: ['canvas-text-node-resource', textResourceUrl],
-    queryFn: () => loadCanvasTextResource(textResourceUrl),
+    queryFn: () => loadResourceTextUrl(textResourceUrl),
     enabled: !!textResourceUrl && data.textContent === undefined,
     staleTime: 5 * 60 * 1000,
   })
@@ -109,19 +112,9 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
   )
 }
 
-async function loadCanvasTextResource(url: string): Promise<string> {
-  const res = await api.get<string>(url, {
-    baseURL: '',
-    responseType: 'text',
-    transformResponse: [(data) => data],
-  })
-  return typeof res.data === 'string' ? res.data : String(res.data ?? '')
-}
-
 export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = data.status ?? 'idle'
-  const imgUrl = data.resource?.direct_url ?? (data.resource?.url ? `${API_BASE}${data.resource.url}` : null)
   const showPreview = shouldRenderCanvasResourcePreview(data.resource, data.canvasDebug, data.canvasMediaLightweightMode)
   const [aspectRatio, setAspectRatio] = useState<number>()
   useEffect(() => {
@@ -138,9 +131,9 @@ export function ImageNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       ports={<ResourceNodeOutputHandle nodeType="image" data={data} selected={selected} />}
       meta={<CanvasResourceNodeMeta resource={data.resource} lightweight={data.canvasMediaLightweightMode} />}
       aspectRatio={aspectRatio}
-      media={imgUrl && showPreview ? (
-        <AuthedImage
-          src={imgUrl}
+      media={data.resource && showPreview ? (
+        <ResourceImage
+          resource={data.resource}
           alt=""
           diagnosticLabel={`canvas-node:${data.rfNodeId ?? data.resource?.ID ?? 'unknown'}`}
           thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE}
@@ -242,42 +235,43 @@ function CanvasResourceNodeMeta({
     setDetail(undefined)
   }, [resource?.ID])
   if (!resource) return null
-  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
   return (
     <>
-      <div className="canvas-media-node-info__crumbs">
-        <span className="canvas-media-node-info__crumb canvas-media-node-info__name">{resource.name}</span>
-        <span className="canvas-media-node-info__crumb">{formatBytes(resource.size)}</span>
-        <span className="canvas-media-node-info__crumb">{detail || fallbackResourceDetail(resource)}</span>
-      </div>
-      {!lightweight && resource.type === 'image' && url ? (
-        <AuthedImage
-          src={url}
-          alt=""
-          aria-hidden
-          className="canvas-media-node-info__probe"
-          thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE}
-          onLoad={(event) => {
-            const image = event.currentTarget
-            if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
-          }}
-        />
+      <CanvasMediaNodeInfoCrumbs>
+        <CanvasMediaNodeInfoCrumb name>{resource.name}</CanvasMediaNodeInfoCrumb>
+        <CanvasMediaNodeInfoCrumb>{formatBytes(resource.size)}</CanvasMediaNodeInfoCrumb>
+        <CanvasMediaNodeInfoCrumb>{detail || fallbackResourceDetail(resource)}</CanvasMediaNodeInfoCrumb>
+      </CanvasMediaNodeInfoCrumbs>
+      {!lightweight && resource.type === 'image' && resource.url ? (
+        <CanvasMediaNodeInfoProbe>
+          <ResourceImage
+            resource={resource}
+            alt=""
+            aria-hidden
+            thumbnailMaxSize={CANVAS_NODE_IMAGE_THUMB_MAX_SIZE}
+            onLoad={(event) => {
+              const image = event.currentTarget
+              if (image.naturalWidth && image.naturalHeight) setDetail(`${image.naturalWidth}x${image.naturalHeight}`)
+            }}
+          />
+        </CanvasMediaNodeInfoProbe>
       ) : null}
-      {!lightweight && resource.type === 'video' && url ? (
-        <MediaViewer
-          resource={resource}
-          lightbox={false}
-          className="canvas-media-node-info__probe"
-          lightweightVideoThumb
-          onVideoLoadedMetadata={(event) => {
-            const video = event.currentTarget
-            const parts = [
-              video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
-              Number.isFinite(video.duration) ? formatDuration(video.duration) : undefined,
-            ].filter(Boolean)
-            if (parts.length > 0) setDetail(parts.join(' · '))
-          }}
-        />
+      {!lightweight && resource.type === 'video' && resource.url ? (
+        <CanvasMediaNodeInfoProbe>
+          <MediaViewer
+            resource={resource}
+            lightbox={false}
+            lightweightVideoThumb
+            onVideoLoadedMetadata={(event) => {
+              const video = event.currentTarget
+              const parts = [
+                video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
+                Number.isFinite(video.duration) ? formatDuration(video.duration) : undefined,
+              ].filter(Boolean)
+              if (parts.length > 0) setDetail(parts.join(' · '))
+            }}
+          />
+        </CanvasMediaNodeInfoProbe>
       ) : null}
     </>
   )

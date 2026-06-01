@@ -1,8 +1,8 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
-import { ensureJSONModeMessages } from './modelConfig.js'
-import type {
+import {
+  type RuntimeModelContentPart,
   RuntimeModelChatMessage,
   RuntimeModelChatTool,
   RuntimeModelChatToolCall,
@@ -16,6 +16,11 @@ import type {
   ConfiguredRuntimeModelConfig,
   RuntimeModelAPIKind,
 } from './modelConfig.js'
+import {
+  ensureJSONModeMessages,
+  runtimeModelContentText,
+  runtimeModelTextContent,
+} from '../domains/message/modelMessage.js'
 import { isJSONRecord } from '../jsonValue.js'
 import { toAnthropicToolInputSchema, toOpenAIToolParameters } from './providerToolSchema.js'
 
@@ -266,6 +271,16 @@ function shouldRetryModelCall(error: unknown): boolean {
   return false
 }
 
+export function isPromptTooLongModelError(error: unknown): boolean {
+  const message = error instanceof ModelCallHTTPError
+    ? `${error.status} ${error.bodyText} ${error.message}`
+    : error instanceof Error
+      ? error.message
+      : String(error)
+  if (error instanceof ModelCallHTTPError && error.status === 413) return true
+  return /prompt[_\s-]*too[_\s-]*long|context[_\s-]*length|context window|maximum context|max context|too many tokens|input is too long|request too large|HTTP\s*413|status\s*413/i.test(message)
+}
+
 function normalizeModelCallRetryOptions(input?: ModelCallRetryOptions): Required<ModelCallRetryOptions> {
   return {
     maxAttempts: Math.max(1, Math.trunc(input?.maxAttempts ?? 5)),
@@ -324,9 +339,10 @@ function modelIdentifier(config: ConfiguredRuntimeModelConfig): string {
 }
 
 function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeModelRequestSnapshot {
+  const messages = input.jsonMode ? ensureJSONModeMessages(input.messages) : input.messages
   const body: RuntimeModelRequestSnapshot['body'] = {
     model: modelIdentifier(input.config),
-    messages: input.jsonMode ? ensureJSONModeMessages(input.messages) : input.messages,
+    messages: toOpenAIChatCompletionsMessages(messages),
     stream: true,
     stream_options: { include_usage: true },
     ...(typeof input.temperature === 'number' ? { temperature: input.temperature } : {}),
@@ -340,6 +356,38 @@ function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeMod
     headers: sdkTraceHeaders(input),
     body,
   }
+}
+
+function toOpenAIChatCompletionsMessages(messages: RuntimeModelChatMessage[]): unknown[] {
+  return messages.map((message) => {
+    const content = message.role === 'tool'
+      ? runtimeModelContentText(message.content)
+      : toOpenAIChatCompletionsContent(message)
+    return {
+      role: message.role,
+      content,
+      ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
+      ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
+    }
+  })
+}
+
+function toOpenAIChatCompletionsContent(message: RuntimeModelChatMessage): unknown {
+  if (message.tool_calls?.length && message.content.length === 0) return null
+  const parts = message.content.flatMap(toOpenAIChatCompletionsContentPart)
+  if (parts.length === 0) return ''
+  if (parts.length === 1 && isOpenAITextPart(parts[0])) return parts[0].text
+  return parts
+}
+
+function toOpenAIChatCompletionsContentPart(part: RuntimeModelContentPart): unknown[] {
+  if (part.type === 'text') return part.text ? [{ type: 'text', text: part.text }] : []
+  const image = openAIImagePayload(part)
+  return image ? [{ type: 'image_url', image_url: image }] : []
+}
+
+function isOpenAITextPart(value: unknown): value is { type: 'text'; text: string } {
+  return isJSONRecord(value) && value.type === 'text' && typeof value.text === 'string'
 }
 
 function toOpenAIChatCompletionsTool(tool: RuntimeModelChatTool): Record<string, unknown> {
@@ -507,14 +555,13 @@ function toOpenAIResponsesInput(messages: RuntimeModelChatMessage[]): unknown[] 
       input.push({
         type: 'function_call_output',
         call_id: message.tool_call_id,
-        output: message.content ?? '',
+        output: runtimeModelContentText(message.content),
       })
       continue
     }
     if (message.role === 'assistant' && message.tool_calls?.length) {
-      if (message.content) {
-        input.push({ role: 'assistant', content: [{ type: 'output_text', text: message.content }] })
-      }
+      const content = toOpenAIResponsesContent(message)
+      if (content.length > 0) input.push({ role: 'assistant', content })
       for (const toolCall of message.tool_calls) {
         input.push({
           type: 'function_call',
@@ -527,10 +574,32 @@ function toOpenAIResponsesInput(messages: RuntimeModelChatMessage[]): unknown[] 
     }
     input.push({
       role: message.role,
-      content: [{ type: message.role === 'assistant' ? 'output_text' : 'input_text', text: message.content ?? '' }],
+      content: toOpenAIResponsesContent(message),
     })
   }
   return input
+}
+
+function toOpenAIResponsesContent(message: RuntimeModelChatMessage): unknown[] {
+  return message.content.flatMap((part): unknown[] => {
+    if (part.type === 'text') {
+      return part.text ? [{ type: message.role === 'assistant' ? 'output_text' : 'input_text', text: part.text }] : []
+    }
+    const image = openAIImagePayload(part)
+    return image ? [{ type: 'input_image', image_url: typeof image === 'string' ? image : image.url, ...(part.detail ? { detail: part.detail } : {}) }] : []
+  })
+}
+
+function openAIImagePayload(part: RuntimeModelContentPart): string | { url: string; detail?: string } | undefined {
+  if (part.type !== 'image') return undefined
+  switch (part.source.type) {
+    case 'url':
+      return { url: part.source.url, ...(part.detail ? { detail: part.detail } : {}) }
+    case 'data_url':
+      return { url: part.source.dataUrl, ...(part.detail ? { detail: part.detail } : {}) }
+    case 'file_id':
+      return undefined
+  }
 }
 
 function toOpenAIResponsesTool(tool: RuntimeModelChatTool): Record<string, unknown> {
@@ -552,7 +621,8 @@ function toAnthropicMessages(messages: RuntimeModelChatMessage[]): { system: str
   const out: unknown[] = []
   for (const message of messages) {
     if (message.role === 'system') {
-      if (message.content?.trim()) system.push(message.content.trim())
+      const text = runtimeModelContentText(message.content).trim()
+      if (text) system.push(text)
       continue
     }
     if (message.role === 'tool') {
@@ -561,13 +631,13 @@ function toAnthropicMessages(messages: RuntimeModelChatMessage[]): { system: str
         content: [{
           type: 'tool_result',
           tool_use_id: message.tool_call_id,
-          content: message.content ?? '',
+          content: runtimeModelContentText(message.content),
         }],
       })
       continue
     }
     const content: unknown[] = []
-    if (message.content) content.push({ type: 'text', text: message.content })
+    content.push(...message.content.flatMap(toAnthropicContentPart))
     for (const toolCall of message.tool_calls ?? []) {
       content.push({
         type: 'tool_use',
@@ -582,6 +652,24 @@ function toAnthropicMessages(messages: RuntimeModelChatMessage[]): { system: str
     })
   }
   return { system: system.join('\n\n'), messages: out }
+}
+
+function toAnthropicContentPart(part: RuntimeModelContentPart): unknown[] {
+  if (part.type === 'text') return part.text ? [{ type: 'text', text: part.text }] : []
+  if (part.source.type === 'url') {
+    return [{ type: 'image', source: { type: 'url', url: part.source.url } }]
+  }
+  if (part.source.type === 'data_url') {
+    const parsed = parseDataURL(part.source.dataUrl)
+    return parsed ? [{ type: 'image', source: { type: 'base64', media_type: parsed.mediaType, data: parsed.data } }] : []
+  }
+  return []
+}
+
+function parseDataURL(value: string): { mediaType: string; data: string } | undefined {
+  const match = /^data:([^;,]+);base64,(.+)$/i.exec(value)
+  if (!match) return undefined
+  return { mediaType: match[1] ?? 'application/octet-stream', data: match[2] ?? '' }
 }
 
 function toAnthropicTool(tool: RuntimeModelChatTool): Record<string, unknown> {
@@ -644,7 +732,7 @@ function normalizeOpenAIResponsesResult(response: unknown): Omit<ModelCallResult
   const usage = isJSONRecord(record.usage) ? record.usage : undefined
   const rawAssistantMessage: RuntimeModelChatMessage = {
     role: 'assistant',
-    content,
+    content: content ? runtimeModelTextContent(content) : [],
     ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
   }
   return {
@@ -690,7 +778,7 @@ function normalizeAnthropicMessagesResult(response: unknown): Omit<ModelCallResu
   const usage = isJSONRecord(record.usage) ? record.usage : undefined
   const rawAssistantMessage: RuntimeModelChatMessage = {
     role: 'assistant',
-    content,
+    content: content ? runtimeModelTextContent(content) : [],
     ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
   }
   return {
@@ -1012,7 +1100,7 @@ function parseGatewayModelResponse(responseText: string, contentType: string): P
   const finishReason = choice?.finish_reason ?? (rawToolCalls.length > 0 ? 'tool_calls' : 'stop')
   const rawAssistantMessage: RuntimeModelChatMessage = {
     role: 'assistant',
-    content,
+    content: content ? runtimeModelTextContent(content) : [],
     ...(rawToolCalls.length > 0 ? { tool_calls: rawToolCalls } : {}),
   }
   return {
@@ -1082,7 +1170,7 @@ function parseSSEModelResponse(responseText: string): ParsedModelGatewayResponse
   const trimmed = content.trim() || null
   const rawAssistantMessage: RuntimeModelChatMessage = {
     role: 'assistant',
-    content: trimmed,
+    content: trimmed ? runtimeModelTextContent(trimmed) : [],
     ...(rawToolCalls.length > 0 ? { tool_calls: rawToolCalls } : {}),
   }
   const parsedBody = {

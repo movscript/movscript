@@ -10,6 +10,36 @@ import { InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 import { draftContentFileRef } from '../files/providers/draftFileProvider.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from '../application/runtimeToolHandlers.js'
+import { StaticToolRegistry } from '../tools/toolRegistry.js'
+import { createRuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 function testRun(): AgentRun {
   return {
@@ -33,9 +63,16 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
   return {
     run: testRun(),
     mcpClient,
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
     draftStore: {} as never,
-    backendApplyClient: {} as never,
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     registry: { get: () => undefined, list: () => [] },
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     sandboxMode: false,
   }
 }
@@ -74,6 +111,218 @@ test('executeTool serves runtime work wait through the runtime catalog manager',
   assert.equal(result.source, 'runtime')
   assert.deepEqual(result.result, { status: 'completed', done: true })
   assert.deepEqual(calls, ['runtime.wait:op_42'])
+})
+
+test('executeTool returns schema validation errors before runtime or external execution', async () => {
+  let externalCalled = false
+  const result = await executeTool({
+    name: 'studio_schema_tool',
+    args: { count: 'two' },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        externalCalled = true
+        return {}
+      },
+    }),
+    registry: new StaticToolRegistry([{
+      name: 'studio_schema_tool',
+      description: 'Validate input.',
+      permission: 'studio.write',
+      risk: 'write',
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        required: ['name', 'count'],
+        properties: {
+          name: { type: 'string' },
+          count: { type: 'integer' },
+        },
+      },
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    }]),
+    runtimeToolHandlers: createRuntimeToolHandlerRegistry([{
+      toolNames: ['studio_schema_tool'],
+      execute() {
+        throw new Error('runtime handler should not run after schema validation fails')
+      },
+    }]),
+  })
+
+  assert.equal(externalCalled, false)
+  assert.equal(result.source, 'runtime')
+  assert.match(result.error ?? '', /schema validation failed/)
+  assert.equal((result.errorData as any)?.code, 'schema_invalid')
+  assert.equal(result.pipeline?.stages.some((stage) => stage.name === 'schema_validation' && stage.status === 'failed'), true)
+})
+
+test('executeTool schema validation covers catalog JSON schema constraints', async () => {
+  const result = await executeTool({
+    name: 'studio_rich_schema_tool',
+    args: {
+      name: 'valid name',
+      count: 0,
+      mode: 'invalid',
+      tags: [],
+      nested: { flag: 'yes', extra: true },
+      extra: 'not allowed',
+      target: false,
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('external gateway should not run after schema validation fails')
+      },
+    }),
+    registry: new StaticToolRegistry([{
+      name: 'studio_rich_schema_tool',
+      description: 'Validate richer schema constraints.',
+      permission: 'studio.write',
+      risk: 'write',
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'count', 'mode', 'tags', 'nested', 'target'],
+        properties: {
+          name: { type: 'string', maxLength: 20 },
+          count: { type: 'integer', minimum: 1, maximum: 3 },
+          mode: { type: 'string', enum: ['fast', 'safe'] },
+          tags: { type: 'array', minItems: 1, items: { type: 'string' } },
+          nested: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              flag: { type: 'boolean' },
+            },
+          },
+          target: {
+            anyOf: [
+              { type: 'string' },
+              { type: 'number' },
+            ],
+          },
+        },
+      },
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    }]),
+  })
+
+  const errors = (result.errorData as any)?.errors as string[]
+  assert.equal((result.errorData as any)?.code, 'schema_invalid')
+  assert.ok(errors.includes('args.count must be >= 1'))
+  assert.ok(errors.includes('args.mode must be one of "fast", "safe"'))
+  assert.ok(errors.includes('args.tags must contain at least 1 item(s)'))
+  assert.ok(errors.includes('args.nested.flag expected boolean'))
+  assert.ok(errors.includes('args.nested.extra is not allowed'))
+  assert.ok(errors.includes('args.extra is not allowed'))
+  assert.ok(errors.includes('args.target must match at least one allowed schema'))
+})
+
+test('executeTool pipeline normalizes legacy call arguments and records runtime stages', async () => {
+  const result = await executeTool({
+    name: 'studio_runtime_tool',
+    arguments: { value: 'ok' },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('external gateway should not run for runtime handler')
+      },
+    }),
+    registry: new StaticToolRegistry([{
+      name: 'studio_runtime_tool',
+      description: 'Runtime tool.',
+      permission: 'studio.read',
+      risk: 'read',
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        required: ['value'],
+        properties: { value: { type: 'string' } },
+      },
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    }]),
+    runtimeToolHandlers: createRuntimeToolHandlerRegistry([{
+      toolNames: ['studio_runtime_tool'],
+      execute(context) {
+        return { result: { received: context.args.value ?? null } }
+      },
+    }]),
+  })
+
+  assert.deepEqual(result.result, { received: 'ok' })
+  assert.equal(result.pipeline?.source, 'runtime')
+  assert.equal(result.pipeline?.execution.concurrencySafe, true)
+  assert.deepEqual(result.pipeline?.stages.map((stage) => `${stage.name}:${stage.status}`), [
+    'resolve:completed',
+    'schema_validation:completed',
+    'policy_gate:skipped',
+    'sandbox:skipped',
+    'runtime_handler:completed',
+    'external_gateway:skipped',
+    'result_shaping:completed',
+  ])
+})
+
+test('executeTool policy gate blocks ungranted calls before runtime handlers execute', async () => {
+  let runtimeCalled = false
+  const result = await executeTool({
+    name: 'studio_policy_tool',
+    args: { value: 'blocked' },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('external gateway should not run after policy gate blocks')
+      },
+    }),
+    registry: new StaticToolRegistry([{
+      name: 'studio_policy_tool',
+      description: 'Policy-gated tool.',
+      permission: 'studio.write',
+      risk: 'write',
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        required: ['value'],
+        properties: { value: { type: 'string' } },
+      },
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    }]),
+    runtimeToolHandlers: createRuntimeToolHandlerRegistry([{
+      toolNames: ['studio_policy_tool'],
+      execute() {
+        runtimeCalled = true
+        return { result: { ok: true } }
+      },
+    }]),
+    policyGate: {
+      manifest: DEFAULT_AGENT_MANIFEST,
+      catalog: { discovered: [], available: [], blocked: [], byName: {} },
+      approvalMode: 'interactive',
+    },
+  })
+
+  assert.equal(runtimeCalled, false)
+  assert.match(result.error ?? '', /blocked by policy/)
+  assert.equal((result.errorData as any)?.code, 'tool_policy_blocked')
+  assert.equal((result.errorData as any)?.reason, 'not_granted')
+  assert.equal(result.pipeline?.stages.some((stage) => stage.name === 'policy_gate' && stage.status === 'failed'), true)
 })
 
 test('executeTool serves runtime knowledge search and bounded get', async () => {
@@ -142,11 +391,11 @@ test('executeTool reads project standards from backend project data with context
       },
     }),
     run,
-    backendApplyClient: {
+    projectStandardsPort: createDefaultProjectStandardsPort({
       async getProject(): Promise<any> {
         return { performed: false, skippedReason: 'backend disabled in test' }
       },
-    } as never,
+    }),
   }
 
   const result = await executeTool({
@@ -161,6 +410,80 @@ test('executeTool reads project standards from backend project data with context
   assert.equal((result.result as any)?.standards.enabled_custom_rules[0].prompt_role, 'quality_gate')
   assert.deepEqual((result.result as any)?.standards.style_reference_resource_ids, ['100', '101'])
   assert.match(((result.result as any)?.warnings as string[]).join('\n'), /backend disabled/)
+})
+
+test('executeTool extracts local video frames and returns image parts only through supplemental model messages', async () => {
+  const calls: any[] = []
+  const run = testRun()
+  run.metadata = {
+    backendAuthToken: 'backend-token',
+    backendAPIBaseURL: 'http://backend.local/api/v1',
+    context: { user: { id: 7 } },
+  }
+  const result = await executeTool({
+    name: 'core_video_extract_frames',
+    args: { resource_id: 77, mode: 'range', count: 2, max_frames: 6, max_width: 320, start_sec: 0, end_sec: 2, fps: 2, timestamps_sec: [0, 1.5] },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for local video frame extraction')
+      },
+    }),
+    run,
+    videoFrameExtractionPort: {
+      async extract(input) {
+        calls.push(input)
+        return {
+          status: 'extracted',
+          resourceId: input.resourceId,
+          frameCount: 2,
+          durationSec: 3,
+          video: { durationSec: 3, width: 1920, height: 1080, fps: 30 },
+          sampling: {
+            mode: input.mode ?? 'timestamps',
+            timestampsSec: input.timestampsSec ?? [],
+            requestedFrameCount: input.timestampsSec?.length ?? 0,
+            returnedFrameCount: 2,
+            maxFrames: input.maxFrames ?? 2,
+            ...(input.startSec !== undefined ? { startSec: input.startSec } : {}),
+            ...(input.endSec !== undefined ? { endSec: input.endSec } : {}),
+            ...(input.fps !== undefined ? { fps: input.fps } : {}),
+            warnings: [],
+          },
+          outputLayout: input.outputLayout ?? 'individual',
+          download: { performed: true, method: 'GET', url: 'http://backend.local/api/v1/resources/77/file', contentType: 'video/mp4', contentLength: 1234 },
+          frames: [
+            { index: 1, timestampSec: 0, mimeType: 'image/jpeg', sizeBytes: 10, dataUrl: 'data:image/jpeg;base64,AAAA' },
+            { index: 2, timestampSec: 1.5, mimeType: 'image/jpeg', sizeBytes: 11, dataUrl: 'data:image/jpeg;base64,BBBB' },
+          ],
+        }
+      },
+    },
+  })
+
+  assert.equal(result.source, 'runtime')
+  assert.equal(calls[0]?.resourceId, 77)
+  assert.equal(calls[0]?.count, 2)
+  assert.equal(calls[0]?.mode, 'range')
+  assert.equal(calls[0]?.maxFrames, 6)
+  assert.equal(calls[0]?.startSec, 0)
+  assert.equal(calls[0]?.endSec, 2)
+  assert.equal(calls[0]?.fps, 2)
+  assert.equal(calls[0]?.maxWidth, 320)
+  assert.deepEqual(calls[0]?.timestampsSec, [0, 1.5])
+  assert.equal(calls[0]?.run.metadata?.backendAuthToken, 'backend-token')
+  assert.equal((result.result as any)?.video?.width, 1920)
+  assert.equal((result.result as any)?.sampling?.mode, 'range')
+  assert.deepEqual((result.result as any)?.sampling?.timestamps_sec, [0, 1.5])
+  assert.equal((result.result as any)?.frames[0]?.image_payload, 'sent_to_model_as_image_part')
+  assert.equal(JSON.stringify(result.result).includes('data:image'), false)
+  assert.equal(result.supplementalMessages?.length, 1)
+  const supplemental = result.supplementalMessages?.[0]
+  assert.equal(supplemental?.role, 'user')
+  assert.equal(supplemental?.content.filter((part: any) => part.type === 'image').length, 2)
 })
 
 test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
@@ -1048,11 +1371,11 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
       },
     }),
     draftStore,
-    backendApplyClient: {
+    draftApplyPort: createDefaultDraftApplyPort({
       async applyReview(): Promise<any> {
         throw new Error('backend apply should be skipped for asset planning drafts without asset slots')
       },
-    } as never,
+    }),
   })
 
   assert.equal((result.result as any)?.status, 'applied')
@@ -1071,7 +1394,7 @@ test('executeTool ignores non-plain runtime draft source and metadata records', 
   const result = await executeTool({
     name: 'draft_create',
     args: {
-      kind: 'project_standards_proposal',
+      kind: 'runtime_note',
       title: 'Runtime draft',
       content: 'Draft content',
       source: new RuntimeRecord() as unknown as JSONValue,
@@ -1120,7 +1443,7 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
   await executeTool({
     name: 'draft_create',
     args: {
-      kind: 'project_standards_proposal',
+      kind: 'runtime_note',
       title: 'Runtime draft',
       content: 'Draft content',
     },

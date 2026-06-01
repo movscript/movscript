@@ -52,6 +52,33 @@ func TestBuildOpenAIChatBodyIncludesToolCalls(t *testing.T) {
 	}
 }
 
+func TestBuildOpenAIChatBodyPreservesImageURLContentParts(t *testing.T) {
+	body, err := buildOpenAIChatBody(TextRequest{
+		Model: "gpt-test",
+		Messages: []Message{{
+			Role:    "user",
+			Content: "describe",
+			ContentParts: []MessageContentPart{
+				{"type": "text", "text": "describe"},
+				{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,AAAA", "detail": "low"}},
+			},
+		}},
+	}, false)
+	if err != nil {
+		t.Fatalf("buildOpenAIChatBody() error = %v", err)
+	}
+
+	messages := body["messages"].([]map[string]any)
+	parts := messages[0]["content"].([]map[string]any)
+	if parts[0]["type"] != "text" || parts[0]["text"] != "describe" {
+		t.Fatalf("text part = %#v", parts[0])
+	}
+	imageURL := parts[1]["image_url"].(map[string]any)
+	if parts[1]["type"] != "image_url" || imageURL["url"] != "data:image/png;base64,AAAA" || imageURL["detail"] != "low" {
+		t.Fatalf("image part = %#v", parts[1])
+	}
+}
+
 func TestBuildOpenAIChatBodyJSONModeAddsJSONInstructionWhenMissing(t *testing.T) {
 	body, err := buildOpenAIChatBody(TextRequest{
 		Model:    "gpt-test",
@@ -105,7 +132,7 @@ func TestBuildOpenAIChatBodyJSONModeDoesNotDuplicateExistingJSONInstruction(t *t
 func TestBuildOpenAIResponsesBodyUsesResponsesShape(t *testing.T) {
 	body, err := buildOpenAIResponsesBody(ResponsesRequest{
 		Text: TextRequest{
-			Model:       "gpt-5.5",
+			Model:       "gpt-5.2",
 			MaxTokens:   64,
 			Temperature: 0,
 			JSONMode:    true,
@@ -124,7 +151,7 @@ func TestBuildOpenAIResponsesBodyUsesResponsesShape(t *testing.T) {
 	if _, ok := body["messages"]; ok {
 		t.Fatalf("responses body must not include chat messages: %#v", body)
 	}
-	if body["model"] != "gpt-5.5" || body["instructions"] != "Be concise." || body["max_output_tokens"] != 64 {
+	if body["model"] != "gpt-5.2" || body["instructions"] != "Be concise." || body["max_output_tokens"] != 64 {
 		t.Fatalf("unexpected basic body fields: %#v", body)
 	}
 	if _, ok := body["input"].([]any); !ok {
@@ -141,6 +168,34 @@ func TestBuildOpenAIResponsesBodyUsesResponsesShape(t *testing.T) {
 	}
 	if tools[0]["name"] != "movscript_search" {
 		t.Fatalf("tool name = %#v, want movscript_search", tools[0]["name"])
+	}
+}
+
+func TestBuildOpenAIResponsesBodyMapsContentPartsToResponsesInput(t *testing.T) {
+	body, err := buildOpenAIResponsesBody(ResponsesRequest{
+		Text: TextRequest{
+			Model: "gpt-test",
+			Messages: []Message{{
+				Role:    "user",
+				Content: "describe",
+				ContentParts: []MessageContentPart{
+					{"type": "input_text", "text": "describe"},
+					{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,AAAA"}, "detail": "high"},
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildOpenAIResponsesBody() error = %v", err)
+	}
+
+	input := body["input"].([]map[string]any)
+	content := input[0]["content"].([]map[string]any)
+	if content[0]["type"] != "input_text" || content[0]["text"] != "describe" {
+		t.Fatalf("text content = %#v", content[0])
+	}
+	if content[1]["type"] != "input_image" || content[1]["image_url"] != "data:image/png;base64,AAAA" || content[1]["detail"] != "high" {
+		t.Fatalf("image content = %#v", content[1])
 	}
 }
 
@@ -174,7 +229,7 @@ func TestOpenAIResponsesGeneratePostsResponsesEndpoint(t *testing.T) {
 
 	resp, err := adapter.ResponsesGenerate(context.Background(), ResponsesRequest{
 		Text: TextRequest{
-			Model:    "gpt-5.5",
+			Model:    "gpt-5.2",
 			Messages: []Message{{Role: "user", Content: "hello"}},
 		},
 		Input: json.RawMessage(`"hello"`),

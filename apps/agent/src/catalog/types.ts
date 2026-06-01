@@ -1,6 +1,6 @@
 import type { DraftKind, DraftScope, DraftSchemaDefinition, JSONSchema7 } from '@movscript/drafts'
 import type { JSONValue } from '../types.js'
-import type { ToolRiskLevel } from '../tools/toolRegistry.js'
+import type { ToolExecutionMetadata, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { KnowledgeCollection } from '../knowledge/types.js'
 
 export type SkillKind = 'persona' | 'workflow' | 'policy' | 'expertise'
@@ -23,6 +23,7 @@ export interface ToolDefinition {
     approval: ApprovalMode
     timeoutMs?: number
   }
+  execution?: ToolExecutionMetadata
   source: ToolSource
   capability?: string
   pluginId?: string

@@ -2,8 +2,6 @@ import type { AgentStore } from '../state/store.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type {
   AgentMessage,
-  AgentApprovalRequest,
-  AgentInputRequest,
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
@@ -28,6 +26,7 @@ import {
   recordRuntimeRunTraceEvent,
   replayRuntimeRunStream,
 } from './runtimeRunStreamEvents.js'
+import { runtimeRunDisplayThreadIds, runtimeRunDisplaysOnThread } from './runtimeRunVisibility.js'
 
 export interface RuntimeStreamBridge {
   subscribeRunStream: (run: AgentRun, listener: (event: AgentInternalRunSignal) => void) => () => void
@@ -218,25 +217,4 @@ function threadIdsForRunStreamEvent(event: AgentInternalRunSignal, getRun: (runI
       : undefined
   if (!run) return []
   return [...new Set([run.threadId, ...runtimeRunDisplayThreadIds(run)])]
-}
-
-function runtimeRunDisplaysOnThread(run: AgentRun, threadId: string): boolean {
-  return runtimeRunDisplayThreadIds(run).includes(threadId)
-}
-
-function runtimeRunDisplayThreadIds(run: AgentRun): string[] {
-  const threadIds = [
-    ...runtimeInteractionDisplayThreadIds(run.pendingApprovals),
-    ...runtimeInteractionDisplayThreadIds(run.pendingInputRequests),
-  ]
-  return [...new Set(threadIds)]
-}
-
-function runtimeInteractionDisplayThreadIds(
-  interactions: Array<Pick<AgentApprovalRequest | AgentInputRequest, 'displayThreadId' | 'displayAnchor'>> | undefined,
-): string[] {
-  return (interactions ?? []).flatMap((interaction) => [
-    ...(interaction.displayThreadId ? [interaction.displayThreadId] : []),
-    ...(interaction.displayAnchor?.threadId ? [interaction.displayAnchor.threadId] : []),
-  ])
 }

@@ -1,7 +1,7 @@
 import { useState, type MouseEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, FileAudio, FileText, Image, PackageCheck, Sparkles, Video, type LucideIcon } from 'lucide-react'
 
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { MediaViewer } from '@/shared/ui/MediaViewer'
 import {
   ResourcePrepAssetGrid,
   ResourcePrepBoardHeader,
@@ -37,7 +37,6 @@ import {
   ResourcePrepViewTabs,
   ResourcePrepWorkArea,
 } from '@movscript/ui'
-import { API_BASE_URL } from '@/shared/infrastructure/config'
 import {
   assetKindLabel,
   normalizeSlotStatus,
@@ -49,7 +48,6 @@ import {
   type SlotStatus,
 } from '@/features/pre-production/domain/preProductionAssetRows'
 import { assetCoverage, assetSlotAction } from '@/shared/domain/productionTerminology'
-import type { RawResource } from '@/types'
 import {
   preProductionCountRecipe,
   preProductionCoverageRecipe,
@@ -510,25 +508,17 @@ function DraftReferencePrepItem() {
 }
 
 export function SlotThumb({ slot, fit = 'cover', ratio = 'default', frame = 'card' }: { slot?: AssetSlotRecord; fit?: MediaFit; ratio?: 'square' | 'wide' | 'banner' | 'default'; frame?: 'card' | 'strip' | 'fill' | 'banner' | 'draft' }) {
-  const preview = slotPreview(slot)
-  if (!preview.src) {
+  const resource = slot?.resource
+  if (!resource?.url) {
     return <ResourcePrepThumbnail icon={slotKindIcon(slot?.kind)} fit={fit} ratio={ratio} frame={frame} />
   }
-  return preview.video
-    ? (
-      <ResourcePrepThumbnail fit={fit} ratio={ratio} frame={frame}>
-        <ResourcePrepMediaBackdrop tone={fit === 'contain' ? 'dark' : 'none'}>
-          <AuthedVideo src={preview.src} muted playsInline />
-        </ResourcePrepMediaBackdrop>
-      </ResourcePrepThumbnail>
-    )
-    : (
-      <ResourcePrepThumbnail fit={fit} ratio={ratio} frame={frame}>
-        <ResourcePrepMediaBackdrop tone={fit === 'contain' ? 'muted' : 'none'}>
-          <AuthedImage src={preview.src} alt={slot?.name ?? ''} />
-        </ResourcePrepMediaBackdrop>
-      </ResourcePrepThumbnail>
-    )
+  return (
+    <ResourcePrepThumbnail fit={fit} ratio={ratio} frame={frame}>
+      <ResourcePrepMediaBackdrop tone={fit === 'contain' && isVideoResource(resource) ? 'dark' : fit === 'contain' ? 'muted' : 'none'}>
+        <MediaViewer resource={resource} fit={fit} lightbox={false} />
+      </ResourcePrepMediaBackdrop>
+    </ResourcePrepThumbnail>
+  )
 }
 
 export function SlotStatusBadge({ status }: { status: SlotStatus }) {
@@ -705,17 +695,8 @@ function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewMo
   return clusters.find((cluster) => cluster.reference?.ID === row.slot.creative_reference_id)?.reference ?? null
 }
 
-function mediaSrc(resource?: RawResource): string | undefined {
-  if (!resource?.url) return undefined
-  return resource.url.startsWith('http') ? resource.url : `${API_BASE_URL}${resource.url}`
-}
-
-function slotPreview(slot?: AssetSlotRecord): { src?: string; video: boolean } {
-  const resource = slot?.resource
-  return {
-    src: mediaSrc(resource),
-    video: resource?.type === 'video' || Boolean(resource?.mime_type?.startsWith('video/')),
-  }
+function isVideoResource(resource: { type?: string; mime_type?: string }) {
+  return resource.type === 'video' || Boolean(resource.mime_type?.startsWith('video/'))
 }
 
 function slotKindIcon(kind?: string): LucideIcon {

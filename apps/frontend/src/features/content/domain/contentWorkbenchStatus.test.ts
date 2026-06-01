@@ -6,7 +6,6 @@ import {
   contentUnitWorkStatus,
   normalizeAssetSlotStatus,
   priorityLabel,
-  resourceFileUrl,
   statusLabel,
 } from '@/features/content/domain/contentWorkbenchStatus.ts'
 
@@ -18,7 +17,6 @@ test('content workbench status helpers preserve labels and readiness semantics',
   assert.equal(assetSlotWorkStatus({ status: 'candidate', resource_id: 4 }), 'ready')
   assert.equal(contentUnitWorkStatus({ status: 'confirmed' }, []), 'ready')
   assert.equal(contentUnitWorkStatus({ status: 'confirmed' }, [{ status: 'missing' }]), 'blocked')
-  assert.equal(resourceFileUrl(12), '/api/v1/resources/12/file')
 })
 
 test('content workbench status helpers unwrap backend error payloads', () => {

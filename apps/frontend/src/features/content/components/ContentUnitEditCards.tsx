@@ -31,7 +31,7 @@ import {
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { byOrder, firstText, formatDuration, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import { apiErrorMessage, contentUnitWorkStatus, normalizeAssetSlotStatus, statusLabel } from '@/features/content/domain/contentWorkbenchStatus'
-import { contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
+import { contentGapRecipe, contentWorkbenchStatusRecipe } from '@/features/content/presentation/contentSemanticUi'
 import { contentWorkbenchUnitRequiresKeyframe } from '@/features/content/domain/contentWorkbenchUnitTrack'
 import {
   contentUnitStoryboardBriefPromptText,
@@ -48,10 +48,12 @@ import {
   ContentWorkbenchEditorSelectField,
   ContentWorkbenchUnitEditActionButton,
   ContentWorkbenchUnitEditActionRow,
+  ContentWorkbenchUnitEditBlockerRow,
   ContentWorkbenchUnitEditEmptyState,
   ContentWorkbenchUnitEditGrid,
   ContentWorkbenchUnitEditRoot,
   ContentWorkbenchUnitEditSection,
+  ContentWorkbenchUnitEditTextarea,
   ContentWorkbenchUnitSummaryHeader,
   Input,
   StatusBadge,
@@ -129,7 +131,7 @@ export function ContentUnitEditCards({
   const [keyframeModelId, setKeyframeModelId] = useState('')
   const { data: imageModels = [] } = useQuery<PublicModel[]>({
     queryKey: ['models', 'image', 'content-workbench-keyframe'],
-    queryFn: () => api.get('/models?capability=image&feature=ref_image_gen').then((r) => r.data),
+    queryFn: () => api.get('/models?capability=image').then((r) => r.data),
   })
   useEffect(() => {
     if (keyframeModelId && imageModels.some((model) => publicModelId(model) === keyframeModelId)) return
@@ -431,6 +433,28 @@ export function ContentUnitEditCards({
             <ContentWorkbenchEditorSelectField label="机位角度" value={draft.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateDraft('camera_angle', value)} />
             <ContentWorkbenchEditorSelectField label="运镜方式" value={draft.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateDraft('camera_motion', value)} />
           </ContentWorkbenchEditorFieldGrid>
+          <ContentWorkbenchEditorFieldGrid>
+            <ContentWorkbenchEditorField label="描述" htmlFor={`content-unit-description-${unit.ID}`}>
+              <ContentWorkbenchUnitEditTextarea
+                id={`content-unit-description-${unit.ID}`}
+                compact={compact}
+                value={draft.description}
+                onChange={(event) => updateDraft('description', event.target.value)}
+              />
+            </ContentWorkbenchEditorField>
+            <ContentWorkbenchEditorField label="生成提示" htmlFor={`content-unit-prompt-${unit.ID}`}>
+              <ContentWorkbenchUnitEditTextarea
+                id={`content-unit-prompt-${unit.ID}`}
+                compact={compact}
+                value={draft.prompt}
+                onChange={(event) => updateDraft('prompt', event.target.value)}
+              />
+            </ContentWorkbenchEditorField>
+          </ContentWorkbenchEditorFieldGrid>
+          <ContentWorkbenchUnitEditBlockerRow>
+            <StatusBadge {...contentGapRecipe(missingSlots.length)}>{missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '素材齐备'}</StatusBadge>
+            <Badge variant={unfinishedKeyframes.length > 0 ? 'soft' : 'outline'}>{unfinishedKeyframes.length > 0 ? `${unfinishedKeyframes.length} 个关键帧待完成` : '关键帧齐备'}</Badge>
+          </ContentWorkbenchUnitEditBlockerRow>
         </ContentWorkbenchUnitEditSection>
 
         <ContentUnitGenerationInputsPanel

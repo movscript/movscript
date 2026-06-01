@@ -18,7 +18,7 @@ type PublicModel struct {
 	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
 	Capabilities      []string       `json:"capabilities"`            // e.g. ["text"], ["image"], ["video_i2v"]
 	AcceptsImageInput bool           `json:"accepts_image_input"`     // true for image_edit and i2v models
-	IsDefault         bool           `json:"is_default,omitempty"`    // true when this is the admin-pinned default for a feature
+	IsDefault         bool           `json:"is_default,omitempty"`    // true when this is the admin-pinned default for this capability
 	LogicalModelID    string         `json:"logical_model_id,omitempty"`
 	ProviderVariants  int            `json:"provider_variant_count,omitempty"`
 	ModelDefID        string         `json:"model_def_id"`
@@ -41,6 +41,10 @@ type ModelInputRequirement struct {
 type ModelInputs struct {
 	Image ModelInputRequirement `json:"image"`
 	Video ModelInputRequirement `json:"video"`
+}
+
+func textRuntimeCapabilities() []string {
+	return []string{CapabilityText, CapabilityReasoning}
 }
 
 func modelInputsForDef(def *ModelDef) ModelInputs {
@@ -200,15 +204,16 @@ func (s *AIService) PreflightText(modelConfigID uint, req *TextRequest) (TextPre
 	if req == nil {
 		return TextPreflightResult{}, fmt.Errorf("text request is required")
 	}
-	cfg, _, def, err := s.loadConfig(modelConfigID, CapabilityText)
+	cfg, _, def, capability, err := s.loadTextConfig(modelConfigID)
 	if err != nil {
 		return TextPreflightResult{}, err
 	}
 	rawParams := textRequestParamsForValidation(*req)
-	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityText, marshalParamsForValidation(rawParams), "", 0)
+	params, err := ValidateAndNormalizeGenerationParams(def, capability, marshalParamsForValidation(rawParams), "", 0)
 	if err != nil {
 		return TextPreflightResult{}, err
 	}
+	req.IsReasoning = req.IsReasoning || modelHasCapability(def, CapabilityReasoning)
 	applyTextPreflightParams(req, params)
 	return TextPreflightResult{Config: &cfg, Def: def}, nil
 }
@@ -271,10 +276,54 @@ func (s *AIService) GetModelsByCapability(capability string) ([]PublicModel, err
 	return s.getModelsByCapability(capability, false)
 }
 
+func (s *AIService) GetModelsByAnyCapability(capabilities []string) ([]PublicModel, error) {
+	return s.getModelsByAnyCapability(capabilities, false)
+}
+
 // GetProviderModelsByCapability returns one item per enabled provider-backed
 // model config. Admin uses this to keep provider configuration explicit.
 func (s *AIService) GetProviderModelsByCapability(capability string) ([]PublicModel, error) {
 	return s.getModelsByCapability(capability, true)
+}
+
+func (s *AIService) GetProviderModelsByAnyCapability(capabilities []string) ([]PublicModel, error) {
+	return s.getModelsByAnyCapability(capabilities, true)
+}
+
+func (s *AIService) getModelsByAnyCapability(capabilities []string, providerVariants bool) ([]PublicModel, error) {
+	result := make([]PublicModel, 0)
+	index := map[string]int{}
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if capability == "" {
+			continue
+		}
+		models, err := s.getModelsByCapability(capability, providerVariants)
+		if err != nil {
+			return nil, err
+		}
+		for _, model := range models {
+			key := model.LogicalModelID
+			if key == "" {
+				key = model.ModelID
+			}
+			if key == "" {
+				key = fmt.Sprintf("config:%d", model.ID)
+			}
+			key += "\x00" + publicModelContractSignature(model)
+			if idx, ok := index[key]; ok {
+				result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, model.Capabilities)
+				result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || model.AcceptsImageInput
+				if model.ProviderVariants > result[idx].ProviderVariants {
+					result[idx].ProviderVariants = model.ProviderVariants
+				}
+				continue
+			}
+			index[key] = len(result)
+			result = append(result, model)
+		}
+	}
+	return result, nil
 }
 
 func (s *AIService) getModelsByCapability(capability string, providerVariants bool) ([]PublicModel, error) {
@@ -365,147 +414,6 @@ func publicModelContractSignature(item PublicModel) string {
 		return fmt.Sprintf("config:%d", item.ID)
 	}
 	return string(body)
-}
-
-// GetModelsForFeature returns enabled models allowed for a feature key.
-// It uses the FeatureDef's CompatibleCaps to query all applicable capabilities,
-// so a feature like ref_image_gen can surface both image and image_edit models.
-// If the feature has AllowedModelIDs configured, results are filtered to those IDs.
-// If the feature is disabled or not found, an empty list is returned without error.
-func (s *AIService) GetModelsForFeature(featureKey string) ([]PublicModel, error) {
-	return s.getModelsForFeature(featureKey, false)
-}
-
-// GetProviderModelsForFeature returns provider variants for admin feature setup.
-func (s *AIService) GetProviderModelsForFeature(featureKey string) ([]PublicModel, error) {
-	return s.getModelsForFeature(featureKey, true)
-}
-
-func (s *AIService) getModelsForFeature(featureKey string, providerVariants bool) ([]PublicModel, error) {
-	featureKey = NormalizeFeatureKey(featureKey)
-	var cfg persistencemodel.FeatureConfig
-	if err := s.db.Where("feature_key = ?", featureKey).First(&cfg).Error; err != nil {
-		// Feature not in DB — fall back to catalog so features seeded after initial
-		// migration still work without requiring a DB re-seed.
-		def := GetFeatureDef(featureKey)
-		if def == nil {
-			return nil, fmt.Errorf("feature %q not found", featureKey)
-		}
-		return s.getModelsByCapability(def.RequiredCap, providerVariants)
-	}
-	if !cfg.IsEnabled {
-		return []PublicModel{}, nil
-	}
-
-	// Determine which capabilities to query from the feature definition.
-	caps := []string{cfg.Capability}
-	if def := GetFeatureDef(featureKey); def != nil {
-		caps = def.Caps()
-	}
-
-	// Collect models across all compatible capabilities, deduplicating by ID.
-	seen := make(map[string]bool)
-	all := make([]PublicModel, 0)
-	for _, cap := range caps {
-		models, err := s.getModelsByCapability(cap, providerVariants)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range models {
-			key := publicModelDedupKey(m, providerVariants)
-			if !seen[key] {
-				seen[key] = true
-				all = append(all, m)
-			}
-		}
-	}
-
-	ids := parseIDArray(cfg.AllowedModelIDs)
-	if len(ids) == 0 {
-		markDefault(all, cfg.DefaultModelID)
-		return all, nil
-	}
-	// Filter to only the allowed IDs.
-	idSet := make(map[uint]bool, len(ids))
-	for _, id := range ids {
-		idSet[id] = true
-	}
-	out := make([]PublicModel, 0, len(all))
-	for _, m := range all {
-		if publicModelHasVariant(m, idSet) {
-			out = append(out, m)
-		}
-	}
-	markDefault(out, cfg.DefaultModelID)
-	return out, nil
-}
-
-// GetForFeature returns the first allowed model config for a named feature.
-// Falls back to any text model when the feature is unconfigured.
-// When multiple configs share the highest priority, one is chosen in round-robin order.
-func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelID string, err error) {
-	featureKey = NormalizeFeatureKey(featureKey)
-	var fcfg persistencemodel.FeatureConfig
-	if err := s.db.Where("feature_key = ?", featureKey).First(&fcfg).Error; err != nil {
-		return s.GetAnyTextModel()
-	}
-	if !fcfg.IsEnabled {
-		return 0, "", fmt.Errorf("feature %q is disabled", featureKey)
-	}
-	ids := parseIDArray(fcfg.AllowedModelIDs)
-
-	var rows []modelConfigWithProvider
-	base := s.db.Model(&persistencemodel.AIModelConfig{}).
-		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
-		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL")
-	if len(ids) > 0 {
-		base = base.Where("ai_model_configs.id IN ?", ids)
-	}
-	if err := base.Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").Scan(&rows).Error; err != nil {
-		return 0, "", err
-	}
-
-	var candidates []featureModelCandidate
-	for _, row := range rows {
-		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
-		for _, cap := range def.Capabilities {
-			if cap == fcfg.Capability {
-				candidates = append(candidates, featureModelCandidate{cfg: row.AIModelConfig, def: def, priority: row.Priority})
-				break
-			}
-		}
-	}
-	if len(candidates) == 0 {
-		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
-	}
-
-	chosen, mid, ok := selectFeatureModel("service.select_feature_model:"+featureKey, candidates, fcfg.DefaultModelID)
-	if !ok {
-		return 0, "", fmt.Errorf("no available model for feature %q", featureKey)
-	}
-	return chosen.cfg.ID, mid, nil
-}
-
-type featureModelCandidate struct {
-	cfg      persistencemodel.AIModelConfig
-	def      *ModelDef
-	priority int
-}
-
-func selectFeatureModel(key string, candidates []featureModelCandidate, defaultModelID *uint) (featureModelCandidate, string, bool) {
-	if len(candidates) == 0 {
-		return featureModelCandidate{}, "", false
-	}
-	if defaultModelID != nil {
-		for _, candidate := range candidates {
-			if candidate.cfg.ID == *defaultModelID {
-				return candidate, resolveModelID(candidate.cfg, candidate.def), true
-			}
-		}
-	}
-	chosen := pickByPriority(key, candidates, func(c featureModelCandidate) int { return c.priority })
-	return chosen, resolveModelID(chosen.cfg, chosen.def), true
 }
 
 // markDefault sets IsDefault=true on the model whose ID matches defaultID.
@@ -658,14 +566,14 @@ func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err e
 	for _, row := range rows {
 		def := resolveDefFromConfig(row.AIModelConfig, row.AdapterType)
 		for _, cap := range def.Capabilities {
-			if cap == CapabilityText {
+			if cap == CapabilityText || cap == CapabilityReasoning {
 				candidates = append(candidates, candidate{cfg: row.AIModelConfig, def: def, priority: row.Priority})
 				break
 			}
 		}
 	}
 	if len(candidates) == 0 {
-		return 0, "", fmt.Errorf("no text-capable model configured and enabled")
+		return 0, "", fmt.Errorf("no text/reasoning model configured and enabled")
 	}
 
 	chosen := pickByPriority("service.get_any_text_model", candidates, func(c candidate) int { return c.priority })

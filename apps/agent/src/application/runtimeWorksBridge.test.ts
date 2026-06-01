@@ -67,6 +67,12 @@ test('runtime work bridge delegates operations and records traces', async () => 
   assert.equal(traces.some((trace) => trace.toolName === 'core_work_start'), true)
   assert.equal(traces.some((trace) => trace.toolName === 'core_work_wait'), true)
   assert.equal(traces.some((trace) => trace.toolName === 'core_work_cancel'), true)
+  const startTraceData = traces.find((trace) => trace.toolName === 'core_work_start')?.data as any
+  const waitTraceData = traces.find((trace) => trace.title === 'Runtime work wait completed')?.data as any
+  assert.equal(startTraceData.runtimeWork.request, undefined)
+  assert.equal(startTraceData.runtimeWork.requestMode, 'summary')
+  assert.equal(waitTraceData.runtimeWorkWait.completed[0].request, undefined)
+  assert.equal(waitTraceData.runtimeWorkWait.completed[0].requestMode, 'summary')
 })
 
 test('runtime work bridge rejects unsupported start kinds with guidance', async () => {

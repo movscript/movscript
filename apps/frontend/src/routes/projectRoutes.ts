@@ -16,6 +16,7 @@ export const ROUTES = {
   agentConsole: '/agent',
   agentDrafts: '/agent/drafts',
   agentSettings: '/agent/settings',
+  agentSettingsManagement: '/agent/settings/:managementArea/:managementView',
   agentPerformance: '/agent/performance',
   agentDebug: '/agent/debug',
   agentRuns: '/agent/runs',
@@ -42,8 +43,6 @@ export const ROUTES = {
     motionImitation: '/tools/motion-imitation',
     styleTransfer: '/tools/style-transfer',
     multiAngle: '/tools/multi-angle',
-    videoEdit: '/tools/video-edit',
-    brainstorm: '/tools/brainstorm',
     plugin: '/tools/plugin/:pluginId',
   },
 } as const
@@ -73,4 +72,11 @@ export function mergeSearch(pathname: string, search: string, nextParams: Record
 
 export function agentRunPath(runId: string) {
   return `/agent/runs/${encodeURIComponent(runId)}`
+}
+
+export function agentSettingsManagementPath(
+  managementArea: 'skills' | 'tools',
+  managementView: 'runtime' | 'policy' | 'catalog',
+) {
+  return `/agent/settings/${encodeURIComponent(managementArea)}/${encodeURIComponent(managementView)}`
 }

@@ -28,7 +28,6 @@ import RefVideoGenPage from './pages/tools/RefVideoGenPage'
 import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
-import BrainstormPage from './pages/tools/BrainstormPage'
 import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
 import { ContentUnitWorkbenchPage } from './features/content/components/ContentUnitWorkbenchPage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
@@ -52,6 +51,7 @@ import ScriptsPage from './pages/scripts/ScriptsPage'
 import DeliveryPage from './pages/project/delivery/DeliveryPage'
 import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPage'
 import AIDraftsPage from './pages/agent/AIDraftsPage'
+import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
 import AIAgentPerformancePage from './pages/agent/AIAgentPerformancePage'
@@ -60,7 +60,7 @@ import AgentRunsPage from './pages/agent/AgentRunsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
-import { AlertTriangle, ArrowLeft, Bot, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from './routes/projectRoutes'
@@ -78,9 +78,13 @@ import type { Project } from './types'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
-const contentOrchestrationWorkbenchRoute = getProjectWorkbenchDefinition('content_orchestration').route
-if (contentOrchestrationWorkbenchRoute !== ROUTES.project.contentUnitWorkbench) {
-  throw new Error('content_orchestration workbench route must match ROUTES.project.contentUnitWorkbench')
+function reportContentWorkbenchRouteMismatch() {
+  const route = getProjectWorkbenchDefinition('content_orchestration').route
+  if (route === ROUTES.project.contentUnitWorkbench) return
+  console.warn('content_orchestration workbench route mismatch', {
+    registryRoute: route,
+    routeConstant: ROUTES.project.contentUnitWorkbench,
+  })
 }
 
 interface EBState { error: Error | null }
@@ -111,6 +115,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 
 function ContentWorkbenchRedirect() {
   const location = useLocation()
+  useEffect(() => reportContentWorkbenchRouteMismatch(), [])
   return <Navigate to={`${ROUTES.project.productionOrchestration}${location.search}`} replace />
 }
 
@@ -452,8 +457,11 @@ function CanvasHeaderTitle() {
       <Input
         ref={titleEditor.inputRef}
         className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
-        value={titleEditor.draft}
-        onChange={(event) => titleEditor.setDraft(event.target.value)}
+        value={canvasName}
+        onChange={(event) => {
+          titleEditor.setDraft(event.target.value)
+          onNameChange?.(event.target.value)
+        }}
         onBlur={titleEditor.commitEditing}
         onKeyDown={titleEditor.handleInputKeyDown}
         placeholder={i18n.t('canvas.editor.untitled')}
@@ -462,8 +470,10 @@ function CanvasHeaderTitle() {
     )
   }
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 truncate rounded-sm border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none hover:bg-muted focus-visible:bg-muted"
       onDoubleClick={titleEditor.startEditing}
       onKeyDown={titleEditor.handleDisplayKeyDown}
@@ -471,7 +481,7 @@ function CanvasHeaderTitle() {
       aria-label={i18n.t('canvas.editor.renameTitle', { defaultValue: '双击重命名' })}
     >
       {displayName}
-    </button>
+    </Button>
   )
 }
 
@@ -570,7 +580,6 @@ function detailRouteHeaderTitle(pathname: string): React.ReactNode | undefined {
     { match: (value) => value === ROUTES.tools.motionImitation, icon: Workflow, title: i18n.t('sidebar.items.motionImitation') },
     { match: (value) => value === ROUTES.tools.styleTransfer, icon: Zap, title: i18n.t('sidebar.items.styleTransfer') },
     { match: (value) => value === ROUTES.tools.multiAngle, icon: Workflow, title: i18n.t('sidebar.items.multiAngle') },
-    { match: (value) => value === ROUTES.tools.brainstorm, icon: Bot, title: i18n.t('sidebar.items.brainstorm') },
     { match: (value) => value.startsWith('/tools/plugin/'), icon: Plug, title: i18n.t('sidebar.items.plugins') },
   ]
   const matched = routeTitles.find((route) => route.match(pathname))
@@ -871,8 +880,6 @@ export default function App() {
               <Route path={ROUTES.tools.motionImitation} element={<MotionImitationPage />} />
               <Route path={ROUTES.tools.styleTransfer} element={<StyleTransferPage />} />
               <Route path={ROUTES.tools.multiAngle} element={<MultiAnglePage />} />
-              <Route path={ROUTES.tools.videoEdit} element={<Navigate to={ROUTES.tools.refVideoGen} replace />} />
-              <Route path={ROUTES.tools.brainstorm} element={<BrainstormPage />} />
               <Route path={ROUTES.tools.plugin} element={<PluginToolPage />} />
 
               {/* 工作模块 */}
@@ -912,15 +919,16 @@ export default function App() {
               <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
-              <Route path={ROUTES.agentConsole} element={<AccountSettingsRoute tab="agentConsole" />} />
+              <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
               <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
+              <Route path={ROUTES.agentSettingsManagement} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentPerformance} element={<AIAgentPerformancePage />} />
               <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
-              <Route path="/agents" element={<AccountSettingsRoute tab="agentConsole" />} />
+              <Route path="/agents" element={<Navigate to={ROUTES.agentConsole} replace />} />
               </Routes>
             </ShellLayout>
           } />

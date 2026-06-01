@@ -1,13 +1,41 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST, type AgentManifest } from '../catalog/agentManifest.js'
-import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import type { RuntimeModelRouter } from '../model/modelRouter.js'
+import { runtimeModelContentText, runtimeModelTextContent } from '../model/modelConfig.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentDebugTool, AgentRun, AgentRunPolicy, JSONValue, ResolvedToolCatalog } from '../state/types.js'
 import { runAgentGraph } from './agentGraph.js'
+import type { AgentGraphInput } from './agentGraphTypes.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from '../application/runtimeToolHandlers.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 const policy: AgentRunPolicy = {
   approvalMode: 'interactive',
@@ -69,6 +97,26 @@ function emptyContext() {
   }
 }
 
+function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'draftApplyPort' | 'draftApplyPreviewPort' | 'proposalSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'projectStandardsPort' | 'runtimeToolHandlers'> & {
+  mcpClient: {
+    initialize(): Promise<JSONValue>
+    callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue>
+  }
+}) {
+  const { mcpClient, ...graphInput } = input
+  return runAgentGraph({
+    ...graphInput,
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
+  })
+}
+
 test('runAgentGraph pauses again after executing one approved forced call when other approvals remain pending', async () => {
   const run: AgentRun = {
     id: 'run_partial_approval',
@@ -118,7 +166,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   const traces: Array<{ kind: string; title: string; data?: unknown }> = []
   let stepArgs: Record<string, unknown> | undefined
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'run approved operation', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -147,7 +195,6 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       },
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),
@@ -192,7 +239,12 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   assert.deepEqual(calls, ['core_work_start'])
   assert.deepEqual(stepArgs, { value: 'a' })
   const completedTrace = traces.find((trace) => trace.kind === 'tool_call' && trace.title === 'Tool completed: core_work_start')
-  assert.deepEqual((completedTrace?.data as any)?.args, { value: 'a' })
+  assert.equal((completedTrace?.data as any)?.args, undefined)
+  assert.equal((completedTrace?.data as any)?.argsMode, 'summary')
+  assert.equal(typeof (completedTrace?.data as any)?.argsHash, 'string')
+  assert.equal((completedTrace?.data as any)?.result, undefined)
+  assert.equal((completedTrace?.data as any)?.resultMode, 'summary')
+  assert.equal(typeof (completedTrace?.data as any)?.resultHash, 'string')
 })
 
 test('runAgentGraph queues draft apply approvals in proposal layer order when explicitly requested', async () => {
@@ -265,7 +317,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
         },
       ],
       finish_reason: 'tool_calls',
-      rawAssistantMessage: { role: 'assistant', content: null },
+      rawAssistantMessage: { role: 'assistant', content: [] },
       trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
     }),
   }
@@ -309,7 +361,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     byName: Object.fromEntries(available.map((tool) => [tool.name, tool])),
   }
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset 草稿并应用', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -359,7 +411,6 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
       },
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -412,19 +463,19 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
       route: { capability: 'multimodal', configured: true, source: 'configured' },
     }),
     call: async (input) => {
-      const userMessage = [...input.messages].reverse().find((message) => message.role === 'user')?.content ?? ''
-      seenUserMessages.push(String(userMessage))
+      const userMessage = runtimeModelContentText([...input.messages].reverse().find((message) => message.role === 'user')?.content ?? [])
+      seenUserMessages.push(userMessage)
       return {
         content: `seen:${userMessage}`,
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: `seen:${userMessage}` },
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent(`seen:${userMessage}`) },
         trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
       }
     },
   }
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'original thread message', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -454,7 +505,6 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -502,13 +552,13 @@ test('runAgentGraph records explicit model round duration trace', async () => {
       tool_calls: [],
       finish_reason: 'stop',
       usage: { input_tokens: 9, output_tokens: 2 },
-      rawAssistantMessage: { role: 'assistant', content: 'done' },
+      rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('done') },
       trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
     }),
   }
   const traces: Array<{ title: string; status: string; durationMs?: number; data?: unknown }> = []
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'answer directly', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -530,7 +580,6 @@ test('runAgentGraph records explicit model round duration trace', async () => {
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => {
       if (trace.kind === 'model_call') traces.push({ title: trace.title, status: trace.status, durationMs: trace.durationMs, data: trace.data })
@@ -586,7 +635,7 @@ test('runAgentGraph pauses for retry when the model call fails', async () => {
   }
   const traces: Array<{ kind: string; title: string; status: string; summary?: string }> = []
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'answer directly', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -608,7 +657,6 @@ test('runAgentGraph pauses for retry when the model call fails', async () => {
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, summary: trace.summary }),
     onStepCreate: () => 'step_1',
@@ -628,7 +676,101 @@ test('runAgentGraph pauses for retry when the model call fails', async () => {
   const recoveryTrace = traces.find((trace) => trace.title === 'Model call recovery required')
   assert.equal(recoveryTrace?.kind, 'input')
   assert.equal(recoveryTrace?.status, 'blocked')
-  assert.match(recoveryTrace?.summary ?? '', /backend auth token/)
+  assert.match(recoveryTrace?.summary ?? '', /error chars/)
+  assert.doesNotMatch(recoveryTrace?.summary ?? '', /backend auth token/)
+})
+
+test('runAgentGraph retries prompt-too-long model errors with collapsed history projection', async () => {
+  const run: AgentRun = {
+    id: 'run_prompt_too_long_recovery',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'answer after recovery',
+      sourceMessageId: 'msg_current',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const calls: Array<{ hasVerbatimHistory: boolean; systemText: string }> = []
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async (input) => {
+      calls.push({
+        hasVerbatimHistory: input.messages.some((message) => message.role === 'assistant' && runtimeModelContentText(message.content).includes('VERBATIM_HISTORY_SHOULD_COLLAPSE')),
+        systemText: input.messages.filter((message) => message.role === 'system').map((message) => runtimeModelContentText(message.content)).join('\n'),
+      })
+      if (calls.length === 1) {
+        throw new Error('backend model gateway HTTP 413: context_length_exceeded maximum context length')
+      }
+      return {
+        content: 'done after recovery',
+        tool_calls: [],
+        finish_reason: 'stop',
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('done after recovery') },
+        trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+      }
+    },
+  }
+  const traces: Array<{ kind: string; title: string; status: string; data?: unknown }> = []
+
+  const result = await runAgentGraphWithDefaults({
+    run,
+    threadMessages: [
+      { id: 'msg_old_user', threadId: 'thread_1', role: 'user', content: 'old user context', createdAt: '2026-05-16T00:00:00.000Z' },
+      { id: 'msg_old_assistant', threadId: 'thread_1', role: 'assistant', content: 'VERBATIM_HISTORY_SHOULD_COLLAPSE '.repeat(80), createdAt: '2026-05-16T00:00:01.000Z' },
+      { id: 'msg_current', threadId: 'thread_1', role: 'user', content: 'answer after recovery', createdAt: '2026-05-16T00:00:02.000Z' },
+    ],
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: emptyContext(),
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, data: trace.data }),
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'completed')
+  if (result.status === 'completed') assert.equal(result.finalContent, 'done after recovery')
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0]?.hasVerbatimHistory, true)
+  assert.equal(calls[1]?.hasVerbatimHistory, false)
+  assert.match(calls[1]?.systemText ?? '', /Prompt-too-long recovery summary/)
+  assert.equal(traces.some((trace) => trace.title === 'Prompt too long recovery needed' && trace.status === 'blocked'), true)
+  const recoveryTrace = traces.find((trace) => trace.title === 'Prompt too long recovery projected')
+  assert.equal(recoveryTrace?.kind, 'context')
+  assert.equal((recoveryTrace?.data as any)?.droppedHistoryMessageCount, 2)
 })
 
 test('runAgentGraph appends active-run runtime input to the next model turn', async () => {
@@ -666,18 +808,18 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
       route: { capability: 'multimodal', configured: true, source: 'configured' },
     }),
     call: async (input) => {
-      seenUserMessages.push(String([...input.messages].reverse().find((message) => message.role === 'user')?.content ?? ''))
+      seenUserMessages.push(runtimeModelContentText([...input.messages].reverse().find((message) => message.role === 'user')?.content ?? []))
       return {
         content: 'done',
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('done') },
         trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
       }
     },
   }
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'base request', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -728,7 +870,6 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -789,7 +930,7 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
             },
           }],
           finish_reason: 'tool_calls',
-          rawAssistantMessage: { role: 'assistant', content: null },
+          rawAssistantMessage: { role: 'assistant', content: [] },
           trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
         }
       }
@@ -797,14 +938,14 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
         content: 'done',
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('done') },
         trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
       }
     },
   }
   const traceSummaries: string[] = []
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '检查剧本读取 skill', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -833,7 +974,6 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -917,7 +1057,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
             },
           }],
           finish_reason: 'tool_calls',
-          rawAssistantMessage: { role: 'assistant', content: null },
+          rawAssistantMessage: { role: 'assistant', content: [] },
           trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
         }
       }
@@ -925,14 +1065,14 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
         content: 'done',
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('done') },
         trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
       }
     },
   }
   const traceSummaries: string[] = []
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '检查 catalog', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -961,7 +1101,6 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -1119,7 +1258,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
             },
           }],
           finish_reason: 'tool_calls',
-          rawAssistantMessage: { role: 'assistant', content: null },
+          rawAssistantMessage: { role: 'assistant', content: [] },
           trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
         }
       }
@@ -1127,13 +1266,13 @@ test('runAgentGraph loads script reading skill when model calls project script t
         content: 'skill loaded',
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: 'skill loaded' },
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('skill loaded') },
         trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
       }
     },
   }
 
-  const result = await runAgentGraph({
+  const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
       { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '查看总剧本', createdAt: '2026-05-16T00:00:00.000Z' },
@@ -1163,7 +1302,6 @@ test('runAgentGraph loads script reading skill when model calls project script t
       callTool: async () => ({}),
     },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),

@@ -1,5 +1,5 @@
-import type { JSONValue } from '../types.js'
-import { appendTraceEvent } from '../state/runTrace.js'
+import { appendTraceEvent, buildVolatileTraceEvent } from '../domains/trace/runTrace.js'
+import { summarizeModelStreamTraceData } from '../domains/trace/streamTrace.js'
 import {
   assistantProgressFromTraceEvent,
   assistantMessageForRun,
@@ -87,20 +87,23 @@ export function emitRuntimeVolatileTraceEvent(input: {
   }
   emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
-  const event: AgentTraceEvent = {
-    id: input.trace.volatileKey ? `trace_live_${input.trace.volatileKey}` : input.traceId,
-    runId: input.run.id,
+  const traceData = (input.trace.kind === 'tool_call' || input.trace.kind === 'reasoning') && !isContentStreamTraceData(input.trace.data)
+    ? summarizeModelStreamTraceData(input.trace.data)
+    : input.trace.data
+  const event = buildVolatileTraceEvent({
+    id: input.traceId,
+    run: input.run,
+    now: input.now,
     kind: input.trace.kind,
     title: input.trace.title,
     status: input.trace.status,
-    roundId: `round_${input.trace.roundIndex}`,
     roundIndex: input.trace.roundIndex,
     roundLabel: input.trace.roundLabel,
     roundSource: input.trace.roundSource,
-    createdAt: input.now,
     ...(input.trace.summary ? { summary: input.trace.summary } : {}),
-    ...(input.trace.data !== undefined ? { data: input.trace.data as JSONValue } : {}),
-  }
+    ...(traceData !== undefined ? { data: traceData } : {}),
+    ...(input.trace.volatileKey ? { volatileKey: input.trace.volatileKey } : {}),
+  })
   if (input.trace.kind === 'tool_call' || input.trace.kind === 'reasoning') {
     input.emitRunStreamEvent(input.run.id, { type: 'trace', runId: input.run.id, event })
   }
@@ -109,6 +112,12 @@ export function emitRuntimeVolatileTraceEvent(input: {
     runId: input.run.id,
     emitRunStreamEvent: input.emitRunStreamEvent,
   })
+}
+
+function isContentStreamTraceData(data: unknown): boolean {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  const stream = (data as { stream?: unknown }).stream
+  return Boolean(stream && typeof stream === 'object' && !Array.isArray(stream) && (stream as { kind?: unknown }).kind === 'content')
 }
 
 export function replayRuntimeRunStream(input: {

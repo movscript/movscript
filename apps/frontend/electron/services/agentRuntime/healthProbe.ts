@@ -2,11 +2,13 @@ import { DEFAULT_MCP_ENDPOINT, MIN_AGENT_RUNTIME_API_VERSION } from './config'
 import { describeAgentRuntimeFetchError } from './fetchError'
 import type { AgentRuntimeHealthCheck } from './healthTypes'
 
+const AGENT_RUNTIME_HEALTH_FETCH_TIMEOUT_MS = 3_000
+
 export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
   const startedAt = Date.now()
   let res: Response
   try {
-    res = await fetch(`${baseURL}/health`)
+    res = await fetchAgentRuntimeWithTimeout(`${baseURL}/health`)
   } catch (error) {
     return {
       ok: false,
@@ -51,7 +53,7 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
     const capabilitiesStartedAt = Date.now()
     let capabilityRes: Response
     try {
-      capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
+      capabilityRes = await fetchAgentRuntimeWithTimeout(`${baseURL}/runtime/capabilities`)
     } catch (error) {
       return {
         ok: true,
@@ -119,4 +121,20 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
     }
   }
   return { ok: true, compatible: true, apiVersion, mcpEndpoint }
+}
+
+async function fetchAgentRuntimeWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => {
+    if (!controller.signal.aborted) controller.abort(createAgentRuntimeTimeoutError(url))
+  }, AGENT_RUNTIME_HEALTH_FETCH_TIMEOUT_MS)
+  try {
+    return await fetch(url, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function createAgentRuntimeTimeoutError(url: string): Error {
+  return new Error(`GET ${url} timed out after ${AGENT_RUNTIME_HEALTH_FETCH_TIMEOUT_MS}ms`)
 }

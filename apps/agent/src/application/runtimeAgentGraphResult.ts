@@ -1,4 +1,4 @@
-import type { AgentGraphResult } from '../orchestration/agentGraph.js'
+import type { AgentGraphResult } from '../orchestration/agentGraphResult.js'
 import type { AgentStore } from '../state/store.js'
 import type {
   AgentMessage,

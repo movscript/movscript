@@ -1,12 +1,20 @@
 import type { AgentRunTracePage, AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import type { AgentStore } from '../state/store.js'
-import { buildRunDebugLedgerFromTrace, resolveRunDebugEvidence, type AgentRunDebugEvidence, type AgentRunDebugLedger } from '../state/runDebugLedger.js'
-import { buildRunTracePage, normalizeTracePageLimit } from '../state/runTrace.js'
+import {
+  buildRunDebugLedgerFromTrace,
+  findRunDebugEvidenceRefs,
+  resolveRunDebugEvidence,
+  type AgentRunDebugEvidence,
+  type AgentRunDebugLedger,
+  type AgentRunDebugLedgerEvidenceRef,
+} from '../domains/trace/runDebugLedger.js'
+import { buildRunTracePage, normalizeTracePageLimit } from '../domains/trace/runTrace.js'
 import type { AgentTraceEvent } from '../state/types.js'
+import type { AgentToolResultRecord, AgentToolResultStore } from '../state/toolResultStore.js'
 import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import { requireRuntimeRun } from './runtimeStoreLookup.js'
 import { buildRuntimeRunGenerationView, type AgentRunGenerationView } from './runtimeGenerationView.js'
-import { buildRuntimeTraceDebugView, type AgentTraceDebugView } from './runtimeTraceDebugView.js'
+import { buildRuntimeTraceDebugView, type AgentTraceDebugView } from '../domains/trace/runtimeTraceDebugView.js'
 
 export interface RuntimeTraceReadBridge {
   getRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
@@ -15,16 +23,45 @@ export interface RuntimeTraceReadBridge {
   getRunTraceSummary(runId: string): AgentRunTraceSummary
   getRunTraceDebugView(runId: string): AgentTraceDebugView
   getRunDebugLedger(runId: string): AgentRunDebugLedger
+  findRunDebugEvidenceRefs(runId: string, query: RuntimeDebugEvidenceRefQuery): AgentRunDebugLedgerEvidenceRef[]
   getRunDebugEvidence(runId: string, evidenceId: string): AgentRunDebugEvidence
+  getRunToolResult(runId: string, refKey: string): AgentToolResultRecord
+  findRunToolResults(runId: string, query?: RuntimeToolResultQuery): AgentToolResultRecord[]
   getRunGenerationView(runId: string): AgentRunGenerationView
+}
+
+export interface RuntimeDebugEvidenceRefQuery {
+  kind?: AgentRunDebugLedgerEvidenceRef['kind']
+  contextBundleId?: string
+  refKey?: string
+  contentHash?: string
+  resultHash?: string
+}
+
+export interface RuntimeToolResultQuery {
+  refKey?: string
+  resultHash?: string
 }
 
 export function createRuntimeTraceReadBridge(input: {
   store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'getRunTraceEventData' | 'countRunTraceEvents' | 'summarizeRunTraceEvents' | 'getRunDebugLedger'> & {
     listRuntimeWorks?: (query?: { runId?: string }) => RuntimeWork[]
   }
+  toolResultStore?: AgentToolResultStore
 }): RuntimeTraceReadBridge {
   const requireRun = (runId: string) => requireRuntimeRun(input.store, runId)
+  const readDebugLedger = (runId: string): AgentRunDebugLedger => {
+    const run = requireRun(runId)
+    const events = hydrateTraceEventData({
+      runId,
+      store: input.store,
+      events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+    })
+    return input.store.getRunDebugLedger(runId) ?? buildRunDebugLedgerFromTrace({
+      run,
+      events,
+    })
+  }
 
   return {
     getRunTraceEvents: (runId, query = {}) => {
@@ -66,16 +103,11 @@ export function createRuntimeTraceReadBridge(input: {
       })
     },
     getRunDebugLedger: (runId) => {
-      const run = requireRun(runId)
-      const events = hydrateTraceEventData({
-        runId,
-        store: input.store,
-        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
-      })
-      return input.store.getRunDebugLedger(runId) ?? buildRunDebugLedgerFromTrace({
-        run,
-        events,
-      })
+      return readDebugLedger(runId)
+    },
+    findRunDebugEvidenceRefs: (runId, query) => {
+      const ledger = readDebugLedger(runId)
+      return findRunDebugEvidenceRefs({ ledger, ...query })
     },
     getRunDebugEvidence: (runId, evidenceId) => {
       requireRun(runId)
@@ -91,6 +123,19 @@ export function createRuntimeTraceReadBridge(input: {
       })
       if (!evidence) throw new Error(`debug evidence not found: ${evidenceId}`)
       return evidence
+    },
+    getRunToolResult: (runId, refKey) => {
+      requireRun(runId)
+      const direct = input.toolResultStore?.getToolResult(refKey)
+      const record = direct && direct.runId === runId
+        ? direct
+        : input.toolResultStore?.listToolResults({ runId, refKey })[0]
+      if (!record) throw new Error(`tool result not found: ${refKey}`)
+      return record
+    },
+    findRunToolResults: (runId, query = {}) => {
+      requireRun(runId)
+      return input.toolResultStore?.listToolResults({ runId, ...query }) ?? []
     },
     getRunGenerationView: (runId) => {
       const run = requireRun(runId)

@@ -2,10 +2,16 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AppTopControls } from '@/features/app-shell/components/AppTopControls'
 import { useTranslation } from 'react-i18next'
 import {
+  AppTopControlButton,
+  AppTopMenuItemText,
   AppWindowBrandButton,
   AppWindowControls,
   AppWindowHeader,
   AppWindowMacTrafficLights,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@movscript/ui'
 
 export function Header({
@@ -37,6 +43,24 @@ export function Header({
   const controls = (
     <AppWindowControls>
       {appControls}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <AppTopControlButton
+            type="button"
+            variant="ghost"
+            density="compact"
+            title="Movscript"
+            aria-label="Movscript"
+          >
+            M
+          </AppTopControlButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem disabled>
+            <AppTopMenuItemText>Movscript</AppTopMenuItemText>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <AppTopControls
         compact
         showAssistantShortcut={showAssistantShortcut}

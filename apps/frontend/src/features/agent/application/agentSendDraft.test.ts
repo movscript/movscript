@@ -57,6 +57,59 @@ test('buildLocalAgentSendDraft binds composer input, attachments, runtime policy
   assert.equal(draft.httpRequests.some((request) => request.id === 'local-create-thread'), false)
 })
 
+test('buildLocalAgentSendDraft resolves image attachments to data URLs before runtime input', async () => {
+  const draft = await buildLocalAgentSendDraft({
+    draftInput: 'Describe this image',
+    attachments: [],
+    composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png' })],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: null,
+    conversationMessages: [],
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    localAgentBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+    resolveAttachmentDataUrl: async (item) => item.resourceId === 42 ? 'data:image/png;base64,AAAA' : undefined,
+  })
+
+  assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, 'data:image/png;base64,AAAA')
+  assert.match(draft.outbound.enrichedUserContent, /data URL/)
+})
+
+test('buildLocalAgentSendDraft keeps video attachments metadata-only for local frame extraction', async () => {
+  let resolved = false
+  const draft = await buildLocalAgentSendDraft({
+    draftInput: 'Describe this video',
+    attachments: [],
+    composerAttachments: [attachment({ resourceId: 88, name: 'clip.mp4', type: 'video', mimeType: 'video/mp4' })],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: null,
+    conversationMessages: [],
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    localAgentBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+    resolveAttachmentDataUrl: async () => {
+      resolved = true
+      return 'data:video/mp4;base64,AAAA'
+    },
+  })
+
+  assert.equal(resolved, false)
+  assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.resourceId, 88)
+  assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, undefined)
+  assert.match(draft.outbound.enrichedUserContent, /video_payload=metadata_only/)
+  assert.match(draft.outbound.enrichedUserContent, /本地抽帧工具/)
+})
+
 test('buildLocalAgentSendDraft uses external task payload when the composer has no explicit override', async () => {
   const draft = await buildLocalAgentSendDraft({
     draftInput: 'ignored composer',
@@ -195,14 +248,18 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
     modelName: 'gpt-test',
     messages: [{ role: 'user', content: 'x'.repeat(4100) }],
     localRuntime: {
-      clientInput: { message: 'x'.repeat(4100) },
+      clientInput: {
+        message: 'x'.repeat(4100),
+        attachments: [{ id: 'att_1', type: 'image', dataUrl: 'data:image/png;base64,AAAA' }],
+      },
     },
     labels,
   })
 
   const appendMessage = requests.find((request) => request.id === 'local-add-message')
-  const body = appendMessage?.body as { clientInput?: { message?: string } } | undefined
+  const body = appendMessage?.body as { clientInput?: { message?: string; attachments?: Array<{ dataUrl?: string }> } } | undefined
   assert.match(body?.clientInput?.message ?? '', /truncated/)
+  assert.equal(body?.clientInput?.attachments?.[0]?.dataUrl, '[image data URL redacted: 26 chars]')
 })
 
 function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {

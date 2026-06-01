@@ -913,18 +913,6 @@ function readToolsWorkspaceCss() {
   ].map(readProjectFile).join('\n')
 }
 
-function readToolsBrainstormSource() {
-  return [
-    'packages/ui/src/components/business/tools/brainstorm/index.tsx',
-  ].map(readProjectFile).join('\n')
-}
-
-function readToolsBrainstormCss() {
-  return [
-    'packages/ui/src/components/business/tools/brainstorm/styles.css',
-  ].map(readProjectFile).join('\n')
-}
-
 function readScriptsLibrarySource() {
   return [
     'packages/ui/src/components/business/scripts/library/index.tsx',
@@ -1697,8 +1685,6 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/tools/styles.css',
     'packages/ui/src/components/business/tools/header/index.tsx',
     'packages/ui/src/components/business/tools/header/styles.css',
-    'packages/ui/src/components/business/tools/brainstorm/index.tsx',
-    'packages/ui/src/components/business/tools/brainstorm/styles.css',
     'packages/ui/src/components/business/tools/dialog/index.tsx',
     'packages/ui/src/components/business/tools/dialog/styles.css',
     'packages/ui/src/components/business/tools/workspace/index.tsx',
@@ -1887,6 +1873,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   const scriptsLibraryCss = readScriptsLibraryCss()
   const scriptsVersionSource = readProjectFile('packages/ui/src/components/business/scripts/version/index.tsx')
   const scriptsVersionCss = readProjectFile('packages/ui/src/components/business/scripts/version/styles.css')
+  const scriptsPageCss = readProjectFile('packages/ui/src/components/business/scripts/page/styles.css')
   const workbenchCss = readProjectFile('packages/ui/src/components/business/workbench/styles.css')
   const workbenchIndexSource = readProjectFile('packages/ui/src/components/business/workbench/index.tsx')
   const workbenchTypesSource = readProjectFile('packages/ui/src/components/business/workbench/types.ts')
@@ -1939,7 +1926,8 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.doesNotMatch(uiPackageJson, /"@movscript\/theme":/)
   assert.doesNotMatch(uiPackageJson, /"@movscript\/tokens":/)
   assert.match(themeCss, /@import "@movscript\/tokens\/theme\.css";/)
-  assert.match(themeCss, /--ms-color-background: #f5f6f2/)
+  assert.match(themeCss, /--ms-color-background: #000000/)
+  assert.match(themeCss, /--ms-color-background: #ffffff/)
   assert.doesNotMatch(themeCss, /--background:/)
   assert.doesNotMatch(themeCss, /--foreground:/)
   assert.doesNotMatch(themeCss, /--card:/)
@@ -2020,7 +2008,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(primitiveCssEntry, /@import "\.\/overlay\/styles\.css";/)
   assert.match(primitiveCssEntry, /@import "\.\/scroll\/styles\.css";/)
   assert.match(primitiveCssEntry, /@import "\.\/motion\/styles\.css";/)
-  assert.match(layoutCss, /\.app-page\s*\{/)
+  assert.match(layoutCss, /\.app-page-shell\s*\{/)
   assert.match(layoutCss, /@import "\.\/app-shell\/styles\.css";/)
   assert.doesNotMatch(layoutCss, /\.app-window-header\s*\{/)
   assert.match(appShellLayoutCss, /@import "\.\/window\/styles\.css";/)
@@ -2119,7 +2107,8 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(workspaceLayoutSource, /export function MasterDetail/)
   assert.match(workspaceLayoutCss, /\.app-shell\s*\{/)
   assert.match(workspaceLayoutCss, cssClassSelectorPattern('content-workspace-shell'))
-  assert.match(workspaceLayoutCss, /\.script-workbench-layout\s*\{/)
+  assert.match(scriptsPackageCss, /@import "\.\/page\/styles\.css";/)
+  assert.match(scriptsPageCss, /\.script-workbench-layout\s*\{/)
   assert.doesNotMatch(uiCss, /\.app-page\s*\{/)
   assert.doesNotMatch(uiCss, /\.project-surface-header\s*\{/)
   assert.match(uiStylesCss, /@import "\.\/components\/business\/canvas\/styles\.css";/)
@@ -2157,7 +2146,7 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
   assert.match(canvasMediaCss, /\.canvas-media-fill\[data-fit="cover"\] > \*\s*\{[\s\S]*object-fit:\s*cover/)
   assert.match(canvasMediaCss, /\.canvas-media-fill\[data-fit="contain"\] > \*\s*\{[\s\S]*object-fit:\s*contain/)
   assert.match(canvasMediaCss, /\.canvas-media-node-frame\s*\{[\s\S]*min-height:\s*80px/)
-  assert.match(canvasMediaCss, /\.canvas-resource-shelf-thumb-frame\[data-compact="false"\]\s*\{[\s\S]*width:\s*82px/)
+  assert.match(canvasMediaCss, /\.canvas-resource-shelf-thumb-frame\[data-compact="false"\]\s*\{[\s\S]*width:\s*100%[\s\S]*height:\s*100%[\s\S]*min-height:\s*0/)
   assert.match(canvasCss, /@import "\.\/mention\/styles\.css";/)
   assert.match(canvasMentionSource, /canvasMentionChipClassNames/)
   assert.match(canvasMentionCss, /\.canvas-mention-chip\s*\{/)
@@ -2522,7 +2511,7 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
   const businessIndexSource = readProjectFile('packages/ui/src/components/business/index.ts')
   const appBusinessSource = readAppSource()
   const scriptsPageSource = readProjectFile('apps/frontend/src/features/scripts/components/ScriptsPage.tsx')
-  const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListPage.tsx')
+  const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
 
   assert.doesNotMatch(frontendSources, /@\/components\/app\/AppPage/)
   assert.doesNotMatch(frontendSources, /@\/components\/app\/SemanticStatusBadge/)
@@ -2544,9 +2533,9 @@ test('desktop consumes migrated app and workbench primitives through @movscript/
   assert.match(appBusinessSource, /export function AppMarkerDot/)
   assert.match(appBusinessSource, /export function AppPager/)
   assert.match(appBusinessSource, /export function AppProgressBar/)
-  assert.match(appBusinessSource, /export function AppToastShell/)
+  assert.match(appBusinessSource, /export const AppToastShell/)
   assert.match(scriptsPageSource, /\bScriptCreateDialog\b/)
-  assert.match(scriptsPageSource, /\bScriptReadinessPanel\b/)
+  assert.match(scriptsPageSource, /\bScriptVersionHistoryPanel\b/)
   assert.doesNotMatch(scriptsPageSource, /\b(?:AppCreateDialog|AppProgressBar)\b/)
   assert.match(canvasListSource, /\bCanvasListCreateDialog\b/)
   assert.doesNotMatch(canvasListSource, /\bAppCreateDialog\b/)
@@ -2575,6 +2564,7 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
   const uiWorkbenchListCss = readProjectFile('packages/ui/src/components/business/workbench/list/styles.css')
   const uiWorkbenchCardCss = readWorkbenchCardCss()
   const uiWorkbenchDataDisplayCss = readProjectFile('packages/ui/src/components/business/workbench/data-display/styles.css')
+  const uiScriptsPageCss = readProjectFile('packages/ui/src/components/business/scripts/page/styles.css')
   const uiOwnedCss = [
     uiCss,
     primitiveCss,
@@ -2597,10 +2587,11 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     uiWorkbenchListCss,
     uiWorkbenchCardCss,
     uiWorkbenchDataDisplayCss,
+    uiScriptsPageCss,
   ].join('\n')
 
   for (const selector of [
-    'app-page',
+    'app-page-shell',
     'app-section',
     'app-code-block',
     'app-skeleton',
@@ -2659,7 +2650,6 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     'app-sidebar-project-row',
     'app-sidebar-user-button',
     'app-content-frame',
-    'app-content-frame--plain',
     'asset-prep-workbench',
     'asset-prep-layout',
     'asset-prep-side',
@@ -2671,7 +2661,6 @@ test('migrated primitive styling is owned by @movscript/ui', () => {
     'production-candidate-row',
     'script-workbench-shell',
     'script-workbench-frame',
-    'script-workbench-topbar',
     'script-workbench-layout',
     'script-workbench-rail',
     'script-workbench-inspector',
@@ -2772,7 +2761,7 @@ test('app and workbench package primitives share internal base style classes', (
   assert.match(appSource, /AppChoiceTile[\s\S]*?<Button[\s\S]*?data-selected=\{selected \? "true" : undefined\}/)
   assert.match(appSource, /export const AppWindowIconButton/)
   assert.match(appSource, /AppWindowIconButton[\s\S]*?<Button[\s\S]*?className=\{cn\("app-window-icon-button"/)
-  assert.match(appSource, /export function AppSurfaceItem/)
+  assert.match(appSource, /export const AppSurfaceItem/)
   assert.match(appSource, /AppSurfaceItem[\s\S]*?asChild = false/)
   assert.match(appSource, /AppSurfaceItem[\s\S]*?<Surface[\s\S]*?asChild=\{asChild\}/)
   assert.match(primitiveCss, /\[data-kind="item"\]\s*\{[\s\S]*--ui-surface-border:\s*color-mix\(in srgb, var\(--ms-color-border\) 80%, transparent\)/)
@@ -2833,7 +2822,7 @@ test('dashboard package styles have exported component owners', () => {
   const projectSemanticUiSource = readProjectFile('apps/frontend/src/features/project/presentation/projectSemanticUi.ts')
   const dashboardCss = readAppDashboardCss()
 
-  for (const exportName of [
+  const dashboardExportNames = [
     'AppDashboardHeroGrid',
     'AppDashboardSplit',
     'AppDashboardRegion',
@@ -2846,8 +2835,12 @@ test('dashboard package styles have exported component owners', () => {
     'AppDashboardDividerBlock',
     'AppDashboardLaneSummary',
     'AppDashboardMetaCell',
-  ]) {
+  ]
+
+  for (const exportName of dashboardExportNames) {
     assert.match(appSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must own dashboard package styles`)
+  }
+  for (const exportName of dashboardExportNames.filter((name) => name !== 'AppDashboardSectionHeader')) {
     assert.match(overviewSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed instead of raw app-dashboard classes`)
   }
 
@@ -3159,7 +3152,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(aiDraftsSource, /rounded-md border border-destructive\/30 bg-destructive\/10/)
   assert.doesNotMatch(sources, /rounded-md border border-border bg-(?:background|muted\/10|card)/)
   assert.match(agentResultSurfaceSources, /AgentSurfaceBlock/)
-  for (const exportName of [
+  const agentBrowserExportNames = [
     'AgentBrowserRoot',
     'AgentBrowserHeader',
     'AgentBrowserTabSurface',
@@ -3177,8 +3170,11 @@ test('agent surface blocks own reusable shell and row styling', () => {
     'AgentBrowserProjectEmpty',
     'AgentBrowserKeyValue',
     'AgentBrowserDataBlock',
-  ]) {
+  ]
+  for (const exportName of agentBrowserExportNames) {
     assert.match(agentSource, new RegExp(`export function ${exportName}\\b|export const ${exportName}\\b`), `${exportName} must be package-owned`)
+  }
+  for (const exportName of agentBrowserExportNames.filter((name) => !['AgentBrowserKeyValue', 'AgentBrowserDataBlock'].includes(name))) {
     assert.match(agentBrowserSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by agent browser panel`)
   }
   assert.match(agentSource, /function AgentBrowserTabSurface[\s\S]*?<AgentSurfaceBlock/)
@@ -3618,7 +3614,8 @@ test('agent layout primitives share internal layout classes', () => {
   assert.match(agentChatHeaderSource, /<DropdownMenuItem[\s\S]*?onSelect=\{closeAllMenuConversations\}/)
   assert.match(agentChatHeaderSource, /<DropdownMenuTrigger asChild>[\s\S]*?<Button[\s\S]*?className="ai-agent-panel-tab-context-menu-anchor"/)
   assert.doesNotMatch(agentChatHeaderSource, /<button\b/)
-  assert.match(projectAgentModeSource, /function AgentModeProjectSelectCard[\s\S]*?<AgentModeProjectSelectButton/)
+  assert.doesNotMatch(projectAgentModeSource, /function AgentModeProjectSelectCard\b/)
+  assert.match(projectAgentModeSource, /<DropdownMenuTrigger asChild>[\s\S]*?<AgentModeProjectSelectButton>/)
   assert.match(agentModePackageSource, /function AgentModeProjectSelectButton[\s\S]*?<Button[\s\S]*?agent-page-project-select-card/)
   assert.match(agentModePackageSource, /function AgentModeNavLinkItem[\s\S]*?<AgentNavItem asChild/)
   assert.doesNotMatch(projectAgentModeSource, /<button\b[\s\S]{0,160}agent-page-project-select-card/)
@@ -4051,7 +4048,14 @@ test('production proposal review surfaces use @movscript/ui review contracts', (
 })
 
 test('core canvas cards use @movscript/ui tone contracts', () => {
-  const canvasNodesSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasNodes.tsx')
+  const canvasNodesSource = [
+    'apps/frontend/src/features/canvas/ui/CanvasNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasAssetNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasGenerationNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasGroupNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasIoNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasNodePorts.tsx',
+  ].map(readProjectFile).join('\n')
   const canvasSemanticUiSource = readProjectFile('apps/frontend/src/features/canvas/presentation/canvasSemanticUi.ts')
   const frontendTypesSource = readProjectFile('apps/frontend/src/types/index.ts')
   const canvasNodeDefinitionsSource = readProjectFile('apps/frontend/src/features/canvas/domain/nodeDefinitions.ts')
@@ -4368,15 +4372,11 @@ test('core canvas cards use @movscript/ui tone contracts', () => {
   assert.match(uiSemanticCss, /\.ms-accent-port/)
 })
 
-test('projects and video edit shell primitives use @movscript/ui', () => {
+test('projects shell primitives use @movscript/ui', () => {
   const projectsSource = readProjectFile('apps/frontend/src/features/project/components/ProjectsPage.tsx')
   const projectPagePackageSource = readProjectFile('packages/ui/src/components/business/project/page/index.tsx')
   const projectPagePackageCss = readProjectFile('packages/ui/src/components/business/project/page/styles.css')
   const projectSemanticUiSource = readProjectFile('apps/frontend/src/features/project/presentation/projectSemanticUi.ts')
-  const videoEditSource = readProjectFile('apps/frontend/src/features/tools/components/VideoEditPage.tsx')
-  const toolVideoEditSource = readProjectFile('packages/ui/src/components/business/tools/video-edit/index.tsx')
-  const toolVideoEditCss = readProjectFile('packages/ui/src/components/business/tools/video-edit/styles.css')
-  const rawPanelShellPattern = /rounded-lg border border-border bg-card p-3/
 
   for (const exportName of ['ProjectPageActionButton', 'ProjectPageEmptyState', 'ProjectPageLocalAdminPrompt', 'Progress']) {
     assert.match(projectsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by projects page`)
@@ -4398,62 +4398,6 @@ test('projects and video edit shell primitives use @movscript/ui', () => {
   assert.match(projectsSource, /STATUS_STEPS\.map[\s\S]*?<ProjectPageActionButton[\s\S]*?aria-label=\{t\(step\.labelKey\)\}/)
   assert.match(projectsSource, /variant="ghost"[\s\S]{0,80}tone="danger"[\s\S]{0,120}onDelete/, 'project delete action must use package danger button tone')
   assert.doesNotMatch(projectsSource, /hover:text-destructive/)
-  for (const exportName of ['Button', 'CheckboxField', 'Input', 'NativeSelect', 'RangeInput', 'Textarea', 'ToolTimelineClipButton', 'ToolVideoEditPanel', 'ToolVideoEditStage', 'ToolVideoEditStateMessage', 'ToolVideoEditSurface', 'ToolVideoEditTrackControlButton', 'ToolVideoEditWaveform']) {
-    assert.match(videoEditSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by video edit page`)
-  }
-  for (const exportName of ['AppMediaFrame', 'AppPanel', 'AppStateMessage', 'AppSurfaceItem', 'AppWaveformBars']) {
-    assert.match(toolVideoEditSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by video edit package wrappers`)
-    assert.doesNotMatch(videoEditSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must not leak into video edit page`)
-  }
-  assert.match(toolVideoEditSource, /export function ToolTimelineClipButton/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditPanel/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditStage/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditStateMessage/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditSurface/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditTrackControlButton/)
-  assert.match(toolVideoEditSource, /export function ToolVideoEditWaveform/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-panel__body\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-surface\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-stage\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-state-message\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-track-control-button\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-track-control-button\[data-state="danger"\]/)
-  assert.match(toolVideoEditCss, /\.tool-video-edit-waveform\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-timeline-clip\s*\{/)
-  assert.match(toolVideoEditCss, /\.tool-timeline-clip\[data-kind="video"\]/)
-  assert.match(toolVideoEditCss, /\.tool-timeline-clip\[data-kind="caption"\]/)
-  assert.doesNotMatch(videoEditSource, /function Panel/)
-  assert.doesNotMatch(videoEditSource, rawPanelShellPattern)
-  assert.doesNotMatch(videoEditSource, /<select\b/)
-  assert.doesNotMatch(videoEditSource, /<textarea\b/)
-  assert.doesNotMatch(videoEditSource, /<input\b/)
-  assert.doesNotMatch(videoEditSource, /<button\b/)
-  assert.doesNotMatch(videoEditSource, /type="range"/)
-  assert.doesNotMatch(videoEditSource, /rounded-lg border border-border bg-card/)
-  assert.doesNotMatch(videoEditSource, /overflow-hidden rounded-lg border border-border bg-black/)
-  assert.doesNotMatch(videoEditSource, /rounded-md border border-border bg-background/)
-  assert.doesNotMatch(videoEditSource, /rounded-md border border-destructive\/30 bg-destructive\/10/)
-  assert.doesNotMatch(videoEditSource, /inline-flex h-7 items-center gap-1 rounded-md border border-border/)
-  assert.doesNotMatch(videoEditSource, /inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/)
-  assert.doesNotMatch(videoEditSource, /inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted/)
-  assert.doesNotMatch(videoEditSource, /function clipKindClass/)
-  assert.doesNotMatch(videoEditSource, /function WaveformPreview/)
-  assert.doesNotMatch(videoEditSource, /min-w-px flex-1 rounded-full bg-current/)
-  assert.doesNotMatch(videoEditSource, /border-border bg-card/)
-  assert.doesNotMatch(videoEditSource, /border-border bg-muted\/(?:40|60|70)/)
-  assert.match(videoEditSource, /<ToolVideoEditStage variant="stage-dark">/)
-  assert.doesNotMatch(videoEditSource, /overflow-hidden rounded-lg bg-black/)
-  assert.match(videoEditSource, /<RangeInput[\s\S]*?value=\{playheadMs\}/)
-  assert.match(videoEditSource, /<Input[\s\S]*?ref=\{importFileRef\}[\s\S]*?type="file"/)
-  assert.match(videoEditSource, /clips\.map\(clip => \{[\s\S]*?<ToolTimelineClipButton[\s\S]*?kind=\{clip\.kind\}[\s\S]*?onPointerDown=\{event => beginDrag\(event, clip, 'move'\)\}/)
-  assert.match(videoEditSource, /renderError && \([\s\S]*?<ToolVideoEditStateMessage tone="danger"/)
-  assert.match(videoEditSource, /projectError && \([\s\S]*?<ToolVideoEditStateMessage tone="danger"/)
-  assert.match(videoEditSource, /function ToolbarButton[\s\S]*?<Button/)
-  assert.match(videoEditSource, /onAddTrack\(kind as VideoEditTrack\['kind'\]\)[\s\S]*?<Button/)
-  assert.match(videoEditSource, /aria-label="缩小时间线"[\s\S]*?<ZoomOut/)
-  assert.match(videoEditSource, /aria-label="放大时间线"[\s\S]*?<ZoomIn/)
-  assert.match(videoEditSource, /track\.locked[\s\S]*?<ToolVideoEditTrackControlButton[\s\S]*?<Lock/)
-  assert.doesNotMatch(videoEditSource, /\btoneTextClass\b/)
 })
 
 test('onboarding and app settings use package surface primitives', () => {
@@ -4830,14 +4774,11 @@ test('plugin tool page uses package form controls', () => {
 test('generic tool pages use package form controls', () => {
   const toolPageSource = readProjectFile('apps/frontend/src/features/tools/components/ToolPage.tsx')
   const toolDialogSource = readProjectFile('apps/frontend/src/features/tools/components/ToolDialog.tsx')
-  const brainstormSource = readProjectFile('apps/frontend/src/features/tools/components/BrainstormPage.tsx')
   const modelSelectorSource = readProjectFile('apps/frontend/src/shared/ui/ModelSelector.tsx')
   const toolHeaderPackageSource = readProjectFile('packages/ui/src/components/business/tools/index.tsx')
   const toolHeaderSource = readProjectFile('packages/ui/src/components/business/tools/header/index.tsx')
   const toolDialogPackageSource = readProjectFile('packages/ui/src/components/business/tools/dialog/index.tsx')
   const toolDialogPackageCss = readProjectFile('packages/ui/src/components/business/tools/dialog/styles.css')
-  const toolBrainstormSource = readToolsBrainstormSource()
-  const toolBrainstormCss = readToolsBrainstormCss()
   const toolWorkspaceSource = readToolsWorkspaceSource()
   const toolHeaderPackageCss = readProjectFile('packages/ui/src/components/business/tools/styles.css')
   const toolWorkspaceCss = readToolsWorkspaceCss()
@@ -4847,7 +4788,6 @@ test('generic tool pages use package form controls', () => {
   assert.match(toolPageSource, /\bNativeSelect\b/)
   assert.match(toolPageSource, /\bButton\b/)
   assert.doesNotMatch(toolPageSource, /\bToolHeader\b/)
-  assert.doesNotMatch(brainstormSource, /\bToolHeader\b/)
   for (const exportName of [
     'ToolActionBar',
     'ToolHiddenFileInput',
@@ -4903,34 +4843,6 @@ test('generic tool pages use package form controls', () => {
   assert.doesNotMatch(toolDialogSource, /\b(?:AppCodeBlock|AppEmptyState|AppInlineMeta|AppSurfaceItem|ReviewCallout|toneTextClass)\b/)
   assert.match(toolDialogSource, /function JsonBlock[\s\S]*?<ToolDialogDebugJsonBlock/)
   assert.match(toolDialogSource, /function DebugPanel[\s\S]*?<ToolDialogDebugPanel/)
-  assert.match(brainstormSource, /\bTextarea\b/)
-  assert.match(brainstormSource, /\bButton\b/)
-  assert.doesNotMatch(brainstormSource, /\bToolHeader\b/)
-  for (const exportName of [
-    'ToolBrainstormActionRow',
-    'ToolBrainstormAttachmentChip',
-    'ToolBrainstormAttachmentList',
-    'ToolBrainstormBody',
-    'ToolBrainstormComposerFrame',
-    'ToolBrainstormDivider',
-    'ToolBrainstormEmptyFooter',
-    'ToolBrainstormEmptyState',
-    'ToolBrainstormFrame',
-    'ToolBrainstormHistoryDrawer',
-    'ToolBrainstormHistoryList',
-    'ToolBrainstormHistoryToggle',
-    'ToolBrainstormMain',
-    'ToolBrainstormMentionButton',
-    'ToolBrainstormMentionList',
-    'ToolBrainstormPanel',
-    'ToolBrainstormPanelHeader',
-    'ToolBrainstormResultCard',
-    'ToolBrainstormSectionHeader',
-  ]) {
-    assert.match(brainstormSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by brainstorm page`)
-    assert.match(toolBrainstormSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be owned by package brainstorm UI`)
-    assert.match(toolHeaderPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from tools package`)
-  }
   assert.match(modelSelectorSource, /\bGenerationModelSelector\b/)
   assert.match(modelSelectorSource, /onRefresh=\{\(\) => refetch\(\)\}/)
   assert.match(generationModelSelectorSource, /export function GenerationModelSelector/)
@@ -4942,12 +4854,12 @@ test('generic tool pages use package form controls', () => {
     assert.doesNotMatch(modelSelectorSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be owned by package model selector`)
   }
   assert.match(toolHeaderPackageSource, /export \{ ToolHeader, type ToolHeaderProps \} from "\.\/header"/)
-  assert.match(toolHeaderPackageSource, /from "\.\/brainstorm"/)
+  assert.doesNotMatch(toolHeaderPackageSource, /from "\.\/brainstorm"/)
   assert.match(toolHeaderPackageSource, /from "\.\/workspace"/)
   assert.match(toolHeaderSource, /export function ToolHeader/)
   assert.match(toolHeaderSource, /data-testid="tool-header"/)
   assert.match(toolHeaderPackageCss, /@import "\.\/header\/styles\.css";/)
-  assert.match(toolHeaderPackageCss, /@import "\.\/brainstorm\/styles\.css";/)
+  assert.doesNotMatch(toolHeaderPackageCss, /@import "\.\/brainstorm\/styles\.css";/)
   assert.match(toolHeaderPackageCss, /@import "\.\/dialog\/styles\.css";/)
   assert.match(toolHeaderPackageCss, /@import "\.\/workspace\/styles\.css";/)
   assert.match(toolDialogPackageSource, /function ToolDialogPanel[\s\S]*?<AppPanel/)
@@ -4960,15 +4872,6 @@ test('generic tool pages use package form controls', () => {
   assert.match(toolDialogPackageCss, /\.tool-dialog-frame\s*\{/)
   assert.match(toolDialogPackageCss, /\.tool-dialog-panel\s*\{/)
   assert.match(toolDialogPackageCss, /\.tool-dialog-debug-panel\s*\{/)
-  assert.match(toolBrainstormSource, /function ToolBrainstormPanel[\s\S]*?<AppPanel/)
-  assert.match(toolBrainstormSource, /function ToolBrainstormAttachmentChip[\s\S]*?<AppInlineMeta/)
-  assert.match(toolBrainstormSource, /function ToolBrainstormMentionList[\s\S]*?<AppSurfaceItem/)
-  assert.match(toolBrainstormSource, /function ToolBrainstormResultCard[\s\S]*?<AppSurfaceItem/)
-  assert.match(toolBrainstormSource, /function ToolBrainstormEmptyState[\s\S]*?<AppEmptyState/)
-  assert.match(toolBrainstormSource, /\btoneTextClass\("danger"\)/)
-  assert.match(toolBrainstormCss, /\.tool-brainstorm-frame\s*\{/)
-  assert.match(toolBrainstormCss, /\.tool-brainstorm-panel\s*\{/)
-  assert.match(toolBrainstormCss, /\.tool-brainstorm-result-card\s*\{/)
   assert.match(toolWorkspaceSource, /export function ToolPageFrame/)
   assert.match(toolWorkspaceSource, /export function ToolPanel/)
   assert.match(toolWorkspaceSource, /ToolPanel[\s\S]*?<Surface[\s\S]*?emphasis="raised"/)
@@ -4981,7 +4884,7 @@ test('generic tool pages use package form controls', () => {
   assert.match(toolWorkspaceCss, /\.tool-action-bar\s*\{/)
   assert.match(toolWorkspaceCss, /\.tool-output-download-action\s*\{/)
   assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/tools/components/ToolHeader.tsx')), false, 'tool header UI must live in @movscript/ui')
-  assert.doesNotMatch(`${toolPageSource}\n${toolDialogSource}\n${brainstormSource}`, /@\/features\/tools\/components\/ToolHeader/)
+  assert.doesNotMatch(`${toolPageSource}\n${toolDialogSource}`, /@\/features\/tools\/components\/ToolHeader/)
   assert.doesNotMatch(toolPageSource, /\bCard\b/)
   assert.doesNotMatch(toolPageSource, /\bAppSurfaceItem\b/)
   assert.doesNotMatch(toolPageSource, /\bAppMediaFrame\b/)
@@ -5020,25 +4923,6 @@ test('generic tool pages use package form controls', () => {
   assert.match(toolDialogSource, /attachmentMismatchWarnings\.map[\s\S]*?<ToolDialogWarningCallout/)
   assert.match(toolDialogSource, /historyTotal > 0[\s\S]*?<ToolDialogHistoryCount/)
   assert.match(toolDialogSource, /jobs\.length === 0[\s\S]*?<ToolDialogEmptyState/)
-  assert.doesNotMatch(brainstormSource, /<textarea\b/)
-  assert.doesNotMatch(brainstormSource, /text-destructive/)
-  assert.doesNotMatch(brainstormSource, /\bAppPanel\b/, 'Brainstorm primary surface must use package brainstorm panel')
-  assert.doesNotMatch(brainstormSource, /\bAppSurfaceItem\b/)
-  assert.doesNotMatch(brainstormSource, /\bAppInlineMeta\b/)
-  assert.doesNotMatch(brainstormSource, /\bAppEmptyState\b/)
-  assert.doesNotMatch(brainstormSource, /\btoneTextClass\b/)
-  assert.doesNotMatch(brainstormSource, /\bCard(Content|Footer)?\b/)
-  assert.doesNotMatch(brainstormSource, /border-border bg-card bg-none text-card-foreground shadow-sm/)
-  assert.doesNotMatch(brainstormSource, /hover:bg-muted\/50/)
-  assert.doesNotMatch(brainstormSource, /<button\b/)
-  assert.doesNotMatch(brainstormSource, /absolute left-0 bottom-full mb-1 w-full bg-popover border border-border rounded-lg shadow-lg/)
-  assert.doesNotMatch(brainstormSource, /flex flex-col items-center gap-2 text-muted-foreground\/40/)
-  assert.doesNotMatch(brainstormSource, /bg-muted text-muted-foreground rounded-full/)
-  assert.doesNotMatch(brainstormSource, /rounded-lg border border-border bg-muted\/30 p-3/)
-  assert.doesNotMatch(brainstormSource, /bg-muted\/40 rounded-md p-2\.5/)
-  assert.match(brainstormSource, /mentionQuery !== null[\s\S]*?<ToolBrainstormMentionList[\s\S]*?mentionResults\.map[\s\S]*?<ToolBrainstormMentionButton/)
-  assert.match(brainstormSource, /historyEntries\.length > 0[\s\S]*?<ToolBrainstormHistoryToggle[\s\S]*?setHistoryExpanded/)
-  assert.match(brainstormSource, /history\.length === 0[\s\S]*?<ToolBrainstormEmptyState/)
   assert.doesNotMatch(modelSelectorSource, /<button\b/)
 })
 
@@ -5156,10 +5040,17 @@ test('canvas workflow surfaces use package tone contracts', () => {
   const canvasGenBodySource = readProjectFile('apps/frontend/src/shared/ui/CanvasGenBody.tsx')
   const canvasWorkflowPanelsSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasWorkflowPanels.tsx')
   const canvasResourceShelfSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx')
-  const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListPage.tsx')
+  const canvasListSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
   const canvasEditorSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasEditorPage.tsx')
   const canvasContextMenuSource = readProjectFile('apps/frontend/src/features/canvas/ui/ContextMenu.tsx')
-  const canvasNodesSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasNodes.tsx')
+  const canvasNodesSource = [
+    'apps/frontend/src/features/canvas/ui/CanvasNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasAssetNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasGenerationNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasGroupNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasIoNodes.tsx',
+    'apps/frontend/src/features/canvas/ui/canvasNodePorts.tsx',
+  ].map(readProjectFile).join('\n')
   const canvasContextMenuPackageSource = readProjectFile('packages/ui/src/components/business/canvas/context-menu/index.tsx')
   const canvasContextMenuPackageCss = readProjectFile('packages/ui/src/components/business/canvas/context-menu/styles.css')
   const canvasEditorPackageSource = readProjectFile('packages/ui/src/components/business/canvas/editor/index.tsx')
@@ -5192,7 +5083,7 @@ test('canvas workflow surfaces use package tone contracts', () => {
   const canvasFlowCss = readProjectFile('packages/ui/src/components/business/canvas/flow/styles.css')
   const sources = [
     'apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx',
-    'apps/frontend/src/features/canvas/components/CanvasListPage.tsx',
+    'apps/frontend/src/features/canvas/components/CanvasListView.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
     + '\n'
     + canvasNodesSource
@@ -5269,18 +5160,18 @@ test('canvas workflow surfaces use package tone contracts', () => {
   ]) {
     assert.match(canvasListPackageCss, new RegExp(`\\.${className}\\b`), `${className} style must be package-owned`)
   }
-  assert.match(canvasListSource, /canvases\.map\(\(cv\)[\s\S]*?<CanvasListItem key=\{cv\.ID\}>/)
+  assert.match(canvasListSource, /pagedCanvases\.map\(\(canvas\)[\s\S]*?<CanvasListItem key=\{canvas\.ID\}>/)
   assert.match(canvasListSource, /<CanvasListTypeBadge icon=\{meta\.icon\}>\{t\(meta\.labelKey\)\}<\/CanvasListTypeBadge>/)
   assert.match(canvasListSource, /Object\.keys\(TYPE_META\)[\s\S]*?<CanvasListCreateTypeTile[\s\S]*?selected=\{selected\}/)
   assert.doesNotMatch(canvasListSource, /\b(?:AppChoiceTile|AppCreateDialog|AppEmptyState|AppSurfaceItem|Badge|Button|Input|Label)\b/)
-  assert.doesNotMatch(canvasListSource, /className=/)
+  assert.doesNotMatch(canvasListSource, /className=(?!\{className\})/)
   assert.doesNotMatch(canvasListSource, /<(?:div|span|p|h1)\b/)
   assert.doesNotMatch(canvasListSource, /<button\b/)
   assert.doesNotMatch(canvasListSource, /h-auto justify-start rounded-lg border px-3 py-2 text-left transition-colors/)
   assert.doesNotMatch(canvasListSource, /border border-border rounded-lg px-4 py-3 bg-background shadow-sm flex items-center gap-3/)
   assert.doesNotMatch(canvasListSource, /color: 'bg-muted text-foreground border-border'/)
   assert.doesNotMatch(canvasListSource, /border-border bg-muted\/30 text-foreground hover:border-foreground\/40/)
-  for (const exportName of ['CanvasMediaFill', 'CanvasResizeHandleButton']) {
+  for (const exportName of ['CanvasMediaFill', 'CanvasWorkflowResizeHandle']) {
     assert.match(canvasWorkflowPanelsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by canvas workflow panels`)
   }
   for (const exportName of [
@@ -5288,13 +5179,9 @@ test('canvas workflow surfaces use package tone contracts', () => {
     'CanvasWorkflowHistoryDuration',
     'CanvasWorkflowHistoryView',
     'CanvasWorkflowSideBody',
-    'CanvasWorkflowSideHeader',
     'CanvasWorkflowSideIconButton',
     'CanvasWorkflowSidePanel',
     'CanvasWorkflowSideRail',
-    'CanvasWorkflowSideTabButton',
-    'CanvasWorkflowSideTabGroup',
-    'CanvasWorkflowSideTabLabel',
     'CanvasWorkflowRunResultsView',
   ]) {
     assert.match(canvasWorkflowPanelsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by canvas workflow panels`)
@@ -5459,10 +5346,10 @@ test('canvas workflow surfaces use package tone contracts', () => {
   assert.match(canvasMediaCss, /\.canvas-media-fill\[data-fit="contain"\] > \*\s*\{[\s\S]*object-fit:\s*contain/)
   assert.match(canvasMediaCss, /\.canvas-media-empty-icon\s*\{/)
   assert.match(canvasMediaCss, /\.canvas-media-node-frame\s*\{[\s\S]*min-height:\s*80px/)
-  assert.match(canvasMediaCss, /\.canvas-resource-shelf-thumb-frame\[data-compact="false"\]\s*\{[\s\S]*height:\s*82px/)
+  assert.match(canvasMediaCss, /\.canvas-resource-shelf-thumb-frame\[data-compact="false"\]\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*min-height:\s*0/)
   assert.doesNotMatch(canvasResourceShelfSource, /\bh-full w-full object-cover\b/)
-  assert.match(canvasWorkflowPanelsSource, /<CanvasMediaFill fit="contain">[\s\S]*?<AuthedImage/)
-  assert.match(canvasWorkflowPanelsSource, /<CanvasMediaFill fit="contain">[\s\S]*?<AuthedVideo/)
+  assert.match(canvasWorkflowPanelsSource, /item\.value\.type === 'image' \|\| item\.value\.type === 'video'/)
+  assert.match(canvasWorkflowPanelsSource, /<CanvasMediaFill fit="contain">[\s\S]*?<MediaViewer[\s\S]*?resource=\{resource\}[\s\S]*?fit="contain"/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /\bh-full w-full object-contain\b/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /flex h-44 items-center justify-center bg-muted\/35/)
   assert.doesNotMatch(canvasResourceShelfSource, /rounded-lg border bg-card/)
@@ -5542,11 +5429,11 @@ test('canvas workflow surfaces use package tone contracts', () => {
   ]) {
     assert.match(canvasEditorPackageCss, new RegExp(`\\.${className}\\b`), `${className} style must be package-owned`)
   }
-  assert.match(canvasEditorSource, /<CanvasEditorNameInput[\s\S]*?value=\{canvasName\}[\s\S]*?onChange=\{\(e\) => setCanvasName\(e\.target\.value\)\}/)
-  assert.match(canvasEditorSource, /SIDEBAR_NODE_CATEGORIES\.map[\s\S]*?<CanvasPaletteItemButton[\s\S]*?draggable[\s\S]*?application\/canvas-node-type/)
+  assert.match(canvasEditorSource, /<CanvasEditorNameInput[\s\S]*?value=\{titleEditor\.draft\}[\s\S]*?onChange=\{\(e\) => titleEditor\.setDraft\(e\.target\.value\)\}/)
+  assert.match(canvasEditorSource, /visiblePaletteSections\.map[\s\S]*?<CanvasPaletteItemButton[\s\S]*?draggable[\s\S]*?application\/canvas-node-type/)
   assert.match(canvasEditorSource, /clientPlugins\.map\(\(plugin\)[\s\S]*?<CanvasPaletteItemButton[\s\S]*?draggable[\s\S]*?application\/canvas-plugin/)
   assert.match(canvasEditorSource, /clientPlugins\.length === 0[\s\S]*?<CanvasPaletteEmpty>/)
-  assert.match(canvasEditorSource, /className=\{canvasFlowClassName\}/)
+  assert.match(canvasEditorSource, /className=\{cn\([\s\S]*?canvasFlowClassName/)
   assert.match(canvasEditorSource, /<CanvasViewportPane[\s\S]*?dropActive=\{dropActive\}/)
   assert.match(canvasEditorSource, /<CanvasViewportSelectionActionButton[\s\S]*?onClick=\{createGroupFromSelection\}/)
   assert.match(canvasEditorSource, /<CanvasViewportBoundsLayer[\s\S]*?x=\{selectedUngroupBounds\.x\}/)
@@ -5681,10 +5568,11 @@ test('canvas workflow surfaces use package tone contracts', () => {
   assert.doesNotMatch(canvasWorkflowPanelsSource, /grid w-full grid-cols-\[96px_104px_112px_1fr_120px\][^"]*hover:bg-muted\/40/)
   assert.match(canvasWorkflowPanelsSource, /<CanvasWorkflowHistoryView[\s\S]*?activeRunId=\{activeRunId\}[\s\S]*?onSelectRun=\{onSelectRun\}/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /h-1 w-1 rounded-full bg-border/)
-  assert.match(canvasWorkflowPanelsSource, /<CanvasWorkflowSideTabGroup>/)
-  assert.match(canvasWorkflowPanelsSource, /active=\{activeTab === 'resources'\}/)
-  assert.match(canvasWorkflowPanelsSource, /active=\{activeTab === 'history'\}/)
-  assert.match(canvasWorkflowPanelsSource, /<CanvasResizeHandleButton[\s\S]*?onPointerDown=\{startResize\}[\s\S]*?title=\{t\('canvas\.editor\.resizePanel'/)
+  assert.match(canvasWorkflowPanelsSource, /<CanvasWorkflowSideRail>[\s\S]*?<CanvasWorkflowSideIconButton/)
+  assert.match(canvasWorkflowPanelsSource, /data-active=\{!collapsed && activeTab === 'resources' \? 'true' : undefined\}/)
+  assert.match(canvasWorkflowPanelsSource, /data-active=\{!collapsed && activeTab === 'history' \? 'true' : undefined\}/)
+  assert.match(canvasWorkflowPackageSource, /function CanvasWorkflowResizeHandle[\s\S]*?<PanelResizeHandle[\s\S]*?canvas-workflow-side-panel__resize-handle/)
+  assert.match(canvasWorkflowPanelsSource, /<CanvasWorkflowResizeHandle[\s\S]*?\{\.{3}sidePanelResize\.resizeHandleProps\}[\s\S]*?side="left"/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /absolute inset-y-0 left-0 z-10 h-auto w-2 cursor-ew-resize rounded-none p-0/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /h-10 w-0\.5 rounded-full bg-border/)
   assert.match(canvasWorkflowPackageSource, /function CanvasWorkflowRunResultsView[\s\S]*?<CanvasWorkflowRunResultsOverlay>[\s\S]*?<CanvasWorkflowRunResultsShell>/)
@@ -5695,10 +5583,10 @@ test('canvas workflow surfaces use package tone contracts', () => {
   assert.doesNotMatch(canvasWorkflowPanelsSource, /flex max-h-\[86vh\] w-full max-w-4xl flex-col rounded-xl border border-border bg-background shadow-2xl/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /fixed inset-0 z-50 flex items-center justify-center bg-black\/50 p-4/)
   assert.doesNotMatch(canvasWorkflowPanelsSource, /max-h-full w-full p-3 type-label text-muted-foreground/)
-  for (const exportName of ['CanvasGroupFrame', 'CanvasGroupHeader', 'CanvasMediaFill', 'CanvasMentionAttachmentThumb', 'CanvasMentionMenuThumb', 'CanvasNodeApprovalActionButton', 'CanvasNodeApprovalActions', 'CanvasNodeApprovalStatus', 'CanvasNodeCard', 'CanvasNodeCardBody', 'CanvasNodeCardHeader', 'CanvasNodeFooterText', 'CanvasNodeFrame', 'CanvasNodeParamControlsView', 'CanvasNodePromptInputView', 'CanvasNodeMediaResultView', 'CanvasNodeSemanticPortRows', 'CanvasNodeTextResultView', 'CanvasTextNodeView', 'CanvasImageNodeView', 'CanvasVideoNodeView', 'canvasMentionChipClassNames']) {
+  for (const exportName of ['CanvasGroupFrame', 'CanvasGroupHeader', 'CanvasMediaFill', 'CanvasMentionAttachmentThumb', 'CanvasMentionMenuThumb', 'CanvasNodeApprovalActionButton', 'CanvasNodeApprovalActions', 'CanvasNodeApprovalStatus', 'CanvasNodeCard', 'CanvasNodeCardBody', 'CanvasNodeCardHeader', 'CanvasNodeFooterText', 'CanvasNodeParamControlsView', 'CanvasNodePromptInputView', 'CanvasNodeMediaResultView', 'CanvasNodeTextResultView', 'CanvasTextNodeView', 'CanvasImageNodeView', 'CanvasVideoNodeView', 'canvasMentionChipClassNames']) {
     assert.match(canvasNodesSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by canvas nodes`)
   }
-  for (const exportName of ['CanvasMediaEmptyIcon', 'CanvasMediaNodeFrame', 'CanvasNodeCardActionButton', 'CanvasNodeCardPreviewText', 'CanvasNodeCardTextarea', 'CanvasNodeStatusPipView']) {
+  for (const exportName of ['CanvasMediaEmptyIcon', 'CanvasMediaNodeFrame', 'CanvasNodeCardPreviewText', 'CanvasNodeCardTextarea', 'CanvasNodeStatusPipView']) {
     assert.doesNotMatch(canvasNodesSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must stay behind package canvas node views`)
     assert.match(uiCanvasCardNodeSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be composed by the package canvas node layer`)
   }
@@ -5728,16 +5616,15 @@ test('canvas workflow surfaces use package tone contracts', () => {
   assert.match(canvasMentionCss, /\.canvas-mention-menu-thumb\s*\{[\s\S]*width:\s*28px/)
   assert.match(canvasMentionCss, /\.canvas-mention-attachment-thumb\s*\{[\s\S]*width:\s*24px/)
   assert.match(canvasNodesSource, /chip\.className = canvasMentionChipClassNames\.chip/)
-  assert.match(canvasNodesSource, /video\.className = canvasMentionChipClassNames\.media/)
-  assert.match(canvasNodesSource, /image\.className = canvasMentionChipClassNames\.media/)
+  assert.match(canvasNodesSource, /media\.className = canvasMentionChipClassNames\.media/)
   assert.match(canvasNodesSource, /label\.className = canvasMentionChipClassNames\.label/)
-  assert.match(canvasNodesSource, /<CanvasMentionMenuThumb>[\s\S]*?<MediaViewer resource=\{resource\} lightbox=\{false\}/)
-  assert.match(canvasNodesSource, /<CanvasMentionAttachmentThumb>[\s\S]*?<MediaViewer resource=\{resource\} lightbox=\{false\}/)
-  assert.match(canvasNodesSource, /<CanvasMediaFill fit="contain">[\s\S]*?<MediaViewer resource=\{data\.resource\} fit="contain" lightbox/)
+  assert.match(canvasNodesSource, /<CanvasMentionMenuThumb>[\s\S]*?\{canvasResourceIcon\(resource, 12\)\}/)
+  assert.match(canvasNodesSource, /<CanvasMentionAttachmentThumb>[\s\S]*?\{canvasResourceIcon\(resource, 12\)\}/)
+  assert.match(canvasNodesSource, /<CanvasMediaFill fit="contain">[\s\S]*?<MediaViewer[\s\S]*?resource=\{resource\}[\s\S]*?fit="contain"[\s\S]*?lightbox/)
   assert.match(canvasNodesSource, /<CanvasNodeFrame>[\s\S]*?<HiddenPortHandles/)
   assert.match(canvasNodesSource, /const canvasNodeStatusIcons = \{[\s\S]*?pendingIcon: <Loader2 size=\{12\} \/>[\s\S]*?doneIcon: <CheckCircle2 size=\{12\} \/>[\s\S]*?failedIcon: <XCircle size=\{12\} \/>/)
-  assert.match(canvasNodesSource, /<CanvasImageNodeView[\s\S]*?media=\{imgUrl \? <AuthedImage src=\{imgUrl\} alt="" \/> : undefined\}[\s\S]*?emptyIcon=\{<Image size=\{24\} \/>\}/)
-  assert.match(canvasNodesSource, /<CanvasVideoNodeView[\s\S]*?media=\{videoUrl \? <AuthedVideo src=\{videoUrl\} controls \/> : undefined\}[\s\S]*?emptyIcon=\{<Video size=\{24\} \/>\}[\s\S]*?surface="dark"/)
+  assert.match(canvasNodesSource, /<CanvasImageNodeView[\s\S]*?media=\{data\.resource && showPreview \? \([\s\S]*?<ResourceImage[\s\S]*?resource=\{data\.resource\}[\s\S]*?emptyIcon=\{<Image size=\{24\} \/>\}/)
+  assert.match(canvasNodesSource, /<CanvasVideoNodeView[\s\S]*?media=\{data\.resource && showPreview \? \([\s\S]*?<MediaViewer[\s\S]*?resource=\{data\.resource\}[\s\S]*?emptyIcon=\{<Video size=\{24\} \/>\}[\s\S]*?surface="dark"/)
   assert.match(canvasNodesSource, /<CanvasNodeFooterText tone="danger">\{data\.error\}<\/CanvasNodeFooterText>/)
   assert.doesNotMatch(canvasNodesSource, /style\.cssText/)
   assert.doesNotMatch(canvasNodesSource, /className=/)
@@ -6710,6 +6597,7 @@ test('workbench workflow panels use package tone contracts', () => {
   const contentUnitPlanningEditorsSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitPlanningEditors.tsx')
   const contentUnitGenerationInputsSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitGenerationInputsPanel.tsx')
   const contentWorkbenchPageSource = readProjectFile('apps/frontend/src/features/content/components/ContentWorkbenchPage.tsx')
+  const contentUnitWorkbenchPageSource = readProjectFile('apps/frontend/src/features/content/components/ContentUnitWorkbenchPage.tsx')
   const contentWorkbenchPackageSource = readProjectFile('packages/ui/src/components/business/content/workbench/index.tsx')
   const contentWorkbenchPackageCss = readProjectFile('packages/ui/src/components/business/content/workbench/styles.css')
   const contentWorkbenchUnitTrackPackageSource = readProjectFile('packages/ui/src/components/business/content/workbench/unit-track/index.tsx')
@@ -6764,8 +6652,21 @@ test('workbench workflow panels use package tone contracts', () => {
     'ContentWorkbenchSceneInfoGrid',
     'ContentWorkbenchViewHeader',
   ]) {
-    assert.match(contentWorkbenchPageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by content workbench page`)
     assert.match(contentWorkbenchPackageSource, new RegExp(`export (?:function|const) ${exportName}\\b`), `${exportName} must be package-owned`)
+  }
+  for (const exportName of [
+    'ContentWorkbenchBody',
+    'ContentWorkbenchCommandCenter',
+    'ContentWorkbenchEmptyActionButton',
+    'ContentWorkbenchFilterSidebar',
+    'ContentWorkbenchInfoSection',
+    'ContentWorkbenchInfoText',
+    'ContentWorkbenchMainColumn',
+    'ContentWorkbenchReviewButton',
+    'ContentWorkbenchSceneInfoGrid',
+    'ContentWorkbenchViewHeader',
+  ]) {
+    assert.match(contentWorkbenchPageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by content workbench page`)
   }
   for (const className of [
     'content-workbench-body',
@@ -6786,11 +6687,10 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchViewHeader[\s\S]*?title=\{contentWorkbenchViewTitle\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewButton[\s\S]*?pendingCount=\{reviewQueueSummary\.pending\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchEmptyActionButton[\s\S]*?进入制作编排/)
-  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchCandidateUploadInput ref=\{candidateUploadInput\.inputRef\}/)
+  assert.match(contentUnitWorkbenchPageSource, /<ContentWorkbenchCandidateUploadInput ref=\{candidateUploadInput\.inputRef\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewPanel[\s\S]*?reviewModel=\{contentDraftReview\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchFilterSidebar[\s\S]*?productionOptions=\{productionFilterOptions\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchCommandCenter[\s\S]*?sidebar=\{\(/)
-  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchProductionGrid drawerOpen=\{unitDrawerOpen\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchInfoSection title=\{title\} suffix=\{suffix\}/)
   assert.doesNotMatch(contentWorkbenchPageSource, /<main className="min-h-0 flex-1 overflow-y-auto p-4/)
   assert.doesNotMatch(contentWorkbenchPageSource, /data-testid="content-workbench-command-center"[\s\S]{0,180}className=/)
@@ -6805,7 +6705,7 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/content/components/ContentGenerationReviewPanel.tsx')), false)
   assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/workbench/components/WorkbenchPage.tsx')), false, 'legacy tabbed WorkbenchPage must not remain')
   assert.match(scenePreviewSource, /WorkbenchScenePreviewPanel/)
-  assert.match(scenePreviewSource, /AuthedImage/)
+  assert.match(scenePreviewSource, /ResourceFileImage/)
   assert.doesNotMatch(scenePreviewSource, /WorkbenchPanel|WorkbenchThumbnail|<Badge|className="/)
   assert.match(scenePreviewPackageSource, /WorkbenchPanel/)
   assert.match(scenePreviewPackageSource, /WorkbenchThumbnail/)
@@ -6871,12 +6771,17 @@ test('workbench workflow panels use package tone contracts', () => {
     'ProductionSelectedSegmentTextarea',
     'ProductionSelectedSegmentActions',
     'ProductionStructureActionButton',
+  ]) {
+    assert.match(productionStructureSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by production structure`)
+    assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
+    assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
+  }
+  for (const exportName of [
     'ProductionSceneEditorHeaderShell',
     'ProductionSceneEditorHeaderCopy',
     'ProductionSceneEditorContextGrid',
     'ProductionSceneEditorContextLine',
   ]) {
-    assert.match(productionStructureSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by production structure`)
     assert.match(productionOrchestrationPackageSource, new RegExp(`export function ${exportName}\\b`), `${exportName} must be package-owned`)
     assert.match(productionPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from production package`)
   }
@@ -7725,7 +7630,7 @@ test('project standards page uses package form controls', () => {
   }
   assert.match(projectIndexSource, /from "\.\/standards"/, 'project package UI must export standards scenario package')
   assert.match(standardsSource, /<ProjectStandardsInput[\s\S]*?ref=\{styleReferenceInputRef\}[\s\S]*?type="file"[\s\S]*?multiple/)
-  assert.match(standardsSource, /CORE_STANDARD_DEFS\.map[\s\S]*?ProjectStandardsSurfaceItem/, 'core standard cards must use package project standards surface items')
+  assert.match(standardsSource, /standardGroups\.map[\s\S]*?ProjectStandardsSurfaceItem/, 'core standard cards must use package project standards surface items')
   assert.match(projectStandardsPackageSource, /toneSurfaceClass\("warning"\)/, 'warning tone surface must be owned by project standards package UI')
   assert.doesNotMatch(standardsSource, /\b(?:toneTextClass|toneSurfaceClass|cn)\b/)
   for (const recipeName of ['projectStandardsReadyRecipe', 'projectStandardsRequiredRuleRecipe', 'projectStandardsEnabledRuleRecipe']) {
@@ -9573,17 +9478,20 @@ test('agent full-page surfaces use package page shell layout', () => {
   assert.match(uiLayoutCss, /\[data-scroll="responsive-split"\]/)
 
   for (const [relativePath, source] of sourcesByPath) {
-    assert.match(source, /<AppPageShell\b/, `${relativePath} must use AppPageShell`)
+    assert.match(source, /<AgentPageShell\b/, `${relativePath} must use the package-owned agent page shell`)
     if (relativePath.endsWith('/AIAgentRunPage.tsx')) {
       assert.match(source, /<AgentRunPageHeader\b/, `${relativePath} must use agent run page header wrapper`)
       assert.match(source, /<AgentRunPageBody\b/, `${relativePath} must use agent run page body wrapper`)
     } else {
-      assert.match(source, /<AppPageShellHeader\b/, `${relativePath} must use AppPageShellHeader`)
-      assert.match(source, /<AppPageShellBody\b/, `${relativePath} must use AppPageShellBody`)
+      assert.match(source, /<AgentPageShellHeader\b/, `${relativePath} must use agent page header wrapper`)
+      assert.match(source, /<AgentPageShellBody\b|<AgentDraftsPageBody\b/, `${relativePath} must use agent page body wrapper`)
     }
   }
-  assert.match(agentRunPagePackageSource, /function AgentRunPageHeader[\s\S]*?<AppPageShellHeader/, 'agent run page header wrapper must own AppPageShellHeader')
-  assert.match(agentRunPagePackageSource, /function AgentRunPageBody[\s\S]*?<AppPageShellBody/, 'agent run page body wrapper must own AppPageShellBody')
+  assert.match(agentRunPagePackageSource, /function AgentPageShell[\s\S]*?<AppPageShell\b/, 'agent page shell wrapper must own AppPageShell')
+  assert.match(agentRunPagePackageSource, /function AgentPageShellHeader[\s\S]*?<AppPageShellHeader/, 'agent page header wrapper must own AppPageShellHeader')
+  assert.match(agentRunPagePackageSource, /function AgentPageShellBody[\s\S]*?<AppPageShellBody/, 'agent page body wrapper must own AppPageShellBody')
+  assert.match(agentRunPagePackageSource, /function AgentRunPageHeader[\s\S]*?<AgentPageShellHeader/, 'agent run page header wrapper must use the agent page header wrapper')
+  assert.match(agentRunPagePackageSource, /function AgentRunPageBody[\s\S]*?<AgentPageShellBody/, 'agent run page body wrapper must use the agent page body wrapper')
   const agentModeCanvasListSource = sourcesByPath.get('apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx')
   assert.ok(agentModeCanvasListSource, 'agent mode canvas list source must be loaded')
   const sharedCanvasListViewSource = readProjectFile('apps/frontend/src/features/canvas/components/CanvasListView.tsx')
@@ -9821,7 +9729,7 @@ test('admin status pills use package StatusBadge semantics', () => {
   assert.match(adminPageSource, /runtimeHealthState[\s\S]*?statusProps: Pick<StatusBadgeProps, 'intent' \| 'emphasis'>/, 'runtime health state must return status badge semantics')
   assert.doesNotMatch(adminPageSource, /runtimeHealthState[\s\S]*?className:/, 'runtime health state must not return visual class names')
   assert.match(adminPageSource, /CAPABILITY_STATUS_INTENT: Record<string, StatusBadgeProps\['intent'\]>/, 'admin capability badges must map to status badge semantics')
-  assert.match(adminPageSource, /<StatusBadge intent=\{CAPABILITY_STATUS_INTENT\[feature\.capability\] \?\? 'neutral'\} className="text-xs">/, 'admin capability badges must render through package status badge')
+  assert.match(adminPageSource, /caps\.map\(\(cap\) => \([\s\S]*?<StatusBadge[\s\S]*?intent=\{CAPABILITY_STATUS_INTENT\[cap\] \?\? 'neutral'\}[\s\S]*?className="text-xs"/, 'admin capability badges must render through package status badge')
   assert.match(adminPageSource, /<StatusBadge intent="info">\{t\('admin\.storage\.default'\)\}<\/StatusBadge>/, 'storage default badge must use package status badge')
   assert.match(adminPageSource, /<StatusBadge intent="success" emphasis="plain">\{t\('admin\.storage\.available'\)\}<\/StatusBadge>/, 'storage available badge must use package status badge')
   assert.doesNotMatch(
@@ -9882,7 +9790,8 @@ test('admin form feedback uses package semantic text components', () => {
   assert.match(adminPageSource, /\bAppStatusToggleButton\b/, 'admin page clickable status pills must use package status toggles')
   assert.match(adminPageSource, /\bAppDataTableRow\b/, 'admin exceptional table rows must use package data table row tones')
   assert.match(adminPageSource, /\bAppMarkerDot\b/, 'admin page semantic markers must use package marker dots')
-  assert.match(adminPageSource, /invalid=\{!maxTokensOverrideValid\}/, 'admin invalid inputs must use primitive invalid API')
+  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(addMaxInputImages\)\}/, 'admin invalid inputs must use primitive invalid API')
+  assert.match(adminPageSource, /invalid=\{!isValidInputLimit\(editForm\.max_input_videos\)\}/, 'admin invalid inputs must use primitive invalid API')
   assert.match(adminMainSource, /\bAppFeedbackText\b/, 'admin login feedback must use package feedback text')
 
   assert.doesNotMatch(adminPageSource, /<span className="(?:ml-0\.5 )?text-destructive(?: ml-0\.5)?">\*<\/span>/, 'admin required marks must not hand-roll destructive text')

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import { Bot, CircleUserRound, ExternalLink, Maximize2, Minimize2, Settings, UsersRound } from 'lucide-react'
@@ -12,24 +13,24 @@ import {
 } from '@movscript/ui'
 
 import { useAppShellDialogStore, type AccountSettingsDialogTab } from '@/features/app-shell/application/appShellDialogStore'
-import AgentConsolePage from '@/features/agent/components/AgentConsolePage'
 import OrgSelectPage from '@/features/organization/components/OrgSelectPage'
 import { AppSettingsPanel } from '@/features/settings/components/AppSettingsPage'
 import { UserProfilePanel } from '@/features/user/components/UserProfilePage'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
+import { ROUTES } from '@/routes/projectRoutes'
 import { runtimeNavItems, runtimeRoutes } from '@runtime'
 
 const baseTabs: Array<{ key: AccountSettingsDialogTab; icon: LucideIcon; labelKey: string }> = [
   { key: 'profile', icon: CircleUserRound, labelKey: 'user.title' },
   { key: 'settings', icon: Settings, labelKey: 'appSettings.title' },
   { key: 'workspace', icon: UsersRound, labelKey: 'sidebar.items.workspace' },
-  { key: 'agentConsole', icon: Bot, labelKey: 'sidebar.items.agentConsole' },
 ]
 
 export function AccountSettingsDialog() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [fullscreen, setFullscreen] = useState(false)
   const currentUser = useUserStore((s) => s.currentUser)
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
@@ -46,6 +47,12 @@ export function AccountSettingsDialog() {
     if (nextOpen) return
     setFullscreen(false)
     close()
+  }
+
+  function openAgentConsolePage() {
+    setFullscreen(false)
+    close()
+    navigate(ROUTES.agentConsole)
   }
 
   const runtimeTabs = runtimeNavItems
@@ -91,6 +98,17 @@ export function AccountSettingsDialog() {
                 </Button>
               )
             })}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-2"
+              onClick={openAgentConsolePage}
+            >
+              <Bot size={14} />
+              {t('sidebar.items.agentConsole')}
+              <ExternalLink size={13} className="ml-auto opacity-70" />
+            </Button>
           </nav>
           {currentUser?.system_role === 'super_admin' ? (
             <div className="mt-4 border-t border-border pt-3">
@@ -119,7 +137,6 @@ function AccountSettingsDialogPanel({ activeTab }: { activeTab: AccountSettingsD
   if (activeTab === 'profile') return <UserProfilePanel />
   if (activeTab === 'settings') return <AppSettingsPanel host="dialog" />
   if (activeTab === 'workspace') return <OrgSelectPage />
-  if (activeTab === 'agentConsole') return <AgentConsolePage />
   if (activeTab.startsWith('runtime:')) {
     const path = activeTab.slice('runtime:'.length)
     return runtimeRoutes.find((route) => route.path === path)?.element ?? null

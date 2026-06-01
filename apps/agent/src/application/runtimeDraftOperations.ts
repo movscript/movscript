@@ -3,7 +3,6 @@ import type { JSONValue } from '../types.js'
 import type { AgentDraft, AgentDraftStore } from '../drafts/draftStore.js'
 import { validateDraft } from '../drafts/draftStore.js'
 import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput, type ApplyDraftReview } from '../drafts/draftApply.js'
-import { BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import {
   assetProposalContainsAssetSlots,
   canonicalizeProjectStandardsProposalDraftContent,
@@ -17,11 +16,7 @@ import {
   type RuntimeUpdateDraftInput,
 } from '../drafts/draftRuntimeInput.js'
 import { normalizeDraftQuery } from '../context/normalizeRunInput.js'
-
-export interface RuntimeDraftBackendApplyClient {
-  previewApplyReview: (...args: Parameters<import('../drafts/backendApplyClient.js').BackendApplyClient['previewApplyReview']>) => Promise<BackendApplyResult>
-  applyReview: (...args: Parameters<import('../drafts/backendApplyClient.js').BackendApplyClient['applyReview']>) => Promise<BackendApplyResult>
-}
+import type { RuntimeDraftBackendApplyPort, RuntimeDraftBackendApplyResult } from '../ports/draft/runtimeDraftBackendApplyPort.js'
 
 export function listRuntimeDrafts(input: {
   draftStore: AgentDraftStore
@@ -61,7 +56,7 @@ export function previewRuntimeDraftApply(input: {
 
 export async function simulateRuntimeDraftApply(input: {
   draftStore: AgentDraftStore
-  backendApplyClient: Pick<RuntimeDraftBackendApplyClient, 'previewApplyReview'>
+  backendApplyPort: Pick<RuntimeDraftBackendApplyPort, 'previewApplyReview'>
   applyInput: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
 }): Promise<JSONValue> {
   const preview = buildApplyDraftPreview(input.draftStore, input.applyInput)
@@ -85,34 +80,33 @@ export async function simulateRuntimeDraftApply(input: {
       message: 'Asset proposal draft is locally valid. It is a planning artifact; backend apply is intentionally not performed.',
     } as unknown as JSONValue
   }
-  try {
-    const backendApply = await input.backendApplyClient.previewApplyReview(
-      preparedReview,
-      buildRuntimeDraftBackendAuth(input.applyInput),
-    )
+  const previewResult = await input.backendApplyPort.previewApplyReview(
+    preparedReview,
+    buildRuntimeDraftBackendAuth(input.applyInput),
+  )
+  if (previewResult.ok) {
     return {
       ok: true,
       stage: 'backend_apply_preview',
       draftId: preview.draft.id,
       validation,
-      backendApply,
-    } as unknown as JSONValue
-  } catch (error) {
-    return {
-      ok: false,
-      stage: 'backend_apply_preview',
-      draftId: preview.draft.id,
-      validation,
-      error: error instanceof Error ? error.message : String(error),
-      ...(error instanceof BackendApplyHTTPError ? { backendError: error.detail as unknown as JSONValue } : {}),
-      message: 'Backend apply preview failed. Use backendError.response or backendError.responseText to edit the draft, then simulate again.',
+      backendApply: previewResult.backendApply,
     } as unknown as JSONValue
   }
+  return {
+    ok: false,
+    stage: 'backend_apply_preview',
+    draftId: preview.draft.id,
+    validation,
+    error: previewResult.error,
+    ...(previewResult.backendError !== undefined ? { backendError: previewResult.backendError } : {}),
+    message: 'Backend apply preview failed. Use backendError.response or backendError.responseText to edit the draft, then simulate again.',
+  } as unknown as JSONValue
 }
 
 export async function applyRuntimeDraftFromUI(input: {
   draftStore: AgentDraftStore
-  backendApplyClient: Pick<RuntimeDraftBackendApplyClient, 'applyReview'>
+  backendApplyPort: Pick<RuntimeDraftBackendApplyPort, 'applyReview'>
   applyInput: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
   now: () => string
   appliedBy?: string
@@ -134,9 +128,9 @@ export async function applyRuntimeDraftFromUI(input: {
       backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
     } as unknown as JSONValue
   }
-  let backendApply: BackendApplyResult
+  let backendApply: RuntimeDraftBackendApplyResult
   try {
-    backendApply = await input.backendApplyClient.applyReview(preparedReview, buildRuntimeDraftBackendAuth(input.applyInput, {
+    backendApply = await input.backendApplyPort.applyReview(preparedReview, buildRuntimeDraftBackendAuth(input.applyInput, {
       includeAppliedByUserId: true,
     }))
   } catch (error) {
@@ -329,7 +323,7 @@ function mergeCreativeReferenceClientIDMap(left: Record<string, number>, right: 
 
 function prepareProjectLayerProposalClientIDMap(
   review: ApplyDraftReview,
-  backendApply: BackendApplyResult,
+  backendApply: RuntimeDraftBackendApplyResult,
   draft: AgentDraft,
 ): Record<string, number> | undefined {
   if (review.draftKind !== 'setting_proposal') return undefined

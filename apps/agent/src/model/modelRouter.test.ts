@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createDefaultRuntimeModelRouter, describeRuntimeModelCapabilities } from './modelRouter.js'
-import type { ConfiguredRuntimeModelConfig } from './modelConfig.js'
+import { runtimeModelTextContent, type ConfiguredRuntimeModelConfig } from './modelConfig.js'
 
 const CONFIG: ConfiguredRuntimeModelConfig = {
   provider: 'backend-model-config',
@@ -76,7 +76,7 @@ test('default model router calls the configured backend route for a capability',
     const router = createDefaultRuntimeModelRouter(CONFIG)
     const result = await router.call({
       capability: 'reasoning',
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       auth: { backendAuthToken: 'test-token' },
     })
 
@@ -93,7 +93,7 @@ test('default model router rejects calls for unconfigured capabilities', async (
   await assert.rejects(
     router.call({
       capability: 'text',
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
     }),
     /no text model route configured/,
   )

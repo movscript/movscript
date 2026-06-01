@@ -242,7 +242,20 @@ export interface AgentCatalogSkill {
   tokenEstimate?: number
   outputContract?: string
   toolHints?: string[]
+  runtime?: AgentSkillRuntimeExplanation
   metadata?: Record<string, JSONValue>
+}
+
+export interface AgentSkillRuntimeExplanation {
+  profileEnabled: boolean
+  profileRole: 'persona' | 'workflow' | 'policy' | 'expertise' | 'none'
+  loadMode: 'core' | 'on_demand' | 'manual'
+  defaultActivation: 'always' | 'triggered' | 'manual' | 'disabled'
+  contextBehavior: 'base_context' | 'on_demand' | 'manual' | 'excluded'
+  dependencyIds: string[]
+  conflictIds: string[]
+  toolGrantNames: string[]
+  reason: string
 }
 
 export interface AgentCatalogProfile {
@@ -290,6 +303,18 @@ export type ToolUnavailableReason =
   | 'wrong_run_role'
   | 'workflow_scope'
 
+export type AgentToolInterruptBehavior = 'cancel' | 'block'
+export type AgentToolResultRefStrategy = 'inline' | 'summary_ref' | 'auto'
+
+export interface AgentToolExecutionMetadata {
+  readOnly: boolean
+  destructive: boolean
+  concurrencySafe: boolean
+  interruptBehavior: AgentToolInterruptBehavior
+  maxResultSizeChars?: number
+  resultRefStrategy?: AgentToolResultRefStrategy
+}
+
 export interface AgentDebugTool {
   name: string
   description?: string
@@ -302,19 +327,36 @@ export interface AgentDebugTool {
   granted: boolean
   permission?: string
   risk?: AgentToolRiskLevel
+  execution?: AgentToolExecutionMetadata
   projectScoped?: boolean
   approval: AgentToolApprovalMode
   available: boolean
   unavailableReason?: ToolUnavailableReason | string
   requiresApproval: boolean
+  runtime?: AgentToolRuntimeExplanation
   resolution?: {
     authorized: boolean
     visible: boolean
     reason?: ToolUnavailableReason | string
-    grantSource: 'manifest' | 'none'
+    grantSource: 'manifest' | 'skill' | 'none'
     approval: AgentToolApprovalMode
     activeSkillIds: string[]
+    grantingSkillIds?: string[]
   }
+}
+
+export interface AgentToolRuntimeExplanation {
+  registered: boolean
+  source: 'mcp' | 'runtime' | 'plugin'
+  grantMode: 'allow' | 'deny' | 'none'
+  grantSource: 'manifest' | 'skill' | 'none'
+  approval: AgentToolApprovalMode
+  approvalRequired: boolean
+  approvalReason: 'none' | 'explicit_always' | 'on_write' | 'tool_default' | 'unknown_tool'
+  available: boolean
+  unavailableReason?: ToolUnavailableReason | string
+  execution: AgentToolExecutionMetadata
+  reason: string
 }
 
 export interface ResolvedToolCatalog {
@@ -334,6 +376,7 @@ export interface AgentRegisteredTool {
   categories?: string[]
   inputSchema?: JSONValue
   outputSchema?: JSONValue
+  execution?: AgentToolExecutionMetadata
   projectScoped: boolean
   requiresApprovalByDefault: boolean
 }
@@ -443,10 +486,28 @@ export interface RuntimeModelChatToolCallPublic {
 
 export interface RuntimeModelChatMessagePublic {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string | null
+  content: RuntimeModelContentPartPublic[]
   tool_call_id?: string
   tool_calls?: RuntimeModelChatToolCallPublic[]
 }
+
+export type RuntimeModelContentPartPublic = RuntimeModelTextContentPartPublic | RuntimeModelImageContentPartPublic
+
+export interface RuntimeModelTextContentPartPublic {
+  type: 'text'
+  text: string
+}
+
+export interface RuntimeModelImageContentPartPublic {
+  type: 'image'
+  source: RuntimeModelImageSourcePublic
+  detail?: 'low' | 'high' | 'auto'
+}
+
+export type RuntimeModelImageSourcePublic =
+  | { type: 'url'; url: string }
+  | { type: 'data_url'; dataUrl: string }
+  | { type: 'file_id'; fileId: string }
 
 export interface RuntimeModelRequestSnapshotPublic {
   url: string
@@ -454,7 +515,7 @@ export interface RuntimeModelRequestSnapshotPublic {
   headers: Record<string, string>
   body: Record<string, unknown> & {
     model: string
-    messages: RuntimeModelChatMessagePublic[]
+    messages: unknown[]
     stream?: boolean
     temperature?: number
     response_format?: { type: 'json_object' }
@@ -682,6 +743,7 @@ export interface AgentClientAttachmentRef {
   mimeType?: string
   size?: number
   resourceId?: number
+  dataUrl?: string
 }
 
 export interface AgentClientResourceRef {
@@ -1330,6 +1392,7 @@ export interface AgentAttachment {
   url?: string
   previewUrl?: string
   resourceId?: number
+  dataUrl?: string
   generated?: {
     jobId?: number
     jobType?: string
@@ -1480,9 +1543,10 @@ export interface AgentContextDiagnosticTool {
     authorized: boolean
     visible: boolean
     reason?: string
-    grantSource: 'manifest' | 'none'
+    grantSource: 'manifest' | 'skill' | 'none'
     approval: 'never' | 'always' | 'on_write'
     activeSkillIds: string[]
+    grantingSkillIds?: string[]
   }
 }
 

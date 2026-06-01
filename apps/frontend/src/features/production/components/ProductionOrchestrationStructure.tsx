@@ -12,6 +12,7 @@ import {
   ProductionSegmentMomentItem,
   ProductionSegmentMomentStack,
   ProductionSegmentNavigatorCard,
+  ProductionSegmentNavigatorCardActions,
   ProductionSegmentNavigatorCardHeader,
   ProductionSegmentNavigatorEmptyState,
   ProductionSegmentNavigatorHeader,
@@ -19,11 +20,14 @@ import {
   ProductionSegmentNavigatorShell,
   ProductionSegmentStack,
   ProductionSelectedSegmentActions,
+  ProductionSelectedSegmentCopy,
   ProductionSelectedSegmentEditStack,
   ProductionSelectedSegmentField,
   ProductionSelectedSegmentFieldGrid,
   ProductionSelectedSegmentInput,
   ProductionSelectedSegmentSelectTrigger,
+  ProductionSelectedSegmentSummaryBody,
+  ProductionSelectedSegmentSummaryShell,
   ProductionSelectedSegmentTextarea,
   ProductionStructureActionButton,
   ProductionStructureBadge,
@@ -279,7 +283,7 @@ export function ProductionSegmentNavigator({
                       title={segment.title}
                       summary={segment.summary}
                       action={editing ? null : (
-                        <div className="production-segment-card__actions">
+                        <ProductionSegmentNavigatorCardActions>
                           <ProductionStructureIconButton
                             size="icon-xs"
                             variant="ghost"
@@ -307,7 +311,7 @@ export function ProductionSegmentNavigator({
                           >
                             <Pencil size={12} />
                           </ProductionStructureIconButton>
-                        </div>
+                        </ProductionSegmentNavigatorCardActions>
                       )}
                     />
                   )}
@@ -453,8 +457,15 @@ function ProductionSegmentCardEditor({
   }
 
   return (
-    <div className="production-segment-card-editor">
-      <ProductionSelectedSegmentEditStack className="production-segment-card-editor__stack">
+    <ProductionSelectedSegmentSummaryShell>
+      <ProductionSelectedSegmentSummaryBody>
+        <ProductionSelectedSegmentCopy
+          eyebrow="编辑编排段"
+          title={original.title || '未命名编排段'}
+          description={`${momentCount} 个情节`}
+        />
+      </ProductionSelectedSegmentSummaryBody>
+      <ProductionSelectedSegmentEditStack>
         <ProductionSelectedSegmentField label="标题">
           <ProductionSelectedSegmentInput
             value={draft.title}
@@ -462,7 +473,7 @@ function ProductionSegmentCardEditor({
             placeholder="编排段标题"
           />
         </ProductionSelectedSegmentField>
-        <ProductionSelectedSegmentFieldGrid className="production-segment-card-editor__field-grid">
+        <ProductionSelectedSegmentFieldGrid>
           <ProductionSelectedSegmentField label="情绪功能">
             <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value }))}>
               <ProductionSelectedSegmentSelectTrigger>
@@ -496,7 +507,7 @@ function ProductionSegmentCardEditor({
           />
         </ProductionSelectedSegmentField>
       </ProductionSelectedSegmentEditStack>
-      <ProductionSelectedSegmentActions className="production-segment-card-editor__actions">
+      <ProductionSelectedSegmentActions>
         <ProductionStructureBadge variant="outline">{momentCount} 个情节</ProductionStructureBadge>
         <ProductionStructureActionButton
           size="sm"
@@ -518,7 +529,7 @@ function ProductionSegmentCardEditor({
           保存
         </ProductionStructureActionButton>
       </ProductionSelectedSegmentActions>
-    </div>
+    </ProductionSelectedSegmentSummaryShell>
   )
 }
 

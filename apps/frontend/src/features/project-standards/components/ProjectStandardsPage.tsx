@@ -41,6 +41,8 @@ import {
   ProjectStandardsInput,
   ProjectStandardsLoadingState,
   ProjectStandardsMain,
+  ProjectStandardsMetric,
+  ProjectStandardsMetricGrid,
   ProjectStandardsPreviewAside,
   ProjectStandardsPreviewSurface,
   ProjectStandardsRuleActions,
@@ -55,6 +57,7 @@ import {
   ProjectStandardsSelectItem,
   ProjectStandardsSelectTrigger,
   ProjectStandardsSelectValue,
+  ProjectStandardsStatusBadge,
   ProjectStandardsSurfaceItem,
   ProjectStandardsTextarea,
   ProjectStandardsTinyText,
@@ -66,7 +69,7 @@ import {
 } from '@movscript/ui'
 
 import { applyProjectStandardsProposal, getProject } from '@/shared/infrastructure/api/semanticEntities'
-import { AuthedImage } from '@/shared/ui/AuthedImage'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import { ProjectStandardsProposalReviewPanel } from '@/features/project-standards/components/proposals/ProjectStandardsProposalReviewPanel'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
 import { buildPageKey } from '@/features/agent/domain/agentCommandInput'
@@ -105,6 +108,11 @@ import {
   buildProjectStandardsStyleReferenceRemovalPatch,
   uploadProjectStandardsStyleReferenceImages,
 } from '@/features/project-standards/application/projectStandardsStyleReferenceUpload'
+import {
+  projectStandardsEnabledRuleRecipe,
+  projectStandardsReadyRecipe,
+  projectStandardsRequiredRuleRecipe,
+} from '@/features/project-standards/presentation/projectStandardsSemanticUi'
 import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
@@ -570,8 +578,17 @@ export function ProjectStandardsContent() {
             </ProjectStandardsLoadingState>
           ) : (
             <ProjectStandardsContentLayout>
+              <ProjectStandardsMetricGrid>
+                <ProjectStandardsMetric label="核心规范" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `待补充 ${missingStandardLabels.length} 项` : '已覆盖'} tone={missingStandardLabels.length > 0 ? 'warning' : 'success'} compact />
+                <ProjectStandardsMetric label="自定义规则" value={visibleCustomRules.length} detail={`${enabledCustomRules.length} 条启用`} compact />
+                <ProjectStandardsMetric label="风格参考" value={styleReferenceIds.length} detail="参考图" tone={styleReferenceIds.length > 0 ? 'success' : 'neutral'} compact />
+                <ProjectStandardsMetric label="待审草稿" value={draftCounts.draft} detail="Agent draft" tone={draftCounts.draft > 0 ? 'warning' : 'neutral'} compact />
+              </ProjectStandardsMetricGrid>
               <ProjectStandardsAppSurface className="project-standards-status-strip">
                 <ProjectStandardsTinyText className="text-foreground">{statusSummary}</ProjectStandardsTinyText>
+                <ProjectStandardsStatusBadge {...projectStandardsReadyRecipe(missingStandardLabels.length === 0)}>
+                  {missingStandardLabels.length === 0 ? '核心已覆盖' : '待补核心'}
+                </ProjectStandardsStatusBadge>
                 <ProjectStandardsTinyText>
                   {missingStandardLabels.length > 0 ? `待补充：${missingStandardLabels.join('、')}` : '核心规范已覆盖，预览会随编辑实时更新。'}
                 </ProjectStandardsTinyText>
@@ -693,7 +710,11 @@ export function ProjectStandardsContent() {
                                       <div className="flex flex-wrap items-center gap-1.5">
                                         <p className="type-label font-semibold text-foreground">{def.label}</p>
                                         <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{def.category}</ProjectStandardsBadge>
-                                        {!value ? <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">待补充</ProjectStandardsBadge> : null}
+                                        {!value ? (
+                                          <ProjectStandardsStatusBadge {...projectStandardsReadyRecipe(false)}>
+                                            待补充
+                                          </ProjectStandardsStatusBadge>
+                                        ) : null}
                                       </div>
                                       <p className="mt-1 type-tiny leading-4 text-muted-foreground">{def.helper}</p>
                                     </div>
@@ -732,7 +753,14 @@ export function ProjectStandardsContent() {
                                       <p className="type-label font-semibold text-foreground">{rule.label}</p>
                                       <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">{rule.category}</ProjectStandardsBadge>
                                       <ProjectStandardsBadge className="h-5 px-1.5 type-tiny">{PROMPT_ROLE_LABELS[rule.prompt_role]}</ProjectStandardsBadge>
-                                      {!rule.enabled ? <ProjectStandardsBadge variant="outline" className="h-5 px-1.5 type-tiny">未进入预览</ProjectStandardsBadge> : null}
+                                      <ProjectStandardsStatusBadge {...projectStandardsEnabledRuleRecipe(rule.enabled)}>
+                                        {rule.enabled ? '已进入预览' : '未进入预览'}
+                                      </ProjectStandardsStatusBadge>
+                                      {rule.required ? (
+                                        <ProjectStandardsStatusBadge {...projectStandardsRequiredRuleRecipe()}>
+                                          必填
+                                        </ProjectStandardsStatusBadge>
+                                      ) : null}
                                     </div>
                                     <ProjectStandardsBodyText className="mt-2">{rule.value || '未填写'}</ProjectStandardsBodyText>
                                   </div>
@@ -801,7 +829,7 @@ export function ProjectStandardsContent() {
                             return (
                               <ProjectStandardsImageCard key={id}>
                                 <ProjectStandardsImageFrame>
-                                  <AuthedImage src={`/api/v1/resources/${id}/file`} alt={uploaded?.name ?? `resource#${id}`} className="h-full w-full object-cover" />
+                                  <ResourceFileImage resourceId={id} alt={uploaded?.name ?? `resource#${id}`} className="h-full w-full object-cover" />
                                   <ProjectStandardsIconButton
                                     size="icon-sm"
                                     variant="ghost"

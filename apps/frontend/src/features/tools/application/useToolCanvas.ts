@@ -74,7 +74,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
         prompt: state.prompt,
         params: {},
         inputResourceIds: state.inputResources.map((resource) => resource.ID),
-        featureKey: nodeType,
+        sourceKey: nodeType,
       })).then((r) => r.data as Job)
       setState((s) => ({ ...s, status: 'running' }))
 

@@ -23,7 +23,7 @@ import {
 } from './runLifecycleControl.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { requireRuntimeRun } from './runtimeStoreLookup.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
 
 export interface RuntimeSubtreeCancellationTaskGraph {

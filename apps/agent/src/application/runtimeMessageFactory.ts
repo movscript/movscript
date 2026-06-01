@@ -1,6 +1,6 @@
 import type { AgentMessage, AgentMessageRole } from '../state/types.js'
 import type { JSONValue } from '../types.js'
-import { buildThreadMessage } from './threadLifecycle.js'
+import { buildThreadMessage } from '../domains/message/threadMessage.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 
 export function createRuntimeMessage(input: {

@@ -9,12 +9,13 @@ import {
   AgentComposerDropOverlay,
   AgentComposerSubmit,
   AgentComposerToolbar,
+  AgentSurfaceBlock,
   Badge,
   Button,
   Input,
 } from '@movscript/ui'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
-import { RESOURCE_UPLOAD_ACCEPT } from '@/features/resources/domain/mediaTypes'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
 import { cn } from '@/shared/ui/cn'
 import {
   AgentMentionEditor,
@@ -179,7 +180,8 @@ export function AgentComposerSection({
   }
 
   return (
-    <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
+    <AgentSurfaceBlock asChild variant="card">
+      <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
       {pendingRuntimeInputQueue.length > 0 && (
         <div className="mb-2 space-y-1.5 px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
@@ -307,6 +309,7 @@ export function AgentComposerSection({
           </AgentComposerSubmit>
         </AgentComposerToolbar>
       </AgentComposer>
-    </section>
+      </section>
+    </AgentSurfaceBlock>
   )
 }

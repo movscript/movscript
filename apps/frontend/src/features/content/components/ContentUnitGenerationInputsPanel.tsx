@@ -22,7 +22,7 @@ import {
   ContentWorkbenchInputDrawerTabList,
   StatusBadge,
 } from '@movscript/ui'
-import { contentGapRecipe } from '@/features/content/presentation/contentSemanticUi'
+import { contentGapRecipe, contentOptionalReadinessRecipe, contentReadinessRecipe } from '@/features/content/presentation/contentSemanticUi'
 import {
   ContentUnitStoryboardBriefEditor,
   ContentUnitVisualPlanEditor,
@@ -110,6 +110,10 @@ export function ContentUnitGenerationInputsPanel({
   onKeyframeModelChange: (modelId: string) => void
   onGenerateKeyframes: (targets: ContentWorkbenchEditRecord[]) => void
 }) {
+  const visualPlanTone = inputToneFromRecipe(contentOptionalReadinessRecipe(visualPlanReady, requiresKeyframe))
+  const storyboardTone = inputToneFromRecipe(contentReadinessRecipe(storyboardBriefReady))
+  const keyframeTone = inputToneFromRecipe(contentOptionalReadinessRecipe(keyframes.length > 0, requiresKeyframe))
+
   return (
     <>
       <ContentWorkbenchGenerationInputSection
@@ -121,10 +125,10 @@ export function ContentUnitGenerationInputsPanel({
             icon={<Route size={14} />}
             title="调度图"
             badge={visualPlanReady ? '已填写' : requiresKeyframe ? '建议补齐' : '非视觉项'}
-            badgeTone={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'neutral'}
+            badgeTone={visualPlanTone}
             detail={visualPlanReady ? firstText(draft.visual_task_graph_blocking, draft.visual_task_graph_camera_path, draft.visual_task_graph_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
             status={visualPlanReady ? '可用于生成' : '待填写'}
-            tone={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'default'}
+            tone={visualPlanTone}
             onOpen={() => onInputDrawerChange('blocking')}
           />
           <ContentWorkbenchInputCard
@@ -132,10 +136,10 @@ export function ContentUnitGenerationInputsPanel({
             icon={<Clapperboard size={14} />}
             title="故事板"
             badge={storyboardBriefReady ? '已填写' : '建议补齐'}
-            badgeTone={storyboardBriefReady ? 'success' : 'warning'}
+            badgeTone={storyboardTone}
             detail={storyboardBriefReady ? firstText(draft.storyboard_purpose, draft.storyboard_composition, draft.storyboard_action_moment) : '单张叙事确认图，用于先判断画面是否讲对。'}
             status={storyboardBriefReady ? '可用于关键帧' : '待填写'}
-            tone={storyboardBriefReady ? 'success' : 'warning'}
+            tone={storyboardTone}
             onOpen={() => onInputDrawerChange('storyboard')}
           />
           <ContentWorkbenchInputCard
@@ -143,10 +147,10 @@ export function ContentUnitGenerationInputsPanel({
             icon={<Image size={14} />}
             title="关键帧"
             badge={requiresKeyframe ? `${keyframes.length} 帧` : '非必需'}
-            badgeTone={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}
+            badgeTone={keyframeTone}
             detail={keyframes[0] ? keyframes.slice(0, 2).map(recordTitle).join('、') : requiresKeyframe ? '建议补首帧和尾帧。' : '当前类型不强制关键帧。'}
             status={keyframes.length > 0 ? '已有锚点' : '待创建'}
-            tone={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}
+            tone={keyframeTone}
             onOpen={() => onInputDrawerChange('keyframes')}
             action={onCreateKeyframe ? (
               <ContentWorkbenchInputActionButton variant="outline" onClick={onCreateKeyframe}>
@@ -314,4 +318,11 @@ export function ContentUnitGenerationInputsPanel({
 
 function recordTitle(record: ContentUnitGenerationInputRecord) {
   return firstText(record.title, record.name, record.label, record.slot_key, `${record.kind || '记录'} #${record.ID}`)
+}
+
+function inputToneFromRecipe(recipe: { intent: string }): 'default' | 'neutral' | 'success' | 'warning' {
+  if (recipe.intent === 'success') return 'success'
+  if (recipe.intent === 'warning') return 'warning'
+  if (recipe.intent === 'neutral') return 'neutral'
+  return 'default'
 }

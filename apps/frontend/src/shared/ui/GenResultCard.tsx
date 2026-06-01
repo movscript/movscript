@@ -1,9 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Cpu, Paperclip, SlidersHorizontal } from 'lucide-react'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { MediaViewer } from './MediaViewer'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import type { Job, RawResource } from '@/types'
 import {
   GenerationContextMeta,
@@ -29,22 +27,11 @@ function ResourceChip({ id }: { id: number }) {
     )
   }
 
-  const url = resource.direct_url ?? `${API_BASE}${resource.url}`
   return (
     <GenerationInlineResourceChip
       className="generation-result-resource-chip--prompt"
       label={resource.name}
-      media={(
-        resource.type === 'video' ? (
-          resource.direct_url
-            ? <video src={url} muted playsInline preload="metadata" />
-            : <AuthedVideo src={url} muted playsInline preload="metadata" />
-        ) : resource.direct_url ? (
-          <img src={url} alt={resource.name} />
-        ) : (
-          <AuthedImage src={url} alt={resource.name} />
-        )
-      )}
+      media={<MediaViewer resource={resource} lightbox={false} thumbnailMaxSize={96} />}
     />
   )
 }

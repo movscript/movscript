@@ -1,11 +1,11 @@
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { MCPClient } from '../mcpClient.js'
-import type { AgentGraphResult } from '../orchestration/agentGraph.js'
+import type { AgentGraphResult } from '../orchestration/agentGraphResult.js'
+import type { AgentGraphInput } from '../orchestration/agentGraphTypes.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type { AgentStore } from '../state/store.js'
@@ -18,7 +18,6 @@ import type {
   JSONValue,
 } from '../state/types.js'
 import type { RuntimeModelAuthContext } from '../model/modelConfig.js'
-import type { AgentGraphInput } from '../orchestration/agentGraph.js'
 import type { AgentRuntimeCatalogSnapshot, RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
 import type { RuntimeRunContextPackage } from './runtimeRunContextPackage.js'
 import type { RuntimeRunExecutionContext } from './runtimeRunExecutionContext.js'
@@ -28,6 +27,15 @@ import {
   type RuntimeAgentGraphInvocationTraceInput,
 } from './runtimeAgentGraphInvocation.js'
 import type { resolveRuntimeChatModelConfig } from '../model/modelConfig.js'
+import type { DraftApplyPort } from '../ports/draft/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../ports/draft/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../ports/draft/proposalSnapshotHydrationPort.js'
+import type { CoreResourceFilePort } from '../ports/core/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../ports/core/videoFrameExtractionPort.js'
+import type { MovscriptProjectStandardsPort } from '../ports/movscript/projectStandardsPort.js'
+import type { RuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import type { ExternalToolGatewayPort } from '../ports/tools/externalToolGatewayPort.js'
+import type { AgentToolResultStore } from '../state/toolResultStore.js'
 
 export interface RuntimeRunAgentGraphInvocationTraceInput {
   kind: AgentTraceEventKind
@@ -48,11 +56,19 @@ export async function invokeRuntimeRunAgentGraph(input: {
   auth: RuntimeModelAuthContext
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   draftStore: AgentDraftStore
-  backendApplyClient: BackendApplyClient
+  externalToolGatewayPort: ExternalToolGatewayPort
+  draftApplyPort: DraftApplyPort
+  draftApplyPreviewPort: DraftApplyPreviewPort
+  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  resourceFilePort: CoreResourceFilePort
+  videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  projectStandardsPort: MovscriptProjectStandardsPort
   contractResolver: AgentRuntimeContractResolver
+  runtimeToolHandlers: RuntimeToolHandlerRegistry
   memoryManager: MemoryManager
   knowledgeManager: KnowledgeManager
   catalogManager: AgentCatalogToolManager
+  toolResultStore?: AgentToolResultStore
   clientInput?: NormalizedClientInput
   runStartedAt: number
   setupRound: AgentRunRoundInfo
@@ -96,12 +112,20 @@ export async function invokeRuntimeRunAgentGraph(input: {
     policy: input.run.policy,
     mcpClient: input.mcpClient,
     draftStore: input.draftStore,
-    backendApplyClient: input.backendApplyClient,
+    externalToolGatewayPort: input.externalToolGatewayPort,
+    draftApplyPort: input.draftApplyPort,
+    draftApplyPreviewPort: input.draftApplyPreviewPort,
+    proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+    resourceFilePort: input.resourceFilePort,
+    videoFrameExtractionPort: input.videoFrameExtractionPort,
+    projectStandardsPort: input.projectStandardsPort,
     registry: input.catalogSnapshot.toolRegistry,
+    runtimeToolHandlers: input.runtimeToolHandlers,
     contractResolver: input.contractResolver,
     memoryManager: input.memoryManager,
     knowledgeManager: input.knowledgeManager,
     catalogManager: input.catalogManager,
+    ...(input.toolResultStore ? { toolResultStore: input.toolResultStore } : {}),
     catalogSnapshots: input.catalogSnapshots,
     currentProjectId: contextPackage.context.currentProjectId,
     ...(input.clientInput ? { clientInput: input.clientInput } : {}),

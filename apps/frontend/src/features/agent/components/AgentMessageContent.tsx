@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
-import { Check, Copy, File, FileText, Image, Mic, Video } from 'lucide-react'
-import { attachmentDisplayUrl, formatAgentAttachmentBytes, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { Check, Copy } from 'lucide-react'
+import { attachmentToResource, formatAgentAttachmentBytes, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
+import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import {
   AgentAttachmentPreviewBody,
@@ -62,16 +62,16 @@ export const AgentMarkdownContent = React.memo(function AgentMarkdownContent({ t
 }, (prev, next) => prev.text === next.text && prev.attachments === next.attachments)
 
 export const AgentAttachmentPreview = React.memo(function AgentAttachmentPreview({ attachment, compact = false }: { attachment: AgentAttachment; compact?: boolean }) {
-  const url = attachmentDisplayUrl(attachment)
+  const resource = attachmentToResource(attachment)
   return (
     <AgentAttachmentPreviewCard density={compact ? 'compact' : 'default'}>
-      {attachment.type === 'image' && url ? (
-        <AgentAttachmentPreviewMedia>
-          <AuthedImage src={url} alt={attachment.name} loading="lazy" decoding="async" thumbnailMaxSize={compact ? 180 : 480} />
-        </AgentAttachmentPreviewMedia>
-      ) : attachment.type === 'video' && url && !compact ? (
-        <AgentAttachmentPreviewMedia surface="dark">
-          <AuthedVideo src={url} muted controls preload="metadata" />
+      {resource ? (
+        <AgentAttachmentPreviewMedia surface={attachment.type === 'video' ? 'dark' : 'muted'}>
+          <AgentAttachmentMediaPreview
+            attachment={attachment}
+            variant={compact ? 'compact' : 'inline'}
+            thumbnailMaxSize={compact ? 180 : 480}
+          />
         </AgentAttachmentPreviewMedia>
       ) : (
         <AgentAttachmentPreviewFallback>
@@ -85,14 +85,6 @@ export const AgentAttachmentPreview = React.memo(function AgentAttachmentPreview
     </AgentAttachmentPreviewCard>
   )
 })
-
-export function AgentAttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; size?: number }) {
-  if (type === 'image') return <Image size={size} />
-  if (type === 'video') return <Video size={size} />
-  if (type === 'audio') return <Mic size={size} />
-  if (type === 'text') return <FileText size={size} />
-  return <File size={size} />
-}
 
 const CodeBlock = React.memo(function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false)
@@ -130,19 +122,10 @@ function InlineText({ text, attachmentsById }: { text: string; attachmentsById?:
 }
 
 const InlineResourceMention = React.memo(function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) {
-  const url = attachmentDisplayUrl(attachment)
-  const media = attachment.type === 'image' && url ? (
-    <AuthedImage src={url} alt={attachment.name} loading="lazy" decoding="async" thumbnailMaxSize={96} />
-  ) : (
-    <span className="ms-center">
-      <AgentAttachmentIcon type={attachment.type} size={10} />
-    </span>
-  )
-
   return (
     <AgentInlineResource>
-      <AgentMediaThumb>
-        {media}
+      <AgentMediaThumb size="md">
+        <AgentAttachmentMediaPreview attachment={attachment} variant="chip" thumbnailMaxSize={96} />
       </AgentMediaThumb>
       <span className="max-w-[96px] truncate">{attachment.name}</span>
     </AgentInlineResource>

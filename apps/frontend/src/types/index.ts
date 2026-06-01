@@ -342,7 +342,7 @@ export interface PublicModel {
   provider_variant_count?: number
   capabilities: string[]       // e.g. ["text"], ["image"], ["video"], ["image_edit"]
   accepts_image_input: boolean // true for image_edit and i2v models
-  is_default?: boolean         // true when admin-pinned as default for a feature
+  is_default?: boolean         // true when admin-pinned as the default for this capability
   model_def_id?: string
   model_id_override?: string   // actual model ID sent to API if overridden
   priority?: number
@@ -351,55 +351,6 @@ export interface PublicModel {
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>
-}
-
-// FeatureConfig controls which AI models are available for each named feature.
-export interface FeatureConfig {
-  ID: number
-  feature_key: string
-  display_name: string
-  description: string
-  capability: 'text' | 'reasoning' | 'image' | 'image_edit' | 'video'
-  is_enabled: boolean
-  is_internal: boolean
-  is_tool_feature: boolean
-  input_slots: InputSlotDef[]
-  allowed_model_ids: number[]
-  default_model_id?: number
-  allowed_roles: string[]
-  // Business layer enrichment fields
-  default_system_prompt: string
-  system_prompt_override: string
-  output_schema: string
-  max_tokens: number
-  max_tokens_override: number
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-// InputSlotDef describes a typed media input required or accepted by a tool feature.
-export interface InputSlotDef {
-  key: string
-  label: string
-  accept: 'image' | 'video'
-  required: boolean
-  max_count: number
-  requires_cap?: string // only show when model has this capability
-}
-
-// FeatureDef is the hardcoded business-layer definition of a product feature.
-export interface FeatureDef {
-  ID: string
-  DisplayName: string
-  Description: string
-  RequiredCap: 'text' | 'reasoning' | 'image' | 'video'
-  IsInternal: boolean
-  IsToolFeature: boolean
-  InputSlots: InputSlotDef[]
-  SystemPrompt: string
-  OutputSchema: string
-  MaxTokens: number
-  Temperature: number
 }
 
 export interface PaginatedResponse<T> {
@@ -591,7 +542,7 @@ export interface Job {
   model_display?: string
   model_identifier?: string
   job_type: string  // image | image_edit | video | video_i2v | video_v2v
-  feature_key?: string  // tool feature key e.g. ref_image_gen, ref_video_gen, canvas
+  feature_key?: string  // source/audit key supplied by the caller
   title?: string
   status: JobStatus
   prompt: string
@@ -622,7 +573,7 @@ export interface Job {
 
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video'
-export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
+export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation'
 export type SemanticEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
@@ -640,8 +591,7 @@ export interface CanvasNodeModelDiagnostics {
   node_label: string
   node_type: string
   capability?: string
-  feature_key?: string
-  status: 'ok' | 'missing_model_selection' | 'route_error' | 'not_applicable' | 'invalid_node_data' | 'ai_service_unavailable' | 'feature_route_error' | 'missing_capability' | string
+  status: 'ok' | 'missing_model_selection' | 'route_error' | 'not_applicable' | 'invalid_node_data' | 'ai_service_unavailable' | 'missing_capability' | string
   problems?: string[]
   next_actions?: string[]
   raw_model_fields?: Record<string, unknown>
@@ -650,7 +600,6 @@ export interface CanvasNodeModelDiagnostics {
   executable?: boolean
   executable_model_id?: string
   executable_model_db_id?: number
-  executable_feature_key?: string
   available_model_count: number
   available_models?: Array<{
     id: number
@@ -860,7 +809,6 @@ export type CanvasExecutableCapability = 'text' | 'image' | 'image_edit' | 'vide
 export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
-  featureKey?: string
   modelId?: string
   modelDbId?: number
   pluginToolKey?: string

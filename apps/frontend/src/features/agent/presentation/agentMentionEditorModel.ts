@@ -1,6 +1,6 @@
-import { api } from '@/shared/infrastructure/api'
 import { attachmentDisplayUrl, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
-import { acquireCachedResourceMediaUrl } from '@/features/resources/domain/resourceMediaCache'
+import { loadResourceUrlBlob } from '@/shared/ui/resourceBlob'
+import { acquireCachedResourceMediaUrl } from '@/shared/ui/resourceMediaCache'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 export const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
@@ -76,7 +76,7 @@ export function hydrateMentionEditorMedia(editor: HTMLElement) {
       media.src = src
       continue
     }
-    acquireCachedResourceMediaUrl(src, () => api.get(src, { baseURL: '', responseType: 'blob' }).then((response) => response.data))
+    acquireCachedResourceMediaUrl(src, () => loadResourceUrlBlob(src))
       .then((cached) => {
         if (!media.isConnected || media.dataset.loadedSrc !== src) {
           cached.release()

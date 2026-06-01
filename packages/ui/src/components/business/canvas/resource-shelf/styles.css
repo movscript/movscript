@@ -181,6 +181,11 @@
   opacity: 0;
 }
 
+.canvas-resource-shelf__lazy-frame {
+  width: 100%;
+  height: 100%;
+}
+
 .canvas-resource-shelf__header[data-variant="side"] .canvas-resource-shelf__hint {
   display: none;
 }

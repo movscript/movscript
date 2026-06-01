@@ -1,23 +1,32 @@
+import { createHash } from 'node:crypto'
 import type { JSONValue } from '../types.js'
 import { isJSONRecord } from '../jsonValue.js'
 import type { AgentDebugContextPanel, AgentMessage, AgentRun, AgentRunPolicy, CompiledPromptPreview, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall } from '../state/types.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
-import type { ToolSource } from '../orchestration/toolExecutor.js'
+import type { ToolSource } from '../ports/tools/toolExecutionSource.js'
 import { buildContext, buildRuntimeChatTools, type BuiltContext } from './modelContextBuilder.js'
 import type { SkillDiscoverySummary } from './modelContextBuilder.js'
 import { buildModelToolResultContext, type ModelToolResultContext } from './toolResultContext.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
+import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { RuntimeModelChatMessage, RuntimeModelChatTool } from '../model/modelConfig.js'
+import { runtimeModelContentText, runtimeModelTextContent } from '../domains/message/modelMessage.js'
 import { compactPromptHistory, filterPromptMemories, normalizeThreadContextSummary, type CompactedPromptHistory } from '../context/promptHygiene.js'
 import {
   createEmptyContextLedger,
+  amendContextLedgerRecord,
+  deleteContextLedgerRecord,
   recordToolResultInContextLedgerWithAudit,
+  summarizeContextMutations,
+  type AmendContextRecordInput,
   type CreateEmptyContextLedgerInput,
+  type DeleteContextRecordInput,
   type RecordToolResultInContextLedgerAudit,
 } from './contextLedger.js'
-import type { ContextLedger } from './types.js'
+import type { ContextBundle, ContextLedger, RetrievedContextRecord } from './types.js'
+import { refKey } from './retrievedContextStore.js'
 
 export interface RecordToolResultContextInput {
   ledger?: unknown
@@ -51,10 +60,18 @@ export interface ComposeModelContextInput {
   warnings: string[]
   history: AgentMessage[]
   userMessage: string
+  clientInput?: NormalizedClientInput
   threadSummary?: string
+  historyProjection?: CompactedPromptHistory
   runtimeState?: unknown
   command?: AgentCommandRuntime
   contractResolver?: AgentRuntimeContractResolver
+  ledger?: ContextLedger
+  runId?: string
+  threadId?: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
 }
 
 export interface ComposeModelTurnInput extends ComposeModelContextInput {
@@ -67,6 +84,23 @@ export interface ModelTurnPromptTrace {
   data: Record<string, unknown>
 }
 
+export interface SkillContextProjection {
+  skillId: string
+  name: string
+  category?: string
+  activationReason: ResolvedAgentSkill['activationReason']
+  contextBehavior?: string
+  includedInPrompt: boolean
+  promptPartId: string
+  promptLayer?: string
+  promptKind?: string
+  renderedChars?: number
+  omittedReason?: string
+  omittedStage?: string
+  originalChars?: number
+  priority?: number
+}
+
 export interface ContextTracePayload {
   title: string
   summary: string
@@ -77,6 +111,7 @@ export interface ComposedModelTurnContext {
   builtContext: BuiltContext
   messages: RuntimeModelChatMessage[]
   tools: RuntimeModelChatTool[]
+  contextBundle: ContextBundle
   promptTrace: ModelTurnPromptTrace
 }
 
@@ -85,6 +120,7 @@ export interface BuildToolResultContextInput {
   call: ToolCall
   result?: JSONValue
   error?: string
+  maxResultSizeChars?: number
 }
 
 export interface BuildKnowledgeTraceInput {
@@ -108,6 +144,14 @@ export class ContextManager {
     return recordToolResultInContextLedgerWithAudit(input)
   }
 
+  amendContextRecord(input: AmendContextRecordInput): ContextLedger {
+    return amendContextLedgerRecord(input)
+  }
+
+  deleteContextRecord(input: DeleteContextRecordInput): ContextLedger {
+    return deleteContextLedgerRecord(input)
+  }
+
   compactThreadHistory(input: CompactThreadHistoryInput): CompactedPromptHistory {
     return compactPromptHistory(
       input.messages,
@@ -117,14 +161,18 @@ export class ContextManager {
   }
 
   buildHistoryCompactedTrace(history: CompactedPromptHistory): ContextTracePayload | undefined {
-    if (history.compactedCount <= 0) return undefined
+    if (history.compactedCount <= 0 && history.filteredCount <= 0) return undefined
     return {
       title: 'Thread history compacted',
-      summary: `${history.compactedCount} older message(s) summarized before prompt composition.`,
+      summary: `${history.compactedCount} older message(s) summarized and ${history.filteredCount} runtime failure message(s) filtered before prompt composition.`,
       data: {
         eventType: 'context.history_compacted',
         compactedCount: history.compactedCount,
         retainedCount: history.messages.length,
+        inputCount: history.inputCount,
+        filteredCount: history.filteredCount,
+        summaryChars: history.summaryChars,
+        projectionDecisions: history.projectionDecisions as unknown as JSONValue,
       },
     }
   }
@@ -138,18 +186,31 @@ export class ContextManager {
 
   composeModelTurn(input: ComposeModelTurnInput): ComposedModelTurnContext {
     const builtContext = this.composeModelContext(input)
-    const baseMessages = builtContext.messages
-    const messages = [
-      ...baseMessages.slice(0, -1),
-      ...(input.toolLoopHistory ?? []),
-      baseMessages.at(-1)!,
-    ]
+    const projection = buildReactiveModelTurnProjection({
+      baseMessages: builtContext.messages,
+      toolLoopHistory: input.toolLoopHistory ?? [],
+      clientInput: input.clientInput,
+      limitChars: builtContext.promptStats.budget.limitChars,
+    })
+    const messages = projection.messages
     const runtimeContract = input.contractResolver?.find(input.manifest)
     const tools = buildRuntimeChatTools(input.tools, runtimeContract)
+    const contextBundle = this.buildContextBundle({
+      builtContext,
+      messages,
+      tools,
+      ledger: input.ledger,
+      ...(input.runId ? { runId: input.runId } : {}),
+      ...(input.threadId ? { threadId: input.threadId } : {}),
+      ...(input.roundId ? { roundId: input.roundId } : {}),
+      ...(input.roundIndex !== undefined ? { roundIndex: input.roundIndex } : {}),
+      ...(input.roundLabel ? { roundLabel: input.roundLabel } : {}),
+    })
     return {
       builtContext,
       messages,
       tools,
+      contextBundle,
       promptTrace: {
         title: 'Prompt composed',
         summary: `${builtContext.systemPrompt.length} system prompt chars, ${input.skills.length} active skill(s).`,
@@ -157,10 +218,14 @@ export class ContextManager {
           eventType: 'prompt.composed',
           contextEventType: 'context.prompt_composed',
           charCount: builtContext.systemPrompt.length,
-          messageCount: builtContext.messages.length,
+          messageCount: messages.length,
           systemMessageCount: builtContext.systemMessages.length,
           promptStats: builtContext.promptStats,
+          ...(input.historyProjection ? { historyProjection: promptHistoryProjectionTrace(input.historyProjection) } : {}),
+          ...(projection.toolLoopProjection ? { toolLoopProjection: projection.toolLoopProjection } : {}),
+          ...(projection.attachmentProjection ? { attachmentProjection: projection.attachmentProjection } : {}),
           skillIds: input.skills.map((skill) => skill.id),
+          skillContextProjection: buildSkillContextProjection(input.skills, builtContext),
           availableToolNames: input.tools.available.map((tool) => tool.name),
           blockedToolCount: input.tools.blocked.length,
           debugPartIds: builtContext.debugParts.map((part) => part.id),
@@ -171,13 +236,84 @@ export class ContextManager {
     }
   }
 
+  buildContextBundle(input: {
+    builtContext: BuiltContext
+    messages: RuntimeModelChatMessage[]
+    tools: RuntimeModelChatTool[]
+    ledger?: ContextLedger
+    runId?: string
+    threadId?: string
+    roundId?: string
+    roundIndex?: number
+    roundLabel?: string
+    createdAt?: string
+  }): ContextBundle {
+    const createdAt = input.createdAt ?? new Date().toISOString()
+    const promptHash = stableHash({
+      messages: input.messages.map((message) => ({
+        role: message.role,
+        content: runtimeModelContentText(message.content),
+        tool_call_id: 'tool_call_id' in message ? message.tool_call_id : undefined,
+      })),
+      tools: input.tools.map((tool) => tool.function.name),
+    })
+    const activeRecords = (input.ledger?.retrieved ?? []).filter((record) => (record.status ?? 'active') === 'active')
+    const amendedRecords = (input.ledger?.retrieved ?? []).filter((record) => record.status === 'amended')
+    const deletedRecords = (input.ledger?.retrieved ?? []).filter((record) => record.status === 'deleted')
+    return {
+      schema: 'movscript.context-bundle.v1',
+      id: `ctxb_${hashText([
+        input.runId ?? input.ledger?.runId ?? '',
+        input.threadId ?? input.ledger?.threadId ?? '',
+        input.roundId ?? '',
+        String(input.roundIndex ?? ''),
+        promptHash,
+      ].join(':')).slice(0, 16)}`,
+      ...(input.runId ?? input.ledger?.runId ? { runId: input.runId ?? input.ledger?.runId } : {}),
+      ...(input.threadId ?? input.ledger?.threadId ? { threadId: input.threadId ?? input.ledger?.threadId } : {}),
+      ...(input.roundId ? { roundId: input.roundId } : {}),
+      ...(input.roundIndex !== undefined ? { roundIndex: input.roundIndex } : {}),
+      ...(input.roundLabel ? { roundLabel: input.roundLabel } : {}),
+      createdAt,
+      promptHash,
+      messageCount: input.messages.length,
+      toolCount: input.tools.length,
+      systemMessageCount: input.builtContext.systemMessages.length,
+      promptChars: input.builtContext.promptStats.totalChars,
+      budget: {
+        usedChars: input.builtContext.promptStats.budget.usedChars,
+        limitChars: input.builtContext.promptStats.budget.limitChars,
+        remainingChars: input.builtContext.promptStats.budget.remainingChars,
+        pressure: contextPressure(input.builtContext.promptStats.budget.status),
+      },
+      promptParts: input.builtContext.promptStats.parts.map((part) => ({
+        id: part.id,
+        kind: part.kind,
+        title: part.title,
+        charCount: part.chars,
+        hash: stableHash(input.builtContext.debugParts.find((debugPart) => debugPart.id === part.id)?.content ?? ''),
+        layer: part.layer,
+      })),
+      promptBudget: {
+        initialSystemChars: input.builtContext.budgetLedger.initialSystemChars,
+        finalSystemChars: input.builtContext.budgetLedger.finalSystemChars,
+        decisionCount: input.builtContext.budgetLedger.decisionCount,
+        decisions: input.builtContext.budgetLedger.decisions,
+      },
+      contextRefs: (input.ledger?.retrieved ?? []).map(contextBundleRef),
+      activeContextKeys: activeRecords.map((record) => refKey(record.ref)),
+      amendedContextKeys: amendedRecords.map((record) => refKey(record.ref)),
+      deletedContextKeys: deletedRecords.map((record) => refKey(record.ref)),
+    }
+  }
+
   buildPromptPreview(input: ComposeModelContextInput): CompiledPromptPreview {
     const builtContext = this.composeModelContext(input)
     return {
       system: builtContext.systemPrompt,
       messages: builtContext.messages
         .filter((message) => message.role !== 'system')
-        .map((message) => ({ role: message.role, content: message.content ?? '' })),
+        .map((message) => ({ role: message.role, content: runtimeModelContentText(message.content) })),
       debugParts: builtContext.debugParts,
       promptStats: builtContext.promptStats,
     }
@@ -197,25 +333,44 @@ export class ContextManager {
         reason: result.reason ?? null,
         originalChars: result.originalChars,
         renderedChars: result.renderedChars,
+        ...(result.resultRef ? {
+          resultRef: result.resultRef as unknown as JSONValue,
+          resultHash: result.resultRef.hash ?? null,
+          refKey: result.resultRef.key,
+        } : {}),
       },
     }
   }
 
   buildLedgerUpdatedTrace(ledger: ContextLedger): ContextTracePayload {
+    const records = ledger.retrieved.map((record) => ({
+      key: refKey(record.ref),
+      type: record.ref.type,
+      id: record.ref.id,
+      title: record.ref.title ?? record.title,
+      source: record.source,
+      evidence: record.evidence,
+      status: record.status ?? 'active',
+      version: record.version ?? record.ref.version ?? null,
+      hash: record.contentHash ?? record.ref.hash ?? null,
+    }))
+    const activeCount = records.filter((record) => record.status === 'active').length
+    const amendedCount = records.filter((record) => record.status === 'amended').length
+    const deletedCount = records.filter((record) => record.status === 'deleted').length
+    const refLimit = 50
     return {
       title: 'Context ledger updated',
-      summary: `${ledger.retrieved.length} retrieved ref(s), ${ledger.artifactRefs.length} artifact ref(s).`,
+      summary: `${activeCount} active ref(s), ${amendedCount} amended, ${deletedCount} deleted.`,
       data: {
         eventType: 'context.ledger_updated',
         retrievedCount: ledger.retrieved.length,
+        activeCount,
+        amendedCount,
+        deletedCount,
         artifactRefCount: ledger.artifactRefs.length,
-        refs: ledger.retrieved.map((record) => ({
-          type: record.ref.type,
-          id: record.ref.id,
-          title: record.ref.title ?? null,
-          source: record.source,
-          evidence: record.evidence,
-        })),
+        mutationSummary: summarizeContextMutations(ledger) as unknown as JSONValue,
+        refs: records.slice(-refLimit) as unknown as JSONValue,
+        refsTruncated: records.length > refLimit,
       },
     }
   }
@@ -298,6 +453,198 @@ export class ContextManager {
 
 export const contextManager = new ContextManager()
 
+function buildSkillContextProjection(skills: ResolvedAgentSkill[], builtContext: BuiltContext): SkillContextProjection[] {
+  const partsById = new Map(builtContext.promptStats.parts.map((part) => [part.id, part]))
+  const latestDecisionByPartId = new Map<string, BuiltContext['budgetLedger']['decisions'][number]>()
+  for (const decision of builtContext.budgetLedger.decisions) {
+    if (decision.partId.startsWith('skill.')) latestDecisionByPartId.set(decision.partId, decision)
+  }
+  return skills.map((skill) => {
+    const promptPartId = `skill.${skill.id}`
+    const part = partsById.get(promptPartId)
+    const decision = latestDecisionByPartId.get(promptPartId)
+    return {
+      skillId: skill.id,
+      name: skill.name,
+      ...(skill.category ? { category: skill.category } : skill.kind ? { category: skill.kind } : {}),
+      activationReason: skill.activationReason,
+      ...(skill.runtime?.contextBehavior ? { contextBehavior: skill.runtime.contextBehavior } : {}),
+      includedInPrompt: !!part,
+      promptPartId,
+      ...(part?.layer ? { promptLayer: part.layer } : {}),
+      ...(part?.kind ? { promptKind: part.kind } : {}),
+      ...(part?.chars !== undefined ? { renderedChars: part.chars } : {}),
+      ...(decision?.reason ? { omittedReason: decision.reason } : {}),
+      ...(decision?.stage ? { omittedStage: decision.stage } : {}),
+      ...(decision?.originalChars !== undefined ? { originalChars: decision.originalChars } : {}),
+      ...(decision?.priority !== undefined ? { priority: decision.priority } : {}),
+    }
+  })
+}
+
+function promptHistoryProjectionTrace(history: CompactedPromptHistory): Record<string, JSONValue> {
+  return {
+    inputCount: history.inputCount,
+    retainedCount: history.retainedCount,
+    compactedCount: history.compactedCount,
+    filteredCount: history.filteredCount,
+    summaryChars: history.summaryChars,
+    decisions: history.projectionDecisions as unknown as JSONValue,
+  }
+}
+
+function buildReactiveModelTurnProjection(input: {
+  baseMessages: RuntimeModelChatMessage[]
+  toolLoopHistory: RuntimeModelChatMessage[]
+  clientInput?: NormalizedClientInput
+  limitChars: number
+}): {
+  messages: RuntimeModelChatMessage[]
+  toolLoopProjection?: Record<string, JSONValue>
+  attachmentProjection?: Record<string, JSONValue>
+} {
+  const lastMessage = input.baseMessages.at(-1)
+  const beforeUser = input.baseMessages.slice(0, -1)
+  const initialMessages = [
+    ...beforeUser,
+    ...input.toolLoopHistory,
+    ...(lastMessage ? [lastMessage] : []),
+  ]
+  let messages = initialMessages
+  const decisions: Array<Record<string, JSONValue>> = []
+  const initialChars = estimateRuntimeModelMessagesWithImages(messages)
+  const toolLoopChars = estimateRuntimeModelMessagesWithImages(input.toolLoopHistory)
+  if (initialChars > input.limitChars && input.toolLoopHistory.length > 0) {
+    const summary = runtimeModelTextContent([
+      'Tool-loop tail compacted for prompt budget.',
+      `- ${input.toolLoopHistory.length} current tool-loop message(s) were summarized instead of included verbatim.`,
+      `- Original tool-loop estimate: ${toolLoopChars} chars.`,
+      '- The durable transcript and tool result refs remain available outside this model-context projection.',
+    ].join('\n'))
+    messages = [
+      ...beforeUser,
+      { role: 'system', content: summary },
+      ...(lastMessage ? [lastMessage] : []),
+    ]
+    decisions.push({
+      action: 'compact',
+      stage: 'tool_loop_tail',
+      reason: 'Current tool-loop tail was summarized because the full model request exceeded the context window after routine history compaction.',
+      messageCount: input.toolLoopHistory.length,
+      originalChars: toolLoopChars,
+      requestCharsBefore: initialChars,
+      requestCharsAfter: estimateRuntimeModelMessagesWithImages(messages),
+      limitChars: input.limitChars,
+    })
+  }
+
+  let attachmentProjection = input.clientInput && input.clientInput.attachments.length > 0
+    ? attachmentProjectionTrace(input.clientInput)
+    : undefined
+  const requestCharsBeforeAttachmentTrim = estimateRuntimeModelMessagesWithImages(messages)
+  if (requestCharsBeforeAttachmentTrim > input.limitChars && hasInlineImageParts(messages.at(-1))) {
+    const originalInlineImageChars = imagePartChars(messages.at(-1))
+    messages = replaceLastMessage(messages, (message) => ({
+      ...message,
+      content: message.content.filter((part) => part.type !== 'image'),
+    }))
+    const requestCharsAfter = estimateRuntimeModelMessagesWithImages(messages)
+    const attachmentDecisions = [
+      ...((attachmentProjection?.decisions as unknown[] | undefined) ?? []),
+      {
+        action: 'drop',
+        stage: 'user_attachments',
+        reason: 'Inline image payloads were removed after history/tool-loop compaction was not enough to fit the model request. Text attachment metadata remains in the user message.',
+        inlineImageCount: input.clientInput?.attachments.filter((attachment) => isImageAttachment(attachment.type, attachment.mimeType) && !!attachment.dataUrl).length ?? 0,
+        originalInlineImageChars,
+        requestCharsBefore: requestCharsBeforeAttachmentTrim,
+        requestCharsAfter,
+        limitChars: input.limitChars,
+      },
+    ]
+    attachmentProjection = {
+      ...(attachmentProjection ?? {}),
+      inlineImageCount: 0,
+      metadataOnlyCount: input.clientInput?.attachments.length ?? 0,
+      droppedInlineImageCount: input.clientInput?.attachments.filter((attachment) => isImageAttachment(attachment.type, attachment.mimeType) && !!attachment.dataUrl).length ?? 0,
+      decisions: attachmentDecisions as unknown as JSONValue,
+    }
+  }
+
+  return {
+    messages,
+    ...(input.toolLoopHistory.length > 0 ? { toolLoopProjection: toolLoopProjectionTrace(input.toolLoopHistory, decisions) } : {}),
+    ...(attachmentProjection ? { attachmentProjection } : {}),
+  }
+}
+
+function toolLoopProjectionTrace(messages: RuntimeModelChatMessage[], decisions: Array<Record<string, JSONValue>> = []): Record<string, JSONValue> {
+  const chars = estimateRuntimeModelMessagesWithImages(messages)
+  return {
+    messageCount: messages.length,
+    includedCount: decisions.some((decision) => decision.action === 'compact') ? 0 : messages.length,
+    compactedCount: decisions.some((decision) => decision.action === 'compact') ? messages.length : 0,
+    chars,
+    decisions: (decisions.length > 0 ? decisions : [{
+      action: 'retain',
+      stage: 'tool_loop_tail',
+      reason: 'Current tool-loop messages are retained verbatim for model continuity.',
+      messageCount: messages.length,
+      chars,
+    }]) as unknown as JSONValue,
+  }
+}
+
+function attachmentProjectionTrace(input: NormalizedClientInput): Record<string, JSONValue> {
+  const inlineImageCount = input.attachments.filter((attachment) => isImageAttachment(attachment.type, attachment.mimeType) && !!attachment.dataUrl).length
+  const metadataOnlyCount = input.attachments.length - inlineImageCount
+  const totalBytes = input.attachments.reduce((total, attachment) => total + (attachment.size ?? 0), 0)
+  const dataUrlChars = input.attachments.reduce((total, attachment) => total + (attachment.dataUrl?.length ?? 0), 0)
+  return {
+    attachmentCount: input.attachments.length,
+    inlineImageCount,
+    metadataOnlyCount,
+    totalBytes,
+    dataUrlChars,
+    decisions: [{
+      action: 'retain',
+      stage: 'user_attachments',
+      reason: 'Image data_url attachments are sent as image parts; video/file attachments remain metadata-only unless a tool loads derived content.',
+      attachmentCount: input.attachments.length,
+      inlineImageCount,
+      metadataOnlyCount,
+      dataUrlChars,
+    }],
+  }
+}
+
+function estimateRuntimeModelMessagesWithImages(messages: RuntimeModelChatMessage[]): number {
+  return messages.reduce((total, message) => total + message.role.length + message.content.reduce((partTotal, part) => {
+    if (part.type === 'text') return partTotal + part.text.length
+    if (part.source.type === 'data_url') return partTotal + part.source.dataUrl.length
+    if (part.source.type === 'url') return partTotal + part.source.url.length
+    return partTotal + part.source.fileId.length
+  }, 0) + 2, 0)
+}
+
+function hasInlineImageParts(message: RuntimeModelChatMessage | undefined): boolean {
+  return message?.content.some((part) => part.type === 'image' && part.source.type === 'data_url') === true
+}
+
+function imagePartChars(message: RuntimeModelChatMessage | undefined): number {
+  return message?.content.reduce((total, part) => part.type === 'image' && part.source.type === 'data_url' ? total + part.source.dataUrl.length : total, 0) ?? 0
+}
+
+function replaceLastMessage(messages: RuntimeModelChatMessage[], replace: (message: RuntimeModelChatMessage) => RuntimeModelChatMessage): RuntimeModelChatMessage[] {
+  const last = messages.at(-1)
+  if (!last) return messages
+  return [...messages.slice(0, -1), replace(last)]
+}
+
+function isImageAttachment(type?: string, mimeType?: string): boolean {
+  return type === 'image' || mimeType?.toLowerCase().startsWith('image/') === true
+}
+
 interface KnowledgeTraceRef extends Record<string, JSONValue> {
   type: 'knowledge'
   id: string
@@ -330,4 +677,44 @@ function stringField(value: unknown): string | undefined {
 
 function numberField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function contextBundleRef(record: RetrievedContextRecord): ContextBundle['contextRefs'][number] {
+  return {
+    key: refKey(record.ref),
+    ref: record.ref,
+    status: record.status ?? 'active',
+    title: record.title,
+    source: record.source,
+    evidence: record.evidence,
+    ...(record.version ? { version: record.version } : {}),
+    ...(record.contentHash ? { contentHash: record.contentHash } : {}),
+    ...(record.charCount !== undefined ? { charCount: record.charCount } : {}),
+  }
+}
+
+function contextPressure(status: BuiltContext['promptStats']['budget']['status']): NonNullable<ContextBundle['budget']>['pressure'] {
+  switch (status) {
+    case 'exceeded': return 'over'
+    case 'critical': return 'high'
+    case 'warning': return 'medium'
+    default: return 'low'
+  }
+}
+
+function stableHash(value: unknown): string {
+  return `sha256:${hashText(stableStringify(value))}`
+}
+
+function hashText(value: string): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'undefined'
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+    .join(',')}}`
 }

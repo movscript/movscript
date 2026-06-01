@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { generatePlanTasks } from './planGenerator.js'
+import { runtimeModelContentText } from '../model/modelConfig.js'
 
 test('generatePlanTasks parses valid planner model JSON with task dependencies', async () => {
   const result = await generatePlanTasks({
@@ -22,7 +23,7 @@ test('generatePlanTasks parses valid planner model JSON with task dependencies',
       }),
       tool_calls: [],
       finish_reason: 'stop',
-      rawAssistantMessage: { role: 'assistant', content: null },
+      rawAssistantMessage: { role: 'assistant', content: [] },
       trace: {
         request: {
           url: 'http://model.test',
@@ -64,7 +65,7 @@ test('generatePlanTasks preserves planner assessment and task planning metadata'
       updatedAt: new Date(0).toISOString(),
     },
     callModel: async (input) => {
-      systemPrompt = String(input.messages[0]?.content ?? '')
+      systemPrompt = runtimeModelContentText(input.messages[0]?.content ?? [])
       return {
         content: JSON.stringify({
           assessment: {
@@ -102,7 +103,7 @@ test('generatePlanTasks preserves planner assessment and task planning metadata'
         }),
         tool_calls: [],
         finish_reason: 'stop',
-        rawAssistantMessage: { role: 'assistant', content: null },
+        rawAssistantMessage: { role: 'assistant', content: [] },
         trace: {
           request: {
             url: 'http://model.test',

@@ -42,6 +42,21 @@ func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (persiste
 	return cfg, provider, def, nil
 }
 
+func (s *AIService) loadTextConfig(modelConfigID uint) (persistencemodel.AIModelConfig, Provider, *ModelDef, string, error) {
+	var lastErr error
+	for _, cap := range textRuntimeCapabilities() {
+		cfg, provider, def, err := s.loadConfig(modelConfigID, cap)
+		if err == nil {
+			return cfg, provider, def, cap, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return persistencemodel.AIModelConfig{}, nil, nil, "", lastErr
+	}
+	return persistencemodel.AIModelConfig{}, nil, nil, "", fmt.Errorf("no text runtime capability requested")
+}
+
 // ResolveRuntimeModelConfig expands a public logical model ID into the concrete
 // provider-backed model config to use for this request.
 func (s *AIService) ResolveRuntimeModelConfig(modelConfigID uint, requiredCap string) (uint, error) {
@@ -58,7 +73,7 @@ func (s *AIService) ResolveRuntimeModelConfig(modelConfigID uint, requiredCap st
 }
 
 func (s *AIService) ResolveRuntimeTextModel(modelConfigID uint) (uint, error) {
-	return s.ResolveRuntimeModelConfig(modelConfigID, CapabilityText)
+	return s.resolveRuntimeModelAnyCapability(modelConfigID, textRuntimeCapabilities())
 }
 
 func (s *AIService) ResolveRuntimeGenerationModel(modelConfigID uint, outputType string) (uint, error) {
@@ -92,6 +107,7 @@ type runtimeModelCandidate struct {
 	adapterType string
 	logicalID   string
 	priority    int
+	capability  string
 }
 
 type ModelRouteRequest struct {
@@ -115,7 +131,7 @@ type OpenAIProxyTarget struct {
 }
 
 func (s *AIService) OpenAIProxyTarget(modelConfigID uint) (OpenAIProxyTarget, error) {
-	cfg, provider, def, err := s.loadConfig(modelConfigID, CapabilityText)
+	cfg, provider, def, _, err := s.loadTextConfig(modelConfigID)
 	if err != nil {
 		return OpenAIProxyTarget{}, err
 	}
@@ -175,7 +191,18 @@ func (s *AIService) ResolveModelRoute(req ModelRouteRequest) (ModelRoute, error)
 }
 
 func (s *AIService) ResolveTextModelRoute(modelID string) (ModelRoute, error) {
-	return s.ResolveModelRoute(ModelRouteRequest{ModelID: modelID, Capability: CapabilityText})
+	var lastErr error
+	for _, cap := range textRuntimeCapabilities() {
+		route, err := s.ResolveModelRoute(ModelRouteRequest{ModelID: modelID, Capability: cap})
+		if err == nil {
+			return route, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return ModelRoute{}, lastErr
+	}
+	return ModelRoute{}, fmt.Errorf("no text runtime capability requested")
 }
 
 func (s *AIService) ResolveGenerationModelRoute(modelID string, outputType string) (ModelRoute, error) {
@@ -208,7 +235,7 @@ func (s *AIService) runtimeModelCandidates(modelConfigID uint, requiredCap strin
 	}
 	logicalID := logicalModelID(base.AIModelConfig, def)
 	if logicalID == "" {
-		return []runtimeModelCandidate{{cfg: base.AIModelConfig, adapterType: base.AdapterType, logicalID: fmt.Sprintf("config:%d", base.ID), priority: base.Priority}}, nil
+		return []runtimeModelCandidate{{cfg: base.AIModelConfig, adapterType: base.AdapterType, logicalID: fmt.Sprintf("config:%d", base.ID), priority: base.Priority, capability: requiredCap}}, nil
 	}
 
 	var rows []modelConfigWithProvider
@@ -226,9 +253,39 @@ func (s *AIService) runtimeModelCandidates(modelConfigID uint, requiredCap strin
 		if !modelHasCapability(def, requiredCap) || logicalModelID(row.AIModelConfig, def) != logicalID {
 			continue
 		}
-		candidates = append(candidates, runtimeModelCandidate{cfg: row.AIModelConfig, adapterType: row.AdapterType, logicalID: logicalID, priority: row.Priority})
+		candidates = append(candidates, runtimeModelCandidate{cfg: row.AIModelConfig, adapterType: row.AdapterType, logicalID: logicalID, priority: row.Priority, capability: requiredCap})
 	}
 	return candidates, nil
+}
+
+func (s *AIService) runtimeTextModelCandidates(modelConfigID uint) ([]runtimeModelCandidate, error) {
+	var (
+		out     []runtimeModelCandidate
+		lastErr error
+	)
+	seen := map[uint]bool{}
+	for _, cap := range textRuntimeCapabilities() {
+		candidates, err := s.runtimeModelCandidates(modelConfigID, cap)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		for _, candidate := range candidates {
+			if seen[candidate.cfg.ID] {
+				continue
+			}
+			seen[candidate.cfg.ID] = true
+			candidate.capability = cap
+			out = append(out, candidate)
+		}
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no available provider variant for model config id=%d and text/reasoning capability", modelConfigID)
 }
 
 func (s *AIService) runtimeModelCandidatesByModelID(modelID, requiredCap string) ([]runtimeModelCandidate, error) {
@@ -283,6 +340,7 @@ func (s *AIService) runtimeModelCandidatesByModelID(modelID, requiredCap string)
 				adapterType: item.row.AdapterType,
 				logicalID:   logicalID,
 				priority:    item.row.Priority,
+				capability:  requiredCap,
 			})
 		}
 	}

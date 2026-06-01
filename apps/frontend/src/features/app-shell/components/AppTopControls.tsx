@@ -5,7 +5,6 @@ import {
   Bot,
   Check,
   FolderOpen,
-  Languages,
   LayoutDashboard,
   MessageCircle,
   Palette,
@@ -19,6 +18,8 @@ import { getMovScriptThemeMeta, isMovScriptThemeName, movScriptThemeNames, type 
 import {
   AppTopControlButton,
   AppTopControlsRoot,
+  AppTopLanguageLabel,
+  AppTopLanguageSelect,
   AppTopProjectMenuContent,
   AppTopMenuItemText,
   AppTopMenuLabelPrimary,
@@ -80,7 +81,6 @@ export function AppTopControls({
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
-  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const routeSurface = getAppRouteSurface(pathname)
   const currentRouteWorkMode = routeSurface === 'canvas'
@@ -143,7 +143,6 @@ export function AppTopControls({
   function handleLanguageSelect(language: string) {
     if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) return
     i18n.changeLanguage(language as SupportedLanguage)
-    setLanguageMenuOpen(false)
   }
 
   function handleThemeSelect(nextTheme: string) {
@@ -191,7 +190,6 @@ export function AppTopControls({
       <DropdownMenu open={projectMenuOpen} onOpenChange={(open) => {
         setProjectMenuOpen(open)
         if (open) {
-          setLanguageMenuOpen(false)
           setThemeMenuOpen(false)
         }
       }}>
@@ -239,46 +237,23 @@ export function AppTopControls({
           </DropdownMenuItem>
         </AppTopProjectMenuContent>
       </DropdownMenu>
-      <DropdownMenu open={languageMenuOpen} onOpenChange={(open) => {
-        setLanguageMenuOpen(open)
-        if (open) {
-          setProjectMenuOpen(false)
-          setThemeMenuOpen(false)
-        }
-      }}>
-        <DropdownMenuTrigger asChild>
-          <AppTopControlButton
-            type="button"
-            variant="ghost"
-            density={density}
-            title={`${t('header.language')}: ${currentLanguageLabel}`}
-            aria-label={`${t('header.language')}: ${currentLanguageLabel}`}
-          >
-            <Languages size={iconSize} />
-          </AppTopControlButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="app-top-selection-menu">
-          <DropdownMenuLabel>
-            <div className="ms-dropdown__label">
-              <AppTopMenuLabelPrimary>{t('header.language')}</AppTopMenuLabelPrimary>
-              <AppTopMenuLabelSecondary>{currentLanguageLabel}</AppTopMenuLabelSecondary>
-            </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioGroup value={i18n.language} onValueChange={handleLanguageSelect}>
-            {SUPPORTED_LANGUAGES.map((language) => (
-              <DropdownMenuRadioItem key={language} value={language}>
-                <AppTopMenuItemText>{language}</AppTopMenuItemText>
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <AppTopLanguageLabel htmlFor="app-top-language-select">{t('header.language')}</AppTopLanguageLabel>
+      <AppTopLanguageSelect
+        id="app-top-language-select"
+        density={density}
+        value={i18n.language}
+        onChange={(event) => handleLanguageSelect(event.target.value)}
+        title={`${t('header.language')}: ${currentLanguageLabel}`}
+        aria-label={`${t('header.language')}: ${currentLanguageLabel}`}
+      >
+        {SUPPORTED_LANGUAGES.map((language) => (
+          <option key={language} value={language}>{language}</option>
+        ))}
+      </AppTopLanguageSelect>
       <DropdownMenu open={themeMenuOpen} onOpenChange={(open) => {
         setThemeMenuOpen(open)
         if (open) {
           setProjectMenuOpen(false)
-          setLanguageMenuOpen(false)
         }
       }}>
         <DropdownMenuTrigger asChild>

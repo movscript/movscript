@@ -59,17 +59,17 @@ test('isToolVisibleForActiveBehavior scopes workflow tools to active hints', () 
   }), false)
 })
 
-test('isToolVisibleForActiveBehavior ignores non-workflow skills and allows union workflow scope', () => {
+test('isToolVisibleForActiveBehavior exposes explicit skill tool refs and allows union workflow scope', () => {
   assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'studio.production_context',
     activeSkills: [buildSkill({
       id: 'skill.persona',
       category: 'persona',
       metadata: { kind: 'persona' },
-      toolHints: ['studio.production_context'],
+      toolRefs: ['tool://studio.production_context'],
     })],
     userMessage: 'hello',
-  }), false)
+  }), true)
 
   assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'studio.production_context',

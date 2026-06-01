@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { XCircle, Loader2, ChevronDown, History, ChevronUp } from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { RawResource, PublicModel } from '@/types'
 import { useCanvasRuntimeStore, type CanvasRuntimeTask } from '@/features/canvas/runtime/runHistoryStore'
@@ -22,12 +21,11 @@ import {
   type StatusBadgeProps,
 } from '@movscript/ui'
 import { GenInputCard } from './GenInputCard'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { GenerationOutputPreview } from '@/shared/ui/GenerationOutputPreview'
 
 export interface ToolNodeFullCardProps {
   toolName: string
   capability: 'image' | 'video'
-  featureKey: string
   inputType: 'image' | 'video' | 'image+video'
   outputType: 'image' | 'video'
   prompt?: string
@@ -49,9 +47,6 @@ export interface ToolNodeFullCardProps {
 function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasRuntimeTask; outputType: 'image' | 'video'; fallbackResource?: RawResource }) {
   const { t, i18n } = useTranslation()
   const resource = task.resource ?? fallbackResource
-  const outputUrl = resource
-    ? resource.direct_url ?? `${API_BASE}${resource.url}`
-    : undefined
   const isRunning = task.status === 'pending' || task.status === 'running'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const ts = new Date(task.startedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -70,12 +65,9 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasR
           {task.error ?? t('pages.jobs.generationFailed')}
         </CanvasToolFullState>
       )}
-      {task.status === 'done' && outputUrl && (
+      {task.status === 'done' && resource && (
         <CanvasToolFullOutputFrame className="canvas-tool-full-output--history">
-          {outputType === 'image'
-            ? <AuthedImage src={outputUrl} alt="" />
-            : <AuthedVideo src={outputUrl} controls />
-          }
+          <GenerationOutputPreview resource={resource} outputType={outputType} />
         </CanvasToolFullOutputFrame>
       )}
     </CanvasToolFullHistoryItem>
@@ -91,7 +83,6 @@ function toolHistoryStatusRecipe(status: CanvasRuntimeTask['status']): StatusBad
 export function ToolNodeFullCard({
   toolName,
   capability,
-  featureKey,
   inputType,
   outputType,
   prompt,
@@ -115,8 +106,8 @@ export function ToolNodeFullCard({
   const [historyExpanded, setHistoryExpanded] = useState(false)
 
   const { data: models = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', capability, featureKey],
-    queryFn: () => api.get(`/models?capability=${capability}&feature=${featureKey}`).then(r => r.data),
+    queryKey: ['models', capability],
+    queryFn: () => api.get(`/models?capability=${capability}`).then(r => r.data),
   })
 
   // Per-node gen history (only when inside a canvas)
@@ -146,10 +137,6 @@ export function ToolNodeFullCard({
       setUploading(false)
     }
   }
-
-  const outputUrl = resource
-    ? resource.direct_url ?? `${API_BASE}${resource.url}`
-    : undefined
 
   // Latest task is nodeTasks[0] (newest first). History is the rest.
   const latestTask = nodeTasks[0]
@@ -186,12 +173,9 @@ export function ToolNodeFullCard({
         )}
 
         {/* Fallback: show current node output if no task history */}
-        {!latestTask && status === 'done' && outputUrl && (
+        {!latestTask && status === 'done' && resource && (
           <CanvasToolFullOutputFrame className="canvas-tool-full-output--current">
-            {outputType === 'image'
-              ? <AuthedImage src={outputUrl} alt={t('shared.generation.resultAlt')} />
-              : <AuthedVideo src={outputUrl} controls />
-            }
+            <GenerationOutputPreview resource={resource} outputType={outputType} alt={t('shared.generation.resultAlt')} />
           </CanvasToolFullOutputFrame>
         )}
 

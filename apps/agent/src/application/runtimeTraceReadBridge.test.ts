@@ -108,12 +108,70 @@ test('createRuntimeTraceReadBridge exposes compact debug ledgers and evidence pa
       },
     },
   }))
+  store.appendTraceEvent(trace('trace_2', 'prompt', {
+    contextBundleId: 'ctxb_bridge',
+    contextBundleRef: { id: 'ctxb_bridge', promptHash: 'sha256:prompt_bridge' },
+  }))
+  store.appendTraceEvent(trace('trace_3', 'tool_call', {
+    toolName: 'movscript_read_project',
+    resultHash: 'sha256:tool_bridge',
+    resultChars: 22,
+    resultMode: 'summary',
+    contextRefs: [{
+      key: 'tool_result:call_bridge:sha256:tool_bridge',
+      ref: { type: 'tool_result', id: 'call_bridge', hash: 'sha256:tool_bridge' },
+    }],
+  }))
+  store.appendTraceEvent(trace('trace_4', 'assistant', {
+    messageId: 'msg_bridge',
+    contentHash: 'sha256:assistant_bridge',
+    contentChars: 18,
+    contentMode: 'summary',
+  }))
+  store.appendTraceEvent(trace('trace_5', 'context', {
+    eventType: 'context.ledger_updated',
+    mutationSummary: {
+      schema: 'movscript.context-mutation-summary.v1',
+      total: 2,
+      appended: 1,
+      amended: 1,
+      deleted: 0,
+      affectedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old', 'knowledge:storyboard.rhythm.basic:sha256:new'],
+      appendedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old'],
+      amendedContextKeys: ['knowledge:storyboard.rhythm.basic:sha256:old', 'knowledge:storyboard.rhythm.basic:sha256:new'],
+      deletedContextKeys: [],
+    },
+    refs: [{
+      key: 'knowledge:storyboard.rhythm.basic:sha256:new',
+      type: 'knowledge',
+      id: 'storyboard.rhythm.basic',
+      status: 'active',
+      hash: 'sha256:new',
+    }],
+  }))
 
   const bridge = createRuntimeTraceReadBridge({ store })
   const ledger = bridge.getRunDebugLedger(run.id)
   const evidenceRef = ledger.evidenceIndex.find((item) => item.kind === 'model_request')
   assert.equal(evidenceRef?.evidenceId, 'trace_1:model_request')
   assert.ok(JSON.stringify(ledger).length <= 32_000)
+  assert.deepEqual(
+    bridge.findRunDebugEvidenceRefs(run.id, { contextBundleId: 'ctxb_bridge' }).map((item) => item.evidenceId),
+    ['trace_2:raw_event'],
+  )
+  assert.deepEqual(
+    bridge.findRunDebugEvidenceRefs(run.id, { refKey: 'tool_result:call_bridge:sha256:tool_bridge', resultHash: 'sha256:tool_bridge', kind: 'tool_result' }).map((item) => item.evidenceId),
+    ['trace_3:tool_result'],
+  )
+  assert.deepEqual(
+    bridge.findRunDebugEvidenceRefs(run.id, { contentHash: 'sha256:assistant_bridge' }).map((item) => item.evidenceId),
+    ['trace_4:raw_event'],
+  )
+  assert.deepEqual(
+    bridge.findRunDebugEvidenceRefs(run.id, { refKey: 'knowledge:storyboard.rhythm.basic:sha256:new', kind: 'raw_event' }).map((item) => item.evidenceId),
+    ['trace_5:raw_event'],
+  )
+  assert.deepEqual(bridge.findRunDebugEvidenceRefs(run.id, { kind: 'tool_result' }), [])
 
   const evidence = bridge.getRunDebugEvidence(run.id, evidenceRef!.evidenceId)
   assert.equal(evidence.schema, 'movscript.agent.run-debug-evidence.v1')
@@ -130,7 +188,7 @@ test('createRuntimeTraceReadBridge hydrates compact trace data for debug views',
     phase: 'request',
     request: {
       body: {
-        model: 'gpt-5.5',
+        model: 'gpt-5.2',
         messageCount: 10,
       },
     },
@@ -142,9 +200,9 @@ test('createRuntimeTraceReadBridge hydrates compact trace data for debug views',
     phase: 'request',
     request: {
       body: {
-        model: 'gpt-5.5',
+        model: 'gpt-5.2',
         sdk_body: {
-          model: 'gpt-5.5',
+          model: 'gpt-5.2',
           input: [{ role: 'user', content: 'full request content' }],
           tools: [{ type: 'function', name: 'core_file_edit' }],
         },
@@ -181,6 +239,7 @@ test('createRuntimeTraceReadBridge validates run existence before reading traces
   assert.throws(() => bridge.getRunTraceSummary('missing'), /run not found: missing/)
   assert.throws(() => bridge.getRunTraceDebugView('missing'), /run not found: missing/)
   assert.throws(() => bridge.getRunDebugLedger('missing'), /run not found: missing/)
+  assert.throws(() => bridge.findRunDebugEvidenceRefs('missing', { resultHash: 'sha256:missing' }), /run not found: missing/)
   assert.throws(() => bridge.getRunDebugEvidence('missing', 'trace:model_request'), /run not found: missing/)
   assert.throws(() => bridge.getRunGenerationView('missing'), /run not found: missing/)
 })

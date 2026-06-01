@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import test from 'node:test'
 import { tmpdir } from 'node:os'
-import { createAgentRequestListener, normalizeTraceQuery } from './server.js'
+import { createAgentRequestListener, normalizeDebugEvidenceRefQuery, normalizeTraceQuery } from './server.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
 import { RuntimeModelConfigStore } from './model/modelConfig.js'
 import { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
@@ -46,6 +46,22 @@ test('normalizeTraceQuery rejects unknown trace kind', () => {
   assert.equal(result.ok, false)
   if (result.ok) return
   assert.match(result.error, /invalid trace kind/)
+})
+
+test('normalizeDebugEvidenceRefQuery accepts ref selectors and rejects unknown evidence kind', () => {
+  const result = normalizeDebugEvidenceRefQuery(new URL('http://127.0.0.1/runs/run_1/debug-evidence-refs?kind=tool_result&refKey=tool_result%3Acall_1%3Asha256%3Aabc&resultHash=sha256%3Aabc'))
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.deepEqual(result.query, {
+    kind: 'tool_result',
+    refKey: 'tool_result:call_1:sha256:abc',
+    resultHash: 'sha256:abc',
+  })
+
+  const invalid = normalizeDebugEvidenceRefQuery(new URL('http://127.0.0.1/runs/run_1/debug-evidence-refs?kind=unknown'))
+  assert.equal(invalid.ok, false)
+  if (invalid.ok) return
+  assert.match(invalid.error, /invalid debug evidence kind/)
 })
 
 test('telemetry endpoints expose runtime snapshot and prometheus-compatible metrics', async () => {
@@ -91,6 +107,10 @@ test('trace read endpoints return 404 for missing runs instead of surfacing faca
         calls.push('debug-ledger')
         throw new Error('should not read debug ledger for missing run')
       },
+      findRunDebugEvidenceRefs: () => {
+        calls.push('debug-evidence-refs')
+        throw new Error('should not read debug evidence refs for missing run')
+      },
       getRunDebugEvidence: () => {
         calls.push('debug-evidence')
         throw new Error('should not read debug evidence for missing run')
@@ -106,6 +126,7 @@ test('trace read endpoints return 404 for missing runs instead of surfacing faca
   const summary = await dispatch(handler, 'GET', '/runs/missing/trace/summary')
   const debugView = await dispatch(handler, 'GET', '/runs/missing/trace/debug-view')
   const debugLedger = await dispatch(handler, 'GET', '/runs/missing/debug-ledger')
+  const debugEvidenceRefs = await dispatch(handler, 'GET', '/runs/missing/debug-evidence-refs?resultHash=sha256%3Amissing')
   const debugEvidence = await dispatch(handler, 'GET', '/runs/missing/debug-evidence/trace_1%3Amodel_request')
   const generationView = await dispatch(handler, 'GET', '/runs/missing/generation-view')
 
@@ -117,6 +138,8 @@ test('trace read endpoints return 404 for missing runs instead of surfacing faca
   assert.equal(JSON.parse(debugView.body).error, 'run not found')
   assert.equal(debugLedger.statusCode, 404)
   assert.equal(JSON.parse(debugLedger.body).error, 'run not found')
+  assert.equal(debugEvidenceRefs.statusCode, 404)
+  assert.equal(JSON.parse(debugEvidenceRefs.body).error, 'run not found')
   assert.equal(debugEvidence.statusCode, 404)
   assert.equal(JSON.parse(debugEvidence.body).error, 'run not found')
   assert.equal(generationView.statusCode, 404)
@@ -144,8 +167,20 @@ test('debug ledger endpoints return compact ledger and evidence payloads', async
         toolCalls: [],
         decisions: [],
         attention: [],
-        evidenceIndex: [{ evidenceId: 'trace_1:model_request', eventId: 'trace_1', kind: 'model_request', label: '模型请求负载', chars: 2, preview: '{}', fetchPath: `/runs/${runId}/debug-evidence/trace_1%3Amodel_request` }],
+        evidenceIndex: [{ evidenceId: 'trace_1:model_request', eventId: 'trace_1', kind: 'model_request', label: '模型请求负载', chars: 2, preview: '{}', fetchPath: `/runs/${runId}/debug-evidence/trace_1%3Amodel_request`, resultHashes: ['sha256:model_request'] }],
       }),
+      findRunDebugEvidenceRefs: (runId: string, query: { resultHash?: string }) => query.resultHash === 'sha256:model_request'
+        ? [{
+            evidenceId: 'trace_1:model_request',
+            eventId: 'trace_1',
+            kind: 'model_request',
+            label: '模型请求负载',
+            chars: 2,
+            preview: '{}',
+            fetchPath: `/runs/${runId}/debug-evidence/trace_1%3Amodel_request`,
+            resultHashes: [query.resultHash],
+          }]
+        : [],
       getRunDebugEvidence: (runId: string, evidenceId: string) => ({
         schema: 'movscript.agent.run-debug-evidence.v1',
         runId,
@@ -159,11 +194,14 @@ test('debug ledger endpoints return compact ledger and evidence payloads', async
   } as unknown as AgentServerContext)
 
   const ledger = await dispatch(handler, 'GET', '/runs/run_1/debug-ledger')
+  const refs = await dispatch(handler, 'GET', '/runs/run_1/debug-evidence-refs?resultHash=sha256%3Amodel_request')
   const evidence = await dispatch(handler, 'GET', '/runs/run_1/debug-evidence/trace_1%3Amodel_request')
 
   assert.equal(ledger.statusCode, 200)
   assert.equal(JSON.parse(ledger.body).schema, 'movscript.agent.run-debug-ledger.v1')
   assert.equal(JSON.parse(ledger.body).budget.estimatedChars, 100)
+  assert.equal(refs.statusCode, 200)
+  assert.equal(JSON.parse(refs.body).evidenceRefs[0].evidenceId, 'trace_1:model_request')
   assert.equal(evidence.statusCode, 200)
   assert.equal(JSON.parse(evidence.body).evidenceId, 'trace_1:model_request')
   assert.deepEqual(JSON.parse(evidence.body).value, { model: 'gpt-test' })
@@ -195,9 +233,9 @@ test('model config endpoint reports invalid config input as client errors', asyn
     } as unknown as AgentServerContext)
 
     const invalidModel = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: '' }))
-    const invalidRoutes = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5', useForChat: false, useForPlanner: false }))
+    const invalidRoutes = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.2', useForChat: false, useForPlanner: false }))
     const sensitiveModel = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'sk-proj-exampleSecretValue123456789', apiKind: 'openai_responses' }))
-    const sensitiveBaseURL = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5', apiKind: 'openai_responses', baseURL: 'https://api.openai.com/v1?api_key=secret' }))
+    const sensitiveBaseURL = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.2', apiKind: 'openai_responses', baseURL: 'https://api.openai.com/v1?api_key=secret' }))
 
     assert.equal(invalidModel.statusCode, 400)
     assert.equal(JSON.parse(invalidModel.body).error, 'model must be a non-empty string')
@@ -221,7 +259,7 @@ test('model config endpoint can clear saved config', async () => {
       modelConfigStore,
     } as unknown as AgentServerContext)
 
-    const saved = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5' }))
+    const saved = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.2' }))
     const cleared = await dispatch(handler, 'DELETE', '/model-config')
 
     assert.equal(saved.statusCode, 200)
@@ -1435,7 +1473,8 @@ function dispatch(
         statusCode = code
       },
       setHeader() {},
-      end(chunk?: string) {
+      end(this: { writableEnded: boolean }, chunk?: string) {
+        this.writableEnded = true
         if (chunk) resBody.end(chunk)
         else resBody.end()
       },
@@ -1453,8 +1492,10 @@ function dispatch(
     resBody.on('end', () => resolve({ statusCode, body: output }))
     resBody.on('error', reject)
 
-    void handler(req, res)
-    if (body !== undefined) req.emit('data', body)
-    req.emit('end')
+    void handler(req, res).catch(reject)
+    queueMicrotask(() => {
+      if (body !== undefined) req.emit('data', body)
+      req.emit('end')
+    })
   })
 }

@@ -13,12 +13,13 @@ import (
 )
 
 type CreateCredentialInput struct {
-	AdapterType     string
-	DisplayName     string
-	Credentials     map[string]string
-	FilesAPIEnabled bool
-	FilesAPIBaseURL string
-	FilesAPIKey     string
+	AdapterType        string
+	DisplayName        string
+	Credentials        map[string]string
+	FilesAPIEnabled    bool
+	FilesAPIBaseURL    string
+	FilesAPIKey        string
+	RequireTestSuccess bool
 }
 
 type UpdateCredentialInput struct {
@@ -74,6 +75,13 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 	}
 	cred.EncryptedKey = encKey
 	cred.MaskedKey = masked
+
+	if input.RequireTestSuccess {
+		result := s.testCredential(ctx, cred)
+		if !result.Success {
+			return cred, CredentialTestFailedError{Result: result}
+		}
+	}
 
 	if err := s.repo.CreateCredential(ctx, &cred); err != nil {
 		return cred, err
@@ -205,15 +213,30 @@ func (s *Service) TestCredential(ctx context.Context, credentialID string) (Test
 	if err != nil {
 		return TestResult{}, err
 	}
+	return s.testCredential(ctx, cred), nil
+}
+
+type CredentialTestFailedError struct {
+	Result TestResult
+}
+
+func (e CredentialTestFailedError) Error() string {
+	if e.Result.Message != "" {
+		return e.Result.Message
+	}
+	return "credential test failed"
+}
+
+func (s *Service) testCredential(ctx context.Context, cred domainai.Credential) TestResult {
 	provider, err := s.registry.BuildForCredential(cred.ToModel())
 	if err != nil {
-		return TestResult{Success: false, Message: err.Error()}, nil
+		return TestResult{Success: false, Message: err.Error()}
 	}
 	start := time.Now()
 	if err := provider.Ping(ctx); err != nil {
-		return TestResult{Success: false, Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}, nil
+		return TestResult{Success: false, Message: err.Error(), LatencyMs: time.Since(start).Milliseconds()}
 	}
-	return TestResult{Success: true, Message: "连接正常", LatencyMs: time.Since(start).Milliseconds()}, nil
+	return TestResult{Success: true, Message: "连接正常", LatencyMs: time.Since(start).Milliseconds()}
 }
 
 func (s *Service) applyMaskedKeys(cred *domainai.Credential) {

@@ -119,6 +119,7 @@ test('recordRuntimeRunSetupTraces marks fallback context as blocked and includes
         workflowIds: ['workflow_1'],
         intentSignals: [],
         workflowTriggers: [],
+        skillOmissions: [],
       },
     },
     toolRegistry: new StaticToolRegistry([]),

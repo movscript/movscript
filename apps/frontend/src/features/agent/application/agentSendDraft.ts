@@ -130,6 +130,7 @@ export interface BuildLocalAgentSendDraftInput {
   localAgentBaseURL: string
   httpLabels: AgentSendDraftHttpLabels
   previewDeps?: AgentSendDraftPreviewDeps
+  resolveAttachmentDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>
   now?: () => number
   makeId?: () => string
 }
@@ -163,6 +164,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
       ...(options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : input.attachments),
       ...resourceMentionAttachments(text, input.resourceAttachmentIndex),
     ])
+  const clientAttachmentRefs = await resolveAgentClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl)
   const visibleText = (options.displayMessage ?? text).trim()
   const visibleUserContent = visibleText || input.attachmentOnlyMessageLabel
   const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
@@ -175,13 +177,13 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
           message: runtimeMessage,
           ...(sentAttachments.length > 0
             ? {
-                attachments: sentAttachments.map(agentAttachmentToClientInputRef),
+                attachments: clientAttachmentRefs,
               }
             : {}),
         }
       : buildAgentClientInput({
           message: runtimeMessage,
-          attachments: sentAttachments,
+          attachmentRefs: clientAttachmentRefs,
           projectId: options.projectId ?? input.currentProject?.ID,
           labels: input.contextLabels,
         }))
@@ -303,6 +305,7 @@ export function attachmentFromClientInputRef(attachment: NonNullable<AgentClient
     mimeType: attachment.mimeType ?? 'application/octet-stream',
     size: attachment.size ?? 0,
     ...(attachment.resourceId !== undefined ? { resourceId: attachment.resourceId } : {}),
+    ...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
   }
 }
 
@@ -312,7 +315,8 @@ export function resourceMentionAttachments(text: string, byId: Map<number, Agent
 
 export function buildAgentClientInput(options: {
   message: string
-  attachments: AgentAttachment[]
+  attachments?: AgentAttachment[]
+  attachmentRefs?: NonNullable<AgentClientInput['attachments']>
   projectId?: number
   labels?: string[]
   route?: { pathname?: string; search?: string; hash?: string }
@@ -322,7 +326,7 @@ export function buildAgentClientInput(options: {
 }): AgentClientInput {
   return buildCommandFirstClientInput({
     message: options.message,
-    attachments: options.attachments.map(agentAttachmentToClientInputRef),
+    attachments: options.attachmentRefs ?? (options.attachments ?? []).map(agentAttachmentToClientInputRef),
     labels: options.labels,
     hints: {
       ...(options.projectId ? { projectId: options.projectId } : {}),
@@ -332,6 +336,16 @@ export function buildAgentClientInput(options: {
       ...(options.route ? { route: options.route } : {}),
     },
   })
+}
+
+async function resolveAgentClientAttachmentRefs(
+  attachments: AgentAttachment[],
+  resolveDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>,
+): Promise<NonNullable<AgentClientInput['attachments']>> {
+  return Promise.all(attachments.map(async (attachment) => {
+    const dataUrl = attachment.dataUrl ?? (isImageAttachment(attachment) ? await resolveDataUrl?.(attachment) : undefined)
+    return agentAttachmentToClientInputRef(dataUrl ? { ...attachment, dataUrl } : attachment)
+  }))
 }
 
 export function buildDebugHttpRequests(options: {
@@ -462,9 +476,10 @@ function attachmentPromptBlock(attachments: AgentAttachment[]) {
   if (attachments.length === 0) return ''
   const lines = attachments.map((attachment, index) => {
     const id = attachment.resourceId ? `resource_id=${attachment.resourceId}` : 'local_preview'
-    return `${index + 1}. ${attachment.name} (${attachment.type}, ${attachment.mimeType || 'unknown'}, ${formatBytesForPrompt(attachment.size)}, ${id})`
+    const payload = attachment.dataUrl ? ', image_payload=data_url' : attachment.type === 'video' ? ', video_payload=metadata_only' : ''
+    return `${index + 1}. ${attachment.name} (${attachment.type}, ${attachment.mimeType || 'unknown'}, ${formatBytesForPrompt(attachment.size)}, ${id}${payload})`
   })
-  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n请在回答时引用附件名称；当前文本接口只能读取这些附件元数据，不能直接解析二进制内容。`
+  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会随 runtime 输入以 data URL 传给支持 vision 的模型；视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
 }
 
 function parseResourceMentionIds(text: string): number[] {
@@ -487,11 +502,19 @@ function agentAttachmentToClientInputRef(attachment: AgentAttachment): NonNullab
     mimeType: attachment.mimeType,
     size: attachment.size,
     ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
+    ...(attachment.dataUrl ? { dataUrl: attachment.dataUrl } : {}),
   }
+}
+
+function isImageAttachment(attachment: AgentAttachment): boolean {
+  return attachment.type === 'image' || attachment.mimeType.toLowerCase().startsWith('image/')
 }
 
 function compactDebugValue(value: unknown, maxChars = 4000): unknown {
   if (typeof value === 'string') {
+    if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(value)) {
+      return `[image data URL redacted: ${value.length} chars]`
+    }
     if (value.length <= maxChars) return value
     return `${value.slice(0, maxChars)}\n...[truncated ${value.length - maxChars} chars for debug preview]`
   }

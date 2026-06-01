@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
@@ -7,7 +7,6 @@ import {
   AppWindow,
   Atom,
   Bot,
-  BrainCircuit,
   Cable,
   Clapperboard,
   CirclePlay,
@@ -43,8 +42,11 @@ import {
   APP_SIDEBAR_MAX_WIDTH,
   APP_SIDEBAR_MIN_WIDTH,
   APP_SIDEBAR_WIDTH_STORAGE_KEY,
+  AppSidebarActionItem,
   AppSidebarDivider,
+  AppSidebarFooter,
   AppSidebarHeader,
+  AppSidebarMenuLeadingIcon,
   AppSidebarNav,
   AppSidebarNavItemFrame,
   AppSidebarNavItemContent,
@@ -52,6 +54,13 @@ import {
   AppSidebarProjectRow,
   AppSidebarSection,
   AppSidebarShell,
+  AppSidebarUserButton,
+  AppSidebarUserButtonContent,
+  AppSidebarUserMenuContent,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   PanelResizeHandle,
   clampAppSidebarWidth,
   useResizablePanel,
@@ -59,6 +68,9 @@ import {
 import { loadClientPlugins } from '@/features/plugins/application/clientPlugins'
 import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from '@/routes/projectRoutes'
+import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
+import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 const PLUGIN_NAV_ICONS: LucideIcon[] = [
   Puzzle,
@@ -135,8 +147,11 @@ export function Sidebar({
   onHide,
 }: SidebarProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
+  const currentUser = useUserStore((s) => s.currentUser)
+  const settings = useAppSettingsStore((s) => s.settings)
   const { pathname } = useLocation()
   const sidebarResize = useResizablePanel({
     size: width,
@@ -176,6 +191,14 @@ export function Sidebar({
       <AppSidebarNav collapsed={collapsed}>
         <AppSidebarSection title={t('sidebar.sections.global')} collapsed={collapsed}>
           <NavItem to={ROUTES.root} icon={Home} label={t('sidebar.items.home')} collapsed={collapsed} end />
+          {currentUser?.system_role === 'super_admin' ? (
+            <AppSidebarActionItem
+              icon={Wrench}
+              label={t('sidebar.items.adminConsole')}
+              collapsed={collapsed}
+              onClick={() => void openAdminConsole(settings.apiBaseURL)}
+            />
+          ) : null}
         </AppSidebarSection>
 
         <AppSidebarDivider collapsed={collapsed} />
@@ -226,7 +249,6 @@ export function Sidebar({
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
-          <NavItem to={ROUTES.tools.brainstorm} icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
           {installedPlugins.map((plugin, index) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
           ))}
@@ -249,6 +271,31 @@ export function Sidebar({
           {...sidebarResize.resizeHandleProps}
           side="right"
         />
+      ) : null}
+      {currentUser ? (
+        <AppSidebarFooter collapsed={collapsed}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <AppSidebarUserButton
+                collapsed={collapsed}
+                title={currentUser.username}
+                aria-label={currentUser.username}
+              >
+                <AppSidebarUserButtonContent username={currentUser.username} />
+              </AppSidebarUserButton>
+            </DropdownMenuTrigger>
+            <AppSidebarUserMenuContent collapsed={collapsed} menuWidth={width}>
+              <DropdownMenuItem onSelect={() => navigate(ROUTES.user)}>
+                <AppSidebarMenuLeadingIcon icon={Home} />
+                {t('sidebar.items.profile', { defaultValue: 'Profile' })}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled>
+                {currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
+              </DropdownMenuItem>
+            </AppSidebarUserMenuContent>
+          </DropdownMenu>
+        </AppSidebarFooter>
       ) : null}
     </AppSidebarShell>
   )

@@ -43,7 +43,7 @@ import {
   type StatusIntent
 } from '@movscript/ui'
 import { generatePreview, type PreviewContentUnit, type PreviewGenerateResponse, type PreviewKeyframe, type PreviewScope } from '@/shared/infrastructure/api/preview'
-import { AuthedImage } from '@/shared/ui/AuthedImage'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/features/content/domain/productionIdentifiers'
 
 interface PreviewDrawerProps {
@@ -309,7 +309,7 @@ type FrameContext = {
 function StoryFrame({ keyframe, index, frameContext }: { keyframe: PreviewKeyframe; index: number; frameContext: FrameContext }) {
   return (
     <ResourcePreviewStoryFrame
-      media={keyframe.resource_url ? <AuthedImage src={keyframe.resource_url} alt={keyframe.title || '剧情画面'} /> : undefined}
+      media={keyframe.resource_url ? <ResourceFileImage resourceUrl={keyframe.resource_url} alt={keyframe.title || '剧情画面'} /> : undefined}
       emptyMedia={<ResourcePreviewFrameEmptyMedia icon={<Image size={24} />} label="待补画面" />}
       frameNumber={String(index + 1).padStart(2, '0')}
       unitLabel={unitIdentifier(frameContext.unit) || frameContext.unit?.title || frameContext.scopeLabel}

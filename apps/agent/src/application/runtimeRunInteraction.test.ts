@@ -147,6 +147,11 @@ test('applyRuntimeRunRequiredActionFlow pauses approval runs and projects the th
   assert.equal(store.getThread('thread_1')?.status, 'requires_action')
   assert.equal(traces[0]?.kind, 'approval')
   assert.equal(traces[0]?.summary, '1 tool action(s) paused the run.')
+  const data = traces[0]?.data as Record<string, unknown>
+  assert.equal(data.eventType, 'run.required_action')
+  assert.equal((data.approvalSummary as Record<string, unknown>).total, 1)
+  assert.equal((data.inputRequestSummary as Record<string, unknown>).total, 0)
+  assert.doesNotMatch(JSON.stringify(data), /Needs approval/)
   assert.deepEqual(events, ['snapshot:requires_action:true'])
 })
 
@@ -172,6 +177,10 @@ test('applyRuntimeRunRequiredActionFlow uses input trace kind when only user inp
   assert.equal(traces[0]?.kind, 'input')
   assert.equal(traces[0]?.title, 'User input required')
   assert.equal(traces[0]?.summary, '1 user input request(s) paused the run.')
+  const data = traces[0]?.data as Record<string, unknown>
+  assert.equal((data.inputRequestSummary as Record<string, unknown>).total, 1)
+  assert.match(JSON.stringify(data), /questionHash/)
+  assert.doesNotMatch(JSON.stringify(data), /请选择目标内容类型/)
 })
 
 test('applyRuntimeRunRequiredActionFlow adds display anchors to worker input requests', () => {
@@ -341,7 +350,10 @@ test('applyRuntimeRunInputAnswerFlow records input trace, emits snapshot, rememb
 
   assert.equal(run.status, 'queued')
   assert.equal(traces[0]?.kind, 'input')
+  assert.equal(traces[0]?.summary, 'User input answer recorded.')
   assert.deepEqual((traces[0]?.data as Record<string, unknown>).choiceIds, [])
+  assert.match(JSON.stringify(traces[0]?.data), /textHash/)
+  assert.doesNotMatch(JSON.stringify(traces[0]?.data), /继续/)
   assert.deepEqual(events, ['snapshot:queued', 'auth:run_1:true', 'start:run_1'])
 })
 

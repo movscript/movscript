@@ -44,10 +44,6 @@ export function apiErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-export function resourceFileUrl(resourceId?: number | null) {
-  return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
-}
-
 function firstText(...values: Array<unknown>) {
   for (const value of values) {
     const text = String(value ?? '').trim()

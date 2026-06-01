@@ -26,9 +26,8 @@ import {
 } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
-import { AuthedImage } from '@/shared/ui/AuthedImage'
 import { formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
-import { resourceFileUrl } from '@/features/content/domain/contentWorkbenchStatus'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type {
   AgentInputAnswer,
@@ -236,8 +235,8 @@ function ApprovalResourceThumbnail({ resourceId }: { resourceId?: number }) {
   return (
     <AgentWorkflowApprovalThumbnail>
       {resourceId !== undefined ? (
-        <AuthedImage
-          src={resourceFileUrl(resourceId)}
+        <ResourceFileImage
+          resourceId={resourceId}
           alt={`资源 #${resourceId}`}
         />
       ) : (

@@ -8,13 +8,15 @@ import type {
   UpdateThreadInput,
 } from '../state/types.js'
 import {
-  appendThreadMessage,
   applyThreadUpdate,
   buildAgentSession,
-  buildAgentMessage,
   buildAgentThread,
-  validInitialThreadMessageInputs,
 } from './threadLifecycle.js'
+import {
+  appendThreadMessage,
+  buildAgentMessage,
+  validInitialThreadMessageInputs,
+} from '../domains/message/threadMessage.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
 
 export interface RuntimeThreadCreationResult {

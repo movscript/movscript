@@ -19,6 +19,8 @@ import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId, p
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
 import { renderFinalAssistantContent } from '../contextManager/finalSourceSummary.js'
 import { contextManager } from '../contextManager/contextManager.js'
+import type { RuntimeModelChatMessage } from '../model/modelConfig.js'
+import { runtimeModelContentText } from '../domains/message/modelMessage.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
   return name === 'context' || name === 'status' || name === 'compact' || name === 'memory'
@@ -120,7 +122,7 @@ export function buildLocalDiagnosticCommand(input: {
         modelGatewayCalled: false,
         messages: builtContext.messages.map((message) => ({
           role: message.role,
-          content: message.content ?? '',
+          content: runtimeModelContentText(message.content),
         })) as unknown as JSONValue,
         systemPrompt: builtContext.systemPrompt,
         debugParts: builtContext.debugParts as unknown as JSONValue,
@@ -162,6 +164,7 @@ export function buildLocalDiagnosticCommand(input: {
       memories: input.memories,
       warnings: input.warnings,
       history: promptHistory.messages,
+      historyProjection: promptHistory,
       userMessage: input.userMessage,
       ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
       command: input.command,
@@ -207,6 +210,7 @@ export function buildLocalDiagnosticCommand(input: {
       memories: input.memories,
       warnings: input.warnings,
       history: promptHistory.messages,
+      historyProjection: promptHistory,
       userMessage: input.userMessage,
       ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
       command: input.command,
@@ -556,7 +560,7 @@ export interface GenerationDebugCommandSpec {
   jobType: 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
   aspectRatio?: string
   duration?: number
-  featureKey: string
+  sourceKey: string
   timeoutMs: number
   extraParams: Record<string, JSONValue>
   referenceResourceIds: number[]
@@ -575,7 +579,7 @@ export function parseGenerationDebugCommand(command: AgentCommandRuntime): Gener
       : (referenceResourceIds.length > 0 ? 'video_i2v' : 'video'),
     ...(outputType === 'video' ? { aspectRatio: extractAspectRatio(command.payload) ?? '16:9' } : {}),
     ...(outputType === 'video' ? { duration: extractDuration(command.payload) ?? 5 } : {}),
-    featureKey: outputType === 'image' ? 'plugin.image_generator' : 'plugin.video_generator',
+    sourceKey: outputType === 'image' ? 'plugin.image_generator' : 'plugin.video_generator',
     timeoutMs: 600_000,
     extraParams: {
       ...(outputType === 'video' && extractFps(command.payload) !== undefined ? { fps: extractFps(command.payload) } : {}),
@@ -694,11 +698,11 @@ function renderLocalContextCommand(input: {
   return lines.join('\n')
 }
 
-function renderModelGatewayMessagesText(messages: Array<{ role: string; content?: string | null }>): string {
+function renderModelGatewayMessagesText(messages: RuntimeModelChatMessage[]): string {
   const lines = ['Model gateway messages:']
   messages.forEach((message, index) => {
     lines.push('', `--- message ${index + 1}: ${message.role} ---`)
-    lines.push(message.content ?? '')
+    lines.push(runtimeModelContentText(message.content))
   })
   return lines.join('\n')
 }

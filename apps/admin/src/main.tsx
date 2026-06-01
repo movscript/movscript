@@ -2,13 +2,13 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Palette, Route as RouteIcon, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Palette, ScrollText, Settings, Settings2, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { AppFeedbackText, Button, UiDebugInspector } from '@movscript/ui'
-import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
+import AdminPage, { CloudFileConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
 import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
 import { UsageLogsPage } from '@admin/pages/admin/UsageLogsPage'
@@ -150,7 +150,6 @@ function LoginPage() {
 const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: boolean }[] = [
   { to: '/', labelKey: 'admin.nav.overview', icon: Database, end: true },
   { to: '/models', labelKey: 'admin.tabs.models', icon: Settings2 },
-  { to: '/features', labelKey: 'admin.tabs.features', icon: RouteIcon },
   { to: '/user-management', labelKey: 'admin.tabs.users', icon: UsersRound },
   { to: '/orgs', labelKey: 'admin.tabs.orgs', icon: Building2 },
   { to: '/projects', labelKey: 'admin.tabs.projects', icon: FolderKanban },
@@ -398,7 +397,6 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />
         <Route path="/models" element={<AdminShell><ModelManagementPage /></AdminShell>} />
-        <Route path="/features" element={<AdminShell><FeatureConfigPage /></AdminShell>} />
         <Route path="/user-management" element={<AdminShell><UserManagementPage /></AdminShell>} />
         <Route path="/orgs" element={<AdminShell><OrgManagementPage /></AdminShell>} />
         <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />

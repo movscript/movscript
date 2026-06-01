@@ -1,12 +1,9 @@
 import React from 'react'
 import { X } from 'lucide-react'
 import { AgentMediaThumb, Button } from '@movscript/ui'
-import { attachmentDisplayUrl, formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
+import { formatAgentAttachmentBytes } from '@/features/agent/domain/agentAttachments'
 import { mentionEditorTextBeforeCaret, serializeMentionEditor } from '@/features/agent/presentation/agentMentionEditorModel'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
-import {
-  AgentAttachmentIcon as AttachmentIcon,
-} from '@/features/agent/components/AgentMessageContent'
+import { AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { cn } from '@/shared/ui/cn'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
@@ -21,21 +18,10 @@ export function ComposerAttachmentChip({
   attachment: AgentAttachment
   onRemove: () => void
 }) {
-  const url = attachmentDisplayUrl(attachment)
-  const preview = attachment.type === 'image' && url ? (
-    <AuthedImage src={url} alt={attachment.name} />
-  ) : attachment.type === 'video' && url ? (
-    <AuthedVideo src={url} muted playsInline preload="metadata" />
-  ) : (
-    <span className="ms-center text-muted-foreground">
-      <AttachmentIcon type={attachment.type} size={10} />
-    </span>
-  )
-
   return (
     <div className="flex min-w-0 items-center gap-2 border-t border-border px-0 py-1 type-caption first:border-t-0">
       <AgentMediaThumb size="md">
-        {preview}
+        <AgentAttachmentMediaPreview attachment={attachment} variant="chip" />
       </AgentMediaThumb>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1">
@@ -51,7 +37,6 @@ export function ComposerAttachmentChip({
 }
 
 export function MentionResourceOption({ attachment, onSelect }: { attachment: AgentAttachment; onSelect: () => void }) {
-  const url = attachmentDisplayUrl(attachment)
   return (
     <Button
       type="button"
@@ -64,15 +49,7 @@ export function MentionResourceOption({ attachment, onSelect }: { attachment: Ag
       className="w-full justify-start gap-2 rounded-none px-2 py-1.5 text-left type-caption"
     >
       <AgentMediaThumb size="md">
-        {attachment.type === 'image' && url ? (
-          <AuthedImage src={url} alt={attachment.name} />
-        ) : attachment.type === 'video' && url ? (
-          <AuthedVideo src={url} muted playsInline preload="metadata" />
-        ) : (
-          <span className="ms-center text-muted-foreground">
-            <AttachmentIcon type={attachment.type} size={10} />
-          </span>
-        )}
+        <AgentAttachmentMediaPreview attachment={attachment} variant="chip" />
       </AgentMediaThumb>
       <span className="min-w-0 flex-1 truncate text-foreground">{attachment.name}</span>
       <span className="shrink-0 type-tiny text-muted-foreground">

@@ -11,6 +11,7 @@ import {
   DEFAULT_TOOL_REGISTRY,
   StaticToolRegistry,
   mergeRegisteredTools,
+  normalizeToolExecutionMetadata,
   type RegisteredTool,
   type ToolRegistry,
 } from '../tools/toolRegistry.js'
@@ -180,6 +181,7 @@ function registeredToolFromLayeredTool(tool: ToolDefinition): RegisteredTool {
     projectScoped: tool.projectScoped,
     requiresApprovalByDefault: tool.defaults.approval !== 'never',
     defaults: tool.defaults,
+    ...(tool.execution ? { execution: tool.execution } : {}),
     ...(tool.capability ? { capability: tool.capability } : {}),
     ...(tool.pluginId ? { pluginId: tool.pluginId } : {}),
     ...(tool.mcpServerId ? { mcpServerId: tool.mcpServerId } : {}),
@@ -863,6 +865,7 @@ function normalizeLayeredTool(input: unknown, filePath: string, warnings: string
     risk,
     projectScoped: input.projectScoped === true,
     defaults: normalizeLayeredToolDefaults(input.defaults),
+    execution: normalizeToolExecutionMetadata(input.execution, risk),
     source,
     ...(nonEmptyString(input.capability) ? { capability: nonEmptyString(input.capability) } : {}),
     ...(nonEmptyString(input.pluginId) ? { pluginId: nonEmptyString(input.pluginId) } : {}),

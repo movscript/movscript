@@ -8,6 +8,8 @@ export type {
   BuiltContext,
   ContextBuilderInput,
   ContextPromptLayer,
+  PromptBudgetDecision,
+  PromptBudgetLedger,
   PromptLayer,
   PromptStats,
 } from '../contextManager/modelContextBuilder.js'

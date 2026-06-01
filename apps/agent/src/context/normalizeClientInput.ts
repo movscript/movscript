@@ -32,12 +32,18 @@ export function buildRuntimeUserMessage(input: NormalizedClientInput): string {
       '[用户附件引用]',
       ...input.attachments.map((a, i) => {
         const identity = a.resourceId !== undefined ? `resource_id=${a.resourceId}` : a.id ? `id=${a.id}` : 'local_preview'
-        return `${i + 1}. ${a.name ?? '未命名附件'} (${a.type ?? 'file'}, ${a.mimeType ?? 'unknown'}, ${a.size ?? 0} bytes, ${identity})`
+        const payload = a.dataUrl ? ', image_payload=data_url' : isVideoAttachment(a.type, a.mimeType) ? ', video_payload=metadata_only' : ''
+        return `${i + 1}. ${a.name ?? '未命名附件'} (${a.type ?? 'file'}, ${a.mimeType ?? 'unknown'}, ${a.size ?? 0} bytes, ${identity}${payload})`
       }),
-      '当前 runtime 只接收附件引用和元数据；需要理解媒体内容时必须使用可用工具读取资源上下文，不能假设已经读取二进制内容。',
+      '图片附件如果包含 data_url，会直接传给支持 vision 的模型；没有 data_url 的附件只能作为元数据或通过工具读取。',
+      '视频附件不会作为视频 payload 发送给模型；如需理解画面内容，调用 core_video_extract_frames 按 resource_id 本地抽帧，抽出的帧会作为图片输入传给模型。',
     ].join('\n'))
   }
   return sections.join('\n\n')
+}
+
+function isVideoAttachment(type?: string, mimeType?: string): boolean {
+  return type === 'video' || mimeType?.toLowerCase().startsWith('video/') === true
 }
 
 function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] {
@@ -58,6 +64,7 @@ function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] 
       : isValidAgentEntityId(item.resource_id)
         ? item.resource_id
         : undefined
+    const dataUrl = normalizeImageDataURL(item.dataUrl) ?? normalizeImageDataURL(item.data_url)
     if (!id && !name && resourceId === undefined) return []
     return [{
       ...(id ? { id } : {}),
@@ -66,8 +73,15 @@ function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] 
       ...(mimeType ? { mimeType } : {}),
       ...(size !== undefined ? { size } : {}),
       ...(resourceId !== undefined ? { resourceId } : {}),
+      ...(dataUrl ? { dataUrl } : {}),
     }]
   })
+}
+
+function normalizeImageDataURL(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return /^data:image\/[a-z0-9.+-]+;base64,/i.test(trimmed) ? trimmed : undefined
 }
 
 function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | undefined {

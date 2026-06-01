@@ -11,10 +11,9 @@ const TOOL_CARD_NODE_TYPES = new Set([
   'ai_gen',
   'ref_image_gen',
   'ref_video_gen',
-  'multi_angle',
-  'style_transfer',
-  'motion_imitation',
-  'video_edit',
+	'multi_angle',
+	'style_transfer',
+	'motion_imitation',
 ])
 
 export interface WorkflowRunOutputItem {

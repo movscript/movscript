@@ -25,11 +25,17 @@ type TextRequest struct {
 }
 
 type Message struct {
-	Role       string // system | user | assistant | tool
-	Content    string
-	ToolCallID string
-	ToolCalls  []ToolCall
+	Role    string // system | user | assistant | tool
+	Content string
+	// ContentParts carries provider-neutral multimodal content at the model
+	// boundary. OpenAI-compatible gateway handlers populate it only from
+	// standard content parts such as text, image_url, and input_image.
+	ContentParts []MessageContentPart
+	ToolCallID   string
+	ToolCalls    []ToolCall
 }
+
+type MessageContentPart map[string]any
 
 type TextResponse struct {
 	Content      string

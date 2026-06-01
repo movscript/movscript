@@ -6,7 +6,6 @@ import type { CanvasNodeData, CanvasPortType, Job, PublicModel } from '@/types'
 export interface CanvasRuntimeTextRequest {
   modelId?: string
   modelConfigId?: number
-  featureKey?: string
   prompt: string
   params?: Record<string, unknown>
   projectId?: number
@@ -21,11 +20,11 @@ export interface CanvasRuntimeGenerationRequest {
   projectId?: number
 }
 
-export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string, featureKey: string) {
+export async function resolveCanvasRuntimeModel(data: Partial<CanvasNodeData>, capability: string) {
   if (data.modelId || data.modelDbId) {
     return { modelId: data.modelId, modelConfigId: data.modelDbId }
   }
-  const models = await api.get('/models', { params: { capability, feature: featureKey } }).then((r) => r.data as PublicModel[])
+  const models = await api.get('/models', { params: { capability } }).then((r) => r.data as PublicModel[])
   const model = models.find((item) => item.is_default) ?? models[0]
   if (!model) return {}
   return { modelId: publicModelId(model), modelConfigId: model.id }
@@ -35,7 +34,6 @@ export async function generateCanvasRuntimeText(input: CanvasRuntimeTextRequest)
   const response = await api.post('/canvas-runtime/text', {
     model_id: input.modelId,
     model_config_id: input.modelConfigId,
-    feature_key: input.featureKey ?? 'canvas_text',
     prompt: input.prompt,
     params: input.params ?? {},
     project_id: input.projectId,
@@ -44,9 +42,9 @@ export async function generateCanvasRuntimeText(input: CanvasRuntimeTextRequest)
 }
 
 export async function generateCanvasRuntimeMedia(input: CanvasRuntimeGenerationRequest) {
-  const featureKey = runtimeFeatureKey(input.nodeType, input.outputType)
+  const sourceKey = runtimeSourceKey(input.nodeType, input.outputType)
   const capability = runtimeCapability(input.outputType, input.inputResourceIds)
-  const model = await resolveCanvasRuntimeModel(input.data, capability, featureKey)
+  const model = await resolveCanvasRuntimeModel(input.data, capability)
   const modelId = model.modelId
   if (!modelId) throw new Error('no_model_select')
 
@@ -59,7 +57,7 @@ export async function generateCanvasRuntimeMedia(input: CanvasRuntimeGenerationR
       prompt: input.prompt,
       params: normalizeGenerationParams(input.data.params),
       inputResourceIds: input.inputResourceIds,
-      featureKey,
+      sourceKey,
     }),
     project_id: input.projectId,
   }).then((r) => r.data as Job)
@@ -103,7 +101,7 @@ function runtimeJobType(outputType: CanvasPortType, inputResourceIds: number[], 
   return outputType
 }
 
-function runtimeFeatureKey(nodeType: string | undefined, outputType: CanvasPortType) {
+function runtimeSourceKey(nodeType: string | undefined, outputType: CanvasPortType) {
   if (nodeType && ['ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation'].includes(nodeType)) return nodeType
   if (outputType === 'text') return 'canvas_text'
   if (outputType === 'video') return 'canvas_video'

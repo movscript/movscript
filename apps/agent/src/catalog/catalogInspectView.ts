@@ -263,6 +263,7 @@ export function summarizeCatalogTool(tool: ToolDefinition, includeSchema: boolea
     projectScoped: tool.projectScoped,
     defaults: tool.defaults,
     source: tool.source,
+    ...(tool.execution ? { execution: tool.execution as unknown as JSONValue } : {}),
     ...(tool.capability ? { capability: tool.capability } : {}),
     ...(tool.errorCodes ? { errorCodes: tool.errorCodes } : {}),
     ...(tool.allowedRunRoles ? { allowedRunRoles: tool.allowedRunRoles } : {}),

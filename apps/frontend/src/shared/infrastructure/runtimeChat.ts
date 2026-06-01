@@ -16,28 +16,39 @@ export async function syncRuntimeModelConfig(
 ): Promise<void> {
   const model = modelId?.trim()
   if (!model) return
-  const input = {
-    model,
-    ...(options.apiKind ? { apiKind: options.apiKind } : {}),
-    ...(options.baseURL?.trim() ? { baseURL: options.baseURL.trim() } : {}),
-    useForChat: true,
-    useForPlanner: true,
-  }
-  const key = stableRuntimeModelConfigKey(input)
-  if (key === lastSyncedRuntimeModelConfigKey) return
+  let current: RuntimeModelConfigPublic | undefined
   try {
-    const current = await localAgentClient.getModelConfig()
-    if (runtimeModelConfigMatches(current, input)) {
-      lastSyncedRuntimeModelConfigKey = key
-      return
-    }
+    current = await localAgentClient.getModelConfig()
   } catch {
     // Fall through to saving; the caller already surfaces model config save failures.
+  }
+  const input = runtimeModelConfigSyncInput(model, options, current)
+  const key = stableRuntimeModelConfigKey(input)
+  if (key === lastSyncedRuntimeModelConfigKey) return
+  if (current && runtimeModelConfigMatches(current, input)) {
+    lastSyncedRuntimeModelConfigKey = key
+    return
   }
   await localAgentClient.saveModelConfig({
     ...input,
   })
   lastSyncedRuntimeModelConfigKey = key
+}
+
+function runtimeModelConfigSyncInput(
+  model: string,
+  options: { apiKind?: RuntimeModelAPIKind; baseURL?: string },
+  current?: RuntimeModelConfigPublic,
+) {
+  const preservedApiKind = options.apiKind ?? (current?.configured ? current.apiKind : undefined)
+  const preservedBaseURL = options.baseURL?.trim() || (current?.configured ? current.baseURL : undefined)
+  return {
+    model,
+    ...(preservedApiKind ? { apiKind: preservedApiKind } : {}),
+    ...(preservedBaseURL?.trim() ? { baseURL: preservedBaseURL.trim() } : {}),
+    useForChat: true,
+    useForPlanner: true,
+  }
 }
 
 function runtimeModelConfigMatches(current: RuntimeModelConfigPublic, input: {

@@ -24,6 +24,9 @@
         "type": "number",
         "minimum": 1,
         "maximum": 25
+      },
+      "projectId": {
+        "description": "Runtime-injected current project id."
       }
     }
   },

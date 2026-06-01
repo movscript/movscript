@@ -100,7 +100,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
       }],
       rawAssistantMessage: {
         role: 'assistant',
-        content: null,
+        content: [],
       },
       trace: {
         request: {

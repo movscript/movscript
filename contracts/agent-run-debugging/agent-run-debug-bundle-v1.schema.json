@@ -19,6 +19,7 @@
     "modelCalls",
     "modelCallContexts",
     "promptDetails",
+    "contextMutations",
     "messageWrites",
     "toolCalls",
     "attentionEvents",
@@ -94,6 +95,12 @@
         "$ref": "#/$defs/promptDetail"
       }
     },
+    "contextMutations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contextMutation"
+      }
+    },
     "messageWrites": {
       "type": "array",
       "items": {
@@ -133,6 +140,7 @@
         "readinessChecklist",
         "modelCallContexts",
         "promptDetails",
+        "contextMutations",
         "messageWrites",
         "toolCalls",
         "attentionEvents",
@@ -795,6 +803,128 @@
         "chars": {
           "type": "string"
         }
+      }
+    },
+    "contextMutation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId",
+        "title",
+        "total",
+        "appended",
+        "amended",
+        "deleted",
+        "affectedContextKeys",
+        "appendedContextKeys",
+        "amendedContextKeys",
+        "deletedContextKeys",
+        "refs"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "appended": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "amended": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "affectedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "appendedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "amendedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "deletedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "latest": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "id",
+            "type",
+            "createdAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "append",
+                "amend",
+                "delete"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/traceRef"
+          }
+        }
+      }
+    },
+    "traceRef": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "label"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string"
+        }
+      }
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
     "toolCallRef": {

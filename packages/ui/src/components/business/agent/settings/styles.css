@@ -297,6 +297,43 @@
   flex-shrink: 0;
 }
 
+.agent-settings-management-layer-overview {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-management-layer-grid {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-management-layer-card {
+  min-width: 0;
+  height: auto;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ms-space-2);
+  padding: var(--ms-space-2);
+  text-align: left;
+  white-space: normal;
+}
+
+.agent-settings-management-layer-card[data-active="true"] {
+  outline: 1px solid var(--ms-color-primary);
+  outline-offset: 0;
+}
+
+.agent-settings-management-layer-card .agent-settings-item-body {
+  display: grid;
+  gap: 2px;
+}
+
+@media (min-width: 640px) {
+  .agent-settings-management-layer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .agent-settings-readiness-row {
   display: flex;
   align-items: flex-start;

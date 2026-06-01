@@ -1,15 +1,12 @@
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
-import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { MCPClient } from '../mcpClient.js'
-import {
-  runAgentGraph,
-  type AgentGraphInput,
-  type AgentGraphResult,
-} from '../orchestration/agentGraph.js'
+import { runAgentGraph } from '../orchestration/agentGraph.js'
+import type { AgentGraphResult } from '../orchestration/agentGraphResult.js'
+import type { AgentGraphInput } from '../orchestration/agentGraphTypes.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import {
@@ -33,9 +30,9 @@ import { createRuntimeAgentGraphCallbacks } from './runtimeAgentGraphCallbacks.j
 import { refreshRuntimeAgentGraphCatalog } from './runtimeAgentGraphCatalogRefresh.js'
 import type { AgentStore } from '../state/store.js'
 import {
-  cloneRuntimeInputMessagesForTrace,
   markRuntimeInputMessagesConsumed,
 } from '../state/runtimeRunInputs.js'
+import { summarizeRuntimeInputMessagesTrace } from '../domains/trace/messageTrace.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
@@ -43,6 +40,15 @@ import type { AgentMemory } from '../memory/types.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { RuntimeLayerResolution } from '../skills/runtimeLayerResolver.js'
 import type { RuntimeModelAuthContext } from '../model/modelConfig.js'
+import type { DraftApplyPort } from '../ports/draft/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../ports/draft/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../ports/draft/proposalSnapshotHydrationPort.js'
+import type { CoreResourceFilePort } from '../ports/core/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../ports/core/videoFrameExtractionPort.js'
+import type { MovscriptProjectStandardsPort } from '../ports/movscript/projectStandardsPort.js'
+import type { RuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import type { ExternalToolGatewayPort } from '../ports/tools/externalToolGatewayPort.js'
+import type { AgentToolResultStore } from '../state/toolResultStore.js'
 
 export interface RuntimeAgentGraphInvocationTraceInput {
   kind: AgentTraceEventKind
@@ -70,12 +76,20 @@ export async function invokeRuntimeAgentGraph(input: {
   policy: AgentRun['policy']
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   draftStore: AgentDraftStore
-  backendApplyClient: BackendApplyClient
+  externalToolGatewayPort: ExternalToolGatewayPort
+  draftApplyPort: DraftApplyPort
+  draftApplyPreviewPort: DraftApplyPreviewPort
+  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  resourceFilePort: CoreResourceFilePort
+  videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  projectStandardsPort: MovscriptProjectStandardsPort
   registry: ToolRegistry
+  runtimeToolHandlers: RuntimeToolHandlerRegistry
   contractResolver: AgentRuntimeContractResolver
   memoryManager: MemoryManager
   knowledgeManager: KnowledgeManager
   catalogManager: AgentCatalogToolManager
+  toolResultStore?: AgentToolResultStore
   catalogSnapshots: RuntimeCatalogSnapshotRegistry
   currentProjectId?: number
   clientInput?: NormalizedClientInput
@@ -153,19 +167,27 @@ export async function invokeRuntimeAgentGraph(input: {
     warnings: [...input.warnings],
     command: input.command,
     userMessage: input.userMessage,
+    ...(input.clientInput ? { clientInput: input.clientInput } : {}),
     ...(input.rootUserMessageId ? { rootUserMessageId: input.rootUserMessageId } : {}),
     runtimeState: buildThreadRuntimeStateForPrompt(input),
     config: modelConfig,
     auth: input.auth,
     policy: input.policy,
-    mcpClient: input.mcpClient,
     draftStore: input.draftStore,
-    backendApplyClient: input.backendApplyClient,
+    externalToolGatewayPort: input.externalToolGatewayPort,
+    draftApplyPort: input.draftApplyPort,
+    draftApplyPreviewPort: input.draftApplyPreviewPort,
+    proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+    resourceFilePort: input.resourceFilePort,
+    videoFrameExtractionPort: input.videoFrameExtractionPort,
+    projectStandardsPort: input.projectStandardsPort,
     registry: input.registry,
+    runtimeToolHandlers: input.runtimeToolHandlers,
     contractResolver: input.contractResolver,
     memoryManager: input.memoryManager,
     knowledgeManager: input.knowledgeManager,
     catalogManager: input.catalogManager,
+    ...(input.toolResultStore ? { toolResultStore: input.toolResultStore } : {}),
     onCatalogRefresh: async () => refreshGraphCatalog(input),
     signal: input.signal,
     ...(input.runtimeContract?.commandOverride
@@ -190,7 +212,7 @@ export async function invokeRuntimeAgentGraph(input: {
         },
         data: {
           messageIds: messages.map((message) => message.id),
-          messages: cloneRuntimeInputMessagesForTrace(messages),
+          messages: summarizeRuntimeInputMessagesTrace(messages),
         },
       })
     },

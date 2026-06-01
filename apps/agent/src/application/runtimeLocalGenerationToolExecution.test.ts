@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MCPError } from '../mcpClient.js'
-import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import type { AgentRun, JSONValue } from '../state/types.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
@@ -9,6 +8,33 @@ import {
   executeRuntimeLocalGenerationTool,
   normalizeRuntimeLocalGenerationToolError,
 } from './runtimeLocalGenerationToolExecution.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from './runtimeToolHandlers.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 test('executeRuntimeLocalGenerationTool delegates generation calls through the tool executor', async () => {
   const call = {
@@ -16,17 +42,24 @@ test('executeRuntimeLocalGenerationTool delegates generation calls through the t
     args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
   const resultValue = { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } }
+  const mcpClient = {
+    initialize: async () => ({}),
+    callTool: async () => ({ ok: true }),
+  }
 
   const result = await executeRuntimeLocalGenerationTool({
     call,
     run: makeRun(),
-    mcpClient: {
-      initialize: async () => ({}),
-      callTool: async () => ({ ok: true }),
-    },
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     registry: new StaticToolRegistry([]),
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     catalogManager: {
       startWork: async () => resultValue as JSONValue,
     } as any,
@@ -42,23 +75,30 @@ test('executeRuntimeLocalGenerationTool normalizes backend generation errors', a
     name: 'core_work_start' as const,
     args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
+  const mcpClient = {
+    initialize: async () => ({}),
+    callTool: async () => {
+      throw new MCPError('backend rejected', -32000, {
+        type: 'backend_http_error',
+        status: 400,
+        code: 'bad_prompt',
+      })
+    },
+  }
 
   const result = await executeRuntimeLocalGenerationTool({
     call,
     run: makeRun(),
-    mcpClient: {
-      initialize: async () => ({}),
-      callTool: async () => {
-        throw new MCPError('backend rejected', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'bad_prompt',
-        })
-      },
-    },
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     registry: new StaticToolRegistry([]),
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     catalogManager: {
       startWork: async () => {
         throw new MCPError('backend rejected', -32000, {

@@ -10,7 +10,7 @@ import type {
   JSONValue,
 } from '../state/types.js'
 import type { AgentStore } from '../state/store.js'
-import { buildThreadMessage } from './threadLifecycle.js'
+import { buildThreadMessage } from '../domains/message/threadMessage.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
 

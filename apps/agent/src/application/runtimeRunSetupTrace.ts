@@ -100,6 +100,7 @@ export function recordRuntimeRunSetupTraces(input: {
       activeSkillIds: input.skills.map((skill) => skill.id),
       loadedSkillIds: input.skills.map((skill) => skill.id),
       availableSkillIds: input.layers?.skillDiscovery.availableSkills.map((skill) => skill.id) ?? [],
+      skillOmissions: input.layers?.trace.skillOmissions ?? [],
       skills: input.skills.map((skill) => ({
         id: skill.id,
         name: skill.name,

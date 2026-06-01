@@ -5,12 +5,10 @@ export function generationModelTools(): MCPTool[] {
   return [
     {
       name: 'generation_model_list',
-      description: 'List enabled AI models for a capability or backend AI feature key. Prefer capability for generic generation: image for text-to-image, image_edit for image-to-image, video for text-to-video, and video_v2v for video-to-video. Backend feature keys are product routing keys such as ref_image_gen, ref_video_gen, canvas_image, canvas_video, style_transfer, or multi_angle; do not pass workflow template keys such as image-generation or text-generation as feature keys. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
+      description: 'List enabled AI models for a runtime capability. Use image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, and video_v2v for video-to-video. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
       inputSchema: objectSchema(
         {
           capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
-          feature: { type: 'string', description: 'Optional backend AI feature key filter. Takes precedence over capability when provided. Valid examples include ref_image_gen, ref_video_gen, canvas_image, canvas_video, style_transfer, multi_angle, motion_imitation, and video_edit. Do not use workflow template keys like image-generation.' },
-          feature_key: { type: 'string', description: 'Alias for feature. Use only backend AI feature keys, not workflow template keys.' },
           provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }

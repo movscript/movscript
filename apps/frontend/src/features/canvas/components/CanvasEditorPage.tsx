@@ -94,6 +94,7 @@ import {
 } from '@/features/canvas/runtime/runtimeValues'
 import {
   CanvasDropOverlay,
+  CanvasEditorActionButton,
   CanvasEditorChrome,
   CanvasEditorChromeContent,
   CanvasEditorContent,
@@ -1459,16 +1460,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             </CanvasEditorTypeBadge>
           )}
 
-          <CanvasEditorIconButton
+          <CanvasEditorActionButton
+            size="icon-sm"
             onClick={handleRunWorkflow}
             disabled={runtimeStarting}
             title={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
             aria-label={runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
           >
             {runtimeStarting ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Play size={14} />}
-          </CanvasEditorIconButton>
+          </CanvasEditorActionButton>
 
-          <CanvasEditorIconButton
+          <CanvasEditorActionButton
+            size="icon-sm"
             onClick={() => save.mutate()}
             disabled={savingCanvas}
             title={savingCanvas
@@ -1483,7 +1486,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                 : t('common.save')}
           >
             {savingCanvas ? <Loader2 size={14} className="canvas-editor-chrome__spin-icon" /> : <Save size={14} />}
-          </CanvasEditorIconButton>
+          </CanvasEditorActionButton>
 
           {embedded && onClose && (
             <CanvasEditorIconButton onClick={() => void requestCanvasExit(onClose)}>

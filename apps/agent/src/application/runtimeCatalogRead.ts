@@ -7,13 +7,20 @@ import type { AgentRun } from '../state/types.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { JSONValue } from '../types.js'
 import type { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
+import type { AgentSkillRuntimeExplanation } from '@movscript/protocol'
 
 export function listRuntimeRegisteredTools(toolRegistry: ToolRegistry): ReturnType<ToolRegistry['list']> {
   return toolRegistry.list()
 }
 
-export function listRuntimeSkillCatalog(layeredRegistry: CatalogRegistry): SkillDefinition[] {
-  return Array.from(layeredRegistry.skills.values())
+export type RuntimeSkillCatalogItem = SkillDefinition & { runtime: AgentSkillRuntimeExplanation }
+
+export function listRuntimeSkillCatalog(layeredRegistry: CatalogRegistry, manifest?: AgentManifest): RuntimeSkillCatalogItem[] {
+  const profile = selectCatalogProfile(layeredRegistry, manifest)
+  return Array.from(layeredRegistry.skills.values()).map((skill) => ({
+    ...skill,
+    runtime: buildSkillRuntimeExplanation(skill, layeredRegistry, profile),
+  }))
 }
 
 export function listRuntimeProfileCatalog(layeredRegistry: CatalogRegistry): AgentProfile[] {
@@ -167,6 +174,83 @@ function isPlainScriptReadingRequest(message: string | undefined): boolean {
   const hasReadIntent = /查看|读取|读|看一下|看看|理解|分析|总结|梳理|内容|正文|read|show|view|inspect|summari[sz]e|analy[sz]e/.test(text)
   if (!hasReadIntent) return false
   return !/提案|方案|创建|起草|生成|修改|更新|改写|补充|拆分|素材|素材位|候选|设定资料|人物设定|地点设定|asset|setting proposal|proposal|create|draft|update|revise/.test(text)
+}
+
+function selectCatalogProfile(registry: CatalogRegistry, manifest?: AgentManifest): AgentProfile | undefined {
+  const profileId = typeof manifest?.metadata?.profileId === 'string' ? manifest.metadata.profileId.trim() : ''
+  if (profileId && registry.profiles.has(profileId)) return registry.profiles.get(profileId)
+  return Array.from(registry.profiles.values())[0]
+}
+
+function buildSkillRuntimeExplanation(
+  skill: SkillDefinition,
+  registry: CatalogRegistry,
+  profile: AgentProfile | undefined,
+): AgentSkillRuntimeExplanation {
+  const profileRole = skillProfileRole(skill, profile)
+  const profileEnabled = skill.enabled !== false && profileRole !== 'none'
+  const loadMode = skill.loadMode ?? 'on_demand'
+  const toolGrantNames = Array.from(new Set((('toolRefs' in skill ? skill.toolRefs : []) ?? [])
+    .map(normalizeToolRef)
+    .filter((name) => registry.tools.has(name))))
+  const defaultActivation = skill.enabled === false
+    ? 'disabled'
+    : loadMode === 'manual'
+      ? 'manual'
+      : profileRole === 'persona' || profileRole === 'policy' || loadMode === 'core'
+        ? 'always'
+        : profileEnabled
+          ? 'triggered'
+          : 'disabled'
+  const contextBehavior = defaultActivation === 'always'
+    ? 'base_context'
+    : defaultActivation === 'triggered'
+      ? 'on_demand'
+      : defaultActivation === 'manual'
+        ? 'manual'
+        : 'excluded'
+  return {
+    profileEnabled,
+    profileRole,
+    loadMode,
+    defaultActivation,
+    contextBehavior,
+    dependencyIds: [...(skill.dependencies ?? [])],
+    conflictIds: [...(skill.conflicts ?? [])],
+    toolGrantNames,
+    reason: skillRuntimeReason({ skill, profileEnabled, profileRole, loadMode, defaultActivation, toolGrantNames }),
+  }
+}
+
+function skillProfileRole(skill: SkillDefinition, profile: AgentProfile | undefined): AgentSkillRuntimeExplanation['profileRole'] {
+  if (!profile) return 'none'
+  if (profile.persona === skill.id) return 'persona'
+  if ((profile.enabledPolicies ?? []).includes(skill.id)) return 'policy'
+  if ((profile.enabledWorkflows ?? []).includes(skill.id)) return 'workflow'
+  return 'none'
+}
+
+function skillRuntimeReason(input: {
+  skill: SkillDefinition
+  profileEnabled: boolean
+  profileRole: AgentSkillRuntimeExplanation['profileRole']
+  loadMode: AgentSkillRuntimeExplanation['loadMode']
+  defaultActivation: AgentSkillRuntimeExplanation['defaultActivation']
+  toolGrantNames: string[]
+}): string {
+  if (input.skill.enabled === false) return 'Skill is disabled in the catalog.'
+  if (!input.profileEnabled && input.loadMode !== 'core') return 'Skill is installed but not selected by the active profile.'
+  if (input.defaultActivation === 'manual') return 'Skill is manually loaded only.'
+  if (input.defaultActivation === 'triggered') return 'Skill is enabled by profile and activates when triggers or explicit skill loading match.'
+  if (input.profileRole === 'persona') return 'Profile persona is included in base runtime context.'
+  if (input.profileRole === 'policy') return 'Profile policy is included in base runtime context.'
+  if (input.loadMode === 'core') return 'Core skill is eligible for base runtime context.'
+  if (input.toolGrantNames.length > 0) return 'Skill grants runtime tools when active.'
+  return 'Skill runtime behavior is derived from catalog metadata and profile selection.'
+}
+
+function normalizeToolRef(value: string): string {
+  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
 }
 
 function expandSkillDependencies(input: {

@@ -1,7 +1,7 @@
 .canvas-editor {
   display: flex;
   flex-direction: column;
-  background: var(--ms-color-canvas-background);
+  background: var(--ms-color-page-background);
   color: var(--ms-color-foreground);
 }
 
@@ -188,7 +188,7 @@
   flex: 1;
   overflow: hidden;
   border-radius: var(--ms-radius-lg, 14px);
-  background: var(--ms-color-canvas-background);
+  background: var(--ms-color-page-background);
 }
 
 .canvas-viewport-pane[data-drop-active="true"] {

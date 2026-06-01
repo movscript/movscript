@@ -77,11 +77,13 @@ export function toolDefinitionFromRegisteredTool(tool: RegisteredTool): ToolDefi
       ...(tool.defaults?.timeoutMs !== undefined ? { timeoutMs: tool.defaults.timeoutMs } : {}),
     },
     source: tool.source === 'plugin' ? 'plugin' : tool.source === 'mcp' ? 'mcp' : 'runtime',
+    ...(tool.execution ? { execution: tool.execution } : {}),
     capability: typeof tool.capability === 'string' ? tool.capability : tool.description,
     ...(tool.source === 'plugin' && typeof tool.pluginId === 'string' ? { pluginId: tool.pluginId } : {}),
     ...(tool.source === 'mcp' && typeof tool.mcpServerId === 'string' ? { mcpServerId: tool.mcpServerId } : {}),
     ...(tool.errorCodes ? { errorCodes: tool.errorCodes } : {}),
     ...(tool.allowedRunRoles ? { allowedRunRoles: tool.allowedRunRoles } : {}),
+    ...(tool.requiresSkills ? { requiresSkills: tool.requiresSkills } : {}),
   }
 }
 

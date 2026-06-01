@@ -44,6 +44,15 @@ import {
   ScriptLibraryGroup,
   ScriptLibraryItem,
   ScriptLibraryRail,
+  ScriptAgentAssistPanel,
+  ScriptCollaborationStack,
+  ScriptMetricBox,
+  ScriptPipelineMetric,
+  ScriptPipelinePanel,
+  ScriptProductionNotice,
+  ScriptProductionPanel,
+  ScriptReadinessPanel,
+  ScriptReadinessRow,
   ScriptVersionBlockShell,
   ScriptVersionCard,
   ScriptVersionEmptyState,
@@ -51,9 +60,13 @@ import {
   ScriptVersionLineEditor,
   ScriptWorkspaceEmptySelection,
   ScriptWorkspaceDetailContent,
+  ScriptWorkspaceInspector,
   ScriptWorkspaceLayout,
   ScriptWorkspaceMain,
   ScriptWorkspaceShell,
+  ScriptWorkspaceStat,
+  ScriptWorkflowPanel,
+  ScriptWorkflowStep as ScriptWorkflowStepUi,
   StatusBadge,
   WorkbenchProjectBody,
   WorkbenchProjectShell,
@@ -65,6 +78,8 @@ import { useTranslation } from 'react-i18next'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import {
   scriptLibraryStatusRecipe,
+  scriptReadinessItemRecipe,
+  scriptReadinessRecipe,
   scriptStageRecipe,
   scriptVersionStatusRecipe,
 } from '@/features/scripts/presentation/scriptsSemanticUi'
@@ -256,6 +271,17 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const latestVersionLabel = latestVersion
     ? `最新版本 v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}`
     : undefined
+  const selectedVersionIds = useMemo(() => new Set(versionsForSelected.map((version) => Number(version.ID))), [versionsForSelected])
+  const selectedScriptBlocks = useMemo(() => {
+    if (!selected) return []
+    return scriptBlocks.filter((block) => Number(block.script_id) === selected.ID || selectedVersionIds.has(Number(block.script_version_id)))
+  }, [scriptBlocks, selected, selectedVersionIds])
+  const readinessItems = [
+    { id: 'body', label: '正文工作稿', done: hasDraftBody },
+    { id: 'version', label: '可制作定稿', done: Boolean(latestVersion) },
+    { id: 'blocks', label: '剧本块拆分', done: selectedScriptBlocks.length > 0 },
+  ]
+  const readinessValue = Math.round((readinessItems.filter((item) => item.done).length / readinessItems.length) * 100)
 
   useEffect(() => {
     if (selected) setDraft({ ...selected })
@@ -409,11 +435,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     onError: () => toast.error('创建制作项失败'),
   })
 
-  const selectedVersionIds = useMemo(() => new Set(versionsForSelected.map((version) => version.ID)), [versionsForSelected])
-  const selectedScriptBlocks = useMemo(() => {
-    if (!selected) return []
-    return scriptBlocks.filter((block) => Number(block.script_id) === selected.ID || selectedVersionIds.has(Number(block.script_version_id)))
-  }, [scriptBlocks, selected, selectedVersionIds])
   function beginScriptTypeEdit(script: Script) {
     setEditingScriptTypeId(script.ID)
     setScriptTypeDraft(script.script_type === 'uncategorized' ? '' : script.script_type ?? '')
@@ -623,96 +644,165 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       onSelect={(key) => setDetailTab(key as ScriptDetailTab)}
                     />
 
-                    {/* Tab content */}
-                    <ScriptWorkspaceDetailContent>
-                      {detailTab === 'edit' && (
-                        <ScriptForm
-                          script={selected}
-                          draft={draft}
-                          onChange={setDraft}
-                          onSave={(data) => updateScript.mutate(data)}
-                          isSaving={updateScript.isPending}
-                          onCreateVersion={() => createVersion.mutate()}
-                          isCreatingVersion={createVersion.isPending}
-                          canCreateVersion={hasDraftBody && !isDraftPublished}
-                          versionStateLabel={versionStateLabel}
-                          latestVersionLabel={latestVersionLabel}
-                        />
-                      )}
+                    <ScriptCollaborationStack>
+                      <div className="script-workbench-status-strip">
+                        <ScriptWorkspaceStat icon={FileText} label="工作稿" value={`${draftSourceText.trim().length} 字`} />
+                        <ScriptWorkspaceStat icon={GitBranch} label="定稿" value={versionsForSelected.length} />
+                        <ScriptMetricBox icon={Layers} label="剧本块" value={selectedScriptBlocks.length} />
+                      </div>
+                      <ScriptProductionPanel title="制作联动" description="把剧本稳定稿同步给下游编排、情景和制作项。">
+                        {latestVersion ? (
+                          <ScriptProductionNotice title="将使用最新版本">
+                            {latestVersionLabel}
+                          </ScriptProductionNotice>
+                        ) : (
+                          <ScriptProductionNotice title="等待定稿">
+                            正文完成后先保存为定稿，再进入下游制作拆分。
+                          </ScriptProductionNotice>
+                        )}
+                      </ScriptProductionPanel>
+                      <ScriptReadinessPanel
+                        title="制作就绪度"
+                        value={readinessValue}
+                        status={<StatusBadge {...scriptReadinessRecipe(readinessValue)}>{readinessValue}%</StatusBadge>}
+                        rows={(
+                          <>
+                            {readinessItems.map((item) => (
+                              <ScriptReadinessRow
+                                key={item.id}
+                                label={item.label}
+                                done={item.done}
+                                status={<StatusBadge {...scriptReadinessItemRecipe(item.done)}>{item.done ? '完成' : '待补'}</StatusBadge>}
+                              />
+                            ))}
+                          </>
+                        )}
+                      />
+                      <ScriptPipelinePanel
+                        title="下游素材线索"
+                        sourceLabel="来源"
+                        sourceValue={latestVersion ? `v${latestVersion.version_number || latestVersion.ID}` : '工作稿'}
+                        metrics={(
+                          <>
+                            <ScriptPipelineMetric label="编排段" value={segments.length} />
+                            <ScriptPipelineMetric label="情景" value={sceneMoments.length} />
+                          </>
+                        )}
+                      />
+                      <ScriptWorkflowPanel title="工作流">
+                        <ScriptWorkflowStepUi index="01" title="完善正文" active={detailTab === 'edit'} />
+                        <ScriptWorkflowStepUi index="02" title="保存定稿" active={detailTab === 'versions'} />
+                        <ScriptWorkflowStepUi index="03" title="拆分剧本块" active={selectedScriptBlocks.length > 0} />
+                      </ScriptWorkflowPanel>
+                      <ScriptAgentAssistPanel
+                        icon={ScrollText}
+                        title="Agent 协作"
+                        description="基于当前剧本生成拆分建议、制作项草案和下游检查项。"
+                        primaryAction={(
+                          <Button variant="outline" size="sm" onClick={() => setDetailTab('versions')}>
+                            查看定稿
+                          </Button>
+                        )}
+                        secondaryActions={(
+                          <Button variant="ghost" size="sm" disabled={!hasDraftBody || isDraftPublished} onClick={() => createVersion.mutate()}>
+                            保存为定稿
+                          </Button>
+                        )}
+                      />
+                    </ScriptCollaborationStack>
 
-                      {detailTab === 'versions' && (
-                        <ScriptVersionHistoryPanel
-                          title="定稿记录"
-                          description="把当前正文保存成一份稳定稿，后续制作引用这份文本。"
-                          action={(
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
-                              onClick={() => createVersion.mutate()}
-                            >
-                              <Plus size={14} />
-                              保存为定稿
-                            </Button>
-                          )}
-                        >
-                          {versionsForSelected.length === 0 ? (
-                            <ScriptVersionEmptyState
-                              icon={Layers}
-                              title="还没有定稿"
-                              detail="正文稳定后，可以保存成第一份定稿。"
-                              action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>回到正文</Button>}
-                            />
-                          ) : (
-                            <div>
-                              {versionsForSelected.map((version) => {
-                                const isExpanded = expandedVersionId === version.ID
-                                const content = version.content || version.raw_source || ''
-                                const contentLength = content.trim().length
-                                return (
-                                  <ScriptVersionCard
-                                    key={version.ID}
-                                    versionLabel={`v${version.version_number || version.ID}`}
-                                    status={<VersionStatusBadge status={version.status} />}
-                                    title={version.title}
-                                    meta={`${contentLength} 字 · ${formatDate(version.UpdatedAt)}`}
-                                    toggleLabel={contentLength > 0 ? (isExpanded ? '收起' : '查看') : undefined}
-                                    onToggle={contentLength > 0 ? () => setExpandedVersionId(isExpanded ? null : version.ID) : undefined}
-                                  >
-                                    {isExpanded && contentLength > 0 && (
-                                      <ScriptVersionBlockPanel
-                                        blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
-                                        content={content}
-                                        sceneMoments={sceneMoments}
-                                        segments={segments}
-                                        isCreating={createScriptBlock.isPending}
-                                        isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
-                                        isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
-                                        isCreatingSegment={createSegmentFromScriptBlock.isPending}
-                                        selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
-                                        version={version}
-                                        projectId={projectId}
-                                        onCreate={() => createScriptBlock.mutate()}
-                                        onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
-                                        onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
-                                        onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
-                                        onOpenUsage={(kind, id) => {
-                                          if (kind === 'segment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { segment_id: id }))
-                                          else if (kind === 'scene_moment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { scene_moment_id: id }))
-                                          else navigate(withRouteParams(ROUTES.project.contentUnitEditor, { content_unit_id: id }))
-                                        }}
-                                        onSelectionChange={setScriptTextSelection}
-                                      />
-                                    )}
-                                  </ScriptVersionCard>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </ScriptVersionHistoryPanel>
-                      )}
-                    </ScriptWorkspaceDetailContent>
+                    {/* Tab content */}
+                    <ScriptWorkspaceInspector>
+                      <ScriptWorkspaceDetailContent>
+                        {detailTab === 'edit' && (
+                          <ScriptForm
+                            script={selected}
+                            draft={draft}
+                            onChange={setDraft}
+                            onSave={(data) => updateScript.mutate(data)}
+                            isSaving={updateScript.isPending}
+                            onCreateVersion={() => createVersion.mutate()}
+                            isCreatingVersion={createVersion.isPending}
+                            canCreateVersion={hasDraftBody && !isDraftPublished}
+                            versionStateLabel={versionStateLabel}
+                            latestVersionLabel={latestVersionLabel}
+                          />
+                        )}
+
+                        {detailTab === 'versions' && (
+                          <ScriptVersionHistoryPanel
+                            title="定稿记录"
+                            description="把当前正文保存成一份稳定稿，后续制作引用这份文本。"
+                            action={(
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
+                                onClick={() => createVersion.mutate()}
+                              >
+                                <Plus size={14} />
+                                保存为定稿
+                              </Button>
+                            )}
+                          >
+                            {versionsForSelected.length === 0 ? (
+                              <ScriptVersionEmptyState
+                                icon={Layers}
+                                title="还没有定稿"
+                                detail="正文稳定后，可以保存成第一份定稿。"
+                                action={<Button variant="outline" size="sm" onClick={() => setDetailTab('edit')}>回到正文</Button>}
+                              />
+                            ) : (
+                              <div>
+                                {versionsForSelected.map((version) => {
+                                  const isExpanded = expandedVersionId === version.ID
+                                  const content = version.content || version.raw_source || ''
+                                  const contentLength = content.trim().length
+                                  return (
+                                    <ScriptVersionCard
+                                      key={version.ID}
+                                      versionLabel={`v${version.version_number || version.ID}`}
+                                      status={<VersionStatusBadge status={version.status} />}
+                                      title={version.title}
+                                      meta={`${contentLength} 字 · ${formatDate(version.UpdatedAt)}`}
+                                      toggleLabel={contentLength > 0 ? (isExpanded ? '收起' : '查看') : undefined}
+                                      onToggle={contentLength > 0 ? () => setExpandedVersionId(isExpanded ? null : version.ID) : undefined}
+                                    >
+                                      {isExpanded && contentLength > 0 && (
+                                        <ScriptVersionBlockPanel
+                                          blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
+                                          content={content}
+                                          sceneMoments={sceneMoments}
+                                          segments={segments}
+                                          isCreating={createScriptBlock.isPending}
+                                          isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
+                                          isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
+                                          isCreatingSegment={createSegmentFromScriptBlock.isPending}
+                                          selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
+                                          version={version}
+                                          projectId={projectId}
+                                          onCreate={() => createScriptBlock.mutate()}
+                                          onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
+                                          onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
+                                          onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
+                                          onOpenUsage={(kind, id) => {
+                                            if (kind === 'segment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { segment_id: id }))
+                                            else if (kind === 'scene_moment') navigate(withRouteParams(ROUTES.project.productionOrchestration, { scene_moment_id: id }))
+                                            else navigate(withRouteParams(ROUTES.project.contentUnitEditor, { content_unit_id: id }))
+                                          }}
+                                          onSelectionChange={setScriptTextSelection}
+                                        />
+                                      )}
+                                    </ScriptVersionCard>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </ScriptVersionHistoryPanel>
+                        )}
+                      </ScriptWorkspaceDetailContent>
+                    </ScriptWorkspaceInspector>
                   </>
                 )}
               </ScriptWorkspaceMain>

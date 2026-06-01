@@ -126,6 +126,10 @@
   padding: 10px var(--canvas-card-content-x);
 }
 
+.canvas-workflow-reference-card__action-icon {
+  display: inline-flex;
+}
+
 .canvas-workflow-reference-card__spin {
   animation: ms-spin 700ms linear infinite;
 }

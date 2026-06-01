@@ -23,7 +23,9 @@ import type {
 } from '../state/types.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
+import { summarizeAgentCommandTrace } from '../domains/trace/commandTrace.js'
+import { formatAssistantMessageTraceSummary, summarizeAssistantMessageTrace } from '../domains/trace/messageTrace.js'
 
 export interface RuntimeLocalDiagnosticTraceInput {
   kind: AgentTraceEventKind
@@ -66,7 +68,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
     status: 'completed',
     round: localRound,
     data: {
-      command: input.command,
+      command: summarizeAgentCommandTrace(input.command),
       modelGatewayCalled: false,
       reason: `${input.command.name} is a deterministic runtime diagnostic command`,
     },
@@ -109,11 +111,15 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
   input.recordTrace(input.run, {
     kind: 'assistant',
     title: 'Assistant message created',
-    summary: assistant.content.slice(0, 180),
+    summary: formatAssistantMessageTraceSummary(assistant.content),
     status: 'completed',
     round: finalRound,
     stepId: step.id,
-    data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content, source: 'runtime_rule' },
+    data: summarizeAssistantMessageTrace({
+      messageId: assistant.id,
+      content: assistant.content,
+      source: 'runtime_rule',
+    }),
   })
 
   const completedAt = input.now()

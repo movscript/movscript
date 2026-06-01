@@ -43,7 +43,7 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const projectId = getOptionalNumeric(args, 'projectId') ?? getMCPContextSnapshot().project?.id
   let aspectRatio = getOptionalString(args, 'aspect_ratio')
   const duration = getOptionalNumeric(args, 'duration')
-  const featureKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
+  const sourceKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
   const modelParamContract = await getGenerationModelParamContract(modelConfigId, jobType)
   const supportedParamKeys = modelParamContract?.supportedParamKeys
   const extraParamAudit = normalizeGenerationExtraParams(args.extra_params, supportedParamKeys)
@@ -71,7 +71,7 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const createBody = (index: number) => ({
     model_id: modelRoute.modelId,
     job_type: jobType,
-    feature_key: featureKey,
+    feature_key: sourceKey,
     title: outputCount > 1 ? `${title}-${index + 1}/${outputCount}` : title,
     prompt,
     ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),

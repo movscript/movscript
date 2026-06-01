@@ -3,7 +3,7 @@ import type React from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
-import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
+import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, PaginatedResponse } from '@/types'
 import {
   Wand2,
   Bug, History, ChevronLeft, ChevronRight,
@@ -328,6 +328,7 @@ export interface ToolDialogDef {
   toolName: string
   toolDescription: string
   inputType: 'image' | 'video' | 'image+video'
+  inputSlots?: InputSlotDef[]
   outputType: 'image' | 'video'
   promptPlaceholder?: string
   layout?: 'default' | 'reference-workbench'
@@ -341,6 +342,7 @@ export function ToolDialog({
   toolName,
   toolDescription,
   inputType,
+  inputSlots: configuredInputSlots,
   outputType,
   promptPlaceholder,
   layout = 'default',
@@ -373,13 +375,6 @@ export function ToolDialog({
   const [historyPage, setHistoryPage] = useState(1)
   const historyPageSize = layout === 'reference-workbench' ? 6 : 10
 
-  // Fetch feature definition to get authoritative input slot requirements.
-  const { data: featureDef } = useQuery<FeatureConfig>({
-    queryKey: ['feature', _nodeType],
-    queryFn: () => api.get(`/features/${_nodeType}`).then((r) => r.data),
-    staleTime: 5 * 60 * 1000,
-  })
-
   const { data: resourcesData } = useQuery<RawResource[]>({
     queryKey: ['resources'],
     queryFn: () => api.get('/resources').then((r) => r.data),
@@ -391,22 +386,19 @@ export function ToolDialog({
   // Fallback to static inputType for tools where the model hasn't been selected yet.
   const showImageInput = modelAcceptsImageInput || (selectedModel == null && (inputType === 'image' || inputType === 'image+video'))
 
-  // Derive typed input slots from the feature definition, filtered by the selected model's capabilities.
-  // Feature-defined slots are authoritative — they express what the feature needs, not what the model supports.
-  // RequiresCap slots are hidden when the selected model lacks that capability.
+  // Product tools own their typed input slots on the frontend. The backend only sees resource ids and runtime capability.
   const inputSlots: InputSlotDef[] | undefined = (() => {
-    const slots = featureDef?.input_slots
-    if (!slots || slots.length === 0) return undefined
-    const caps = selectedModel?.capabilities ?? []
-    const visible = slots.filter((s) => !s.requires_cap || caps.includes(s.requires_cap))
-    if (visible.length === 0) return undefined
-    return visible.map((s) => ({
-      key: s.key,
-      label: s.label,
-      type: s.accept as 'image' | 'video',
-      required: s.required,
-      maxCount: s.max_count ?? 0,
-    }))
+    if (configuredInputSlots && configuredInputSlots.length > 0) return configuredInputSlots
+    if (inputType === 'image') {
+      return [{ key: 'reference_images', label: t('tools.inputs.referenceImages', { defaultValue: '参考图片' }), type: 'image', required: true, maxCount: 0 }]
+    }
+    if (inputType === 'video') {
+      return [{ key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: true, maxCount: 1 }]
+    }
+    return [
+      { key: 'reference_images', label: t('tools.inputs.referenceImages', { defaultValue: '参考图片' }), type: 'image', required: false, maxCount: 0 },
+      { key: 'source_video', label: t('tools.inputs.sourceVideo', { defaultValue: '源视频' }), type: 'video', required: false, maxCount: 1 },
+    ]
   })()
 
   function slotGroupsFor(nextAttachments: RawResource[]) {
@@ -459,7 +451,7 @@ export function ToolDialog({
   const { data: jobsData } = useQuery<PaginatedResponse<Job>>({
     queryKey: ['jobs', _nodeType, historyPage],
     queryFn: () => api.get('/jobs', {
-      params: { feature: _nodeType, page: historyPage, page_size: historyPageSize },
+      params: { feature_key: _nodeType, page: historyPage, page_size: historyPageSize },
     }).then((r) => r.data),
     refetchInterval: activeJobId ? 3000 : 30000,
   })
@@ -530,7 +522,7 @@ export function ToolDialog({
         prompt,
         params: extraParams,
         inputResourceIds: attachments.map((a) => a.ID),
-        featureKey: _nodeType,
+        sourceKey: _nodeType,
       })).then((r) => r.data as Job)
       setActiveJobId(job.ID)
       setHistoryPage(1)
@@ -611,7 +603,6 @@ export function ToolDialog({
               </Button>
               <ModelSelector
                 capability={capability}
-                feature={_nodeType}
                 value={selectedModelId}
                 onChange={setSelectedModelId}
                 onModelChange={setSelectedModel}

@@ -25,7 +25,6 @@ func registerPublicAPIRoutes(v1 *gin.RouterGroup, h handlers) {
 	v1.PATCH("/auth/profile", h.auth.UpdateProfile)
 
 	v1.GET("/models", h.models.ListByCapability)
-	v1.GET("/features/:key", h.feature.GetPublic)
 	v1.GET("/ws", h.ws.Connect)
 
 	v1.GET("/invitations/:token", h.org.GetInvitation)

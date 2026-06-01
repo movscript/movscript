@@ -7,6 +7,8 @@ import { AgentRuntimeRouter, type AgentTaskGraphSnapshot, type AgentRun, type Ag
 import type { JSONValue } from '../types.js'
 import { FileAgentStore } from '../state/fileStore.js'
 import { InMemoryAgentStore } from '../state/store.js'
+import { buildAgentToolResultRecord, FileAgentToolResultStore, InMemoryAgentToolResultStore } from '../state/toolResultStore.js'
+import { buildModelToolResultContext } from '../contextManager/toolResultContext.js'
 import { FileAgentDraftStore, InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
@@ -31,7 +33,12 @@ const WRITE_AGENT_MANIFEST = {
 // Install a default model config so executeRun() can find one
 {
   const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-  new RuntimeModelConfigStore().save({ modelConfigId: 1, model: 'model_config:1' })
+  new RuntimeModelConfigStore().save({
+    modelConfigId: 1,
+    model: 'model_config:1',
+    apiKind: 'openai_chat_completions',
+    apiKey: 'test-key',
+  })
 }
 
 // Default model fetch: returns tool calls based on message content, then a final text reply
@@ -136,9 +143,20 @@ function installDefaultModelFetch(): void {
       })
     }
     if (/草稿|draft/i.test(userMsg) && !/应用|apply/i.test(userMsg) && toolNames.has('draft_create')) {
-      const draftContent = memoriesSection
-        ? `用户请求：${userMsg}\n\n参考记忆：\n${memoriesSection}`
-        : `用户请求：${userMsg}`
+      const draftContent = JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal,
+        scope: 'content_unit_proposal',
+        productionId: 4,
+        proposal: {
+          units: [{
+            title: '测试内容单元',
+            kind: 'shot',
+            description: memoriesSection
+              ? `用户请求：${userMsg}\n\n参考记忆：\n${memoriesSection}`
+              : `用户请求：${userMsg}`,
+          }],
+        },
+      })
       callsToMake.push({ id: 'call_draft_1', name: 'draft_create', args: { kind: 'content_unit_proposal', title: '草稿', content: draftContent, ...(projectId !== undefined ? { projectId } : {}) } })
     }
     if (/按模型能力|model contract/i.test(userMsg) && toolNames.has('generation_model_list')) {
@@ -371,6 +389,175 @@ class FakeBackendApplyClient extends BackendApplyClient {
 function createTestRuntime(options: ConstructorParameters<typeof AgentRuntimeRouter>[0]): AgentRuntimeRouter {
   return new AgentRuntimeRouter(options)
 }
+
+test('thread deletion removes stored tool result records for deleted runs', () => {
+  const store = new InMemoryAgentStore()
+  const toolResultStore = new InMemoryAgentToolResultStore()
+  const runtime = createTestRuntime({ mcpClient: new FakeMCPClient(), store, toolResultStore })
+  const thread = runtime.createThread({ title: 'Tool result cleanup' })
+  const run: AgentRun = {
+    id: 'run_cleanup',
+    threadId: thread.id,
+    status: 'completed',
+    policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+    metadata: {},
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    steps: [],
+  }
+  store.createRun(run)
+  toolResultStore.upsertToolResult({
+    schema: 'movscript.agent.tool-result.v1',
+    key: 'tool_result:call_cleanup:sha256:cleanup',
+    refKey: 'tool_result:call_cleanup:sha256:cleanup',
+    resultHash: 'cleanup',
+    runId: run.id,
+    threadId: thread.id,
+    toolName: 'movscript_script_locate',
+    result: { ok: true },
+    originalChars: 2048,
+    renderedChars: 128,
+    dropped: true,
+    reason: 'budget_dropped',
+    modelProjection: '{"contextControl":{"resultRef":"tool_result:call_cleanup:sha256:cleanup"}}',
+    preview: '{"contextControl":{"resultRef":"tool_result:call_cleanup:sha256:cleanup"}}',
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  })
+
+  const deletion = runtime.deleteThread(thread.id)
+
+  assert.deepEqual(deletion.deletedRunIds, [run.id])
+  assert.equal(toolResultStore.listToolResults({ runId: run.id }).length, 0)
+})
+
+test('interrupted run resume reuses file-backed tool result projection after runtime restart', async () => {
+  const originalFetch = globalThis.fetch
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-result-recovery-'))
+  const statePath = join(dir, 'state.json')
+  const toolResultPath = join(dir, 'tool-results.json')
+  const modelConfigPath = join(dir, 'model-config.json')
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = modelConfigPath
+    const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
+    new RuntimeModelConfigStore(modelConfigPath).save({
+      modelConfigId: 31,
+      model: 'model_config:31',
+      apiKind: 'openai_chat_completions',
+      apiKey: 'test-key',
+    })
+
+    const rawResult = {
+      projectId: 42,
+      scripts: [{ id: 1, title: '长剧本', content: '雨夜便利店。'.repeat(1200) }],
+    }
+    const result = toolText(rawResult)
+    const call = { id: 'call_restart_scripts', name: 'movscript_script_locate', args: { projectId: 42 } }
+    const seedStore = new FileAgentStore(statePath)
+    const seedRuntime = createTestRuntime({ mcpClient: new FakeMCPClient(), store: seedStore })
+    const thread = seedRuntime.createThread({ title: '读取剧本', messages: [{ role: 'user', content: '读取项目剧本' }] })
+    const run: AgentRun = {
+      id: 'run_restart_projection',
+      threadId: thread.id,
+      status: 'in_progress',
+      policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+      agentManifest: DEFAULT_AGENT_MANIFEST,
+      metadata: {
+        initialUserMessageId: thread.messages[0]?.id ?? '',
+        limits: { maxRetrievedContextChars: 24000 },
+      },
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+      steps: [],
+    }
+    seedStore.createRun(run)
+    seedStore.flush()
+
+    const storedContext = buildModelToolResultContext({
+      run: {
+        ...run,
+        metadata: {
+          ...(run.metadata ?? {}),
+          limits: { maxRetrievedContextChars: 1000 },
+        },
+      },
+      call,
+      result,
+    })
+    assert.equal(storedContext.dropped, true)
+    assert.ok(storedContext.resultRef)
+    new FileAgentToolResultStore(toolResultPath).upsertToolResult(buildAgentToolResultRecord({
+      runId: run.id,
+      threadId: thread.id,
+      call,
+      result,
+      modelContext: storedContext,
+      resultRef: storedContext.resultRef,
+      now: '2026-01-01T00:00:00.000Z',
+    }))
+
+    const requests: Record<string, unknown>[] = []
+    let modelCallCount = 0
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null; tool_call_id?: string }>) ?? []
+      if (isThreadTitleRequest(messages)) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: '读取剧本' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      modelCallCount += 1
+      requests.push(body)
+      if (modelCallCount === 1) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: call.id,
+                type: 'function',
+                function: { name: call.name, arguments: JSON.stringify(call.args) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'done', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const resumedStore = new FileAgentStore(statePath)
+    const resumedToolResultStore = new FileAgentToolResultStore(toolResultPath)
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    client.toolResults.set('movscript_script_locate', rawResult)
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      store: resumedStore,
+      toolResultStore: resumedToolResultStore,
+    })
+
+    const recovery = runtime.reconcileRuntimeThreads()
+    assert.deepEqual(recovery.interruptedRunIds, [run.id])
+    runtime.resumeInterruptedRun(run.id)
+    const completed = await waitForRun(runtime, run.id)
+
+    assert.equal(completed.status, 'completed')
+    const secondMessages = requests[1]?.messages as any[]
+    const toolMessage = secondMessages.find((message) => message?.role === 'tool' && message.tool_call_id === call.id)
+    assert.ok(toolMessage)
+    assert.equal(toolMessage.content, storedContext.content)
+    assert.equal(String(toolMessage.content).length <= 1000, true)
+    assert.doesNotMatch(String(toolMessage.content), /雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。/)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalModelConfigPath === undefined) {
+      delete process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+    } else {
+      process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    }
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
 
 test('proposal-first draft requests create local agent drafts without backend writes', async () => {
   const client = new FakeMCPClient()
@@ -630,6 +817,7 @@ test('runtime validates script split draft content edited through the real file'
     projectId: 42,
     kind: 'production_proposal',
     title: '剧本拆分草稿',
+    target: { projectId: 42, entityType: 'production', entityId: 7 },
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 7,
@@ -781,7 +969,19 @@ test('worker completion records reversible rollback artifacts for local draft si
       args: {
         kind: 'content_unit_proposal',
         title: '草稿',
-        content: '用户请求：请创建一个草稿',
+        productionId: 4,
+        content: JSON.stringify({
+          schema: DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal,
+          scope: 'content_unit_proposal',
+          productionId: 4,
+          proposal: {
+            units: [{
+              title: '测试内容单元',
+              kind: 'shot',
+              description: '用户请求：请创建一个草稿',
+            }],
+          },
+        }),
         projectId: 42,
       },
     },
@@ -1690,7 +1890,7 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
                     title: '内容单元分镜 proposal',
                     projectId: 42,
                     productionId: 4,
-                    content: {
+                    content: JSON.stringify({
                       schema: 'movscript.content_unit_proposal.v1',
                       scope: 'content_unit_proposal',
                       productionId: 4,
@@ -1708,7 +1908,7 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
                         }],
                       },
                       summary: '基于 storyboard.rhythm.basic 创建内容单元分镜 proposal。',
-                    },
+                    }),
                   }),
                 },
               }],
@@ -1750,7 +1950,12 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({
+      modelConfigId: 13,
+      model: 'model_config:13',
+      apiKind: 'openai_chat_completions',
+      apiKey: 'test-key',
+    })
 
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -1786,17 +1991,34 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
     assert.equal(requestData.request.method, 'POST')
     assert.equal(requestData.request.headers.Authorization, undefined)
     assert.equal(requestData.request.body.model, 'model_config:13')
-    assert.ok(Array.isArray(requestData.request.body.messages))
+    assert.equal(typeof requestData.request.body.messageCount, 'number')
+    assert.equal(requestData.request.body.messageCount > 0, true)
+    assert.equal(requestData.request.body.contentMode, 'summary')
+    assert.equal(typeof requestData.request.body.bodyHash, 'string')
+    assert.equal(requestData.request.body.messages, undefined)
     assert.equal(responseData.response.status, 200)
     assert.equal(responseData.response.headers['content-type'], 'application/json')
     assert.equal(responseData.response.headers['x-trace-id'], 'trace-test')
-    assert.match(responseData.response.bodyText, /trace reply/)
+    assert.equal(typeof responseData.response.bodyTextHash, 'string')
+    assert.equal(responseData.response.bodyTextChars > 0, true)
+    assert.equal(responseData.response.bodyText, undefined)
     assert.equal(responseData.response.parsedBody.id, 'chatcmpl_trace_test')
-    assert.equal(responseData.response.content, 'trace reply')
+    assert.equal(responseData.response.contentChars, 'trace reply'.length)
+    assert.equal(responseData.response.content, undefined)
+    assert.equal(typeof requestData.contextBundleId, 'string')
+    assert.equal(requestData.contextBundleId, responseData.contextBundleId)
+    assert.equal(requestData.contextBundleRef.id, requestData.contextBundleId)
+    assert.equal(responseData.contextBundleRef.id, responseData.contextBundleId)
+    assert.equal(requestData.contextBundle, undefined)
     assert.equal(typeof responseData.latencyMs, 'number')
     assert.equal(typeof assistantData.messageId, 'string')
-    assert.match(assistantData.content, /trace reply/)
-    assert.doesNotMatch(assistantData.content, /来源/)
+    assert.equal(assistantData.content, undefined)
+    assert.equal(assistantData.contentMode, 'summary')
+    assert.equal(typeof assistantData.contentHash, 'string')
+    assert.equal(assistantData.chars > 0, true)
+    assert.match(assistantEvent?.summary ?? '', /Assistant message created \(\d+ chars\)\./)
+    assert.doesNotMatch(assistantEvent?.summary ?? '', /trace reply/)
+    assert.doesNotMatch(assistantEvent?.summary ?? '', /来源/)
     assert.equal(assistantData.source, 'model')
     assertRunTraceEventTypes(runtime, run.id, [
       'context.run_built',
@@ -1810,6 +2032,11 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
     const promptEvent = findTraceEventByEventType(runtime, run.id, 'prompt.composed')
     const promptStats = promptEvent?.data?.promptStats as any
     assert.equal(promptEvent?.data?.contextEventType, 'context.prompt_composed')
+    assert.equal((promptEvent?.data?.contextBundleRef as any)?.id, promptEvent?.data?.contextBundleId)
+    assert.equal(promptEvent?.data?.contextBundle, undefined)
+    assert.equal((promptEvent?.data?.contextBundleRef as any)?.promptPartCount > 0, true)
+    assert.equal((promptEvent?.data?.contextBundleRef as any)?.contextRefs, undefined)
+    assert.equal((promptEvent?.data?.contextBundleRef as any)?.promptParts, undefined)
     assert.equal(typeof promptEvent?.data?.messageCount, 'number')
     assert.equal(typeof promptEvent?.data?.systemMessageCount, 'number')
     assert.equal(typeof promptStats?.totalChars, 'number')
@@ -1836,16 +2063,30 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
       .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
       ?.data as any
     assert.equal(restoredRequestData.request.body.model, 'model_config:13')
-    assert.ok(Array.isArray(restoredRequestData.request.body.messages))
+    assert.equal(typeof restoredRequestData.request.body.messageCount, 'number')
+    assert.equal(restoredRequestData.request.body.messageCount > 0, true)
+    assert.equal(restoredRequestData.request.body.contentMode, 'summary')
+    assert.equal(typeof restoredRequestData.request.body.bodyHash, 'string')
+    assert.equal(restoredRequestData.request.body.messages, undefined)
     assert.equal(restoredRequestData.request.headers.Authorization, undefined)
     assert.equal(restoredResponseData.response.headers['content-type'], 'application/json')
     assert.equal(restoredResponseData.response.headers['x-trace-id'], 'trace-test')
-    assert.match(restoredResponseData.response.bodyText, /trace reply/)
+    assert.equal(typeof restoredResponseData.response.bodyTextHash, 'string')
+    assert.equal(restoredResponseData.response.bodyTextChars > 0, true)
+    assert.equal(restoredResponseData.response.bodyText, undefined)
     assert.equal(restoredResponseData.response.parsedBody.id, 'chatcmpl_trace_test')
-    assert.equal(restoredResponseData.response.content, 'trace reply')
+    assert.equal(restoredResponseData.response.contentChars, 'trace reply'.length)
+    assert.equal(restoredResponseData.response.content, undefined)
+    assert.equal(typeof restoredRequestData.contextBundleId, 'string')
+    assert.equal(restoredRequestData.contextBundleId, restoredResponseData.contextBundleId)
+    assert.equal(restoredRequestData.contextBundleRef.id, restoredRequestData.contextBundleId)
+    assert.equal(restoredResponseData.contextBundleRef.id, restoredResponseData.contextBundleId)
+    assert.equal(restoredRequestData.contextBundle, undefined)
     assert.equal(typeof restoredAssistantData.messageId, 'string')
-    assert.match(restoredAssistantData.content, /trace reply/)
-    assert.doesNotMatch(restoredAssistantData.content, /来源/)
+    assert.equal(restoredAssistantData.content, undefined)
+    assert.equal(restoredAssistantData.contentMode, 'summary')
+    assert.equal(typeof restoredAssistantData.contentHash, 'string')
+    assert.equal(restoredAssistantData.chars > 0, true)
     assert.equal(restoredAssistantData.source, 'model')
     assert.deepEqual(rebuilt.getRun(run.id)?.traceEvents ?? [], [])
   } finally {
@@ -1862,7 +2103,7 @@ test('emits assistant_progress events from streamed model content', async () => 
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async () => {
       const body = [
@@ -1911,8 +2152,10 @@ test('emits assistant_progress events from streamed model content', async () => 
     assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Assistant progress update'), false)
     const assistantTrace = runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER })
       .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
-    assert.equal((assistantTrace?.data as any)?.content, finalAssistantMessages.at(-1))
-    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /流式完成/)
+    assert.equal((assistantTrace?.data as any)?.content, undefined)
+    assert.equal((assistantTrace?.data as any)?.contentMode, 'summary')
+    assert.match(assistantTrace?.summary ?? '', /Assistant message created \(\d+ chars\)\./)
+    assert.doesNotMatch(assistantTrace?.summary ?? '', /流式完成/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1928,7 +2171,7 @@ test('emits structured live trace events from streamed tool call deltas', async 
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as { messages?: Array<{ role: string; content: string | null }> }
@@ -1996,7 +2239,10 @@ test('emits structured live trace events from streamed tool call deltas', async 
     const finalStream = liveToolEvents.at(-1)?.data?.stream
     assert.equal(finalStream?.toolCall?.name, 'movscript_project_create')
     assert.equal(finalStream?.toolCall?.parseStatus, 'valid_json')
-    assert.deepEqual(finalStream?.toolCall?.argumentsJSON, { name: '雨夜便利店' })
+    assert.equal(finalStream?.toolCall?.argumentsJSON, undefined)
+    assert.equal(finalStream?.toolCall?.argumentsJSONMode, 'summary')
+    assert.equal(finalStream?.toolCall?.argumentsBufferMode, 'summary')
+    assert.doesNotMatch(JSON.stringify(finalStream), /雨夜便利店/)
     assert.deepEqual(completed.traceEvents ?? [], [])
     assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model tool call delta'), false)
   } finally {
@@ -2015,7 +2261,7 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -2125,7 +2371,7 @@ test('assistant content from multiple model turns is preserved in the final chat
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -2180,8 +2426,10 @@ test('assistant content from multiple model turns is preserved in the final chat
     assert.match(assistant?.content ?? '', /已完成工具调用/)
     const assistantTrace = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
       .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
-    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /先说明一下/)
-    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /已完成工具调用/)
+    assert.equal((assistantTrace?.data as any)?.content, undefined)
+    assert.match(assistantTrace?.summary ?? '', /Assistant message created \(\d+ chars\)\./)
+    assert.doesNotMatch(assistantTrace?.summary ?? '', /先说明一下/)
+    assert.doesNotMatch(assistantTrace?.summary ?? '', /已完成工具调用/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -2198,7 +2446,7 @@ test('oversized tool results are summarized before the next model turn', async (
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -2232,7 +2480,8 @@ test('oversized tool results are summarized before the next model turn', async (
       projectId: 42,
       scripts: [{ id: 1, title: '长剧本', content: '雨夜便利店。'.repeat(1200) }],
     })
-    const runtime = createTestRuntime({ mcpClient: client })
+    const toolResultStore = new InMemoryAgentToolResultStore()
+    const runtime = createTestRuntime({ mcpClient: client, toolResultStore })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '读取项目剧本' }] })
     const run = await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
@@ -2246,9 +2495,18 @@ test('oversized tool results are summarized before the next model turn', async (
     assert.ok(toolMessage)
     assert.equal(String(toolMessage.content).length <= 1000, true)
     assert.match(String(toolMessage.content), /contextControl/)
-    assert.match(String(toolMessage.content), /omitted_text_body/)
+    assert.match(String(toolMessage.content), /omitted_tool_result_summary/)
     assert.doesNotMatch(String(toolMessage.content), /雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。/)
-    assert.equal(runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => (event.data as any)?.eventType === 'context.item_dropped'), true)
+    const droppedTrace = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).find((event) => (event.data as any)?.eventType === 'context.item_dropped')
+    assert.ok(droppedTrace)
+    const refKey = String((droppedTrace.data as any).refKey)
+    const stored = runtime.getRunToolResult(run.id, refKey)
+    assert.equal(stored.runId, run.id)
+    assert.equal(stored.toolName, 'movscript_script_locate')
+    assert.equal(stored.resultHash, (droppedTrace.data as any).resultHash)
+    assert.equal(stored.dropped, true)
+    assert.deepEqual(runtime.findRunToolResults(run.id, { resultHash: stored.resultHash }).map((record) => record.key), [stored.key])
+    assert.equal(toolResultStore.getToolResult(refKey)?.key, stored.key)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -2722,14 +2980,14 @@ test('production orchestrate requests include productionId in runtime context', 
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-context-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
-  let requestBody: Record<string, unknown> | undefined
+  const requestBodies: Array<Record<string, unknown>> = []
   try {
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
     const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 31, model: 'model_config:31' })
+    new RuntimeModelConfigStore().save({ modelConfigId: 31, model: 'model_config:31', apiKind: 'openai_chat_completions', apiKey: 'test-key' })
 
     globalThis.fetch = (async (_url, init) => {
-      requestBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      requestBodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
       return new Response(JSON.stringify({
         id: 'chatcmpl_production_context',
         choices: [{ message: { content: JSON.stringify({ ok: true }) } }],
@@ -2764,7 +3022,9 @@ test('production orchestrate requests include productionId in runtime context', 
       },
     })
 
-    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('## Focus'))
+    const contextMessage = requestBodies
+      .flatMap((body) => Array.isArray(body.messages) ? body.messages as any[] : [])
+      .find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('## Focus'))
     assert.ok(contextMessage)
     assert.match(String(contextMessage?.content ?? ''), /Active production business reference: production#4/)
   } finally {

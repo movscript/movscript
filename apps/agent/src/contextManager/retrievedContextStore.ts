@@ -23,6 +23,7 @@ export function buildRetrievedContextStore(ledger: unknown): RetrievedContextSto
 
 export function selectRetrievedContext(input: SelectRetrievedContextInput): RetrievedContextRecord[] {
   const records = input.store.records.filter((record) => {
+    if ((record.status ?? 'active') !== 'active') return false
     if (input.source && record.source !== input.source) return false
     if (input.refType && record.ref.type !== input.refType) return false
     if (input.summaryPrefix && !record.summary?.startsWith(input.summaryPrefix)) return false
@@ -78,7 +79,10 @@ function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
   const retrievedAt = stringField(value.retrievedAt)
   if (!ref || !source || !evidence || !title || !retrievedAt) return []
   return [{
+    ...(stringField(value.id) ? { id: stringField(value.id) } : {}),
+    ...(stringField(value.version) ? { version: stringField(value.version) } : {}),
     ref,
+    ...(normalizeRecordStatus(value.status) ? { status: normalizeRecordStatus(value.status) } : {}),
     source,
     evidence,
     title,
@@ -88,6 +92,13 @@ function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
     retrievedAt,
     usedInPrompt: value.usedInPrompt === true,
     ...(stringField(value.reusedFromRunId) ? { reusedFromRunId: stringField(value.reusedFromRunId) } : {}),
+    ...(stringField(value.supersedes) ? { supersedes: stringField(value.supersedes) } : {}),
+    ...(stringField(value.amendedBy) ? { amendedBy: stringField(value.amendedBy) } : {}),
+    ...(stringField(value.deletedBy) ? { deletedBy: stringField(value.deletedBy) } : {}),
+    ...(stringField(value.deletedAt) ? { deletedAt: stringField(value.deletedAt) } : {}),
+    ...(stringField(value.deleteReason) ? { deleteReason: stringField(value.deleteReason) } : {}),
+    ...(stringField(value.mutationId) ? { mutationId: stringField(value.mutationId) } : {}),
+    ...(stringField(value.updatedAt) ? { updatedAt: stringField(value.updatedAt) } : {}),
   }]
 }
 
@@ -116,6 +127,12 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     || value === 'asset_slot'
     || value === 'generation_job'
     || value === 'taskGraph'
+    ? value
+    : undefined
+}
+
+function normalizeRecordStatus(value: unknown): RetrievedContextRecord['status'] | undefined {
+  return value === 'active' || value === 'amended' || value === 'deleted' || value === 'expired'
     ? value
     : undefined
 }

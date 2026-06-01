@@ -370,7 +370,7 @@ func responsesUsageFromTokenUsage(usage ai.TokenUsage) responsesUsage {
 func normalizeGatewayMessages(c *gin.Context, input []gatewayMessage) ([]ai.Message, bool) {
 	messages := make([]ai.Message, 0, len(input))
 	for i, msg := range input {
-		content, err := gatewayMessageContent(msg.Content)
+		content, contentParts, err := gatewayMessageContentAndParts(msg.Content)
 		if err != nil {
 			writeOpenAIError(c, http.StatusBadRequest, fmt.Sprintf("messages[%d].content: %s", i, err.Error()), "invalid_request_error", "messages", "invalid_message_content")
 			return nil, false
@@ -385,10 +385,11 @@ func normalizeGatewayMessages(c *gin.Context, input []gatewayMessage) ([]ai.Mess
 			return nil, false
 		}
 		messages = append(messages, ai.Message{
-			Role:       role,
-			Content:    content,
-			ToolCallID: msg.ToolCallID,
-			ToolCalls:  msg.ToolCalls,
+			Role:         role,
+			Content:      content,
+			ContentParts: contentParts,
+			ToolCallID:   msg.ToolCallID,
+			ToolCalls:    msg.ToolCalls,
 		})
 	}
 	return messages, true

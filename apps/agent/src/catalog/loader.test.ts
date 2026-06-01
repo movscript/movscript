@@ -40,6 +40,14 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
       },
       projectScoped: true,
       defaults: { grant: 'allow', approval: 'never' },
+      execution: {
+        readOnly: true,
+        destructive: false,
+        concurrencySafe: true,
+        interruptBehavior: 'cancel',
+        maxResultSizeChars: 4096,
+        resultRefStrategy: 'summary_ref',
+      },
     })
     writePluginFile(packsDir, 'studio.pack.json', {
       id: 'studio.pack.writer',
@@ -78,6 +86,15 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
         title: { type: 'string' },
       },
     })
+    assert.deepEqual(outlineTool?.execution, {
+      readOnly: true,
+      destructive: false,
+      concurrencySafe: true,
+      interruptBehavior: 'cancel',
+      maxResultSizeChars: 4096,
+      resultRefStrategy: 'summary_ref',
+    })
+    assert.deepEqual(catalog.registry.get('studio.script_outline')?.execution, outlineTool?.execution)
     assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'), false)
     assert.ok(catalog.registry.get('studio.script_outline'))
     assert.deepEqual(catalog.warnings, [])
@@ -184,7 +201,9 @@ test('loads built-in MovScript platform catalog by default', () => {
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_project_create'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'generation_model_list'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_create'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_focus_get'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'generation_model_list'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_project_create' && grant.approval === 'always'))
     assert.ok(catalog.registry.get('draft_create'))

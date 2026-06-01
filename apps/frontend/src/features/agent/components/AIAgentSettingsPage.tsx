@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Bot, CheckCircle2, Clipboard, Copy, Download, Loader2, Plus, RefreshCw, Save, Settings, Terminal, TestTube2, Trash2, Upload, XCircle } from 'lucide-react'
 import {
   AgentDataBlock,
@@ -78,20 +78,21 @@ import {
   agentSettingsRecipe,
   agentSettingsStatusRecipe,
 } from '@movscript/ui'
-import { api } from '@/shared/infrastructure/api'
 import { getAPIBaseURL } from '@/shared/infrastructure/config'
+import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 import { buildSettingsSnapshot, parseSettingsSnapshot, resolveSnapshotRunPresetImport, validateSettingsSnapshotReferences, type AgentSettingsSnapshot, type RuntimeModelAPIKind, type SkillPolicyDraft, type ToolGrantDraft } from '@/features/agent/domain/agentSettingsSnapshot'
 import { hasSensitiveTextSecret, hasSensitiveURLSecret, redactAgentTraceDebugText, stripSensitiveURLSecrets } from '@/features/agent/domain/agentTraceDebugData'
+import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { localAgentClient, type AgentCapabilitiesResponse, type AgentCatalogProfile, type AgentCatalogSkill, type AgentDebugTool, type AgentInspectResponse, type AgentSkillBundleInstallResult, type AgentSkillBundleUninstallResult, type RuntimeModelConfigPublic, type RuntimeModelTestResult } from '@/shared/infrastructure/localAgentClient'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
-import { ROUTES } from '@/routes/projectRoutes'
+import { ROUTES, agentSettingsManagementPath } from '@/routes/projectRoutes'
 import { agentConfigStatusRecipe, agentTestResultRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { activeRunPresetFromSettings, defaultAgentRunPresets, useAgentStore, type AgentRunPreset, type AgentSettingsAuditEntry, type AgentToolPolicyFilterPreset } from '@/features/agent/state/agentStore'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import type { PublicModel } from '@/types'
 
 const NO_MODEL_VALUE = '__none'
-const DEFAULT_API_KIND: RuntimeModelAPIKind = 'openai_chat_completions'
+const DEFAULT_API_KIND: RuntimeModelAPIKind = 'openai_responses'
 const MAX_SKILL_BUNDLE_FILES = 50
 const MAX_SKILL_BUNDLE_FILE_BYTES = 256 * 1024
 const MAX_SKILL_BUNDLE_TOTAL_BYTES = 1024 * 1024
@@ -221,6 +222,17 @@ type SkillSourceKind = 'core' | 'plugin' | 'local' | 'catalog'
 type SkillTrustLevel = 'trusted' | 'managed' | 'review'
 type ToolPolicyFilter = AgentToolPolicyFilterPreset['filter']
 type ToolPolicyBulkAction = 'allow_available' | 'deny' | 'approval_never' | 'approval_on_write' | 'approval_always'
+const AGENT_MANAGEMENT_AREAS = ['skills', 'tools'] as const
+type AgentManagementArea = (typeof AGENT_MANAGEMENT_AREAS)[number]
+const AGENT_MANAGEMENT_VIEWS = ['runtime', 'policy', 'catalog'] as const
+type AgentManagementView = (typeof AGENT_MANAGEMENT_VIEWS)[number]
+type ManagementLayerOverviewItem = {
+  id: string
+  label: string
+  detail: string
+  statusProps: Omit<Parameters<typeof AgentSettingsStatusBadge>[0], 'children'>
+  statusLabel: string
+}
 type SettingsSnapshotImportScope = 'model' | 'profile' | 'skills' | 'tools' | 'run-presets'
 type SettingsSnapshotImportPresetId = 'all' | 'model-routing' | 'skills-tools' | 'run-presets'
 type SettingsSnapshotImpactItem = {
@@ -279,6 +291,13 @@ type SettingsQuickFixAuditKind =
   | 'clear_confirmation'
 export default function AIAgentSettingsPage() {
   const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const routeParams = useParams<{ managementArea?: string; managementView?: string }>()
+  const urlManagementArea = parseAgentManagementArea(routeParams.managementArea)
+  const urlManagementView = parseAgentManagementView(routeParams.managementView)
+  const urlSkillManagementView = urlManagementArea === 'skills' ? urlManagementView : null
+  const urlToolManagementView = urlManagementArea === 'tools' ? urlManagementView : null
   const skillBundleFileInputRef = useRef<HTMLInputElement | null>(null)
   const settingsSnapshotFileInputRef = useRef<HTMLInputElement | null>(null)
   const agentSettings = useAgentStore((s) => s.settings)
@@ -317,12 +336,14 @@ export default function AIAgentSettingsPage() {
   const [skillDrafts, setSkillDrafts] = useState<SkillPolicyDraft[]>([])
   const [skillPolicySaving, setSkillPolicySaving] = useState(false)
   const [skillPolicySaveError, setSkillPolicySaveError] = useState<string | null>(null)
+  const [skillManagementView, setSkillManagementView] = useState<AgentManagementView>(urlSkillManagementView ?? 'runtime')
   const [selectedProfileId, setSelectedProfileId] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null)
   const [toolGrantDrafts, setToolGrantDrafts] = useState<ToolGrantDraft[]>([])
   const [toolPolicySaving, setToolPolicySaving] = useState(false)
   const [toolPolicySaveError, setToolPolicySaveError] = useState<string | null>(null)
+  const [toolManagementView, setToolManagementView] = useState<AgentManagementView>(urlToolManagementView ?? 'runtime')
   const [toolPolicySearch, setToolPolicySearch] = useState('')
   const [toolPolicyFilter, setToolPolicyFilter] = useState<ToolPolicyFilter>('all')
   const [settingsSnapshotText, setSettingsSnapshotText] = useState('')
@@ -334,6 +355,57 @@ export default function AIAgentSettingsPage() {
   const [settingsActionFeedback, setSettingsActionFeedback] = useState<string | null>(null)
   const [settingsStatusCopied, setSettingsStatusCopied] = useState(false)
   const settingsImportBackup = agentSettings.lastImportBackup
+  const focusedManagementArea = urlManagementArea && urlManagementView ? urlManagementArea : null
+  const isFocusedManagementRoute = Boolean(focusedManagementArea)
+  const showGeneralSettingsSections = !isFocusedManagementRoute
+  const showSkillsManagementPanel = !isFocusedManagementRoute || focusedManagementArea === 'skills'
+  const showToolsManagementPanel = !isFocusedManagementRoute || focusedManagementArea === 'tools'
+
+  useEffect(() => {
+    if (urlSkillManagementView && urlSkillManagementView !== skillManagementView) {
+      setSkillManagementView(urlSkillManagementView)
+    }
+  }, [skillManagementView, urlSkillManagementView])
+
+  useEffect(() => {
+    if (urlToolManagementView && urlToolManagementView !== toolManagementView) {
+      setToolManagementView(urlToolManagementView)
+    }
+  }, [toolManagementView, urlToolManagementView])
+
+  useEffect(() => {
+    if (!urlManagementArea || !urlManagementView) return
+    const sectionId = urlManagementArea === 'skills' ? 'agent-settings-skills' : 'agent-settings-tools'
+    let disposed = false
+    let attempts = 0
+    function scrollWhenReady() {
+      if (disposed) return
+      const node = document.getElementById(sectionId)
+      if (node) {
+        node.scrollIntoView({ behavior: 'auto', block: 'start' })
+        return
+      }
+      attempts += 1
+      if (attempts < 20) window.setTimeout(scrollWhenReady, 50)
+    }
+    const timeoutId = window.setTimeout(() => {
+      scrollWhenReady()
+    }, 0)
+    return () => {
+      disposed = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [urlManagementArea, urlManagementView])
+
+  function selectManagementView(area: AgentManagementArea, view: AgentManagementView) {
+    if (area === 'skills') {
+      setSkillManagementView(view)
+    } else {
+      setToolManagementView(view)
+    }
+    const search = location.search || ''
+    navigate(`${agentSettingsManagementPath(area, view)}${search}`)
+  }
 
   const runtimeQuery = useQuery({
     queryKey: ['agent-settings-runtime-model', localAgentClient.baseURL],
@@ -359,16 +431,17 @@ export default function AIAgentSettingsPage() {
     },
     retry: false,
   })
-  const modelsQuery = useQuery<PublicModel[]>({
-    queryKey: ['models', 'text'],
-    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
-  })
-
-  const textModels = modelsQuery.data ?? []
   const baseURLValue = baseURL.trim()
   const usesBackendCompatibleBaseURL = isBackendCompatibleBaseURL(baseURLValue)
   const usesModelCatalog = !baseURLValue || usesBackendCompatibleBaseURL
   const usesManualModelId = !usesModelCatalog
+  const modelsQuery = useQuery<PublicModel[]>({
+    queryKey: ['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY, baseURLValue || 'default-backend'],
+    queryFn: () => fetchAgentBackendModels(),
+    enabled: usesModelCatalog,
+  })
+
+  const textModels = modelsQuery.data ?? []
   const selectedModel = useMemo(() => {
     return textModels.find((model) => publicModelId(model) === selectedModelId) ?? null
   }, [selectedModelId, textModels])
@@ -399,6 +472,7 @@ export default function AIAgentSettingsPage() {
     : t('agents.settings.modelCredentialStatus.notRequired')
   const skillStats = useMemo(() => buildSkillStats(catalogQuery.data?.skills ?? []), [catalogQuery.data?.skills])
   const skillGovernanceStats = useMemo(() => buildSkillGovernanceStats(catalogQuery.data?.skills ?? []), [catalogQuery.data?.skills])
+  const skillRuntimeStats = useMemo(() => buildSkillRuntimeStats(catalogQuery.data?.skills ?? []), [catalogQuery.data?.skills])
   const skillBundlePlugins = useMemo(() => catalogQuery.data?.pluginCatalog?.skillPlugins ?? [], [catalogQuery.data?.pluginCatalog?.skillPlugins])
   const skillBundleUninstallPluginIdValue = skillBundleUninstallPluginId.trim()
   const skillBundleUninstallPluginIdInvalid = Boolean(skillBundleUninstallPluginIdValue) && !isSafeSkillBundlePluginId(skillBundleUninstallPluginIdValue)
@@ -482,6 +556,12 @@ export default function AIAgentSettingsPage() {
   const toolPolicyDiffItems = useMemo(() => buildToolPolicyDiffItems(toolGrantBaseline, toolGrantDrafts), [toolGrantBaseline, toolGrantDrafts])
   const activeRunPreset = useMemo(() => activeRunPresetFromSettings(agentSettings), [agentSettings])
   const coreSkills = useMemo(() => (catalogQuery.data?.skills ?? []).filter((skill) => skill.loadMode === 'core'), [catalogQuery.data?.skills])
+  const runtimeSkills = useMemo(() => {
+    const skills = catalogQuery.data?.skills ?? []
+    return [...skills]
+      .sort((a, b) => skillRuntimeRank(a) - skillRuntimeRank(b) || (b.priority ?? 0) - (a.priority ?? 0) || a.id.localeCompare(b.id))
+      .slice(0, 24)
+  }, [catalogQuery.data?.skills])
   const featuredSkills = useMemo(() => {
     const skills = catalogQuery.data?.skills ?? []
     return [...skills]
@@ -511,6 +591,12 @@ export default function AIAgentSettingsPage() {
       .sort((a, b) => toolPolicyRank(a) - toolPolicyRank(b) || a.name.localeCompare(b.name))
       .slice(0, 80)
   }, [capabilitiesQuery.data?.resolvedTools.discovered, currentToolGrants, toolPolicyFilter, toolPolicySearch])
+  const runtimeTools = useMemo(() => {
+    const tools = capabilitiesQuery.data?.resolvedTools.discovered ?? []
+    return [...tools]
+      .sort((a, b) => toolRuntimeRank(a) - toolRuntimeRank(b) || a.name.localeCompare(b.name))
+      .slice(0, 80)
+  }, [capabilitiesQuery.data?.resolvedTools.discovered])
   const hasUnsavedChanges = effectiveConfig?.configured
     ? draftModelValue !== effectiveModelValue ||
       selectedApiKind !== (effectiveConfig.apiKind ?? DEFAULT_API_KIND) ||
@@ -545,12 +631,27 @@ export default function AIAgentSettingsPage() {
     () => buildSkillPolicyIssues(catalogQuery.data?.skills ?? [], skillDrafts, skillPolicyBaseline),
     [catalogQuery.data?.skills, skillDrafts, skillPolicyBaseline],
   )
+  const skillManagementItems = useMemo(() => buildSkillManagementItems({
+    stats: skillStats,
+    governance: skillGovernanceStats,
+    runtime: skillRuntimeStats,
+    policyIssues: skillPolicyIssues,
+    hasPolicyChange: hasSkillPolicyChange,
+    t,
+  }), [hasSkillPolicyChange, skillGovernanceStats, skillPolicyIssues, skillRuntimeStats, skillStats, t])
   const hasToolPolicyChange = toolGrantSignature(toolGrantDrafts) !== toolGrantSignature(toolGrantBaseline)
   const toolPolicyDraftIssues = useMemo(() => buildToolPolicyDraftIssues({
     drafts: toolGrantDrafts,
     currentProfile,
     tools: capabilitiesQuery.data?.resolvedTools,
   }), [capabilitiesQuery.data?.resolvedTools, currentProfile, toolGrantDrafts])
+  const toolManagementItems = useMemo(() => buildToolManagementItems({
+    stats: toolStats,
+    profile: currentProfile,
+    draftIssues: toolPolicyDraftIssues,
+    hasPolicyChange: hasToolPolicyChange,
+    t,
+  }), [currentProfile, hasToolPolicyChange, t, toolPolicyDraftIssues, toolStats])
   const readinessItems = useMemo(() => buildSettingsReadinessItems({
     effectiveConfig,
     selectedApiKind,
@@ -1225,6 +1326,18 @@ export default function AIAgentSettingsPage() {
   }
 
   function scrollToSettingsSection(sectionId: string) {
+    if (sectionId === 'agent-settings-skills') selectManagementView('skills', 'policy')
+    if (sectionId === 'agent-settings-tools') selectManagementView('tools', 'policy')
+    const focusedSectionId = focusedManagementArea === 'skills'
+      ? 'agent-settings-skills'
+      : focusedManagementArea === 'tools' ? 'agent-settings-tools' : null
+    if (focusedSectionId && sectionId !== focusedSectionId) {
+      navigate(ROUTES.agentSettings)
+      window.setTimeout(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+      return
+    }
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -1396,14 +1509,14 @@ export default function AIAgentSettingsPage() {
     setSettingsSnapshotError(null)
     const text = currentSettingsSnapshotText()
     const blob = new Blob([text], { type: 'application/json;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
+    const url = createObjectUrl(blob)
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = `agent-settings-snapshot-${new Date().toISOString().slice(0, 10)}.json`
     document.body.append(anchor)
     anchor.click()
     anchor.remove()
-    URL.revokeObjectURL(url)
+    revokeObjectUrl(url)
     setSettingsSnapshotText(text)
     setSettingsSnapshotMessage(t('agents.settings.settingsDownloaded'))
   }
@@ -1593,51 +1706,18 @@ export default function AIAgentSettingsPage() {
         ) : (
           <AgentSettingsLayout>
             <AgentSettingsMain>
+              {isFocusedManagementRoute && focusedManagementArea && urlManagementView && (
+                <AgentSettingsCallout data-testid="agent-settings-focused-management-route" tone="info" compact>
+                  {t('agents.settings.focusedManagementRoute', {
+                    area: t(focusedManagementArea === 'skills' ? 'agents.settings.skillsPanel' : 'agents.settings.toolPolicyPanel'),
+                    layer: t(`agents.settings.managementLayers.${urlManagementView}`),
+                  })}
+                </AgentSettingsCallout>
+              )}
+              {showGeneralSettingsSections && (
+              <>
               <AgentSettingsPanel icon={Bot} id="agent-settings-model" title={t('agents.settings.modelPanel')}>
                 <AgentSettingsStack>
-                  <AgentSettingsFormField>
-                    <AgentSettingsFieldLabel>
-                      {usesModelCatalog ? t('agents.settings.modelLabel') : t('agents.settings.providerModelIdLabel')}
-                    </AgentSettingsFieldLabel>
-                    {usesModelCatalog ? (
-                      <Select value={selectedModelId} onValueChange={setSelectedModelId}>
-                        <AgentSettingsSelectTrigger>
-                          <SelectValue placeholder={t('agents.settings.selectModel')} />
-                        </AgentSettingsSelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NO_MODEL_VALUE} disabled>{t('agents.settings.selectModel')}</SelectItem>
-                          {textModels.length === 0 ? (
-                            <SelectItem value="__empty_text_models" disabled>{t('agents.settings.noTextModels')}</SelectItem>
-                          ) : textModels.map((model) => (
-                            <SelectItem key={model.id} value={publicModelId(model)}>
-                              {publicModelLabel(model, true)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <AgentSettingsInput
-                        value={directModelId}
-                        onChange={(event) => setDirectModelId(event.target.value)}
-                        placeholder={apiKindModelPlaceholder(selectedApiKind)}
-                        data-testid="agent-settings-provider-model-id"
-                      />
-                    )}
-                    <AgentSettingsFieldHelp>
-                      {usesModelCatalog ? t('agents.settings.modelHelp') : t('agents.settings.providerModelIdHelp')}
-                    </AgentSettingsFieldHelp>
-                    {modelValueMissing && (
-                      <AgentSettingsToneText tone="danger">
-                        {t('agents.settings.modelRequired')}
-                      </AgentSettingsToneText>
-                    )}
-                    {directModelIdHasSecret && (
-                      <AgentSettingsCallout data-testid="agent-settings-provider-model-id-secret-warning" tone="danger" compact>
-                        {t('agents.settings.modelIdSecretsBlocked')}
-                      </AgentSettingsCallout>
-                    )}
-                  </AgentSettingsFormField>
-
                   <AgentSettingsFormGrid columns="model">
                     <AgentSettingsFormField>
                       <AgentSettingsFieldLabel>{t('agents.settings.apiKindLabel')}</AgentSettingsFieldLabel>
@@ -1701,6 +1781,49 @@ export default function AIAgentSettingsPage() {
                       )}
                     </AgentSettingsFormField>
                   </AgentSettingsFormGrid>
+
+                  <AgentSettingsFormField>
+                    <AgentSettingsFieldLabel>
+                      {usesModelCatalog ? t('agents.settings.modelLabel') : t('agents.settings.providerModelIdLabel')}
+                    </AgentSettingsFieldLabel>
+                    {usesModelCatalog ? (
+                      <Select value={selectedModelId} onValueChange={setSelectedModelId}>
+                        <AgentSettingsSelectTrigger>
+                          <SelectValue placeholder={t('agents.settings.selectModel')} />
+                        </AgentSettingsSelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_MODEL_VALUE} disabled>{t('agents.settings.selectModel')}</SelectItem>
+                          {textModels.length === 0 ? (
+                            <SelectItem value="__empty_text_models" disabled>{t('agents.settings.noTextModels')}</SelectItem>
+                          ) : textModels.map((model) => (
+                            <SelectItem key={model.id} value={publicModelId(model)}>
+                              {publicModelLabel(model, true)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <AgentSettingsInput
+                        value={directModelId}
+                        onChange={(event) => setDirectModelId(event.target.value)}
+                        placeholder={t('agents.settings.providerModelIdPlaceholder')}
+                        data-testid="agent-settings-provider-model-id"
+                      />
+                    )}
+                    <AgentSettingsFieldHelp>
+                      {usesModelCatalog ? t('agents.settings.modelHelp') : t('agents.settings.providerModelIdHelp')}
+                    </AgentSettingsFieldHelp>
+                    {modelValueMissing && (
+                      <AgentSettingsToneText tone="danger">
+                        {t('agents.settings.modelRequired')}
+                      </AgentSettingsToneText>
+                    )}
+                    {directModelIdHasSecret && (
+                      <AgentSettingsCallout data-testid="agent-settings-provider-model-id-secret-warning" tone="danger" compact>
+                        {t('agents.settings.modelIdSecretsBlocked')}
+                      </AgentSettingsCallout>
+                    )}
+                  </AgentSettingsFormField>
 
                   <AgentSettingsFormGrid columns="two">
                     <AgentSettingsToggleRow checked={useForChat} onChange={setUseForChat} title={t('agents.settings.useForChat')} description={t('agents.settings.useForChatHelp')} />
@@ -1886,7 +2009,10 @@ export default function AIAgentSettingsPage() {
                   </AgentSettingsFormGrid>
                 </AgentSettingsStack>
               </AgentSettingsPanel>
+              </>
+              )}
 
+              {showSkillsManagementPanel && (
               <AgentSettingsPanel icon={Bot} id="agent-settings-skills" title={t('agents.settings.skillsPanel')}>
                 {catalogQuery.isLoading ? (
                   <AgentSettingsStateMessage icon={<AgentSettingsIcon icon={Loader2} size={16} spinning />} text={t('common.loading')} />
@@ -1894,141 +2020,189 @@ export default function AIAgentSettingsPage() {
                   <AgentSettingsStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
                 ) : (
                   <AgentSettingsStack>
-                    <AgentSettingsFormGrid columns="four">
-                      <AgentSettingsKeyValue label={t('agents.settings.skillFields.installed')} value={skillStats.installed} />
-                      <AgentSettingsKeyValue label={t('agents.settings.skillFields.enabled')} value={skillStats.enabled} />
-                      <AgentSettingsKeyValue label={t('agents.settings.skillFields.core')} value={skillStats.core} />
-                      <AgentSettingsKeyValue label={t('agents.settings.skillFields.onDemand')} value={skillStats.onDemand} />
-                    </AgentSettingsFormGrid>
-                    <AgentDataBlock data-testid="agent-settings-skill-governance">
-                      <AgentSettingsFieldLabel>{t('agents.settings.skillGovernancePanel')}</AgentSettingsFieldLabel>
-                      <AgentSettingsFieldHelp>{t('agents.settings.skillGovernanceHelp')}</AgentSettingsFieldHelp>
-                      <AgentSettingsFormGrid columns="five">
-                        <AgentSettingsKeyValue label={t('agents.settings.skillGovernanceFields.versioned')} value={skillGovernanceStats.versioned} />
-                        <AgentSettingsKeyValue label={t('agents.settings.skillSources.core')} value={skillGovernanceStats.core} />
-                        <AgentSettingsKeyValue label={t('agents.settings.skillSources.plugin')} value={skillGovernanceStats.plugin} />
-                        <AgentSettingsKeyValue label={t('agents.settings.skillSources.local')} value={skillGovernanceStats.local} />
-                        <AgentSettingsKeyValue label={t('agents.settings.skillTrustLevels.review')} value={skillGovernanceStats.review} />
+                    <ManagementLayerSwitch
+                      testId="agent-settings-skill-management-view"
+                      value={skillManagementView}
+                      onChange={(view) => selectManagementView('skills', view)}
+                      ariaLabel={t('agents.settings.managementViewSwitch')}
+                      labels={{
+                        catalog: t('agents.settings.managementLayers.catalog'),
+                        policy: t('agents.settings.managementLayers.policy'),
+                        runtime: t('agents.settings.managementLayers.runtime'),
+                      }}
+                    />
+                    {skillManagementView === 'catalog' && (
+                    <AgentSettingsStack data-testid="agent-settings-skill-catalog-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.catalog')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.skillManagementLayerHelp.catalog')}</AgentSettingsFieldHelp>
+                      <AgentSettingsFormGrid columns="four">
+                        <AgentSettingsKeyValue label={t('agents.settings.skillFields.installed')} value={skillStats.installed} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillFields.enabled')} value={skillStats.enabled} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillFields.core')} value={skillStats.core} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillFields.onDemand')} value={skillStats.onDemand} />
                       </AgentSettingsFormGrid>
-                    </AgentDataBlock>
-
-                    <AgentSettingsActionRow>
-                      <AgentSettingsActionButton variant="outline" onClick={reloadCatalog} disabled={catalogReloading || catalogQuery.isFetching}>
-                        {catalogReloading || catalogQuery.isFetching ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <RefreshCw size={14} />}
-                        {t('agents.settings.reloadCatalog')}
-                      </AgentSettingsActionButton>
-                      {catalogReloadedAt && <AgentSettingsInlineNote>{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</AgentSettingsInlineNote>}
-                    </AgentSettingsActionRow>
-                    {catalogReloadError && <AppInlineError>{catalogReloadError}</AppInlineError>}
-
-                    <AgentSettingsSkillBundlePanel
-                      title={t('agents.settings.installSkillBundle')}
-                      description={t('agents.settings.installSkillBundleHelp')}
-                      fileInputRef={skillBundleFileInputRef}
-                      onFileChange={(file) => void loadSkillBundleFile(file)}
-                      loadFileLabel={t('agents.settings.loadSkillBundleFile')}
-                      onLoadFile={() => skillBundleFileInputRef.current?.click()}
-                      installLabel={t('agents.settings.installSkillBundleAction')}
-                      installIcon={skillBundleInstalling ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
-                      installDisabled={skillBundleInstalling || !skillBundleDraftValidation.bundle}
-                      onInstall={installSkillBundle}
-                      fileLoadedLabel={skillBundleFileName ? t('agents.settings.skillBundleFileLoaded', { fileName: skillBundleFileName }) : undefined}
-                      textValue={skillBundleText}
-                      onTextChange={(value) => {
-                        setSkillBundleText(value)
-                        setSkillBundleInstallError(null)
-                        setSkillBundleInstallResult(null)
-                      }}
-                      placeholder={t('agents.settings.installSkillBundlePlaceholder')}
-                      draftSummary={skillBundleDraftValidation.bundle ? t('agents.settings.skillBundleDraftSummary', {
-                        pluginId: skillBundleDraftValidation.bundle.pluginId,
-                        count: skillBundleDraftValidation.bundle.files.length,
-                        size: formatBytes(skillBundleDraftValidation.totalBytes),
-                      }) : undefined}
-                      draftError={skillBundleDraftValidation.error}
-                      installError={skillBundleInstallError}
-                      installResult={skillBundleInstallResult ? t('agents.settings.installSkillBundleDone', { count: skillBundleInstallResult.installedFiles.length, pluginId: skillBundleInstallResult.pluginId }) : undefined}
-                      installedTitle={t('agents.settings.installedSkillBundles')}
-                      installedPlugins={skillBundlePlugins.map((plugin) => ({
-                        id: plugin.pluginId,
-                        path: plugin.path,
-                        actionLabel: t(skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'agents.settings.uninstallSkillBundleConfirm' : 'agents.settings.uninstallSkillBundleAction'),
-                        actionIcon: skillBundleUninstalling && skillBundleUninstallPluginId === plugin.pluginId ? <AgentSettingsIcon icon={Loader2} size={12} spinning /> : <Trash2 size={12} />,
-                        actionIntent: skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'danger' : 'neutral',
-                        actionVariant: skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'solid' : 'ghost',
-                        disabled: skillBundleUninstalling,
-                        onAction: () => {
-                          if (skillBundleUninstallConfirmPluginId === plugin.pluginId) {
-                            void uninstallSkillBundle(plugin.pluginId)
-                            return
-                          }
-                          setSkillBundleUninstallConfirmPluginId(plugin.pluginId)
+                      <AgentDataBlock data-testid="agent-settings-skill-governance">
+                        <AgentSettingsFieldLabel>{t('agents.settings.skillGovernancePanel')}</AgentSettingsFieldLabel>
+                        <AgentSettingsFieldHelp>{t('agents.settings.skillGovernanceHelp')}</AgentSettingsFieldHelp>
+                        <AgentSettingsFormGrid columns="five">
+                          <AgentSettingsKeyValue label={t('agents.settings.skillGovernanceFields.versioned')} value={skillGovernanceStats.versioned} />
+                          <AgentSettingsKeyValue label={t('agents.settings.skillSources.core')} value={skillGovernanceStats.core} />
+                          <AgentSettingsKeyValue label={t('agents.settings.skillSources.plugin')} value={skillGovernanceStats.plugin} />
+                          <AgentSettingsKeyValue label={t('agents.settings.skillSources.local')} value={skillGovernanceStats.local} />
+                          <AgentSettingsKeyValue label={t('agents.settings.skillTrustLevels.review')} value={skillGovernanceStats.review} />
+                        </AgentSettingsFormGrid>
+                      </AgentDataBlock>
+                      <AgentSettingsActionRow>
+                        <AgentSettingsActionButton variant="outline" onClick={reloadCatalog} disabled={catalogReloading || catalogQuery.isFetching}>
+                          {catalogReloading || catalogQuery.isFetching ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <RefreshCw size={14} />}
+                          {t('agents.settings.reloadCatalog')}
+                        </AgentSettingsActionButton>
+                        {catalogReloadedAt && <AgentSettingsInlineNote>{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</AgentSettingsInlineNote>}
+                      </AgentSettingsActionRow>
+                      {catalogReloadError && <AppInlineError>{catalogReloadError}</AppInlineError>}
+                      <AgentSettingsSkillBundlePanel
+                        title={t('agents.settings.installSkillBundle')}
+                        description={t('agents.settings.installSkillBundleHelp')}
+                        fileInputRef={skillBundleFileInputRef}
+                        onFileChange={(file) => void loadSkillBundleFile(file)}
+                        loadFileLabel={t('agents.settings.loadSkillBundleFile')}
+                        onLoadFile={() => skillBundleFileInputRef.current?.click()}
+                        installLabel={t('agents.settings.installSkillBundleAction')}
+                        installIcon={skillBundleInstalling ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
+                        installDisabled={skillBundleInstalling || !skillBundleDraftValidation.bundle}
+                        onInstall={installSkillBundle}
+                        fileLoadedLabel={skillBundleFileName ? t('agents.settings.skillBundleFileLoaded', { fileName: skillBundleFileName }) : undefined}
+                        textValue={skillBundleText}
+                        onTextChange={(value) => {
+                          setSkillBundleText(value)
+                          setSkillBundleInstallError(null)
+                          setSkillBundleInstallResult(null)
+                        }}
+                        placeholder={t('agents.settings.installSkillBundlePlaceholder')}
+                        draftSummary={skillBundleDraftValidation.bundle ? t('agents.settings.skillBundleDraftSummary', {
+                          pluginId: skillBundleDraftValidation.bundle.pluginId,
+                          count: skillBundleDraftValidation.bundle.files.length,
+                          size: formatBytes(skillBundleDraftValidation.totalBytes),
+                        }) : undefined}
+                        draftError={skillBundleDraftValidation.error}
+                        installError={skillBundleInstallError}
+                        installResult={skillBundleInstallResult ? t('agents.settings.installSkillBundleDone', { count: skillBundleInstallResult.installedFiles.length, pluginId: skillBundleInstallResult.pluginId }) : undefined}
+                        installedTitle={t('agents.settings.installedSkillBundles')}
+                        installedPlugins={skillBundlePlugins.map((plugin) => ({
+                          id: plugin.pluginId,
+                          path: plugin.path,
+                          actionLabel: t(skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'agents.settings.uninstallSkillBundleConfirm' : 'agents.settings.uninstallSkillBundleAction'),
+                          actionIcon: skillBundleUninstalling && skillBundleUninstallPluginId === plugin.pluginId ? <AgentSettingsIcon icon={Loader2} size={12} spinning /> : <Trash2 size={12} />,
+                          actionIntent: skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'danger' : 'neutral',
+                          actionVariant: skillBundleUninstallConfirmPluginId === plugin.pluginId ? 'solid' : 'ghost',
+                          disabled: skillBundleUninstalling,
+                          onAction: () => {
+                            if (skillBundleUninstallConfirmPluginId === plugin.pluginId) {
+                              void uninstallSkillBundle(plugin.pluginId)
+                              return
+                            }
+                            setSkillBundleUninstallConfirmPluginId(plugin.pluginId)
+                            setSkillBundleUninstallError(null)
+                          },
+                        }))}
+                        uninstallLabel={t('agents.settings.uninstallSkillBundle')}
+                        uninstallValue={skillBundleUninstallPluginId}
+                        onUninstallValueChange={(value) => {
+                          setSkillBundleUninstallPluginId(value)
                           setSkillBundleUninstallError(null)
-                        },
-                      }))}
-                      uninstallLabel={t('agents.settings.uninstallSkillBundle')}
-                      uninstallValue={skillBundleUninstallPluginId}
-                      onUninstallValueChange={(value) => {
-                        setSkillBundleUninstallPluginId(value)
-                        setSkillBundleUninstallError(null)
-                        setSkillBundleUninstallResult(null)
-                      }}
-                      uninstallPlaceholder={t('agents.settings.uninstallSkillBundlePlaceholder')}
-                      uninstallActionLabel={t('agents.settings.uninstallSkillBundleAction')}
-                      uninstallIcon={skillBundleUninstalling ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Trash2 size={14} />}
-                      uninstallDisabled={skillBundleUninstalling || !skillBundleUninstallPluginIdValue || skillBundleUninstallPluginIdInvalid}
-                      onUninstall={() => void uninstallSkillBundle()}
-                      uninstallHelp={t('agents.settings.uninstallSkillBundleHelp')}
-                      uninstallInputError={!skillBundleUninstallError && skillBundleUninstallPluginIdInvalid ? t('agents.settings.uninstallSkillBundlePluginIdInvalid') : undefined}
-                      uninstallError={skillBundleUninstallError}
-                      uninstallResult={skillBundleUninstallResult
-                        ? skillBundleUninstallResult.removed
-                          ? t('agents.settings.uninstallSkillBundleDone', { pluginId: skillBundleUninstallResult.pluginId })
-                          : t('agents.settings.uninstallSkillBundleMissing', { pluginId: skillBundleUninstallResult.pluginId })
-                        : undefined}
+                          setSkillBundleUninstallResult(null)
+                        }}
+                        uninstallPlaceholder={t('agents.settings.uninstallSkillBundlePlaceholder')}
+                        uninstallActionLabel={t('agents.settings.uninstallSkillBundleAction')}
+                        uninstallIcon={skillBundleUninstalling ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Trash2 size={14} />}
+                        uninstallDisabled={skillBundleUninstalling || !skillBundleUninstallPluginIdValue || skillBundleUninstallPluginIdInvalid}
+                        onUninstall={() => void uninstallSkillBundle()}
+                        uninstallHelp={t('agents.settings.uninstallSkillBundleHelp')}
+                        uninstallInputError={!skillBundleUninstallError && skillBundleUninstallPluginIdInvalid ? t('agents.settings.uninstallSkillBundlePluginIdInvalid') : undefined}
+                        uninstallError={skillBundleUninstallError}
+                        uninstallResult={skillBundleUninstallResult
+                          ? skillBundleUninstallResult.removed
+                            ? t('agents.settings.uninstallSkillBundleDone', { pluginId: skillBundleUninstallResult.pluginId })
+                            : t('agents.settings.uninstallSkillBundleMissing', { pluginId: skillBundleUninstallResult.pluginId })
+                          : undefined}
+                      />
+                    </AgentSettingsStack>
+                    )}
+                    <ManagementLayerOverview
+                      testId="agent-settings-skill-management-map"
+                      title={t('agents.settings.skillManagementMapPanel')}
+                      description={t('agents.settings.skillManagementMapHelp')}
+                      items={skillManagementItems}
+                      value={skillManagementView}
+                      onChange={(view) => selectManagementView('skills', view)}
                     />
 
-                    <AgentSettingsActionRow>
-                      <AgentSettingsActionButton onClick={saveDefaultSkillPolicy} disabled={!hasSkillPolicyChange || skillPolicySaving || skillDrafts.length === 0 || skillPolicyIssues.length > 0}>
-                        {skillPolicySaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
-                        {hasSkillPolicyChange ? t('agents.settings.saveSkillPolicy') : t('agents.settings.skillPolicySaved')}
-                      </AgentSettingsActionButton>
-                      <AgentSettingsActionButton variant="outline" onClick={() => setSkillDrafts(skillPolicyBaseline)} disabled={!hasSkillPolicyChange || skillPolicySaving}>
-                        {t('agents.settings.resetSkillPolicy')}
-                      </AgentSettingsActionButton>
-                      <AgentSettingsInlineNote>{t('agents.settings.skillPolicyEditHelp')}</AgentSettingsInlineNote>
-                    </AgentSettingsActionRow>
-                    {skillPolicySaveError && <AppInlineError>{skillPolicySaveError}</AppInlineError>}
-                    {skillPolicyIssues.length > 0 && (
-                      <AgentSettingsCallout tone="warning" compact>
-                        <AgentSettingsToneText tone="warning">
-                          {t('agents.settings.skillPolicyIssues')}
-                        </AgentSettingsToneText>
-                        <AgentSettingsIssueList
-                          items={skillPolicyIssues.map((issue) => (
-                            issue.type === 'dependency'
-                              ? t('agents.settings.skillPolicyIssueDependency', { skillId: issue.skillId, dependencyId: issue.relatedSkillId })
-                              : t('agents.settings.skillPolicyIssueConflict', { skillId: issue.skillId, conflictId: issue.relatedSkillId })
-                          ))}
-                        />
-                        <AgentSettingsActionButton variant="outline" onClick={() => fixToolPolicyDraftIssues({ audit: true })} data-testid="agent-settings-fix-tool-policy-draft-issues">
-                          {t('agents.settings.fixToolPolicyDraftIssues')}
-                        </AgentSettingsActionButton>
-                      </AgentSettingsCallout>
-                    )}
-
-                    {coreSkills.length > 0 && (
-                      <AgentDataBlock>
-                        <AgentSettingsFieldLabel>{t('agents.settings.coreSkills')}</AgentSettingsFieldLabel>
-                        <AgentSettingsActionRow>
-                          {coreSkills.map((skill) => (
-                            <AgentSettingsBadge key={skill.id}>{skill.name}</AgentSettingsBadge>
-                          ))}
-                        </AgentSettingsActionRow>
+                    {skillManagementView === 'runtime' && (
+                    <AgentSettingsStack data-testid="agent-settings-skill-runtime-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.runtime')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.skillManagementLayerHelp.runtime')}</AgentSettingsFieldHelp>
+                      <AgentSettingsFormGrid columns="five">
+                        <AgentSettingsKeyValue label={t('agents.settings.skillRuntimeFields.baseContext')} value={skillRuntimeStats.baseContext} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillRuntimeFields.triggered')} value={skillRuntimeStats.triggered} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillRuntimeFields.manual')} value={skillRuntimeStats.manual} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillRuntimeFields.excluded')} value={skillRuntimeStats.excluded} />
+                        <AgentSettingsKeyValue label={t('agents.settings.skillRuntimeFields.toolGrants')} value={skillRuntimeStats.toolLinked} />
+                      </AgentSettingsFormGrid>
+                      {coreSkills.length > 0 && (
+                        <AgentDataBlock>
+                          <AgentSettingsFieldLabel>{t('agents.settings.coreSkills')}</AgentSettingsFieldLabel>
+                          <AgentSettingsActionRow>
+                            {coreSkills.map((skill) => (
+                              <AgentSettingsBadge key={skill.id}>{skill.name}</AgentSettingsBadge>
+                            ))}
+                          </AgentSettingsActionRow>
+                        </AgentDataBlock>
+                      )}
+                      <AgentDataBlock data-testid="agent-settings-skill-runtime-list">
+                        <AgentSettingsFieldLabel>{t('agents.settings.skillRuntimeListPanel')}</AgentSettingsFieldLabel>
+                        <AgentSettingsFieldHelp>{t('agents.settings.skillRuntimeListHelp')}</AgentSettingsFieldHelp>
+                        {runtimeSkills.length === 0 ? (
+                          <AgentSettingsStateMessage text={t('agents.settings.noSkills')} />
+                        ) : runtimeSkills.map((skill) => (
+                          <SkillRow
+                            key={skill.id}
+                            skill={skill}
+                            onDraftChange={updateSkillDraft}
+                          />
+                        ))}
                       </AgentDataBlock>
+                    </AgentSettingsStack>
                     )}
 
-                    <AgentSettingsStack>
+                    {skillManagementView === 'policy' && (
+                    <AgentSettingsStack data-testid="agent-settings-skill-policy-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.policy')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.skillManagementLayerHelp.policy')}</AgentSettingsFieldHelp>
+                      <AgentSettingsActionRow>
+                        <AgentSettingsActionButton onClick={saveDefaultSkillPolicy} disabled={!hasSkillPolicyChange || skillPolicySaving || skillDrafts.length === 0 || skillPolicyIssues.length > 0}>
+                          {skillPolicySaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
+                          {hasSkillPolicyChange ? t('agents.settings.saveSkillPolicy') : t('agents.settings.skillPolicySaved')}
+                        </AgentSettingsActionButton>
+                        <AgentSettingsActionButton variant="outline" onClick={() => setSkillDrafts(skillPolicyBaseline)} disabled={!hasSkillPolicyChange || skillPolicySaving}>
+                          {t('agents.settings.resetSkillPolicy')}
+                        </AgentSettingsActionButton>
+                        <AgentSettingsInlineNote>{t('agents.settings.skillPolicyEditHelp')}</AgentSettingsInlineNote>
+                      </AgentSettingsActionRow>
+                      {skillPolicySaveError && <AppInlineError>{skillPolicySaveError}</AppInlineError>}
+                      {skillPolicyIssues.length > 0 && (
+                        <AgentSettingsCallout tone="warning" compact>
+                          <AgentSettingsToneText tone="warning">
+                            {t('agents.settings.skillPolicyIssues')}
+                          </AgentSettingsToneText>
+                          <AgentSettingsIssueList
+                            items={skillPolicyIssues.map((issue) => (
+                              issue.type === 'dependency'
+                                ? t('agents.settings.skillPolicyIssueDependency', { skillId: issue.skillId, dependencyId: issue.relatedSkillId })
+                                : t('agents.settings.skillPolicyIssueConflict', { skillId: issue.skillId, conflictId: issue.relatedSkillId })
+                            ))}
+                          />
+                        </AgentSettingsCallout>
+                      )}
                       {featuredSkills.length === 0 ? (
                         <AgentSettingsStateMessage text={t('agents.settings.noSkills')} />
                       ) : featuredSkills.map((skill) => (
@@ -2040,10 +2214,13 @@ export default function AIAgentSettingsPage() {
                         />
                       ))}
                     </AgentSettingsStack>
+                    )}
                   </AgentSettingsStack>
                 )}
               </AgentSettingsPanel>
+              )}
 
+              {showGeneralSettingsSections && (
               <AgentSettingsPanel icon={Bot} id="agent-settings-profiles" title={t('agents.settings.profilesPanel')}>
                 {catalogQuery.isLoading ? (
                   <AgentSettingsStateMessage icon={<AgentSettingsIcon icon={Loader2} size={16} spinning />} text={t('common.loading')} />
@@ -2110,7 +2287,9 @@ export default function AIAgentSettingsPage() {
                   </AgentSettingsStack>
                 )}
               </AgentSettingsPanel>
+              )}
 
+              {showToolsManagementPanel && (
               <AgentSettingsPanel icon={Bot} id="agent-settings-tools" title={t('agents.settings.toolPolicyPanel')}>
                 {capabilitiesQuery.isLoading ? (
                   <AgentSettingsStateMessage icon={<AgentSettingsIcon icon={Loader2} size={16} spinning />} text={t('common.loading')} />
@@ -2118,93 +2297,156 @@ export default function AIAgentSettingsPage() {
                   <AgentSettingsStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(capabilitiesQuery.error)} />
                 ) : (
                   <AgentSettingsStack>
-                    <AgentSettingsFormGrid columns="four">
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.discovered')} value={toolStats.discovered} />
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.available')} value={toolStats.available} />
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.blocked')} value={toolStats.blocked} />
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.requiresApproval')} value={toolStats.requiresApproval} />
-                    </AgentSettingsFormGrid>
+                    <ManagementLayerSwitch
+                      testId="agent-settings-tool-management-view"
+                      value={toolManagementView}
+                      onChange={(view) => selectManagementView('tools', view)}
+                      ariaLabel={t('agents.settings.managementViewSwitch')}
+                      labels={{
+                        catalog: t('agents.settings.managementLayers.catalog'),
+                        policy: t('agents.settings.managementLayers.policy'),
+                        runtime: t('agents.settings.managementLayers.runtime'),
+                      }}
+                    />
+                    {toolManagementView === 'catalog' && (
+                    <AgentSettingsStack data-testid="agent-settings-tool-catalog-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.catalog')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.toolManagementLayerHelp.catalog')}</AgentSettingsFieldHelp>
+                      <AgentSettingsFormGrid columns="four">
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.discovered')} value={toolStats.discovered} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.available')} value={toolStats.available} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.blocked')} value={toolStats.blocked} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.requiresApproval')} value={toolStats.requiresApproval} />
+                      </AgentSettingsFormGrid>
 
-                    <AgentSettingsFormGrid columns="three">
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.writeRisk')} value={toolStats.writeRisk} />
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.projectScoped')} value={toolStats.projectScoped} />
-                      <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.profileGrants')} value={currentProfile?.toolGrants.length ?? 0} />
-                    </AgentSettingsFormGrid>
-
-                    <AgentSettingsActionRow>
-                      <AgentSettingsActionButton onClick={saveDefaultToolPolicy} disabled={!hasToolPolicyChange || toolPolicySaving || toolGrantDrafts.length === 0 || toolPolicyDraftIssues.length > 0}>
-                        {toolPolicySaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
-                        {hasToolPolicyChange ? t('agents.settings.saveToolPolicy') : t('agents.settings.toolPolicySaved')}
-                      </AgentSettingsActionButton>
-                      <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!hasToolPolicyChange || toolPolicySaving}>
-                        {t('agents.settings.resetToolPolicy')}
-                      </AgentSettingsActionButton>
-                      <AgentSettingsInlineNote>{t('agents.settings.toolPolicyEditHelp')}</AgentSettingsInlineNote>
-                    </AgentSettingsActionRow>
-                    {hasToolPolicyChange && <ToolPolicyDiffPreview items={toolPolicyDiffItems} />}
-                    {toolPolicySaveError && <AppInlineError>{toolPolicySaveError}</AppInlineError>}
-                    {toolPolicyDraftIssues.length > 0 && (
-                      <AgentSettingsCallout data-testid="agent-settings-tool-policy-draft-issues" tone="warning" compact>
-                        <AgentSettingsToneText tone="warning">
-                          {t('agents.settings.toolPolicyDraftIssues')}
-                        </AgentSettingsToneText>
-                        <AgentSettingsIssueList
-                          items={toolPolicyDraftIssues.slice(0, 5).map((issue) => (
-                            `${issue.toolName}: ${t(issue.reasonKey, issue.values)}`
-                          ))}
-                        />
-                      </AgentSettingsCallout>
+                      <AgentSettingsFormGrid columns="three">
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.writeRisk')} value={toolStats.writeRisk} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.projectScoped')} value={toolStats.projectScoped} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.profileGrants')} value={currentProfile?.toolGrants.length ?? 0} />
+                      </AgentSettingsFormGrid>
+                    </AgentSettingsStack>
                     )}
 
-                    <AgentSettingsToolPolicyFilterPanel
-                      searchValue={toolPolicySearch}
-                      onSearchChange={setToolPolicySearch}
-                      searchPlaceholder={t('agents.settings.toolPolicySearchPlaceholder')}
-                      filterValue={toolPolicyFilter}
-                      onFilterChange={(value) => setToolPolicyFilter(value as ToolPolicyFilter)}
-                      filterOptions={TOOL_POLICY_FILTER_OPTIONS.map((filter) => ({
-                        value: filter,
-                        label: t(`agents.settings.toolPolicyFilters.${filter}`),
-                      }))}
-                      summary={t('agents.settings.toolPolicyFilterSummary', {
-                        shown: toolPolicyFilteredTools.length,
-                        total: capabilitiesQuery.data?.resolvedTools.discovered.length ?? 0,
-                      })}
-                    />
-                    <AgentSettingsToolPolicyFilterPresetPanel
-                      title={t('agents.settings.toolPolicyFilterPresets')}
-                      saveLabel={t('agents.settings.saveToolPolicyFilterPreset')}
-                      saveIcon={<Plus size={14} />}
-                      help={t('agents.settings.toolPolicyFilterPresetsHelp')}
-                      emptyLabel={t('agents.settings.toolPolicyFilterPresetsEmpty')}
-                      deleteLabel={t('agents.settings.deleteToolPolicyFilterPreset')}
-                      deleteIcon={<Trash2 size={14} />}
-                      onSave={saveToolPolicyFilterPreset}
-                      presets={agentSettings.toolPolicyFilterPresets.map((preset) => ({
-                        id: preset.id,
-                        name: preset.name,
-                        title: preset.name,
-                        onSelect: () => applyToolPolicyFilterPreset(preset),
-                        onDelete: () => deleteToolPolicyFilterPreset(preset.id),
-                      }))}
-                    />
-                    <AgentSettingsToolPolicyBulkActionPanel
-                      title={t('agents.settings.toolPolicyBulkActions')}
-                      help={t('agents.settings.toolPolicyBulkHelp')}
-                      actions={[
-                        { id: 'allow_available', label: t('agents.settings.toolPolicyBulkAllowAvailable'), onClick: () => applyToolPolicyBulkEdit('allow_available'), disabled: toolPolicyFilteredTools.length === 0 },
-                        { id: 'deny', label: t('agents.settings.toolPolicyBulkDeny'), onClick: () => applyToolPolicyBulkEdit('deny'), disabled: toolPolicyFilteredTools.length === 0 },
-                        { id: 'approval_never', label: t('agents.settings.toolPolicyBulkApprovalNever'), onClick: () => applyToolPolicyBulkEdit('approval_never'), disabled: toolPolicyFilteredTools.length === 0 },
-                        { id: 'approval_on_write', label: t('agents.settings.toolPolicyBulkApprovalOnWrite'), onClick: () => applyToolPolicyBulkEdit('approval_on_write'), disabled: toolPolicyFilteredTools.length === 0 },
-                        { id: 'approval_always', label: t('agents.settings.toolPolicyBulkApprovalAlways'), onClick: () => applyToolPolicyBulkEdit('approval_always'), disabled: toolPolicyFilteredTools.length === 0 },
-                      ]}
+                    <ManagementLayerOverview
+                      testId="agent-settings-tool-management-map"
+                      title={t('agents.settings.toolManagementMapPanel')}
+                      description={t('agents.settings.toolManagementMapHelp')}
+                      items={toolManagementItems}
+                      value={toolManagementView}
+                      onChange={(view) => selectManagementView('tools', view)}
                     />
 
-                    {toolPolicyFilteredTools.length === 0 ? (
-                      <AgentSettingsStateMessage text={t('agents.settings.noTools')} />
-                    ) : (
-                      <AgentSettingsStack>
-                        {toolPolicyFilteredTools.map((tool) => (
+                    {toolManagementView === 'runtime' && (
+                    <AgentSettingsStack data-testid="agent-settings-tool-runtime-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.runtime')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.toolManagementLayerHelp.runtime')}</AgentSettingsFieldHelp>
+                      <AgentSettingsFormGrid columns="three">
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.readOnly')} value={toolStats.readOnly} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.concurrencySafe')} value={toolStats.concurrencySafe} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.destructive')} value={toolStats.destructive} />
+                      </AgentSettingsFormGrid>
+                      <AgentSettingsFormGrid columns="three">
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.runtimeAllow')} value={toolStats.runtimeAllowed} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.runtimeDeny')} value={toolStats.runtimeDenied} />
+                        <AgentSettingsKeyValue label={t('agents.settings.toolPolicyFields.runtimeNone')} value={toolStats.runtimeNotGranted} />
+                      </AgentSettingsFormGrid>
+                      <AgentDataBlock data-testid="agent-settings-tool-runtime-list">
+                        <AgentSettingsFieldLabel>{t('agents.settings.toolRuntimeListPanel')}</AgentSettingsFieldLabel>
+                        <AgentSettingsFieldHelp>{t('agents.settings.toolRuntimeListHelp')}</AgentSettingsFieldHelp>
+                        {runtimeTools.length === 0 ? (
+                          <AgentSettingsStateMessage text={t('agents.settings.noTools')} />
+                        ) : runtimeTools.map((tool) => (
+                          <ToolPolicyRow
+                            key={tool.name}
+                            tool={tool}
+                            profileGranted={currentToolGrants.has(tool.name)}
+                            onDraftChange={updateToolGrantDraft}
+                          />
+                        ))}
+                      </AgentDataBlock>
+                    </AgentSettingsStack>
+                    )}
+
+                    {toolManagementView === 'policy' && (
+                    <AgentSettingsStack data-testid="agent-settings-tool-policy-section">
+                      <AgentSettingsFieldLabel>{t('agents.settings.managementLayers.policy')}</AgentSettingsFieldLabel>
+                      <AgentSettingsFieldHelp>{t('agents.settings.toolManagementLayerHelp.policy')}</AgentSettingsFieldHelp>
+                      <AgentSettingsActionRow>
+                        <AgentSettingsActionButton onClick={saveDefaultToolPolicy} disabled={!hasToolPolicyChange || toolPolicySaving || toolGrantDrafts.length === 0 || toolPolicyDraftIssues.length > 0}>
+                          {toolPolicySaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
+                          {hasToolPolicyChange ? t('agents.settings.saveToolPolicy') : t('agents.settings.toolPolicySaved')}
+                        </AgentSettingsActionButton>
+                        <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!hasToolPolicyChange || toolPolicySaving}>
+                          {t('agents.settings.resetToolPolicy')}
+                        </AgentSettingsActionButton>
+                        <AgentSettingsInlineNote>{t('agents.settings.toolPolicyEditHelp')}</AgentSettingsInlineNote>
+                      </AgentSettingsActionRow>
+                      {hasToolPolicyChange && <ToolPolicyDiffPreview items={toolPolicyDiffItems} />}
+                      {toolPolicySaveError && <AppInlineError>{toolPolicySaveError}</AppInlineError>}
+                      {toolPolicyDraftIssues.length > 0 && (
+                        <AgentSettingsCallout data-testid="agent-settings-tool-policy-draft-issues" tone="warning" compact>
+                          <AgentSettingsToneText tone="warning">
+                            {t('agents.settings.toolPolicyDraftIssues')}
+                          </AgentSettingsToneText>
+                          <AgentSettingsIssueList
+                            items={toolPolicyDraftIssues.slice(0, 5).map((issue) => (
+                              `${issue.toolName}: ${t(issue.reasonKey, issue.values)}`
+                            ))}
+                          />
+                          <AgentSettingsActionButton variant="outline" onClick={() => fixToolPolicyDraftIssues({ audit: true })} data-testid="agent-settings-fix-tool-policy-draft-issues">
+                            {t('agents.settings.fixToolPolicyDraftIssues')}
+                          </AgentSettingsActionButton>
+                        </AgentSettingsCallout>
+                      )}
+
+                      <AgentSettingsToolPolicyFilterPanel
+                        searchValue={toolPolicySearch}
+                        onSearchChange={setToolPolicySearch}
+                        searchPlaceholder={t('agents.settings.toolPolicySearchPlaceholder')}
+                        filterValue={toolPolicyFilter}
+                        onFilterChange={(value) => setToolPolicyFilter(value as ToolPolicyFilter)}
+                        filterOptions={TOOL_POLICY_FILTER_OPTIONS.map((filter) => ({
+                          value: filter,
+                          label: t(`agents.settings.toolPolicyFilters.${filter}`),
+                        }))}
+                        summary={t('agents.settings.toolPolicyFilterSummary', {
+                          shown: toolPolicyFilteredTools.length,
+                          total: capabilitiesQuery.data?.resolvedTools.discovered.length ?? 0,
+                        })}
+                      />
+                      <AgentSettingsToolPolicyFilterPresetPanel
+                        title={t('agents.settings.toolPolicyFilterPresets')}
+                        saveLabel={t('agents.settings.saveToolPolicyFilterPreset')}
+                        saveIcon={<Plus size={14} />}
+                        help={t('agents.settings.toolPolicyFilterPresetsHelp')}
+                        emptyLabel={t('agents.settings.toolPolicyFilterPresetsEmpty')}
+                        deleteLabel={t('agents.settings.deleteToolPolicyFilterPreset')}
+                        deleteIcon={<Trash2 size={14} />}
+                        onSave={saveToolPolicyFilterPreset}
+                        presets={agentSettings.toolPolicyFilterPresets.map((preset) => ({
+                          id: preset.id,
+                          name: preset.name,
+                          title: preset.name,
+                          onSelect: () => applyToolPolicyFilterPreset(preset),
+                          onDelete: () => deleteToolPolicyFilterPreset(preset.id),
+                        }))}
+                      />
+                      <AgentSettingsToolPolicyBulkActionPanel
+                        title={t('agents.settings.toolPolicyBulkActions')}
+                        help={t('agents.settings.toolPolicyBulkHelp')}
+                        actions={[
+                          { id: 'allow_available', label: t('agents.settings.toolPolicyBulkAllowAvailable'), onClick: () => applyToolPolicyBulkEdit('allow_available'), disabled: toolPolicyFilteredTools.length === 0 },
+                          { id: 'deny', label: t('agents.settings.toolPolicyBulkDeny'), onClick: () => applyToolPolicyBulkEdit('deny'), disabled: toolPolicyFilteredTools.length === 0 },
+                          { id: 'approval_never', label: t('agents.settings.toolPolicyBulkApprovalNever'), onClick: () => applyToolPolicyBulkEdit('approval_never'), disabled: toolPolicyFilteredTools.length === 0 },
+                          { id: 'approval_on_write', label: t('agents.settings.toolPolicyBulkApprovalOnWrite'), onClick: () => applyToolPolicyBulkEdit('approval_on_write'), disabled: toolPolicyFilteredTools.length === 0 },
+                          { id: 'approval_always', label: t('agents.settings.toolPolicyBulkApprovalAlways'), onClick: () => applyToolPolicyBulkEdit('approval_always'), disabled: toolPolicyFilteredTools.length === 0 },
+                        ]}
+                      />
+
+                      {toolPolicyFilteredTools.length === 0 ? (
+                        <AgentSettingsStateMessage text={t('agents.settings.noTools')} />
+                      ) : (
+                        toolPolicyFilteredTools.map((tool) => (
                           <ToolPolicyRow
                             key={tool.name}
                             tool={tool}
@@ -2212,17 +2454,19 @@ export default function AIAgentSettingsPage() {
                             profileGranted={currentToolGrants.has(tool.name)}
                             onDraftChange={updateToolGrantDraft}
                           />
-                        ))}
-                      </AgentSettingsStack>
+                        ))
+                      )}
+                    </AgentSettingsStack>
                     )}
                   </AgentSettingsStack>
                 )}
               </AgentSettingsPanel>
+              )}
             </AgentSettingsMain>
 
             <AgentSettingsSidebar>
               <AgentSettingsPanel icon={Bot} title={t('agents.settings.configurationMapPanel')}>
-                <ConfigurationMapPanel onJump={scrollToSettingsSection} />
+                <ConfigurationMapPanel onJump={scrollToSettingsSection} onLayerJump={selectManagementView} />
               </AgentSettingsPanel>
 
               <AgentSettingsPanel icon={Bot} title={t('agents.settings.currentRuntime')}>
@@ -2245,6 +2489,8 @@ export default function AIAgentSettingsPage() {
                 <SettingsReadinessPanel items={readinessItems} />
               </AgentSettingsPanel>
 
+              {showGeneralSettingsSections && (
+              <>
               <AgentSettingsPanel icon={Bot} title={t('agents.settings.settingsAuditPanel')}>
                 <SettingsAuditTrailPanel entries={agentSettings.auditTrail} onClear={clearSettingsAudit} />
               </AgentSettingsPanel>
@@ -2390,6 +2636,8 @@ export default function AIAgentSettingsPage() {
                   <AgentSettingsFieldHelp>{t('agents.settings.providerModelPanelHelp')}</AgentSettingsFieldHelp>
                 </AgentSettingsPanel>
               )}
+              </>
+              )}
             </AgentSettingsSidebar>
           </AgentSettingsLayout>
         )}
@@ -2398,17 +2646,121 @@ export default function AIAgentSettingsPage() {
   )
 }
 
+function parseAgentManagementArea(value?: string): AgentManagementArea | null {
+  if (!value) return null
+  const decoded = safeDecodeRouteParam(value)
+  return AGENT_MANAGEMENT_AREAS.includes(decoded as AgentManagementArea) ? decoded as AgentManagementArea : null
+}
+
+function parseAgentManagementView(value?: string): AgentManagementView | null {
+  if (!value) return null
+  const decoded = safeDecodeRouteParam(value)
+  return AGENT_MANAGEMENT_VIEWS.includes(decoded as AgentManagementView) ? decoded as AgentManagementView : null
+}
+
+function safeDecodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 function currentAgentProfileId(inspect?: AgentInspectResponse): string {
   const raw = inspect?.defaultAgentManifest.metadata?.profileId
   return typeof raw === 'string' && raw.trim() ? raw.trim() : 'movscript.profile.default'
+}
+
+function ManagementLayerSwitch({
+  testId,
+  value,
+  onChange,
+  ariaLabel,
+  labels,
+}: {
+  testId: string
+  value: AgentManagementView
+  onChange: (value: AgentManagementView) => void
+  ariaLabel: string
+  labels: Record<AgentManagementView, string>
+}) {
+  return (
+    <AgentSettingsActionRow data-testid={testId} role="tablist" aria-label={ariaLabel}>
+      {AGENT_MANAGEMENT_VIEWS.map((view) => (
+        <AgentSettingsActionButton
+          key={view}
+          role="tab"
+          aria-selected={value === view}
+          aria-pressed={value === view}
+          variant={value === view ? 'soft' : 'outline'}
+          data-testid={`${testId}-${view}`}
+          onClick={() => onChange(view)}
+        >
+          {labels[view]}
+        </AgentSettingsActionButton>
+      ))}
+    </AgentSettingsActionRow>
+  )
+}
+
+function ManagementLayerOverview({
+  testId,
+  title,
+  description,
+  items,
+  value,
+  onChange,
+}: {
+  testId: string
+  title: string
+  description: string
+  items: ManagementLayerOverviewItem[]
+  value: AgentManagementView
+  onChange: (value: AgentManagementView) => void
+}) {
+  const orderedItems = AGENT_MANAGEMENT_VIEWS
+    .map((view) => items.find((item) => item.id === view))
+    .filter((item): item is ManagementLayerOverviewItem => Boolean(item))
+  return (
+    <AgentDataBlock data-testid={testId} className="agent-settings-management-layer-overview">
+      <span className="agent-settings-item-title">{title}</span>
+      <span className="agent-settings-item-detail">{description}</span>
+      <div className="agent-settings-management-layer-grid">
+        {orderedItems.map((item) => {
+          const layer = item.id as AgentManagementView
+          const active = value === layer
+          return (
+            <AgentSettingsActionButton
+              key={item.id}
+              variant={active ? 'soft' : 'outline'}
+              className="agent-settings-management-layer-card"
+              data-active={active ? 'true' : 'false'}
+              data-testid={`${testId}-${item.id}`}
+              onClick={() => onChange(layer)}
+            >
+              <span className="agent-settings-item-body">
+                <span className="agent-settings-subitem-title">{item.label}</span>
+                <span className="agent-settings-subitem-detail">{item.detail}</span>
+              </span>
+              <AgentSettingsStatusBadge {...item.statusProps}>
+                {item.statusLabel}
+              </AgentSettingsStatusBadge>
+            </AgentSettingsActionButton>
+          )
+        })}
+      </div>
+    </AgentDataBlock>
+  )
 }
 
 function buildSkillStats(skills: AgentCatalogSkill[]) {
   return {
     installed: skills.length,
     enabled: skills.filter((skill) => skill.enabled !== false).length,
+    disabled: skills.filter((skill) => skill.enabled === false).length,
     core: skills.filter((skill) => skill.loadMode === 'core').length,
     onDemand: skills.filter((skill) => skill.loadMode === 'on_demand' || !skill.loadMode).length,
+    manual: skills.filter((skill) => skill.loadMode === 'manual').length,
   }
 }
 
@@ -2420,6 +2772,73 @@ function buildSkillGovernanceStats(skills: AgentCatalogSkill[]) {
     local: skills.filter((skill) => skillSourceKind(skill) === 'local').length,
     review: skills.filter((skill) => skillTrustLevel(skill) === 'review').length,
   }
+}
+
+function buildSkillRuntimeStats(skills: AgentCatalogSkill[]) {
+  return {
+    profileEnabled: skills.filter((skill) => skill.runtime?.profileEnabled).length,
+    baseContext: skills.filter((skill) => skill.runtime?.contextBehavior === 'base_context').length,
+    triggered: skills.filter((skill) => skill.runtime?.defaultActivation === 'triggered').length,
+    manual: skills.filter((skill) => skill.runtime?.defaultActivation === 'manual').length,
+    excluded: skills.filter((skill) => skill.runtime?.contextBehavior === 'excluded').length,
+    toolLinked: skills.filter((skill) => (skill.runtime?.toolGrantNames.length ?? 0) > 0).length,
+  }
+}
+
+function buildSkillManagementItems(input: {
+  stats: ReturnType<typeof buildSkillStats>
+  governance: ReturnType<typeof buildSkillGovernanceStats>
+  runtime: ReturnType<typeof buildSkillRuntimeStats>
+  policyIssues: SkillPolicyIssue[]
+  hasPolicyChange: boolean
+  t: ReturnType<typeof useTranslation>['t']
+}) {
+  const runtimeWarning = input.governance.review > 0 || input.stats.manual > 0
+  return [
+    {
+      id: 'catalog',
+      label: input.t('agents.settings.managementLayers.catalog'),
+      detail: input.t('agents.settings.skillManagementDetails.catalog', {
+        installed: input.stats.installed,
+        core: input.stats.core,
+        onDemand: input.stats.onDemand,
+        manual: input.stats.manual,
+        plugin: input.governance.plugin,
+      }),
+      statusProps: agentSettingsStatusRecipe(input.stats.installed > 0 ? 'ready' : 'action'),
+      statusLabel: input.t(input.stats.installed > 0 ? 'agents.settings.managementStatus.ready' : 'agents.settings.managementStatus.action'),
+    },
+    {
+      id: 'policy',
+      label: input.t('agents.settings.managementLayers.policy'),
+      detail: input.t('agents.settings.skillManagementDetails.policy', {
+        enabled: input.stats.enabled,
+        disabled: input.stats.disabled,
+        profileEnabled: input.runtime.profileEnabled,
+        issues: input.policyIssues.length,
+      }),
+      statusProps: agentSettingsStatusRecipe(input.policyIssues.length > 0 ? 'action' : input.hasPolicyChange ? 'warning' : 'ready'),
+      statusLabel: input.t(input.policyIssues.length > 0
+        ? 'agents.settings.managementStatus.action'
+        : input.hasPolicyChange
+          ? 'agents.settings.managementStatus.unsaved'
+          : 'agents.settings.managementStatus.ready'),
+    },
+    {
+      id: 'runtime',
+      label: input.t('agents.settings.managementLayers.runtime'),
+      detail: input.t('agents.settings.skillManagementDetails.runtime', {
+        baseContext: input.runtime.baseContext,
+        triggered: input.runtime.triggered,
+        manual: input.runtime.manual,
+        excluded: input.runtime.excluded,
+        toolLinked: input.runtime.toolLinked,
+        review: input.governance.review,
+      }),
+      statusProps: agentSettingsStatusRecipe(runtimeWarning ? 'warning' : 'ready'),
+      statusLabel: input.t(runtimeWarning ? 'agents.settings.managementStatus.review' : 'agents.settings.managementStatus.ready'),
+    },
+  ]
 }
 
 function buildModelRouteIssues(input: { useForChat: boolean; useForPlanner: boolean }): string[] {
@@ -2975,6 +3394,15 @@ function skillLoadRank(skill: AgentCatalogSkill): number {
   return 2
 }
 
+function skillRuntimeRank(skill: AgentCatalogSkill): number {
+  if (skill.runtime?.contextBehavior === 'base_context') return 0
+  if (skill.runtime?.defaultActivation === 'always') return 1
+  if (skill.runtime?.defaultActivation === 'triggered') return 2
+  if ((skill.runtime?.toolGrantNames.length ?? 0) > 0) return 3
+  if (skill.runtime?.contextBehavior === 'excluded' || skill.runtime?.defaultActivation === 'disabled') return 5
+  return 4
+}
+
 function buildSkillPolicyDrafts(skills: AgentCatalogSkill[]): SkillPolicyDraft[] {
   return skills.map((skill) => ({ id: skill.id, enabled: skill.enabled !== false }))
 }
@@ -3094,11 +3522,84 @@ function buildToolStats(tools?: AgentCapabilitiesResponse['resolvedTools']) {
     discovered: discovered.length,
     available: tools?.available.length ?? 0,
     blocked: tools?.blocked.length ?? 0,
-    requiresApproval: discovered.filter((tool) => tool.requiresApproval).length,
+    requiresApproval: discovered.filter((tool) => tool.runtime?.approvalRequired ?? tool.requiresApproval).length,
     writeRisk: discovered.filter((tool) => writeRisks.has(tool.risk)).length,
     availableWriteRisk: (tools?.available ?? []).filter((tool) => writeRisks.has(tool.risk)).length,
     projectScoped: discovered.filter((tool) => tool.projectScoped).length,
+    readOnly: discovered.filter((tool) => (tool.runtime?.execution ?? tool.execution)?.readOnly).length,
+    concurrencySafe: discovered.filter((tool) => (tool.runtime?.execution ?? tool.execution)?.concurrencySafe).length,
+    destructive: discovered.filter((tool) => (tool.runtime?.execution ?? tool.execution)?.destructive).length,
+    runtimeAllowed: discovered.filter((tool) => tool.runtime?.grantMode === 'allow').length,
+    runtimeDenied: discovered.filter((tool) => tool.runtime?.grantMode === 'deny').length,
+    runtimeNotGranted: discovered.filter((tool) => tool.runtime?.grantMode === 'none').length,
+    runtime: discovered.filter((tool) => tool.source === 'runtime').length,
+    plugin: discovered.filter((tool) => tool.source === 'plugin').length,
+    mcp: discovered.filter((tool) => tool.source === 'mcp').length,
   }
+}
+
+function buildToolManagementItems(input: {
+  stats: ReturnType<typeof buildToolStats>
+  profile: AgentCatalogProfile | null
+  draftIssues: ToolPolicyDraftIssue[]
+  hasPolicyChange: boolean
+  t: ReturnType<typeof useTranslation>['t']
+}) {
+  const grants = input.profile?.toolGrants ?? []
+  const allow = grants.filter((grant) => grant.mode === 'allow').length
+  const deny = grants.filter((grant) => grant.mode === 'deny').length
+  const runtimeWarning = input.stats.blocked > 0 || input.stats.destructive > 0 || input.stats.availableWriteRisk > 0
+  return [
+    {
+      id: 'catalog',
+      label: input.t('agents.settings.managementLayers.catalog'),
+      detail: input.t('agents.settings.toolManagementDetails.catalog', {
+        discovered: input.stats.discovered,
+        runtime: input.stats.runtime,
+        plugin: input.stats.plugin,
+        mcp: input.stats.mcp,
+      }),
+      statusProps: agentSettingsStatusRecipe(input.stats.discovered > 0 ? 'ready' : 'action'),
+      statusLabel: input.t(input.stats.discovered > 0 ? 'agents.settings.managementStatus.ready' : 'agents.settings.managementStatus.action'),
+    },
+    {
+      id: 'policy',
+      label: input.t('agents.settings.managementLayers.policy'),
+      detail: input.t('agents.settings.toolManagementDetails.policy', {
+        grants: grants.length,
+        allow,
+        deny,
+        runtimeAllow: input.stats.runtimeAllowed,
+        runtimeDeny: input.stats.runtimeDenied,
+        runtimeNone: input.stats.runtimeNotGranted,
+        issues: input.draftIssues.length,
+      }),
+      statusProps: agentSettingsStatusRecipe(input.draftIssues.length > 0 ? 'action' : input.hasPolicyChange ? 'warning' : 'ready'),
+      statusLabel: input.t(input.draftIssues.length > 0
+        ? 'agents.settings.managementStatus.action'
+        : input.hasPolicyChange
+          ? 'agents.settings.managementStatus.unsaved'
+          : 'agents.settings.managementStatus.ready'),
+    },
+    {
+      id: 'runtime',
+      label: input.t('agents.settings.managementLayers.runtime'),
+      detail: input.t('agents.settings.toolManagementDetails.runtime', {
+        available: input.stats.available,
+        blocked: input.stats.blocked,
+        approval: input.stats.requiresApproval,
+        writeRisk: input.stats.availableWriteRisk,
+        readOnly: input.stats.readOnly,
+        concurrencySafe: input.stats.concurrencySafe,
+      }),
+      statusProps: agentSettingsStatusRecipe(runtimeWarning ? 'warning' : input.stats.available > 0 ? 'ready' : 'action'),
+      statusLabel: input.t(runtimeWarning
+        ? 'agents.settings.managementStatus.review'
+        : input.stats.available > 0
+          ? 'agents.settings.managementStatus.ready'
+          : 'agents.settings.managementStatus.action'),
+    },
+  ]
 }
 
 function buildToolGrantDrafts(profile: AgentCatalogProfile | null, manifest?: AgentInspectResponse['defaultAgentManifest']): ToolGrantDraft[] {
@@ -3269,6 +3770,15 @@ function toolPolicyRank(tool: AgentDebugTool): number {
   return 4
 }
 
+function toolRuntimeRank(tool: AgentDebugTool): number {
+  if (!tool.available) return 0
+  if (tool.runtime?.approvalRequired ?? tool.requiresApproval) return 1
+  if ((tool.runtime?.execution ?? tool.execution)?.destructive) return 2
+  if (tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'ui') return 3
+  if ((tool.runtime?.execution ?? tool.execution)?.readOnly) return 5
+  return 4
+}
+
 function toolPolicyFilterMatches(tool: AgentDebugTool, filter: ToolPolicyFilter, currentToolGrants: Set<string>): boolean {
   if (filter === 'available') return tool.available
   if (filter === 'blocked') return !tool.available
@@ -3301,13 +3811,6 @@ function apiKindBaseURLPlaceholder(apiKind: RuntimeModelAPIKind): string {
   if (apiKind === 'openai_responses') return `${getAPIBaseURL()}/v1`
   if (apiKind === 'anthropic_messages') return `${getAPIBaseURL()}/v1`
   return `${getAPIBaseURL()}/v1`
-}
-
-function apiKindModelPlaceholder(apiKind: RuntimeModelAPIKind): string {
-  if (apiKind === 'anthropic_messages') return 'claude-sonnet-4-5'
-  if (apiKind === 'openai_chat_completions') return 'gpt-4.1'
-  if (apiKind === 'openai_responses') return 'gpt-5.1'
-  return 'model_config:1'
 }
 
 function isValidHTTPURL(value: string): boolean {
@@ -3783,8 +4286,18 @@ function settingsSectionLabelKey(sectionId: SettingsActionItem['targetSection'])
   return SETTINGS_NAV_SECTIONS.find((section) => section.id === sectionId)?.labelKey ?? 'agents.settings.title'
 }
 
-function ConfigurationMapPanel({ onJump }: { onJump: (sectionId: string) => void }) {
+function ConfigurationMapPanel({
+  onJump,
+  onLayerJump,
+}: {
+  onJump: (sectionId: string) => void
+  onLayerJump: (area: AgentManagementArea, view: AgentManagementView) => void
+}) {
   const { t } = useTranslation()
+  const managementAreas: Array<{ id: AgentManagementArea; labelKey: string }> = [
+    { id: 'skills', labelKey: 'agents.settings.skillsPanel' },
+    { id: 'tools', labelKey: 'agents.settings.toolPolicyPanel' },
+  ]
   return (
     <AgentSettingsNavigationList>
       {SETTINGS_NAV_SECTIONS.map((section) => (
@@ -3795,6 +4308,30 @@ function ConfigurationMapPanel({ onJump }: { onJump: (sectionId: string) => void
           onClick={() => onJump(section.id)}
         />
       ))}
+      <AgentDataBlock data-testid="agent-settings-management-shortcuts">
+        <AgentSettingsFieldLabel>{t('agents.settings.managementShortcutsPanel')}</AgentSettingsFieldLabel>
+        <AgentSettingsFieldHelp>{t('agents.settings.managementShortcutsHelp')}</AgentSettingsFieldHelp>
+        <AgentSettingsStack>
+          {managementAreas.map((area) => (
+            <div key={area.id} data-testid={`agent-settings-management-shortcuts-${area.id}`}>
+              <AgentSettingsItemTitle>{t(area.labelKey)}</AgentSettingsItemTitle>
+              <AgentSettingsActionRow>
+                {AGENT_MANAGEMENT_VIEWS.map((view) => (
+                  <AgentSettingsActionButton
+                    key={`${area.id}:${view}`}
+                    size="xs"
+                    variant="outline"
+                    data-testid={`agent-settings-management-shortcut-${area.id}-${view}`}
+                    onClick={() => onLayerJump(area.id, view)}
+                  >
+                    {t(`agents.settings.managementLayers.${view}`)}
+                  </AgentSettingsActionButton>
+                ))}
+              </AgentSettingsActionRow>
+            </div>
+          ))}
+        </AgentSettingsStack>
+      </AgentDataBlock>
     </AgentSettingsNavigationList>
   )
 }
@@ -3845,8 +4382,14 @@ function skillMetaItems(
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   return [
+    ...(skill.runtime ? [
+      { id: 'runtimeActivation', label: `${t('agents.settings.skillRuntimeFields.activation')}: ${t(`agents.settings.skillRuntimeActivation.${skill.runtime.defaultActivation}`)}` },
+      { id: 'runtimeContext', label: `${t('agents.settings.skillRuntimeFields.context')}: ${t(`agents.settings.skillRuntimeContext.${skill.runtime.contextBehavior}`)}` },
+      { id: 'profileRole', label: `${t('agents.settings.skillRuntimeFields.profileRole')}: ${t(`agents.settings.skillRuntimeProfileRoles.${skill.runtime.profileRole}`)}` },
+    ] : []),
     ...(dependencyCount > 0 ? [{ id: 'dependencies', label: `${t('agents.settings.skillFields.dependencies')}: ${dependencyCount}` }] : []),
     ...(conflictCount > 0 ? [{ id: 'conflicts', label: `${t('agents.settings.skillFields.conflicts')}: ${conflictCount}` }] : []),
+    ...((skill.runtime?.toolGrantNames.length ?? 0) > 0 ? [{ id: 'toolGrants', label: `${t('agents.settings.skillRuntimeFields.toolGrants')}: ${skill.runtime!.toolGrantNames.length}` }] : []),
     ...(skill.tags?.slice(0, 4).map((tag) => ({ id: `tag:${tag}`, label: tag })) ?? []),
   ]
 }
@@ -4016,6 +4559,7 @@ function toolPolicyMetaItems(
   tool: AgentDebugTool,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
+  const execution = tool.runtime?.execution ?? tool.execution
   return [
     {
       id: 'registered',
@@ -4025,8 +4569,28 @@ function toolPolicyMetaItems(
       id: 'granted',
       label: `${t('agents.settings.toolPolicyFields.granted')}: ${tool.granted ? t('agents.settings.toolPolicyValues.yes') : t('agents.settings.toolPolicyValues.no')}`,
     },
+    ...(tool.runtime ? [{
+      id: 'grantMode',
+      label: `${t('agents.settings.toolPolicyFields.grantMode')}: ${t(`agents.settings.toolPolicyModes.${tool.runtime.grantMode === 'none' ? 'none' : tool.runtime.grantMode}`)}`,
+    }] : []),
+    ...(tool.runtime ? [{
+      id: 'approvalReason',
+      label: `${t('agents.settings.toolPolicyFields.approvalReason')}: ${t(`agents.settings.toolApprovalReasons.${tool.runtime.approvalReason}`)}`,
+    }] : []),
     ...(tool.projectScoped ? [{ id: 'projectScoped', label: t('agents.settings.toolPolicyFields.projectScoped') }] : []),
+    ...(execution?.readOnly ? [{ id: 'readOnly', label: t('agents.settings.toolPolicyFields.readOnly') }] : []),
+    ...(execution?.concurrencySafe ? [{ id: 'concurrencySafe', label: t('agents.settings.toolPolicyFields.concurrencySafe') }] : []),
+    ...(execution?.destructive ? [{ id: 'destructive', label: t('agents.settings.toolPolicyFields.destructive'), tone: 'warning' as const }] : []),
+    ...(execution?.interruptBehavior ? [{
+      id: 'interruptBehavior',
+      label: `${t('agents.settings.toolPolicyFields.interruptBehavior')}: ${t(`agents.settings.toolInterruptBehaviors.${execution.interruptBehavior}`)}`,
+    }] : []),
+    ...(execution?.resultRefStrategy ? [{
+      id: 'resultRefStrategy',
+      label: `${t('agents.settings.toolPolicyFields.resultRefStrategy')}: ${t(`agents.settings.toolResultRefStrategies.${execution.resultRefStrategy}`)}`,
+    }] : []),
     ...(tool.unavailableReason ? [{ id: 'unavailableReason', label: tool.unavailableReason, tone: 'warning' as const }] : []),
+    ...(tool.runtime?.reason ? [{ id: 'runtimeReason', label: `${t('agents.settings.toolPolicyFields.runtimeReason')}: ${tool.runtime.reason}` }] : []),
   ]
 }
 

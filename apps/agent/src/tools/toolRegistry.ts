@@ -10,6 +10,18 @@ export interface ToolDefaults {
   timeoutMs?: number
 }
 
+export type ToolInterruptBehavior = 'cancel' | 'block'
+export type ToolResultRefStrategy = 'inline' | 'summary_ref' | 'auto'
+
+export interface ToolExecutionMetadata {
+  readOnly: boolean
+  destructive: boolean
+  concurrencySafe: boolean
+  interruptBehavior: ToolInterruptBehavior
+  maxResultSizeChars?: number
+  resultRefStrategy?: ToolResultRefStrategy
+}
+
 export interface RegisteredTool {
   name: string
   description: string
@@ -23,6 +35,7 @@ export interface RegisteredTool {
   projectScoped: boolean
   requiresApprovalByDefault: boolean
   defaults?: ToolDefaults
+  execution?: ToolExecutionMetadata
   capability?: string
   pluginId?: string
   mcpServerId?: string
@@ -79,6 +92,7 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
     ...(normalizeToolDefaults(input.defaults) ? { defaults: normalizeToolDefaults(input.defaults) } : {}),
+    execution: normalizeToolExecutionMetadata(input.execution, risk),
     ...(nonEmptyString(input.capability) ? { capability: nonEmptyString(input.capability) } : {}),
     ...(nonEmptyString(input.pluginId) ? { pluginId: nonEmptyString(input.pluginId) } : {}),
     ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
@@ -196,4 +210,37 @@ function normalizeToolDefaults(value: unknown): ToolDefaults | undefined {
     approval,
     ...(typeof value.timeoutMs === 'number' && Number.isFinite(value.timeoutMs) ? { timeoutMs: value.timeoutMs } : {}),
   }
+}
+
+export function normalizeToolExecutionMetadata(value: unknown, risk: ToolRiskLevel): ToolExecutionMetadata {
+  const defaults = defaultToolExecutionMetadata(risk)
+  if (!isRecord(value)) return defaults
+  return {
+    readOnly: typeof value.readOnly === 'boolean' ? value.readOnly : defaults.readOnly,
+    destructive: typeof value.destructive === 'boolean' ? value.destructive : defaults.destructive,
+    concurrencySafe: typeof value.concurrencySafe === 'boolean' ? value.concurrencySafe : defaults.concurrencySafe,
+    interruptBehavior: value.interruptBehavior === 'block' || value.interruptBehavior === 'cancel'
+      ? value.interruptBehavior
+      : defaults.interruptBehavior,
+    ...(positiveFiniteNumber(value.maxResultSizeChars) ? { maxResultSizeChars: positiveFiniteNumber(value.maxResultSizeChars) } : {}),
+    ...(value.resultRefStrategy === 'inline' || value.resultRefStrategy === 'summary_ref' || value.resultRefStrategy === 'auto'
+      ? { resultRefStrategy: value.resultRefStrategy }
+      : {}),
+  }
+}
+
+function defaultToolExecutionMetadata(risk: ToolRiskLevel): ToolExecutionMetadata {
+  const readOnly = risk === 'read'
+  const destructive = risk === 'destructive'
+  return {
+    readOnly,
+    destructive,
+    concurrencySafe: readOnly,
+    interruptBehavior: readOnly ? 'cancel' : 'block',
+    resultRefStrategy: 'auto',
+  }
+}
+
+function positiveFiniteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }

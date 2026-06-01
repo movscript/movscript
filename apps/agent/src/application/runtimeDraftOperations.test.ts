@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { isRecord } from '../jsonValue.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
-import { BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import {
   applyRuntimeDraftFromUI,
   createRuntimeLocalDraft,
@@ -12,8 +11,12 @@ import {
   rejectRuntimeDraft,
   simulateRuntimeDraftApply,
   updateRuntimeDraft,
-  type RuntimeDraftBackendApplyClient,
 } from './runtimeDraftOperations.js'
+import type {
+  RuntimeDraftBackendApplyPort,
+  RuntimeDraftBackendApplyPreviewResult,
+  RuntimeDraftBackendApplyResult,
+} from '../ports/draft/runtimeDraftBackendApplyPort.js'
 
 test('runtime draft CRUD helpers normalize inputs and preview draft apply', () => {
   const draftStore = new InMemoryAgentDraftStore()
@@ -59,11 +62,11 @@ test('simulateRuntimeDraftApply returns local validation failures before backend
     content: '',
     target: { entityType: 'script', entityId: 1, field: 'content' },
   })
-  const backend = fakeBackendApplyClient()
+  const backend = fakeBackendApplyPort()
 
   const result = await simulateRuntimeDraftApply({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string }
 
@@ -85,19 +88,23 @@ test('simulateRuntimeDraftApply projects backend preview errors without throwing
     }),
     target: { entityType: 'script', entityId: 1, field: 'content' },
   })
-  const backend = fakeBackendApplyClient({
-    previewError: new BackendApplyHTTPError('failed', {
-      method: 'POST',
-      path: '/projects/1/entities/production-proposals/apply-preview',
-      status: 422,
-      responseText: '{"error":"invalid"}',
-      response: { error: 'invalid' },
-    }),
+  const backend = fakeBackendApplyPort({
+    previewResult: {
+      ok: false,
+      error: 'failed',
+      backendError: {
+        method: 'POST',
+        path: '/projects/1/entities/production-proposals/apply-preview',
+        status: 422,
+        responseText: '{"error":"invalid"}',
+        response: { error: 'invalid' },
+      },
+    },
   })
 
   const result = await simulateRuntimeDraftApply({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string; backendError?: { status?: number } }
 
@@ -114,11 +121,11 @@ test('applyRuntimeDraftFromUI records asset planning draft apply without backend
     content: JSON.stringify({ proposal: { asset_slots: [], candidates: [{ id: 'candidate_1' }] } }),
     target: { entityType: 'project', entityId: 1 },
   })
-  const backend = fakeBackendApplyClient()
+  const backend = fakeBackendApplyPort()
 
   const result = await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   }) as { status?: string; backendApply?: { performed?: boolean } }
@@ -144,11 +151,11 @@ test('simulateRuntimeDraftApply accepts asset slot snapshot drafts without snaps
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient()
+  const backend = fakeBackendApplyPort()
 
   const result = await simulateRuntimeDraftApply({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string; message?: string }
 
@@ -174,11 +181,11 @@ test('simulateRuntimeDraftApply allows omitted asset ids in proposal snapshot', 
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient()
+  const backend = fakeBackendApplyPort()
 
   const result = await simulateRuntimeDraftApply({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string; message?: string }
 
@@ -203,11 +210,11 @@ test('applyRuntimeDraftFromUI applies proposal snapshots without snapshot base',
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient()
+  const backend = fakeBackendApplyPort()
 
   const result = await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   }) as { status?: string }
@@ -229,7 +236,7 @@ test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to 
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: {
       performed: true,
       method: 'POST',
@@ -237,13 +244,13 @@ test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to 
         canonical_snapshot: {
           creative_references: [{ id: 42, name: 'Hero', kind: 'person' }],
         },
-      } as unknown as NonNullable<BackendApplyResult['response']>,
+      } as unknown as NonNullable<RuntimeDraftBackendApplyResult['response']>,
     },
   })
 
   await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   })
@@ -285,13 +292,13 @@ test('applyRuntimeDraftFromUI rewrites asset owner client_id using project setti
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: assetDraft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   })
@@ -349,13 +356,13 @@ test('applyRuntimeDraftFromUI prefers latest setting proposal mapping when multi
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: assetDraft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   })
@@ -398,13 +405,13 @@ test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot f
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: assetDraft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   })
@@ -452,13 +459,13 @@ test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id
     }),
     target: { entityType: 'project', entityId: 7 },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: assetDraft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   })
@@ -478,16 +485,16 @@ test('applyRuntimeDraftFromUI applies backend results and records backend failur
     content: 'Updated script',
     target: { entityType: 'script', entityId: 1, field: 'content' },
   })
-  const backend = fakeBackendApplyClient({
+  const backend = fakeBackendApplyPort({
     applyResult: { performed: true, method: 'PATCH', url: 'http://backend/scripts/1', payload: { content: 'Updated script' } },
   })
 
   const result = await applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: backend,
+    backendApplyPort: backend,
     applyInput: { draftId: draft.id, appliedByUserId: 12 },
     now: () => '2026-01-01T00:00:00.000Z',
-  }) as { status?: string; backendApply?: BackendApplyResult }
+  }) as { status?: string; backendApply?: RuntimeDraftBackendApplyResult }
 
   assert.equal(result.status, 'applied')
   assert.equal(result.backendApply?.performed, true)
@@ -500,10 +507,10 @@ test('applyRuntimeDraftFromUI applies backend results and records backend failur
     content: 'Broken script',
     target: { entityType: 'script', entityId: 2, field: 'content' },
   })
-  const failingBackend = fakeBackendApplyClient({ applyError: new Error('backend down') })
+  const failingBackend = fakeBackendApplyPort({ applyError: new Error('backend down') })
   await assert.rejects(() => applyRuntimeDraftFromUI({
     draftStore,
-    backendApplyClient: failingBackend,
+    backendApplyPort: failingBackend,
     applyInput: { draftId: failingDraft.id },
     now: () => '2026-01-01T00:00:00.000Z',
   }), /backend down/)
@@ -511,16 +518,15 @@ test('applyRuntimeDraftFromUI applies backend results and records backend failur
   assert.equal(draftStore.getDraft(failingDraft.id)?.metadata?.backendWriteError, 'backend down')
 })
 
-function fakeBackendApplyClient(options: {
-  previewResult?: BackendApplyResult
-  previewError?: Error
-  applyResult?: BackendApplyResult
+function fakeBackendApplyPort(options: {
+  previewResult?: RuntimeDraftBackendApplyPreviewResult
+  applyResult?: RuntimeDraftBackendApplyResult
   applyError?: Error
-} = {}): RuntimeDraftBackendApplyClient & {
+} = {}): RuntimeDraftBackendApplyPort & {
   previewCalls: number
   applyCalls: number
-  lastPreviewReview?: Parameters<RuntimeDraftBackendApplyClient['previewApplyReview']>[0]
-  lastApplyReview?: Parameters<RuntimeDraftBackendApplyClient['applyReview']>[0]
+  lastPreviewReview?: Parameters<RuntimeDraftBackendApplyPort['previewApplyReview']>[0]
+  lastApplyReview?: Parameters<RuntimeDraftBackendApplyPort['applyReview']>[0]
 } {
   return {
     previewCalls: 0,
@@ -528,8 +534,7 @@ function fakeBackendApplyClient(options: {
     async previewApplyReview(review) {
       this.previewCalls += 1
       this.lastPreviewReview = review
-      if (options.previewError) throw options.previewError
-      return options.previewResult ?? { performed: false, skippedReason: 'preview disabled' }
+      return options.previewResult ?? { ok: true, backendApply: { performed: false, skippedReason: 'preview disabled' } }
     },
     async applyReview(review) {
       this.applyCalls += 1

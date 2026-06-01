@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CanvasGenerationBody } from '@movscript/ui'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
 import { publicModelLabel } from '@/shared/domain/modelDisplay'
+import { GenerationOutputPreview } from '@/shared/ui/GenerationOutputPreview'
 import type { PublicModel, RawResource } from '@/types'
 
 export interface CanvasGenBodyProps {
@@ -13,7 +12,6 @@ export interface CanvasGenBodyProps {
   modelDbId?: number
   onUpdateModelId?: (id: number) => void
   capability: 'image' | 'video' | 'text'
-  featureKey: string
   outputType: 'image' | 'video' | 'text'
   status: 'idle' | 'pending' | 'running' | 'done' | 'failed'
   resource?: RawResource
@@ -28,7 +26,6 @@ export function CanvasGenBody({
   modelDbId,
   onUpdateModelId,
   capability,
-  featureKey,
   outputType,
   status,
   resource,
@@ -38,13 +35,10 @@ export function CanvasGenBody({
 }: CanvasGenBodyProps) {
   const { t } = useTranslation()
   const isRunning = status === 'pending' || status === 'running'
-  const outputUrl = resource
-    ? resource.direct_url ?? `${API_BASE}${resource.url}`
-    : undefined
 
   const { data: models = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', capability, featureKey],
-    queryFn: () => api.get(`/models?capability=${capability}&feature=${featureKey}`).then(r => r.data),
+    queryKey: ['models', capability],
+    queryFn: () => api.get(`/models?capability=${capability}`).then(r => r.data),
   })
 
   return (
@@ -58,13 +52,8 @@ export function CanvasGenBody({
       onPromptChange={(value) => onUpdatePrompt?.(value)}
       onPromptClick={(event) => event.stopPropagation()}
       error={error}
-      output={status === 'done' && outputUrl && outputType !== 'text' ? (
-        <>
-          {outputType === 'image'
-            ? <AuthedImage src={outputUrl} alt="" />
-            : <AuthedVideo src={outputUrl} controls />
-          }
-        </>
+      output={status === 'done' && resource && outputType !== 'text' ? (
+        <GenerationOutputPreview resource={resource} outputType={outputType} />
       ) : undefined}
       textOutput={status === 'done' && outputType === 'text' && textContent ? textContent : undefined}
       isRunning={isRunning}

@@ -15,6 +15,7 @@ export type CanvasWorkflowReferencePort = {
 export type CanvasWorkflowReferenceAction = {
   label: ReactNode;
   icon?: ReactNode;
+  loading?: boolean;
   disabled?: boolean;
   onClick?: () => void;
 };
@@ -102,7 +103,16 @@ export function CanvasWorkflowReferenceCard({
               primaryAction.onClick?.();
             }}
           >
-            {primaryAction.icon}
+            {primaryAction.icon ? (
+              <span
+                className={cn(
+                  "canvas-workflow-reference-card__action-icon",
+                  primaryAction.loading ? "canvas-workflow-reference-card__spin" : undefined,
+                )}
+              >
+                {primaryAction.icon}
+              </span>
+            ) : null}
             {primaryAction.label}
           </Button>
         </div>

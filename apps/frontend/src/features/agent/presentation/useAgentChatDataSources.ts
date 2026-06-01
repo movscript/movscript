@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import type { AgentSettings } from '@/features/agent/state/agentStore'
 import type { PublicModel, RawResource } from '@/types'
+import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 
 interface UseAgentChatDataSourcesInput {
   settings: AgentSettings
@@ -14,8 +15,8 @@ export function useAgentChatDataSources({
   updateSettings,
 }: UseAgentChatDataSourcesInput) {
   const { data: textModels = [] } = useQuery<PublicModel[]>({
-    queryKey: ['models', 'text'],
-    queryFn: () => api.get('/models?capability=text').then((r) => r.data),
+    queryKey: ['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY],
+    queryFn: () => fetchAgentBackendModels(),
   })
   const { data: resourcesData } = useQuery<RawResource[] | { items: RawResource[] }>({
     queryKey: ['resources', 'agent-panel'],

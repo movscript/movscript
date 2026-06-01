@@ -3,9 +3,11 @@ import type { ReactEventHandler, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { X, Maximize2, Download, FileAudio, FileText, File, PlayCircle } from 'lucide-react'
-import { AuthedAudio, AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
-import { api } from '@/shared/infrastructure/api'
-import { API_BASE_URL as API_BASE } from '@/shared/infrastructure/config'
+import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
+import { ResourceAudio } from '@/shared/ui/ResourceAudio'
+import { downloadResource } from '@/shared/ui/resourceDownload'
+import { loadResourceTextUrl } from '@/shared/ui/resourceText'
+import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
 import type { RawResource } from '@/types'
 import {
   ResourceMediaAudioPanel,
@@ -35,33 +37,6 @@ interface MediaViewerProps {
   onOpenChange?: (open: boolean) => void
   onImageLoad?: ReactEventHandler<HTMLImageElement>
   onVideoLoadedMetadata?: ReactEventHandler<HTMLVideoElement>
-}
-
-export function resolveResourceUrl(resource: RawResource): string {
-  if (resource.direct_url) return resource.direct_url
-  if (/^https?:\/\//i.test(resource.url) || resource.url.startsWith('data:') || resource.url.startsWith('blob:')) return resource.url
-  return `${API_BASE}${resource.url}`
-}
-
-export async function downloadResource(proxyUrl: string, name: string) {
-  const res = await api.get(proxyUrl, { baseURL: '', responseType: 'blob' })
-  const url = URL.createObjectURL(res.data)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-async function loadTextResource(proxyUrl: string): Promise<string> {
-  const res = await api.get<string>(proxyUrl, {
-    baseURL: '',
-    responseType: 'text',
-    transformResponse: [(data) => data],
-  })
-  return typeof res.data === 'string' ? res.data : String(res.data ?? '')
 }
 
 /** Renders a thumbnail/preview of a resource; image or video.
@@ -112,13 +87,13 @@ export function MediaViewer({ resource, className = '', fit = 'cover', metadata,
       closeLabel={t('common.close')}
       downloadIcon={<Download size={16} />}
       closeIcon={<X size={18} />}
-      onDownload={() => downloadResource(proxyUrl, resource.name)}
+      onDownload={() => downloadResource(resource)}
     >
       {resource.type === 'video' ? (
         <AuthedVideo src={proxyUrl} controls autoPlay diagnosticLabel={diagnosticLabel ?? `resource:${resource.ID}:lightbox`} />
       ) : resource.type === 'audio' ? (
         <ResourceMediaAudioPanel icon={<FileAudio size={18} />} name={resource.name}>
-          <AuthedAudio src={proxyUrl} controls autoPlay />
+          <ResourceAudio resource={resource} controls autoPlay />
         </ResourceMediaAudioPanel>
       ) : resource.type === 'text' ? (
         <TextPreview proxyUrl={proxyUrl} />
@@ -184,7 +159,7 @@ function IconThumb({ icon }: { icon: ReactNode }) {
 function TextThumb({ proxyUrl, name }: { proxyUrl: string; name: string }) {
   const { data } = useQuery({
     queryKey: ['resource-text-thumb', proxyUrl],
-    queryFn: () => loadTextResource(proxyUrl),
+    queryFn: () => loadResourceTextUrl(proxyUrl),
     staleTime: 5 * 60 * 1000,
   })
   const preview = data?.trim()
@@ -202,7 +177,7 @@ function TextPreview({ proxyUrl }: { proxyUrl: string }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: ['resource-text-preview', proxyUrl],
-    queryFn: () => loadTextResource(proxyUrl),
+    queryFn: () => loadResourceTextUrl(proxyUrl),
     staleTime: 5 * 60 * 1000,
   })
 

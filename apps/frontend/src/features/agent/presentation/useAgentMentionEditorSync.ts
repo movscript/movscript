@@ -6,6 +6,7 @@ import {
   serializeMentionEditor,
   setCaretAtEnd,
 } from '@/features/agent/presentation/agentMentionEditorModel'
+import { revokeObjectUrl } from '@/shared/ui/objectUrl'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 interface UseAgentMentionEditorSyncInput {
@@ -41,7 +42,7 @@ export function useAgentMentionEditorSync({
     if (!editor) return
     for (const media of Array.from(editor.querySelectorAll<HTMLElement>('.ai-agent-mention-chip__media'))) {
       const objectUrl = media.dataset.objectUrl
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      revokeObjectUrl(objectUrl)
     }
   }, [inputRef])
 }

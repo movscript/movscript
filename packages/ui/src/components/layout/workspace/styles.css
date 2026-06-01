@@ -9,7 +9,7 @@
 }
 
 .app-shell[data-surface="canvas"] {
-  --app-shell-slot-center-background: var(--ms-app-shell-slot-center-background, var(--ms-color-canvas-background));
+  --app-shell-slot-center-background: var(--ms-app-shell-slot-center-background, var(--ms-color-page-background));
 }
 
 .app-shell[data-layout="stacked"]>.app-window-header .app-window-brand-button {
@@ -647,6 +647,10 @@
   margin-top: 2px;
   font-size: var(--ms-text-label);
   line-height: 18px;
+}
+
+.content-workspace-overview {
+  min-width: 0;
 }
 
 .content-workspace-header button,

@@ -8,7 +8,6 @@ import { GenerationModelSelector } from '@movscript/ui'
 
 interface ModelSelectorProps {
   capability: 'image' | 'video' | 'text'
-  feature?: string
   value: number | null
   onChange: (id: number) => void
   onModelChange?: (model: PublicModel | null) => void
@@ -16,12 +15,10 @@ interface ModelSelectorProps {
   className?: string
 }
 
-export function ModelSelector({ capability, feature, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
+export function ModelSelector({ capability, value, onChange, onModelChange, disabled, className }: ModelSelectorProps) {
   const { t } = useTranslation()
-  const queryKey = feature ? ['models', capability, feature] : ['models', capability]
-  const queryUrl = feature
-    ? `/models?capability=${capability}&feature=${feature}`
-    : `/models?capability=${capability}`
+  const queryKey = ['models', capability]
+  const queryUrl = `/models?capability=${capability}`
 
   const { data: modelsData, isFetching, refetch } = useQuery<PublicModel[]>({
     queryKey,

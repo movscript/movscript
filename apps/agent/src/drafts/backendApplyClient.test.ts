@@ -373,7 +373,7 @@ test('applyReview posts direct asset slot proposal snapshots', async () => {
     }
 
     await client.applyReview(review({
-      draftKind: 'project_standards_proposal',
+      draftKind: 'asset_proposal',
       projectId: 4,
       entityType: 'project',
       entityId: 4,
@@ -528,7 +528,7 @@ function review(input: {
   return {
     draftId: 'draft_test',
     draftTitle: 'Draft',
-    draftKind: input.draftKind ?? 'project_standards_proposal',
+    draftKind: input.draftKind ?? 'content_unit_proposal',
     target: {
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       entityType: input.entityType,

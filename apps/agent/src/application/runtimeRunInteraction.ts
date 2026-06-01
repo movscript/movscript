@@ -30,7 +30,12 @@ import type {
 } from '../state/types.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import { applyRuntimeThreadContextSummary } from '../context/runtimeThreadContextSummary.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
+import {
+  summarizeApprovalRequestsTrace,
+  summarizeInputAnswerTrace,
+  summarizeInputRequestsTrace,
+} from '../domains/trace/interactionTrace.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
@@ -104,7 +109,11 @@ export function applyRuntimeRunRequiredActionFlow(input: {
         ? `${requiredAction.pendingInputCount} user input request(s) paused the run.`
         : `${input.pendingApprovals.length} tool action(s) paused the run.`,
       status: 'blocked',
-      data: { approvals: input.pendingApprovals, inputRequests: input.run.pendingInputRequests },
+      data: {
+        eventType: 'run.required_action',
+        approvalSummary: summarizeApprovalRequestsTrace(input.pendingApprovals),
+        inputRequestSummary: summarizeInputRequestsTrace(input.run.pendingInputRequests ?? []),
+      },
     })
   }
   input.store.updateRun(input.run)
@@ -204,13 +213,9 @@ export function applyRuntimeRunInputAnswerFlow(input: {
       input.recordTrace(targetRun, {
         kind: 'input',
         title: 'User input received',
-        summary: answer.request.title,
+        summary: 'User input answer recorded.',
         status: 'completed',
-        data: {
-          requestId: answer.request.id,
-          choiceIds: answer.choiceIds,
-          ...(answer.text ? { text: answer.text } : {}),
-        },
+        data: summarizeInputAnswerTrace(answer),
       })
     },
   })

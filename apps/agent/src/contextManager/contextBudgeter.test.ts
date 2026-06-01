@@ -20,6 +20,20 @@ test('context budgeter drops low-priority skill parts before high-priority behav
   assert.equal(fitted.degraded, 'dropped_policies')
   assert.equal(fitted.warnings, warnings)
   assert.ok(warnings.some((warning) => warning.includes('dropped non-critical skill skill.low')))
+  assert.equal(fitted.initialPromptChars > fitted.finalPromptChars, true)
+  assert.deepEqual(fitted.decisions.map((decision) => ({
+    action: decision.action,
+    stage: decision.stage,
+    partId: decision.partId,
+    renderedChars: decision.renderedChars,
+    priority: decision.priority,
+  })), [{
+    action: 'drop',
+    stage: 'low_priority',
+    partId: 'skill.low',
+    renderedChars: 0,
+    priority: 50,
+  }])
 })
 
 test('context budgeter strips examples before failing an otherwise required prompt', () => {
@@ -42,6 +56,11 @@ test('context budgeter strips examples before failing an otherwise required prom
   assert.equal(fitted.degraded, 'dropped_examples')
   assert.doesNotMatch(fitted.prompt, /example example/)
   assert.ok(fitted.prompt.length <= 120)
+  assert.equal(fitted.decisions[0]?.action, 'strip_examples')
+  assert.equal(fitted.decisions[0]?.stage, 'examples')
+  assert.equal(fitted.decisions[0]?.partId, 'runtime.core')
+  assert.ok((fitted.decisions[0]?.renderedChars ?? 0) > 0)
+  assert.ok((fitted.decisions[0]?.originalChars ?? 0) > (fitted.decisions[0]?.renderedChars ?? 0))
 })
 
 test('context budgeter supports composer-specific policy and workflow drop rules', () => {
@@ -62,4 +81,8 @@ test('context budgeter supports composer-specific policy and workflow drop rules
   assert.deepEqual(fitted.parts.map((part) => part.id), ['persona.keep'])
   assert.equal(fitted.degraded, 'dropped_workflows')
   assert.deepEqual(fitted.warnings, ['drop policy policy.low', 'drop workflow workflow.low'])
+  assert.deepEqual(fitted.decisions.map((decision) => `${decision.stage}:${decision.partId}`), [
+    'low_priority:policy.low',
+    'secondary:workflow.low',
+  ])
 })

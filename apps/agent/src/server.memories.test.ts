@@ -583,8 +583,9 @@ test('HTTP cancel-tree only accepts the taskGraph root planner run', async () =>
     reason: 'Stop the whole taskGraph.',
   })
   assert.equal(accepted.statusCode, 200)
-  assert.deepEqual(JSON.parse(accepted.body).cancelledRunIds, [worker.id])
+  assert.deepEqual(JSON.parse(accepted.body).cancelledRunIds, [worker.id, rootPlanner.id])
   assert.equal(runtime.getRun(worker.id)?.status, 'cancelled')
+  assert.equal(runtime.getRun(rootPlanner.id)?.status, 'cancelled')
 })
 
 test('HTTP task update cannot create duplicate subagent names', async () => {
@@ -777,6 +778,7 @@ function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerConte
       statePath: '/tmp/state.json',
       memoryPath: '/tmp/memories.json',
       draftPath: '/tmp/drafts.json',
+      toolResultPath: '/tmp/tool-results.json',
       catalogStatePath: '/tmp/catalog.json',
       modelConfigPath: '/tmp/model-config.json',
     },
@@ -831,11 +833,13 @@ function dispatch(
       url?: string
       headers: Record<string, string>
       setEncoding: (encoding: BufferEncoding) => void
+      destroy: () => void
     }
     req.method = method
     req.url = path
     req.headers = { host: '127.0.0.1', ...options.headers }
-      ; (req as any).setEncoding = () => { }
+    ;(req as any).setEncoding = () => {}
+    ;(req as any).destroy = () => {}
 
     const resBody = new PassThrough()
     let statusCode = 0
@@ -843,8 +847,9 @@ function dispatch(
       writeHead(code: number) {
         statusCode = code
       },
-      setHeader() { },
-      end(chunk?: string) {
+      setHeader() {},
+      end(this: { writableEnded: boolean }, chunk?: string) {
+        this.writableEnded = true
         if (chunk) resBody.end(chunk)
         else resBody.end()
       },
@@ -862,10 +867,12 @@ function dispatch(
     resBody.on('end', () => resolve({ statusCode, body: output }))
     resBody.on('error', reject)
 
-    void handler(req, res)
-    if (body !== undefined) {
-      req.emit('data', JSON.stringify(body))
-    }
-    req.emit('end')
+    void handler(req, res).catch(reject)
+    queueMicrotask(() => {
+      if (body !== undefined) {
+        req.emit('data', JSON.stringify(body))
+      }
+      req.emit('end')
+    })
   })
 }

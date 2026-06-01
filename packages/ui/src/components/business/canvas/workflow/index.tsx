@@ -1,7 +1,8 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ComponentProps, type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "../../../../lib/cn";
 import { AppChoiceTile, AppCodeBlock, AppEmptyState, AppMarkerDot, AppMediaFrame, AppSurfaceItem } from "../../app";
+import { PanelResizeHandle } from "../../../layout";
 import {
   Badge,
   Button,
@@ -502,6 +503,121 @@ export function CanvasWorkflowSidePanel({
 }) {
   return <aside className={cn("canvas-workflow-side-panel", className)} style={{ ...style, width }} {...props} />;
 }
+
+export function CanvasWorkflowResizeHandle({
+  className,
+  side = "left",
+  ...props
+}: ComponentProps<typeof PanelResizeHandle>) {
+  return <PanelResizeHandle className={cn("canvas-workflow-side-panel__resize-handle", className)} side={side} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerShell({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferenceSearch({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__search", className)} {...props} />;
+}
+
+export const CanvasWorkflowReferenceSearchInput = forwardRef<HTMLInputElement, InputProps>(
+  ({ className, ...props }, ref) => (
+    <Input ref={ref} className={className} {...props} />
+  ),
+);
+
+CanvasWorkflowReferenceSearchInput.displayName = "CanvasWorkflowReferenceSearchInput";
+
+export function CanvasWorkflowReferenceBody({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__body", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferenceState({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__state", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferenceList({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__list", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCard({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__card", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCardMain({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__card-main", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCardIcon({
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("canvas-workflow-reference-picker__card-icon", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCardText({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__card-text", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCardTitle({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__card-title", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferencePickerCardMeta({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__card-meta", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferenceChips({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("canvas-workflow-reference-picker__chips", className)} {...props} />;
+}
+
+export function CanvasWorkflowReferenceChip({
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={className} {...props} />;
+}
+
+export const CanvasWorkflowReferenceAddButton = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ size = "icon-xs", variant = "ghost", ...props }, ref) => (
+    <Button ref={ref} size={size} variant={variant} {...props} />
+  ),
+);
+
+CanvasWorkflowReferenceAddButton.displayName = "CanvasWorkflowReferenceAddButton";
 
 export function CanvasWorkflowSideHeader({
   className,

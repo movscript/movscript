@@ -12,7 +12,7 @@ import type {
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
 
 export interface RuntimeRunFailureTraceInput {
   kind: AgentTraceEventKind

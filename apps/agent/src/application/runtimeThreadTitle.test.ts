@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { ModelCallInput, ModelCallResult } from '../model/modelClient.js'
-import type { ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
+import { runtimeModelContentText, runtimeModelTextContent, type ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
 import type { AgentMessage, AgentInternalRunSignal, AgentThread } from '../state/types.js'
 import { applyRuntimeThreadTitleRequest, ensureRuntimeThreadTitle } from './runtimeThreadTitle.js'
 
@@ -31,8 +31,8 @@ test('ensureRuntimeThreadTitle generates and persists a model title', async () =
   assert.equal(updates[0]?.metadata?.titleGenerationStatus, 'pending')
   assert.equal(modelCalls[0]?.auth?.backendAuthToken, 'token')
   assert.equal(modelCalls[0]?.auth?.backendAPIBaseURL, 'https://backend.test')
-  assert.match(String(modelCalls[0]?.messages[0]?.content), /short chat thread titles/i)
-  assert.equal(modelCalls[0]?.messages[1]?.content, '请帮我写一个雨夜短片。')
+  assert.match(runtimeModelContentText(modelCalls[0]?.messages[0]?.content ?? []), /short chat thread titles/i)
+  assert.equal(runtimeModelContentText(modelCalls[0]?.messages[1]?.content ?? []), '请帮我写一个雨夜短片。')
 })
 
 test('ensureRuntimeThreadTitle emits a thread_title event after title persistence', async () => {
@@ -59,6 +59,41 @@ test('ensureRuntimeThreadTitle emits a thread_title event after title persistenc
     title: '雨夜短片创作',
     updatedAt: stableNow(),
   })
+})
+
+test('ensureRuntimeThreadTitle merges title onto the latest thread without dropping messages', async () => {
+  const initialThread = makeThread({
+    messages: [makeMessage({ content: '请帮我写一个雨夜短片。' })],
+  })
+  let storedThread = { ...initialThread, messages: [...initialThread.messages] }
+  const assistantMessage = makeMessage({
+    id: 'msg_assistant',
+    role: 'assistant',
+    content: '已经创建项目。',
+    createdAt: '2026-01-01T00:00:01.000Z',
+  })
+
+  const result = await ensureRuntimeThreadTitle({
+    thread: initialThread,
+    userMessage: initialThread.messages[0],
+    now: stableNow,
+    getThread: () => storedThread,
+    updateThread: (updatedThread) => {
+      storedThread = { ...updatedThread, messages: [...updatedThread.messages] }
+    },
+    resolveModelConfig: () => makeModelConfig(),
+    callModel: async () => {
+      storedThread = {
+        ...storedThread,
+        messages: [...storedThread.messages, assistantMessage],
+      }
+      return makeModelResult('雨夜短片创作')
+    },
+  })
+
+  assert.equal(result?.title, '雨夜短片创作')
+  assert.deepEqual(storedThread.messages.map((message) => message.id), ['msg_1', 'msg_assistant'])
+  assert.equal(storedThread.metadata?.titleGenerationStatus, 'completed')
 })
 
 test('applyRuntimeThreadTitleRequest bridges persistence and stream callbacks', async () => {
@@ -173,7 +208,7 @@ function makeModelResult(content: string): ModelCallResult {
     content,
     tool_calls: [],
     finish_reason: 'stop',
-    rawAssistantMessage: { role: 'assistant', content },
+    rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent(content) },
     trace: {
       request: {
         url: 'https://backend.test',

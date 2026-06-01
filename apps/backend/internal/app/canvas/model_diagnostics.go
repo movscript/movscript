@@ -13,25 +13,23 @@ import (
 type nodeData = canvasdomain.NodeData
 
 type NodeModelDiagnostics struct {
-	CanvasID             uint                       `json:"canvas_id"`
-	NodeID               string                     `json:"node_id"`
-	NodeLabel            string                     `json:"node_label"`
-	NodeType             string                     `json:"node_type"`
-	Capability           string                     `json:"capability,omitempty"`
-	FeatureKey           string                     `json:"feature_key,omitempty"`
-	Status               string                     `json:"status"`
-	Problems             []string                   `json:"problems,omitempty"`
-	NextActions          []string                   `json:"next_actions,omitempty"`
-	RawModelFields       map[string]any             `json:"raw_model_fields,omitempty"`
-	DataModelID          string                     `json:"data_model_id,omitempty"`
-	DataModelDbID        uint                       `json:"data_model_db_id,omitempty"`
-	Executable           bool                       `json:"executable"`
-	ExecutableModelID    string                     `json:"executable_model_id,omitempty"`
-	ExecutableModelDbID  uint                       `json:"executable_model_db_id,omitempty"`
-	ExecutableFeatureKey string                     `json:"executable_feature_key,omitempty"`
-	AvailableModelCount  int                        `json:"available_model_count"`
-	AvailableModels      []NodeModelDiagnosticModel `json:"available_models,omitempty"`
-	Route                *NodeModelDiagnosticRoute  `json:"route,omitempty"`
+	CanvasID            uint                       `json:"canvas_id"`
+	NodeID              string                     `json:"node_id"`
+	NodeLabel           string                     `json:"node_label"`
+	NodeType            string                     `json:"node_type"`
+	Capability          string                     `json:"capability,omitempty"`
+	Status              string                     `json:"status"`
+	Problems            []string                   `json:"problems,omitempty"`
+	NextActions         []string                   `json:"next_actions,omitempty"`
+	RawModelFields      map[string]any             `json:"raw_model_fields,omitempty"`
+	DataModelID         string                     `json:"data_model_id,omitempty"`
+	DataModelDbID       uint                       `json:"data_model_db_id,omitempty"`
+	Executable          bool                       `json:"executable"`
+	ExecutableModelID   string                     `json:"executable_model_id,omitempty"`
+	ExecutableModelDbID uint                       `json:"executable_model_db_id,omitempty"`
+	AvailableModelCount int                        `json:"available_model_count"`
+	AvailableModels     []NodeModelDiagnosticModel `json:"available_models,omitempty"`
+	Route               *NodeModelDiagnosticRoute  `json:"route,omitempty"`
 }
 
 type NodeModelDiagnosticModel struct {
@@ -87,17 +85,14 @@ func (h *Service) DiagnoseNodeModel(ctx context.Context, canvasID uint, nodeID s
 	if nd.ExecutableSpec != nil {
 		diag.Executable = true
 		diag.Capability = strings.TrimSpace(nd.ExecutableSpec.Capability)
-		diag.FeatureKey = strings.TrimSpace(nd.ExecutableSpec.FeatureKey)
 		diag.ExecutableModelID = strings.TrimSpace(nd.ExecutableSpec.ModelID)
 		diag.ExecutableModelDbID = nd.ExecutableSpec.ModelDbID
-		diag.ExecutableFeatureKey = strings.TrimSpace(nd.ExecutableSpec.FeatureKey)
 		h.fillAvailableModels(ctx, &diag)
 		h.diagnoseExecutableSpecRoute(ctx, &diag, nd.ExecutableSpec)
 		return diag, nil
 	}
 
 	diag.Capability = capabilityForCanvasNodeType(node.Type, nd.OutputType)
-	diag.FeatureKey = featureKeyForCanvasNodeType(node.Type, nd.OutputType)
 	h.fillAvailableModels(ctx, &diag)
 	h.diagnoseNodeRoute(ctx, &diag, nd)
 	return diag, nil
@@ -117,25 +112,11 @@ func (h *Service) diagnoseNodeRoute(_ context.Context, diag *NodeModelDiagnostic
 
 	modelID := strings.TrimSpace(nd.ModelID)
 	if modelID == "" && nd.ModelDbID == 0 {
-		if diag.FeatureKey == "" {
-			diag.Status = "missing_model_selection"
-			diag.Problems = append(diag.Problems, "node data has empty modelId and modelDbId")
-			addRawFieldProblems(diag)
-			diag.NextActions = append(diag.NextActions, fmt.Sprintf("Configure at least one enabled model for capability %q.", diag.Capability))
-			return
-		}
-		modelDbID, _, err := h.svc.GetForFeature(diag.FeatureKey)
-		if err != nil {
-			diag.Status = "feature_route_error"
-			diag.Problems = append(diag.Problems, err.Error())
-			if diag.AvailableModelCount > 0 {
-				diag.NextActions = append(diag.NextActions, "Select a model in the node panel or save the canvas after the default model is applied.")
-			} else {
-				diag.NextActions = append(diag.NextActions, fmt.Sprintf("Configure at least one enabled model for capability %q.", diag.Capability))
-			}
-			return
-		}
-		nd.ModelDbID = modelDbID
+		diag.Status = "missing_model_selection"
+		diag.Problems = append(diag.Problems, "node data has empty modelId and modelDbId")
+		addRawFieldProblems(diag)
+		diag.NextActions = append(diag.NextActions, fmt.Sprintf("Select a model that supports capability %q.", diag.Capability))
+		return
 	}
 
 	route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
@@ -166,20 +147,10 @@ func (h *Service) diagnoseExecutableSpecRoute(_ context.Context, diag *NodeModel
 
 	modelID := strings.TrimSpace(spec.ModelID)
 	modelDbID := spec.ModelDbID
-	if modelID == "" && modelDbID == 0 && strings.TrimSpace(spec.FeatureKey) != "" {
-		resolvedID, resolvedModelID, err := h.svc.GetForFeature(spec.FeatureKey)
-		if err != nil {
-			diag.Status = "feature_route_error"
-			diag.Problems = append(diag.Problems, err.Error())
-			return
-		}
-		modelDbID = resolvedID
-		modelID = resolvedModelID
-	}
 	if modelID == "" && modelDbID == 0 {
 		diag.Status = "missing_model_selection"
-		diag.Problems = append(diag.Problems, "executableSpec has empty modelId, modelDbId, and no resolvable featureKey")
-		diag.NextActions = append(diag.NextActions, "Set executableSpec.modelId or executableSpec.featureKey when creating this node.")
+		diag.Problems = append(diag.Problems, "executableSpec has empty modelId and modelDbId")
+		diag.NextActions = append(diag.NextActions, "Set executableSpec.modelId when creating this node.")
 		return
 	}
 
@@ -204,11 +175,7 @@ func (h *Service) fillAvailableModels(_ context.Context, diag *NodeModelDiagnost
 		models []ai.PublicModel
 		err    error
 	)
-	if diag.FeatureKey != "" {
-		models, err = h.svc.GetModelsForFeature(diag.FeatureKey)
-	} else {
-		models, err = h.svc.GetModelsByCapability(diag.Capability)
-	}
+	models, err = h.svc.GetModelsByCapability(diag.Capability)
 	if err != nil {
 		diag.Problems = append(diag.Problems, fmt.Sprintf("failed to list available models: %v", err))
 		return
@@ -254,9 +221,6 @@ func rawModelFields(raw map[string]any) map[string]any {
 				out["executableSpec."+key] = value
 			}
 		}
-		if value, ok := spec["featureKey"]; ok {
-			out["executableSpec.featureKey"] = value
-		}
 		if value, ok := spec["capability"]; ok {
 			out["executableSpec.capability"] = value
 		}
@@ -282,20 +246,6 @@ func addRawFieldProblems(diag *NodeModelDiagnostics) {
 	}
 	if _, ok := diag.RawModelFields["model_config_id"]; ok {
 		diag.Problems = append(diag.Problems, "node data contains model_config_id, but canvas runtime expects modelDbId")
-	}
-}
-
-func featureKeyForCanvasNodeType(nodeType string, outputType ...string) string {
-	kind := generationKindForCanvasNode(nodeType, nodeData{OutputType: firstOptionalString(outputType)})
-	switch kind {
-	case "text":
-		return "canvas_text"
-	case "image":
-		return "canvas_image"
-	case "video":
-		return "canvas_video"
-	default:
-		return ""
 	}
 }
 

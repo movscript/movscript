@@ -6,6 +6,7 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
   'core_catalog_inspect',
   'core_skill_update',
   'core_update_plan',
+  'core_video_extract_frames',
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([
@@ -25,8 +26,8 @@ export function isToolVisibleForActiveBehavior(input: {
   if (input.activeSkills.length === 0) return false
   const activeToolHints = new Set<string>()
   for (const skill of input.activeSkills) {
-    if (skill.metadata?.kind !== 'workflow' && skill.category !== 'workflow') continue
     if (skill.metadata?.toolScope === 'union') return true
+    for (const ref of skill.toolRefs ?? []) activeToolHints.add(publicToolName(normalizeToolRef(ref)))
     for (const hint of skill.toolHints ?? []) activeToolHints.add(publicToolName(normalizeToolRef(hint)))
   }
   if (activeToolHints.size === 0) return false

@@ -91,7 +91,6 @@ func (h *AIHandler) DeleteModelConfig(c *gin.Context) {
 
 // PatchModelConfig updates a model config by its own ID (no credential_id in path).
 // Supports partial updates for all custom metadata, credit prices, and flags.
-// Used by the admin feature-config tab for inline editing.
 func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 	var req struct {
 		ModelIDOverride       *string  `json:"model_id_override"`

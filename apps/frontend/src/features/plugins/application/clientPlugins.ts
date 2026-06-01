@@ -3,6 +3,7 @@ import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } fr
 import { createMcpTools, type McpTools } from '@/features/plugins/infrastructure/mcpTools'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { localAgentClient, type AgentSkillBundleFile, type AgentSkillBundleInstallResult } from '@/shared/infrastructure/localAgentClient'
+import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -358,12 +359,12 @@ export async function runClientPlugin(plugin: ClientPluginManifest, args: Record
   if (src.includes('export{') || src.includes('export {') || /export\s+\{/.test(src)) {
     // ESM bundle — use dynamic import via blob URL
     const blob = new Blob([src], { type: 'text/javascript' })
-    const url = URL.createObjectURL(blob)
+    const url = createObjectUrl(blob)
     try {
       const mod = await import(/* @vite-ignore */ url)
       runFn = mod.run
     } finally {
-      URL.revokeObjectURL(url)
+      revokeObjectUrl(url)
     }
   } else {
     // IIFE / script bundle — execute with new Function, expects `run` in scope
@@ -387,12 +388,12 @@ export async function compileClientPlugin(plugin: ClientPluginManifest, args: Re
 
   if (src.includes('export{') || src.includes('export {') || /export\s+\{/.test(src)) {
     const blob = new Blob([src], { type: 'text/javascript' })
-    const url = URL.createObjectURL(blob)
+    const url = createObjectUrl(blob)
     try {
       const mod = await import(/* @vite-ignore */ url)
       compileFn = mod.compile
     } finally {
-      URL.revokeObjectURL(url)
+      revokeObjectUrl(url)
     }
   } else {
     const fn = new Function('args', `"use strict";\n${src}\nreturn typeof compile === 'function' ? compile(args) : undefined;`)

@@ -93,8 +93,8 @@ export async function buildCanvasSavePayload({
   return {
     nodes: nodesToSave.map((node) => {
       const { label, data: rest } = serializableCanvasNodeData(node.data)
-      const request = modelFeatureForCanvasNode(node.type, rest)
-      const defaultModel = request ? defaultModels.get(request.feature) : undefined
+      const request = modelCapabilityForCanvasNode(node.type, rest)
+      const defaultModel = request ? defaultModels.get(request.capability) : undefined
       const dataToSave = {
         ...rest,
         ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
@@ -124,33 +124,33 @@ export async function buildCanvasSavePayload({
   }
 }
 
-function modelFeatureForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
-  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'text_gen') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video', feature: 'canvas_video' }
-  if (nodeType === 'ai_gen') return { capability: 'image', feature: 'canvas_image' }
-  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image', feature: 'canvas_image' }
-  if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image', feature: 'canvas_image' }
-  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video', feature: 'canvas_video' }
-  if (['ref_video_gen', 'motion_imitation'].includes(String(nodeType))) return { capability: 'video', feature: 'canvas_video' }
+function modelCapabilityForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
+  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text' }
+  if (nodeType === 'text_gen') return { capability: 'text' }
+  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text' }
+  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video' }
+  if (nodeType === 'ai_gen') return { capability: 'image' }
+  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image' }
+  if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image' }
+  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video' }
+  if (['ref_video_gen', 'motion_imitation'].includes(String(nodeType))) return { capability: 'video' }
   return null
 }
 
 async function defaultModelsForCanvasSave(nodes: Node[]) {
-  const featureRequests = new Map<string, { capability: string; feature: string }>()
+  const capabilityRequests = new Map<string, { capability: string }>()
   for (const node of nodes) {
     const data = node.data as Partial<CanvasNodeData>
     if (data.modelId || data.modelDbId) continue
-    const request = modelFeatureForCanvasNode(node.type, data)
-    if (request) featureRequests.set(request.feature, request)
+    const request = modelCapabilityForCanvasNode(node.type, data)
+    if (request) capabilityRequests.set(request.capability, request)
   }
 
   const defaults = new Map<string, PublicModel>()
-  await Promise.all(Array.from(featureRequests.values()).map(async ({ capability, feature }) => {
-    const models = await api.get('/models', { params: { capability, feature } }).then((response) => response.data as PublicModel[])
+  await Promise.all(Array.from(capabilityRequests.values()).map(async ({ capability }) => {
+    const models = await api.get('/models', { params: { capability } }).then((response) => response.data as PublicModel[])
     const model = models.find((item) => item.is_default) ?? models[0]
-    if (model) defaults.set(feature, model)
+    if (model) defaults.set(capability, model)
   }))
   return defaults
 }

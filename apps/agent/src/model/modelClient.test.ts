@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { callModel } from './modelClient.js'
-import type { ConfiguredRuntimeModelConfig, RuntimeModelTraceCallback } from './modelConfig.js'
+import { runtimeModelTextContent, type ConfiguredRuntimeModelConfig, type RuntimeModelContentPart, type RuntimeModelTraceCallback } from './modelConfig.js'
 
 const CONFIG: ConfiguredRuntimeModelConfig = {
   provider: 'backend-model-config',
@@ -35,7 +35,7 @@ test('callModel retries empty assistant gateway responses with exponential backo
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'test-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 3, initialDelayMs: 0 },
     })
 
@@ -70,7 +70,7 @@ test('callModel normalizes only object-shaped gateway tool calls', async () => {
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'test-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 1, initialDelayMs: 0 },
     })
 
@@ -101,7 +101,7 @@ test('callModel stops retrying empty assistant responses after the configured at
       callModel({
         config: CONFIG,
         auth: { backendAuthToken: 'test-token' },
-        messages: [{ role: 'user', content: 'hello' }],
+        messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
         retry: { maxAttempts: 2, initialDelayMs: 0 },
       }),
       /backend model gateway returned no assistant content and no tool calls/,
@@ -138,7 +138,7 @@ test('callModel retries direct HTTP 429 gateway responses with exponential backo
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'test-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
     })
 
@@ -180,7 +180,7 @@ test('callModel keeps failed HTTP response bodies in trace events before retryin
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'secret-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
       onTrace: (event) => traceEvents.push(event),
     })
@@ -234,7 +234,7 @@ test('callModel retries backend 502 responses that wrap provider rate limits', a
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'test-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
       onTrace: (event) => {
         if (event.phase === 'retry') retryEvents.push({ retry: event.retry })
@@ -276,7 +276,7 @@ test('callModel retries backend 502 responses that wrap upstream rate_limit_erro
     const result = await callModel({
       config: CONFIG,
       auth: { backendAuthToken: 'test-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
     })
 
@@ -305,7 +305,7 @@ test('callModel stops retrying rate limited gateway responses after the configur
       callModel({
         config: CONFIG,
         auth: { backendAuthToken: 'test-token' },
-        messages: [{ role: 'user', content: 'hello' }],
+        messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
         retry: { maxAttempts: 3, initialDelayMs: 0 },
       }),
       /backend model gateway HTTP 429/,
@@ -352,18 +352,18 @@ test('callModel sends OpenAI Responses requests and normalizes function calls', 
         apiKey: 'direct-openai-key',
       },
       messages: [
-        { role: 'system', content: 'You are concise.' },
-        { role: 'user', content: 'Search the project.' },
+        { role: 'system', content: runtimeModelTextContent('You are concise.') },
+        { role: 'user', content: runtimeModelTextContent('Search the project.') },
         {
           role: 'assistant',
-          content: null,
+          content: [],
           tool_calls: [{
             id: 'previous_call',
             type: 'function',
             function: { name: 'movscript_context', arguments: '{"scope":"thread"}' },
           }],
         },
-        { role: 'tool', tool_call_id: 'previous_call', content: '{"ok":true}' },
+        { role: 'tool', tool_call_id: 'previous_call', content: runtimeModelTextContent('{"ok":true}') },
       ],
       tools: [{
         type: 'function',
@@ -454,7 +454,7 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
         baseURL: 'https://openai.example/v1',
         apiKey: 'direct-openai-chat-key',
       },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       tools: [{
         type: 'function',
         function: {
@@ -485,6 +485,86 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
     assert.deepEqual(result.usage, { input_tokens: 11, output_tokens: 3 })
     assert.equal(result.trace.request.headers.Authorization, undefined)
     assert.equal(result.trace.request.headers.authorization, undefined)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('callModel sends image content parts to OpenAI Chat Completions', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, any> | undefined
+  const content: RuntimeModelContentPart[] = [
+    { type: 'text', text: 'describe' },
+    { type: 'image', source: { type: 'data_url', dataUrl: 'data:image/png;base64,AAAA' }, detail: 'low' },
+  ]
+  try {
+    globalThis.fetch = (async (url, init) => {
+      capturedBody = JSON.parse(await requestBodyText(url, init)) as Record<string, any>
+      return new Response(JSON.stringify({
+        choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 9, completion_tokens: 1 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    await callModel({
+      config: {
+        ...CONFIG,
+        modelConfigId: undefined,
+        model: 'gpt-chat-direct',
+        apiKind: 'openai_chat_completions',
+        baseURL: 'https://openai.example/v1',
+        apiKey: 'direct-openai-chat-key',
+      },
+      messages: [{ role: 'user', content }],
+      retry: { maxAttempts: 1 },
+    })
+
+    const messageContent = capturedBody?.messages?.[0]?.content
+    assert.deepEqual(messageContent, [
+      { type: 'text', text: 'describe' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA', detail: 'low' } },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('callModel sends image content parts to OpenAI Responses', async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, any> | undefined
+  const content: RuntimeModelContentPart[] = [
+    { type: 'text', text: 'describe' },
+    { type: 'image', source: { type: 'data_url', dataUrl: 'data:image/png;base64,AAAA' }, detail: 'high' },
+  ]
+  try {
+    globalThis.fetch = (async (url, init) => {
+      capturedBody = JSON.parse(await requestBodyText(url, init)) as Record<string, any>
+      return new Response(JSON.stringify({
+        id: 'resp_1',
+        object: 'response',
+        status: 'completed',
+        output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'ok' }] }],
+        usage: { input_tokens: 9, output_tokens: 1 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    await callModel({
+      config: {
+        ...CONFIG,
+        modelConfigId: undefined,
+        model: 'gpt-direct-test',
+        apiKind: 'openai_responses',
+        baseURL: 'https://model.example/v1',
+        apiKey: 'direct-openai-key',
+      },
+      messages: [{ role: 'user', content }],
+      retry: { maxAttempts: 1 },
+    })
+
+    assert.deepEqual(capturedBody?.input?.[0]?.content, [
+      { type: 'input_text', text: 'describe' },
+      { type: 'input_image', image_url: 'data:image/png;base64,AAAA', detail: 'high' },
+    ])
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -529,8 +609,8 @@ test('callModel sends Anthropic Messages requests and normalizes tool use blocks
         apiKey: 'direct-anthropic-key',
       },
       messages: [
-        { role: 'system', content: 'Use concise answers.' },
-        { role: 'user', content: 'lookup scene' },
+        { role: 'system', content: runtimeModelTextContent('Use concise answers.') },
+        { role: 'user', content: runtimeModelTextContent('lookup scene') },
       ],
       tools: [{
         type: 'function',
@@ -584,7 +664,7 @@ test('callModel rejects direct provider calls without a direct API key', async (
         baseURL: 'https://api.openai.com/v1',
       },
       auth: { backendAuthToken: 'backend-user-token' },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: runtimeModelTextContent('hello') }],
       retry: { maxAttempts: 1 },
       onTrace: (event) => traceEvents.push(event),
     }),

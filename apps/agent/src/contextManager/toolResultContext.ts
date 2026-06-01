@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { JSONValue } from '../types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { isJSONValue, isRecord } from '../jsonValue.js'
@@ -12,7 +13,18 @@ export interface ModelToolResultContext {
   dropped: boolean
   originalChars: number
   renderedChars: number
+  resultRef?: ModelToolResultRef
   reason?: 'deduped' | 'budget_dropped' | 'summarized'
+}
+
+export interface ModelToolResultRef {
+  key: string
+  hash?: string
+  evidenceKind: 'tool_result'
+  lookup: {
+    resultHash?: string
+    refKey: string
+  }
 }
 
 export function buildModelToolResultContext(input: {
@@ -20,8 +32,10 @@ export function buildModelToolResultContext(input: {
   call: ToolCall
   result?: JSONValue
   error?: string
+  maxResultSizeChars?: number
 }): ModelToolResultContext {
   const call = { name: formatToolNameForDisplay(input.call.name), args: input.call.args ?? {} }
+  const resultRef = input.result === undefined ? undefined : buildModelToolResultRef(input.call, input.result)
   const runtimeInstruction = planToolResultInstruction(input.call.name, input.result)
   const payload = input.error
     ? withContextBoundary({ error: input.error, call })
@@ -31,34 +45,125 @@ export function buildModelToolResultContext(input: {
       ...(runtimeInstruction ? { runtimeInstruction } : {}),
     })
   const raw = JSON.stringify(payload)
-  const maxToolResultChars = Math.min(DEFAULT_MAX_TOOL_RESULT_CHARS, maxRetrievedContextChars(input.run))
+  const maxToolResultChars = Math.min(
+    input.maxResultSizeChars && Number.isFinite(input.maxResultSizeChars) ? Math.max(500, Math.floor(input.maxResultSizeChars)) : DEFAULT_MAX_TOOL_RESULT_CHARS,
+    maxRetrievedContextChars(input.run),
+  )
   if (raw.length <= maxToolResultChars) {
-    return { content: raw, dropped: false, originalChars: raw.length, renderedChars: raw.length }
+    return { content: raw, dropped: false, originalChars: raw.length, renderedChars: raw.length, ...(resultRef ? { resultRef } : {}) }
   }
 
   const summaryPayload = input.error
     ? payload
     : withContextBoundary({
-      result: summarizeJSONValue(input.result, maxInlineBodyChars(maxToolResultChars)),
-      call: payload.call,
-      ...(runtimeInstruction ? { runtimeInstruction } : {}),
       contextControl: {
         originalChars: raw.length,
         renderedAs: 'summary',
-        reason: 'tool result exceeded model context budget',
-        action: 'call the relevant read tool again with narrower parameters if full body is required',
+        reason: 'tool_result_exceeded_context_budget',
+        action: 'use_resultRef_or_rerun_narrow_read',
+        ...(resultRef ? { resultRef: compactToolResultRef(resultRef) } : {}),
       },
+      result: summarizeJSONValue(input.result, maxInlineBodyChars(maxToolResultChars)),
+      call: payload.call,
+      ...(runtimeInstruction ? { runtimeInstruction } : {}),
     })
   const summary = JSON.stringify(summaryPayload)
-  const content = summary.length <= maxToolResultChars
+  const summaryFitsBudget = summary.length <= maxToolResultChars
+  const content = summaryFitsBudget
     ? summary
-    : `${summary.slice(0, Math.max(0, maxToolResultChars - 1))}…`
+    : serializeBudgetDroppedSummary({
+      originalChars: raw.length,
+      maxChars: maxToolResultChars,
+      resultRef,
+      call: payload.call,
+      runtimeInstruction,
+    })
   return {
     content,
     dropped: true,
     originalChars: raw.length,
     renderedChars: content.length,
-    reason: content.length < summary.length ? 'budget_dropped' : 'summarized',
+    ...(resultRef ? { resultRef } : {}),
+    reason: summaryFitsBudget ? 'summarized' : 'budget_dropped',
+  }
+}
+
+function compactToolResultRef(ref: ModelToolResultRef): JSONValue {
+  return {
+    key: ref.key,
+    lookup: ref.lookup,
+  }
+}
+
+function serializeBudgetDroppedSummary(input: {
+  originalChars: number
+  maxChars: number
+  resultRef?: ModelToolResultRef
+  call: JSONValue
+  runtimeInstruction?: JSONValue
+}): string {
+  const result: JSONValue = {
+    type: 'omitted_tool_result_summary',
+    originalChars: input.originalChars,
+    reason: 'summary_exceeded_context_budget',
+  }
+  const fullControl: Record<string, JSONValue> = {
+    originalChars: input.originalChars,
+    renderedAs: 'summary',
+    reason: 'tool_result_summary_exceeded_context_budget',
+    ...(input.resultRef ? { resultRef: compactToolResultRef(input.resultRef) } : {}),
+  }
+  const compactControl: Record<string, JSONValue> = {
+    renderedAs: 'summary',
+    reason: 'tool_result_summary_exceeded_context_budget',
+    ...(input.resultRef ? { resultRef: { key: input.resultRef.key } } : {}),
+  }
+  const candidates = [
+    withContextBoundary({
+      contextControl: fullControl,
+      result,
+      call: input.call,
+      ...(input.runtimeInstruction ? { runtimeInstruction: input.runtimeInstruction } : {}),
+    }),
+    withContextBoundary({
+      contextControl: compactControl,
+      result,
+      call: input.call,
+    }),
+    withContextBoundary({
+      contextControl: compactControl,
+      result,
+    }),
+    withContextBoundary({
+      contextControl: {
+        renderedAs: 'summary',
+        reason: 'tool_result_summary_exceeded_context_budget',
+      },
+      result,
+    }),
+  ]
+  for (const candidate of candidates) {
+    const serialized = JSON.stringify(candidate)
+    if (serialized.length <= input.maxChars) return serialized
+  }
+  return JSON.stringify(withContextBoundary({
+    contextControl: { renderedAs: 'summary' },
+    result: { type: 'omitted_tool_result_summary' },
+  }))
+}
+
+export function buildModelToolResultRef(call: ToolCall, result: JSONValue): ModelToolResultRef {
+  const hash = stableHash(result)
+  const id = call.id ?? call.name
+  const key = `tool_result:${id}:${hash}`
+  return {
+    key,
+    hash,
+    evidenceKind: 'tool_result',
+    lookup: {
+      refKey: key,
+      resultHash: hash,
+    },
   }
 }
 
@@ -162,4 +267,17 @@ function parseEmbeddedJSON(value: string): JSONValue | undefined {
   } catch {
     return undefined
   }
+}
+
+function stableHash(value: JSONValue): string {
+  return `sha256:${createHash('sha256').update(stableStringify(value)).digest('hex')}`
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+    .join(',')}}`
 }

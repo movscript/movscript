@@ -32,7 +32,7 @@ const facadeDelegates = [
   ['reloadAgentCatalog', 'this.catalogOperations.reloadAgentCatalog()'],
   ['inspectAgentCatalog', 'this.catalogOperations.inspectAgentCatalog(run, input)'],
   ['updateActiveSkills', 'this.catalogOperations.updateActiveSkills(run, input)'],
-  ['updatePlan', 'updateRuntimePlan({'],
+  ['updatePlan', 'this.planTools.updatePlan(run, input)'],
   ['startWork', 'this.runtimeWorks.startWork(run, input, options)'],
   ['getWork', 'this.runtimeWorks.getWork(run, input)'],
   ['listWork', 'this.runtimeWorks.listWork(run, input)'],
@@ -45,8 +45,8 @@ const facadeDelegates = [
   ['listThreads', 'this.threads.listThreads()'],
   ['listThreadSummaries', 'this.threads.listThreadSummaries()'],
   ['getThread', 'this.threads.getThread(id)'],
-  ['getThreadRuntimeSnapshot', 'buildRuntimeThreadSnapshotV2({'],
-  ['getSessionRuntimeSnapshot', 'buildRuntimeSessionSnapshotV1({'],
+  ['getThreadRuntimeSnapshot', 'this.runtimeSnapshots.getThreadRuntimeSnapshot(threadId)'],
+  ['getSessionRuntimeSnapshot', 'this.runtimeSnapshots.getSessionRuntimeSnapshot(sessionId)'],
   ['approveInteraction', 'this.runtimeScheduler.approveInteraction(interactionId)'],
   ['rejectInteraction', 'this.runtimeScheduler.rejectInteraction(interactionId)'],
   ['updateThread', 'this.threads.updateThread(id, input)'],
@@ -77,8 +77,11 @@ const facadeDelegates = [
   ['getRunTraceSummary', 'this.traceReads.getRunTraceSummary(runId)'],
   ['getRunTraceDebugView', 'this.traceReads.getRunTraceDebugView(runId)'],
   ['getRunDebugLedger', 'this.traceReads.getRunDebugLedger(runId)'],
+  ['findRunDebugEvidenceRefs', 'this.traceReads.findRunDebugEvidenceRefs(runId, query)'],
   ['getRunDebugEvidence', 'this.traceReads.getRunDebugEvidence(runId, evidenceId)'],
   ['getRunGenerationView', 'this.traceReads.getRunGenerationView(runId)'],
+  ['getRunToolResult', 'this.traceReads.getRunToolResult(runId, refKey)'],
+  ['findRunToolResults', 'this.traceReads.findRunToolResults(runId, query)'],
   ['subscribeRunStream', 'this.streamSubscriptions.subscribeRunStream(runId, listener)'],
   ['subscribeSessionStream', 'this.streamSubscriptions.subscribeSessionStream(sessionId, listener)'],
   ['subscribeThreadStream', 'this.streamSubscriptions.subscribeThreadStream(threadId, listener)'],
@@ -123,15 +126,11 @@ test('AgentRuntimeRouter imports only approved runtime application modules direc
     'runtimeIdentity',
     'runtimeInteractions',
     'runtimeManifest',
-    'runtimePlanTools',
     'runtimeRecoveryBridge',
     'runtimeRunCancellationGuard',
     'runtimeScheduler',
-    'runtimeScalarInput',
-    'runtimeStoreLookup',
     'runtimeThreadSnapshot',
-    'runtimeThreadProjection',
-    'runtimeWakeCoordinator',
+    'runtimeToolHandlers',
     ...bridgeModuleNames,
   ])
   const runtimeImports = [...source.matchAll(/from '\.\/(runtime[^']+)\.js'/g)]
@@ -157,6 +156,7 @@ test('AgentRuntimeRouter stays on bridge boundaries for extracted facade areas',
     'runtimePlanSnapshot',
     'runtimePlanTreeCancellation',
     'runtimePostRunRecords',
+    'runtimePlanTools',
     'runtimeReplanPreparation',
     'runtimeRunCancellation',
     'runtimeRunCreation',
@@ -164,15 +164,20 @@ test('AgentRuntimeRouter stays on bridge boundaries for extracted facade areas',
     'runtimeRunExecutionScheduler',
     'runtimeRunPreview',
     'runtimeRunProjection',
+    'runtimeRunVisibility',
+    'runtimeScalarInput',
     'runtimeRunStepCreation',
     'runtimeRunStepCompletion',
     'runtimeStreamSubscription',
+    'runtimeStoreLookup',
     'runtimeTaskEvent',
     'runtimeTaskRunSync',
     'runtimeTaskUpdate',
     'runtimeTraceRead',
     'runtimeThreadLifecycle',
+    'runtimeThreadProjection',
     'runtimeThreadRead',
+    'runtimeWakeCoordinator',
   ]
 
   for (const moduleName of forbiddenRuntimeModules) {
@@ -215,4 +220,96 @@ test('AgentRuntimeRouter delegates trace reads without direct trace store access
   assert.equal(countOccurrences(source, 'this.store.countRunTraceEvents('), 0)
   assert.equal(countOccurrences(source, 'normalizeTracePageLimit('), 0)
   assert.equal(countOccurrences(source, 'buildRunTracePage('), 0)
+})
+
+test('AgentRuntimeRouter delegates thread snapshot run selection', () => {
+  assert.equal(
+    source.includes('buildRuntimeThreadSnapshotV2({'),
+    false,
+    'AgentRuntimeRouter should not directly build thread runtime snapshots',
+  )
+  assert.equal(
+    source.includes('buildRuntimeSessionSnapshotV1({'),
+    false,
+    'AgentRuntimeRouter should not directly build session runtime snapshots',
+  )
+  assert.equal(
+    source.includes('runtimeSnapshotRunsForThread'),
+    false,
+    'AgentRuntimeRouter should not own thread snapshot run selection',
+  )
+  assert.equal(
+    source.includes('runtimeRunDisplaysOnThread'),
+    false,
+    'AgentRuntimeRouter should not own runtime run thread visibility rules',
+  )
+  assert.equal(
+    source.includes('selectRuntimeSnapshotRunsForThread({'),
+    false,
+    'AgentRuntimeRouter should not directly select thread snapshot runs',
+  )
+  assert.equal(
+    source.includes('this.runtimeSnapshots.getThreadRuntimeSnapshot(threadId)'),
+    true,
+    'AgentRuntimeRouter should delegate thread snapshot assembly',
+  )
+  assert.equal(
+    source.includes('this.runtimeSnapshots.getSessionRuntimeSnapshot(sessionId)'),
+    true,
+    'AgentRuntimeRouter should delegate session snapshot assembly',
+  )
+})
+
+test('AgentRuntimeRouter delegates runtime work wake coordination', () => {
+  for (const forbidden of [
+    'RuntimeWorkManager',
+    'RuntimeWakeCoordinator',
+    'GenerationJobWorkProvider',
+    'SubagentRunWorkProvider',
+    'AgentStoreRuntimeWorkStore',
+    'observeRuntimeWorkForOpen',
+    'handleRuntimeRunSettled',
+    'isTerminalRuntimeWorkStatus',
+  ]) {
+    assert.equal(
+      source.includes(forbidden),
+      false,
+      `AgentRuntimeRouter should not own runtime work coordination detail: ${forbidden}`,
+    )
+  }
+  assert.equal(
+    source.includes('createRuntimeWorkCoordinatorBridge({'),
+    true,
+    'AgentRuntimeRouter should compose runtime work coordination through a bridge',
+  )
+  assert.equal(
+    source.includes('this.workCoordinator.runSettled(runId)'),
+    true,
+    'AgentRuntimeRouter should delegate run-settled wake handling',
+  )
+  assert.equal(
+    source.includes('this.workCoordinator.threadOpened(threadId)'),
+    true,
+    'AgentRuntimeRouter should delegate thread-open wake handling',
+  )
+})
+
+test('AgentRuntimeRouter delegates plan updates and thread deletion guards', () => {
+  for (const forbidden of [
+    'updateRuntimePlan({',
+    'isExecutingRunStatus',
+    'this.store.listRuns({ threadId: id })',
+    'this.store.listRuns().find(',
+  ]) {
+    assert.equal(
+      source.includes(forbidden),
+      false,
+      `AgentRuntimeRouter should not own plan update or thread deletion detail: ${forbidden}`,
+    )
+  }
+  assert.equal(
+    source.includes('createRuntimePlanToolsBridge({'),
+    true,
+    'AgentRuntimeRouter should compose plan tool updates through a bridge',
+  )
 })

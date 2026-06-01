@@ -78,9 +78,18 @@ test('loadRuntimeRunExecutionContext uses frozen run input, records trace, and p
   assert.equal(result.command.name, 'chat')
   assert.equal(result.clientInput?.attachments.length, 1)
   assert.equal(traces[0]?.title, 'User message loaded')
-  assert.equal(traces[0]?.summary, 'frozen run message')
-  assert.deepEqual(traces[0]?.data, {
+  assert.equal(traces[0]?.summary, 'User message loaded (18 chars).')
+  assert.equal((traces[0]?.data as any)?.content, undefined)
+  assert.match(String((traces[0]?.data as any)?.contentHash), /^sha256:/)
+  assert.deepEqual({
+    messageId: (traces[0]?.data as any)?.messageId,
+    source: (traces[0]?.data as any)?.source,
+    runInputFrozen: (traces[0]?.data as any)?.runInputFrozen,
+    hasClientInput: (traces[0]?.data as any)?.hasClientInput,
+    attachmentCount: (traces[0]?.data as any)?.attachmentCount,
+  }, {
     messageId: 'msg_1',
+    source: 'run_input',
     runInputFrozen: true,
     hasClientInput: true,
     attachmentCount: 1,
@@ -114,8 +123,16 @@ test('loadRuntimeRunExecutionContext falls back to latest legacy thread user', (
   assert.equal(result.executionInput.sourceMessageId, 'msg_3')
   assert.equal(result.command.name, 'context')
   assert.equal(result.clientInput, undefined)
-  assert.deepEqual(traces[0]?.data, {
+  assert.equal((traces[0]?.data as any)?.content, undefined)
+  assert.deepEqual({
+    messageId: (traces[0]?.data as any)?.messageId,
+    source: (traces[0]?.data as any)?.source,
+    runInputFrozen: (traces[0]?.data as any)?.runInputFrozen,
+    hasClientInput: (traces[0]?.data as any)?.hasClientInput,
+    attachmentCount: (traces[0]?.data as any)?.attachmentCount,
+  }, {
     messageId: 'msg_3',
+    source: 'thread_message',
     runInputFrozen: false,
     hasClientInput: false,
     attachmentCount: 0,

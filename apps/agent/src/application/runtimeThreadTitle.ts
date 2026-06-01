@@ -8,6 +8,7 @@ import {
 import { normalizeBackendAPIBaseURL, normalizeBackendAuthToken } from './runAuth.js'
 import { callModel, type ModelCallInput, type ModelCallResult } from '../model/modelClient.js'
 import { resolveRuntimeChatModelConfig } from '../model/modelConfig.js'
+import { runtimeModelTextContent } from '../domains/message/modelMessage.js'
 import type { ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
 
 export async function ensureRuntimeThreadTitle(input: {
@@ -23,7 +24,8 @@ export async function ensureRuntimeThreadTitle(input: {
   resolveModelConfig?: () => ConfiguredRuntimeModelConfig | undefined
   callModel?: (input: ModelCallInput) => Promise<ModelCallResult>
 }): Promise<AgentThread | undefined> {
-  const { thread, userMessage } = input
+  const { userMessage } = input
+  const thread = input.getThread?.(input.thread.id) ?? input.thread
   if (!shouldGenerateThreadTitle(thread, userMessage)) return undefined
   if (!userMessage) return undefined
   markThreadTitleGenerationPending(thread, input.now())
@@ -42,17 +44,17 @@ export async function ensureRuntimeThreadTitle(input: {
       messages: [
         {
           role: 'system',
-          content: [
+          content: runtimeModelTextContent([
             'You generate short chat thread titles.',
             'Return only the title text.',
             'Use the same language as the user message.',
             'Keep it under 12 Chinese characters or 6 English words.',
             'Do not add quotes, punctuation, or explanations.',
-          ].join('\n'),
+          ].join('\n')),
         },
         {
           role: 'user',
-          content: userMessage.content.slice(0, 1200),
+          content: runtimeModelTextContent(userMessage.content.slice(0, 1200)),
         },
       ],
       signal: input.signal,
@@ -69,6 +71,7 @@ export async function ensureRuntimeThreadTitle(input: {
       thread: targetThread,
       runId: input.runId,
       now: input.now,
+      getThread: input.getThread,
       updateThread: input.updateThread,
       emitRunStreamEvent: input.emitRunStreamEvent,
     })
@@ -84,6 +87,7 @@ export async function ensureRuntimeThreadTitle(input: {
       thread: targetThread,
       runId: input.runId,
       now: input.now,
+      getThread: input.getThread,
       updateThread: input.updateThread,
       emitRunStreamEvent: input.emitRunStreamEvent,
     })
@@ -122,19 +126,36 @@ function persistGeneratedThreadTitle(input: {
   thread: AgentThread
   runId?: string
   now: () => string
+  getThread?: (threadId: string) => AgentThread | undefined
   updateThread: (thread: AgentThread) => void
   emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
 }): AgentThread {
-  input.thread.updatedAt = input.now()
-  input.updateThread(input.thread)
-  if (input.runId && input.thread.title?.trim()) {
+  const updatedAt = input.now()
+  const thread = mergeGeneratedThreadTitle(input.getThread?.(input.thread.id), input.thread, updatedAt)
+  input.updateThread(thread)
+  if (input.runId && thread.title?.trim()) {
     input.emitRunStreamEvent?.(input.runId, {
       type: 'thread_title',
       runId: input.runId,
-      threadId: input.thread.id,
-      title: input.thread.title.trim(),
-      updatedAt: input.thread.updatedAt,
+      threadId: thread.id,
+      title: thread.title.trim(),
+      updatedAt: thread.updatedAt,
     })
   }
-  return input.thread
+  return thread
+}
+
+function mergeGeneratedThreadTitle(latest: AgentThread | undefined, titled: AgentThread, updatedAt: string): AgentThread {
+  const thread = latest ? { ...latest } : titled
+  thread.title = titled.title
+  thread.metadata = {
+    ...(latest?.metadata ?? titled.metadata ?? {}),
+    ...(titled.metadata?.titleGeneratedAt ? { titleGeneratedAt: titled.metadata.titleGeneratedAt } : {}),
+    ...(titled.metadata?.titleGenerationStatus ? { titleGenerationStatus: titled.metadata.titleGenerationStatus } : {}),
+    ...(titled.metadata?.titleSourceMessageId ? { titleSourceMessageId: titled.metadata.titleSourceMessageId } : {}),
+    ...(titled.metadata?.titleSource ? { titleSource: titled.metadata.titleSource } : {}),
+    ...(titled.metadata?.titleGenerationError ? { titleGenerationError: titled.metadata.titleGenerationError } : {}),
+  }
+  thread.updatedAt = updatedAt
+  return thread
 }

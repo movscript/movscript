@@ -26,6 +26,21 @@ export interface CompactedPromptHistory {
   messages: AgentMessage[]
   summary?: string
   compactedCount: number
+  inputCount: number
+  retainedCount: number
+  filteredCount: number
+  summaryChars: number
+  projectionDecisions: PromptHistoryProjectionDecision[]
+}
+
+export interface PromptHistoryProjectionDecision {
+  action: 'retain' | 'compact' | 'drop'
+  stage: 'history_window' | 'runtime_failure_filter' | 'thread_summary'
+  reason: string
+  messageCount: number
+  retainedCount: number
+  summaryChars: number
+  maxMessages: number
 }
 
 export interface ThreadContextSummary {
@@ -69,22 +84,94 @@ export function compactPromptHistory(
 ): CompactedPromptHistory {
   const filtered = filterPromptHistory(messages)
   const normalizedMax = Number.isFinite(maxMessages) ? Math.max(0, Math.floor(maxMessages)) : DEFAULT_MAX_PROMPT_HISTORY_MESSAGES
+  const filteredCount = messages.length - filtered.length
   if (filtered.length <= normalizedMax) {
+    const summary = threadSummary ? renderThreadContextSummary(threadSummary) : undefined
     return {
       messages: filtered,
-      ...(threadSummary ? { summary: renderThreadContextSummary(threadSummary) } : {}),
+      ...(summary ? { summary } : {}),
       compactedCount: 0,
+      inputCount: messages.length,
+      retainedCount: filtered.length,
+      filteredCount,
+      summaryChars: summary?.length ?? 0,
+      projectionDecisions: buildPromptHistoryProjectionDecisions({
+        compactedCount: 0,
+        filteredCount,
+        retainedCount: filtered.length,
+        summaryChars: summary?.length ?? 0,
+        maxMessages: normalizedMax,
+        hasThreadSummary: !!summary,
+      }),
     }
   }
   const compacted = filtered.slice(0, filtered.length - normalizedMax)
   const recent = filtered.slice(-normalizedMax)
   const compactedSummary = renderThreadContinuitySummary(compacted)
   const persistedSummary = threadSummary ? renderThreadContextSummary(threadSummary) : undefined
+  const summary = [persistedSummary, compactedSummary].filter(Boolean).join('\n\n')
   return {
     messages: recent,
-    summary: [persistedSummary, compactedSummary].filter(Boolean).join('\n\n'),
+    summary,
     compactedCount: compacted.length,
+    inputCount: messages.length,
+    retainedCount: recent.length,
+    filteredCount,
+    summaryChars: summary.length,
+    projectionDecisions: buildPromptHistoryProjectionDecisions({
+      compactedCount: compacted.length,
+      filteredCount,
+      retainedCount: recent.length,
+      summaryChars: summary.length,
+      maxMessages: normalizedMax,
+      hasThreadSummary: !!persistedSummary,
+    }),
   }
+}
+
+function buildPromptHistoryProjectionDecisions(input: {
+  compactedCount: number
+  filteredCount: number
+  retainedCount: number
+  summaryChars: number
+  maxMessages: number
+  hasThreadSummary: boolean
+}): PromptHistoryProjectionDecision[] {
+  const decisions: PromptHistoryProjectionDecision[] = []
+  if (input.filteredCount > 0) {
+    decisions.push({
+      action: 'drop',
+      stage: 'runtime_failure_filter',
+      reason: 'Runtime failure assistant messages are omitted from prompt history.',
+      messageCount: input.filteredCount,
+      retainedCount: input.retainedCount,
+      summaryChars: input.summaryChars,
+      maxMessages: input.maxMessages,
+    })
+  }
+  if (input.compactedCount > 0) {
+    decisions.push({
+      action: 'compact',
+      stage: 'history_window',
+      reason: 'Older transcript messages were summarized to keep routine prompt history within the configured window.',
+      messageCount: input.compactedCount,
+      retainedCount: input.retainedCount,
+      summaryChars: input.summaryChars,
+      maxMessages: input.maxMessages,
+    })
+  }
+  if (input.hasThreadSummary) {
+    decisions.push({
+      action: 'retain',
+      stage: 'thread_summary',
+      reason: 'Persisted thread context summary was retained as advisory continuity instead of full transcript facts.',
+      messageCount: 0,
+      retainedCount: input.retainedCount,
+      summaryChars: input.summaryChars,
+      maxMessages: input.maxMessages,
+    })
+  }
+  return decisions
 }
 
 export function buildThreadContextSummary(input: {

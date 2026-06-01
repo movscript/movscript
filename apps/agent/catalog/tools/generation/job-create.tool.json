@@ -18,7 +18,7 @@
       "output_count": { "type": "number", "minimum": 1, "maximum": 15, "description": "Number of independent single-output jobs to create." },
       "outputCount": { "type": "number", "minimum": 1, "maximum": 15, "description": "Alias for output_count." },
       "extra_params": { "type": "object", "additionalProperties": true },
-      "feature_key": { "type": "string" },
+      "feature_key": { "type": "string", "description": "Optional caller source key for audit. It does not affect model routing." },
       "projectId": { "type": "number" },
       "wait": { "type": "boolean" },
       "timeout_ms": { "type": "number" },

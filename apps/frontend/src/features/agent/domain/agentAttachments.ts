@@ -45,7 +45,7 @@ export function dedupeAttachments(items: AgentAttachment[]): AgentAttachment[] {
 }
 
 export function stripAttachmentPreviewUrl(attachment: AgentAttachment): AgentAttachment {
-  return { ...attachment, previewUrl: undefined }
+  return { ...attachment, previewUrl: undefined, dataUrl: undefined }
 }
 
 export function placeholderAttachment(resourceId: number): AgentAttachment {
@@ -61,6 +61,20 @@ export function placeholderAttachment(resourceId: number): AgentAttachment {
 
 export function attachmentDisplayUrl(attachment: AgentAttachment) {
   return attachment.previewUrl ?? attachment.url
+}
+
+export function attachmentToResource(attachment: AgentAttachment): RawResource | null {
+  const url = attachmentDisplayUrl(attachment) || (attachment.resourceId !== undefined ? `/api/v1/resources/${attachment.resourceId}/file` : '')
+  if (!url) return null
+  return {
+    ID: attachment.resourceId ?? 0,
+    owner_id: 0,
+    type: attachment.type,
+    name: attachment.name,
+    url,
+    size: attachment.size,
+    mime_type: attachment.mimeType,
+  }
 }
 
 export function formatAgentAttachmentBytes(bytes: number) {

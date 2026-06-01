@@ -11,7 +11,7 @@ test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () 
     prompt: ' make a shot ',
     params: { aspect_ratio: '16:9', duration: '5', resolution: '720p' },
     inputResourceIds: [7],
-    featureKey: 'tool.video',
+    sourceKey: 'tool.video',
   }), {
     model_id: 'video.draft',
     job_type: 'video',
@@ -33,7 +33,7 @@ test('buildGenerationJobPayload keeps non numeric duration in extra params', () 
     prompt: 'make a shot',
     params: { duration: 'auto', negative_prompt: 'low quality' },
     inputResourceIds: [],
-    featureKey: 'tool.video',
+    sourceKey: 'tool.video',
   }), {
     model_id: 'video.draft',
     job_type: 'video',

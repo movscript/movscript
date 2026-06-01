@@ -1154,6 +1154,7 @@ export interface SendRuntimeInputMessageDeps<
   Message extends AgentConversationMessageShape = AgentChatMessage,
   Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
   Run extends { id: string } = AgentRun,
+  ClientInput = unknown,
 > {
   userId: string
   conversationId: string
@@ -1165,6 +1166,7 @@ export interface SendRuntimeInputMessageDeps<
     sourceMessageId?: string
     activeRunPolicy: 'runtime_input'
     runtimeInputMode: 'soft'
+    clientInput?: ClientInput
   }) => Promise<SendRuntimeInputMessageResult<Run>>
   setConversationRun: (conversationId: string, run: Run, patch?: { loading?: boolean; building?: boolean; error?: string }) => void
   setConversationRuntime: (conversationId: string, patch: { loading?: boolean; building?: boolean; error?: string }) => void
@@ -1174,10 +1176,12 @@ export async function sendRuntimeInputMessage<
   Message extends AgentConversationMessageShape = AgentChatMessage,
   Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
   Run extends { id: string } = AgentRun,
+  ClientInput = unknown,
 >(input: {
   content: string
   attachments?: Message['attachments']
-  deps: SendRuntimeInputMessageDeps<Message, Meta, Run>
+  clientInput?: ClientInput
+  deps: SendRuntimeInputMessageDeps<Message, Meta, Run, ClientInput>
 }): Promise<void> {
   const content = input.content.trim()
   if (!content && !(input.attachments && input.attachments.length > 0)) return
@@ -1200,6 +1204,7 @@ export async function sendRuntimeInputMessage<
       sourceMessageId: localMessageId,
       activeRunPolicy: 'runtime_input',
       runtimeInputMode: 'soft',
+      ...(input.clientInput !== undefined ? { clientInput: input.clientInput } : {}),
     })
     const runtimeInput = result.runtimeInput
     deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {

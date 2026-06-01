@@ -18,7 +18,7 @@ test('agent browser opens resource library inside the agent content panel', () =
   assert.match(agentBrowserPanelSource, /replaceActiveBlank/)
   assert.match(agentBrowserPanelSource, /<ResourceLibraryView variant="pane" \/>/)
   assert.match(agentBrowserPanelSource, /<ExternalResourceSearchPage variant="pane" \/>/)
-  assert.match(agentBrowserPanelSource, /<CanvasListView source="agent" className="agent-browser-canvas-list-view" \/>/)
+  assert.match(agentBrowserPanelSource, /<AgentBrowserInternalPane>[\s\S]*<CanvasListView source="agent" \/>[\s\S]*<\/AgentBrowserInternalPane>/)
   assert.match(agentBrowserPanelSource, /onOpenResourceLibrary=\{openResourceLibraryInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /onOpenExternalResourceLibrary=\{openExternalResourceLibraryInCurrentTab\}/)
   assert.match(agentBrowserPanelSource, /onOpenCanvasList=\{openCanvasListInCurrentTab\}/)

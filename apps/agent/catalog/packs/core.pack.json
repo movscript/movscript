@@ -24,6 +24,7 @@
     "core_file_read",
     "core_file_search",
     "core_file_edit",
+    "core_video_extract_frames",
     "core_catalog_inspect",
     "core_skill_update",
     "core_update_plan",

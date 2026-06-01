@@ -16,9 +16,11 @@ import type {
   ToolCallOutcome,
 } from '../state/types.js'
 import { buildRollbackMetadata } from '../tools/toolRollbackRecords.js'
-import { buildFinalAssistantContent, combineAssistantTurnContents } from './assistantMessage.js'
+import { combineAssistantTurnContents } from '../domains/message/assistantOutput.js'
+import { formatAssistantMessageTraceSummary, summarizeAssistantMessageTrace } from '../domains/trace/messageTrace.js'
+import { buildFinalAssistantContent } from './runtimeFinalAssistantContent.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
 
 export interface RuntimeRunCompletionTraceInput {
   kind: AgentTraceEventKind
@@ -98,11 +100,15 @@ export function applyRuntimeRunCompletion(input: {
   input.recordTrace(input.run, {
     kind: 'assistant',
     title: 'Assistant message created',
-    summary: assistant.content.slice(0, 180),
+    summary: formatAssistantMessageTraceSummary(assistant.content),
     status: 'completed',
     round: finalRound,
     stepId: step.id,
-    data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content, source: 'model' },
+    data: summarizeAssistantMessageTrace({
+      messageId: assistant.id,
+      content: assistant.content,
+      source: 'model',
+    }),
   })
 
   applyRunCompletion(input.run, {

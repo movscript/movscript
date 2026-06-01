@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../../../../lib/cn";
@@ -7,6 +8,7 @@ import { toneSurfaceClass, toneTextClass, type SemanticTone } from "../../../../
 import { AppProgressBar, type AppProgressBarProps } from "../../../app";
 import { StatusBadge, type StatusBadgeProps } from "../../../../primitives";
 import { ReviewCallout, ReviewStat } from "../../../review";
+import { AgentSurfaceBlock } from "../../surface-block";
 
 export type AgentGeneratedIntent = SemanticTone;
 
@@ -14,7 +16,7 @@ export function AgentGeneratedCard({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-generated-card", className)} {...props} />;
+  return <AgentSurfaceBlock variant="card" className={cn("agent-generated-card", className)} {...props} />;
 }
 
 export function AgentGeneratedCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -86,7 +88,8 @@ export function AgentGeneratedItem({
   intent?: AgentGeneratedIntent;
 }) {
   return (
-    <div
+    <AgentSurfaceBlock
+      variant="subtle"
       className={cn("agent-generated-item", intent && toneSurfaceClass(intent), className)}
       {...props}
     />

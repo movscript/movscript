@@ -26,14 +26,40 @@ import {
 } from 'lucide-react'
 import {
   AgentBrowserBadge,
+  AgentBrowserAddressForm,
   AgentBrowserBlankContent,
   AgentBrowserBlankForm,
+  AgentBrowserContentFlow,
+  AgentBrowserContentGroup,
+  AgentBrowserContentGroupCopy,
+  AgentBrowserContentGroupDescription,
+  AgentBrowserContentGroupHeader,
+  AgentBrowserContentGroupIcon,
+  AgentBrowserContentGroupIndex,
+  AgentBrowserContentGroupItems,
+  AgentBrowserContentGroupOverflow,
+  AgentBrowserContentGroupState,
+  AgentBrowserContentGroupTitle,
+  AgentBrowserContentGroupTitleRow,
+  AgentBrowserContentItem,
+  AgentBrowserContentItemCopy,
+  AgentBrowserContentItemDescription,
+  AgentBrowserContentItemMeta,
+  AgentBrowserContentItemTitle,
+  AgentBrowserContentMatrix,
+  AgentBrowserContentSummary,
+  AgentBrowserContentSummaryGrid,
+  AgentBrowserContentSummaryMain,
+  AgentBrowserContentToolbar,
+  AgentBrowserContentToolButton,
   AgentBrowserDividerSection,
   AgentBrowserHeader,
   AgentBrowserIconButton,
+  AgentBrowserInternalPane,
   AgentBrowserInlineError,
   AgentBrowserInput,
   AgentBrowserInputRow,
+  AgentBrowserKeyValue,
   AgentBrowserLauncherForm,
   AgentBrowserLauncherIcon,
   AgentBrowserLauncherSubmitButton,
@@ -46,8 +72,10 @@ import {
   AgentBrowserProjectHeader,
   AgentBrowserProjectHeaderCopy,
   AgentBrowserProjectMetaLabel,
+  AgentBrowserProjectNavigationPage,
   AgentBrowserProjectPage,
   AgentBrowserProjectTitle,
+  AgentBrowserResourcePane,
   AgentBrowserRoot,
   AgentBrowserSectionIntro,
   AgentBrowserSectionLabel,
@@ -557,7 +585,7 @@ export function AgentBrowserPanel() {
               )
             })}
             <AgentBrowserUrlMeta asChild>
-              <form className="agent-browser-address-form" onSubmit={submitToolbarAddress}>
+              <AgentBrowserAddressForm onSubmit={submitToolbarAddress}>
                 <AgentBrowserInput
                   value={toolbarAddressDraft}
                   onChange={(event) => setToolbarAddressDraft(event.target.value)}
@@ -568,7 +596,7 @@ export function AgentBrowserPanel() {
                 <AgentBrowserLauncherSubmitButton disabled={!available || !toolbarAddressDraft.trim()}>
                   打开
                 </AgentBrowserLauncherSubmitButton>
-              </form>
+              </AgentBrowserAddressForm>
             </AgentBrowserUrlMeta>
           </AgentBrowserToolbar>
         ) : null}
@@ -603,21 +631,21 @@ export function AgentBrowserPanel() {
             onOpenCanvasList={openCanvasListTab}
           />
         ) : activeTab?.kind === 'resources' ? (
-          <div className="agent-browser-resource-pane">
+          <AgentBrowserResourcePane>
             <ResourceLibraryView variant="pane" />
-          </div>
+          </AgentBrowserResourcePane>
         ) : activeTab?.kind === 'external_resources' ? (
-          <div className="agent-browser-resource-pane">
+          <AgentBrowserResourcePane>
             <ExternalResourceSearchPage variant="pane" />
-          </div>
+          </AgentBrowserResourcePane>
         ) : activeTab?.kind === 'canvas_list' ? (
-          <div className="agent-browser-internal-pane">
-            <CanvasListView source="agent" className="agent-browser-canvas-list-view" />
-          </div>
+          <AgentBrowserInternalPane>
+            <CanvasListView source="agent" />
+          </AgentBrowserInternalPane>
         ) : activeTab?.kind === 'project_standards' ? (
-          <div className="agent-browser-internal-pane">
+          <AgentBrowserInternalPane>
             <ProjectStandardsContent />
-          </div>
+          </AgentBrowserInternalPane>
         ) : activeTab?.kind === 'web' && !(activeWebState?.url || activeTab.url) ? (
           <BlankWebTab
             onOpenResourceLibrary={openResourceLibraryInCurrentTab}
@@ -902,9 +930,13 @@ function ProjectHomeBrowserPage({
   const productionGroups = groups.slice(4)
   const totalItems = groups.reduce((sum, group) => sum + group.items.length, 0)
   const loadingGroups = groups.filter((group) => group.loading).length
+  const rows = groups.map((group): [string, string | number] => [
+    group.title.replace('列表', ''),
+    group.loading ? '...' : group.items.length,
+  ])
 
   return (
-    <AgentBrowserProjectPage className="agent-browser-project-page--navigation">
+    <AgentBrowserProjectNavigationPage>
       <AgentBrowserProjectHeader>
         <AgentBrowserProjectHeaderCopy>
           <AgentBrowserProjectMetaLabel icon={<Home size={14} />}>
@@ -915,55 +947,45 @@ function ProjectHomeBrowserPage({
             {project.name}
           </AgentBrowserProjectDescription>
         </AgentBrowserProjectHeaderCopy>
-        <div className="agent-browser-content-nav__toolbar" aria-label="常用内容入口">
-          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenProjectStandards}>
-            <PenLine size={13} />
-            <span>规范</span>
-          </button>
-          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenResourceLibrary}>
-            <HardDrive size={13} />
-            <span>资源库</span>
-          </button>
-          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenExternalResourceLibrary}>
-            <ScanSearch size={13} />
-            <span>外部资源</span>
-          </button>
-          <button type="button" className="agent-browser-content-nav__tool" onClick={onOpenCanvasList}>
-            <LayoutTemplate size={13} />
-            <span>画布</span>
-          </button>
-        </div>
+        <AgentBrowserContentToolbar aria-label="常用内容入口">
+          <AgentBrowserContentToolButton icon={<PenLine size={13} />} onClick={onOpenProjectStandards}>
+            规范
+          </AgentBrowserContentToolButton>
+          <AgentBrowserContentToolButton icon={<HardDrive size={13} />} onClick={onOpenResourceLibrary}>
+            资源库
+          </AgentBrowserContentToolButton>
+          <AgentBrowserContentToolButton icon={<ScanSearch size={13} />} onClick={onOpenExternalResourceLibrary}>
+            外部资源
+          </AgentBrowserContentToolButton>
+          <AgentBrowserContentToolButton icon={<LayoutTemplate size={13} />} onClick={onOpenCanvasList}>
+            画布
+          </AgentBrowserContentToolButton>
+        </AgentBrowserContentToolbar>
       </AgentBrowserProjectHeader>
-      <section className="agent-browser-content-nav__summary" aria-label="当前项目内容概览">
-        <div className="agent-browser-content-nav__summary-main">
-          <span className="agent-browser-content-nav__summary-label">内容对象</span>
-          <strong>{totalItems}</strong>
-        </div>
-        <div className="agent-browser-content-nav__summary-grid">
-          {groups.map((group) => (
-            <span key={group.key} className="agent-browser-content-nav__summary-item">
-              <span>{group.title.replace('列表', '')}</span>
-              <strong>{group.loading ? '...' : group.items.length}</strong>
-            </span>
+      <AgentBrowserContentSummary aria-label="当前项目内容概览">
+        <AgentBrowserContentSummaryMain label="内容对象" value={totalItems} />
+        <AgentBrowserContentSummaryGrid>
+          {rows.map(([label, value]) => (
+            <AgentBrowserKeyValue key={label} label={label} value={value} strong />
           ))}
-        </div>
+        </AgentBrowserContentSummaryGrid>
         {loadingGroups > 0 ? (
           <AgentBrowserBadge>{loadingGroups} 项读取中</AgentBrowserBadge>
         ) : null}
-      </section>
+      </AgentBrowserContentSummary>
 
-      <section className="agent-browser-content-nav__matrix" aria-label="核心内容入口">
+      <AgentBrowserContentMatrix aria-label="核心内容入口">
         {topGroups.map((group, index) => (
           <ProjectNavigationGroupSection key={group.key} group={group} index={index} variant="featured" />
         ))}
-      </section>
+      </AgentBrowserContentMatrix>
 
-      <section className="agent-browser-content-nav__flow" aria-label="生产链路内容">
+      <AgentBrowserContentFlow aria-label="生产链路内容">
         {productionGroups.map((group, index) => (
           <ProjectNavigationGroupSection key={group.key} group={group} index={index + topGroups.length} variant="lane" />
         ))}
-      </section>
-    </AgentBrowserProjectPage>
+      </AgentBrowserContentFlow>
+    </AgentBrowserProjectNavigationPage>
   )
 }
 
@@ -980,68 +1002,66 @@ function ProjectNavigationGroupSection({
   const previewItems = group.items.slice(0, variant === 'featured' ? 3 : 4)
 
   return (
-    <section className="agent-browser-content-group" data-tone={group.tone} data-variant={variant}>
-      <div className="agent-browser-content-group__header">
-        <span className="agent-browser-content-group__icon">
+    <AgentBrowserContentGroup tone={group.tone} variant={variant}>
+      <AgentBrowserContentGroupHeader>
+        <AgentBrowserContentGroupIcon>
           <Icon size={17} />
-        </span>
-        <span className="agent-browser-content-group__copy">
-          <span className="agent-browser-content-group__title-row">
-            <span className="agent-browser-content-group__index">{String(index + 1).padStart(2, '0')}</span>
-            <span className="agent-browser-content-group__title">{group.title}</span>
-          </span>
-          <span className="agent-browser-content-group__description">{group.description}</span>
-        </span>
+        </AgentBrowserContentGroupIcon>
+        <AgentBrowserContentGroupCopy>
+          <AgentBrowserContentGroupTitleRow>
+            <AgentBrowserContentGroupIndex>{String(index + 1).padStart(2, '0')}</AgentBrowserContentGroupIndex>
+            <AgentBrowserContentGroupTitle>{group.title}</AgentBrowserContentGroupTitle>
+          </AgentBrowserContentGroupTitleRow>
+          <AgentBrowserContentGroupDescription>{group.description}</AgentBrowserContentGroupDescription>
+        </AgentBrowserContentGroupCopy>
         <AgentBrowserBadge>{group.loading ? '读取中' : `${group.items.length}`}</AgentBrowserBadge>
-      </div>
-      <div className="agent-browser-content-group__items">
+      </AgentBrowserContentGroupHeader>
+      <AgentBrowserContentGroupItems>
         {group.loading ? (
-          <div className="agent-browser-content-group__state">正在读取当前项目数据...</div>
+          <AgentBrowserContentGroupState>正在读取当前项目数据...</AgentBrowserContentGroupState>
         ) : group.items.length === 0 ? (
-          <div className="agent-browser-content-group__state">暂无数据</div>
+          <AgentBrowserContentGroupState>暂无数据</AgentBrowserContentGroupState>
         ) : (
           previewItems.map((item) => (
             item.to ? (
-              <Link
-                key={`${group.key}-${item.id}`}
-                to={item.to}
-                className="agent-browser-content-item"
-              >
-                <ProjectNavigationItemContent item={item} />
-              </Link>
+              <AgentBrowserContentItem asChild key={`${group.key}-${item.id}`}>
+                <Link
+                  to={item.to}
+                >
+                  <ProjectNavigationItemContent item={item} />
+                </Link>
+              </AgentBrowserContentItem>
             ) : (
-              <button
+              <AgentBrowserContentItem
                 key={`${group.key}-${item.id}`}
-                type="button"
                 onClick={item.onClick}
-                className="agent-browser-content-item"
               >
                 <ProjectNavigationItemContent item={item} />
-              </button>
+              </AgentBrowserContentItem>
             )
           ))
         )}
         {!group.loading && group.items.length > previewItems.length ? (
-          <div className="agent-browser-content-group__overflow">
+          <AgentBrowserContentGroupOverflow>
             另有 {group.items.length - previewItems.length} 项
-          </div>
+          </AgentBrowserContentGroupOverflow>
         ) : null}
-      </div>
-    </section>
+      </AgentBrowserContentGroupItems>
+    </AgentBrowserContentGroup>
   )
 }
 
 function ProjectNavigationItemContent({ item }: { item: ProjectNavigationLink }) {
   return (
     <>
-      <span className="agent-browser-content-item__copy">
-        <span className="agent-browser-content-item__title">{item.title}</span>
-        <span className="agent-browser-content-item__description">{item.description}</span>
-      </span>
-      <span className="agent-browser-content-item__meta">
+      <AgentBrowserContentItemCopy>
+        <AgentBrowserContentItemTitle>{item.title}</AgentBrowserContentItemTitle>
+        <AgentBrowserContentItemDescription>{item.description}</AgentBrowserContentItemDescription>
+      </AgentBrowserContentItemCopy>
+      <AgentBrowserContentItemMeta>
         {item.status ? <span>{item.status}</span> : null}
         <ArrowRight size={14} />
-      </span>
+      </AgentBrowserContentItemMeta>
     </>
   )
 }

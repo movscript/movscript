@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto'
 import type { JSONValue } from '../types.js'
 import { isRecord } from '../jsonValue.js'
 import type { ToolCall } from '../state/types.js'
-import type { ToolSource } from '../orchestration/toolExecutor.js'
-import type { ContextLedger, ContextRef, RetrievedContextRecord } from './types.js'
+import type { ToolSource } from '../ports/tools/toolExecutionSource.js'
+import type { ContextLedger, ContextMutation, ContextMutationSummary, ContextRef, RetrievedContextRecord } from './types.js'
 import { normalizeContextSource, normalizeEvidenceLevel, sourceBoundaryForContextRef } from './sourceBoundary.js'
-import { mergeRetrievedRecords, refKey } from './retrievedContextStore.js'
+import { refKey } from './retrievedContextStore.js'
 import { isValidAgentEntityId } from '../context/runtimeContext.js'
+
+const MAX_CONTEXT_MUTATIONS = 500
 
 export interface CreateEmptyContextLedgerInput {
   runId: string
@@ -59,6 +61,24 @@ export interface RecordToolResultInContextLedgerAudit {
   dedupedRecords: ContextLedgerDedupedRecord[]
 }
 
+export interface ApplyContextMutationsInput extends CreateEmptyContextLedgerInput {
+  ledger?: unknown
+  mutations: ContextMutation[]
+}
+
+export interface AmendContextRecordInput extends CreateEmptyContextLedgerInput {
+  ledger?: unknown
+  targetKey: string
+  record: RetrievedContextRecord
+  reason?: string
+}
+
+export interface DeleteContextRecordInput extends CreateEmptyContextLedgerInput {
+  ledger?: unknown
+  targetKey: string
+  reason?: string
+}
+
 export function recordToolResultInContextLedger(input: RecordToolResultInContextLedgerInput): ContextLedger {
   return recordToolResultInContextLedgerWithAudit(input).ledger
 }
@@ -67,9 +87,8 @@ export function recordToolResultInContextLedgerWithAudit(input: RecordToolResult
   const now = input.now ?? new Date().toISOString()
   const ledger = normalizeContextLedger(input.ledger, { ...input, now })
   const resultHash = input.result === undefined ? undefined : stableHash(input.result)
-  const refs = extractContextRefs(input.call, input.result)
-  const records = refs.length > 0
-    ? refs.map((ref) => buildRetrievedRecord({
+  const refs = previewToolResultContextRefs(input.call, input.result, { fallbackId: now })
+  const records = refs.map((ref) => buildRetrievedRecord({
       ref,
       call: input.call,
       result: input.result,
@@ -78,21 +97,7 @@ export function recordToolResultInContextLedgerWithAudit(input: RecordToolResult
       usedInPrompt: input.usedInPrompt !== false,
       now,
     }))
-    : [buildRetrievedRecord({
-      ref: {
-        type: 'tool_result',
-        id: input.call.id ?? `${input.call.name}:${resultHash ?? now}`,
-        title: input.call.name,
-        ...(resultHash ? { hash: resultHash } : {}),
-      },
-      call: input.call,
-      result: input.result,
-      source: input.source,
-      resultHash,
-      usedInPrompt: input.usedInPrompt !== false,
-      now,
-    })]
-  const existingByKey = new Map(ledger.retrieved.map((record) => [refKey(record.ref), record]))
+  const existingByKey = new Map(activeRetrievedRecords(ledger).map((record) => [refKey(record.ref), record]))
   const dedupedRecords = records.flatMap((record): ContextLedgerDedupedRecord[] => {
     const key = refKey(record.ref)
     const existing = existingByKey.get(key)
@@ -105,24 +110,200 @@ export function recordToolResultInContextLedgerWithAudit(input: RecordToolResult
       existingRetrievedAt: existing.retrievedAt,
     }]
   })
-  const retrieved = mergeRetrievedRecords(ledger.retrieved, records)
-  const artifactRefs = mergeRefs(ledger.artifactRefs, refs.filter((ref) => ref.type !== 'tool_result'))
+  const mutationLedger = applyContextMutations({
+    ...input,
+    now,
+    ledger,
+    mutations: records.map((record) => ({
+      id: makeMutationId('append', refKey(record.ref), now),
+      type: 'append',
+      record,
+      reason: `${input.call.name} result recorded`,
+      createdAt: now,
+    })),
+  })
+  const artifactRefs = mergeRefs(mutationLedger.artifactRefs, refs.filter((ref) => ref.type !== 'tool_result'))
   return {
     incomingCount: records.length,
     dedupedRecords,
     ledger: {
-      ...ledger,
+      ...mutationLedger,
       activeSkillIds: uniqueSorted(input.activeSkillIds ?? ledger.activeSkillIds),
       visibleToolNames: uniqueSorted(input.visibleToolNames ?? ledger.visibleToolNames),
-      retrieved,
       artifactRefs,
       updatedAt: now,
     },
   }
 }
 
+export function previewToolResultContextRefs(
+  call: ToolCall,
+  result: JSONValue | undefined,
+  options: { fallbackId?: string } = {},
+): ContextRef[] {
+  const refs = extractContextRefs(call, result)
+  if (refs.length > 0) return refs
+  const resultHash = result === undefined ? undefined : stableHash(result)
+  return [{
+    type: 'tool_result',
+    id: call.id ?? `${call.name}:${resultHash ?? options.fallbackId ?? 'unknown'}`,
+    title: call.name,
+    ...(resultHash ? { hash: resultHash } : {}),
+  }]
+}
+
+export function applyContextMutations(input: ApplyContextMutationsInput): ContextLedger {
+  const now = input.now ?? new Date().toISOString()
+  const ledger = normalizeContextLedger(input.ledger, { ...input, now })
+  const byKey = new Map<string, RetrievedContextRecord>()
+  for (const record of ledger.retrieved) {
+    byKey.set(refKey(record.ref), record)
+  }
+  const appliedMutations: ContextMutation[] = []
+
+  for (const mutation of input.mutations) {
+    const normalized = normalizeContextMutation(mutation)[0]
+    if (!normalized) continue
+    appliedMutations.push(normalized)
+    if (normalized.type === 'append') {
+      const record = withRecordDefaults(normalized.record, normalized.id, normalized.createdAt)
+      const key = refKey(record.ref)
+      const previous = byKey.get(key)
+      byKey.set(key, previous
+        ? {
+          ...previous,
+          ...record,
+          status: 'active',
+          retrievedAt: previous.retrievedAt,
+          updatedAt: normalized.createdAt,
+          mutationId: normalized.id,
+        }
+        : record)
+    } else if (normalized.type === 'amend') {
+      const previous = byKey.get(normalized.targetKey)
+      if (previous) {
+        byKey.set(normalized.targetKey, {
+          ...previous,
+          status: 'amended',
+          usedInPrompt: false,
+          amendedBy: normalized.id,
+          updatedAt: normalized.createdAt,
+        })
+      }
+      const record = withRecordDefaults(normalized.record, normalized.id, normalized.createdAt)
+      const nextKey = refKey(record.ref)
+      byKey.set(nextKey, {
+        ...record,
+        status: 'active',
+        supersedes: normalized.targetKey,
+        updatedAt: normalized.createdAt,
+        mutationId: normalized.id,
+      })
+    } else {
+      const previous = byKey.get(normalized.targetKey)
+      if (previous) {
+        byKey.set(normalized.targetKey, {
+          ...previous,
+          status: 'deleted',
+          usedInPrompt: false,
+          deletedBy: normalized.id,
+          deletedAt: normalized.createdAt,
+          deleteReason: normalized.reason,
+          updatedAt: normalized.createdAt,
+        })
+      }
+    }
+  }
+
+  const retrieved = Array.from(byKey.values())
+  return {
+    ...ledger,
+    activeSkillIds: uniqueSorted(input.activeSkillIds ?? ledger.activeSkillIds),
+    visibleToolNames: uniqueSorted(input.visibleToolNames ?? ledger.visibleToolNames),
+    retrieved,
+    artifactRefs: activeArtifactRefs(ledger.artifactRefs, retrieved),
+    mutations: [...(ledger.mutations ?? []), ...appliedMutations].slice(-MAX_CONTEXT_MUTATIONS),
+    updatedAt: now,
+  }
+}
+
+export function amendContextLedgerRecord(input: AmendContextRecordInput): ContextLedger {
+  const now = input.now ?? new Date().toISOString()
+  return applyContextMutations({
+    ...input,
+    now,
+    mutations: [{
+      id: makeMutationId('amend', input.targetKey, now),
+      type: 'amend',
+      targetKey: input.targetKey,
+      record: input.record,
+      ...(input.reason ? { reason: input.reason } : {}),
+      createdAt: now,
+    }],
+  })
+}
+
+export function deleteContextLedgerRecord(input: DeleteContextRecordInput): ContextLedger {
+  const now = input.now ?? new Date().toISOString()
+  return applyContextMutations({
+    ...input,
+    now,
+    mutations: [{
+      id: makeMutationId('delete', input.targetKey, now),
+      type: 'delete',
+      targetKey: input.targetKey,
+      ...(input.reason ? { reason: input.reason } : {}),
+      createdAt: now,
+    }],
+  })
+}
+
+export function summarizeContextMutations(
+  value: ContextLedger | ContextMutation[],
+  options: { limit?: number } = {},
+): ContextMutationSummary {
+  const mutations = Array.isArray(value) ? value : value.mutations ?? []
+  const limit = Math.max(1, Math.floor(options.limit ?? 20))
+  const appendedContextKeys: string[] = []
+  const amendedContextKeys: string[] = []
+  const deletedContextKeys: string[] = []
+  for (const mutation of mutations) {
+    if (mutation.type === 'append') {
+      appendedContextKeys.push(refKey(mutation.record.ref))
+    } else if (mutation.type === 'amend') {
+      amendedContextKeys.push(mutation.targetKey, refKey(mutation.record.ref))
+    } else {
+      deletedContextKeys.push(mutation.targetKey)
+    }
+  }
+  const latest = mutations.at(-1)
+  return {
+    schema: 'movscript.context-mutation-summary.v1',
+    total: mutations.length,
+    appended: mutations.filter((mutation) => mutation.type === 'append').length,
+    amended: mutations.filter((mutation) => mutation.type === 'amend').length,
+    deleted: mutations.filter((mutation) => mutation.type === 'delete').length,
+    affectedContextKeys: uniqueOrdered([...appendedContextKeys, ...amendedContextKeys, ...deletedContextKeys]).slice(-limit),
+    appendedContextKeys: uniqueOrdered(appendedContextKeys).slice(-limit),
+    amendedContextKeys: uniqueOrdered(amendedContextKeys).slice(-limit),
+    deletedContextKeys: uniqueOrdered(deletedContextKeys).slice(-limit),
+    ...(latest ? {
+      latest: {
+        id: latest.id,
+        type: latest.type,
+        createdAt: latest.createdAt,
+        ...(latest.reason ? { reason: latest.reason } : {}),
+      },
+    } : {}),
+  }
+}
+
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0))).sort((a, b) => a.localeCompare(b))
+}
+
+function uniqueOrdered(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)))
 }
 
 function normalizeContextLedger(value: unknown, fallback: CreateEmptyContextLedgerInput): ContextLedger {
@@ -139,6 +320,7 @@ function normalizeContextLedger(value: unknown, fallback: CreateEmptyContextLedg
     facts: [],
     artifactRefs: Array.isArray(value.artifactRefs) ? value.artifactRefs.flatMap(normalizeContextRef) : [],
     unresolvedQuestions: [],
+    mutations: Array.isArray(value.mutations) ? value.mutations.flatMap(normalizeContextMutation) : [],
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : fallback.now ?? new Date().toISOString(),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : fallback.now ?? new Date().toISOString(),
   }
@@ -156,7 +338,9 @@ function buildRetrievedRecord(input: {
   const { source, evidence } = sourceBoundaryForContextRef(input.ref, input.source)
   const charCount = retrievedRecordCharCount(input.ref, input.call, input.result)
   return {
+    id: `${input.ref.type}:${input.ref.id}`,
     ref: input.ref,
+    status: 'active',
     source,
     evidence,
     title: input.ref.title ?? input.ref.id,
@@ -165,6 +349,7 @@ function buildRetrievedRecord(input: {
     charCount,
     retrievedAt: input.now,
     usedInPrompt: input.usedInPrompt,
+    updatedAt: input.now,
   }
 }
 
@@ -409,6 +594,29 @@ function mergeRefs(existing: ContextRef[], incoming: ContextRef[]): ContextRef[]
   return Array.from(byKey.values())
 }
 
+function activeRetrievedRecords(ledger: ContextLedger): RetrievedContextRecord[] {
+  return ledger.retrieved.filter((record) => (record.status ?? 'active') === 'active')
+}
+
+function activeArtifactRefs(existing: ContextRef[], records: RetrievedContextRecord[]): ContextRef[] {
+  const activeRefs = records
+    .filter((record) => (record.status ?? 'active') === 'active' && record.ref.type !== 'tool_result')
+    .map((record) => record.ref)
+  const existingWithoutRetrieved = existing.filter((ref) => !records.some((record) => refKey(record.ref) === refKey(ref)))
+  return mergeRefs(existingWithoutRetrieved, activeRefs)
+}
+
+function withRecordDefaults(record: RetrievedContextRecord, mutationId: string, now: string): RetrievedContextRecord {
+  return {
+    ...record,
+    id: record.id ?? `${record.ref.type}:${record.ref.id}`,
+    status: record.status ?? 'active',
+    mutationId,
+    retrievedAt: record.retrievedAt || now,
+    updatedAt: now,
+  }
+}
+
 function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
   if (!isRecord(value)) return []
   const ref = normalizeContextRef(value.ref)[0]
@@ -418,7 +626,10 @@ function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
   const retrievedAt = stringField(value.retrievedAt)
   if (!ref || !source || !evidence || !title || !retrievedAt) return []
   return [{
+    ...(stringField(value.id) ? { id: stringField(value.id) } : {}),
+    ...(stringField(value.version) ? { version: stringField(value.version) } : {}),
     ref,
+    ...(normalizeRecordStatus(value.status) ? { status: normalizeRecordStatus(value.status) } : {}),
     source,
     evidence,
     title,
@@ -428,7 +639,58 @@ function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
     retrievedAt,
     usedInPrompt: value.usedInPrompt === true,
     ...(stringField(value.reusedFromRunId) ? { reusedFromRunId: stringField(value.reusedFromRunId) } : {}),
+    ...(stringField(value.supersedes) ? { supersedes: stringField(value.supersedes) } : {}),
+    ...(stringField(value.amendedBy) ? { amendedBy: stringField(value.amendedBy) } : {}),
+    ...(stringField(value.deletedBy) ? { deletedBy: stringField(value.deletedBy) } : {}),
+    ...(stringField(value.deletedAt) ? { deletedAt: stringField(value.deletedAt) } : {}),
+    ...(stringField(value.deleteReason) ? { deleteReason: stringField(value.deleteReason) } : {}),
+    ...(stringField(value.mutationId) ? { mutationId: stringField(value.mutationId) } : {}),
+    ...(stringField(value.updatedAt) ? { updatedAt: stringField(value.updatedAt) } : {}),
   }]
+}
+
+function normalizeContextMutation(value: unknown): ContextMutation[] {
+  if (!isRecord(value)) return []
+  const id = stringField(value.id)
+  const createdAt = stringField(value.createdAt)
+  const type = value.type
+  if (!id || !createdAt) return []
+  if (type === 'append') {
+    const record = normalizeRetrievedRecord(value.record)[0]
+    if (!record) return []
+    return [{
+      id,
+      type,
+      record,
+      ...(stringField(value.reason) ? { reason: stringField(value.reason) } : {}),
+      createdAt,
+    }]
+  }
+  if (type === 'amend') {
+    const targetKey = stringField(value.targetKey)
+    const record = normalizeRetrievedRecord(value.record)[0]
+    if (!targetKey || !record) return []
+    return [{
+      id,
+      type,
+      targetKey,
+      record,
+      ...(stringField(value.reason) ? { reason: stringField(value.reason) } : {}),
+      createdAt,
+    }]
+  }
+  if (type === 'delete') {
+    const targetKey = stringField(value.targetKey)
+    if (!targetKey) return []
+    return [{
+      id,
+      type,
+      targetKey,
+      ...(stringField(value.reason) ? { reason: stringField(value.reason) } : {}),
+      createdAt,
+    }]
+  }
+  return []
 }
 
 function normalizeContextRef(value: unknown): ContextRef[] {
@@ -460,6 +722,12 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     : undefined
 }
 
+function normalizeRecordStatus(value: unknown): RetrievedContextRecord['status'] | undefined {
+  return value === 'active' || value === 'amended' || value === 'deleted' || value === 'expired'
+    ? value
+    : undefined
+}
+
 function unwrapResult(value: JSONValue | undefined): unknown {
   if (!isRecord(value)) return value
   if (value.data !== undefined) return value.data
@@ -484,6 +752,10 @@ function parseJSONText(text: string): unknown {
 
 function stableHash(value: JSONValue): string {
   return `sha256:${createHash('sha256').update(stableStringify(value)).digest('hex')}`
+}
+
+function makeMutationId(type: string, key: string, now: string): string {
+  return `ctx_mut_${type}_${createHash('sha256').update(`${type}:${key}:${now}`).digest('hex').slice(0, 16)}`
 }
 
 function stableStringify(value: unknown): string {

@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { recordToolResultInContextLedgerWithAudit } from './contextLedger.js'
+import {
+  amendContextLedgerRecord,
+  deleteContextLedgerRecord,
+  previewToolResultContextRefs,
+  recordToolResultInContextLedgerWithAudit,
+  summarizeContextMutations,
+} from './contextLedger.js'
+import { refKey } from './retrievedContextStore.js'
 
 test('context ledger audit reports duplicate retrieved refs while preserving first retrieval time', () => {
   const first = recordToolResultInContextLedgerWithAudit({
@@ -32,6 +39,25 @@ test('context ledger audit reports duplicate retrieved refs while preserving fir
   assert.equal(second.ledger.retrieved.length, 1)
   assert.equal(second.ledger.retrieved[0]?.title, '新版分镜节奏基础')
   assert.equal(second.ledger.retrieved[0]?.retrievedAt, '2026-01-01T00:00:00.000Z')
+})
+
+test('context ledger preview exposes the same tool result refs that recording materializes', () => {
+  const call = { id: 'call_1', name: 'core_file_read', args: { ref: 'agent://draft/draft_1/content' } }
+  const result = { content: 'file body' }
+  const previewRefs = previewToolResultContextRefs(call, result)
+  const audit = recordToolResultInContextLedgerWithAudit({
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'catalog_1',
+    call,
+    result,
+    source: 'runtime',
+    now: '2026-01-01T00:00:00.000Z',
+  })
+
+  assert.deepEqual(previewRefs.map(refKey), audit.ledger.retrieved.map((record) => refKey(record.ref)))
+  assert.equal(previewRefs[0]?.type, 'tool_result')
+  assert.equal(previewRefs[0]?.hash, audit.ledger.retrieved[0]?.contentHash)
 })
 
 test('context ledger records search refs without charging retrieved body budget', () => {
@@ -68,6 +94,57 @@ test('context ledger records search refs without charging retrieved body budget'
   const hook = get.ledger.retrieved.find((record) => record.ref.id === 'storyboard.hook.basic')
   assert.equal(rhythm?.charCount, 7)
   assert.equal(hook?.charCount, 0)
+})
+
+test('context ledger summarizes append, amend, and delete mutations without embedding records', () => {
+  const appended = recordToolResultInContextLedgerWithAudit({
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'catalog_1',
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
+    result: knowledgeResult('分镜节奏基础'),
+    source: 'runtime',
+    now: '2026-01-01T00:00:00.000Z',
+  }).ledger
+  const original = appended.retrieved[0]!
+  const originalKey = refKey(original.ref)
+  const amended = amendContextLedgerRecord({
+    ledger: appended,
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'catalog_1',
+    targetKey: originalKey,
+    record: {
+      ...original,
+      ref: { ...original.ref, hash: 'sha256:rhythm-v2' },
+      contentHash: 'sha256:rhythm-v2',
+      retrievedAt: '2026-01-01T00:00:01.000Z',
+    },
+    reason: 'knowledge refreshed',
+    now: '2026-01-01T00:00:01.000Z',
+  })
+  const replacement = amended.retrieved.find((record) => record.contentHash === 'sha256:rhythm-v2')!
+  const deleted = deleteContextLedgerRecord({
+    ledger: amended,
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'catalog_1',
+    targetKey: refKey(replacement.ref),
+    reason: 'no longer relevant',
+    now: '2026-01-01T00:00:02.000Z',
+  })
+
+  const summary = summarizeContextMutations(deleted)
+  assert.equal(summary.total, 3)
+  assert.equal(summary.appended, 1)
+  assert.equal(summary.amended, 1)
+  assert.equal(summary.deleted, 1)
+  assert.equal(summary.appendedContextKeys.includes(originalKey), true)
+  assert.equal(summary.amendedContextKeys.includes(originalKey), true)
+  assert.equal(summary.amendedContextKeys.includes(refKey(replacement.ref)), true)
+  assert.deepEqual(summary.deletedContextKeys, [refKey(replacement.ref)])
+  assert.equal(summary.latest?.type, 'delete')
+  assert.equal(JSON.stringify(summary).includes('分镜节奏基础'), false)
 })
 
 test('context ledger records memory search refs separately from loaded memory body', () => {

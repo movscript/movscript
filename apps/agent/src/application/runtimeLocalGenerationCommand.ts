@@ -17,9 +17,12 @@ import type {
 import type { ToolExecutionResult } from '../orchestration/toolExecutor.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { AgentMemory } from '../memory/types.js'
-import { buildFinalAssistantContent } from './assistantMessage.js'
+import { formatAssistantMessageTraceSummary, summarizeAssistantMessageTrace } from '../domains/trace/messageTrace.js'
+import { summarizeToolCallTrace } from '../domains/trace/toolTrace.js'
+import { summarizeAgentCommandTrace, summarizeGenerationDebugCommandTrace } from '../domains/trace/commandTrace.js'
+import { buildFinalAssistantContent } from './runtimeFinalAssistantContent.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
-import { appendThreadMessage } from './threadLifecycle.js'
+import { appendThreadMessage } from '../domains/message/threadMessage.js'
 
 export interface RuntimeLocalGenerationTraceInput {
   kind: AgentTraceEventKind
@@ -64,10 +67,10 @@ export async function applyRuntimeLocalGenerationCommand(input: {
     status: 'completed',
     round: localRound,
     data: {
-      command: input.command,
+      command: summarizeAgentCommandTrace(input.command),
       modelGatewayCalled: false,
       reason: `${input.command.name} is a deterministic generation debug command`,
-      generation: generationCommand,
+      generation: summarizeGenerationDebugCommandTrace(generationCommand),
     },
   })
 
@@ -78,7 +81,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
     job_type: generationCommand.jobType,
     ...(generationCommand.aspectRatio ? { aspect_ratio: generationCommand.aspectRatio } : {}),
     ...(generationCommand.duration !== undefined ? { duration: generationCommand.duration } : {}),
-    feature_key: generationCommand.featureKey,
+    feature_key: generationCommand.sourceKey,
     timeout_ms: generationCommand.timeoutMs,
     wait: false,
     ...(generationCommand.referenceResourceIds.length > 0
@@ -115,7 +118,10 @@ export async function applyRuntimeLocalGenerationCommand(input: {
     round: localRound,
     stepId: toolStep.id,
     toolName: 'core_work_start',
-    data: { call: forcedCall },
+    data: summarizeToolCallTrace({
+      call: forcedCall,
+      args: forcedCall.args,
+    }),
   })
   const createResult = await input.executeGenerationTool(forcedCall)
   const execResult = createResult
@@ -137,7 +143,16 @@ export async function applyRuntimeLocalGenerationCommand(input: {
     round: localRound,
     stepId: toolStep.id,
     toolName: forcedCall.name,
-    data: { source: execResult.source, result: execResult.result, error: execResult.error, errorData: execResult.errorData, sandboxed: execResult.sandboxed, durationMs },
+    data: summarizeToolCallTrace({
+      call: forcedCall,
+      source: execResult.source,
+      args: forcedCall.args,
+      result: execResult.result,
+      error: execResult.error,
+      errorData: execResult.errorData,
+      sandboxed: execResult.sandboxed,
+      durationMs,
+    }),
     durationMs,
   })
 
@@ -169,11 +184,15 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   input.recordTrace(input.run, {
     kind: 'assistant',
     title: 'Assistant message created',
-    summary: assistant.content.slice(0, 180),
+    summary: formatAssistantMessageTraceSummary(assistant.content),
     status: 'completed',
     round: finalRound,
     stepId: messageStep.id,
-    data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content, source: 'runtime_rule' },
+    data: summarizeAssistantMessageTrace({
+      messageId: assistant.id,
+      content: assistant.content,
+      source: 'runtime_rule',
+    }),
   })
 
   applyRunCompletion(input.run, {

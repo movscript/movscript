@@ -168,11 +168,10 @@ export function useCanvasRuntimeExecutor({
       throw new Error(t('canvas.editor.errors.promptRequired', { defaultValue: 'Prompt is required' }))
     }
     if (outputType === 'text') {
-      const model = await resolveCanvasRuntimeModel(data, 'text', 'canvas_text')
+      const model = await resolveCanvasRuntimeModel(data, 'text')
       const response = await generateCanvasRuntimeText({
         modelId: model.modelId,
         modelConfigId: model.modelConfigId,
-        featureKey: 'canvas_text',
         prompt,
         params: data.params,
         projectId,

@@ -145,7 +145,7 @@ test('agentTraceView separates model HTTP request and impact', () => {
 
 test('agentTraceView exposes Responses SDK payload as submitted model request', () => {
   const sdkBody = {
-    model: 'gpt-5.5',
+    model: 'gpt-5.2',
     input: [{ role: 'user', content: 'review trace detail' }],
     tools: [{
       type: 'function',
@@ -162,7 +162,7 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
     tool_choice: 'auto',
   }
   const internalBody = {
-    model: 'gpt-5.5',
+    model: 'gpt-5.2',
     messages: [{ role: 'user', content: 'review trace detail' }],
     sdk_body: sdkBody,
   }
@@ -182,7 +182,7 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
   const payloadGroup = view.contextGroups.find((group) => group.label === '请求负载摘要')
   assert.equal(payloadGroup?.items.some((item) => item.label === '实际 input' && item.value === '1'), true)
   assert.equal(payloadGroup?.items.some((item) => item.label === '工具定义' && item.value === '1'), true)
-  assert.equal(view.modelDetail?.request?.model, 'gpt-5.5')
+  assert.equal(view.modelDetail?.request?.model, 'gpt-5.2')
   assert.equal(view.modelDetail?.request?.toolCount, '1')
   assert.equal(view.modelDetail?.request?.toolChoice, 'auto')
   assert.deepEqual(view.modelDetail?.request?.submittedPayload, sdkBody)

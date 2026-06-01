@@ -131,6 +131,7 @@ test('inspectAgentCatalogView builds summary and detail views from a catalog sna
   assert.equal(tool.enabledByPack, true)
   assert.deepEqual(tool.grant, { mode: 'allow', approval: 'on_write' })
   assert.deepEqual(tool.tool.inputSchema, { type: 'object' })
+  assert.equal(tool.tool.execution?.concurrencySafe, false)
 
   assert.throws(() => inspectAgentCatalogView({
     snapshot,
@@ -231,6 +232,13 @@ function toolDefinition(overrides: Partial<ToolDefinition> = {}): ToolDefinition
     risk: 'write',
     projectScoped: true,
     defaults: { grant: 'allow', approval: 'on_write' },
+    execution: {
+      readOnly: false,
+      destructive: false,
+      concurrencySafe: false,
+      interruptBehavior: 'block',
+      resultRefStrategy: 'auto',
+    },
     source: 'runtime',
     ...overrides,
   }

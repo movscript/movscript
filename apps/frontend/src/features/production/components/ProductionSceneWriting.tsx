@@ -36,14 +36,13 @@ import { productionReferencePresenceRecipe } from '@/features/production/present
 import {
   ProductionExpressionAuxFieldGrid,
   ProductionExpressionBadge,
-  ProductionExpressionCard,
-  ProductionExpressionCardGrid,
   ProductionExpressionDeleteButton,
   ProductionExpressionEditorActions,
   ProductionExpressionEditorColumn,
   ProductionExpressionEmptyState,
   ProductionExpressionEditorGrid,
   ProductionExpressionField,
+  ProductionExpressionLineShell,
   ProductionExpressionLineStack,
   ProductionSceneMomentSummaryCard,
   ProductionSceneMomentEmptyState,
@@ -53,13 +52,15 @@ import {
   ProductionSceneReferenceGroupGrid,
   ProductionSceneReferenceItem,
   ProductionSceneReferenceRemoveButton,
-  ProductionOrchestrationDetailSectionHeader,
   ProductionSceneWritingActionButton,
   ProductionSceneWritingActionRow,
   ProductionSceneWritingBadge,
   ProductionSceneWritingBadgeStack,
+  ProductionSceneWritingDialogBody,
+  ProductionSceneWritingDialogContent,
   ProductionSceneWritingField,
   ProductionSceneWritingFieldGrid,
+  ProductionSceneWritingHeader,
   ProductionSceneWritingResponsiveDescription,
   ProductionSceneWritingSection,
   ProductionSceneWritingSelectTrigger,
@@ -71,7 +72,6 @@ import {
   SelectItem,
   SelectValue,
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogTitle,
 } from '@movscript/ui'
@@ -145,8 +145,9 @@ export function SceneMomentSettingsEditor({
 
   return (
     <ProductionSceneWritingSection data-testid="production-orchestration-scene-settings">
-      <ProductionOrchestrationDetailSectionHeader
+      <ProductionSceneWritingHeader
         icon={Users}
+        eyebrow="情节上下文"
         title="情节设定"
         description={(
           <ProductionSceneWritingResponsiveDescription>
@@ -199,10 +200,10 @@ export function SceneMomentSettingsEditor({
       ) : null}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="production-scene-writing-dialog-content">
+        <ProductionSceneWritingDialogContent>
           <DialogTitle>编辑情节设定</DialogTitle>
           <DialogDescription>为当前情节选择人物、场景、道具、风格或规则设定。</DialogDescription>
-          <div className="production-scene-writing-dialog-body">
+          <ProductionSceneWritingDialogBody>
             <ProductionSceneReferenceGroupGrid>
               {groups.map((group) => (
                 <ProductionSceneReferenceGroup key={group.key} title={group.title} count={group.items.length}>
@@ -262,8 +263,8 @@ export function SceneMomentSettingsEditor({
                 绑定
               </ProductionSceneWritingActionButton>
             </ProductionSceneReferenceBindingRow>
-          </div>
-        </DialogContent>
+          </ProductionSceneWritingDialogBody>
+        </ProductionSceneWritingDialogContent>
       </Dialog>
     </ProductionSceneWritingSection>
   )
@@ -355,10 +356,10 @@ export function InlineSceneMomentEditor({
         )}
       />
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="production-scene-writing-dialog-content">
+        <ProductionSceneWritingDialogContent>
           <DialogTitle>编辑情节内容</DialogTitle>
           <DialogDescription>填写当前情节的标题、时间、说明和导演备注。</DialogDescription>
-          <div className="production-scene-writing-dialog-body">
+          <ProductionSceneWritingDialogBody>
             <ProductionSceneWritingFieldGrid>
               <ProductionSceneWritingField label="标题（可选）">
                 <ProductionSceneWritingTextarea
@@ -432,15 +433,14 @@ export function InlineSceneMomentEditor({
                 保存情节
               </ProductionSceneWritingActionButton>
             </ProductionSceneWritingActionRow>
-          </div>
-        </DialogContent>
+          </ProductionSceneWritingDialogBody>
+        </ProductionSceneWritingDialogContent>
       </Dialog>
     </ProductionSceneWritingSection>
   )
 }
 
 export function ProductionWritingExpressionsPanel({
-  className,
   selectedMoment,
   selectedMomentScriptBlock,
   expressionLines,
@@ -452,7 +452,6 @@ export function ProductionWritingExpressionsPanel({
   onSaveExpressionLine,
   onDeleteExpressionLine,
 }: {
-  className?: string
   selectedMoment: ProductionSceneMomentRecord | null
   selectedMomentScriptBlock: ProductionScriptBlockRecord | null
   expressionLines: ProductionWritingExpressionLine[]
@@ -484,9 +483,10 @@ export function ProductionWritingExpressionsPanel({
     persisted: false,
   } : null
   return (
-    <ProductionSceneWritingSection className={className} flushTop>
-      <ProductionOrchestrationDetailSectionHeader
+    <ProductionSceneWritingSection flushTop>
+      <ProductionSceneWritingHeader
         icon={ScrollText}
+        eyebrow="表达结构"
         title="表达条目"
         description="没有对白的片段也不空白，它可以用动作、旁白、屏幕文字、镜头描述或动作里的停顿完成表达。"
         actions={(
@@ -504,22 +504,18 @@ export function ProductionWritingExpressionsPanel({
       <ProductionExpressionLineStack>
         {expressionLines.length === 0 ? (
           <ProductionExpressionEmptyState title="当前情节还没有表达条目。可以先写动作、对白、旁白、屏幕文字或镜头描述。" />
-        ) : (
-          <ProductionExpressionCardGrid>
-            {expressionLines.map((line, index) => (
-              <EditableWritingExpressionLine
-                key={`${line.editTarget.kind}-${line.editTarget.id}`}
-                index={index}
-                line={line}
-                speakerOptions={speakerOptions}
-                isSaving={isSavingExpressionLine}
-                canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
-                onSave={onSaveExpressionLine}
-                onDelete={onDeleteExpressionLine}
-              />
-            ))}
-          </ProductionExpressionCardGrid>
-        )}
+        ) : expressionLines.map((line, index) => (
+          <EditableWritingExpressionLine
+            key={`${line.editTarget.kind}-${line.editTarget.id}`}
+            index={index}
+            line={line}
+            speakerOptions={speakerOptions}
+            isSaving={isSavingExpressionLine}
+            canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
+            onSave={onSaveExpressionLine}
+            onDelete={onDeleteExpressionLine}
+          />
+        ))}
       </ProductionExpressionLineStack>
       {createLine ? (
         <WritingExpressionDialog
@@ -559,59 +555,46 @@ function EditableWritingExpressionLine({
   onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDelete: (target: ProductionWritingExpressionEditTarget) => void
 }) {
-  const [draft, setDraft] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineDraft(line))
-  const [open, setOpen] = useState(false)
-  useEffect(() => {
-    setDraft(writingExpressionLineDraft(line))
-  }, [line.intent, line.note, line.speaker, line.text, line.type])
-  const original = writingExpressionLineDraft(line)
   const canDeleteLine = line.persisted && line.editTarget.kind === 'writingExpressions'
     || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
   return (
-    <>
-    <ProductionExpressionCard
+    <ProductionExpressionLineShell
       index={index}
       badges={(
         <>
-            <ProductionExpressionBadge variant="outline">{writingTypeLabel(line.type)}</ProductionExpressionBadge>
-            <ProductionExpressionBadge variant={line.persisted ? 'outline' : 'soft'}>
-              {line.persisted ? '已保存' : '参考转写'}
-            </ProductionExpressionBadge>
+          <ProductionExpressionBadge variant="outline">{writingTypeLabel(line.type)}</ProductionExpressionBadge>
+          <ProductionExpressionBadge variant={line.persisted ? 'outline' : 'soft'}>
+            {line.persisted ? '已保存' : '参考转写'}
+          </ProductionExpressionBadge>
         </>
       )}
       speaker={line.speaker.trim() || undefined}
       preview={line.text || textPlaceholderForWritingType(line.type)}
       meta={(line.intent || line.note) ? [line.intent, line.note].filter(Boolean).join(' · ') : undefined}
       actions={canDeleteLine ? (
-          <ProductionExpressionDeleteButton
-            aria-label="删除表达条目"
-            disabled={isSaving}
-            onClick={(event) => {
-              event.stopPropagation()
-              onDelete(line.editTarget)
-            }}
-          >
-            <Trash2 size={13} />
-          </ProductionExpressionDeleteButton>
-        ) : null}
-      onEdit={() => setOpen(true)}
-    />
-    <WritingExpressionDialog
-      open={open}
-      onOpenChange={setOpen}
-      title="编辑表达条目"
-      actionLabel={line.persisted ? '保存' : '转为条目'}
-      line={line}
-      speakerOptions={speakerOptions}
-      isSaving={isSaving}
-      canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
-      onSave={(target, payload) => {
-        onSave(target, payload)
-        setOpen(false)
-      }}
-      onDelete={onDelete}
-    />
-    </>
+        <ProductionExpressionDeleteButton
+          aria-label="删除表达条目"
+          disabled={isSaving}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDelete(line.editTarget)
+          }}
+        >
+          <Trash2 size={13} />
+        </ProductionExpressionDeleteButton>
+      ) : null}
+      defaultOpen={!line.persisted}
+    >
+      <WritingExpressionEditorForm
+        actionLabel={line.persisted ? '保存' : '转为条目'}
+        line={line}
+        speakerOptions={speakerOptions}
+        isSaving={isSaving}
+        canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
+    </ProductionExpressionLineShell>
   )
 }
 
@@ -638,10 +621,57 @@ function WritingExpressionDialog({
   onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDelete: (target: ProductionWritingExpressionEditTarget) => void
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <ProductionSceneWritingDialogContent wide>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>选择表达类型，并填写画面中真实发生、说出或出现的内容。</DialogDescription>
+        <ProductionSceneWritingDialogBody>
+          <WritingExpressionEditorForm
+            actionLabel={actionLabel}
+            line={line}
+            speakerOptions={speakerOptions}
+            isSaving={isSaving}
+            canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
+            resetKey={open}
+            onSave={(target, payload) => {
+              onSave(target, payload)
+              onOpenChange(false)
+            }}
+            onDelete={(target) => {
+              onDelete(target)
+              onOpenChange(false)
+            }}
+          />
+        </ProductionSceneWritingDialogBody>
+      </ProductionSceneWritingDialogContent>
+    </Dialog>
+  )
+}
+
+function WritingExpressionEditorForm({
+  actionLabel,
+  line,
+  speakerOptions,
+  isSaving,
+  canDeleteFallbackContentUnits,
+  resetKey,
+  onSave,
+  onDelete,
+}: {
+  actionLabel: string
+  line: ProductionWritingExpressionLine
+  speakerOptions: ProductionSpeakerOption[]
+  isSaving: boolean
+  canDeleteFallbackContentUnits: boolean
+  resetKey?: unknown
+  onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
+  onDelete: (target: ProductionWritingExpressionEditTarget) => void
+}) {
   const [draft, setDraft] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineDraft(line))
   useEffect(() => {
     setDraft(writingExpressionLineDraft(line))
-  }, [line.intent, line.note, line.speaker, line.text, line.type, open])
+  }, [line.intent, line.note, line.speaker, line.text, line.type, resetKey])
   const original = writingExpressionLineDraft(line)
   const changed = !writingExpressionDraftEquals(draft, original)
   const typeLabel = writingTypeLabel(draft.kind)
@@ -650,116 +680,107 @@ function WritingExpressionDialog({
     || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="production-scene-writing-dialog-content production-scene-writing-dialog-content--wide">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>选择表达类型，并填写画面中真实发生、说出或出现的内容。</DialogDescription>
-        <div className="production-scene-writing-dialog-body">
-          <ProductionExpressionEditorGrid>
-            <ProductionExpressionEditorColumn>
-              <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>
-                <ProductionSceneWritingSelectTrigger kind="expression-kind">
-                  <SelectValue />
-                </ProductionSceneWritingSelectTrigger>
-                <SelectContent>
-                  {writingExpressionTypeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <ProductionExpressionField label={speakerLabelForWritingType(draft.kind)}>
-                <Select
-                  value={selectedSpeakerValue}
-                  onValueChange={(value) => {
-                    if (value === '__custom__') {
-                      setDraft((prev) => ({ ...prev, speaker: speakerOptions.some((option) => option.name === prev.speaker.trim()) ? '' : prev.speaker }))
-                      return
-                    }
-                    const option = speakerOptions.find((item) => speakerOptionValue(item) === value)
-                    if (option) setDraft((prev) => ({ ...prev, speaker: option.name }))
-                  }}
-                >
-                  <ProductionSceneWritingSelectTrigger kind="expression-speaker">
-                    <SelectValue placeholder="从设定选择" />
-                  </ProductionSceneWritingSelectTrigger>
-                  <SelectContent>
-                    {speakerOptions.map((option) => (
-                      <SelectItem key={speakerOptionValue(option)} value={speakerOptionValue(option)}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">自定义人物 / 群众演员</SelectItem>
-                  </SelectContent>
-                </Select>
-                <ProductionSceneWritingTextarea
-                  kind="speaker"
-                  value={draft.speaker}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, speaker: event.target.value }))}
-                  placeholder={speakerPlaceholderForWritingType(draft.kind)}
-                />
-              </ProductionExpressionField>
-            </ProductionExpressionEditorColumn>
-            <ProductionExpressionEditorColumn>
-              <ProductionSceneWritingTextarea
-                kind="expression"
-                value={draft.text}
-                onChange={(event) => setDraft((prev) => ({ ...prev, text: event.target.value }))}
-                placeholder={textPlaceholderForWritingType(draft.kind)}
-              />
-              <ProductionExpressionAuxFieldGrid>
-                <ProductionSceneWritingTextarea
-                  kind="expression-note"
-                  value={draft.intent}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, intent: event.target.value }))}
-                  placeholder={`${typeLabel}的目的`}
-                />
-                <ProductionSceneWritingTextarea
-                  kind="expression-note"
-                  value={draft.note}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, note: event.target.value }))}
-                  placeholder="潜台词 / 表演说明"
-                />
-              </ProductionExpressionAuxFieldGrid>
-            </ProductionExpressionEditorColumn>
-            <ProductionExpressionEditorActions>
-              {canDeleteLine ? (
-                <ProductionSceneWritingActionButton
-                  size="sm"
-                  variant="ghost"
-                  tone="danger"
-                  disabled={isSaving}
-                  onClick={() => {
-                    onDelete(line.editTarget)
-                    onOpenChange(false)
-                  }}
-                >
-                  <Trash2 size={12} />
-                  删除
-                </ProductionSceneWritingActionButton>
-              ) : null}
-              {changed && (
-                <ProductionSceneWritingActionButton
-                  size="sm"
-                  variant="ghost"
-                  disabled={isSaving}
-                  onClick={() => setDraft(original)}
-                >
-                  取消
-                </ProductionSceneWritingActionButton>
-              )}
-              <ProductionSceneWritingActionButton
-                size="sm"
-                disabled={!changed || !draft.text.trim() || isSaving}
-                onClick={() => onSave(line.editTarget, normalizeWritingExpressionDraft(draft))}
-              >
-                {isSaving ? <ProductionSceneWritingSpinner icon={Loader2} /> : <Check size={12} />}
-                {actionLabel}
-              </ProductionSceneWritingActionButton>
-            </ProductionExpressionEditorActions>
-          </ProductionExpressionEditorGrid>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ProductionExpressionEditorGrid>
+      <ProductionExpressionEditorColumn>
+        <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>
+          <ProductionSceneWritingSelectTrigger kind="expression-kind">
+            <SelectValue />
+          </ProductionSceneWritingSelectTrigger>
+          <SelectContent>
+            {writingExpressionTypeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <ProductionExpressionField label={speakerLabelForWritingType(draft.kind)}>
+          <Select
+            value={selectedSpeakerValue}
+            onValueChange={(value) => {
+              if (value === '__custom__') {
+                setDraft((prev) => ({ ...prev, speaker: speakerOptions.some((option) => option.name === prev.speaker.trim()) ? '' : prev.speaker }))
+                return
+              }
+              const option = speakerOptions.find((item) => speakerOptionValue(item) === value)
+              if (option) setDraft((prev) => ({ ...prev, speaker: option.name }))
+            }}
+          >
+            <ProductionSceneWritingSelectTrigger kind="expression-speaker">
+              <SelectValue placeholder="从设定选择" />
+            </ProductionSceneWritingSelectTrigger>
+            <SelectContent>
+              {speakerOptions.map((option) => (
+                <SelectItem key={speakerOptionValue(option)} value={speakerOptionValue(option)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+              <SelectItem value="__custom__">自定义人物 / 群众演员</SelectItem>
+            </SelectContent>
+          </Select>
+          <ProductionSceneWritingTextarea
+            kind="speaker"
+            value={draft.speaker}
+            onChange={(event) => setDraft((prev) => ({ ...prev, speaker: event.target.value }))}
+            placeholder={speakerPlaceholderForWritingType(draft.kind)}
+          />
+        </ProductionExpressionField>
+      </ProductionExpressionEditorColumn>
+      <ProductionExpressionEditorColumn>
+        <ProductionSceneWritingTextarea
+          kind="expression"
+          value={draft.text}
+          onChange={(event) => setDraft((prev) => ({ ...prev, text: event.target.value }))}
+          placeholder={textPlaceholderForWritingType(draft.kind)}
+        />
+        <ProductionExpressionAuxFieldGrid>
+          <ProductionSceneWritingTextarea
+            kind="expression-note"
+            value={draft.intent}
+            onChange={(event) => setDraft((prev) => ({ ...prev, intent: event.target.value }))}
+            placeholder={`${typeLabel}的目的`}
+          />
+          <ProductionSceneWritingTextarea
+            kind="expression-note"
+            value={draft.note}
+            onChange={(event) => setDraft((prev) => ({ ...prev, note: event.target.value }))}
+            placeholder="潜台词 / 表演说明"
+          />
+        </ProductionExpressionAuxFieldGrid>
+      </ProductionExpressionEditorColumn>
+      <ProductionExpressionEditorActions>
+        {canDeleteLine ? (
+          <ProductionSceneWritingActionButton
+            size="sm"
+            variant="ghost"
+            tone="danger"
+            disabled={isSaving}
+            onClick={() => {
+              onDelete(line.editTarget)
+            }}
+          >
+            <Trash2 size={12} />
+            删除
+          </ProductionSceneWritingActionButton>
+        ) : null}
+        {changed && (
+          <ProductionSceneWritingActionButton
+            size="sm"
+            variant="ghost"
+            disabled={isSaving}
+            onClick={() => setDraft(original)}
+          >
+            取消
+          </ProductionSceneWritingActionButton>
+        )}
+        <ProductionSceneWritingActionButton
+          size="sm"
+          disabled={!changed || !draft.text.trim() || isSaving}
+          onClick={() => onSave(line.editTarget, normalizeWritingExpressionDraft(draft))}
+        >
+          {isSaving ? <ProductionSceneWritingSpinner icon={Loader2} /> : <Check size={12} />}
+          {actionLabel}
+        </ProductionSceneWritingActionButton>
+      </ProductionExpressionEditorActions>
+    </ProductionExpressionEditorGrid>
   )
 }
 

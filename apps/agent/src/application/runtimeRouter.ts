@@ -21,25 +21,14 @@ import {
 import { type ApplyDraftInput } from '../drafts/draftApply.js'
 import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
+import { createBackendRuntimeDraftApplyPort } from '../adapters/draft/backendRuntimeDraftApplyAdapter.js'
 import { generatePlanTasks } from '../orchestration/planGenerator.js'
-import {
-  applyRuntimeThreadContextSummary,
-} from '../context/runtimeThreadContextSummary.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
 } from '../contracts/runtimeContract.js'
-import { defaultRunPolicy } from '../state/runPolicy.js'
-import { isExecutingRunStatus } from '../state/runStatus.js'
 import { RuntimeRunControllerRegistry } from './runLifecycleControl.js'
-import { numberField } from './runtimeScalarInput.js'
 import { RuntimeRunAuthRegistry } from './runAuth.js'
-import { updateRuntimePlan } from './runtimePlanTools.js'
-import {
-  requireRuntimeTask,
-  requireRuntimeThread,
-} from './runtimeStoreLookup.js'
-import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
 import {
   createRuntimeTaskGraphCreationBridge,
   type RuntimeTaskGraphCreationBridge,
@@ -81,19 +70,15 @@ import {
   createRuntimeCatalogSettingsBridge,
   type RuntimeCatalogSettingsBridge,
 } from './runtimeCatalogSettingsBridge.js'
-import {
-  createRuntimeWorksBridge,
-  type RuntimeWorksBridge,
-} from './runtimeWorksBridge.js'
-import { RuntimeWorkManager } from '../runtimeWork/runtimeWorkManager.js'
-import { GenerationJobWorkProvider } from '../runtimeWork/providers/generationJobWorkProvider.js'
-import { SubagentRunWorkProvider } from '../runtimeWork/providers/subagentRunWorkProvider.js'
-import { AgentStoreRuntimeWorkStore } from '../runtimeWork/runtimeWorkStore.js'
-import { isTerminalRuntimeWorkStatus, type RuntimeWork } from '../runtimeWork/runtimeWork.js'
+import type { RuntimeWorksBridge } from './runtimeWorksBridge.js'
 import {
   createRuntimeTaskGraphDispatchBridge,
   type RuntimeTaskGraphDispatchBridge,
 } from './runtimePlanDispatchBridge.js'
+import {
+  createRuntimePlanToolsBridge,
+  type RuntimePlanToolsBridge,
+} from './runtimePlanToolsBridge.js'
 import {
   createRuntimeReplanBridge,
   type RuntimeReplanBridge,
@@ -165,16 +150,41 @@ import {
 } from './runtimeMemoryOperationsBridge.js'
 import {
   createRuntimeTraceReadBridge,
+  type RuntimeDebugEvidenceRefQuery,
   type RuntimeTraceReadBridge,
 } from './runtimeTraceReadBridge.js'
 import {
-  buildRuntimeSessionSnapshotV1,
-  buildRuntimeThreadSnapshotV2,
+  createRuntimeSnapshotBridge,
+  type RuntimeSnapshotBridge,
+} from './runtimeSnapshotBridge.js'
+import {
+  createRuntimeWorkCoordinatorBridge,
+  type RuntimeWorkCoordinatorBridge,
+} from './runtimeWorkCoordinatorBridge.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from './runtimeToolHandlers.js'
+import type { DraftApplyPort } from '../ports/draft/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../ports/draft/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../ports/draft/proposalSnapshotHydrationPort.js'
+import type { CoreResourceFilePort } from '../ports/core/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../ports/core/videoFrameExtractionPort.js'
+import type { MovscriptProjectStandardsPort } from '../ports/movscript/projectStandardsPort.js'
+import type { RuntimeToolHandlerRegistry } from '../ports/runtime/runtimeToolHandlerPort.js'
+import type { ExternalToolGatewayPort } from '../ports/tools/externalToolGatewayPort.js'
+import { InMemoryAgentToolResultStore, type AgentToolResultStore } from '../state/toolResultStore.js'
+import {
   type RuntimeSessionSnapshotV1,
   type RuntimeThreadSnapshotV2,
 } from './runtimeThreadSnapshot.js'
 import { RuntimeScheduler } from './runtimeScheduler.js'
-import { RuntimeWakeCoordinator } from './runtimeWakeCoordinator.js'
 import type { RuntimeInteractionApprovalResult } from './runtimeInteractions.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
@@ -286,6 +296,11 @@ export {
 export { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 export { InMemoryAgentStore } from '../state/store.js'
 export {
+  FileAgentToolResultStore,
+  InMemoryAgentToolResultStore,
+  resolveAgentToolResultPath,
+} from '../state/toolResultStore.js'
+export {
   FileAgentDraftStore,
   InMemoryAgentDraftStore,
   normalizeDraftStatus,
@@ -310,8 +325,17 @@ export {
 export class AgentRuntimeRouter {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   private readonly store: AgentStore
+  private readonly toolResultStore: AgentToolResultStore
   private readonly draftStore: AgentDraftStore
   private readonly backendApplyClient: BackendApplyClient
+  private readonly externalToolGatewayPort: ExternalToolGatewayPort
+  private readonly draftApplyPort: DraftApplyPort
+  private readonly draftApplyPreviewPort: DraftApplyPreviewPort
+  private readonly proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  private readonly resourceFilePort: CoreResourceFilePort
+  private readonly videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  private readonly projectStandardsPort: MovscriptProjectStandardsPort
+  private readonly runtimeToolHandlers: RuntimeToolHandlerRegistry
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
   private readonly knowledgeManager: KnowledgeManager
@@ -351,28 +375,38 @@ export class AgentRuntimeRouter {
   private readonly runCancellationGuard: RuntimeRunCancellationGuard
   private readonly runControl: RuntimeRunControlBridge
   private readonly runtimeScheduler: RuntimeScheduler
-  private readonly runtimeWake: RuntimeWakeCoordinator
   private readonly runCreation: RuntimeRunCreationBridge
   private readonly runPreview: RuntimeRunPreviewBridge
   private readonly taskEvents: RuntimeTaskEventBridge
   private readonly taskUpdate: RuntimeTaskUpdateBridge
   private readonly planCreation: RuntimeTaskGraphCreationBridge
   private readonly planDispatch: RuntimeTaskGraphDispatchBridge
+  private readonly planTools: RuntimePlanToolsBridge
   private readonly updateTaskGraph: RuntimeReplanBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
-  private readonly workManager: RuntimeWorkManager
+  private readonly workCoordinator: RuntimeWorkCoordinatorBridge
   private readonly runtimeWorks: RuntimeWorksBridge
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
+  private readonly runtimeSnapshots: RuntimeSnapshotBridge
 
   constructor(options: AgentRuntimeRouterOptions) {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
+    this.toolResultStore = options.toolResultStore ?? new InMemoryAgentToolResultStore()
     this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
+    this.externalToolGatewayPort = options.externalToolGatewayPort ?? createDefaultExternalToolGatewayPort(this.mcpClient)
+    this.draftApplyPort = options.draftApplyPort ?? createDefaultDraftApplyPort(this.backendApplyClient)
+    this.draftApplyPreviewPort = options.draftApplyPreviewPort ?? createDefaultDraftApplyPreviewPort(this.backendApplyClient)
+    this.proposalSnapshotHydrationPort = options.proposalSnapshotHydrationPort ?? createDefaultProposalSnapshotHydrationPort(this.mcpClient)
+    this.resourceFilePort = options.resourceFilePort ?? createDefaultResourceFilePort(this.mcpClient)
+    this.videoFrameExtractionPort = options.videoFrameExtractionPort ?? createDefaultVideoFrameExtractionPort(this.backendApplyClient)
+    this.projectStandardsPort = options.projectStandardsPort ?? createDefaultProjectStandardsPort(this.backendApplyClient)
+    this.runtimeToolHandlers = options.runtimeToolHandlers ?? createDefaultRuntimeToolHandlerRegistry()
     this.drafts = createRuntimeDraftOperationsBridge({
       draftStore: this.draftStore,
-      backendApplyClient: this.backendApplyClient,
+      backendApplyPort: createBackendRuntimeDraftApplyPort(this.backendApplyClient),
     })
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
@@ -458,7 +492,7 @@ export class AgentRuntimeRouter {
       now: () => isoNow(),
     })
     this.entityReads = createRuntimeEntityReadBridge({ store: this.store })
-    this.traceReads = createRuntimeTraceReadBridge({ store: this.store })
+    this.traceReads = createRuntimeTraceReadBridge({ store: this.store, toolResultStore: this.toolResultStore })
     this.streams = createRuntimeStreamBridge({
       store: this.store,
       runSubscribers: this.runStreamSubscribers,
@@ -519,12 +553,20 @@ export class AgentRuntimeRouter {
       postRunRecords: this.postRunRecords,
       mcpClient: this.mcpClient,
       draftStore: this.draftStore,
-      backendApplyClient: this.backendApplyClient,
+      externalToolGatewayPort: this.externalToolGatewayPort,
+      draftApplyPort: this.draftApplyPort,
+      draftApplyPreviewPort: this.draftApplyPreviewPort,
+      proposalSnapshotHydrationPort: this.proposalSnapshotHydrationPort,
+      resourceFilePort: this.resourceFilePort,
+      videoFrameExtractionPort: this.videoFrameExtractionPort,
+      projectStandardsPort: this.projectStandardsPort,
       memoryStore: this.memoryStore,
       memoryManager: this.memoryManager,
       knowledgeManager: this.knowledgeManager,
       contractResolver: this.contractResolver,
       catalogManager: this,
+      toolResultStore: this.toolResultStore,
+      runtimeToolHandlers: this.runtimeToolHandlers,
       updateState: this.updateState,
     })
     this.runExecutionScheduler = createRuntimeRunExecutionSchedulerBridge({
@@ -533,7 +575,7 @@ export class AgentRuntimeRouter {
       deleteCatalogSnapshot: (runId) => this.catalogSnapshots.deleteRun(runId),
       syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
       onRunSettled: (runId) => {
-        void this.handleRuntimeRunSettled(runId)
+        void this.workCoordinator.runSettled(runId)
       },
     })
     this.recovery = createRuntimeRecoveryBridge({
@@ -603,6 +645,11 @@ export class AgentRuntimeRouter {
       taskEvents: this.taskEvents,
       createThread: (threadInput) => this.createThread(threadInput),
     })
+    this.planTools = createRuntimePlanToolsBridge({
+      store: this.store,
+      emitAssistantMessage: (run, message) => this.streams.emitAssistantMessage(run, message),
+      now: () => isoNow(),
+    })
     this.updateTaskGraph = createRuntimeReplanBridge({
       store: this.store,
       taskUpdate: this.taskUpdate,
@@ -614,30 +661,23 @@ export class AgentRuntimeRouter {
       store: this.store,
       cancelRun: (runId, cancelInput) => this.cancelRun(runId, cancelInput),
     })
-    this.workManager = new RuntimeWorkManager({
-      store: new AgentStoreRuntimeWorkStore(this.store),
-      providers: [
-        new GenerationJobWorkProvider(this.mcpClient),
-        new SubagentRunWorkProvider({
-          createThread: (threadInput) => this.createThread(threadInput),
-          createRun: (runInput) => this.createRun(runInput),
-          getRun: (runId) => this.store.getRun(runId),
-          listRuns: (query) => this.store.listRuns(query),
-          cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
-        }),
-      ],
-    })
-    this.runtimeWake = new RuntimeWakeCoordinator({
+    this.workCoordinator = createRuntimeWorkCoordinatorBridge({
       store: this.store,
+      mcpClient: this.mcpClient,
       scheduler: this.runtimeScheduler,
-      observeWork: (work) => this.observeRuntimeWorkForOpen(work),
+      createThread: (threadInput) => this.createThread(threadInput),
+      createRun: (runInput) => this.createRun(runInput),
+      cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
+      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
       now: () => isoNow(),
     })
-    void this.runtimeWake.drainQueued()
-    this.runtimeWorks = createRuntimeWorksBridge({
-      workManager: this.workManager,
-      wake: this.runtimeWake,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
+    this.runtimeWorks = this.workCoordinator.works
+    this.runtimeSnapshots = createRuntimeSnapshotBridge({
+      store: this.store,
+      reconcileThread: async (threadId) => {
+        await this.workCoordinator.threadOpened(threadId)
+      },
+      getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
     })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
   }
@@ -692,14 +732,7 @@ export class AgentRuntimeRouter {
   }
 
   updatePlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    const result = updateRuntimePlan({
-      store: this.store,
-      run,
-      request: input,
-      now: isoNow(),
-    })
-    if (result.message) this.streams.emitAssistantMessage(run, result.message)
-    return result as unknown as JSONValue
+    return this.planTools.updatePlan(run, input)
   }
   async startWork(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeWorks.startWork(run, input, options) }
 
@@ -740,93 +773,11 @@ export class AgentRuntimeRouter {
   }
 
   async getThreadRuntimeSnapshot(threadId: string): Promise<RuntimeThreadSnapshotV2 | undefined> {
-    if (!this.getThread(threadId)) return undefined
-    await this.reconcileRuntimeWorksForOpenedThread(threadId)
-    const thread = this.getThread(threadId)
-    if (!thread) return undefined
-    const runs = this.runtimeSnapshotRunsForThread(thread)
-    const runIds = new Set(runs.map((run) => run.id))
-    return buildRuntimeThreadSnapshotV2({
-      thread,
-      runs,
-      works: this.store.listRuntimeWorks()
-        .filter((work) => work.threadId === threadId || runIds.has(work.runId)),
-      interactions: this.store.listRuntimeInteractions()
-        .filter((interaction) => interaction.threadId === threadId
-          || interaction.displayThreadId === threadId
-          || interaction.displayAnchor?.threadId === threadId),
-      continuations: this.store.listRuntimeContinuations()
-        .filter((continuation) => continuation.threadId === threadId || runIds.has(continuation.runId)),
-      wakeEvents: this.store.listRuntimeWakeEvents()
-        .filter((event) => event.threadId === threadId || (event.runId ? runIds.has(event.runId) : false)),
-    })
-  }
-
-  private runtimeSnapshotRunsForThread(thread: AgentThread): AgentRun[] {
-    const candidates = thread.sessionId
-      ? this.store.listRuns({ sessionId: thread.sessionId })
-      : this.store.listRuns({ threadId: thread.id })
-    const visible = candidates.filter((run) => run.threadId === thread.id || runtimeRunDisplaysOnThread(run, thread.id))
-    return uniqueRuntimeRunsById(visible)
+    return await this.runtimeSnapshots.getThreadRuntimeSnapshot(threadId)
   }
 
   async getSessionRuntimeSnapshot(sessionId: string): Promise<RuntimeSessionSnapshotV1 | undefined> {
-    const session = this.getSession(sessionId)
-    if (!session) return undefined
-    const threads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
-    for (const thread of threads) await this.reconcileRuntimeWorksForOpenedThread(thread.id)
-    const refreshedThreads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
-    const threadIds = new Set(refreshedThreads.map((thread) => thread.id))
-    const taskGraphSnapshots = this.store.listTaskGraphs()
-      .filter((taskGraph) => taskGraph.sessionId === sessionId || threadIds.has(taskGraph.threadId))
-      .map((taskGraph) => this.getTaskGraphSnapshot(taskGraph.id))
-    const runs = this.store.listRuns({ sessionId })
-    const runIds = new Set(runs.map((run) => run.id))
-    const works = this.store.listRuntimeWorks({ sessionId })
-    const interactions = this.store.listRuntimeInteractions()
-      .filter((interaction) => threadIds.has(interaction.threadId) || runIds.has(interaction.runId))
-    const continuations = this.store.listRuntimeContinuations()
-      .filter((continuation) => threadIds.has(continuation.threadId) || runIds.has(continuation.runId))
-    const wakeEvents = this.store.listRuntimeWakeEvents()
-      .filter((event) => threadIds.has(event.threadId) || (event.runId ? runIds.has(event.runId) : false))
-    return buildRuntimeSessionSnapshotV1({
-      session,
-      threads: refreshedThreads,
-      taskGraphSnapshots,
-      runs,
-      works,
-      interactions,
-      continuations,
-      wakeEvents,
-    })
-  }
-
-  private async reconcileRuntimeWorksForOpenedThread(threadId: string): Promise<void> {
-    await this.runtimeWake.threadOpened(threadId)
-  }
-
-  private async handleRuntimeRunSettled(runId: string): Promise<void> {
-    await this.runtimeWake.runSettled(runId)
-  }
-
-  private async observeRuntimeWorkForOpen(work: RuntimeWork): Promise<RuntimeWork | undefined> {
-    if (isTerminalRuntimeWorkStatus(work.status)) return work
-    try {
-      return await this.workManager.observe(work.id)
-    } catch (error) {
-      const run = this.store.getRun(work.runId)
-      if (run) {
-        this.streams.recordTraceEvent(run, {
-          kind: 'tool_call',
-          title: `Runtime work observe failed: ${work.kind}`,
-          summary: error instanceof Error ? error.message : String(error),
-          status: 'failed',
-          toolName: 'core_work_wait',
-          data: { runtimeWorkId: work.id },
-        })
-      }
-      return undefined
-    }
+    return await this.runtimeSnapshots.getSessionRuntimeSnapshot(sessionId)
   }
 
   approveInteraction(interactionId: string): RuntimeInteractionApprovalResult {
@@ -842,15 +793,19 @@ export class AgentRuntimeRouter {
   }
 
   deleteThread(id: string): AgentThreadDeletionResult {
-    const activeRun = this.store.listRuns({ threadId: id }).find((run) => isExecutingRunStatus(run.status))
-    if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
-    return this.threads.deleteThread(id)
+    const deletion = this.threads.deleteThread(id)
+    if (deletion.deletedRunIds.length > 0) {
+      this.toolResultStore.deleteToolResultsForRuns(deletion.deletedRunIds)
+    }
+    return deletion
   }
 
   deleteAllThreads(): AgentThreadClearResult {
-    const activeRun = this.store.listRuns().find((run) => isExecutingRunStatus(run.status))
-    if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
-    return this.threads.deleteAllThreads()
+    const deletion = this.threads.deleteAllThreads()
+    if (deletion.deletedRunIds.length > 0) {
+      this.toolResultStore.deleteToolResultsForRuns(deletion.deletedRunIds)
+    }
+    return deletion
   }
 
   addMessage(threadId: string, input: CreateMessageInput): AgentMessage {
@@ -947,7 +902,13 @@ export class AgentRuntimeRouter {
 
   getRunDebugLedger(runId: string): ReturnType<RuntimeTraceReadBridge['getRunDebugLedger']> { return this.traceReads.getRunDebugLedger(runId) }
 
+  findRunDebugEvidenceRefs(runId: string, query: RuntimeDebugEvidenceRefQuery): ReturnType<RuntimeTraceReadBridge['findRunDebugEvidenceRefs']> { return this.traceReads.findRunDebugEvidenceRefs(runId, query) }
+
   getRunDebugEvidence(runId: string, evidenceId: string): ReturnType<RuntimeTraceReadBridge['getRunDebugEvidence']> { return this.traceReads.getRunDebugEvidence(runId, evidenceId) }
+
+  getRunToolResult(runId: string, refKey: string): ReturnType<RuntimeTraceReadBridge['getRunToolResult']> { return this.traceReads.getRunToolResult(runId, refKey) }
+
+  findRunToolResults(runId: string, query?: Parameters<RuntimeTraceReadBridge['findRunToolResults']>[1]): ReturnType<RuntimeTraceReadBridge['findRunToolResults']> { return this.traceReads.findRunToolResults(runId, query) }
 
   getRunGenerationView(runId: string): ReturnType<RuntimeTraceReadBridge['getRunGenerationView']> { return this.traceReads.getRunGenerationView(runId) }
 
@@ -1086,23 +1047,4 @@ export class AgentRuntimeRouter {
     await this.postRunRecords.flush()
   }
 
-}
-
-function uniqueRuntimeRunsById(runs: AgentRun[]): AgentRun[] {
-  const byId = new Map<string, AgentRun>()
-  for (const run of runs) byId.set(run.id, run)
-  return Array.from(byId.values())
-}
-
-function runtimeRunDisplaysOnThread(run: AgentRun, threadId: string): boolean {
-  return runtimeRunInteractionDisplaysOnThread(run.pendingApprovals, threadId)
-    || runtimeRunInteractionDisplaysOnThread(run.pendingInputRequests, threadId)
-}
-
-function runtimeRunInteractionDisplaysOnThread(
-  interactions: Array<Pick<AgentApprovalRequest | AgentInputRequest, 'displayThreadId' | 'displayAnchor'>> | undefined,
-  threadId: string,
-): boolean {
-  return (interactions ?? []).some((interaction) =>
-    interaction.displayThreadId === threadId || interaction.displayAnchor?.threadId === threadId)
 }

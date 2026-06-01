@@ -3,6 +3,7 @@ import { dirname, join, relative } from 'node:path'
 import { MCPClient } from '../mcpClient.js'
 import { AgentRuntimeRouter, loadAgentPluginCatalog } from '../application/runtimeRouter.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath, resolveAgentTracePath } from '../state/fileStore.js'
+import { FileAgentToolResultStore, resolveAgentToolResultPath } from '../state/toolResultStore.js'
 import { FileAgentDraftStore, resolveAgentDraftPath } from '../drafts/draftStore.js'
 import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
@@ -29,6 +30,7 @@ export interface AgentServerContext {
     statePath: string
     memoryPath: string
     draftPath: string
+    toolResultPath: string
     catalogStatePath: string
     modelConfigPath: string
   }
@@ -119,9 +121,10 @@ export function createAgentServerContext(): AgentServerContext {
   const memoryPath = resolveAgentMemoryPath(statePath)
   const tracePath = resolveAgentTracePath(statePath)
   const draftPath = resolveAgentDraftPath(statePath)
+  const toolResultPath = resolveAgentToolResultPath(statePath)
   const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} draft=${pathDiagnostic(draftPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
+  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} draft=${pathDiagnostic(draftPath)} toolResults=${pathDiagnostic(toolResultPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
   const modelConfigStore = timeStartupStep('model-config-store', () => new RuntimeModelConfigStore(modelConfigPath), () => pathDiagnostic(modelConfigPath))
   const pluginCatalog = timeStartupStep('plugin-catalog-load', () => loadAgentPluginCatalog(), (catalog) => [
     `packs=${catalog.packs.length}`,
@@ -178,10 +181,15 @@ export function createAgentServerContext(): AgentServerContext {
     pathDiagnostic(memoryPath),
     'load=lazy',
   ].join(' '))
+  const toolResultStore = timeStartupStep('tool-result-store', () => new FileAgentToolResultStore(toolResultPath), (store) => [
+    pathDiagnostic(toolResultPath),
+    `records=${store.listToolResults().length}`,
+  ].join(' '))
 
   const runtimeRouter = timeStartupStep('runtime-router', () => new AgentRuntimeRouter({
     mcpClient: client,
     store,
+    toolResultStore,
     draftStore,
     backendApplyClient,
     memoryStore,
@@ -223,6 +231,7 @@ export function createAgentServerContext(): AgentServerContext {
       statePath,
       memoryPath,
       draftPath,
+      toolResultPath,
       catalogStatePath,
       modelConfigPath,
     },

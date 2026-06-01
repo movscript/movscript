@@ -272,6 +272,10 @@ export function ProductionSegmentNavigatorCardHeader({
   );
 }
 
+export function ProductionSegmentNavigatorCardActions({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("production-segment-card-actions", className)} {...props} />;
+}
+
 export function ProductionSegmentMomentStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("production-segment-moment-stack", className)} {...props} />;
 }

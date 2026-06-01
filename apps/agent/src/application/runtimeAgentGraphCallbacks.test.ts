@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentRun, AgentRunStep } from '../state/types.js'
-import type { AgentGraphTraceInput } from '../orchestration/agentGraph.js'
+import type { AgentGraphTraceInput } from '../orchestration/agentGraphTypes.js'
 import type { GenerationEvent } from '../generation/generationEvents.js'
 import {
   createRuntimeAgentGraphCallbacks,

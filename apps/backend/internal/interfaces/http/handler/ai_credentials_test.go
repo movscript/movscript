@@ -141,6 +141,36 @@ func TestCredentialExternalAdminActionsWriteAuditWithoutSecrets(t *testing.T) {
 	assertAuditMetadataDoesNotContain(t, db, "ai_credential.admin_tested", "not-cipher")
 }
 
+func TestCreateCredentialWithRequiredTestDoesNotPersistOnFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestAICredentialRouter(t)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials", strings.NewReader(`{
+		"adapter_type":"openai_compat",
+		"display_name":"Broken OpenAI",
+		"credentials":{"api_key":"sk-bad","base_url":"http://[::1"},
+		"require_test_success":true
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+
+	router.ServeHTTP(createRes, createReq)
+
+	if createRes.Code != http.StatusBadGateway {
+		t.Fatalf("expected failed credential test, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+	var credentialCount int64
+	if err := db.Model(&persistencemodel.AICredential{}).Count(&credentialCount).Error; err != nil {
+		t.Fatalf("count credentials: %v", err)
+	}
+	if credentialCount != 0 {
+		t.Fatalf("credential count = %d, want 0", credentialCount)
+	}
+	if countAuditAction(t, db, "ai_credential.admin_created") != 0 {
+		t.Fatalf("failed credential test should not write create audit log")
+	}
+}
+
 func newTestAICredentialRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	db := testutil.OpenSQLite(t, "handler-ai-credentials.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{})

@@ -1,6 +1,6 @@
 import { Film } from 'lucide-react'
 
-import { AuthedImage } from '@/shared/ui/AuthedImage'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import { WorkbenchScenePreviewPanel } from '@movscript/ui'
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { byOrder, firstText, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
@@ -57,8 +57,8 @@ export function ContentWorkbenchScenePreview({
       previewMounted={previewItemCount > 0}
       runningJobLabel={runningJobCount > 0 ? `${runningJobCount} 个任务中` : undefined}
       media={primaryResourceId > 0 ? (
-        <AuthedImage
-          src={resourceFileUrl(primaryResourceId)}
+        <ResourceFileImage
+          resourceId={primaryResourceId}
           alt={titleOfRecord(primaryKeyframe)}
         />
       ) : undefined}
@@ -71,8 +71,4 @@ export function ContentWorkbenchScenePreview({
       showHeader={showHeader}
     />
   )
-}
-
-function resourceFileUrl(resourceId?: number | null) {
-  return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
 }

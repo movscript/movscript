@@ -8,9 +8,15 @@ import {
   ScriptEditorErrorText,
   ScriptEditorFieldLabel,
   ScriptEditorFormShell,
+  ScriptEditorHelperText,
   ScriptEditorHiddenFileInput,
   ScriptEditorInlineMeta,
+  ScriptEditorInput,
   ScriptEditorMainField,
+  ScriptEditorSidePanel,
+  ScriptEditorSideRail,
+  ScriptEditorStrongText,
+  ScriptEditorSummaryTextarea,
   ScriptEditorToolbar,
   ScriptEditorToolbarGroup,
   ScriptEditorVersionState,
@@ -87,18 +93,6 @@ export function ScriptForm({
           {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
         </ScriptEditorToolbarGroup>
         <ScriptEditorToolbarGroup>
-          {versionStateLabel && (
-            <ScriptEditorVersionState>
-              <ScriptEditorVersionTitle>{versionStateLabel}</ScriptEditorVersionTitle>
-              {latestVersionLabel && <ScriptEditorVersionSubtitle>{latestVersionLabel}</ScriptEditorVersionSubtitle>}
-            </ScriptEditorVersionState>
-          )}
-          {onCreateVersion && (
-            <ScriptEditorActionButton size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion || !canCreateVersion}>
-              <GitBranch size={14} />
-              {isCreatingVersion ? '创建中…' : '保存为版本'}
-            </ScriptEditorActionButton>
-          )}
           <ScriptEditorActionButton size="sm" onClick={() => onSave(draft)} disabled={isSaving}>
             <Save size={14} />
             {isSaving ? t('common.saving') : t('common.save')}
@@ -108,13 +102,47 @@ export function ScriptForm({
 
       <ScriptEditorBodyGrid>
         <ScriptEditorMainField>
+          <ScriptEditorFieldLabel htmlFor="script-title">标题</ScriptEditorFieldLabel>
+          <ScriptEditorInput
+            id="script-title"
+            value={draft.title ?? ''}
+            onChange={(event) => onChange({ ...draft, title: event.target.value })}
+          />
           <ScriptEditorFieldLabel>{t('details.scriptBody')}</ScriptEditorFieldLabel>
+          <ScriptEditorHelperText>
+            <ScriptEditorStrongText>工作稿</ScriptEditorStrongText>
+            会用于生成下一份定稿和剧本块拆分。
+          </ScriptEditorHelperText>
           <ScriptEditorBodyTextarea
             placeholder={t('details.scriptBodyPlaceholder')}
             value={draft.raw_source ?? draft.content ?? ''}
             onChange={(event) => updateRawSource(event.target.value)}
           />
         </ScriptEditorMainField>
+        <ScriptEditorSideRail>
+          <ScriptEditorSidePanel variant="muted">
+            {versionStateLabel && (
+              <ScriptEditorVersionState>
+                <ScriptEditorVersionTitle>{versionStateLabel}</ScriptEditorVersionTitle>
+                {latestVersionLabel && <ScriptEditorVersionSubtitle>{latestVersionLabel}</ScriptEditorVersionSubtitle>}
+              </ScriptEditorVersionState>
+            )}
+            {onCreateVersion && (
+              <ScriptEditorActionButton size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion || !canCreateVersion}>
+                <GitBranch size={14} />
+                {isCreatingVersion ? '创建中…' : '保存为版本'}
+              </ScriptEditorActionButton>
+            )}
+          </ScriptEditorSidePanel>
+          <ScriptEditorSidePanel>
+            <ScriptEditorFieldLabel htmlFor="script-summary">摘要</ScriptEditorFieldLabel>
+            <ScriptEditorSummaryTextarea
+              id="script-summary"
+              value={draft.summary ?? ''}
+              onChange={(event) => onChange({ ...draft, summary: event.target.value })}
+            />
+          </ScriptEditorSidePanel>
+        </ScriptEditorSideRail>
       </ScriptEditorBodyGrid>
     </ScriptEditorFormShell>
   )

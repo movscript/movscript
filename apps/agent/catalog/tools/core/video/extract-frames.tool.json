@@ -1,0 +1,181 @@
+{
+  "name": "core_video_extract_frames",
+  "description": "从用户提供或后端资源库中的视频 resource 本地抽取代表帧。原始视频不会发送给模型；工具只下载到本地临时目录，用 ffmpeg 抽帧，并把抽出的图片帧作为下一轮模型 image parts 提供给 vision 模型。",
+  "permission": "agent.media.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "media",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "resourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "视频资源 ID。"
+      },
+      "resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resourceId 的别名。"
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["overview", "timestamps", "range", "burst"],
+        "description": "抽帧模式：overview 全局代表帧，timestamps 精确秒点，range 按区间频率抽帧，burst 查看某秒附近窗口。未指定时会根据参数自动推断。"
+      },
+      "count": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 8,
+        "description": "未指定 timestampsSec 时抽取多少张代表帧；默认 4，最大 8。"
+      },
+      "maxFrames": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 16,
+        "description": "本次最多返回多少帧；默认 8，最大 16，用于限制 range/burst 的高频抽帧预算。"
+      },
+      "max_frames": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 16,
+        "description": "maxFrames 的别名。"
+      },
+      "timestampsSec": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": "按秒指定抽帧时间点。"
+      },
+      "timestamps_sec": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": "timestampsSec 的别名。"
+      },
+      "startSec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "range 模式起始秒。"
+      },
+      "start_sec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "startSec 的别名。"
+      },
+      "endSec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "range 模式结束秒。"
+      },
+      "end_sec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "endSec 的别名。"
+      },
+      "centerSec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "burst 模式中心秒。"
+      },
+      "center_sec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "centerSec 的别名。"
+      },
+      "windowSec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "burst 模式窗口长度秒；默认 2。"
+      },
+      "window_sec": {
+        "type": "number",
+        "minimum": 0,
+        "description": "windowSec 的别名。"
+      },
+      "fps": {
+        "type": "number",
+        "minimum": 0.1,
+        "maximum": 6,
+        "description": "range/burst 模式抽帧频率，每秒多少帧；默认 2，最大 6。"
+      },
+      "intervalSec": {
+        "type": "number",
+        "minimum": 0.001,
+        "description": "range/burst 模式抽帧间隔秒。与 fps 同时提供时优先使用 intervalSec。"
+      },
+      "interval_sec": {
+        "type": "number",
+        "minimum": 0.001,
+        "description": "intervalSec 的别名。"
+      },
+      "maxWidth": {
+        "type": "number",
+        "minimum": 128,
+        "maximum": 1280,
+        "description": "输出帧最大宽度；默认 768。"
+      },
+      "max_width": {
+        "type": "number",
+        "minimum": 128,
+        "maximum": 1280,
+        "description": "maxWidth 的别名。"
+      },
+      "imageFormat": {
+        "type": "string",
+        "enum": ["jpeg", "png"],
+        "description": "输出帧格式；默认 jpeg。"
+      },
+      "image_format": {
+        "type": "string",
+        "enum": ["jpeg", "png"],
+        "description": "imageFormat 的别名。"
+      }
+    },
+    "anyOf": [
+      { "required": ["resourceId"] },
+      { "required": ["resource_id"] }
+    ]
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["status", "resource_id", "frame_count", "frames"],
+    "properties": {
+      "status": { "type": "string", "const": "extracted" },
+      "resource_id": { "type": "number" },
+      "duration_sec": { "type": "number" },
+      "video": { "type": "object" },
+      "sampling": { "type": "object" },
+      "output_layout": { "type": "string" },
+      "frame_count": { "type": "number" },
+      "frames": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["index", "timestamp_sec", "mime_type", "size_bytes", "image_payload"],
+          "properties": {
+            "index": { "type": "number" },
+            "timestamp_sec": { "type": "number" },
+            "mime_type": { "type": "string" },
+            "size_bytes": { "type": "number" },
+            "image_payload": { "type": "string", "const": "sent_to_model_as_image_part" }
+          }
+        }
+      },
+      "message": { "type": "string" }
+    }
+  },
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "capability": "本地读取视频资源并抽取图片帧供模型视觉理解；不会把视频二进制传给模型。"
+}

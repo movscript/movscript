@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
-import { Button } from '@movscript/ui'
+import { AppInlineError, Button } from '@movscript/ui'
 
 type VectorStats = {
   documents: number
@@ -118,9 +118,9 @@ export function ShotVectorPage() {
       </header>
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <AppInlineError>
           {translateAPIRequestError(error)}
-        </div>
+        </AppInlineError>
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">

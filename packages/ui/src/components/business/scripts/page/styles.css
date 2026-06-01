@@ -51,6 +51,7 @@
 
 .script-workbench-inspector {
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
   border-left: 0;
 }
@@ -63,10 +64,18 @@
 }
 
 .script-workbench-detail-content {
+  display: flex;
   min-height: 0;
   flex: 1 1 auto;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.script-workbench-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--ms-space-2);
 }
 
 .script-editor-form {

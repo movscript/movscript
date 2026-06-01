@@ -4,12 +4,11 @@ import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { createEmptyCatalogRegistry } from '../catalog/registry.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
-import type { AgentGraphInput } from '../orchestration/agentGraph.js'
+import type { AgentGraphInput } from '../orchestration/agentGraphTypes.js'
 import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import { InMemoryAgentStore } from '../state/store.js'
 import { buildAgentUpdateState } from '../updates/updatePolicy.js'
@@ -30,6 +29,33 @@ import type { RuntimeRunContextPackage } from './runtimeRunContextPackage.js'
 import type { RuntimeRunExecutionContext } from './runtimeRunExecutionContext.js'
 import { invokeRuntimeRunAgentGraph } from './runtimeRunAgentGraphInvocation.js'
 import type { RuntimeRunSetupResolution } from './runtimeRunSetupResolution.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from './runtimeToolHandlers.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 const setupRound = { roundId: 'round_0', roundIndex: 0, roundLabel: 'Setup', roundSource: 'setup' as const }
 const command: AgentCommandRuntime = {
@@ -85,6 +111,7 @@ function baseInput(
 ): Parameters<typeof invokeRuntimeRunAgentGraph>[0] {
   const memoryManager = new MemoryManager(new InMemoryAgentMemoryStore())
   const toolRegistry = new StaticToolRegistry([tool('tool_a')])
+  const mcpClient = new FakeMCPClient()
   return {
     run,
     executionContext: executionContext(thread),
@@ -103,10 +130,17 @@ function baseInput(
       layeredRegistry: createEmptyCatalogRegistry('catalog_v1'),
     })),
     auth: { backendAuthToken: 'token_1' },
-    mcpClient: new FakeMCPClient(),
+    mcpClient,
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     contractResolver: emptyContractResolver(),
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     memoryManager,
     knowledgeManager: new KnowledgeManager({ listCollections: () => [], search: () => [] } as any),
     catalogManager: emptyCatalogManager(),

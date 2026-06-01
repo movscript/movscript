@@ -28,15 +28,9 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.POST("/credentials/:id/models/:modelId/test", h.ai.TestModelConfig)
 	admin.POST("/credentials/:id/models/:modelId/debug", h.ai.DebugModelConfig)
 
-	// flat model-config patch (no credential_id in path — used by feature config tab)
+	// flat model-config patch (no credential_id in path)
 	admin.PATCH("/model-configs/:id", h.ai.PatchModelConfig)
 	admin.POST("/model-configs/preview-contract", h.ai.PreviewModelConfigContract)
-
-	// feature model config
-	admin.GET("/feature-defs", h.feature.ListDefs)
-	admin.GET("/features", h.feature.List)
-	admin.PUT("/features/:key", h.feature.Update)
-	admin.PUT("/features/:key/prompt", h.feature.UpdatePrompt)
 
 	// user management
 	admin.GET("/overview", h.adminOverview.Summary)

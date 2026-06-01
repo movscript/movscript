@@ -24,7 +24,7 @@ export function generationJobTools(): MCPTool[] {
             description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by generation_model_list.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation audit_version 1 dropped_extra_params; obvious local type/option/range and compact cross-parameter rule mismatches are reported in non-blocking param_validation.preflight_errors.',
             additionalProperties: true,
           },
-          feature_key: { type: 'string', description: 'Optional feature key for routing/audit. Defaults to agent.chat_generation.' },
+          feature_key: { type: 'string', description: 'Optional caller source key for audit. Defaults to agent.chat_generation.' },
           projectId: { type: 'number' },
           wait: { type: 'boolean', description: 'Defaults to true. When false, returns after enqueueing the job.' },
           timeout_ms: { type: 'number', description: 'Maximum wait time. Defaults to 180000 for image, 600000 for video.' },

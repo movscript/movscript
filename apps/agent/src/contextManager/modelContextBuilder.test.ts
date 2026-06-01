@@ -3,6 +3,7 @@ import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { buildContext, buildRuntimeChatTools } from './modelContextBuilder.js'
+import { runtimeModelContentText } from '../model/modelConfig.js'
 
 test('buildContext emits multiple textual system messages instead of one JSON-packed prompt', () => {
   const built = buildContext({
@@ -35,17 +36,17 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
 
   const systemMessages = built.messages.filter((message) => message.role === 'system')
   assert.ok(systemMessages.length > 1)
-  assert.match(systemMessages[0].content ?? '', /Runtime Contract/)
-  assert.match(systemMessages[0].content ?? '', /Runtime limits:/)
-  const focusMessage = systemMessages.find((message) => String(message.content).includes('Focus snapshot:'))
+  assert.match(runtimeModelContentText(systemMessages[0]?.content ?? []), /Runtime Contract/)
+  assert.match(runtimeModelContentText(systemMessages[0]?.content ?? []), /Runtime limits:/)
+  const focusMessage = systemMessages.find((message) => runtimeModelContentText(message.content).includes('Focus snapshot:'))
   assert.ok(focusMessage)
-  assert.match(focusMessage.content ?? '', /Title:/)
-  assert.match(focusMessage.content ?? '', /Business reference:/)
-  assert.match(focusMessage.content ?? '', /production#4/)
-  assert.doesNotMatch(focusMessage.content ?? '', /All Projects/)
-  assert.doesNotMatch(focusMessage.content ?? '', /项目1的名字/)
-  assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
-  assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
+  assert.match(runtimeModelContentText(focusMessage.content), /Title:/)
+  assert.match(runtimeModelContentText(focusMessage.content), /Business reference:/)
+  assert.match(runtimeModelContentText(focusMessage.content), /production#4/)
+  assert.doesNotMatch(runtimeModelContentText(focusMessage.content), /All Projects/)
+  assert.doesNotMatch(runtimeModelContentText(focusMessage.content), /项目1的名字/)
+  assert.equal(systemMessages.some((message) => runtimeModelContentText(message.content).includes('Runtime context JSON')), false)
+  assert.ok(systemMessages.some((message) => runtimeModelContentText(message.content).includes('outputMode: natural')))
 })
 
 test('buildContext keeps default chat prompt lean', () => {
@@ -116,6 +117,94 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.doesNotMatch(built.systemPrompt, /draft_create/)
   assert.doesNotMatch(built.systemPrompt, /memory#memory_1/)
   assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
+})
+
+test('buildContext attaches client image data URLs as model image parts', () => {
+  const built = buildContext({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: 'describe this',
+    clientInput: {
+      visibleMessage: 'describe this',
+      attachments: [{
+        id: 'att_1',
+        name: 'shot.png',
+        type: 'image',
+        mimeType: 'image/png',
+        size: 16,
+        dataUrl: 'data:image/png;base64,AAAA',
+      }],
+    },
+  })
+
+  const userMessage = built.messages.at(-1)
+  assert.equal(userMessage?.role, 'user')
+  assert.deepEqual(userMessage?.content, [
+    { type: 'text', text: 'describe this' },
+    { type: 'image', source: { type: 'data_url', dataUrl: 'data:image/png;base64,AAAA' }, detail: 'auto' },
+  ])
+})
+
+test('buildContext keeps client video attachments as metadata-only user text', () => {
+  const built = buildContext({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: '看看视频\n\n[用户附件引用]\n1. clip.mp4 (video, video/mp4, 120 bytes, resource_id=88, video_payload=metadata_only)',
+    clientInput: {
+      visibleMessage: '看看视频',
+      attachments: [{
+        id: 'att_v',
+        name: 'clip.mp4',
+        type: 'video',
+        mimeType: 'video/mp4',
+        size: 120,
+        resourceId: 88,
+      }],
+    },
+  })
+
+  const userMessage = built.messages.at(-1)
+  assert.equal(userMessage?.role, 'user')
+  assert.equal(userMessage?.content.some((part) => part.type === 'image'), false)
+  assert.match(built.systemPrompt, /core_video_extract_frames/)
 })
 
 test('buildContext tells plan tool users to compare currentPlan before updating', () => {
@@ -510,6 +599,33 @@ test('buildRuntimeChatTools describes progress update as plan update', () => {
   assert.match(parameters?.properties?.tasks?.description ?? '', /未就绪/)
 })
 
+test('buildRuntimeChatTools exposes local video frame extraction schema', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'core_video_extract_frames',
+      source: 'runtime' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const [tool] = buildRuntimeChatTools(tools)
+  const parameters = tool?.function.parameters as any
+  assert.ok(parameters?.properties?.resourceId)
+  assert.deepEqual(parameters?.properties?.mode?.enum, ['overview', 'timestamps', 'range', 'burst'])
+  assert.ok(parameters?.properties?.timestampsSec)
+  assert.ok(parameters?.properties?.startSec)
+  assert.ok(parameters?.properties?.centerSec)
+  assert.ok(parameters?.properties?.fps)
+  assert.equal(parameters?.properties?.maxFrames?.maximum, 16)
+  assert.deepEqual(parameters?.anyOf, [{ required: ['resourceId'] }, { required: ['resource_id'] }])
+})
+
 test('buildRuntimeChatTools preserves runtime schema composition for provider adapters', () => {
   const tools = {
     discovered: [],
@@ -678,7 +794,7 @@ test('buildContext renders planner subagent workflow when runtime layers activat
   })
   const policy = withSubagents.debugParts.find((part) => part.id === 'skill.core.workflow.subagent_planning')
   assert.equal(policy, undefined)
-  assert.equal(withSubagents.systemMessages.some((message) => String(message.content).includes('Planner Subagents')), false)
+  assert.equal(withSubagents.systemMessages.some((message) => runtimeModelContentText(message.content).includes('Planner Subagents')), false)
 
   const withPlannerIntent = buildContext({
     ...baseInput,
@@ -712,7 +828,7 @@ test('buildContext renders planner subagent workflow when runtime layers activat
   assert.match(plannerPolicy?.content ?? '', /Einstein/)
   assert.match(plannerPolicy?.content ?? '', /不要用 worker/)
   assert.match(plannerPolicy?.content ?? '', /needs_review/)
-  assert.ok(withPlannerIntent.systemMessages.some((message) => String(message.content).includes('Planner Subagents')))
+  assert.ok(withPlannerIntent.systemMessages.some((message) => runtimeModelContentText(message.content).includes('Planner Subagents')))
 })
 
 test('buildContext orders activated behavior as persona, policies, then workflows', () => {
@@ -992,7 +1108,7 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
     metadata: {
-      systemPromptCharLimit: 4500,
+      systemPromptCharLimit: 4800,
     },
   }
   const activeSkills = [
@@ -1054,5 +1170,18 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
   assert.equal(built.debugParts.some((part) => part.id === 'skill.test.workflow'), true)
   assert.equal(built.degraded, 'dropped_policies')
   assert.ok(built.warnings.some((warning) => warning.includes('dropped non-critical skill')))
-  assert.ok(built.systemPrompt.length <= 4500)
+  assert.ok(built.systemPrompt.length <= 4800)
+  assert.equal(built.budgetLedger.limitChars, 4800)
+  assert.equal(built.budgetLedger.decisionCount, 1)
+  assert.deepEqual(built.budgetLedger.decisions.map((decision) => ({
+    action: decision.action,
+    stage: decision.stage,
+    partId: decision.partId,
+  })), [{
+    action: 'drop',
+    stage: 'low_priority',
+    partId: 'skill.test.low',
+  }])
+  assert.equal(built.promptStats.budgetLedger.decisionCount, 1)
+  assert.equal(built.promptStats.budgetLedger.finalSystemChars, built.systemPrompt.length)
 })

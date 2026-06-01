@@ -385,15 +385,36 @@ export interface AgentRunDebugLedger {
   }>
   decisions: Array<{ eventId: string; kind: 'policy' | 'approval' | 'input' | 'skill' | 'context'; summary: string; impact?: string }>
   attention: Array<{ eventId: string; severity: 'info' | 'warning' | 'error' | 'blocked'; title: string; summary?: string; nextAction?: string }>
-  evidenceIndex: Array<{
-    evidenceId: string
-    eventId: string
-    kind: 'model_request' | 'model_response' | 'tool_result' | 'raw_event'
-    label: string
-    chars: number
-    preview: string
-    fetchPath: string
-  }>
+  evidenceIndex: AgentRunDebugEvidenceRef[]
+}
+
+export type AgentRunDebugEvidenceKind = 'model_request' | 'model_response' | 'tool_args' | 'tool_result' | 'raw_event'
+
+export interface AgentRunDebugEvidenceRef {
+  evidenceId: string
+  eventId: string
+  kind: AgentRunDebugEvidenceKind
+  label: string
+  chars: number
+  preview: string
+  fetchPath: string
+  refKeys?: string[]
+  contentHashes?: string[]
+  resultHashes?: string[]
+  contextBundleIds?: string[]
+}
+
+export interface AgentRunDebugEvidenceRefQuery {
+  kind?: AgentRunDebugEvidenceKind
+  contextBundleId?: string
+  refKey?: string
+  contentHash?: string
+  resultHash?: string
+}
+
+export interface AgentRunDebugEvidenceRefResponse {
+  runId: string
+  evidenceRefs: AgentRunDebugEvidenceRef[]
 }
 
 export interface AgentRunDebugEvidence {
@@ -401,7 +422,7 @@ export interface AgentRunDebugEvidence {
   runId: string
   evidenceId: string
   eventId: string
-  kind: 'model_request' | 'model_response' | 'tool_result' | 'raw_event'
+  kind: AgentRunDebugEvidenceKind
   chars: number
   value: unknown
 }
@@ -467,6 +488,80 @@ export interface AgentTraceDebugView {
     messageWrites: Array<{ eventId: string; messageId?: string; source?: string; sourceLabel?: string; contentChars: number; contentPreview?: string }>
     issue?: string
   }>
+  runtimeSummary: {
+    skills: {
+      activeSkillIds: string[]
+      loadedSkillIds: string[]
+      unloadedSkillIds: string[]
+      availableSkillIds: string[]
+      contextProjection: Array<{
+        skillId: string
+        name: string
+        category?: string
+        activationReason?: string
+        contextBehavior?: string
+        includedInPrompt: boolean
+        promptPartId?: string
+        promptLayer?: string
+        promptKind?: string
+        renderedChars?: string
+        omittedReason?: string
+        omittedStage?: string
+        originalChars?: string
+        priority?: string
+      }>
+      omissions: Array<{
+        skillId: string
+        name: string
+        kind?: string
+        stage: string
+        reason: string
+        matched?: boolean
+        selected?: boolean
+        triggerReason?: string
+        dependencyIds: string[]
+        missingDependencyIds: string[]
+        inactiveDependencyIds: string[]
+        conflictSkillIds: string[]
+      }>
+      sourceEventId?: string
+    }
+    tools: {
+      availableToolNames: string[]
+      usedToolNames: string[]
+      failedToolNames: string[]
+      blockedToolNames: string[]
+      approvalRequiredToolNames: string[]
+      deniedToolNames: string[]
+      policyGateBlockedToolNames: string[]
+      pendingApprovalToolNames: string[]
+      blockedToolCount?: number
+      sourceEventId?: string
+    }
+    context: {
+      promptEventId?: string
+      contextMutationCount: number
+      latestMutationReason?: string
+      historyProjection?: {
+        inputCount: number
+        retainedCount: number
+        compactedCount: number
+        filteredCount: number
+        summaryChars: number
+        decisions: Array<{
+          action: string
+          stage?: string
+          reason?: string
+          messageCount?: number
+          retainedCount?: number
+          summaryChars?: number
+          maxMessages?: number
+        }>
+      }
+      toolLoopProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
+      attachmentProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
+    }
+  }
   skillTimeline: {
     timeline: Array<{
       eventId: string
@@ -478,13 +573,85 @@ export interface AgentTraceDebugView {
       loadedSkillIds: string[]
       unloadedSkillIds: string[]
       availableSkillIds: string[]
+      omissions: Array<{
+        skillId: string
+        name: string
+        kind?: string
+        stage: string
+        reason: string
+        matched?: boolean
+        selected?: boolean
+        triggerReason?: string
+        dependencyIds: string[]
+        missingDependencyIds: string[]
+        inactiveDependencyIds: string[]
+        conflictSkillIds: string[]
+      }>
     }>
     currentActiveSkillIds: string[]
     currentLoadedSkillIds: string[]
     currentUnloadedSkillIds: string[]
     currentAvailableSkillIds: string[]
+    currentOmissions: Array<{
+      skillId: string
+      name: string
+      kind?: string
+      stage: string
+      reason: string
+      matched?: boolean
+      selected?: boolean
+      triggerReason?: string
+      dependencyIds: string[]
+      missingDependencyIds: string[]
+      inactiveDependencyIds: string[]
+      conflictSkillIds: string[]
+    }>
   }
-  promptDetails: unknown[]
+  promptDetails: Array<{
+    eventId: string
+    title: string
+    runtimeSkillState?: {
+      activeSkillIds: string[]
+      loadedSkillIds: string[]
+      unloadedSkillIds: string[]
+      availableSkillIds: string[]
+      omissions: Array<{
+        skillId: string
+        name: string
+        kind?: string
+        stage: string
+        reason: string
+        matched?: boolean
+        selected?: boolean
+        triggerReason?: string
+        dependencyIds: string[]
+        missingDependencyIds: string[]
+        inactiveDependencyIds: string[]
+        conflictSkillIds: string[]
+      }>
+      sourceEventId?: string
+    }
+    contextLedgerState?: {
+      mutationCount: number
+      mutationEventIds: string[]
+      latestMutationEventId?: string
+      latestMutationReason?: string
+    }
+  }>
+  contextMutations: Array<{
+    eventId: string
+    title: string
+    total: number
+    appended: number
+    amended: number
+    deleted: number
+    affectedContextKeys: string[]
+    appendedContextKeys: string[]
+    amendedContextKeys: string[]
+    deletedContextKeys: string[]
+    latest?: { id: string; type: 'append' | 'amend' | 'delete'; createdAt: string; reason?: string }
+    refs: Array<{ kind: 'context_bundle' | 'context' | 'content_hash' | 'result_hash'; label: string; key?: string; id?: string; type?: string; hash?: string }>
+  }>
   messageWrites: unknown[]
   toolCalls: unknown[]
   attentionEvents: Array<{
@@ -611,6 +778,8 @@ export interface PlanStreamOptions {
 }
 
 const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
+const DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS = 5_000
+const DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS = 30_000
 const DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS = 60_000
 const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
   'completed',
@@ -626,13 +795,20 @@ export function canStartLocalAgentFromClient(): boolean {
 
 export class LocalAgentClient {
   readonly baseURL: string
+  private readonly healthTimeoutMs: number
+  private readonly requestTimeoutMs: number
 
-  constructor(baseURL = runtimeLocalAgentBaseURL()) {
+  constructor(
+    baseURL = runtimeLocalAgentBaseURL(),
+    options: { healthTimeoutMs?: number; requestTimeoutMs?: number } = {},
+  ) {
     this.baseURL = baseURL.replace(/\/+$/, '')
+    this.healthTimeoutMs = normalizePositiveTimeoutMs(options.healthTimeoutMs) ?? DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS
+    this.requestTimeoutMs = normalizePositiveTimeoutMs(options.requestTimeoutMs) ?? DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS
   }
 
   health(): Promise<AgentHealth> {
-    return this.getJSON('/health', { auth: false })
+    return this.getJSON('/health', { auth: false, timeoutMs: this.healthTimeoutMs })
   }
 
   inspect(): Promise<AgentInspectResponse> {
@@ -900,6 +1076,16 @@ export class LocalAgentClient {
 
   getRunDebugLedger(runId: string): Promise<AgentRunDebugLedger> {
     return this.getJSON(`/runs/${encodeURIComponent(runId)}/debug-ledger`)
+  }
+
+  findRunDebugEvidenceRefs(runId: string, query: AgentRunDebugEvidenceRefQuery): Promise<AgentRunDebugEvidenceRefResponse> {
+    const params = new URLSearchParams()
+    if (query.kind) params.set('kind', query.kind)
+    if (query.contextBundleId) params.set('contextBundleId', query.contextBundleId)
+    if (query.refKey) params.set('refKey', query.refKey)
+    if (query.contentHash) params.set('contentHash', query.contentHash)
+    if (query.resultHash) params.set('resultHash', query.resultHash)
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/debug-evidence-refs${params.size ? `?${params.toString()}` : ''}`)
   }
 
   getRunDebugEvidence(runId: string, evidenceId: string): Promise<AgentRunDebugEvidence> {
@@ -1361,45 +1547,65 @@ export class LocalAgentClient {
     }
   }
 
-  private async getJSON<T>(path: string, options: { auth?: boolean; signal?: AbortSignal } = {}): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`, {
-      headers: options.auth === false ? {} : this.authHeaders(),
-      signal: options.signal,
-    })
-    if (!res.ok) throw await localAgentResponseError(res)
-    return await res.json() as T
+  private async getJSON<T>(path: string, options: { auth?: boolean; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
+    const request = createLocalAgentRequestSignal(options.signal, options.timeoutMs ?? this.requestTimeoutMs)
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, {
+        headers: options.auth === false ? {} : this.authHeaders(),
+        signal: request.signal,
+      })
+      if (!res.ok) throw await localAgentResponseError(res)
+      return await res.json() as T
+    } finally {
+      request.cleanup()
+    }
   }
 
   private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`, {
-      method: 'POST',
-      headers: this.authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(this.withBackendContext(body)),
-      signal,
-    })
-    if (!res.ok) throw await localAgentResponseError(res)
-    return await res.json() as T
+    const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, {
+        method: 'POST',
+        headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(this.withBackendContext(body)),
+        signal: request.signal,
+      })
+      if (!res.ok) throw await localAgentResponseError(res)
+      return await res.json() as T
+    } finally {
+      request.cleanup()
+    }
   }
 
   private async patchJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`, {
-      method: 'PATCH',
-      headers: this.authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(this.withBackendContext(body)),
-      signal,
-    })
-    if (!res.ok) throw await localAgentResponseError(res)
-    return await res.json() as T
+    const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, {
+        method: 'PATCH',
+        headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(this.withBackendContext(body)),
+        signal: request.signal,
+      })
+      if (!res.ok) throw await localAgentResponseError(res)
+      return await res.json() as T
+    } finally {
+      request.cleanup()
+    }
   }
 
   private async deleteJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
-    const res = await fetch(`${this.baseURL}${path}`, {
-      method: 'DELETE',
-      headers: this.authHeaders(),
-      signal,
-    })
-    if (!res.ok) throw await localAgentResponseError(res)
-    return await res.json() as T
+    const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, {
+        method: 'DELETE',
+        headers: this.authHeaders(),
+        signal: request.signal,
+      })
+      if (!res.ok) throw await localAgentResponseError(res)
+      return await res.json() as T
+    } finally {
+      request.cleanup()
+    }
   }
 
   private authHeaders(base: Record<string, string> = {}): Record<string, string> {
@@ -1446,6 +1652,27 @@ function localAgentErrorMessage(text: string): string {
 
 function isLocalAgentErrorRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function createLocalAgentRequestSignal(externalSignal: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController()
+  const abortFromExternal = () => {
+    if (!controller.signal.aborted) controller.abort(externalSignal?.reason ?? createLocalAgentAbortError())
+  }
+  if (externalSignal?.aborted) abortFromExternal()
+  else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+
+  const timer = globalThis.setTimeout(() => {
+    if (!controller.signal.aborted) controller.abort(createLocalAgentTimeoutError(timeoutMs))
+  }, timeoutMs)
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      globalThis.clearTimeout(timer)
+      externalSignal?.removeEventListener('abort', abortFromExternal)
+    },
+  }
 }
 
 function normalizePositiveTimeoutMs(value: unknown): number | undefined {
@@ -1526,6 +1753,16 @@ function createLocalAgentAbortError(): Error {
   } catch {
     const error = new Error('Aborted')
     error.name = 'AbortError'
+    return error
+  }
+}
+
+function createLocalAgentTimeoutError(timeoutMs: number): Error {
+  try {
+    return new DOMException(`Local agent request timed out after ${timeoutMs}ms`, 'TimeoutError')
+  } catch {
+    const error = new Error(`Local agent request timed out after ${timeoutMs}ms`)
+    error.name = 'TimeoutError'
     return error
   }
 }

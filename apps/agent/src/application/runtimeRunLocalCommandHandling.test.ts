@@ -4,7 +4,6 @@ import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { createEmptyCatalogRegistry } from '../catalog/registry.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { EMPTY_KNOWLEDGE_STORE } from '../knowledge/knowledgeStore.js'
@@ -24,6 +23,33 @@ import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
 import { applyRuntimeRunLocalCommandHandling } from './runtimeRunLocalCommandHandling.js'
 import type { RuntimeRunSetupResolution } from './runtimeRunSetupResolution.js'
+import {
+  createDefaultDraftApplyPort,
+  createDefaultDraftApplyPreviewPort,
+  createDefaultExternalToolGatewayPort,
+  createDefaultProposalSnapshotHydrationPort,
+  createDefaultProjectStandardsPort,
+  createDefaultResourceFilePort,
+  createDefaultVideoFrameExtractionPort,
+  createDefaultRuntimeToolHandlerRegistry,
+} from './runtimeToolHandlers.js'
+
+const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
+const defaultDraftApplyBackend = {
+  async applyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+  async previewApplyReview(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
+const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
+const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultProjectStandardsBackend = {
+  async getProject(): Promise<any> {
+    return { performed: false, skippedReason: 'backend disabled in test' }
+  },
+}
 
 test('applyRuntimeRunLocalCommandHandling handles diagnostic commands through the dispatch boundary', async () => {
   const store = new InMemoryAgentStore()
@@ -81,6 +107,10 @@ function baseInput(
 ): Parameters<typeof applyRuntimeRunLocalCommandHandling>[0] {
   const memoryStore = new InMemoryAgentMemoryStore()
   const memoryManager = new MemoryManager(memoryStore)
+  const mcpClient = {
+    initialize: async () => ({}),
+    callTool: async () => ({ ok: true }),
+  }
   return {
     store,
     run,
@@ -93,13 +123,16 @@ function baseInput(
     memoryStore,
     contractResolver: emptyContractResolver(),
     catalogSnapshot: catalogSnapshot(),
-    mcpClient: {
-      initialize: async () => ({}),
-      callTool: async () => ({ ok: true }),
-    },
     draftStore: new InMemoryAgentDraftStore(),
-    backendApplyClient: new BackendApplyClient(),
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
+    draftApplyPort: defaultDraftApplyPort,
+    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
+    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
+    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     memoryManager,
+    runtimeToolHandlers: defaultRuntimeToolHandlers,
     knowledgeManager: new KnowledgeManager(EMPTY_KNOWLEDGE_STORE),
     catalogManager: {} as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
     now: () => '2026-01-01T00:00:01.000Z',

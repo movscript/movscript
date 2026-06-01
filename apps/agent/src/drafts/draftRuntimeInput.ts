@@ -5,7 +5,6 @@ import {
   type UpdateAgentDraftInput,
 } from './draftStore.js'
 import { normalizeRuntimeDraftSource } from './draftRuntimeContent.js'
-import type { BackendApplyAuthContext } from './backendApplyClient.js'
 
 export interface RuntimeCreateDraftInput {
   projectId?: unknown
@@ -30,6 +29,12 @@ export interface RuntimeDraftBackendAuthInput {
   appliedByUserId?: unknown
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
+}
+
+export interface RuntimeDraftBackendAuthContext {
+  userId?: number | string
+  backendAuthToken?: string
+  backendAPIBaseURL?: string
 }
 
 export function buildRuntimeCreateDraftInput(input: RuntimeCreateDraftInput): CreateAgentDraftInput {
@@ -61,7 +66,7 @@ export function buildRuntimeUpdateDraftInput(input: RuntimeUpdateDraftInput): {
 
 export function buildRuntimeDraftBackendAuth(input: RuntimeDraftBackendAuthInput, options: {
   includeAppliedByUserId?: boolean
-} = {}): BackendApplyAuthContext {
+} = {}): RuntimeDraftBackendAuthContext {
   return {
     ...(options.includeAppliedByUserId && isValidAgentReferenceId(input.appliedByUserId)
       ? { userId: input.appliedByUserId }

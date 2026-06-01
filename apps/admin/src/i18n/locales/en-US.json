@@ -55,7 +55,6 @@
     "cancelUnsupported": "This provider does not support video task cancellation",
     "cancelVideoOnly": "Only video generation jobs can be cancelled",
     "cannotGrantSelf": "You cannot grant permission to yourself",
-    "capabilityOrFeatureRequired": "Capability or feature query parameter is required",
     "canvasNotFound": "Canvas not found",
     "conflict": "The request conflicts with the current state",
     "credentialNotFound": "Credential not found",
@@ -69,7 +68,6 @@
     "failedReadFile": "Failed to read file",
     "failedRetrieveFile": "Failed to retrieve file",
     "failedStoreFile": "Failed to store file",
-    "featureNotFound": "Feature not found",
     "finalVideoNotFound": "Final video not found",
     "fileRequired": "File is required",
     "folderNotFound": "Folder not found",
@@ -1448,13 +1446,13 @@
           "noThread": "This conversation is not bound to a runtime thread yet. Send a message to show drafts from this thread.",
           "emptyFilter": "No drafts match this filter.",
           "projectBadge": "project #{{id}}",
-        "openPage": "Open page",
-        "pageOnlyHint": "This view only inspects the draft. Apply it from the target page as needed.",
-        "noPage": "This draft does not have an available page entry yet.",
-        "current": "Current",
-        "proposed": "Proposed",
-        "entityTypePlaceholder": "entity type",
-        "entityIdPlaceholder": "entity id",
+          "openPage": "Open page",
+          "pageOnlyHint": "This view only inspects the draft. Apply it from the target page as needed.",
+          "noPage": "This draft does not have an available page entry yet.",
+          "current": "Current",
+          "proposed": "Proposed",
+          "entityTypePlaceholder": "entity type",
+          "entityIdPlaceholder": "entity id",
           "fieldPlaceholder": "field",
           "currentValuePlaceholder": "Current value for review...",
           "proposedValuePlaceholder": "Proposed value...",
@@ -1465,72 +1463,72 @@
           "emptyDraft": "Empty draft",
           "previewSideEffect": "{{sideEffect}} Approval is required before this write can run."
         },
-      "debugPreview": {
-        "title": "Send debug preview",
-        "close": "Close debug preview",
-        "copyJson": "Copy JSON",
-        "copied": "Copied",
-        "cancel": "Cancel",
-        "send": "Send",
-        "model": "Model",
-        "agent": "Agent",
-        "mode": "Mode",
-        "default": "default",
-        "diagnostic": "diagnostic",
-        "conversation": "conversation",
-        "requests": "Requests",
-        "warnings": "Warnings",
-        "context": "Context",
-        "route": "Route",
-        "project": "Project",
+        "debugPreview": {
+          "title": "Send debug preview",
+          "close": "Close debug preview",
+          "copyJson": "Copy JSON",
+          "copied": "Copied",
+          "cancel": "Cancel",
+          "send": "Send",
+          "model": "Model",
+          "agent": "Agent",
+          "mode": "Mode",
+          "default": "default",
+          "diagnostic": "diagnostic",
+          "conversation": "conversation",
+          "requests": "Requests",
+          "warnings": "Warnings",
+          "context": "Context",
+          "route": "Route",
+          "project": "Project",
           "memories": "Memories",
           "skills": "Skills",
-        "policy": "Policy",
-        "tools": "Tools",
-        "previewMessage": "Agentic loop preview"
-      },
-      "runtime": {
-        "policy": "Policy",
-        "approvalMode": "Approval mode",
-        "maxToolCalls": "Max tool calls",
-        "maxIterations": "Max iterations",
-        "fileBytes": "File bytes",
-        "runtimeBoundaries": "Runtime boundaries",
-        "manifestGrants": "Manifest grants",
-        "available": "Available",
-        "blocked": "Blocked",
-        "discovered": "Discovered",
-        "availableTools": "Available tools",
-        "blockedTools": "Blocked tools",
-        "agenticLoopPreview": "Agentic loop preview",
-        "project": "Project",
-        "memories": "Memories",
-        "toolCalls": "Tool calls",
-        "sandbox": "Sandbox",
-        "on": "on",
-        "off": "off",
-        "none": "none",
-        "tool": "tool",
-        "headers": "Headers",
-        "body": "Body",
-        "permission": "Permission",
-        "allowed": "allowed",
-        "empty": "empty",
-        "network": "Network",
-        "costLimit": "Cost limit",
-        "chars": "{{count}} chars",
-        "noInstruction": "No instruction",
-        "localThreadTitle": "Local thread {{id}}",
-        "restoredLocalRuntime": "Restored Local Runtime",
-        "unknown": "unknown",
-        "noEnabledSkills": "No enabled skills.",
-        "toolCall": "Tool call",
-        "assistantMessage": "Assistant message",
-        "thinking": "Thinking",
-        "preparingRequest": "Preparing request",
-        "preparingToolCall": "Preparing tool call",
-        "callingTool": "Calling tool"
-      },
+          "policy": "Policy",
+          "tools": "Tools",
+          "previewMessage": "Agentic loop preview"
+        },
+        "runtime": {
+          "policy": "Policy",
+          "approvalMode": "Approval mode",
+          "maxToolCalls": "Max tool calls",
+          "maxIterations": "Max iterations",
+          "fileBytes": "File bytes",
+          "runtimeBoundaries": "Runtime boundaries",
+          "manifestGrants": "Manifest grants",
+          "available": "Available",
+          "blocked": "Blocked",
+          "discovered": "Discovered",
+          "availableTools": "Available tools",
+          "blockedTools": "Blocked tools",
+          "agenticLoopPreview": "Agentic loop preview",
+          "project": "Project",
+          "memories": "Memories",
+          "toolCalls": "Tool calls",
+          "sandbox": "Sandbox",
+          "on": "on",
+          "off": "off",
+          "none": "none",
+          "tool": "tool",
+          "headers": "Headers",
+          "body": "Body",
+          "permission": "Permission",
+          "allowed": "allowed",
+          "empty": "empty",
+          "network": "Network",
+          "costLimit": "Cost limit",
+          "chars": "{{count}} chars",
+          "noInstruction": "No instruction",
+          "localThreadTitle": "Local thread {{id}}",
+          "restoredLocalRuntime": "Restored Local Runtime",
+          "unknown": "unknown",
+          "noEnabledSkills": "No enabled skills.",
+          "toolCall": "Tool call",
+          "assistantMessage": "Assistant message",
+          "thinking": "Thinking",
+          "preparingRequest": "Preparing request",
+          "preparingToolCall": "Preparing tool call",
+          "callingTool": "Calling tool"
+        },
         "http": {
           "syncModelConfig": "Sync runtime model config",
           "loadExistingThread": "Load existing local thread",
@@ -1639,7 +1637,6 @@
       "multi_angle": "Multi-angle Image",
       "style_transfer": "Style Transfer",
       "motion_imitation": "Motion Imitation",
-      "video_edit": "Video Edit",
       "input": "Input",
       "output": "Output",
       "resource_sink": "Save Resource",
@@ -2048,20 +2045,6 @@
       "response": "Response",
       "adapterError": "Adapter Error"
     },
-    "brainstorm": {
-      "prompt": "Prompt",
-      "description": "Chat freely with AI to spark creative ideas. Each submission is an independent request.",
-      "latestResult": "Latest Result",
-      "newQuestion": "New Question",
-      "startQuestion": "Start Asking",
-      "promptPlaceholder": "Enter your idea... Type @ to reference images from the resource library, Cmd+Enter to send",
-      "selectModelFirst": "Select an AI model first",
-      "inputHint": "Cmd+Enter to send · Type @ to reference images",
-      "history": "History",
-      "empty": "No conversations yet",
-      "emptyHint": "Enter an idea to start brainstorming",
-      "requestFailed": "Request failed. Check the model configuration and try again."
-    },
     "defs": {
       "refImageGen": {
         "name": "Reference Image",
@@ -2082,11 +2065,6 @@
         "name": "Multi-angle",
         "description": "Generate multiple angle views of a character or object from a single image.",
         "promptPlaceholder": "Describe the angles or viewpoints you want to generate... Type @ to reference images from the resource library"
-      },
-      "videoEdit": {
-        "name": "Video Edit",
-        "description": "Generate an edited video from a source video and edit instructions.",
-        "promptPlaceholder": "Describe the edit target, such as trimming, pacing, shot reordering, or style processing... Type @ to reference videos from the resource library"
       },
       "styleTransfer": {
         "name": "Style Transfer",
@@ -2191,7 +2169,6 @@
     },
     "tabs": {
       "models": "Models",
-      "features": "Features",
       "users": "Users",
       "orgs": "Organizations",
       "projects": "Projects",
@@ -2219,7 +2196,6 @@
       },
       "sections": {
         "models": "Provider credentials, enabled models, pricing, and parameter configuration.",
-        "features": "Feature-to-model routing, default models, and system prompts.",
         "users": "Review user profiles, system roles, and account status.",
         "orgs": "Review personal and team organizations, plans, and organization status.",
         "projects": "{{count}} projects. Filter, delete, or force assign owners.",
@@ -2481,7 +2457,8 @@
       "add": "Add",
       "test": "Test",
       "noModelsHint": "No models added yet. Click \"Add Model\" to start.",
-      "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one."
+      "noCredentialsHint": "No credential configured yet. Click \"Add Credential\" in the top right to connect one.",
+      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx"
     },
     "credentials": {
       "selectAdapter": "Select Adapter",
@@ -2871,108 +2848,6 @@
         "byActor": "By Actor"
       }
     },
-    "features": {
-      "title": "Feature Configuration",
-      "description": "Assign available models for each tool feature. When unrestricted, all enabled models of that type are available.",
-      "systemPrompt": "System prompt",
-      "prompt": "Prompt",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "confirmEnable": "Enable feature \"{{name}}\"? Users will immediately see the available entry point.",
-      "confirmDisable": "Disable feature \"{{name}}\"? Related tools will become unavailable immediately.",
-      "defaultSystemPrompt": "Default system prompt",
-      "defaultSystemPromptHint": "(from business FeatureDef, read-only)",
-      "noSystemPrompt": "(No system prompt)",
-      "outputSchema": "Output format (OutputSchema)",
-      "customOverride": "Custom override",
-      "customOverrideHint": "(blank = use default)",
-      "maxTokensOverride": "Max tokens override",
-      "maxTokensOverrideHint": "Blank or 0 = use default",
-      "saved": "Saved ✓",
-      "saveOverride": "Save override",
-      "availableModels": "Available models",
-      "unrestrictedModelsHint": "(unrestricted, use all available models of this type)",
-      "selectedModelsHint": "({{count}} selected)",
-      "noConfiguredModels": "No configured {{capability}} model",
-      "goToModels": "Go to model management ->",
-      "imageInputMark": "· image input",
-      "editModelConfig": "Edit model config",
-      "leaveBlankUseModelId": "Leave blank to use model ID",
-      "modelIdOverridePlaceholder": "e.g. ep-xxx or a specific model ID",
-      "modelIdOverrideShortPlaceholder": "e.g. ep-xxx",
-      "priority": "Priority",
-      "defaultModel": "Default model",
-      "defaultModelHint": "(preselected when users open the tool)",
-      "autoHighestPriority": "Auto (highest priority)",
-      "accessRoles": "Access roles",
-      "accessRolesHint": "(blank = available to all roles)",
-      "systemFeatures": "System features",
-      "toolFeatures": "Tool features",
-      "empty": "No configurable features",
-      "catalog": {
-        "script_analyze": {
-          "name": "Script AI Analysis",
-          "description": "Analyze script content and extract key information such as characters, background, and scenes."
-        },
-        "assistant_chat": {
-          "name": "Assistant Chat",
-          "description": "Sidebar assistant for project creation support."
-        },
-        "canvas_text": {
-          "name": "Canvas Text Generation",
-          "description": "Text generation node in canvas workflows."
-        },
-        "canvas_image": {
-          "name": "Canvas Image Generation",
-          "description": "Image generation node in canvas workflows."
-        },
-        "canvas_video": {
-          "name": "Canvas Video Generation",
-          "description": "Video generation node in canvas workflows."
-        },
-        "shot_ref_image": {
-          "name": "Shot Reference Image Generation",
-          "description": "Generate reference images from storyboard descriptions."
-        },
-        "shot_ref_video": {
-          "name": "Shot Reference Video Generation",
-          "description": "Generate reference videos from reference images or descriptions."
-        },
-        "ref_image_gen": {
-          "name": "Reference Image",
-          "description": "Generate a new image from reference images, with text-to-image also supported."
-        },
-        "ref_video_gen": {
-          "name": "Reference Video",
-          "description": "Generate video from reference images or descriptions."
-        },
-        "motion_imitation": {
-          "name": "Motion Imitation",
-          "description": "Transfer motion from a reference video to target characters."
-        },
-        "video_edit": {
-          "name": "Video Edit",
-          "description": "Generate an edited video from a source video and edit instructions."
-        },
-        "style_transfer": {
-          "name": "Style Transfer",
-          "description": "Transfer the reference image's art style to the target image."
-        },
-        "multi_angle": {
-          "name": "Multi-angle",
-          "description": "Generate multi-angle views from a single reference image."
-        },
-        "brainstorm": {
-          "name": "Brainstorm",
-          "description": "Multi-turn AI chat for creative exploration and script ideation."
-        }
-      },
-      "roles": {
-        "owner": "Project owner",
-        "editor": "Editor",
-        "viewer": "Viewer"
-      }
-    },
     "storage": {
       "internalStorage": "Internal Resource Storage",
       "internalStorageDescription": "Stores user uploads, canvas intermediate assets, and model outputs. These URLs only need to be readable by the MovScript backend and are not provider input URLs.",
@@ -3199,7 +3074,7 @@
         "noProviderCalls": "No provider HTTP calls were captured. Check the state machine and error details above.",
         "debugInfoRaw": "Debug Info (raw)",
         "filters": {
-          "featureKey": "Feature key",
+          "featureKey": "Source key",
           "jobId": "Job ID",
           "jobType": "Job type",
           "modelConfigId": "Model config ID",
@@ -3209,7 +3084,7 @@
         },
         "fields": {
           "executionState": "Execution State",
-          "featureKey": "Feature Key",
+          "featureKey": "Source Key",
           "finished": "Finished",
           "inputResources": "Input Resources",
           "jobId": "Job ID",
@@ -3359,8 +3234,6 @@
       "motionImitation": "Motion Imitation",
       "styleTransfer": "Style Transfer",
       "multiAngle": "Multi-angle",
-      "videoEdit": "Video Edit",
-      "brainstorm": "Brainstorm",
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",

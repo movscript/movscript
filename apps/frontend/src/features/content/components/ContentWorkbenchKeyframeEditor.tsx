@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, CheckCircle2, Play, Plus, Trash2 } from 'lucide-react'
 
-import { AuthedImage } from '@/shared/ui/AuthedImage'
+import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import {
   keyframeDisplayTitle,
   keyframeFrameRoleLabel,
@@ -13,7 +13,6 @@ import {
   type KeyframeEditDraft,
 } from '@/features/content/domain/contentWorkbenchEditModel'
 import { firstText } from '@/features/content/domain/contentWorkbenchRecordUtils'
-import { resourceFileUrl } from '@/features/content/domain/contentWorkbenchStatus'
 import { contentKeyframeGenerationRecipe } from '@/features/content/presentation/contentSemanticUi'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
 import type { Job, PublicModel } from '@/types'
@@ -117,7 +116,7 @@ export function ContentWorkbenchKeyframeEditor({
                   <ContentWorkbenchKeyframeThumbnail
                     fallback={String(index + 1).padStart(2, '0')}
                     media={outputResourceId > 0 ? (
-                      <AuthedImage src={resourceFileUrl(outputResourceId)} alt={recordTitle(keyframe)} />
+                      <ResourceFileImage resourceId={outputResourceId} alt={recordTitle(keyframe)} />
                     ) : undefined}
                   />
                 )}

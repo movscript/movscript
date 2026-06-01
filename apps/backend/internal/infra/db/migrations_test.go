@@ -116,14 +116,39 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 	}
 }
 
-func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
-	db := testutil.OpenSQLite(t, "remove_production_orchestrate_feature_config.db", &model.FeatureConfig{})
-	features := []model.FeatureConfig{
-		{FeatureKey: "production_orchestrate", DisplayName: "制作编排 AI 分析", Capability: "text", IsEnabled: true},
-		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Capability: "text", IsEnabled: true},
+func TestMigration000029ChecksumCompatibility(t *testing.T) {
+	var migration Migration
+	for _, registered := range RegisteredMigrations() {
+		if registered.Version == "000029" {
+			migration = registered
+			break
+		}
 	}
-	if err := db.Create(&features).Error; err != nil {
-		t.Fatalf("create feature configs: %v", err)
+	if migration.Version == "" {
+		t.Fatal("migration 000029 is not registered")
+	}
+	if migration.Name != "remove_production_orchestrate_feature" {
+		t.Fatalf("migration 000029 name = %q, want remove_production_orchestrate_feature", migration.Name)
+	}
+	if got := migrationChecksum(migration); got != "1d7580b5ac39d9da7960b0bf599dbc61e87a379b86e4ac83059ba3d2a28eeb9e" {
+		t.Fatalf("migration 000029 checksum = %q", got)
+	}
+	if !acceptsLegacyMigrationChecksum(migration, "83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972") {
+		t.Fatal("migration 000029 should accept accidentally published drop_feature_configs checksum")
+	}
+}
+
+func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "remove_production_orchestrate_feature_config.db")
+	if err := db.Exec(`CREATE TABLE feature_configs (id integer primary key autoincrement, feature_key text not null, display_name text)`).Error; err != nil {
+		t.Fatalf("create feature_configs: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO feature_configs (feature_key, display_name) VALUES (?, ?), (?, ?)`,
+		"production_orchestrate", "Production Orchestrate",
+		"brainstorm", "Brainstorm",
+	).Error; err != nil {
+		t.Fatalf("insert feature configs: %v", err)
 	}
 
 	if err := removeProductionOrchestrateFeatureConfig(db); err != nil {
@@ -131,7 +156,7 @@ func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
 	}
 
 	var removed int64
-	if err := db.Unscoped().Model(&model.FeatureConfig{}).Where("feature_key = ?", "production_orchestrate").Count(&removed).Error; err != nil {
+	if err := db.Table("feature_configs").Where("feature_key = ?", "production_orchestrate").Count(&removed).Error; err != nil {
 		t.Fatalf("count removed feature: %v", err)
 	}
 	if removed != 0 {
@@ -139,7 +164,7 @@ func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
 	}
 
 	var kept int64
-	if err := db.Model(&model.FeatureConfig{}).Where("feature_key = ?", "brainstorm").Count(&kept).Error; err != nil {
+	if err := db.Table("feature_configs").Where("feature_key = ?", "brainstorm").Count(&kept).Error; err != nil {
 		t.Fatalf("count kept feature: %v", err)
 	}
 	if kept != 1 {

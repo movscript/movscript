@@ -1,3 +1,6 @@
+import { createWriteStream } from 'node:fs'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import type { JSONValue } from '../types.js'
 import { isJSONRecord as isRecord } from '../jsonValue.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
@@ -19,6 +22,16 @@ export interface BackendApplyResult {
   url?: string
   payload?: Record<string, JSONValue>
   response?: JSONValue
+  skippedReason?: string
+}
+
+export interface BackendResourceFileDownloadResult {
+  performed: boolean
+  method?: 'GET'
+  url?: string
+  path?: string
+  contentType?: string
+  contentLength?: number
   skippedReason?: string
 }
 
@@ -174,6 +187,42 @@ export class BackendApplyClient {
       method: 'GET',
       url,
       ...(parsed !== undefined ? { response: parsed } : {}),
+    }
+  }
+
+  async downloadResourceFile(resourceId: number, targetPath: string, auth?: BackendApplyAuthContext, options: { signal?: AbortSignal } = {}): Promise<BackendResourceFileDownloadResult> {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
+      return { performed: false, skippedReason: 'backend resource download disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
+    }
+    const path = `/resources/${encodeURIComponent(String(resourceId))}/file`
+    const url = `${baseURL}${path}`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: buildHeaders(auth, { json: false }),
+      signal: options.signal,
+    })
+    if (!response.ok) {
+      const responseText = await response.text()
+      const parsed = parseJSONText(responseText)
+      throw new BackendApplyHTTPError(`backend GET ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: 'GET',
+        path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
+    }
+    if (!response.body) throw new Error(`backend GET ${path} returned an empty response body`)
+    await pipeline(Readable.fromWeb(response.body as never), createWriteStream(targetPath), { signal: options.signal })
+    const contentLength = Number(response.headers.get('content-length'))
+    return {
+      performed: true,
+      method: 'GET',
+      url,
+      path: targetPath,
+      ...(response.headers.get('content-type') ? { contentType: response.headers.get('content-type') ?? undefined } : {}),
+      ...(Number.isFinite(contentLength) ? { contentLength } : {}),
     }
   }
 
@@ -460,8 +509,8 @@ function normalizeBaseURL(value: string | undefined): string | undefined {
   return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`
 }
 
-function buildHeaders(auth?: BackendApplyAuthContext): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+function buildHeaders(auth?: BackendApplyAuthContext, options: { json?: boolean } = { json: true }): Record<string, string> {
+  const headers: Record<string, string> = options.json === false ? {} : { 'Content-Type': 'application/json' }
   if (auth?.backendAuthToken) headers.Authorization = `Bearer ${auth.backendAuthToken}`
   const userId = normalizeBackendApplyAuthUserId(auth?.userId)
   if (userId !== undefined) headers['X-User-ID'] = String(userId)

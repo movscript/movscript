@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { File, FileText, Image, Mic, Video } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import { MediaViewer } from '@/shared/ui/MediaViewer'
 import { ResourceCandidateAttachPanel, type CandidateResourceRef } from '@/shared/ui/ResourceCandidateAttachPanel'
-import { AuthedImage, AuthedVideo } from '@/shared/ui/AuthedImage'
 import { api } from '@/shared/infrastructure/api'
+import { attachmentToResource } from '@/features/agent/domain/agentAttachments'
+import { AgentAttachmentIcon, AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
 import {
   GENERATED_BINDING_TARGETS,
@@ -26,7 +26,7 @@ import {
   pendingGeneratedCandidateAttachments,
 } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
-import type { AssetSlotCandidate, RawResource } from '@/types'
+import type { AssetSlotCandidate } from '@/types'
 import {
   AgentGeneratedCandidateActionButton,
   AgentGeneratedCandidateBadge,
@@ -134,7 +134,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
               <GeneratedMediaPreview attachment={attachment} onPreview={() => setViewerAttachment(attachment)} />
               <AgentGeneratedResultItemRow>
                 <AgentGeneratedResultItemIcon>
-                  <AttachmentIcon type={attachment.type} size={12} />
+                  <AgentAttachmentIcon type={attachment.type} size={12} />
                 </AgentGeneratedResultItemIcon>
                 <AgentGeneratedResultItemBody>
                   <AgentGeneratedResultItemName>{attachment.name}</AgentGeneratedResultItemName>
@@ -200,43 +200,27 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
 }
 
 function GeneratedMediaPreview({ attachment, onPreview }: { attachment: AgentAttachment; onPreview: () => void }) {
-  const url = attachment.previewUrl ?? attachment.url
-  if (attachment.type === 'image' && url) {
+  const resource = attachmentToResource(attachment)
+  if (!resource) return null
+  if (attachment.type === 'image') {
     return (
       <AgentGeneratedMediaPreviewButton
         type="button"
         data-testid="agent-generated-media-preview"
         onClick={onPreview}
       >
-        <AuthedImage src={url} alt={attachment.name} />
+        <AgentAttachmentMediaPreview attachment={attachment} variant="result" thumbnailMaxSize={480} />
       </AgentGeneratedMediaPreviewButton>
     )
   }
-  if (attachment.type === 'video' && url) {
+  if (attachment.type === 'video') {
     return (
       <AgentGeneratedMediaPreview data-testid="agent-generated-media-preview" surface="dark">
-        <AuthedVideo src={url} controls playsInline preload="metadata" />
+        <AgentAttachmentMediaPreview attachment={attachment} variant="result" />
       </AgentGeneratedMediaPreview>
     )
   }
   return null
-}
-
-function resourceFromGeneratedAttachment(attachment: AgentAttachment): RawResource | null {
-  const resourceId = generatedAttachmentResourceId(attachment)
-  const directUrl = attachment.url ?? attachment.previewUrl
-  const resourceUrl = directUrl ? '' : resourceId !== undefined ? `/api/v1/resources/${resourceId}/file` : ''
-  if (!directUrl && !resourceUrl) return null
-  return {
-    ID: resourceId ?? 0,
-    owner_id: 0,
-    type: attachment.type,
-    name: attachment.name,
-    url: resourceUrl,
-    size: attachment.size,
-    mime_type: attachment.mimeType,
-    ...(directUrl ? { direct_url: directUrl } : {}),
-  }
 }
 
 function candidateResourceFromGeneratedAttachment(attachment: AgentAttachment): CandidateResourceRef {
@@ -339,7 +323,7 @@ function GeneratedCandidateAttachDialog({
       : summary.message)
   }
 
-  const viewerResource = viewerAttachment ? resourceFromGeneratedAttachment(viewerAttachment) : null
+  const viewerResource = viewerAttachment ? attachmentToResource(viewerAttachment) : null
   if (viewerAttachment && viewerResource) {
     const resourceId = generatedAttachmentResourceId(viewerAttachment)
     return (
@@ -414,7 +398,7 @@ function GeneratedCandidateAttachDialog({
                   <AgentGeneratedCandidateResourceItem key={attachment.id} attached={attached}>
                     <AgentGeneratedCandidateResourceRow>
                       <AgentGeneratedCandidateResourceIcon>
-                        <AttachmentIcon type={attachment.type} size={12} />
+                        <AgentAttachmentIcon type={attachment.type} size={12} />
                       </AgentGeneratedCandidateResourceIcon>
                       <AgentGeneratedCandidateResourceBody>
                         <AgentGeneratedCandidateResourceName>{attachment.name}</AgentGeneratedCandidateResourceName>
@@ -538,14 +522,6 @@ async function attachGeneratedCandidate(
   }
   const { data } = await api.post<AssetSlotCandidate>(`/projects/${projectId}/entities/asset-slot-candidates`, generatedCandidateAttachPayload(targetId, attachment))
   return data
-}
-
-function AttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; size?: number }) {
-  if (type === 'image') return <Image size={size} />
-  if (type === 'video') return <Video size={size} />
-  if (type === 'audio') return <Mic size={size} />
-  if (type === 'text') return <FileText size={size} />
-  return <File size={size} />
 }
 
 function generatedResultBreadcrumb(attachment: AgentAttachment, resourceId: number | undefined) {

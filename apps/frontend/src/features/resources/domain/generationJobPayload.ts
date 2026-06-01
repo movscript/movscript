@@ -7,7 +7,7 @@ export interface BuildGenerationJobPayloadInput {
   prompt: string
   params: Record<string, GenerationParamValue>
   inputResourceIds: number[]
-  featureKey: string
+  sourceKey: string
 }
 
 export function buildGenerationJobPayload(input: BuildGenerationJobPayloadInput): Record<string, unknown> {
@@ -25,6 +25,6 @@ export function buildGenerationJobPayload(input: BuildGenerationJobPayloadInput)
     duration: Number.isFinite(durationValue) ? durationValue : undefined,
     extra_params: Object.keys(remainingParams).length > 0 ? JSON.stringify(remainingParams) : undefined,
     input_resource_ids: input.inputResourceIds,
-    feature_key: input.featureKey,
+    feature_key: input.sourceKey,
   }
 }

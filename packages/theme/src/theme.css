@@ -7,7 +7,6 @@
   --ms-color-background: #000000;
   --ms-color-app-background: #000000;
   --ms-color-page-background: #000000;
-  --ms-color-canvas-background: #000000;
   --ms-color-foreground: #fafafa;
   --ms-color-surface: #0a0a0a;
   --ms-color-surface-raised: #0f0f10;
@@ -66,7 +65,6 @@
   --ms-color-background: #ffffff;
   --ms-color-app-background: #ffffff;
   --ms-color-page-background: #ffffff;
-  --ms-color-canvas-background: #ffffff;
   --ms-color-foreground: #09090b;
   --ms-color-surface: #ffffff;
   --ms-color-surface-raised: #ffffff;
@@ -125,7 +123,6 @@
   --ms-color-background: #050505;
   --ms-color-app-background: #050505;
   --ms-color-page-background: #050505;
-  --ms-color-canvas-background: #050505;
   --ms-color-foreground: #f3ecdc;
   --ms-color-surface: rgb(255 255 255 / 0.06);
   --ms-color-surface-raised: rgb(255 255 255 / 0.085);
@@ -192,7 +189,6 @@
   --ms-color-background: #f7f9fa;
   --ms-color-app-background: #f7f9fa;
   --ms-color-page-background: #f7f9fa;
-  --ms-color-canvas-background: #f7f9fa;
   --ms-color-foreground: #151a20;
   --ms-color-surface: rgb(250 253 254 / 0.42);
   --ms-color-surface-raised: rgb(255 255 255 / 0.66);

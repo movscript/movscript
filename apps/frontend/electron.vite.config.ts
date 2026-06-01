@@ -1,6 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import type { Plugin } from 'vite'
 
 const alias = {
   '@movscript/drafts': resolve('../../packages/drafts/src/index.ts'),
@@ -18,45 +19,69 @@ const alias = {
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
 
-export default defineConfig({
-  main: {
-    plugins: [externalizeDepsPlugin()],
-    build: {
-      rollupOptions: {
-        input: { index: resolve('electron/main.ts') }
-      }
-    },
-    resolve: {
-      alias
+function isAliasSource(source: string) {
+  return Object.keys(alias).some((key) => source === key || source.startsWith(`${key}/`))
+}
+
+function enterpriseOverlayResolver(): Plugin {
+  return {
+    name: 'movscript-enterprise-overlay-resolver',
+    async resolveId(source, importer, options) {
+      if (!importer || source.startsWith('\0') || isAliasSource(source)) return null
+
+      const normalizedImporter = importer.split('?')[0].replace(/\\/g, '/')
+      const overlayMarker = '/overlays/movscript/'
+      const overlayIndex = normalizedImporter.indexOf(overlayMarker)
+      if (overlayIndex === -1) return null
+
+      const relativeImporter = normalizedImporter.slice(overlayIndex + overlayMarker.length)
+      const worktreeImporter = resolve('../..', relativeImporter)
+      return this.resolve(source, worktreeImporter, { ...options, skipSelf: true })
     }
-  },
-  preload: {
-    plugins: [externalizeDepsPlugin()],
-    build: {
-      rollupOptions: {
-        input: { index: resolve('electron/preload.ts') }
-      }
-    }
-  },
-  renderer: {
-    plugins: [react()],
-    root: '.',
-    server: {
-      host: '127.0.0.1',
-      port: rendererPort,
-      strictPort: true,
-      hmr: disableRendererHmr ? false : undefined,
-    },
-    optimizeDeps: {
-      force: true,
-    },
-    build: {
-      rollupOptions: {
-        input: resolve('index.html')
+  }
+}
+
+export default defineConfig(() => {
+  return {
+    main: {
+      plugins: [externalizeDepsPlugin()],
+      build: {
+        rollupOptions: {
+          input: { index: resolve('electron/main.ts') }
+        }
+      },
+      resolve: {
+        alias
       }
     },
-    resolve: {
-      alias
+    preload: {
+      plugins: [externalizeDepsPlugin()],
+      build: {
+        rollupOptions: {
+          input: { index: resolve('electron/preload.ts') }
+        }
+      }
+    },
+    renderer: {
+      plugins: [enterpriseOverlayResolver(), react()],
+      root: '.',
+      server: {
+        host: '127.0.0.1',
+        port: rendererPort,
+        strictPort: true,
+        hmr: disableRendererHmr ? false : undefined,
+      },
+      optimizeDeps: {
+        force: true,
+      },
+      build: {
+        rollupOptions: {
+          input: resolve('index.html')
+        }
+      },
+      resolve: {
+        alias
+      }
     }
   }
 })

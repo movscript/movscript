@@ -130,6 +130,7 @@ import { Search, Trash2 } from "lucide-react";
 import { cn } from "../../../../lib/cn";
 import { Button, type ButtonProps, Input, type InputProps, StatusBadge } from "../../../primitives";
 import { OverlapPane, OverlapPaneGroup } from "../../../layout";
+import { AppInlineMeta } from "../../app";
 import { ReviewCallout } from "../../review";
 import {
   WorkbenchEmptyState,
@@ -432,32 +433,48 @@ function ContentWorkbenchCategoryFilterGroup({
 }) {
   if (options.length === 0) {
     return (
-      <div className="content-workbench-category-filter" data-testid={testId}>
+      <WorkbenchSurfaceItem className="content-workbench-category-filter" data-testid={testId}>
         <span className="content-workbench-category-filter__label">{title}</span>
         <span className="content-workbench-category-filter__empty">{emptyText}</span>
-      </div>
+      </WorkbenchSurfaceItem>
     );
   }
 
   return (
-    <div className="content-workbench-category-filter" data-testid={testId}>
+    <WorkbenchSurfaceItem className="content-workbench-category-filter" data-testid={testId}>
       <span className="content-workbench-category-filter__label">{title}</span>
       <div className="content-workbench-category-filter__options">
         {options.map((option) => (
-          <Button
+          <ContentWorkbenchCategoryFilterButton
             key={option.value}
-            type="button"
+            active={option.value === value}
             onClick={() => onSelect(option.value)}
-            variant={option.value === value ? "soft" : "ghost"}
-            size="xs"
-            className="content-workbench-category-filter__option"
             data-active={option.value === value ? "true" : undefined}
           >
             <span className="content-workbench-category-filter__option-label">{option.label}</span>
-          </Button>
+            {option.identifier ? <AppInlineMeta>{option.identifier}</AppInlineMeta> : null}
+          </ContentWorkbenchCategoryFilterButton>
         ))}
       </div>
-    </div>
+    </WorkbenchSurfaceItem>
+  );
+}
+
+function ContentWorkbenchCategoryFilterButton({
+  active,
+  className,
+  ...props
+}: ButtonProps & {
+  active?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? "soft" : "ghost"}
+      size="xs"
+      className={cn("content-workbench-category-filter__option", className)}
+      {...props}
+    />
   );
 }
 
@@ -471,6 +488,10 @@ function hierarchyOptionInitial(label: string) {
 
 export function ContentWorkbenchWorkspaceShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("content-workbench-workspace-shell", className)} {...props} />;
+}
+
+export function ContentWorkbenchBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("content-workbench-body", className)} {...props} />;
 }
 
 export function ContentWorkbenchCommandCenter({

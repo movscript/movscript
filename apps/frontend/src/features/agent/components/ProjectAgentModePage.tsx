@@ -30,11 +30,17 @@ import {
   AgentModePrimaryNavItem,
   AgentModeProjectGroup,
   AgentModeProjectGroupToggle,
+  AgentModeProjectMenuContent,
+  AgentModeProjectSelectButton,
   AgentModeResizeHandle,
   AgentModeRoot,
   AgentModeSidebar,
   AgentModeSidebarScroll,
   AgentModeSidebarTop,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   useResizablePanel,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
@@ -248,6 +254,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
   const project = useProjectStore((s) => s.current)
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const userId = currentUser ? String(currentUser.ID) : ''
@@ -422,6 +429,11 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     setOpenProjectGroups((state) => ({ ...state, [projectId]: !(state[projectId] ?? false) }))
   }
 
+  function selectProject(nextProject: Project | null) {
+    setCurrentProject(nextProject)
+    navigate(ROUTES.project.agent)
+  }
+
   function restoreHistoryThread(threadId: string) {
     navigate(ROUTES.project.agent)
     window.setTimeout(() => openAgentPanelThread(threadId), 0)
@@ -438,6 +450,28 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
           <div className="agent-mode-sidebar__header-actions">
             {headerActions}
           </div>
+        ) : null}
+        {!sidebarCollapsed ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <AgentModeProjectSelectButton>
+                <AgentModeLabel>{project?.name ?? t('agents.chat.agentModeSidebar.currentProjectFallback')}</AgentModeLabel>
+                <AgentModeMeta>{projects.length}</AgentModeMeta>
+                <AgentModeIconSlot><ChevronDown size={12} /></AgentModeIconSlot>
+              </AgentModeProjectSelectButton>
+            </DropdownMenuTrigger>
+            <AgentModeProjectMenuContent>
+              <DropdownMenuItem onSelect={() => selectProject(null)}>
+                {t('agents.chat.agentModeSidebar.allProjects')}
+              </DropdownMenuItem>
+              {projects.length > 0 ? <DropdownMenuSeparator /> : null}
+              {projects.map((item) => (
+                <DropdownMenuItem key={item.ID} onSelect={() => selectProject(item)}>
+                  {item.name}
+                </DropdownMenuItem>
+              ))}
+            </AgentModeProjectMenuContent>
+          </DropdownMenu>
         ) : null}
         <AgentModePrimaryNavItem
           onClick={startNewConversation}

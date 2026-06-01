@@ -8,7 +8,7 @@ import type {
   CreateRunInput,
 } from '../state/types.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
-import { recordThreadClientInput } from './threadLifecycle.js'
+import { recordThreadClientInput } from '../domains/message/threadMessage.js'
 
 export interface RuntimeRunThreadPreparation {
   thread: AgentThread

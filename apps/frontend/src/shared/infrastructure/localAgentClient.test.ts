@@ -133,6 +133,29 @@ test('local agent not found detection uses structured HTTP status when available
   assert.equal(isLocalAgentNotFoundError(new Error('local agent returned 404: legacy')), true)
 })
 
+test('local agent JSON requests time out instead of hanging forever', async () => {
+  await withFetch(async (_input, init) => new Promise<Response>((_resolve, reject) => {
+    const signal = init?.signal
+    if (signal?.aborted) {
+      reject(signal.reason ?? createAbortError())
+      return
+    }
+    signal?.addEventListener('abort', () => {
+      reject(signal.reason ?? createAbortError())
+    }, { once: true })
+  }), async () => {
+    const client = new LocalAgentClient('http://local.test', {
+      healthTimeoutMs: 5,
+      requestTimeoutMs: 5,
+    })
+
+    await assert.rejects(
+      () => client.getCapabilities(),
+      /Local agent request timed out after 5ms/,
+    )
+  })
+})
+
 test('listThreads sends pagination query parameters', async () => {
   const requests: string[] = []
   await withFetch(async (input, init) => {
@@ -468,6 +491,22 @@ test('trace reads preserve pagination and kind filters', async () => {
         bundle: { schema: 'movscript.agent-run-debug-bundle.v1' },
       })
     }
+    if (url.pathname === '/runs/run_trace/debug-evidence-refs') {
+      return jsonResponse({
+        runId: 'run_trace',
+        evidenceRefs: [{
+          evidenceId: 'trace_1:tool_result',
+          eventId: 'trace_1',
+          kind: 'tool_result',
+          label: '工具结果',
+          chars: 20,
+          preview: '{}',
+          fetchPath: '/runs/run_trace/debug-evidence/trace_1%3Atool_result',
+          refKeys: [url.searchParams.get('refKey') ?? ''],
+          resultHashes: [url.searchParams.get('resultHash') ?? ''],
+        }],
+      })
+    }
     if (url.pathname === '/runs/run_trace/generation-view') {
       return jsonResponse({
         schema: 'movscript.agent-run-generation-view.v1',
@@ -510,6 +549,11 @@ test('trace reads preserve pagination and kind filters', async () => {
     })
     const summary = await client.getRunTraceSummary('run_trace')
     const debugView = await client.getRunTraceDebugView('run_trace')
+    const evidenceRefs = await client.findRunDebugEvidenceRefs('run_trace', {
+      kind: 'tool_result',
+      refKey: 'tool_result:call_1:sha256:result',
+      resultHash: 'sha256:result',
+    })
     const generationView = await client.getRunGenerationView('run_trace')
 
     assert.equal(page.events[0].id, 'trace_1')
@@ -518,12 +562,14 @@ test('trace reads preserve pagination and kind filters', async () => {
     assert.equal(summary.total, 1)
     assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v1')
     assert.equal(debugView.events[0].id, 'trace_1')
+    assert.equal(evidenceRefs.evidenceRefs[0]?.evidenceId, 'trace_1:tool_result')
     assert.equal(generationView.schema, 'movscript.agent-run-generation-view.v1')
     assert.equal(generationView.jobs[0]?.jobId, 50)
     assert.deepEqual(requests, [
       '/runs/run_trace/trace?cursor=trace_0&limit=25&kind=tool_call',
       '/runs/run_trace/trace/summary',
       '/runs/run_trace/trace/debug-view',
+      '/runs/run_trace/debug-evidence-refs?kind=tool_result&refKey=tool_result%3Acall_1%3Asha256%3Aresult&resultHash=sha256%3Aresult',
       '/runs/run_trace/generation-view',
     ])
   })

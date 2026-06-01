@@ -1,7 +1,16 @@
 "use client";
 
-import { forwardRef, type ComponentProps, type FormHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type ComponentProps,
+  type FormHTMLAttributes,
+  type HTMLAttributes,
+  type Ref,
+  type ReactNode,
+} from "react";
 
+import { AsChildSlot } from "../../../../lib/asChild";
 import { cn } from "../../../../lib/cn";
 import { AppIconFrame, AppInlineError, AppInlineMeta, AppKeyValue } from "../../app";
 import { Badge, Button, DropdownMenuContent, Input } from "../../../primitives";
@@ -76,6 +85,10 @@ export function AgentBrowserLauncherForm({ className, ...props }: FormHTMLAttrib
   return <form className={cn("agent-browser-launcher-form", className)} {...props} />;
 }
 
+export function AgentBrowserAddressForm({ className, ...props }: FormHTMLAttributes<HTMLFormElement>) {
+  return <form className={cn("agent-browser-address-form", className)} {...props} />;
+}
+
 export function AgentBrowserLauncherIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn("agent-browser-launcher-icon", className)} {...props} />;
 }
@@ -118,6 +131,14 @@ export function AgentBrowserWebOverlay({
   loading?: boolean;
 }) {
   return <div className={cn("agent-browser-web-overlay", loading && "agent-browser-web-overlay--loading", className)} {...props} />;
+}
+
+export function AgentBrowserResourcePane({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-resource-pane", className)} {...props} />;
+}
+
+export function AgentBrowserInternalPane({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-internal-pane", className)} {...props} />;
 }
 
 export function AgentBrowserBlankForm({ className, ...props }: FormHTMLAttributes<HTMLFormElement>) {
@@ -216,6 +237,10 @@ export function AgentBrowserProjectPage({ className, ...props }: HTMLAttributes<
   return <div className={cn("agent-browser-project-page", className)} {...props} />;
 }
 
+export function AgentBrowserProjectNavigationPage({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <AgentBrowserProjectPage className={cn("agent-browser-project-page--navigation", className)} {...props} />;
+}
+
 export function AgentBrowserProjectHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-browser-project-header", className)} {...props} />;
 }
@@ -257,6 +282,145 @@ export function AgentBrowserKeyValueGrid({ className, ...props }: HTMLAttributes
 
 export function AgentBrowserKeyValue(props: ComponentProps<typeof AppKeyValue>) {
   return <AppKeyValue {...props} />;
+}
+
+export function AgentBrowserContentToolbar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-nav__toolbar", className)} {...props} />;
+}
+
+export function AgentBrowserContentToolButton({
+  icon,
+  children,
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon: ReactNode;
+}) {
+  return (
+    <button type="button" className={cn("agent-browser-content-nav__tool", className)} {...props}>
+      {icon}
+      <span>{children}</span>
+    </button>
+  );
+}
+
+export function AgentBrowserContentSummary({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-browser-content-nav__summary", className)} {...props} />;
+}
+
+export function AgentBrowserContentSummaryMain({
+  label,
+  value,
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  label: ReactNode;
+  value: ReactNode;
+}) {
+  return (
+    <div className={cn("agent-browser-content-nav__summary-main", className)} {...props}>
+      <span className="agent-browser-content-nav__summary-label">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+export function AgentBrowserContentSummaryGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-nav__summary-grid", className)} {...props} />;
+}
+
+export function AgentBrowserContentMatrix({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-browser-content-nav__matrix", className)} {...props} />;
+}
+
+export function AgentBrowserContentFlow({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-browser-content-nav__flow", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroup({
+  tone,
+  variant,
+  className,
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  tone: string;
+  variant: string;
+}) {
+  return (
+    <section
+      className={cn("agent-browser-content-group", className)}
+      data-tone={tone}
+      data-variant={variant}
+      {...props}
+    />
+  );
+}
+
+export function AgentBrowserContentGroupHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-group__header", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__icon", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupCopy({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__copy", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupTitleRow({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__title-row", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupIndex({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__index", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__title", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupDescription({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-group__description", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupItems({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-group__items", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupState({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-group__state", className)} {...props} />;
+}
+
+export function AgentBrowserContentGroupOverflow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-browser-content-group__overflow", className)} {...props} />;
+}
+
+export const AgentBrowserContentItem = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
+  asChild?: boolean;
+}>(({ asChild = false, className, ...props }, ref) => {
+  if (asChild) {
+    return <AsChildSlot ref={ref} fallback="button" className={cn("agent-browser-content-item", className)} {...props} />;
+  }
+  return <button ref={ref as Ref<HTMLButtonElement>} type="button" className={cn("agent-browser-content-item", className)} {...props} />;
+});
+
+AgentBrowserContentItem.displayName = "AgentBrowserContentItem";
+
+export function AgentBrowserContentItemCopy({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-item__copy", className)} {...props} />;
+}
+
+export function AgentBrowserContentItemTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-item__title", className)} {...props} />;
+}
+
+export function AgentBrowserContentItemDescription({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-item__description", className)} {...props} />;
+}
+
+export function AgentBrowserContentItemMeta({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-browser-content-item__meta", className)} {...props} />;
 }
 
 export function AgentBrowserDataBlock({ className, ...props }: ComponentProps<typeof AgentDataBlock>) {

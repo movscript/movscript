@@ -33,6 +33,40 @@ func TestResponsesInputMessagesNormalizesTextAndFunctionItems(t *testing.T) {
 	}
 }
 
+func TestResponsesInputMessagesPreservesStandardImageParts(t *testing.T) {
+	messages, err := responsesInputMessages(json.RawMessage(`[
+		{"role":"user","content":[
+			{"type":"input_text","text":"describe"},
+			{"type":"input_image","image_url":"data:image/png;base64,AAAA","detail":"low"}
+		]}
+	]`))
+	if err != nil {
+		t.Fatalf("normalize responses input: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Content != "describe" {
+		t.Fatalf("text content = %q, want describe", messages[0].Content)
+	}
+	if len(messages[0].ContentParts) != 2 {
+		t.Fatalf("content parts = %#v, want text and image", messages[0].ContentParts)
+	}
+	if messages[0].ContentParts[1]["type"] != "input_image" || messages[0].ContentParts[1]["image_url"] != "data:image/png;base64,AAAA" {
+		t.Fatalf("image part not preserved: %#v", messages[0].ContentParts[1])
+	}
+}
+
+func TestGatewayMessageContentAndPartsRejectsNonStandardResourceParts(t *testing.T) {
+	_, _, err := gatewayMessageContentAndParts(json.RawMessage(`[
+		{"type":"text","text":"describe"},
+		{"type":"resource_id","resource_id":"asset_1"}
+	]`))
+	if err == nil {
+		t.Fatalf("expected non-standard resource part to be rejected")
+	}
+}
+
 func TestResponsesToolsNormalizeToChatCompletionsShape(t *testing.T) {
 	raw := normalizeResponsesTools(json.RawMessage(`[
 		{"type":"function","name":"movscript_search","description":"Search","parameters":{"type":"object","properties":{"q":{"type":"string"}}}}

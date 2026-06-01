@@ -47,7 +47,11 @@ test('deferRuntimePostRunRecords writes memories and rollback traces for complet
   assert.equal((traces[0]?.data as any)?.async, true)
   assert.equal(traces[1]?.title, 'Rollback policy recorded')
   assert.equal(traces[1]?.status, 'blocked')
-  assert.equal(((traces[1]?.data as any)?.rollbackRecords as unknown[]).length, 1)
+  assert.equal((traces[1]?.data as any)?.rollbackRecords, undefined)
+  assert.equal((traces[1]?.data as any)?.rollbackSummary.total, 1)
+  assert.equal((traces[1]?.data as any)?.rollbackSummary.records[0]?.toolName, 'tool_a')
+  assert.match(String((traces[1]?.data as any)?.rollbackSummary.records[0]?.argsHash), /^sha256:/)
+  assert.equal((traces[1]?.data as any)?.rollbackSummary.records[0]?.args, undefined)
 })
 
 test('deferRuntimePostRunRecords skips memory writes for ordinary completed runs', async () => {
@@ -196,11 +200,12 @@ function memory(id: string): AgentMemory {
 
 function rollbackOutcome(policy: NonNullable<ToolCallOutcome['rollback']>['policy']): ToolCallOutcome {
   return {
-    call: { name: 'tool_a' },
+    call: { name: 'tool_a', args: { payload: 'x'.repeat(2000) } },
     result: { ok: true },
     rollback: {
       policy,
       reason: 'Side effect',
+      metadata: { result: { payload: 'r'.repeat(2000) } },
     },
   }
 }

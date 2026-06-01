@@ -68,13 +68,13 @@ func TestModelPresetsExposeModelSpecificSupportedParams(t *testing.T) {
 	}
 }
 
-func TestModelPresetsIncludeGPT55(t *testing.T) {
+func TestModelPresetsIncludeGPT52(t *testing.T) {
 	for _, preset := range ModelPresets() {
-		if preset.ID != "openai:gpt-5.5" {
+		if preset.ID != "openai:gpt-5.2" {
 			continue
 		}
-		if preset.ModelID != "gpt-5.5" {
-			t.Fatalf("model_id = %q, want gpt-5.5", preset.ModelID)
+		if preset.ModelID != "gpt-5.2" {
+			t.Fatalf("model_id = %q, want gpt-5.2", preset.ModelID)
 		}
 		if preset.AdapterType != AdapterOpenAICompat {
 			t.Fatalf("adapter_type = %q, want %q", preset.AdapterType, AdapterOpenAICompat)
@@ -87,7 +87,7 @@ func TestModelPresetsIncludeGPT55(t *testing.T) {
 		}
 		return
 	}
-	t.Fatal("expected GPT-5.5 preset")
+	t.Fatal("expected GPT-5.2 preset")
 }
 
 func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {

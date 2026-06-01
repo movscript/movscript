@@ -1,4 +1,5 @@
 import { resolveRuntimePlannerModelConfig, type RuntimeModelAuthContext } from '../model/modelConfig.js'
+import { runtimeModelTextContent } from '../domains/message/modelMessage.js'
 import { callModel, type ModelCallInput, type ModelCallResult } from '../model/modelClient.js'
 import { cloneJSONValue, isJSONRecord, isRecord } from '../jsonValue.js'
 import type { CreateTaskGraphTaskInput, JSONValue } from '../state/types.js'
@@ -54,7 +55,7 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
   return [
     {
       role: 'system',
-      content: [
+      content: runtimeModelTextContent([
         'You are a planning agent for planner-maintained execution plans.',
         'Before creating tasks, assess the goal difficulty, dependencies, and whether any optional worker/subagent execution is appropriate.',
         'Return only JSON with this shape: {"assessment":{"difficulty":"simple|moderate|large","parallelStrategy":"planner_only|planner_with_sidecars|worker_split","rationale":"...","criticalPath":["..."],"nonDelegatedWork":["..."],"conflictRisks":["..."]},"tasks":[{"id":"task_short_id","title":"...","description":"...","deps":["task_other"],"metadata":{"executionMode":"planner|worker","parallelizable":true,"criticalPath":false,"writeScope":["path or module"],"expectedOutput":"...","reportFormat":"..."}}]}',
@@ -69,14 +70,14 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
         'Use worker_split only when tasks have clear boundaries, can be waited on, and do not fight over the same write scope.',
         'Mark immediate blockers and cross-cutting integration as metadata.executionMode="planner"; mark bounded parallel work as metadata.executionMode="worker".',
         'For worker tasks, include ownership/writeScope, expectedOutput, and reportFormat so the planner can integrate results safely.',
-      ].join('\n'),
+      ].join('\n')),
     },
     {
       role: 'user',
-      content: [
+      content: runtimeModelTextContent([
         title ? `Task graph title: ${title}` : undefined,
         `Goal: ${goal}`,
-      ].filter((line): line is string => line !== undefined).join('\n'),
+      ].filter((line): line is string => line !== undefined).join('\n')),
     },
   ]
 }

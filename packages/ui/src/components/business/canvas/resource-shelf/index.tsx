@@ -427,6 +427,42 @@ export function CanvasResourceShelfResourceDescription({
   );
 }
 
+export function CanvasResourceShelfMetadataText({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & {
+  children: ReactNode;
+}) {
+  return (
+    <span className={className} {...props}>
+      {children}
+    </span>
+  );
+}
+
+export function CanvasResourceShelfMetadataProbe({
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & {
+  children: ReactNode;
+}) {
+  return (
+    <span className={cn("canvas-resource-shelf__metadata-probe", className)} {...props}>
+      {children}
+    </span>
+  );
+}
+
+export const CanvasResourceShelfLazyFrame = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("canvas-resource-shelf__lazy-frame", className)} {...props} />
+  ),
+);
+
+CanvasResourceShelfLazyFrame.displayName = "CanvasResourceShelfLazyFrame";
+
 export function CanvasResourceShelfCardFooter({
   idLabel,
   meta,

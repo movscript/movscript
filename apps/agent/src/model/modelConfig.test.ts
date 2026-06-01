@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { ensureJSONModeMessages, RuntimeModelConfigStore } from './modelConfig.js'
+import { ensureJSONModeMessages, runtimeModelContentText, runtimeModelTextContent, RuntimeModelConfigStore } from './modelConfig.js'
 
 test('runtime model config saves only backend model config routing fields', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
@@ -41,7 +41,7 @@ test('runtime model config can be saved with only public model_id', () => {
     const store = new RuntimeModelConfigStore(filePath)
 
     const publicConfig = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       useForChat: true,
       useForPlanner: true,
     })
@@ -50,10 +50,10 @@ test('runtime model config can be saved with only public model_id', () => {
 
     assert.equal(publicConfig.configured, true)
     assert.equal(publicConfig.modelConfigId, undefined)
-    assert.equal(publicConfig.model, 'gpt-5.5')
+    assert.equal(publicConfig.model, 'gpt-5.2')
     assert.equal(raw.modelConfigId, undefined)
-    assert.equal(raw.model, 'gpt-5.5')
-    assert.equal(effective?.model, 'gpt-5.5')
+    assert.equal(raw.model, 'gpt-5.2')
+    assert.equal(effective?.model, 'gpt-5.2')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -65,7 +65,7 @@ test('runtime model config can be cleared back to unconfigured state', () => {
     const filePath = join(dir, 'model-config.json')
     const store = new RuntimeModelConfigStore(filePath)
 
-    store.save({ model: 'gpt-5.5', useForChat: true, useForPlanner: true })
+    store.save({ model: 'gpt-5.2', useForChat: true, useForPlanner: true })
     const cleared = store.clear()
 
     assert.equal(cleared.configured, false)
@@ -103,14 +103,14 @@ test('runtime model config rejects configs with all routes disabled', () => {
 
     assert.throws(
       () => store.save({
-        model: 'gpt-5.5',
+        model: 'gpt-5.2',
         useForChat: false,
         useForPlanner: false,
       }),
       /must enable at least one route/,
     )
 
-    store.save({ model: 'gpt-5.5', useForChat: false, useForPlanner: true })
+    store.save({ model: 'gpt-5.2', useForChat: false, useForPlanner: true })
     assert.throws(
       () => store.save({ useForPlanner: false }),
       /must enable at least one route/,
@@ -134,19 +134,19 @@ test('runtime model config rejects invalid save input field types', () => {
       /model must be a non-empty string/,
     )
     assert.throws(
-      () => store.save({ model: 'gpt-5.5', apiKind: 'responses' }),
+      () => store.save({ model: 'gpt-5.2', apiKind: 'responses' }),
       /apiKind is invalid/,
     )
     assert.throws(
-      () => store.save({ model: 'gpt-5.5', baseURL: '' }),
+      () => store.save({ model: 'gpt-5.2', baseURL: '' }),
       /baseURL must be a non-empty string/,
     )
     assert.throws(
-      () => store.save({ model: 'gpt-5.5', useForChat: 'true' }),
+      () => store.save({ model: 'gpt-5.2', useForChat: 'true' }),
       /useForChat must be boolean/,
     )
     assert.throws(
-      () => store.save({ model: 'gpt-5.5', useForPlanner: 1 }),
+      () => store.save({ model: 'gpt-5.2', useForPlanner: 1 }),
       /useForPlanner must be boolean/,
     )
   } finally {
@@ -186,7 +186,7 @@ test('runtime model config rejects model base URLs with secret URL credentials',
 
     assert.throws(
       () => store.save({
-        model: 'gpt-5.5',
+        model: 'gpt-5.2',
         apiKind: 'openai_responses',
         baseURL: 'https://user:pass@api.openai.com/v1',
       }),
@@ -194,7 +194,7 @@ test('runtime model config rejects model base URLs with secret URL credentials',
     )
     assert.throws(
       () => store.save({
-        model: 'gpt-5.5',
+        model: 'gpt-5.2',
         apiKind: 'openai_responses',
         baseURL: 'https://api.openai.com/v1?api_key=secret',
       }),
@@ -212,24 +212,24 @@ test('runtime model config clears base URL when saving a full config without one
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
 
     store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
     })
     const clearedByOmission = store.save({
-      model: 'gpt-5.5-mini',
+      model: 'custom-direct-model-next',
       apiKind: 'openai_responses',
     })
 
     assert.equal(clearedByOmission.baseURL, undefined)
 
     store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
     })
     const clearedByNull = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: null,
     })
@@ -246,7 +246,7 @@ test('runtime model config preserves base URL when only route flags change', () 
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
 
     store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
     })
@@ -265,14 +265,14 @@ test('runtime model config save is idempotent for unchanged input', () => {
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
 
     const first = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
       useForChat: true,
       useForPlanner: true,
     })
     const second = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
       useForChat: true,
@@ -295,7 +295,7 @@ test('runtime model config clears backend model config id when switching to a di
 
     store.save({ modelConfigId: 7, model: 'model_config:7', useForChat: true })
     const updated = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
       apiKey: 'direct-provider-key',
@@ -306,7 +306,7 @@ test('runtime model config clears backend model config id when switching to a di
 
     assert.equal(updated.configured, true)
     assert.equal(updated.modelConfigId, undefined)
-    assert.equal(updated.model, 'gpt-5.5')
+    assert.equal(updated.model, 'gpt-5.2')
     assert.equal(updated.apiKind, 'openai_responses')
     assert.equal(updated.baseURL, 'https://api.openai.com/v1')
     assert.equal(updated.apiKeyConfigured, true)
@@ -335,7 +335,7 @@ test('runtime model config ignores corrupt or non-object config files', () => {
       configured: false,
       provider: 'backend-model-config',
       model: 'movscript-default-chat',
-      apiKind: 'openai_chat_completions',
+      apiKind: 'openai_responses',
       apiKeyConfigured: false,
       useForChat: true,
       useForPlanner: true,
@@ -363,7 +363,7 @@ test('runtime model config ignores persisted configs with all routes disabled', 
 
     writeFileSync(filePath, JSON.stringify({
       provider: 'backend-model-config',
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       useForChat: false,
       useForPlanner: false,
     }), 'utf8')
@@ -394,7 +394,7 @@ test('runtime model config ignores persisted direct configs with embedded secret
 
     writeFileSync(filePath, JSON.stringify({
       provider: 'backend-model-config',
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1?token=secret',
       useForChat: true,
@@ -419,16 +419,17 @@ test('runtime model config test uses backend OpenAI-compatible gateway and hides
     })
 
     globalThis.fetch = (async (url, init) => {
-      assert.equal(String(url), 'http://localhost:8765/v1/chat/completions')
+      assert.equal(String(url), 'http://localhost:8765/v1/responses')
       assert.equal(init?.method, 'POST')
       assert.equal(headerValue(init?.headers, 'authorization'), 'Bearer user-token')
       assert.equal(typeof init?.body, 'string')
       const body = JSON.parse(init?.body as string) as Record<string, unknown>
       assert.equal(body.model, 'model_config:9')
-      assert.ok(Array.isArray(body.messages))
+      assert.ok(Array.isArray(body.input))
       return new Response(JSON.stringify({
-        choices: [{ message: { content: 'connection ok' } }],
-      }), { status: 200 })
+        output_text: 'connection ok',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: 'connection ok' }] }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }) as typeof fetch
 
     const result = await store.test({ message: 'hello' }, { backendAuthToken: 'user-token' })
@@ -436,11 +437,12 @@ test('runtime model config test uses backend OpenAI-compatible gateway and hides
     assert.equal(result.ok, true)
     assert.equal(result.content, 'connection ok')
     assert.equal(result.modelConfigId, 9)
-    assert.equal(result.request.url, 'http://localhost:8765/v1/chat/completions')
+    assert.equal(result.request.url, 'http://localhost:8765/v1/responses')
     assert.equal(result.request.method, 'POST')
     assert.equal(result.request.headers.Authorization, undefined)
     assert.equal(result.request.body.model, 'model_config:9')
-    assert.equal(result.request.body.messages[1]?.content, 'hello')
+    const sdkBody = result.request.body.sdk_body as { input?: Array<{ content?: Array<{ text?: string }> }> }
+    assert.equal(sdkBody.input?.[1]?.content?.[0]?.text, 'hello')
   } finally {
     globalThis.fetch = originalFetch
     rmSync(dir, { recursive: true, force: true })
@@ -453,7 +455,7 @@ test('runtime model config normalizes explicit backend /api/v1 base URL to OpenA
   try {
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
     const saved = store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_chat_completions',
       baseURL: 'http://localhost:8765/api/v1',
     })
@@ -485,7 +487,7 @@ test('runtime model config test honors apiKind draft override instead of stale s
   try {
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
     store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
       apiKey: 'direct-provider-key',
@@ -525,7 +527,7 @@ test('runtime model config explicit provider test does not treat backend auth as
   try {
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
     store.save({
-      model: 'gpt-5.5',
+      model: 'gpt-5.2',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
     })
@@ -543,33 +545,33 @@ test('JSON mode messages include ASCII JSON instruction when missing', () => {
   const messages = ensureJSONModeMessages([
       {
         role: 'system',
-        content: '输出结构化对象，不要使用 markdown。',
+        content: runtimeModelTextContent('输出结构化对象，不要使用 markdown。'),
       },
       {
         role: 'user',
-        content: '分析这个剧本。',
+        content: runtimeModelTextContent('分析这个剧本。'),
       },
     ])
 
   assert.equal(messages[0]?.role, 'system')
-  assert.match(messages[0]?.content ?? '', /\bJSON\b/)
-  assert.equal(messages[1]?.content, '输出结构化对象，不要使用 markdown。')
+  assert.match(runtimeModelContentText(messages[0]?.content ?? []), /\bJSON\b/)
+  assert.equal(runtimeModelContentText(messages[1]?.content ?? []), '输出结构化对象，不要使用 markdown。')
 })
 
 test('JSON mode messages do not duplicate an existing JSON instruction', () => {
   const messages = ensureJSONModeMessages([
       {
         role: 'system',
-        content: 'Return only valid JSON.',
+        content: runtimeModelTextContent('Return only valid JSON.'),
       },
       {
         role: 'user',
-        content: 'Analyze this script.',
+        content: runtimeModelTextContent('Analyze this script.'),
       },
     ])
 
   assert.equal(messages.length, 2)
-  assert.equal(messages[0]?.content, 'Return only valid JSON.')
+  assert.equal(runtimeModelContentText(messages[0]?.content ?? []), 'Return only valid JSON.')
 })
 
 function headerValue(headers: HeadersInit | undefined, name: string): string | null {
