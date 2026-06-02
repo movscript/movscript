@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AgentBuiltinChatShell } from '@/features/agent/components/AgentBuiltinChatShell'
 import { useAIAgentPanelDockController } from '@/features/agent/presentation/useAIAgentPanelDockController'
-import { useAgentStore } from '@/features/agent/state/agentStore'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { AgentPanelShell } from '@movscript/ui'
 
 export function AIAgentPanel() {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const hasOpenConversations = useAgentStore((s) => (s.convsByUser[userId]?.conversations.length ?? 0) > 0)
+  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser[userId]))
   const {
     dockLayout,
     handlePendingThreadHandled,

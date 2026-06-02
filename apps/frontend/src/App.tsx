@@ -68,7 +68,7 @@ import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTi
 import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
 import { installAgentTelemetryReporter } from './features/agent/state/agentTelemetryReporter'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
-import { useAgentStore } from './features/agent/state/agentStore'
+import { useAgentSessionStore } from './features/agent/state/agentSessionStore'
 import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
 import { useAppShellDialogStore, type AccountSettingsDialogTab } from './features/app-shell/application/appShellDialogStore'
 import { api } from './shared/infrastructure/api'
@@ -592,7 +592,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const agentMode = routeSurface === 'agent'
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const hasOpenConversations = useAgentStore((s) => (s.convsByUser[userId]?.conversations.length ?? 0) > 0)
+  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser[userId]))
   const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'hidden'>('expanded')
   const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH

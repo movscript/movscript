@@ -11,7 +11,7 @@ import { localAgentClient, type AgentRun, type AgentRuntimeEventV2, type AgentTh
 import { syncRuntimeModelConfig } from '@/shared/infrastructure/runtimeChat'
 import { fetchResourceById } from '@/features/agent/domain/agentMessageViewModel'
 import { stripAttachmentPreviewUrl } from '@/features/agent/domain/agentAttachments'
-import { useAgentStore, type AgentAttachment, type ChatMessage, type ChatMessageMeta, type ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentAttachment, ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore, type AgentConversationRuntimeState, type AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import {
   finishAgentPerformanceOperation,
@@ -115,7 +115,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
   }
 
   const messageAttachments = draft.attachments.map(stripAttachmentPreviewUrl)
-  deps.revokeAttachmentPreviewUrls(useAgentStore.getState().getConversationDraft(deps.userId, deps.conversationId).attachments)
+  deps.revokeAttachmentPreviewUrls(useAgentSessionStore.getState().getConversationDraft(deps.userId, deps.conversationId).attachments)
   deps.messageStore.clearConversationDraft(deps.userId, deps.conversationId)
   markSendPhase('clear_draft_done')
   deps.setMentionRange(null)
@@ -452,13 +452,8 @@ function markUnacceptedUserMessageFailed(input: {
   messageId: string
   messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'updateMessageMeta'>
 }): void {
-  const conversation = useAgentStore.getState().getConversations(input.userId)
-    .find((item) => item.id === input.conversationId)
-  const message = conversation?.messages.find((item) => item.id === input.messageId)
-  if (message?.meta?.runtimeInput?.status !== 'pending' || message.meta.runtimeMessage?.messageId) return
   input.messageStore.updateMessageMeta(input.userId, input.conversationId, input.messageId, {
     runtimeInput: {
-      ...message.meta.runtimeInput,
       status: 'failed',
       error: input.error instanceof Error ? input.error.message : String(input.error),
     },

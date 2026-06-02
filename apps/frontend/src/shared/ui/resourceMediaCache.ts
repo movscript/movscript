@@ -181,6 +181,10 @@ function getOrCreateObjectUrl(entry: CacheEntry, variantKey?: string, transformB
         if (!objectUrlEntry.objectUrl) objectUrlEntry.objectUrl = createObjectUrl(blob)
         return objectUrlEntry.objectUrl
       })
+      .catch((error) => {
+        objectUrlEntry.objectUrlPromise = undefined
+        throw error
+      })
   }
   return objectUrlEntry.objectUrlPromise
 }

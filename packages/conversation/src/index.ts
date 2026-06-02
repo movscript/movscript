@@ -1007,7 +1007,6 @@ export interface CompleteRuntimeSendDeps<
 
 export interface AppendAssistantRunResultMessageDeps<
   Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
   Run extends AgentRun = AgentRun,
   Thread extends Pick<AgentThread, 'messages'> = Pick<AgentThread, 'messages'>,
   ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
@@ -1015,7 +1014,6 @@ export interface AppendAssistantRunResultMessageDeps<
 > {
   userId: string
   conversationId: string
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'upsertMessage'>
   getStreamingAssistantMessageId?: () => string | null | undefined
   resetStreamingAssistant?: (settledRunId?: string) => void
   formatAssistantContent?: (run: Run, thread: Thread) => string
@@ -1036,7 +1034,6 @@ export interface AppendAssistantRunResultMessageResult<Artifact = unknown> {
 
 export async function appendAssistantRunResultMessage<
   Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
   Run extends AgentRun = AgentRun,
   Thread extends Pick<AgentThread, 'messages'> = Pick<AgentThread, 'messages'>,
   ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
@@ -1046,7 +1043,7 @@ export async function appendAssistantRunResultMessage<
   run: Run
   thread: Thread
   liveEvents?: ActivityEvent[]
-  deps: AppendAssistantRunResultMessageDeps<Message, Meta, Run, Thread, ActivityEvent, PayloadDeps>
+  deps: AppendAssistantRunResultMessageDeps<Message, Run, Thread, ActivityEvent, PayloadDeps>
 }): Promise<AppendAssistantRunResultMessageResult<Artifact>> {
   const { run, thread, deps } = input
   const liveEvents = input.liveEvents ?? []
@@ -1066,12 +1063,6 @@ export async function appendAssistantRunResultMessage<
     }
   const messageId = deps.getStreamingAssistantMessageId?.() ?? `runtime-run:${run.id}:assistant`
   deps.resetStreamingAssistant?.(run.id)
-  deps.messageStore.upsertMessage(deps.userId, deps.conversationId, messageId, {
-    role: 'assistant',
-    content,
-    attachments: payload.attachments,
-    meta: payload.meta,
-  } as Omit<Message, 'id' | 'timestamp'>)
   return {
     messageId,
     content,

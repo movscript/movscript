@@ -31,10 +31,11 @@ export function AgentBuiltinChatShell({
     activeConversation,
     activeTask,
     archivedConversations,
+    archiveConversation,
+    archiveConversations,
     clearActiveConversation,
     conversations,
     deleteConversation,
-    deleteConversations,
     newConversation,
     reorderConversation,
     restoreLocalThread,
@@ -64,8 +65,8 @@ export function AgentBuiltinChatShell({
           showCollapse={showCollapse}
           onSelectConversation={selectConversation}
           onNewConversation={newConversation}
-          onCloseConversation={deleteConversation}
-          onCloseConversations={deleteConversations}
+          onCloseConversation={archiveConversation}
+          onCloseConversations={archiveConversations}
           onReorderConversation={reorderConversation}
           onRestoreLocalThread={restoreLocalThread}
           archivedConversations={archivedConversations}
@@ -83,6 +84,7 @@ export function AgentBuiltinChatShell({
           archivedConversations={archivedConversations}
           onSelect={selectConversation}
           onNew={newConversation}
+          onArchive={archiveConversation}
           onDelete={deleteConversation}
           onCollapse={onCollapse}
           showCollapse={showCollapse}

@@ -3,22 +3,10 @@ import test from 'node:test'
 import { appendSettingsAuditEntry, normalizeAgentSettings, useAgentStore } from './agentStore'
 
 test('agent store persistence excludes conversations and drafts', () => {
-  const userId = 'persistence-agent-source-user'
-  useAgentStore.setState({ convsByUser: { ...useAgentStore.getState().convsByUser, [userId]: { conversations: [], activeConversationId: null, draftsByConversation: {} } } })
-  const conversationId = useAgentStore.getState().createRuntimeConversation(userId, {
-    threadId: 'thread_persist_test',
-    title: 'Runtime conversation',
-  })
-  useAgentStore.getState().addMessage(userId, conversationId, {
-    role: 'user',
-    content: 'persist check',
-    timestamp: Date.now(),
-  })
-  useAgentStore.getState().updateConversationDraft(userId, conversationId, { input: 'draft check' })
-
   const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>
 
   assert.equal('convsByUser' in partialized, false)
+  assert.equal('convsByUser' in useAgentStore.getState(), false)
 })
 
 test('normalizeAgentSettings preserves valid planner dispatch preferences', () => {

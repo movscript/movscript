@@ -6,6 +6,7 @@ export interface AgentConversationListItem {
   description?: string;
   meta?: string;
   onClick: () => void;
+  onArchive?: () => void;
   onDelete?: () => void;
 }
 
@@ -22,6 +23,7 @@ export interface AgentConversationListPanelProps {
   newConversationLabel: string;
   collapseAssistantLabel: string;
   archiveConversationLabel: string;
+  deleteConversationLabel: string;
   refreshLabel: string;
 }
 

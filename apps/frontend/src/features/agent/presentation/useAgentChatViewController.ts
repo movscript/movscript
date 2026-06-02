@@ -59,9 +59,10 @@ export function useAgentChatViewController({
     userId,
   })
   const effectiveConversation = useMemo(() => {
-    if (!store.runtimeThreadProjectionMessages) return conv
-    return { ...conv, messages: store.runtimeThreadProjectionMessages }
-  }, [conv, store.runtimeThreadProjectionMessages])
+    const baseMessages = store.runtimeThreadProjectionMessages ?? conv.messages
+    if (store.transientMessages.length === 0 && baseMessages === conv.messages) return conv
+    return { ...conv, messages: [...baseMessages, ...store.transientMessages] }
+  }, [conv, store.runtimeThreadProjectionMessages, store.transientMessages])
   const runtime = useAgentChatRuntimeState({
     conversationId: conv.id,
   })

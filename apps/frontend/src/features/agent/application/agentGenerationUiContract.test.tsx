@@ -1518,7 +1518,7 @@ test('agent panel keeps taskGraph overview summary and drilldown hooks', () => {
   assertIncludes(chatViewControllerSource, 'useAgentChatInteractionController(buildAgentChatInteractionControllerInput({')
   assertIncludes(interactionControllerSource, 'useAgentChatActionBindings(actionBindings)')
   assertIncludes(chatActionBindingsSource, 'useAgentRunResultActions(runResultActions)')
-  assertIncludes(runResultActionsSource, 'appendAssistantRunResultMessage<ChatMessage, ChatMessageMeta')
+  assertIncludes(runResultActionsSource, 'appendAssistantRunResultMessage<ChatMessage, AgentRun')
   assertIncludes(runResultActionsSource, 'assistantResultPayloadForRun: (payloadRun, payloadLiveEvents, assistantContent)')
   assertIncludes(interactionControllerSource, 'useAgentChatSendPipeline({')
   assertIncludes(sendPipelineSource, 'useAgentRuntimeThreadHydration, type UseAgentRuntimeThreadHydrationInput')

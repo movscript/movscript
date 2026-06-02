@@ -5,7 +5,7 @@ import { loadRuntimeThreadProjection } from '@/features/agent/application/agentR
 import { hydrateRuntimeThreadConversation } from '@/features/agent/application/agentRuntimeThreadConversationHydration'
 import { STOPPED_RUNTIME_STATUS_LIGHT, type AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
-import { useAgentStore, type ChatMessage } from '@/features/agent/state/agentStore'
+import type { ChatMessage } from '@/features/agent/state/agentStore'
 import { runtimeThreadProjectionShouldRefresh } from '@movscript/event-state'
 
 export interface UseAgentRuntimeThreadHydrationInput {
@@ -62,13 +62,12 @@ export function useAgentRuntimeThreadHydration({
     if (!threadId) return
     if (building || runtimeBuilding || loading || runtimeLoading) return
     const controller = new AbortController()
-    const existingMessages = useAgentStore.getState().getConversations(userId).find((item) => item.id === conversationId)?.messages ?? conversationMessages
     void hydrateRuntimeThreadConversation({
       userId,
       conversationId,
       threadId,
       ...(localSessionId?.trim() ? { sessionId: localSessionId.trim() } : {}),
-      existingMessages,
+      existingMessages: conversationMessages,
       hydratedKeys: hydratedRuntimeThreadKeysRef.current,
       signal: controller.signal,
     }, {
@@ -121,13 +120,12 @@ export function useAgentRuntimeThreadHydration({
     const controller = new AbortController()
     const hydrateFromStream = () => {
       if (controller.signal.aborted) return
-      const existingMessages = useAgentStore.getState().getConversations(userId).find((item) => item.id === conversationId)?.messages ?? conversationMessages
       void hydrateRuntimeThreadConversation({
         userId,
         conversationId,
         threadId,
         ...(localSessionId?.trim() ? { sessionId: localSessionId.trim() } : {}),
-        existingMessages,
+        existingMessages: conversationMessages,
         hydratedKeys: hydratedRuntimeThreadKeysRef.current,
         signal: controller.signal,
         force: true,

@@ -207,16 +207,23 @@ func TestResourceServeFileReturnsImmutableCacheHeadersAndNotModified(t *testing.
 		t.Fatal("expected ETag header")
 	}
 
-	secondReq := httptest.NewRequest(http.MethodGet, "/resources/1/file", nil)
-	secondReq.Header.Set("If-None-Match", etag)
-	secondRes := httptest.NewRecorder()
-	router.ServeHTTP(secondRes, secondReq)
+	for _, header := range []string{
+		etag,
+		`W/` + etag,
+		`"other", ` + etag,
+		`*`,
+	} {
+		secondReq := httptest.NewRequest(http.MethodGet, "/resources/1/file", nil)
+		secondReq.Header.Set("If-None-Match", header)
+		secondRes := httptest.NewRecorder()
+		router.ServeHTTP(secondRes, secondReq)
 
-	if secondRes.Code != http.StatusNotModified {
-		t.Fatalf("expected matching ETag to return 304, got %d: %s", secondRes.Code, secondRes.Body.String())
-	}
-	if secondRes.Body.Len() != 0 {
-		t.Fatalf("expected 304 response body to be empty, got %q", secondRes.Body.String())
+		if secondRes.Code != http.StatusNotModified {
+			t.Fatalf("expected If-None-Match %q to return 304, got %d: %s", header, secondRes.Code, secondRes.Body.String())
+		}
+		if secondRes.Body.Len() != 0 {
+			t.Fatalf("expected 304 response body to be empty for %q, got %q", header, secondRes.Body.String())
+		}
 	}
 	if store.getObjectCalls != 1 {
 		t.Fatalf("expected storage to be read once, got %d", store.getObjectCalls)

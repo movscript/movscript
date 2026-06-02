@@ -241,6 +241,48 @@ test('acquireCachedResourceMediaUrl caches transformed variants separately', asy
   }
 })
 
+test('acquireCachedResourceMediaUrl retries transformed variants after failure', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let transforms = 0
+  let objectUrls = 0
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  URL.createObjectURL = (() => {
+    objectUrls += 1
+    return `blob:retry-${objectUrls}`
+  }) as typeof URL.createObjectURL
+  URL.revokeObjectURL = (() => undefined) as typeof URL.revokeObjectURL
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+    const transformBlob = async () => {
+      transforms += 1
+      if (transforms === 1) throw new Error('thumbnail failed')
+      return new Blob(['thumb'], { type: 'image/jpeg' })
+    }
+
+    await assert.rejects(
+      acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob }),
+      /thumbnail failed/,
+    )
+    const retried = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', loadBlob, { variantKey: 'thumb:512', transformBlob })
+
+    assert.equal(loads, 1)
+    assert.equal(transforms, 2)
+    assert.equal(objectUrls, 1)
+    assert.equal(retried.url, 'blob:retry-1')
+    retried.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
 test('loadCachedResourceDataURL deduplicates resource blob loads and encodings', async () => {
   __resetResourceMediaCacheForTests()
   let loads = 0

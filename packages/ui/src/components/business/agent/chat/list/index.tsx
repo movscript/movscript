@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveIcon, ChevronRightIcon, PlusIcon, RefreshIcon } from "../../../../primitives/icons";
+import { ArchiveIcon, ChevronRightIcon, PlusIcon, RefreshIcon, TrashIcon } from "../../../../primitives/icons";
 import { Button } from "../../../../primitives/button";
 import { ScrollArea } from "../../../../primitives/scroll-area";
 import type { AgentConversationListPanelProps } from "../types";
@@ -18,6 +18,7 @@ export function AgentConversationListPanel({
   newConversationLabel,
   collapseAssistantLabel,
   archiveConversationLabel,
+  deleteConversationLabel,
   refreshLabel,
 }: AgentConversationListPanelProps) {
   return (
@@ -54,13 +55,13 @@ export function AgentConversationListPanel({
                     </span>
                     {conv.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{conv.meta}</span> : null}
                   </button>
-                  {conv.onDelete ? (
+                  {conv.onArchive ? (
                     <Button
                       size="icon-xs"
                       variant="ghost"
                       onClick={(event) => {
                         event.stopPropagation();
-                        conv.onDelete?.();
+                        conv.onArchive?.();
                       }}
                       className="absolute bottom-2 right-2 text-muted-foreground/50 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                       aria-label={String(archiveConversationLabel)}
@@ -97,16 +98,33 @@ export function AgentConversationListPanel({
               <p className="px-1 type-tiny text-muted-foreground">{localRuntimeThreadsEmptyLabel}</p>
             ) : (
               localThreads.map((thread) => (
-                <button key={thread.id} type="button" className="ms-agent-conversation" onClick={thread.onClick}>
-                  <span className="ms-agent-conversation__indicator" aria-hidden="true" />
-                  <span className="ms-agent-conversation__body">
-                    <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{thread.title}</span>
-                    {thread.description ? (
-                      <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{thread.description}</span>
-                    ) : null}
-                  </span>
-                  {thread.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{thread.meta}</span> : null}
-                </button>
+                <div key={thread.id} className="group relative">
+                  <button type="button" className="ms-agent-conversation pr-10" onClick={thread.onClick}>
+                    <span className="ms-agent-conversation__indicator" aria-hidden="true" />
+                    <span className="ms-agent-conversation__body">
+                      <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{thread.title}</span>
+                      {thread.description ? (
+                        <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{thread.description}</span>
+                      ) : null}
+                    </span>
+                    {thread.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{thread.meta}</span> : null}
+                  </button>
+                  {thread.onDelete ? (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        thread.onDelete?.();
+                      }}
+                      className="absolute bottom-2 right-2 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                      aria-label={String(deleteConversationLabel)}
+                      title={String(deleteConversationLabel)}
+                    >
+                      <TrashIcon />
+                    </Button>
+                  ) : null}
+                </div>
               ))
             )}
           </div>

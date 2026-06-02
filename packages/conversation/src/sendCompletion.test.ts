@@ -143,21 +143,16 @@ test('completeRuntimeSendRunResult leaves requires_action runs to runtime projec
   assert.equal(calls.includes('projectionSink:thread_1:none:2'), true)
 })
 
-test('appendAssistantRunResultMessage owns assistant result ids and message upserts', async () => {
+test('appendAssistantRunResultMessage computes assistant result payload without caching messages', async () => {
   const calls: string[] = []
 
-  const result = await appendAssistantRunResultMessage<AgentChatMessage, AgentChatMessageMeta, AgentRun, AgentThread, AgentRunActivityEvent, Artifact>({
+  const result = await appendAssistantRunResultMessage<AgentChatMessage, AgentRun, AgentThread, AgentRunActivityEvent, Artifact>({
     run: makeRun({ assistantMessageId: 'msg_assistant' }),
     thread: makeThread(),
     liveEvents: [activityEvent({ id: 'event_1' })],
     deps: {
       userId: 'user_1',
       conversationId: 'conv_1',
-      messageStore: {
-        upsertMessage: (_userId, _conversationId, messageId, message) => {
-          calls.push(`upsert:${messageId}:${message.content}:${message.meta?.runtimeMessage?.messageId}`)
-        },
-      },
       getStreamingAssistantMessageId: () => null,
       resetStreamingAssistant: () => calls.push('resetStreaming'),
       formatAssistantContent: () => 'Done',
@@ -170,7 +165,7 @@ test('appendAssistantRunResultMessage owns assistant result ids and message upse
     },
   })
 
-  assert.deepEqual(calls, ['resetStreaming', 'upsert:runtime-run:run_1:assistant:Done:msg_assistant'])
+  assert.deepEqual(calls, ['resetStreaming'])
   assert.deepEqual(result, {
     messageId: 'runtime-run:run_1:assistant',
     content: 'Done',

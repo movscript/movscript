@@ -19,7 +19,6 @@ import {
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
-import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -55,9 +54,9 @@ export default function GlobalHomePage() {
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
-  const createRuntimeConversation = useAgentStore((s) => s.createRuntimeConversation)
-  const updateConversationDraft = useAgentStore((s) => s.updateConversationDraft)
-  const updateConversationTitle = useAgentStore((s) => s.updateConversationTitle)
+  const createRuntimeConversation = useAgentSessionStore((s) => s.createRuntimeConversation)
+  const updateConversationDraft = useAgentSessionStore((s) => s.updateConversationDraft)
+  const updateConversationTitle = useAgentSessionStore((s) => s.updateConversationTitle)
   const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
   const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
   const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)

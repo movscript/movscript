@@ -1,16 +1,5 @@
 import { create } from 'zustand'
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
-import {
-  appendConversationMessage,
-  normalizeConversations,
-  normalizeDraftsByConversation,
-  normalizeMessages as normalizeAgentMessages,
-  patchConversationMessageMeta,
-  removeConversationMessage,
-  replaceConversationMessages,
-  upsertConversationMessage,
-} from '@movscript/conversation'
-import i18n from '@/i18n'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import type {
@@ -107,13 +96,6 @@ export type ChatRunActivityInputRequest = AgentRunActivityInputRequest
 export type ChatRunActivityStep = AgentRunActivityStep
 export type ChatRunActivityEvent = AgentRunActivityEvent
 
-// Per-user conversation state
-export interface UserConvState {
-  conversations: Conversation[]
-  activeConversationId: string | null
-  draftsByConversation: Record<string, ConversationDraft>
-}
-
 interface AgentStore {
   // Legacy model fallback
   settings: AgentSettings
@@ -121,71 +103,10 @@ interface AgentStore {
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
   clearSettingsAudit: () => void
 
-  // Conversations keyed by userId (string). Use '' for unauthenticated.
-  convsByUser: Record<string, UserConvState>
-
-  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number }) => string
-  deleteConversation: (userId: string, id: string) => void
-  deleteConversations: (userId: string, ids: string[]) => void
-  archiveConversation: (userId: string, id: string) => void
-  archiveConversations: (userId: string, ids: string[]) => void
-  unarchiveConversation: (userId: string, id: string) => void
-  reorderConversation: (userId: string, draggedId: string, targetId: string, position: 'before' | 'after') => void
-  setActiveConversation: (userId: string, id: string | null) => void
-  addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => string
-  upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
-  setConversationMessages: (userId: string, conversationId: string, messages: ChatMessage[]) => void
-  updateMessageMeta: (userId: string, conversationId: string, messageId: string, meta: ChatMessageMeta) => void
-  removeMessage: (userId: string, conversationId: string, messageId: string) => void
-  setConversationRuntimeSessionId: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
-  updateConversationTitle: (userId: string, id: string, title: string) => void
-  getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
-  updateConversationDraft: (userId: string, conversationId: string, patch: Partial<ConversationDraft>) => void
-  clearConversationDraft: (userId: string, conversationId: string) => void
-
-  // Getters scoped to a user
-  getConversations: (userId: string) => Conversation[]
-  getActiveConversationId: (userId: string) => string | null
 }
 
 function genId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
-
-function defaultUserState(): UserConvState {
-  return { conversations: [], activeConversationId: null, draftsByConversation: {} }
-}
-
-function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): UserConvState {
-  const existing = store.convsByUser[userId]
-  if (!existing) return defaultUserState()
-  return {
-    conversations: normalizeConversations<Conversation>(existing.conversations),
-    activeConversationId: existing.activeConversationId ?? null,
-    draftsByConversation: normalizeDraftsByConversation<ConversationDraft>(existing.draftsByConversation),
-  }
-}
-
-function archiveConversationsState(state: Pick<AgentStore, 'convsByUser'>, userId: string, idsToArchive: Set<string>) {
-  if (idsToArchive.size === 0) return {}
-  const cur = getUserState(state, userId)
-  const now = Date.now()
-  const conversations = cur.conversations.map((conversation) => idsToArchive.has(conversation.id)
-    ? { ...conversation, archived: true, updatedAt: now }
-    : conversation)
-  return {
-    convsByUser: {
-      ...state.convsByUser,
-      [userId]: {
-        ...cur,
-        conversations,
-        activeConversationId: cur.activeConversationId && idsToArchive.has(cur.activeConversationId)
-          ? (conversations.find((conversation) => conversation.archived !== true)?.id ?? null)
-          : cur.activeConversationId,
-      },
-    },
-  }
 }
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -204,11 +125,6 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 const MAX_AGENT_SETTINGS_IMPORT_BACKUP_BYTES = 1024 * 1024
 const MAX_AGENT_TOOL_PERMISSIONS_FILTER_PRESETS = 12
 
-const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
-  input: '',
-  attachments: [],
-}
-
 const LEGACY_AGENT_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
 const agentStoreStorage = createInstrumentedAgentStateStorage('agent_store')
 const agentStorePartialize = createAgentStorePartialize()
@@ -225,9 +141,8 @@ if (typeof window !== 'undefined') {
 
 export const useAgentStore = create<AgentStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       settings: DEFAULT_AGENT_SETTINGS,
-      convsByUser: {},
 
       updateSettings: (s) => set((state) => ({ settings: normalizeAgentSettings({ ...state.settings, ...s }) })),
       recordSettingsAudit: (entry) => set((state) => ({
@@ -245,346 +160,6 @@ export const useAgentStore = create<AgentStore>()(
       clearSettingsAudit: () => set((state) => ({
         settings: normalizeAgentSettings({ ...state.settings, auditTrail: [] }),
       })),
-
-    getConversations: (userId) => getUserState(get(), userId).conversations,
-    getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
-
-    createRuntimeConversation: (userId, input) => {
-      const threadId = input.threadId.trim()
-      if (!threadId) return getUserState(get(), userId).activeConversationId ?? ''
-      set((state) => {
-        const cur = getUserState(state, userId)
-        const existing = cur.conversations.find((conversation) => conversation.id === threadId)
-        const now = Date.now()
-        const createdAt = input.createdAt ?? now
-        const updatedAt = input.updatedAt ?? now
-        if (existing) {
-          return {
-            convsByUser: {
-              ...state.convsByUser,
-              [userId]: {
-                ...cur,
-                conversations: cur.conversations.map((conversation) => conversation.id === threadId
-                  ? {
-                    ...conversation,
-                    title: input.title?.trim() || conversation.title,
-                    runtimeThreadId: threadId,
-                    ...(input.sessionId?.trim() ? { runtimeSessionId: input.sessionId.trim() } : {}),
-                    archived: false,
-                    updatedAt,
-                  }
-                  : conversation),
-                activeConversationId: threadId,
-              },
-            },
-          }
-        }
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: [
-                ...cur.conversations,
-                {
-                  id: threadId,
-                  title: input.title?.trim() || i18n.t('agents.chat.newConversation'),
-                  messages: [],
-                  ...(input.sessionId?.trim() ? { runtimeSessionId: input.sessionId.trim() } : {}),
-                  runtimeThreadId: threadId,
-                  createdAt,
-                  updatedAt,
-                },
-              ],
-              activeConversationId: threadId,
-            },
-          },
-        }
-      })
-      return threadId
-    },
-
-    deleteConversation: (userId, id) => set((state) => {
-      const cur = getUserState(state, userId)
-      const conversations = cur.conversations.filter((c) => c.id !== id)
-      const draftsByConversation = { ...cur.draftsByConversation }
-      delete draftsByConversation[id]
-      removePersistedConversationDrafts(userId, new Set([id]))
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            conversations,
-            activeConversationId: cur.activeConversationId === id
-              ? (conversations[0]?.id ?? null)
-              : cur.activeConversationId,
-            draftsByConversation,
-          },
-        },
-      }
-    }),
-
-    deleteConversations: (userId, ids) => set((state) => {
-      const idsToDelete = new Set(ids)
-      if (idsToDelete.size === 0) return {}
-      const cur = getUserState(state, userId)
-      const conversations = cur.conversations.filter((c) => !idsToDelete.has(c.id))
-      const draftsByConversation = { ...cur.draftsByConversation }
-      idsToDelete.forEach((id) => {
-        delete draftsByConversation[id]
-      })
-      removePersistedConversationDrafts(userId, idsToDelete)
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            conversations,
-            activeConversationId: cur.activeConversationId && idsToDelete.has(cur.activeConversationId)
-              ? (conversations[0]?.id ?? null)
-              : cur.activeConversationId,
-            draftsByConversation,
-          },
-        },
-      }
-    }),
-
-    archiveConversation: (userId, id) => set((state) => archiveConversationsState(state, userId, new Set([id]))),
-
-    archiveConversations: (userId, ids) => set((state) => archiveConversationsState(state, userId, new Set(ids))),
-
-    unarchiveConversation: (userId, id) => set((state) => {
-      const cur = getUserState(state, userId)
-      const now = Date.now()
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((conversation) => conversation.id === id
-              ? { ...conversation, archived: false, updatedAt: now }
-              : conversation),
-          },
-        },
-      }
-    }),
-
-    reorderConversation: (userId, draggedId, targetId, position) => set((state) => {
-      if (draggedId === targetId) return {}
-      const cur = getUserState(state, userId)
-      const dragged = cur.conversations.find((conversation) => conversation.id === draggedId)
-      const target = cur.conversations.find((conversation) => conversation.id === targetId)
-      if (!dragged || !target) return {}
-      const withoutDragged = cur.conversations.filter((conversation) => conversation.id !== draggedId)
-      const targetIndex = withoutDragged.findIndex((conversation) => conversation.id === targetId)
-      if (targetIndex < 0) return {}
-      const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex
-      const conversations = [
-        ...withoutDragged.slice(0, insertIndex),
-        dragged,
-        ...withoutDragged.slice(insertIndex),
-      ]
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations,
-          },
-        },
-      }
-    }),
-
-    setActiveConversation: (userId, id) => set((state) => ({
-      convsByUser: {
-        ...state.convsByUser,
-        [userId]: { ...getUserState(state, userId), activeConversationId: id },
-      },
-    })),
-
-    addMessage: (userId, conversationId, msg) => {
-      const id = genId()
-      const now = Date.now()
-      set((state) => {
-        const cur = getUserState(state, userId)
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) =>
-                c.id === conversationId
-                  ? appendConversationMessage(c, msg, { createId: () => id, now: () => now }).conversation
-                  : c
-              ),
-            },
-          },
-        }
-      })
-      return id
-    },
-
-    upsertMessage: (userId, conversationId, messageId, msg) => set((state) => {
-      const cur = getUserState(state, userId)
-      const now = Date.now()
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => {
-              if (c.id !== conversationId) return c
-              return upsertConversationMessage(c, messageId, msg, { now: () => now })
-            }),
-          },
-        },
-      }
-    }),
-
-    setConversationMessages: (userId, conversationId, messages) => set((state) => {
-      const cur = getUserState(state, userId)
-      const normalizedMessages = normalizeAgentMessages<ChatMessage>(messages, {
-        createId: genId,
-        now: () => Date.now(),
-      })
-      const now = Date.now()
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => c.id === conversationId
-              ? replaceConversationMessages(c, normalizedMessages, { now: () => now })
-              : c),
-          },
-        },
-      }
-    }),
-
-    updateMessageMeta: (userId, conversationId, messageId, meta) => set((state) => {
-      const cur = getUserState(state, userId)
-      const now = Date.now()
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => {
-              if (c.id !== conversationId) return c
-              return patchConversationMessageMeta(c, messageId, meta, { now: () => now })
-            }),
-          },
-        },
-      }
-    }),
-
-    removeMessage: (userId, conversationId, messageId) => set((state) => {
-      const cur = getUserState(state, userId)
-      const now = Date.now()
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) =>
-              c.id === conversationId
-                ? removeConversationMessage(c, messageId, { now: () => now })
-                : c
-            ),
-          },
-        },
-      }
-    }),
-
-    setConversationRuntimeSessionId: (userId, conversationId, sessionId) => set((state) => {
-      const cur = getUserState(state, userId)
-      const normalizedSessionId = sessionId.trim()
-      if (!normalizedSessionId) return {}
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => c.id === conversationId
-              ? { ...c, runtimeSessionId: normalizedSessionId, updatedAt: Date.now() }
-              : c),
-          },
-        },
-      }
-    }),
-
-    setConversationRuntimeThreadId: (userId, conversationId, threadId) => set((state) => {
-      const cur = getUserState(state, userId)
-      const normalizedThreadId = threadId.trim()
-      if (!normalizedThreadId) return {}
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => c.id === conversationId
-              ? { ...c, runtimeThreadId: normalizedThreadId, updatedAt: Date.now() }
-              : c),
-          },
-        },
-      }
-    }),
-
-    updateConversationTitle: (userId, id, title) => set((state) => {
-      const cur = getUserState(state, userId)
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) => c.id === id ? { ...c, title } : c),
-          },
-        },
-      }
-    }),
-
-    getConversationDraft: (userId, conversationId) => getUserState(get(), userId).draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
-
-    updateConversationDraft: (userId, conversationId, patch) => {
-      let nextDraft: ConversationDraft | undefined
-      set((state) => {
-        const cur = getUserState(state, userId)
-        const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
-        nextDraft = {
-          ...currentDraft,
-          ...patch,
-        }
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              draftsByConversation: {
-                ...cur.draftsByConversation,
-                [conversationId]: nextDraft,
-              },
-            },
-          },
-        }
-      })
-      if (nextDraft) persistConversationDraft(userId, conversationId, nextDraft)
-    },
-
-    clearConversationDraft: (userId, conversationId) => set((state) => {
-      const cur = getUserState(state, userId)
-      if (!cur.draftsByConversation[conversationId]) return {}
-      const draftsByConversation = { ...cur.draftsByConversation }
-      delete draftsByConversation[conversationId]
-      removePersistedConversationDrafts(userId, new Set([conversationId]))
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            draftsByConversation,
-          },
-        },
-      }
-    }),
     }),
     {
       name: 'agent-store-v4',
@@ -660,14 +235,6 @@ function createAgentStorePersistStorage(): PersistStorage<AgentStorePersistedSta
       agentStoreStorage.removeItem(name)
     },
   }
-}
-
-function persistConversationDraft(_userId: string, _conversationId: string, _draft: ConversationDraft): void {
-  // Drafts remain in the in-memory UI shell; agent threads are the persistent source of conversation data.
-}
-
-function removePersistedConversationDrafts(_userId: string, _conversationIds: Set<string>): void {
-  // See persistConversationDraft.
 }
 
 export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {

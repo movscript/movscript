@@ -39,7 +39,7 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
-import { useAgentStore } from '@/features/agent/state/agentStore'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -76,7 +76,7 @@ export function AppTopControls({
   const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
-  const conversationCount = useAgentStore((s) => s.convsByUser[userId]?.conversations.length ?? 0)
+  const conversationCount = useAgentSessionStore((s) => s.activeConversationIdsByUser[userId] ? 1 : 0)
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)

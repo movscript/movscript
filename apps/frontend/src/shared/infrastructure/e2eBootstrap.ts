@@ -95,7 +95,6 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
     const userId = seed.agent.userId
       ?? String(useUserStore.getState().currentUser?.ID ?? '')
     if (userId) {
-      const conversations = seed.agent.conversations.map((entry) => entry.conversation)
       const draftsByConversation: Record<string, ConversationDraft> = {}
       for (const entry of seed.agent.conversations) {
         if (entry.draft) draftsByConversation[entry.conversation.id] = entry.draft
@@ -105,15 +104,17 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
           ...state.settings,
           ...(seed.agent?.settings ?? {}),
         },
-        convsByUser: {
-          ...state.convsByUser,
+      }))
+      useAgentSessionStore.setState((state) => ({
+        activeConversationIdsByUser: {
+          ...state.activeConversationIdsByUser,
+          [userId]: seed.agent?.conversations[0]?.conversation.id ?? null,
+        },
+        draftsByUser: {
+          ...state.draftsByUser,
           [userId]: {
-            conversations,
-            activeConversationId: conversations[0]?.id ?? null,
-            draftsByConversation: {
-              ...(state.convsByUser[userId]?.draftsByConversation ?? {}),
-              ...draftsByConversation,
-            },
+            ...(state.draftsByUser[userId] ?? {}),
+            ...draftsByConversation,
           },
         },
       }))

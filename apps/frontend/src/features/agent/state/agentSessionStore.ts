@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import type { ChatMessage, ChatMessageMeta, ConversationDraft } from '@/features/agent/state/agentStore'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
@@ -84,20 +84,38 @@ export interface AgentStandaloneTaskState {
 }
 
 interface AgentSessionStore {
+  activeConversationIdsByUser: Record<string, string | null>
+  draftsByUser: Record<string, Record<string, ConversationDraft>>
   pageTasks: Record<string, AgentPageTaskState>
   conversationRuntimes: Record<string, AgentConversationRuntimeState>
   runtimeThreadProjections: Record<string, AgentRuntimeThreadProjectionState>
+  transientMessagesByConversation: Record<string, ChatMessage[]>
   localThreadIdsByConversation: Record<string, string>
   sessionIdsByConversation: Record<string, string>
   standaloneTasks: Record<string, AgentStandaloneTaskState>
 
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
+  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number }) => string
+  removeRuntimeConversation: (userId: string, conversationId: string) => void
+  setActiveConversation: (userId: string, conversationId: string | null) => void
+  getActiveConversationId: (userId: string) => string | null
+  updateConversationTitle: (userId: string, conversationId: string, title: string) => void
+  getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
+  updateConversationDraft: (userId: string, conversationId: string, patch: Partial<ConversationDraft>) => void
+  clearConversationDraft: (userId: string, conversationId: string) => void
   claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
   setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[]; status?: 'completed' | 'error' | 'cancelled' }) => void
 
+  addTransientMessage: (conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => string
+  updateTransientMessageMeta: (conversationId: string, messageId: string, meta: ChatMessageMeta) => void
+  removeTransientMessage: (conversationId: string, messageId: string) => void
+  clearTransientMessages: (conversationId: string) => void
+  clearConversationRuntimeState: (conversationId: string) => void
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
+  setConversationRuntimeSessionId: (userId: string, conversationId: string, sessionId: string) => void
+  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setRuntimeThreadProjection: (input: { conversationId: string; threadId: string; sessionId?: string; messages: ChatMessage[] }) => void
   clearRuntimeThreadProjection: (conversationId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
@@ -111,6 +129,15 @@ interface AgentSessionStore {
 
 function genTaskId() {
   return `agent_task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function genMessageId() {
+  return `local_msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+export const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
+  input: '',
+  attachments: [],
 }
 
 function normalizeTaskPayload(payload: AgentPageTaskPayload): AgentPageTaskPayload & { requestId: string; taskType: string } {
@@ -157,9 +184,12 @@ function defaultConversationRuntime(conversationId: string): AgentConversationRu
 export const useAgentSessionStore = create<AgentSessionStore>()(
   persist(
     (set, get) => ({
+      activeConversationIdsByUser: {},
+      draftsByUser: {},
       pageTasks: {},
       conversationRuntimes: {},
       runtimeThreadProjections: {},
+      transientMessagesByConversation: {},
       localThreadIdsByConversation: {},
       sessionIdsByConversation: {},
       standaloneTasks: {},
@@ -193,6 +223,101 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         })
         return normalized
       },
+
+      createRuntimeConversation: (userId, input) => {
+        const conversationId = input.threadId.trim()
+        if (!conversationId) return get().activeConversationIdsByUser[userId] ?? ''
+        set((state) => ({
+          activeConversationIdsByUser: {
+            ...state.activeConversationIdsByUser,
+            [userId]: conversationId,
+          },
+          ...(input.sessionId?.trim()
+            ? {
+              sessionIdsByConversation: {
+                ...state.sessionIdsByConversation,
+                [conversationId]: input.sessionId.trim(),
+              },
+            }
+            : {}),
+          localThreadIdsByConversation: {
+            ...state.localThreadIdsByConversation,
+            [conversationId]: conversationId,
+          },
+          conversationRuntimes: {
+            ...state.conversationRuntimes,
+            [conversationId]: {
+              ...defaultConversationRuntime(conversationId),
+              ...(state.conversationRuntimes[conversationId] ?? {}),
+              ...(input.sessionId?.trim() ? { sessionId: input.sessionId.trim() } : {}),
+              threadId: conversationId,
+              loading: false,
+              building: false,
+              updatedAt: Date.now(),
+            },
+          },
+        }))
+        return conversationId
+      },
+
+      removeRuntimeConversation: (userId, conversationId) => {
+        get().clearConversationRuntimeState(conversationId)
+        set((state) => {
+          const draftsByUser = { ...state.draftsByUser }
+          if (draftsByUser[userId]?.[conversationId]) {
+            draftsByUser[userId] = { ...draftsByUser[userId] }
+            delete draftsByUser[userId][conversationId]
+          }
+          return {
+            activeConversationIdsByUser: {
+              ...state.activeConversationIdsByUser,
+              [userId]: state.activeConversationIdsByUser[userId] === conversationId ? null : (state.activeConversationIdsByUser[userId] ?? null),
+            },
+            draftsByUser,
+          }
+        })
+      },
+
+      setActiveConversation: (userId, conversationId) => set((state) => ({
+        activeConversationIdsByUser: {
+          ...state.activeConversationIdsByUser,
+          [userId]: conversationId,
+        },
+      })),
+
+      getActiveConversationId: (userId) => get().activeConversationIdsByUser[userId] ?? null,
+
+      updateConversationTitle: () => undefined,
+
+      getConversationDraft: (userId, conversationId) => get().draftsByUser[userId]?.[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
+
+      updateConversationDraft: (userId, conversationId, patch) => set((state) => {
+        const current = state.draftsByUser[userId]?.[conversationId] ?? EMPTY_CONVERSATION_DRAFT
+        return {
+          draftsByUser: {
+            ...state.draftsByUser,
+            [userId]: {
+              ...(state.draftsByUser[userId] ?? {}),
+              [conversationId]: {
+                ...current,
+                ...patch,
+              },
+            },
+          },
+        }
+      }),
+
+      clearConversationDraft: (userId, conversationId) => set((state) => {
+        if (!state.draftsByUser[userId]?.[conversationId]) return {}
+        const userDrafts = { ...state.draftsByUser[userId] }
+        delete userDrafts[conversationId]
+        return {
+          draftsByUser: {
+            ...state.draftsByUser,
+            [userId]: userDrafts,
+          },
+        }
+      }),
 
       claimNextQueuedPageTask: () => {
         const task = Object.values(get().pageTasks)
@@ -280,6 +405,67 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         })
       },
 
+      addTransientMessage: (conversationId, msg) => {
+        const id = genMessageId()
+        const timestamp = msg.timestamp ?? Date.now()
+        set((state) => ({
+          transientMessagesByConversation: {
+            ...state.transientMessagesByConversation,
+            [conversationId]: [
+              ...(state.transientMessagesByConversation[conversationId] ?? []),
+              { ...msg, id, timestamp } as ChatMessage,
+            ],
+          },
+        }))
+        return id
+      },
+
+      updateTransientMessageMeta: (conversationId, messageId, meta) => set((state) => ({
+        transientMessagesByConversation: {
+          ...state.transientMessagesByConversation,
+          [conversationId]: (state.transientMessagesByConversation[conversationId] ?? []).map((message) => message.id === messageId
+            ? { ...message, meta: { ...message.meta, ...meta }, timestamp: Date.now() }
+            : message),
+        },
+      })),
+
+      removeTransientMessage: (conversationId, messageId) => set((state) => ({
+        transientMessagesByConversation: {
+          ...state.transientMessagesByConversation,
+          [conversationId]: (state.transientMessagesByConversation[conversationId] ?? []).filter((message) => message.id !== messageId),
+        },
+      })),
+
+      clearTransientMessages: (conversationId) => set((state) => {
+        if (!state.transientMessagesByConversation[conversationId]) return {}
+        const next = { ...state.transientMessagesByConversation }
+        delete next[conversationId]
+        return { transientMessagesByConversation: next }
+      }),
+
+      clearConversationRuntimeState: (conversationId) => set((state) => {
+        const conversationRuntimes = { ...state.conversationRuntimes }
+        const runtimeThreadProjections = { ...state.runtimeThreadProjections }
+        const transientMessagesByConversation = { ...state.transientMessagesByConversation }
+        const localThreadIdsByConversation = { ...state.localThreadIdsByConversation }
+        const sessionIdsByConversation = { ...state.sessionIdsByConversation }
+        delete conversationRuntimes[conversationId]
+        delete runtimeThreadProjections[conversationId]
+        delete transientMessagesByConversation[conversationId]
+        delete localThreadIdsByConversation[conversationId]
+        delete sessionIdsByConversation[conversationId]
+        return {
+          conversationRuntimes,
+          runtimeThreadProjections,
+          transientMessagesByConversation,
+          localThreadIdsByConversation,
+          sessionIdsByConversation,
+          pageTasks: Object.fromEntries(
+            Object.entries(state.pageTasks).filter(([, task]) => task.conversationId !== conversationId),
+          ),
+        }
+      }),
+
       setConversationRuntime: (conversationId, patch) => set((state) => {
         const sessionId = patch.sessionId ?? state.conversationRuntimes[conversationId]?.sessionId
         return {
@@ -299,7 +485,18 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
 
+      setConversationRuntimeSessionId: (_userId, conversationId, sessionId) => {
+        get().setConversationSessionId(conversationId, sessionId)
+      },
+
+      setConversationRuntimeThreadId: (_userId, conversationId, threadId) => {
+        get().setLocalThreadId(conversationId, threadId)
+      },
+
       setRuntimeThreadProjection: ({ conversationId, threadId, sessionId, messages }) => set((state) => ({
+        transientMessagesByConversation: Object.fromEntries(
+          Object.entries(state.transientMessagesByConversation).filter(([id]) => id !== conversationId),
+        ),
         runtimeThreadProjections: {
           ...state.runtimeThreadProjections,
           [conversationId]: {

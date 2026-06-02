@@ -25,10 +25,6 @@ export function buildAgentChatActionBindingsInput({
       updateStreamingAssistantText: runtime.updateStreamingAssistantText,
       getStreamingAssistantMessageId: runtime.getStreamingAssistantMessageId,
       resetStreamingAssistant: runtime.resetStreamingAssistant,
-      messageStore: {
-        addMessage: store.messageStore.addMessage,
-        upsertMessage: store.messageStore.upsertMessage,
-      },
     },
     runInteractionActions: {
       conversationId: conv.id,

@@ -57,6 +57,8 @@ test('conversationIdForRuntimeThread returns undefined for unmapped runtime thre
 
 test('agent session persistence excludes runtime thread mappings and projections', () => {
   useAgentSessionStore.setState({
+    activeConversationIdsByUser: { user_1: 'conv_1' },
+    draftsByUser: { user_1: { conv_1: { input: 'draft check', attachments: [] } } },
     localThreadIdsByConversation: { conv_1: 'thread_1' },
     sessionIdsByConversation: { conv_1: 'session_1' },
     conversationRuntimes: {

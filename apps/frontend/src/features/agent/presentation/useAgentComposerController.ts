@@ -14,7 +14,8 @@ import {
   setCaretAtEnd,
 } from '@/features/agent/presentation/agentMentionEditorModel'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
-import { useAgentStore, type AgentAttachment } from '@/features/agent/state/agentStore'
+import type { AgentAttachment } from '@/features/agent/state/agentStore'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { RawResource } from '@/types'
 
 interface UseAgentComposerControllerInput {
@@ -35,7 +36,7 @@ export function useAgentComposerController({
   inputRef,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
-  const updateConversationDraft = useAgentStore((s) => s.updateConversationDraft)
+  const updateConversationDraft = useAgentSessionStore((s) => s.updateConversationDraft)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
@@ -135,7 +136,7 @@ export function useAgentComposerController({
           ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
         } satisfies AgentAttachment
       }))
-      const currentAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
+      const currentAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
       updateDraft({ attachments: [...currentAttachments, ...pending] })
       const uploaded: AgentAttachment[] = []
       for (const [index, file] of list.entries()) {
@@ -150,7 +151,7 @@ export function useAgentComposerController({
           ...(pending[index]?.dataUrl ? { dataUrl: pending[index].dataUrl } : {}),
         })
       }
-      const latestAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
+      const latestAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
       const uploadedByPendingId = new Map(uploaded.map((attachment) => [attachment.id, attachment]))
       updateDraft({
         attachments: latestAttachments.map((attachment) => uploadedByPendingId.get(attachment.id) ?? attachment),
@@ -159,7 +160,7 @@ export function useAgentComposerController({
       qc.invalidateQueries({ queryKey: ['resources'] })
       qc.invalidateQueries({ queryKey: ['resources', 'agent-panel'] })
     } catch (e) {
-      const latestAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
+      const latestAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
       const pendingIds = new Set(pending.map((attachment) => attachment.id))
       updateDraft({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
       revokeAttachmentPreviewUrls(pending)
@@ -249,7 +250,7 @@ export function useAgentComposerController({
 
     const resource = droppedResource ?? await fetchResourceById(resourceId)
     const nextAttachment = resource ? attachmentFromResource(resource) : placeholderAttachment(resourceId)
-    const latestDraft = useAgentStore.getState().getConversationDraft(userId, conversationId)
+    const latestDraft = useAgentSessionStore.getState().getConversationDraft(userId, conversationId)
     const nextInput = latestDraft.input.includes(resourceMentionToken(resourceId))
       ? latestDraft.input
       : normalizeInlineSpacing(`${latestDraft.input.trimEnd()} ${resourceMentionToken(resourceId)} `)

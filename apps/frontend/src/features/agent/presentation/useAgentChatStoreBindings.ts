@@ -6,12 +6,7 @@ import {
   type AgentAttachment,
   type Conversation,
 } from '@/features/agent/state/agentStore'
-import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-
-const EMPTY_CONVERSATION_DRAFT: { input: string; attachments: AgentAttachment[] } = {
-  input: '',
-  attachments: [],
-}
+import { EMPTY_CONVERSATION_DRAFT, useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 
 interface UseAgentChatStoreBindingsInput {
   conversation: Conversation
@@ -24,37 +19,34 @@ export function useAgentChatStoreBindings({
 }: UseAgentChatStoreBindingsInput) {
   const {
     settings,
-    addMessage,
-    upsertMessage,
-    setConversationMessages,
-    updateMessageMeta,
-    removeMessage,
-    setConversationRuntimeSessionId,
-    setConversationRuntimeThreadId,
-    updateConversationTitle,
     updateSettings,
   } = useAgentStore()
   const currentProject = useProjectStore((state) => state.current)
   const conversationRuntime = useAgentSessionStore((state) => state.conversationRuntimes[conversation.id] ?? null)
   const runtimeThreadProjectionMessages = useAgentSessionStore((state) => state.runtimeThreadProjections[conversation.id]?.messages)
+  const transientMessages = useAgentSessionStore((state) => state.transientMessagesByConversation[conversation.id] ?? [])
   const localSessionId = useAgentSessionStore((state) => state.sessionIdsByConversation[conversation.id] ?? conversation.runtimeSessionId ?? state.conversationRuntimes[conversation.id]?.sessionId ?? '')
   const localThreadId = useAgentSessionStore((state) => state.localThreadIdsByConversation[conversation.id] ?? conversation.runtimeThreadId ?? '')
   const setConversationSessionId = useAgentSessionStore((state) => state.setConversationSessionId)
   const setConversationRuntime = useAgentSessionStore((state) => state.setConversationRuntime)
+  const setConversationRuntimeSessionId = useAgentSessionStore((state) => state.setConversationRuntimeSessionId)
+  const setConversationRuntimeThreadId = useAgentSessionStore((state) => state.setConversationRuntimeThreadId)
   const setRuntimeThreadProjection = useAgentSessionStore((state) => state.setRuntimeThreadProjection)
+  const addTransientMessage = useAgentSessionStore((state) => state.addTransientMessage)
+  const updateTransientMessageMeta = useAgentSessionStore((state) => state.updateTransientMessageMeta)
+  const removeTransientMessage = useAgentSessionStore((state) => state.removeTransientMessage)
   const setConversationRun = useAgentSessionStore((state) => state.setConversationRun)
   const setLocalThreadId = useAgentSessionStore((state) => state.setLocalThreadId)
   const setPageTaskRunning = useAgentSessionStore((state) => state.setPageTaskRunning)
-  const draft = useAgentStore((state) => state.convsByUser[userId]?.draftsByConversation?.[conversation.id] ?? EMPTY_CONVERSATION_DRAFT)
-  const clearConversationDraft = useAgentStore((state) => state.clearConversationDraft)
+  const updateConversationTitle = useAgentSessionStore((state) => state.updateConversationTitle)
+  const draft = useAgentSessionStore((state) => state.draftsByUser[userId]?.[conversation.id] ?? EMPTY_CONVERSATION_DRAFT)
+  const clearConversationDraft = useAgentSessionStore((state) => state.clearConversationDraft)
   const messageStore = useMemo(() => ({
-    addMessage,
-    upsertMessage,
-    removeMessage,
-    updateMessageMeta,
-    setConversationMessages,
+    addMessage: (_userId: string, conversationId: string, msg: Parameters<typeof addTransientMessage>[1]) => addTransientMessage(conversationId, msg),
+    removeMessage: (_userId: string, conversationId: string, messageId: string) => removeTransientMessage(conversationId, messageId),
+    updateMessageMeta: (_userId: string, conversationId: string, messageId: string, meta: Parameters<typeof updateTransientMessageMeta>[2]) => updateTransientMessageMeta(conversationId, messageId, meta),
     clearConversationDraft,
-  }), [addMessage, clearConversationDraft, removeMessage, setConversationMessages, updateMessageMeta, upsertMessage])
+  }), [addTransientMessage, clearConversationDraft, removeTransientMessage, updateTransientMessageMeta])
 
   return {
     agentContextConfig: EMPTY_AGENT_CONTEXT_CONFIG,
@@ -65,6 +57,7 @@ export function useAgentChatStoreBindings({
     localSessionId,
     localThreadId,
     runtimeThreadProjectionMessages,
+    transientMessages,
     setConversationRuntimeSessionId,
     setConversationSessionId,
     setConversationRun,
