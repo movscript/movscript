@@ -11,10 +11,12 @@ export function AIAgentPanel() {
   const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser?.[userId]))
   const {
     dockLayout,
+    handlePendingPanelActionSettled,
     handlePendingThreadHandled,
     open,
     panelRef,
     panelWidth,
+    pendingPanelAction,
     pendingThreadIdToOpen,
     resizeHandleProps,
     toggleOpen,
@@ -42,14 +44,16 @@ export function AIAgentPanel() {
 
   if (!renderPanel) return null
 
-  if (!hasOpenConversations && open) {
+  if (!hasOpenConversations && open && !pendingPanelAction && !pendingThreadIdToOpen) {
     return (
       <div className="hidden">
         <AgentBuiltinChatShell
           userId={userId}
           onCollapse={toggleOpen}
+          pendingStartupStatus={pendingPanelAction}
           pendingThreadIdToOpen={pendingThreadIdToOpen}
           onPendingThreadHandled={handlePendingThreadHandled}
+          onStartupSettled={handlePendingPanelActionSettled}
         />
       </div>
     )
@@ -70,8 +74,10 @@ export function AIAgentPanel() {
         onCollapse={toggleOpen}
         showCollapse={false}
         host={dockLayout ? 'dock-panel' : 'floating-panel'}
+        pendingStartupStatus={pendingPanelAction}
         pendingThreadIdToOpen={pendingThreadIdToOpen}
         onPendingThreadHandled={handlePendingThreadHandled}
+        onStartupSettled={handlePendingPanelActionSettled}
       />
     </AgentPanelShell>
   )

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
-import { AgentShell } from '@movscript/ui'
+import { Loader2 } from 'lucide-react'
+import { AgentEmpty, AgentMain, AgentShell } from '@movscript/ui'
 import { AgentChatView } from '@/features/agent/components/AgentChatView'
 import { ConversationList } from '@/features/agent/components/AgentConversationList'
 import { useAgentBuiltinChatController } from '@/features/agent/presentation/useAgentBuiltinChatController'
+import { useTranslation } from 'react-i18next'
 
 export type AgentChatHost = 'dock-panel' | 'floating-panel' | 'immersive'
 
@@ -13,8 +15,10 @@ export interface AgentBuiltinChatShellProps {
   host?: AgentChatHost
   surface?: 'panel' | 'page'
   pageEmptyAccessory?: ReactNode
+  pendingStartupStatus?: 'creating' | 'restoring' | null
   pendingThreadIdToOpen?: string | null
   onPendingThreadHandled?: (threadId: string) => void
+  onStartupSettled?: () => void
 }
 
 export function AgentBuiltinChatShell({
@@ -24,9 +28,12 @@ export function AgentBuiltinChatShell({
   host,
   surface = 'panel',
   pageEmptyAccessory,
+  pendingStartupStatus,
   pendingThreadIdToOpen,
   onPendingThreadHandled,
+  onStartupSettled,
 }: AgentBuiltinChatShellProps) {
+  const { t } = useTranslation()
   const {
     activeConversation,
     activeTask,
@@ -40,13 +47,16 @@ export function AgentBuiltinChatShell({
     reorderConversation,
     restoreLocalThread,
     selectConversation,
+    startupStatus,
   } = useAgentBuiltinChatController({
     userId,
     pendingThreadIdToOpen,
     onPendingThreadHandled,
+    onStartupSettled,
   })
   const resolvedHost = host ?? (surface === 'page' ? 'immersive' : 'dock-panel')
   const resolvedSurface = resolvedHost === 'immersive' ? 'page' : 'panel'
+  const visibleStartupStatus = startupStatus ?? pendingStartupStatus ?? null
 
   return (
     <AgentShell
@@ -54,7 +64,18 @@ export function AgentBuiltinChatShell({
       data-agent-chat-host={resolvedHost}
       className={resolvedHost === 'immersive' ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}
     >
-      {activeConversation ? (
+      {visibleStartupStatus ? (
+        <AgentMain className="ai-agent-panel-main" data-agent-chat-host={resolvedHost}>
+          <AgentEmpty role="status" aria-live="polite">
+            <Loader2 size={16} className="animate-spin" />
+            <span>
+              {visibleStartupStatus === 'creating'
+                ? t('agents.chat.connectingConversation')
+                : t('agents.chat.loadingMessageHistory')}
+            </span>
+          </AgentEmpty>
+        </AgentMain>
+      ) : activeConversation ? (
         <AgentChatView
           key={activeConversation.id}
           conv={activeConversation}

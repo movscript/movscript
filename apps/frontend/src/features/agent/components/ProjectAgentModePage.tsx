@@ -440,7 +440,6 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     try {
       await localAgentClient.ensureRunning()
       const thread = await localAgentClient.startProvisionalConversation({
-        title: t('agents.chat.newConversation'),
         ...(project?.ID ? { projectId: project.ID } : {}),
       })
       const createdAt = Date.parse(thread.createdAt)
@@ -449,7 +448,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
       const conversationId = createRuntimeConversation(userId, {
         threadId: thread.id,
         ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-        title: localThreadTitle(thread, t),
+        ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
         createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
         updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
       })
@@ -966,16 +965,14 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
     void (async () => {
       try {
         await localAgentClient.ensureRunning()
-        const thread = await localAgentClient.startProvisionalConversation({
-          title: t('agents.chat.newConversation'),
-        })
+        const thread = await localAgentClient.startProvisionalConversation()
         const createdAt = Date.parse(thread.createdAt)
         const updatedAt = Date.parse(thread.updatedAt)
         const threadSummary = runtimeThreadSummaryFromThread(thread)
         const conversationId = createRuntimeConversation(userId, {
           threadId: thread.id,
           ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-          title: localThreadTitle(thread, t),
+          ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
           createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
           updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
         })

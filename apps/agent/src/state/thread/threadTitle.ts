@@ -24,6 +24,12 @@ export function fallbackThreadTitle(message: string): string {
   ) || '新会话'
 }
 
+export function isPlaceholderThreadTitle(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  return ['新会话', '新对话', 'New conversation', 'New Conversation', 'New chat', 'New Chat']
+    .includes(value.trim())
+}
+
 export function truncateThreadTitle(value: string): string {
   const title = value.trim()
   if (!title) return ''
@@ -31,7 +37,7 @@ export function truncateThreadTitle(value: string): string {
 }
 
 export function shouldGenerateThreadTitle(thread: AgentThread, userMessage: AgentMessage | undefined): boolean {
-  if (thread.title?.trim()) return false
+  if (thread.title?.trim() && !isPlaceholderThreadTitle(thread.title)) return false
   if (!userMessage?.content.trim()) return false
   if (thread.metadata?.titleGeneratedAt) return false
   return true

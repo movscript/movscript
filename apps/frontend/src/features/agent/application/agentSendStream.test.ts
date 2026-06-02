@@ -57,6 +57,34 @@ test('handleSendRunUpdate clears preparing tool call when run waits for approval
   assert.equal(calls[0], 'pending:null')
 })
 
+test('handleSendRunUpdate keeps pending interaction run focused while another run streams', () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls, {
+    currentRun: makeRun({
+      id: 'run_waiting',
+      status: 'requires_action',
+      pendingInputRequests: [{
+        id: 'input_1',
+        runId: 'run_waiting',
+        title: '选择目标',
+        question: '继续吗？',
+        inputType: 'choice',
+        choices: [],
+        allowCustomAnswer: false,
+        status: 'pending',
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:00.000Z',
+      }],
+    }),
+  })
+
+  handleSendRunUpdate(makeRun({ id: 'run_streaming', status: 'in_progress' }), deps)
+
+  assert.equal(calls.some((call) => call.startsWith('pending:')), false)
+  assert.equal(calls.some((call) => call.startsWith('setRun:run_streaming')), false)
+  assert.equal(calls.includes('task:request_1:run_streaming:thread_1:0'), true)
+})
+
 test('handleSendRunUpdate carries live reasoning text across run snapshots', () => {
   const calls: string[] = []
   const deps = depsFixture(calls, { currentPending: { status: 'thinking', reasoning: '正在检查上下文' } })
@@ -149,17 +177,34 @@ test('handleSendRuntimeEvent trims thread titles, completes started http events,
   assert.equal(events[1]?.status, 'started')
 })
 
+test('handleSendRuntimeEvent forwards run upserts to the run update handler', () => {
+  const calls: string[] = []
+  let events = [event({ id: 'http-request-local-run-message', status: 'started' })]
+
+  handleSendRuntimeEvent(runtimeRunEvent(makeRun({ id: 'run_streamed', status: 'requires_action' })), {
+    updateConversationTitle: (title) => calls.push(`title:${title}`),
+    updateActivityEvents: (updater) => { events = updater(events) },
+    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
+    onRunUpdate: (run) => calls.push(`run:${run.id}:${run.status}`),
+    now: () => new Date('2026-05-19T00:00:01.000Z'),
+  })
+
+  assert.deepEqual(calls, ['run:run_streamed:requires_action', 'record:run.upserted'])
+  assert.equal(events[0]?.status, 'completed')
+})
+
 function depsFixture(calls: string[], options: {
   stopRequested?: boolean
   currentPending?: AgentLivePendingAssistantState | null
   cancelledRunIds?: Set<string>
+  currentRun?: AgentRun
 } = {}): AgentSendRunUpdateDeps {
   return {
     conversationId: 'conv_1',
     requestId: 'request_1',
     liveEvents: () => [] satisfies ChatRunActivityEvent[],
     cancelledRunIds: options.cancelledRunIds ?? new Set<string>(),
-    getConversationRuntime: () => ({ stopRequested: options.stopRequested }),
+    getConversationRuntime: () => ({ stopRequested: options.stopRequested, run: options.currentRun }),
     setPendingAssistantState: (value) => {
       const resolved = typeof value === 'function' ? value(options.currentPending ?? null) : value
       calls.push(`pending:${resolved?.status ?? 'null'}`)

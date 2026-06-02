@@ -4,6 +4,7 @@ import {
   applyThreadTitleGenerationFallback,
   applyThreadTitleGenerationResult,
   fallbackThreadTitle,
+  isPlaceholderThreadTitle,
   markThreadTitleGenerationPending,
   normalizeThreadTitle,
   shouldGenerateThreadTitle,
@@ -25,6 +26,14 @@ test('fallbackThreadTitle removes connector mentions and falls back for empty me
   assert.equal(fallbackThreadTitle(' @[ctx](app://focus) '), '新会话')
 })
 
+test('isPlaceholderThreadTitle recognizes UI default titles', () => {
+  assert.equal(isPlaceholderThreadTitle('新会话'), true)
+  assert.equal(isPlaceholderThreadTitle('新对话'), true)
+  assert.equal(isPlaceholderThreadTitle('New Chat'), true)
+  assert.equal(isPlaceholderThreadTitle('New Conversation'), true)
+  assert.equal(isPlaceholderThreadTitle('上下文'), false)
+})
+
 test('truncateThreadTitle trims by Unicode code points', () => {
   assert.equal(truncateThreadTitle(' abc '), 'abc')
   assert.equal(truncateThreadTitle('一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十X'), '一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十')
@@ -34,6 +43,9 @@ test('shouldGenerateThreadTitle requires missing title, usable message, and no g
   const message = makeMessage('梳理 agent 架构')
   assert.equal(shouldGenerateThreadTitle(makeThread(), message), true)
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: 'Existing' }, message), false)
+  assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '新会话' }, message), true)
+  assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '新对话' }, message), true)
+  assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '上下文' }, message), false)
   assert.equal(shouldGenerateThreadTitle(makeThread(), makeMessage('  ')), false)
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), metadata: { titleGeneratedAt: 'done' } }, message), false)
 })

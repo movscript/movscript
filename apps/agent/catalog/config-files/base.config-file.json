@@ -3,7 +3,7 @@
   "id": "movscript.config_file.base",
   "version": "1.0.0",
   "name": "MovScript Base Config File",
-  "description": "基础 MovScript Agent 配置文件，显式启用 core、workspace 和 MovScript 前期准备 capability pack。",
+  "description": "基础 MovScript Agent 配置文件，显式启用 core、workspace 和 MovScript 前期准备 capability pack；generation job 提交能力随 core pack 提供。",
   "enabledPackIds": [
     "core.pack.agent",
     "workspace.pack.lifecycle",

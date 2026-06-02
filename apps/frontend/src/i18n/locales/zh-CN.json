@@ -2516,6 +2516,8 @@
       "noAgentShort": "直接对话",
       "noConversations": "暂无对话记录",
       "noHistoryConversations": "暂无历史会话",
+      "connectingConversation": "正在建立 Agent 连接…",
+      "loadingMessageHistory": "正在读取消息历史…",
       "loadMoreHistory": "加载更多",
       "platformTemplates": "平台模板",
       "selectAgent": "选择 Agent",

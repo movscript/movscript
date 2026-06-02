@@ -16,6 +16,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   archivedConversations: Conversation[]
   currentProject: Project | null
   interaction: ReturnType<typeof useAgentChatInteractionController>
+  messageHistoryLoading: boolean
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   presentation: ReturnType<typeof useAgentChatPresentationState>
@@ -43,6 +44,7 @@ export function buildAgentChatViewLayoutProps({
   archivedConversations,
   currentProject,
   interaction,
+  messageHistoryLoading,
   planActionBusy,
   planDispatchSettings,
   presentation,
@@ -96,6 +98,7 @@ export function buildAgentChatViewLayoutProps({
       conversationId: conv.id,
       conversationBlocks: presentation.conversationPresentation.blocks,
       generationProgressStates: presentation.generationProgressStates,
+      messageHistoryLoading,
       messages: conv.messages,
       planActionBusy,
       planDispatchSettings,

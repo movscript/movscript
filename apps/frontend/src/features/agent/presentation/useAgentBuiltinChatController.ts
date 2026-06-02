@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AGENT_PANEL_WORKSPACE_EVENT, AGENT_PANEL_NEW_CONVERSATION_EVENT, consumeAgentPanelWorkspace, consumeAgentPanelNewConversation, type AgentPanelWorkspacePayload, type AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
@@ -15,12 +15,16 @@ export interface UseAgentBuiltinChatControllerOptions {
   userId: string
   pendingThreadIdToOpen?: string | null
   onPendingThreadHandled?: (threadId: string) => void
+  onStartupSettled?: () => void
 }
+
+export type AgentBuiltinChatStartupStatus = 'creating' | 'restoring' | null
 
 export function useAgentBuiltinChatController({
   userId,
   pendingThreadIdToOpen,
   onPendingThreadHandled,
+  onStartupSettled,
 }: UseAgentBuiltinChatControllerOptions) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -71,6 +75,7 @@ export function useAgentBuiltinChatController({
   const activeConversationId = getActiveConversationId(userId)
   const activeConversation = openConversations.find((conversation) => conversation.id === activeConversationId) ?? null
   const restoringThreadsRef = useRef(new Map<string, Promise<RestoreRuntimeThreadResult>>())
+  const [startupStatus, setStartupStatus] = useState<AgentBuiltinChatStartupStatus>(null)
   const activeTask = useMemo(() => {
     if (!activeConversation) return null
     const tasks = Object.values(pageTasks).filter((task) => task.conversationId === activeConversation.id)
@@ -80,35 +85,41 @@ export function useAgentBuiltinChatController({
   }, [activeConversation?.id, pageTasks])
 
   const createProvisionalRuntimeConversation = useCallback(async (input: { title?: string; projectId?: number } = {}) => {
-    await localAgentClient.ensureRunning()
-    const thread = await localAgentClient.startProvisionalConversation({
-      title: input.title ?? t('agents.chat.newConversation'),
-      ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
-    })
-    const createdAt = Date.parse(thread.createdAt)
-    const updatedAt = Date.parse(thread.updatedAt)
-    const threadSummary = runtimeThreadSummaryFromThread(thread)
-    const conversationId = createRuntimeConversation(userId, {
-      threadId: thread.id,
-      ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-      title: localThreadTitle(thread, t),
-      createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
-      updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
-    })
-    upsertCachedLocalAgentThread(queryClient, threadSummary)
-    setLocalThreadId(conversationId, thread.id)
-    if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
-    setConversationRuntime(conversationId, {
-      ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-      threadId: thread.id,
-      loading: false,
-      building: false,
-      error: undefined,
-    })
-    setAgentPanelOpen(true)
-    void refetchRuntimeThreads()
-    return conversationId
-  }, [createRuntimeConversation, queryClient, refetchRuntimeThreads, setAgentPanelOpen, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
+    setStartupStatus('creating')
+    try {
+      await localAgentClient.ensureRunning()
+      const thread = await localAgentClient.startProvisionalConversation({
+        ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+        ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+      })
+      const createdAt = Date.parse(thread.createdAt)
+      const updatedAt = Date.parse(thread.updatedAt)
+      const threadSummary = runtimeThreadSummaryFromThread(thread)
+      const conversationId = createRuntimeConversation(userId, {
+        threadId: thread.id,
+        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+        ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
+        createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+      })
+      upsertCachedLocalAgentThread(queryClient, threadSummary)
+      setLocalThreadId(conversationId, thread.id)
+      if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+      setConversationRuntime(conversationId, {
+        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+        threadId: thread.id,
+        loading: false,
+        building: false,
+        error: undefined,
+      })
+      setAgentPanelOpen(true)
+      void refetchRuntimeThreads()
+      return conversationId
+    } finally {
+      setStartupStatus(null)
+      onStartupSettled?.()
+    }
+  }, [createRuntimeConversation, onStartupSettled, queryClient, refetchRuntimeThreads, setAgentPanelOpen, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
 
   const handleNewConversation = useCallback(() => {
     void createProvisionalRuntimeConversation().catch((error) => {
@@ -124,6 +135,7 @@ export function useAgentBuiltinChatController({
       await pendingRestore
       return
     }
+    setStartupStatus('restoring')
     const sessionState = useAgentSessionStore.getState()
     const restorePromise = restoreRuntimeThreadConversation(normalizedThreadId, {
       userId,
@@ -149,6 +161,8 @@ export function useAgentBuiltinChatController({
       setConversationRuntimeThreadId,
     }).finally(() => {
       restoringThreadsRef.current.delete(normalizedThreadId)
+      setStartupStatus(null)
+      onStartupSettled?.()
     })
     restoringThreadsRef.current.set(normalizedThreadId, restorePromise)
     const result = await restorePromise
@@ -157,6 +171,7 @@ export function useAgentBuiltinChatController({
   }, [
     conversations,
     createRuntimeConversation,
+    onStartupSettled,
     refetchRuntimeThreads,
     setActiveConversation,
     setConversationRuntimeSessionId,
@@ -202,10 +217,10 @@ export function useAgentBuiltinChatController({
 
   const createConversationForPanelWorkspace = useCallback((payload: AgentPanelWorkspacePayload) => {
     return createProvisionalRuntimeConversation({
-      title: payload.title ?? t('agents.chat.newConversation'),
+      ...(payload.title?.trim() ? { title: payload.title.trim() } : {}),
       ...(typeof payload.projectId === 'number' ? { projectId: payload.projectId } : {}),
     })
-  }, [createProvisionalRuntimeConversation, t])
+  }, [createProvisionalRuntimeConversation])
 
   const patchConversationArchiveState = useCallback(async (conversationId: string, archived: boolean) => {
     const runtimeThreadId = threadIdForConversation(conversationId)
@@ -305,10 +320,14 @@ export function useAgentBuiltinChatController({
       setActiveConversation,
       updateConversationTitle,
       attachPageTaskConversation,
-    }).catch((error) => {
-      console.error('[agent] failed to consume queued panel workspaces', error)
     })
-  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
+      .then((conversationIds) => {
+        if (conversationIds.length > 0) onStartupSettled?.()
+      })
+      .catch((error) => {
+        console.error('[agent] failed to consume queued panel workspaces', error)
+      })
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversation, updateConversationTitle, userId])
 
   useEffect(() => {
     function handleWorkspace(event: Event) {
@@ -320,19 +339,21 @@ export function useAgentBuiltinChatController({
         setActiveConversation,
         updateConversationTitle,
         attachPageTaskConversation,
-      }).catch((error) => {
-        console.error('[agent] failed to activate panel workspace', error)
       })
+        .catch((error) => {
+          console.error('[agent] failed to activate panel workspace', error)
+        })
+        .finally(() => onStartupSettled?.())
     }
 
     window.addEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
     return () => window.removeEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
-  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversation, updateConversationTitle, userId])
 
   useEffect(() => {
     function createFromPayload(payload: AgentPanelNewConversationPayload | undefined) {
       void createProvisionalRuntimeConversation({
-        title: payload?.title ?? t('agents.chat.newConversation'),
+        ...(payload?.title?.trim() ? { title: payload.title.trim() } : {}),
         ...(typeof payload?.projectId === 'number' ? { projectId: payload.projectId } : {}),
       }).catch((error) => {
         console.error('[agent] failed to start provisional conversation', error)
@@ -350,13 +371,14 @@ export function useAgentBuiltinChatController({
 
     window.addEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
     return () => window.removeEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
-  }, [createProvisionalRuntimeConversation, t])
+  }, [createProvisionalRuntimeConversation])
 
   return {
     activeConversation,
     activeTask,
     archivedConversations,
     conversations: openConversations,
+    startupStatus,
     clearActiveConversation: () => setActiveConversation(userId, null),
     archiveConversation: handleArchiveConversation,
     archiveConversations: handleArchiveConversations,

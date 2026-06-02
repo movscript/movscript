@@ -25,6 +25,7 @@ interface AgentMessageFeedView {
   messages: ChatMessage[]
   rawMessages: AgentFeedMessage[]
   hasMoreBefore: boolean
+  initialLoading: boolean
   loading: boolean
   loadOlder: () => Promise<void>
 }
@@ -37,11 +38,13 @@ type FeedAction =
   | { type: 'reset' }
 
 interface FeedViewState extends AgentMessageFeedState {
+  loaded: boolean
   loading: boolean
 }
 
 const EMPTY_FEED_VIEW_STATE: FeedViewState = {
   ...EMPTY_AGENT_MESSAGE_FEED_STATE,
+  loaded: false,
   loading: false,
 }
 
@@ -152,6 +155,7 @@ export function useAgentMessageFeed({
     messages,
     rawMessages: state.messages,
     hasMoreBefore: state.hasMoreBefore,
+    initialLoading: state.loading && !state.loaded && (!!threadId || !!sessionId),
     loading: state.loading,
     loadOlder,
   }
@@ -160,10 +164,10 @@ export function useAgentMessageFeed({
 function feedViewReducer(state: FeedViewState, action: FeedAction): FeedViewState {
   if (action.type === 'reset') return EMPTY_FEED_VIEW_STATE
   if (action.type === 'loading') return { ...state, loading: action.loading }
-  if (action.type === 'replace') return { ...replaceMessageFeedPage(action.page), loading: false }
-  if (action.type === 'merge') return { ...mergeMessageFeedPage(state, action.page), loading: false }
+  if (action.type === 'replace') return { ...replaceMessageFeedPage(action.page), loaded: true, loading: false }
+  if (action.type === 'merge') return { ...mergeMessageFeedPage(state, action.page), loaded: true, loading: false }
   const next = applyMessageFeedEvent(state, action.event)
-  return { ...next, loading: state.loading }
+  return { ...next, loaded: state.loaded, loading: state.loading }
 }
 
 function feedMessageToChatMessage(message: AgentFeedMessage): ChatMessage {

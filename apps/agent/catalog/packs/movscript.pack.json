@@ -13,13 +13,11 @@
       "movscript/workspace/asset/asset_workspace",
       "movscript/workspace/content_unit/content_unit_workspace",
       "film/storyboard/director",
-      "candidate/asset_planning",
-      "generation/visual_execution"
+      "candidate/asset_planning"
     ],
     "tools": [
       "movscript/workspace",
       "workspace",
-      "generation",
       "candidate",
       "reference"
     ]
@@ -38,9 +36,6 @@
     "workspace_validate",
     "workspace_apply",
     "movscript_project_create",
-    "generation_model_list",
-    "tool_comfyui",
-    "tool_webui",
     "candidate_asset_slot_attach",
     "candidate_keyframe_attach",
     "reference_search",
@@ -54,8 +49,7 @@
     "movscript.content_unit_workspace",
     "film.storyboard.director",
     "movscript.setting_prep",
-    "candidate.asset_planning",
-    "generation.visual_execution"
+    "candidate.asset_planning"
   ],
   "requires": {
     "packs": {

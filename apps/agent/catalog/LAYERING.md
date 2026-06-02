@@ -8,11 +8,11 @@
 
 | 产品层 | 拥有 | 示例 |
 | --- | --- | --- |
-| Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `core.pack.agent`, `tools/core/`, `skills/core/` |
+| Agent Core | Agent 拥有的 memory、用户输入、catalog inspection、planner subagents 和 generation job 提交 | `core.pack.agent`, `tools/core/`, `skills/core/` |
 | Workspace | 本地 workspace open、validate 和 apply 工具；validate 内置 validation | `workspace.pack.lifecycle`, `tools/workspace/` |
 | MovScript | 当前任务 focus、项目读取和可审阅 workspace Skills | `movscript.pack.workspace`, `tools/movscript/workspace/`, `skills/movscript/` |
 | Candidate | 生成输出加入候选集，以及围绕候选写入的执行保护 | `tools/candidate/`, `skills/candidate/` |
-| Generation | 模型发现、provider-level generation job contract 和视觉生成执行 | `tools/generation/`, `skills/generation/` |
+| Generation Tools | 模型发现和 provider-level generation job contract；提交任务的 skill 归属 Agent Core | `tools/generation/`, `skills/core/generation/` |
 
 业务 workspace 继续按领域拆分：
 
@@ -63,6 +63,10 @@ skills/
       runtime/
         skill.json
         instruction.md
+    generation/
+      visual_execution/
+        skill.json
+        instruction.md
   workspace/
     rules/
       lifecycle/
@@ -70,10 +74,6 @@ skills/
         instruction.md
   candidate/
     asset_planning/
-      skill.json
-      instruction.md
-  generation/
-    visual_execution/
       skill.json
       instruction.md
   movscript/

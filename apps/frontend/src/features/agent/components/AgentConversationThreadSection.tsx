@@ -1,7 +1,9 @@
 import React, { type RefObject, type UIEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Loader2 } from 'lucide-react'
 import {
   AgentBody,
+  AgentEmpty,
   AgentThreadFill,
   Button,
 } from '@movscript/ui'
@@ -45,6 +47,7 @@ export interface AgentConversationThreadSectionProps {
   conversationId: string
   conversationBlocks: AgentConversationBlock[]
   generationProgressStates: GenerationProgressState[]
+  messageHistoryLoading?: boolean
   messages: ChatMessage[]
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
@@ -78,6 +81,7 @@ export function AgentConversationThreadSection({
   conversationId,
   conversationBlocks,
   generationProgressStates,
+  messageHistoryLoading = false,
   messages,
   planActionBusy,
   planDispatchSettings,
@@ -140,6 +144,11 @@ export function AgentConversationThreadSection({
   }), [activeRunId, threadItems, visibleThreadItemCount])
   const activeRunHasThreadGroup = !!activeRunId
     && threadWindow.visibleItems.some((item) => item.type === 'run_group' && item.runId === activeRunId)
+  const showMessageHistoryLoading = messageHistoryLoading
+    && messages.length === 0
+    && threadWindow.visibleItems.length === 0
+    && renderableConversationBlocks.length === 0
+    && !activeRunId
   const liveActivityRunIds = useMemo(() => new Set(conversationBlocks
     .filter((block) => block.type === 'live_run_activity' && block.run?.id)
     .map((block) => block.type === 'live_run_activity' ? block.run?.id : undefined)
@@ -197,6 +206,12 @@ export function AgentConversationThreadSection({
         data-agent-thread-visible-items={threadWindow.visibleCount}
         data-agent-thread-total-items={threadWindow.totalCount}
       >
+        {showMessageHistoryLoading && (
+          <AgentEmpty role="status" aria-live="polite">
+            <Loader2 size={16} className="animate-spin" />
+            <span>{t('agents.chat.loadingMessageHistory')}</span>
+          </AgentEmpty>
+        )}
         {threadWindow.hiddenCount > 0 && (
           <div className="ai-agent-panel-thread-window-control">
             <Button

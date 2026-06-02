@@ -20,7 +20,6 @@ import {
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { api } from '@/shared/infrastructure/api'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
@@ -86,7 +85,7 @@ export default function GlobalHomePage() {
         const conversationId = createRuntimeConversation(userId, {
           threadId: thread.id,
           ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
-          title: localThreadTitle(thread, t),
+          ...(thread.title?.trim() ? { title: thread.title.trim() } : {}),
           createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
           updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
         })

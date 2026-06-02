@@ -34,6 +34,7 @@ export function useAIAgentPanelDockController() {
   const toggleOpen = useAgentPanelUiStore((state) => state.toggleOpen)
   const setDetailAgentPanelWidth = useAgentPanelUiStore((state) => state.setDetailAgentPanelWidth)
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
+  const [pendingPanelAction, setPendingPanelAction] = useState<'creating' | 'restoring' | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
     return clampAgentPanelWidth(agentPanelDefaultWidth(viewportWidth), viewportWidth)
@@ -71,15 +72,18 @@ export function useAIAgentPanelDockController() {
 
   useEffect(() => {
     function handleWorkspace() {
+      setPendingPanelAction('creating')
       setOpen(true)
     }
     function handleNewConversation() {
+      setPendingPanelAction('creating')
       setOpen(true)
     }
     function handleThreadOpen(event: Event) {
       const detail = (event as CustomEvent<AgentPanelThreadPayload>).detail
       if (!detail?.threadId?.trim()) return
       setPendingThreadIdToOpen(detail.threadId)
+      setPendingPanelAction('restoring')
       setOpen(true)
     }
 
@@ -108,12 +112,18 @@ export function useAIAgentPanelDockController() {
     setPendingThreadIdToOpen((current) => current === threadId ? null : current)
   }, [])
 
+  const handlePendingPanelActionSettled = useCallback(() => {
+    setPendingPanelAction(null)
+  }, [])
+
   return {
     dockLayout,
+    handlePendingPanelActionSettled,
     handlePendingThreadHandled,
     open,
     panelRef,
     panelWidth,
+    pendingPanelAction,
     pendingThreadIdToOpen,
     resizeHandleProps: panelResize.resizeHandleProps,
     toggleOpen,

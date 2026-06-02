@@ -2516,6 +2516,8 @@
       "noAgentShort": "Direct chat",
       "noConversations": "No conversations yet",
       "noHistoryConversations": "No history yet",
+      "connectingConversation": "Connecting to the Agent…",
+      "loadingMessageHistory": "Loading message history…",
       "loadMoreHistory": "Load more",
       "platformTemplates": "Platform Templates",
       "selectAgent": "Select Agent",

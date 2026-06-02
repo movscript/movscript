@@ -246,6 +246,25 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
           updateConversationTitle: (title) => deps.updateConversationTitle(deps.userId, deps.conversationId, title),
           updateActivityEvents,
           recordLiveTraceEvent: deps.recordLiveTraceEvent,
+          onRunUpdate: (nextRun) => {
+            handleSendRunUpdate(nextRun, {
+              conversationId: deps.conversationId,
+              requestId: workspace.localRuntime?.requestId,
+              liveEvents: () => deps.liveTraceEventsRef.current,
+              cancelledRunIds: deps.cancelRequestedRunIds,
+              getConversationRuntime: () => useAgentSessionStore.getState().conversationRuntimes[deps.conversationId],
+              setPendingAssistantState: deps.setPendingAssistantState,
+              thinkingStateForRun: deps.thinkingStateForRun,
+              runTouchesAgentCatalog: deps.runTouchesAgentCatalog,
+              refreshAgentCatalogContext: deps.refreshAgentCatalogContext,
+              setPageTaskRunning: (requestId, patch) => deps.setPageTaskRunning(requestId, patch),
+              setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
+              setConversationRuntime: (patch) => deps.setConversationRuntime(deps.conversationId, patch),
+              cancelGenerationJobIfActive: deps.cancelGenerationJobIfActive,
+              cancelRun: (runId, input) => localAgentClient.cancelRun(runId, input),
+              getRun: (runId) => localAgentClient.getRun(runId),
+            })
+          },
         })
       },
     })

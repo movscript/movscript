@@ -13,7 +13,7 @@ export interface AgentSendRunUpdateDeps {
   requestId?: string
   liveEvents: () => ChatRunActivityEvent[]
   cancelledRunIds: Set<string>
-  getConversationRuntime: () => { stopRequested?: boolean } | undefined
+  getConversationRuntime: () => { stopRequested?: boolean; run?: AgentRun } | undefined
   setPendingAssistantState: (value: AgentLivePendingAssistantState | null | ((current: AgentLivePendingAssistantState | null) => AgentLivePendingAssistantState | null)) => void
   thinkingStateForRun: (run: AgentRun) => AgentLivePendingAssistantState
   runTouchesAgentCatalog: (run: AgentRun) => boolean
@@ -30,12 +30,18 @@ export interface AgentSendStreamEventDeps {
   updateConversationTitle: (title: string) => void
   updateActivityEvents: (updater: (events: ChatRunActivityEvent[]) => ChatRunActivityEvent[]) => void
   recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
+  onRunUpdate?: (run: AgentRun) => void
   now?: () => Date
 }
 
 export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateDeps): void {
+  const currentRuntime = deps.getConversationRuntime()
+  const currentRun = currentRuntime?.run
+  const keepCurrentInteractionRun = shouldKeepCurrentInteractionRun(currentRun, nextRun)
   const artifacts = extractAgentTaskArtifacts(nextRun)
-  if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
+  if (keepCurrentInteractionRun) {
+    // Keep the composer focused on the pending approval/input run while other runs continue streaming.
+  } else if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
     const nextThinkingState = deps.thinkingStateForRun(nextRun)
     deps.setPendingAssistantState((current) => mergePendingAssistantState(current, nextThinkingState, nextRun))
   } else if (nextRun.status === 'requires_action') {
@@ -52,12 +58,14 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
       ...(artifacts.length > 0 ? { artifacts } : {}),
     })
   }
-  deps.setConversationRun(nextRun, {
-    loading: true,
-    building: false,
-  })
+  if (!keepCurrentInteractionRun) {
+    deps.setConversationRun(nextRun, {
+      loading: true,
+      building: false,
+    })
+  }
 
-  const nextRuntime = deps.getConversationRuntime()
+  const nextRuntime = currentRuntime ?? deps.getConversationRuntime()
   if (!nextRuntime?.stopRequested || !isStoppableAgentRun(nextRun) || deps.cancelledRunIds.has(nextRun.id)) return
 
   deps.cancelledRunIds.add(nextRun.id)
@@ -92,15 +100,30 @@ export function handleSendRuntimeEvent(event: AgentRuntimeEventV2, deps: AgentSe
   if (title) {
     deps.updateConversationTitle(title)
   }
-  if (runtimeRunFromEvent(event)?.id) {
+  const run = runtimeRunFromEvent(event)
+  if (run?.id) {
     const completedAt = (deps.now ?? (() => new Date()))().toISOString()
     deps.updateActivityEvents((current) => current.map((item) => (
       item.status === 'started' && item.id.startsWith('http-request-')
         ? setActivityEventStatus([item], item.id, 'completed', completedAt)[0] ?? item
         : item
     )))
+    deps.onRunUpdate?.(run)
   }
   deps.recordLiveTraceEvent(event)
+}
+
+function shouldKeepCurrentInteractionRun(currentRun: AgentRun | undefined, nextRun: AgentRun): boolean {
+  if (!currentRun || currentRun.id === nextRun.id) return false
+  return runHasPendingUserInteraction(currentRun) && !runHasPendingUserInteraction(nextRun)
+}
+
+function runHasPendingUserInteraction(run: AgentRun): boolean {
+  return run.status === 'requires_action'
+    && (
+      (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
+      || (run.pendingInputRequests ?? []).some((request) => request.status === 'pending')
+    )
 }
 
 function mergePendingAssistantState(

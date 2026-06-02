@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MoreHorizontal } from 'lucide-react'
+import { Loader2, MoreHorizontal } from 'lucide-react'
 import {
+  AgentEmpty,
   AgentMain,
   Button,
   DropdownMenu,
@@ -26,6 +27,7 @@ export function AgentChatPageLayout({
   const { t } = useTranslation()
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
   const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
+  const loadingMessageHistory = thread.messageHistoryLoading && !conversationStarted
   const hasPinnedStatus = hasAgentPinnedStatus({
     plan: latestPlanFromMessages(thread.messages),
     generationProgressStates: thread.generationProgressStates,
@@ -62,9 +64,16 @@ export function AgentChatPageLayout({
         <section className="agent-page-chat-thread-shell agent-page-chat-thread-shell--empty" aria-label={composer.composerPlaceholder}>
           {pageActions}
           <div className="agent-page-chat-empty">
-            <h1 className="agent-page-chat-empty-title">
-              {t('agents.chat.agentModeEmptyTitle')}
-            </h1>
+            {loadingMessageHistory ? (
+              <AgentEmpty role="status" aria-live="polite" className="agent-page-chat-empty-status">
+                <Loader2 size={16} className="animate-spin" />
+                <span>{t('agents.chat.loadingMessageHistory')}</span>
+              </AgentEmpty>
+            ) : (
+              <h1 className="agent-page-chat-empty-title">
+                {t('agents.chat.agentModeEmptyTitle')}
+              </h1>
+            )}
             {emptyAccessory ? (
               <div className="agent-page-chat-empty-accessory">
                 {emptyAccessory}

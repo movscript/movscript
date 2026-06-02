@@ -141,6 +141,7 @@ export function useAgentChatViewController({
     archivedConversations,
     currentProject: store.currentProject,
     interaction,
+    messageHistoryLoading: messageFeed.initialLoading,
     planActionBusy: runtime.planActionBusy,
     planDispatchSettings: taskGraph.planDispatchSettings,
     presentation,

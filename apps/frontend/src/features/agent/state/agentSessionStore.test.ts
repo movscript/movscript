@@ -81,6 +81,26 @@ test('agent session persistence excludes runtime thread mappings and projections
   assert.deepEqual(partialized, {})
 })
 
+test('createRuntimeConversation stores explicit conversation titles', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: {},
+    workspacesByUser: {},
+    localThreadIdsByConversation: {},
+    sessionIdsByConversation: {},
+    conversationRuntimes: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  const conversationId = useAgentSessionStore.getState().createRuntimeConversation('user_1', {
+    threadId: 'thread_titled',
+    title: '上下文',
+  })
+
+  assert.equal(conversationId, 'thread_titled')
+  assert.equal(useAgentSessionStore.getState().conversationRuntimes.thread_titled?.title, '上下文')
+})
+
 test('pageTaskStatusFromRuntime settles explicit panel payload statuses', () => {
   assert.equal(pageTaskStatusFromRuntime({ status: 'completed' }, 'running'), 'completed')
   assert.equal(pageTaskStatusFromRuntime({ status: 'error' }, 'running'), 'error')
