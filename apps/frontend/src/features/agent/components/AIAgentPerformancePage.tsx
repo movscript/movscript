@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, Database, Gauge, ListTree, RefreshCw, Route, Trash2 } from 'lucide-react'
+import { Activity, AlertTriangle, Database, Gauge, ListTree, RefreshCw, Route } from 'lucide-react'
 import {
   AgentPerformanceActionButton,
   AgentPerformanceBarList,
@@ -32,7 +32,6 @@ import {
   AgentPerformanceStack,
   AgentPerformanceStatCard,
   AgentPerformanceStatGrid,
-  AgentPerformanceStorageBar,
   AgentPerformanceStatusBadge,
   AgentPerformanceThreeColumnGrid,
   AgentPerformanceTimelineBody,
@@ -55,16 +54,17 @@ import {
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { localAgentClient, type AgentRuntimeTelemetryOperation, type AgentRuntimeTelemetrySpan } from '@/shared/infrastructure/localAgentClient'
 import {
-  captureAgentStorageSnapshot,
   formatBytes,
   formatMs,
   operationKindLabel,
   slowestPhase,
   summarizeAgentPerformanceMetrics,
-  useAgentPerformanceStore,
+  type AgentPerformanceLogEntry,
+  type AgentPerformanceLongTask,
   type AgentPerformanceOperation,
   type AgentPerformanceMetricSample,
 } from '@/features/agent/state/agentPerformanceStore'
+import { fetchAgentTelemetrySnapshot, type AgentClientTelemetrySnapshot } from '@/features/agent/state/agentTelemetryReporter'
 import {
   agentPerformanceHealthRecipe,
   agentPerformanceLogRecipe,
@@ -73,13 +73,13 @@ import {
 } from '@/features/agent/presentation/agentSemanticUi'
 
 export default function AIAgentPerformancePage() {
-  const operations = useAgentPerformanceStore((state) => state.operations)
-  const metrics = useAgentPerformanceStore((state) => state.metrics)
-  const logs = useAgentPerformanceStore((state) => state.logs)
-  const longTasks = useAgentPerformanceStore((state) => state.longTasks)
-  const storageSnapshots = useAgentPerformanceStore((state) => state.storageSnapshots)
-  const clear = useAgentPerformanceStore((state) => state.clear)
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null)
+  const clientTelemetryQuery = useQuery({
+    queryKey: ['agent-client-telemetry'],
+    queryFn: ({ signal }) => fetchAgentTelemetrySnapshot(signal),
+    refetchInterval: 5_000,
+    retry: false,
+  })
   const runtimeTelemetryQuery = useQuery({
     queryKey: ['agent-runtime-telemetry', localAgentClient.baseURL],
     queryFn: ({ signal }) => localAgentClient.getRuntimeTelemetry(signal),
@@ -87,9 +87,11 @@ export default function AIAgentPerformancePage() {
     retry: false,
   })
 
-  useEffect(() => {
-    captureAgentStorageSnapshot()
-  }, [])
+  const clientSnapshot = clientTelemetryQuery.data
+  const operations = useMemo(() => operationsFromSnapshot(clientSnapshot), [clientSnapshot])
+  const metrics = useMemo(() => metricsFromSnapshot(clientSnapshot), [clientSnapshot])
+  const logs = useMemo(() => logsFromSnapshot(clientSnapshot), [clientSnapshot])
+  const longTasks = useMemo(() => longTasksFromSnapshot(clientSnapshot), [clientSnapshot])
 
   const selectedOperation = useMemo(() => {
     if (!selectedOperationId) return operations[0] ?? null
@@ -120,8 +122,8 @@ export default function AIAgentPerformancePage() {
     })) ?? []),
   ].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)), [logs, runtimeTelemetryQuery.data?.logs])
   const metricSummary = useMemo(() => summarizeAgentPerformanceMetrics(combinedMetrics).slice(0, 12), [combinedMetrics])
-  const latestStorage = storageSnapshots[0]
   const maxLongTask = longTasks.reduce((max, task) => Math.max(max, task.durationMs), 0)
+  const clientSummary = clientSnapshot?.summary
   const runtimeSummary = runtimeTelemetryQuery.data?.summary
   const runtimeOperations = runtimeTelemetryQuery.data?.operations ?? []
   const runtimeSpans = runtimeTelemetryQuery.data?.spans ?? []
@@ -143,17 +145,13 @@ export default function AIAgentPerformancePage() {
               </AgentPerformanceStatusBadge>
             </AgentPerformanceHeaderTitleRow>
             <AgentPerformanceHeaderDescription>
-              以三层数据排查 Agent：指标看趋势，Timeline 看单次链路，诊断日志指出慢阶段和本地状态风险。
+              以三层数据排查 Agent：前端只采集并上报，后端聚合趋势和阶段耗时，Runtime telemetry 提供 agent 侧 spans。
             </AgentPerformanceHeaderDescription>
           </AgentPerformanceHeaderCopy>
           <AgentPerformanceHeaderActions>
-            <AgentPerformanceActionButton type="button" size="sm" variant="outline" onClick={() => { captureAgentStorageSnapshot(); void runtimeTelemetryQuery.refetch() }}>
+            <AgentPerformanceActionButton type="button" size="sm" variant="outline" onClick={() => { void clientTelemetryQuery.refetch(); void runtimeTelemetryQuery.refetch() }}>
               <AgentPerformanceIcon icon={RefreshCw} size={14} />
-              刷新快照
-            </AgentPerformanceActionButton>
-            <AgentPerformanceActionButton type="button" size="sm" variant="outline" onClick={clear}>
-              <Trash2 size={14} />
-              清空本页样本
+              刷新后端快照
             </AgentPerformanceActionButton>
           </AgentPerformanceHeaderActions>
         </AgentPerformanceHeader>
@@ -163,11 +161,11 @@ export default function AIAgentPerformancePage() {
 
       <AgentPageShellBody>
         <AgentPerformanceStatGrid>
-          <PerformanceStat title="操作样本" value={`${operations.length}`} detail={`P95 ${formatMs(summary.p95)} / 平均 ${formatMs(summary.avg)}`} icon={<Activity size={15} />} tone={summary.slowCount > 0 ? 'warning' : 'ready'} />
+          <PerformanceStat title="操作样本" value={`${clientSummary?.operations ?? 0}`} detail={`P95 ${formatMs(summary.p95)} / 平均 ${formatMs(summary.avg)}`} icon={<Activity size={15} />} tone={summary.slowCount > 0 ? 'warning' : 'ready'} />
           <PerformanceStat title="发送耗时" value={formatMs(summary.sendP95)} detail={`发送样本 ${summary.sendCount} 次`} icon={<Route size={15} />} tone={summary.sendP95 > 1_000 ? 'warning' : 'ready'} />
           <PerformanceStat title="确认耗时" value={formatMs(summary.approvalP95)} detail={`确认样本 ${summary.approvalCount} 次`} icon={<ListTree size={15} />} tone={summary.approvalP95 > 600 ? 'warning' : 'ready'} />
-          <PerformanceStat title="本地状态体积" value={formatBytes(latestStorage?.totalBytes ?? 0)} detail={latestStorage ? storageDetail(latestStorage.keys) : '尚无快照'} icon={<Database size={15} />} tone={(latestStorage?.totalBytes ?? 0) > 2 * 1024 * 1024 ? 'warning' : 'ready'} />
-          <PerformanceStat title="主线程阻塞" value={formatMs(maxLongTask)} detail={`${longTasks.length} 条 Long Task`} icon={<AlertTriangle size={15} />} tone={maxLongTask > 500 ? 'warning' : 'ready'} />
+          <PerformanceStat title="后端样本" value={`${clientSummary?.samples ?? 0}`} detail={`${clientSummary?.batches ?? 0} batches / ${clientSummary?.rejected ?? 0} rejected`} icon={<Database size={15} />} tone={(clientSummary?.rejected ?? 0) > 0 ? 'warning' : 'ready'} />
+          <PerformanceStat title="主线程阻塞" value={formatMs(maxLongTask)} detail={`${clientSnapshot?.long_tasks.count ?? 0} 条 Long Task`} icon={<AlertTriangle size={15} />} tone={maxLongTask > 500 ? 'warning' : 'ready'} />
           <PerformanceStat title="Runtime 指标" value={`${runtimeSummary?.operationCount ?? 0}`} detail={`${runtimeSummary?.spanCount ?? 0} spans / ${runtimeService?.storage ?? 'memory'} window`} icon={<Gauge size={15} />} tone={(runtimeSummary?.slowOperationCount ?? 0) + (runtimeSummary?.slowSpanCount ?? 0) > 0 ? 'warning' : 'ready'} />
         </AgentPerformanceStatGrid>
 
@@ -188,7 +186,7 @@ export default function AIAgentPerformancePage() {
             <AgentPerformanceTimelineGrid>
               <AgentPerformanceScrollList>
                 {operations.length === 0 ? (
-                  <AgentPerformanceEmptyState>发送、确认或回答一次 Agent 交互后，这里会出现链路时间线。</AgentPerformanceEmptyState>
+                  <AgentPerformanceEmptyState>发送、确认或回答一次 Agent 交互后，后端聚合的链路阶段会出现在这里。</AgentPerformanceEmptyState>
                 ) : operations.map((operation) => (
                   <AgentPerformanceOperationButton
                     key={operation.id}
@@ -234,7 +232,7 @@ export default function AIAgentPerformancePage() {
                 <AgentPerformanceSectionTitle>Logs 诊断摘要</AgentPerformanceSectionTitle>
                 <AgentPerformanceStack density="compact">
                   {combinedLogs.length === 0 ? (
-                    <AgentPerformanceEmptyState>慢操作、错误和本地状态写入风险会自动沉淀为诊断日志。</AgentPerformanceEmptyState>
+                    <AgentPerformanceEmptyState>慢操作和错误会沉淀到后端诊断日志聚合中。</AgentPerformanceEmptyState>
                   ) : combinedLogs.slice(0, 8).map((log) => (
                     <AgentPerformanceLogItem
                       key={log.id}
@@ -258,14 +256,8 @@ export default function AIAgentPerformancePage() {
             <RuntimeSpanList spans={runtimeSpans} loading={runtimeTelemetryQuery.isLoading} />
           </PerformancePanel>
 
-          <PerformancePanel title="LocalStorage 状态体积" icon={<Database size={14} />}>
-            {latestStorage ? (
-              <AgentPerformanceStack density="compact">
-                {latestStorage.keys.map((item) => (
-                  <StorageBar key={item.key} label={item.key} bytes={item.bytes} totalBytes={Math.max(latestStorage.totalBytes, 1)} />
-                ))}
-              </AgentPerformanceStack>
-            ) : <AgentPerformanceEmptyState>点击刷新快照后展示 Agent 本地状态体积。</AgentPerformanceEmptyState>}
+          <PerformancePanel title="Backend Telemetry Ingest" icon={<Database size={14} />}>
+            <BackendIngestList snapshot={clientSnapshot} loading={clientTelemetryQuery.isLoading} />
           </PerformancePanel>
 
           <PerformancePanel title="Long Task" icon={<AlertTriangle size={14} />}>
@@ -447,10 +439,121 @@ function PerformancePanel({ title, icon, children }: { title: string; icon: Reac
   return <AgentPerformancePanel title={title} icon={icon}>{children}</AgentPerformancePanel>
 }
 
-function StorageBar({ label, bytes, totalBytes }: { label: string; bytes: number; totalBytes: number }) {
-  const pct = Math.max(2, Math.min(100, Math.round((bytes / totalBytes) * 100)))
-  const valueText = formatBytes(bytes)
-  return <AgentPerformanceStorageBar label={label} value={pct} valueText={valueText} ariaLabel={`${label} storage usage`} />
+function BackendIngestList({ snapshot, loading }: { snapshot?: AgentClientTelemetrySnapshot; loading: boolean }) {
+  if (loading && !snapshot) return <AgentPerformanceEmptyState>正在读取后端 telemetry snapshot。</AgentPerformanceEmptyState>
+  const rows = snapshot?.ingest ?? []
+  if (rows.length === 0) return <AgentPerformanceEmptyState>后端尚未收到 Agent telemetry batch。</AgentPerformanceEmptyState>
+  return (
+    <AgentPerformanceStack density="compact">
+      {rows.map((row) => (
+        <AgentPerformanceListItem
+          key={row.status}
+          title={row.status}
+          meta={`${row.samples} samples`}
+          badge={(
+            <AgentPerformanceStatusBadge {...agentPerformanceOperationRecipe(row.status === 'accepted' ? 'success' : 'error', row.status !== 'accepted')}>
+              {row.batches} batches
+            </AgentPerformanceStatusBadge>
+          )}
+        />
+      ))}
+    </AgentPerformanceStack>
+  )
+}
+
+function operationsFromSnapshot(snapshot?: AgentClientTelemetrySnapshot): AgentPerformanceOperation[] {
+  if (!snapshot) return []
+  const generatedAt = Date.parse(snapshot.generated_at)
+  const startedMs = Number.isFinite(generatedAt) ? generatedAt : Date.now()
+  return snapshot.operations.map((operation) => {
+    const phases = snapshot.phases
+      .filter((phase) => phase.kind === operation.kind)
+      .sort((a, b) => b.duration_ms.max - a.duration_ms.max)
+      .map((phase, index) => ({
+        id: `backend_phase:${operation.kind}:${operation.status}:${phase.phase}:${index}`,
+        name: phase.phase,
+        label: phase.phase.replace(/_/g, ' '),
+        at: startedMs + phase.duration_ms.max,
+        offsetMs: phase.duration_ms.max,
+        durationFromPreviousMs: phase.duration_ms.max,
+        details: {
+          count: phase.count,
+          avgMs: phase.duration_ms.avg,
+          maxMs: phase.duration_ms.max,
+          source: 'backend_aggregate',
+        },
+      }))
+    return {
+      id: `backend_operation:${operation.kind}:${operation.status}`,
+      kind: operation.kind as AgentPerformanceOperation['kind'],
+      status: operation.status as AgentPerformanceOperation['status'],
+      startedAt: snapshot.generated_at,
+      startedMs,
+      updatedAt: snapshot.generated_at,
+      endedAt: snapshot.generated_at,
+      durationMs: operation.duration_ms.max,
+      meta: {
+        count: operation.count,
+        slow: operation.slow,
+        avgMs: operation.duration_ms.avg,
+        source: 'backend_aggregate',
+      },
+      phases: [{
+        id: `backend_phase:${operation.kind}:${operation.status}:operation_start`,
+        name: 'operation_start',
+        label: '操作开始',
+        at: startedMs,
+        offsetMs: 0,
+        durationFromPreviousMs: 0,
+      }, ...phases],
+    }
+  })
+}
+
+function metricsFromSnapshot(snapshot?: AgentClientTelemetrySnapshot): AgentPerformanceMetricSample[] {
+  if (!snapshot) return []
+  return snapshot.metrics.map((metric) => ({
+    id: `backend_metric:${metric.name}:${metric.unit}:${stableLabels(metric.labels)}`,
+    name: metric.name,
+    unit: metric.unit,
+    value: metric.value.max,
+    createdAt: snapshot.generated_at,
+    labels: metric.labels,
+  }))
+}
+
+function logsFromSnapshot(snapshot?: AgentClientTelemetrySnapshot): AgentPerformanceLogEntry[] {
+  if (!snapshot) return []
+  return snapshot.logs.map((log) => ({
+    id: `backend_log:${log.level}:${log.area}:${log.kind}`,
+    level: log.level,
+    message: `[backend] ${log.area}/${log.kind} · ${log.count}`,
+    createdAt: snapshot.generated_at,
+    details: {
+      telemetryArea: log.area,
+      telemetryKind: log.kind,
+      count: log.count,
+    },
+  }))
+}
+
+function longTasksFromSnapshot(snapshot?: AgentClientTelemetrySnapshot): AgentPerformanceLongTask[] {
+  if (!snapshot || snapshot.long_tasks.count === 0) return []
+  return [{
+    id: 'backend_longtask:aggregate',
+    startedAt: snapshot.generated_at,
+    startTime: Date.parse(snapshot.generated_at),
+    durationMs: snapshot.long_tasks.duration_ms.max,
+    name: 'backend_aggregate',
+  }]
+}
+
+function stableLabels(labels?: Record<string, string>): string {
+  if (!labels) return ''
+  return Object.entries(labels)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(',')
 }
 
 function summarizeOperations(operations: AgentPerformanceOperation[]) {
@@ -493,14 +596,11 @@ function percentile(values: number[], ratio: number): number {
   return values[index] ?? 0
 }
 
-function formatMetricValue(value: number, unit: 'ms' | 'bytes' | 'count'): string {
+function formatMetricValue(value: number, unit: 'ms' | 'bytes' | 'count' | 'score'): string {
   if (unit === 'ms') return formatMs(value)
   if (unit === 'bytes') return formatBytes(value)
+  if (unit === 'score') return value.toFixed(3).replace(/\.?0+$/, '')
   return String(Math.round(value))
-}
-
-function storageDetail(keys: Array<{ key: string; bytes: number }>): string {
-  return keys.map((item) => `${item.key}: ${formatBytes(item.bytes)}`).join(' / ')
 }
 
 interface LatencyPoint {

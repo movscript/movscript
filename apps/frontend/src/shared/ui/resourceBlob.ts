@@ -1,4 +1,5 @@
 import { api } from '@/shared/infrastructure/api'
+import { loadCachedResourceBlob, loadCachedResourceDataURL } from '@/shared/ui/resourceMediaCache'
 import { resolveResourceUrl } from '@/shared/ui/resourceUrl'
 import type { RawResource } from '@/types'
 
@@ -12,6 +13,21 @@ export async function loadResourceBlob(resource: RawResource, options?: Resource
 }
 
 export async function loadResourceFileBlob(resourceId: number, options?: ResourceBlobLoadOptions): Promise<Blob> {
+  const src = `/api/v1/resources/${resourceId}/file`
+  return loadCachedResourceBlob(src, () => loadResourceFileBlobUncached(resourceId, options))
+}
+
+export async function loadResourceDataURL(resource: RawResource, options?: ResourceBlobLoadOptions): Promise<string> {
+  const src = resolveResourceUrl(resource)
+  return loadCachedResourceDataURL(src, () => loadResourceUrlBlobUncached(src, options))
+}
+
+export async function loadResourceFileDataURL(resourceId: number, options?: ResourceBlobLoadOptions): Promise<string> {
+  const src = `/api/v1/resources/${resourceId}/file`
+  return loadCachedResourceDataURL(src, () => loadResourceFileBlobUncached(resourceId, options))
+}
+
+async function loadResourceFileBlobUncached(resourceId: number, options?: ResourceBlobLoadOptions): Promise<Blob> {
   const res = await api.get(`/resources/${resourceId}/file`, {
     responseType: 'blob',
     signal: options?.signal,
@@ -21,6 +37,10 @@ export async function loadResourceFileBlob(resourceId: number, options?: Resourc
 }
 
 export async function loadResourceUrlBlob(src: string, options?: ResourceBlobLoadOptions): Promise<Blob> {
+  return loadCachedResourceBlob(src, () => loadResourceUrlBlobUncached(src, options))
+}
+
+async function loadResourceUrlBlobUncached(src: string, options?: ResourceBlobLoadOptions): Promise<Blob> {
   if (requiresResourceAPIAuth(src)) {
     const res = await api.get(normalizeResourceAPIAuthPath(src), {
       baseURL: normalizeResourceAPIAuthBaseURL(src),

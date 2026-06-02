@@ -40,7 +40,7 @@ test('prepareRuntimeVisionClientInput replaces image dataUrl with optimized payl
   assert.deepEqual(result.warnings, [])
 })
 
-test('prepareRuntimeVisionClientInput withholds original payload when preprocessing is unavailable or fails', async () => {
+test('prepareRuntimeVisionClientInput falls back to original image payload when preprocessing is unavailable or fails', async () => {
   const unavailable = await prepareRuntimeVisionClientInput({
     run: makeRun(),
     clientInput: {
@@ -56,9 +56,9 @@ test('prepareRuntimeVisionClientInput withholds original payload when preprocess
       }],
     },
   })
-  assert.equal(unavailable.clientInput.attachments[0]?.dataUrl, undefined)
-  assert.equal(unavailable.clientInput.attachments[0]?.vision?.payload, 'metadata_only')
-  assert.equal(unavailable.projections[0]?.status, 'metadata_only')
+  assert.equal(unavailable.clientInput.attachments[0]?.dataUrl, 'data:image/png;base64,ORIGINAL')
+  assert.equal(unavailable.clientInput.attachments[0]?.vision?.payload, 'original')
+  assert.equal(unavailable.projections[0]?.status, 'original')
 
   const failed = await prepareRuntimeVisionClientInput({
     run: makeRun(),
@@ -76,10 +76,51 @@ test('prepareRuntimeVisionClientInput withholds original payload when preprocess
       process: async () => { throw new Error('sharp unavailable') },
     } satisfies CoreImageProcessingPort,
   })
+  assert.equal(failed.clientInput.attachments[0]?.dataUrl, 'data:image/png;base64,ORIGINAL')
+  assert.equal(failed.clientInput.attachments[0]?.vision?.payload, 'original')
+  assert.equal(failed.projections[0]?.status, 'original')
+  assert.match(failed.projections[0]?.reason ?? '', /original image payload was sent/)
+})
+
+test('prepareRuntimeVisionClientInput keeps image attachments metadata-only when no dataUrl is available', async () => {
+  const unavailable = await prepareRuntimeVisionClientInput({
+    run: makeRun(),
+    clientInput: {
+      visibleMessage: 'look',
+      attachments: [{
+        id: 'att_1',
+        name: 'resource-only.png',
+        type: 'image',
+        mimeType: 'image/png',
+        size: 120000,
+        resourceId: 42,
+      }],
+    },
+  })
+  assert.equal(unavailable.clientInput.attachments[0]?.dataUrl, undefined)
+  assert.equal(unavailable.clientInput.attachments[0]?.vision?.payload, 'metadata_only')
+  assert.equal(unavailable.projections[0]?.status, 'metadata_only')
+
+  const failed = await prepareRuntimeVisionClientInput({
+    run: makeRun(),
+    clientInput: {
+      visibleMessage: 'look',
+      attachments: [{
+        id: 'att_2',
+        type: 'image',
+        mimeType: 'image/png',
+        resourceId: 43,
+      }],
+    },
+    imageProcessingPort: {
+      inspect: async () => { throw new Error('not used') },
+      process: async () => { throw new Error('download failed') },
+    } satisfies CoreImageProcessingPort,
+  })
   assert.equal(failed.clientInput.attachments[0]?.dataUrl, undefined)
   assert.equal(failed.clientInput.attachments[0]?.vision?.payload, 'metadata_only')
   assert.equal(failed.projections[0]?.status, 'failed')
-  assert.match(failed.projections[0]?.reason ?? '', /original image payload was not sent/)
+  assert.match(failed.projections[0]?.reason ?? '', /no image dataUrl was provided/)
 })
 
 function processedImageResult(): CoreImageProcessingResult {

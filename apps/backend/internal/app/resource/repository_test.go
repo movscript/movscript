@@ -10,13 +10,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testing.T) {
+func TestGormRepositoryUpdateResourceRecordPersistsEditableMetadataAndKeepsContentImmutable(t *testing.T) {
 	db := newResourceRepositoryTestDB(t)
 	repo := &gormRepository{db: db}
 	folderID := uint(3)
+	blobID := uint(5)
 	row := model.RawResource{
 		OwnerID:        1,
 		FolderID:       &folderID,
+		BlobID:         &blobID,
 		Type:           "image",
 		Name:           "old.png",
 		FilePath:       "old",
@@ -30,17 +32,10 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 	}
 	resource := domainresource.RawResourceFromModel(row)
 	empty := ""
-	size := int64(0)
 
 	if err := repo.UpdateResourceRecord(context.Background(), &resource, domainresource.UpdateSpec{
-		FilePath:       &empty,
-		StorageKey:     &empty,
-		StorageBackend: &empty,
-		Type:           &empty,
-		Name:           &empty,
-		MimeType:       &empty,
-		Size:           &size,
-		ClearFolder:    true,
+		Name:        &empty,
+		ClearFolder: true,
 	}); err != nil {
 		t.Fatalf("UpdateResourceRecord() error = %v", err)
 	}
@@ -49,14 +44,26 @@ func TestGormRepositoryUpdateResourceRecordPersistsUpdateSpecZeroValues(t *testi
 	if err := db.First(&stored, row.ID).Error; err != nil {
 		t.Fatalf("load stored resource: %v", err)
 	}
-	if stored.FilePath != "" || stored.StorageKey != "" || stored.StorageBackend != "" || stored.Type != "" || stored.Name != "" || stored.MimeType != "" {
-		t.Fatalf("string fields were not persisted as empty: %+v", stored)
+	if stored.Name != "" {
+		t.Fatalf("name was not persisted as empty: %+v", stored)
 	}
-	if stored.Size != 0 || stored.FolderID != nil {
-		t.Fatalf("zero values/folder clear were not persisted: %+v", stored)
+	if stored.FolderID != nil {
+		t.Fatalf("folder clear was not persisted: %+v", stored)
 	}
-	if resource.Size != 0 || resource.FolderID != nil {
+	if resource.FolderID != nil {
 		t.Fatalf("domain resource was not updated: %+v", resource)
+	}
+	if stored.FilePath != "old" || stored.StorageKey != "old" || stored.StorageBackend != "local" || stored.BlobID == nil || *stored.BlobID != blobID {
+		t.Fatalf("storage locator fields should not be updated: %+v", stored)
+	}
+	if resource.FilePath != "old" || resource.StorageKey != "old" || resource.StorageBackend != "local" || resource.BlobID == nil || *resource.BlobID != blobID {
+		t.Fatalf("domain storage locator fields should stay immutable: %+v", resource)
+	}
+	if stored.Type != "image" || stored.MimeType != "image/png" || stored.Size != 12 {
+		t.Fatalf("content-derived fields should not be updated: %+v", stored)
+	}
+	if resource.Type != "image" || resource.MimeType != "image/png" || resource.Size != 12 {
+		t.Fatalf("domain content-derived fields should stay immutable: %+v", resource)
 	}
 }
 

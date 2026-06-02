@@ -53,7 +53,6 @@ import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPag
 import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
-import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
@@ -804,8 +803,8 @@ export default function App() {
   const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
   useEffect(() => {
-    installAgentPerformanceObservers()
     installAgentTelemetryReporter()
+    installAgentPerformanceObservers()
   }, [])
 
   if (!settingsHydrated) {
@@ -923,7 +922,6 @@ export default function App() {
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
               <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
-              <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 

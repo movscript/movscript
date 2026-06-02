@@ -16,7 +16,6 @@ export const ROUTES = {
   agentConsole: '/agent',
   agentDrafts: '/agent/drafts',
   agentSettings: '/agent/settings',
-  agentDebug: '/agent/debug',
   agentRuns: '/agent/runs',
   agentRun: '/agent/runs/:runId',
   project: {

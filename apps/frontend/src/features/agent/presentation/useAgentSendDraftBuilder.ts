@@ -9,7 +9,7 @@ import {
   type AgentManifest,
   type AgentRuntimeLimitsOverride,
 } from '@/shared/infrastructure/localAgentClient'
-import { blobToDataURL, loadResourceFileBlob } from '@/shared/ui/resourceBlob'
+import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment, AgentSettings, ChatMessage } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel } from '@/types'
@@ -105,7 +105,7 @@ export function useAgentSendDraftBuilder(input: UseAgentSendDraftBuilderInput) {
         isLocalAgentNotFoundError,
         onPreviewError: (error) => toastMCPError(error, input.mcpEndpoint ?? localAgentClient.baseURL),
       },
-      resolveAttachmentDataUrl,
+      resolveAttachmentDataUrl: resolveAgentAttachmentDataUrl,
     })
   }, [
     input.input,
@@ -129,10 +129,4 @@ export function useAgentSendDraftBuilder(input: UseAgentSendDraftBuilderInput) {
     input.assertMCPReady,
     input.labels,
   ])
-}
-
-async function resolveAttachmentDataUrl(attachment: AgentAttachment): Promise<string | undefined> {
-  if (attachment.dataUrl) return attachment.dataUrl
-  if (attachment.type !== 'image' || !attachment.resourceId) return undefined
-  return blobToDataURL(await loadResourceFileBlob(attachment.resourceId))
 }

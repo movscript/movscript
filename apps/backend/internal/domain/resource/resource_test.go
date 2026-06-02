@@ -85,10 +85,12 @@ func TestNewStoredGeneratedResourceAppliesPendingPathAndKey(t *testing.T) {
 	}
 }
 
-func TestRawResourceApplyUpdateHandlesZeroValuesAndFolderClear(t *testing.T) {
+func TestRawResourceApplyUpdateHandlesEditableMetadataAndKeepsContentImmutable(t *testing.T) {
 	folderID := uint(3)
+	blobID := uint(5)
 	resource := RawResource{
 		FolderID:       &folderID,
+		BlobID:         &blobID,
 		Name:           "old.png",
 		FilePath:       "old",
 		StorageKey:     "old",
@@ -98,22 +100,21 @@ func TestRawResourceApplyUpdateHandlesZeroValuesAndFolderClear(t *testing.T) {
 		Size:           12,
 	}
 	empty := ""
-	size := int64(0)
 	resource.ApplyUpdate(UpdateSpec{
-		FilePath:       &empty,
-		StorageKey:     &empty,
-		StorageBackend: &empty,
-		Type:           &empty,
-		Name:           &empty,
-		MimeType:       &empty,
-		Size:           &size,
-		ClearFolder:    true,
+		Name:        &empty,
+		ClearFolder: true,
 	})
-	if resource.FilePath != "" || resource.StorageKey != "" || resource.StorageBackend != "" || resource.Type != "" || resource.Name != "" || resource.MimeType != "" {
-		t.Fatalf("string fields were not cleared: %+v", resource)
+	if resource.Name != "" {
+		t.Fatalf("name was not cleared: %+v", resource)
 	}
-	if resource.Size != 0 || resource.FolderID != nil {
-		t.Fatalf("zero values/folder clear were not applied: %+v", resource)
+	if resource.FolderID != nil {
+		t.Fatalf("folder clear was not applied: %+v", resource)
+	}
+	if resource.FilePath != "old" || resource.StorageKey != "old" || resource.StorageBackend != "local" || resource.BlobID == nil || *resource.BlobID != blobID {
+		t.Fatalf("storage locator fields should stay immutable: %+v", resource)
+	}
+	if resource.Type != "image" || resource.MimeType != "image/png" || resource.Size != 12 {
+		t.Fatalf("content-derived fields should stay immutable: %+v", resource)
 	}
 }
 

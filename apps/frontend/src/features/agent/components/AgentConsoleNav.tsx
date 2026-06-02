@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Blocks, ClipboardList, FileSearch, ListTree, Settings, Terminal } from 'lucide-react'
+import { BarChart3, Blocks, ClipboardList, FileSearch, ListTree, Settings } from 'lucide-react'
 import {
   AgentConsoleNavItem,
   AgentConsoleNavLinkWrapper,
@@ -35,12 +35,6 @@ const agentConsoleSections = [
     label: '运行记录',
     description: 'Run 列表与 trace 入口',
     icon: ListTree,
-  },
-  {
-    to: ROUTES.agentDebug,
-    label: '高级诊断',
-    description: 'Prompt、工具控制台、调试包',
-    icon: Terminal,
   },
   {
     to: ROUTES.agentDrafts,
@@ -80,7 +74,7 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
               业务审阅仍在各业务页面完成
             </AgentConsoleNavMeta>
             <AgentConsoleNavMeta>
-              控制台只负责配置文件、已安装能力、工具权限、运行、诊断和索引
+              控制台只负责配置文件、已安装能力、工具权限、运行和索引
             </AgentConsoleNavMeta>
           </AgentConsoleNavMetaRow>
         )}

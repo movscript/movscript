@@ -69,6 +69,14 @@ Backend health check:
 curl http://localhost:8765/health
 ```
 
+Start the community observability stack with the backend, Prometheus, and Grafana:
+
+```bash
+docker compose --profile observability up --build
+```
+
+Grafana is available at `http://localhost:3002` by default. Prometheus scrapes the backend `/metrics` endpoint automatically, including HTTP route metrics, shot vector metrics, Agent frontend phases, Agent network latency, Web Vitals, frontend errors, and privacy-safe telemetry ingest health. The same profile also loads Prometheus alert rules for backend availability, HTTP latency/errors, Agent telemetry rejection, Agent runtime latency/failures, frontend errors, and Web Vitals thresholds.
+
 Start the local agent when working on agent flows:
 
 ```bash

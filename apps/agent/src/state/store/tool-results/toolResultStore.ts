@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { JSONValue, ToolCall } from '../../shared/types.js'
 import type { ModelToolResultContext, ModelToolResultRef } from '../../../context/tool-result/toolResultContext.js'
 import { isJSONValue, isRecord } from '../../../shared/json/jsonValue.js'
+import type { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
 export interface AgentToolResultRecord {
   schema: 'movscript.agent.tool-result.v1'
@@ -127,7 +128,7 @@ export class InMemoryAgentToolResultStore implements AgentToolResultStore {
 }
 
 export class FileAgentToolResultStore extends InMemoryAgentToolResultStore {
-  constructor(readonly filePath = resolveAgentToolResultPath()) {
+  constructor(readonly filePath = resolveAgentToolResultPath(), private readonly telemetry?: RuntimeTelemetryRegistry) {
     super()
     this.load()
   }
@@ -159,10 +160,46 @@ export class FileAgentToolResultStore extends InMemoryAgentToolResultStore {
   }
 
   private persist(): void {
-    atomicWriteJSON(this.filePath, {
-      version: 1,
-      records: this.listToolResults(),
+    const startedAt = Date.now()
+    try {
+      atomicWriteJSON(this.filePath, {
+        version: 1,
+        records: this.listToolResults(),
+      })
+      this.recordStorageFlush('success', Date.now() - startedAt)
+    } catch (error) {
+      this.recordStorageFlush('error', Date.now() - startedAt)
+      throw error
+    }
+  }
+
+  private recordStorageFlush(status: 'success' | 'error', durationMs: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_flush_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'tool_result_store',
+        kind: 'tool_results_file',
+        stage: 'flush',
+        status,
+      },
     })
+    if (status !== 'success') return
+    const bytes = fileSizeSafe(this.filePath)
+    if (bytes !== undefined) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'tool_result_store',
+          kind: 'tool_results_file',
+          stage: 'flush',
+          status,
+        },
+      })
+    }
   }
 }
 
@@ -243,6 +280,14 @@ function atomicWriteJSON(filePath: string, value: unknown): void {
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
   writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   renameSync(tmpPath, filePath)
+}
+
+function fileSizeSafe(filePath: string): number | undefined {
+  try {
+    return statSync(filePath).size
+  } catch {
+    return undefined
+  }
 }
 
 function clone<T>(value: T): T {

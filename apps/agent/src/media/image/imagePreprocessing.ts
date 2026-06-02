@@ -32,6 +32,14 @@ interface SharpPipeline {
 
 export type ImageProcessorFactory = () => Promise<SharpFactory>
 
+interface LoadedImageBytes {
+  kind: 'backend_resource' | 'data_url'
+  resourceId?: number
+  mimeType?: string
+  bytes: Buffer
+  warnings: string[]
+}
+
 export interface ImagePreprocessingBackendClient {
   downloadResourceFile: Pick<BackendApplyClient, 'downloadResourceFile'>['downloadResourceFile']
 }
@@ -56,9 +64,10 @@ const MIME_BY_FORMAT: Record<CoreImageOutputFormat, string> = {
 
 export function createSharpImageProcessingPort(options: ImagePreprocessingPortOptions): CoreImageProcessingPort {
   const cache = new Map<string, CoreImageProcessingResult>()
+  const sourceCache = new Map<string, Promise<LoadedImageBytes>>()
   return {
     async inspect(input) {
-      const loaded = await loadImageBytes(input, options.backendApplyClient)
+      const loaded = await loadImageBytes(input, options.backendApplyClient, sourceCache)
       const sharp = await (options.processorFactory ?? loadSharp)()
       const metadata = await sharp(loaded.bytes, { animated: false }).metadata()
       return {
@@ -75,7 +84,7 @@ export function createSharpImageProcessingPort(options: ImagePreprocessingPortOp
       }
     },
     async process(input) {
-      const loaded = await loadImageBytes(input, options.backendApplyClient)
+      const loaded = await loadImageBytes(input, options.backendApplyClient, sourceCache)
       const preset = normalizePreset(input.preset)
       const resolved = resolveOutputOptions(input, preset)
       const cacheKey = JSON.stringify({
@@ -149,13 +158,8 @@ export function createSharpImageProcessingPort(options: ImagePreprocessingPortOp
 async function loadImageBytes(
   input: CoreImageProcessingRequest,
   backendApplyClient: ImagePreprocessingBackendClient,
-): Promise<{
-  kind: 'backend_resource' | 'data_url'
-  resourceId?: number
-  mimeType?: string
-  bytes: Buffer
-  warnings: string[]
-}> {
+  sourceCache: Map<string, Promise<LoadedImageBytes>>,
+): Promise<LoadedImageBytes> {
   if (input.dataUrl) {
     const parsed = parseImageDataUrl(input.dataUrl)
     if (parsed) {
@@ -169,6 +173,24 @@ async function loadImageBytes(
     }
   }
   if (input.resourceId === undefined) throw new Error('image processing requires resourceId or image dataUrl')
+  const resourceInput = { ...input, resourceId: input.resourceId }
+  const cacheKey = backendResourceImageSourceCacheKey(resourceInput)
+  const cached = sourceCache.get(cacheKey)
+  if (cached) return cached
+
+  const loadPromise = loadBackendResourceImageBytes(resourceInput, backendApplyClient)
+    .catch((error) => {
+      sourceCache.delete(cacheKey)
+      throw error
+    })
+  sourceCache.set(cacheKey, loadPromise)
+  return loadPromise
+}
+
+async function loadBackendResourceImageBytes(
+  input: CoreImageProcessingRequest & { resourceId: number },
+  backendApplyClient: ImagePreprocessingBackendClient,
+): Promise<LoadedImageBytes> {
   const dir = await mkdtemp(join(tmpdir(), 'movscript-agent-image-'))
   const targetPath = join(dir, `resource-${input.resourceId}`)
   let download: BackendResourceFileDownloadResult | undefined
@@ -188,6 +210,17 @@ async function loadImageBytes(
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined)
   }
+}
+
+function backendResourceImageSourceCacheKey(input: CoreImageProcessingRequest & { resourceId: number }): string {
+  const auth = backendAuthFromRun(input.run)
+  const raw = JSON.stringify({
+    resourceId: input.resourceId,
+    userId: auth.userId ?? null,
+    backendAuthTokenHash: auth.backendAuthToken ? sha256(Buffer.from(auth.backendAuthToken)) : null,
+    backendAPIBaseURL: auth.backendAPIBaseURL ?? null,
+  })
+  return createHash('sha256').update(raw).digest('hex')
 }
 
 function parseImageDataUrl(value: string): { mimeType: string; bytes: Buffer } | undefined {

@@ -144,13 +144,14 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
   const effectiveRuntimeLimits = options.runtimeLimits
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
   const text = (options.message ?? input.draftInput).trim()
+  const warnings: string[] = []
   const sentAttachments = options.message === undefined
     ? input.composerAttachments
     : dedupeAttachments([
       ...(options.clientInput?.attachments?.length ? options.clientInput.attachments.map(attachmentFromClientInputRef) : input.attachments),
       ...resourceMentionAttachments(text, input.resourceAttachmentIndex),
     ])
-  const clientAttachmentRefs = await resolveAgentClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl)
+  const clientAttachmentRefs = await resolveAgentClientAttachmentRefs(sentAttachments, input.resolveAttachmentDataUrl, (warning) => warnings.push(warning))
   const visibleText = (options.displayMessage ?? text).trim()
   const visibleUserContent = visibleText || input.attachmentOnlyMessageLabel
   const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
@@ -184,7 +185,6 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
     { role: 'user' as const, content: enrichedUserContent },
   ]
   const debugMessages = options.omitDebugArtifacts ? [] : messages
-  const warnings: string[] = []
   const threadId = diagnosticCommand ? undefined : input.localThreadId || undefined
   const localRuntimeProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
   const localRuntime: AgentSendDraft['localRuntime'] = {
@@ -323,9 +323,19 @@ export function buildAgentClientInput(options: {
 async function resolveAgentClientAttachmentRefs(
   attachments: AgentAttachment[],
   resolveDataUrl?: (attachment: AgentAttachment) => Promise<string | undefined>,
+  onWarning?: (warning: string) => void,
 ): Promise<NonNullable<AgentClientInput['attachments']>> {
   return Promise.all(attachments.map(async (attachment) => {
-    const dataUrl = attachment.dataUrl ?? (isImageAttachment(attachment) ? await resolveDataUrl?.(attachment) : undefined)
+    let dataUrl = attachment.dataUrl
+    if (!dataUrl && isImageAttachment(attachment) && resolveDataUrl) {
+      try {
+        dataUrl = await resolveDataUrl(attachment)
+      } catch (error) {
+        const id = attachment.resourceId !== undefined ? `resource_id=${attachment.resourceId}` : attachment.id
+        const message = error instanceof Error ? error.message : String(error)
+        onWarning?.(`Image attachment ${attachment.name} (${id}) could not be loaded before send and will be metadata-only: ${message}`)
+      }
+    }
     return agentAttachmentToClientInputRef(dataUrl ? { ...attachment, dataUrl } : attachment)
   }))
 }
@@ -451,7 +461,7 @@ function attachmentPromptBlock(attachments: AgentAttachment[]) {
     const payload = attachment.dataUrl ? ', image_payload=data_url' : attachment.type === 'video' ? ', video_payload=metadata_only' : ''
     return `${index + 1}. ${attachment.name} (${attachment.type}, ${attachment.mimeType || 'unknown'}, ${formatBytesForPrompt(attachment.size)}, ${id}${payload})`
   })
-  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会先由本地 runtime 预处理，只有优化后的图片 payload 会进入 vision 模型上下文；视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
+  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会先由本地 runtime 预处理，优化后的图片 payload 会优先进入 vision 模型上下文；预处理不可用或失败时回退发送原始图片 payload。视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
 }
 
 function parseResourceMentionIds(text: string): number[] {

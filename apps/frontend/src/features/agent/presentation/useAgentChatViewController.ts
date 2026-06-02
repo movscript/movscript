@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { buildAgentChatInteractionControllerInput } from '@/features/agent/presentation/agentChatInteractionInputs'
 import { buildAgentChatViewLayoutProps } from '@/features/agent/presentation/agentChatViewLayoutProps'
@@ -57,6 +58,10 @@ export function useAgentChatViewController({
     conversation: conv,
     userId,
   })
+  const effectiveConversation = useMemo(() => {
+    if (!store.runtimeThreadProjectionMessages) return conv
+    return { ...conv, messages: store.runtimeThreadProjectionMessages }
+  }, [conv, store.runtimeThreadProjectionMessages])
   const runtime = useAgentChatRuntimeState({
     conversationId: conv.id,
   })
@@ -94,7 +99,7 @@ export function useAgentChatViewController({
     input: composer.input,
     inputPlaceholder: t('agents.chat.inputPlaceholder'),
     loading,
-    messages: conv.messages,
+    messages: effectiveConversation.messages,
     pendingAssistantState: runtime.pendingAssistantState,
     pendingSendDraft: runtime.pendingSendDraft,
     runtimeApproving: store.conversationRuntime?.approving,
@@ -112,7 +117,7 @@ export function useAgentChatViewController({
     buildingSendDraft,
     composer,
     context,
-    conv,
+    conv: effectiveConversation,
     externalTask,
     loading,
     onExternalDraftConsumed,
@@ -127,7 +132,7 @@ export function useAgentChatViewController({
   return buildAgentChatViewLayoutProps({
     activeLocalRun,
     composer,
-    conv,
+    conv: effectiveConversation,
     conversations,
     archivedConversations,
     currentProject: store.currentProject,

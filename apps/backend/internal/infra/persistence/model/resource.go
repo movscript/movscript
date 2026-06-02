@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -36,6 +37,13 @@ type RawResource struct {
 	CloudUploads string `gorm:"default:'{}'" json:"-"`
 }
 
+func (*RawResource) BeforeUpdate(tx *gorm.DB) error {
+	if tx.Statement.Changed("FilePath", "StorageBackend", "StorageKey", "Type", "MimeType", "Size") {
+		return errors.New("resource content identity is immutable")
+	}
+	return nil
+}
+
 type ResourceBlob struct {
 	gorm.Model
 	Hash           string `gorm:"uniqueIndex;not null;size:128" json:"hash"`
@@ -44,6 +52,13 @@ type ResourceBlob struct {
 	Size           int64  `json:"size"`
 	MimeType       string `json:"mime_type"`
 	RefCount       int    `gorm:"not null;default:0" json:"ref_count"`
+}
+
+func (*ResourceBlob) BeforeUpdate(tx *gorm.DB) error {
+	if tx.Statement.Changed("Hash", "StorageBackend", "StorageKey", "Size", "MimeType") {
+		return errors.New("resource blob content identity is immutable")
+	}
+	return nil
 }
 
 type ResourceFolder struct {

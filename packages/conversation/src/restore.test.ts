@@ -135,19 +135,19 @@ test('restoreRuntimeThreadConversation creates a restored conversation from runt
   }))
 
   assert.deepEqual(result, {
-    conversationId: 'created_conv',
+    conversationId: 'thread_3',
     threadId: 'thread_3',
     reusedExistingConversation: false,
     restoredMessageCount: 1,
   })
   assert.deepEqual(calls, [
     'load:thread_3',
-    'create',
-    'title:created_conv:Runtime thread',
-    'message:created_conv:runtime_msg_1:Restored',
-    'localThread:created_conv:thread_3',
-    'runtimeThread:created_conv:thread_3',
-    'active:created_conv',
+    'createRuntime:thread_3:Runtime thread',
+    'title:thread_3:Runtime thread',
+    'projection:thread_3:thread_3:none:1:Restored',
+    'localThread:thread_3:thread_3',
+    'runtimeThread:thread_3:thread_3',
+    'active:thread_3',
   ])
 })
 
@@ -160,9 +160,9 @@ test('restoreRuntimeThreadConversation persists restored session and thread anch
     },
   }))
 
-  assert.equal(calls.includes('session:created_conv:session_3'), true)
-  assert.equal(calls.includes('runtimeSession:created_conv:session_3'), true)
-  assert.equal(calls.includes('runtimeThread:created_conv:thread_3'), true)
+  assert.equal(calls.includes('session:thread_3:session_3'), true)
+  assert.equal(calls.includes('runtimeSession:thread_3:session_3'), true)
+  assert.equal(calls.includes('runtimeThread:thread_3:thread_3'), true)
 })
 
 function depsFixture(
@@ -186,9 +186,9 @@ function depsFixture(
       calls.push(`load:${threadId}`)
       return options.projection ?? { thread: thread({ id: threadId }), messages: [message()] }
     },
-    createConversation: () => {
-      calls.push('create')
-      return 'created_conv'
+    createRuntimeConversation: (_userId, input) => {
+      calls.push(`createRuntime:${input.threadId}:${input.title}`)
+      return input.threadId
     },
     setActiveConversation: (_userId, conversationId) => {
       calls.push(`active:${conversationId}`)
@@ -196,10 +196,8 @@ function depsFixture(
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)
     },
-    messageStore: {
-      upsertMessage: (_userId, conversationId, messageId, item) => {
-        calls.push(`message:${conversationId}:${messageId}:${item.meta?.contextLabels?.[0]}`)
-      },
+    setRuntimeThreadProjection: (input) => {
+      calls.push(`projection:${input.conversationId}:${input.threadId}:${input.sessionId ?? 'none'}:${input.messages.length}:${input.messages[0]?.meta?.contextLabels?.[0]}`)
     },
     setLocalThreadId: (conversationId, threadId) => {
       calls.push(`localThread:${conversationId}:${threadId}`)

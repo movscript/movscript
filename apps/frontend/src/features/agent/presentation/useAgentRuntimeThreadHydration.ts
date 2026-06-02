@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { fetchResourceById } from '@/features/agent/domain/agentMessageViewModel'
-import type { AgentConversationMessageStore } from '@movscript/conversation'
 import { loadRuntimeThreadProjection } from '@/features/agent/application/agentRuntimeThreadHydration'
 import { hydrateRuntimeThreadConversation } from '@/features/agent/application/agentRuntimeThreadConversationHydration'
 import { STOPPED_RUNTIME_STATUS_LIGHT, type AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
-import { useAgentStore, type ChatMessage, type ChatMessageMeta } from '@/features/agent/state/agentStore'
+import { useAgentStore, type ChatMessage } from '@/features/agent/state/agentStore'
 import { runtimeThreadProjectionShouldRefresh } from '@movscript/event-state'
 
 export interface UseAgentRuntimeThreadHydrationInput {
@@ -24,10 +23,10 @@ export interface UseAgentRuntimeThreadHydrationInput {
   setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
+  setRuntimeThreadProjection: (input: { conversationId: string; threadId: string; sessionId?: string; messages: ChatMessage[] }) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   setRuntimeStatusLight: (status: AgentRuntimeStatusLight) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'setConversationMessages'>
 }
 
 export function useAgentRuntimeThreadHydration({
@@ -45,10 +44,10 @@ export function useAgentRuntimeThreadHydration({
   setConversationRuntimeSessionId,
   setConversationRuntimeThreadId,
   setConversationRun,
+  setRuntimeThreadProjection,
   setSubmittedInteractionRuns,
   setRuntimeStatusLight,
   updateConversationTitle,
-  messageStore,
 }: UseAgentRuntimeThreadHydrationInput) {
   const hydratedRuntimeThreadKeysRef = useRef<Set<string>>(new Set())
   const streamHydrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -86,10 +85,10 @@ export function useAgentRuntimeThreadHydration({
       setConversationRuntimeSessionId,
       setConversationRuntimeThreadId,
       setConversationRun,
+      setRuntimeThreadProjection,
       setSubmittedInteractionRuns,
       setRuntimeStatusLight,
       updateConversationTitle,
-      messageStore,
     }).catch(() => undefined)
     return () => {
       controller.abort()
@@ -101,13 +100,13 @@ export function useAgentRuntimeThreadHydration({
     loading,
     localSessionId,
     localThreadId,
-    messageStore,
     runtimeBuilding,
     runtimeLoading,
     setConversationRuntimeThreadId,
     setConversationSessionId,
     setConversationRuntimeSessionId,
     setConversationRun,
+    setRuntimeThreadProjection,
     setSubmittedInteractionRuns,
     setRuntimeStatusLight,
     setLocalThreadId,
@@ -146,10 +145,10 @@ export function useAgentRuntimeThreadHydration({
         setConversationRuntimeSessionId,
         setConversationRuntimeThreadId,
         setConversationRun,
-        setSubmittedInteractionRuns,
-        setRuntimeStatusLight,
-        updateConversationTitle,
-        messageStore,
+        setRuntimeThreadProjection,
+       setSubmittedInteractionRuns,
+       setRuntimeStatusLight,
+       updateConversationTitle,
       }).catch(() => undefined)
     }
     const scheduleHydration = () => {
@@ -187,13 +186,13 @@ export function useAgentRuntimeThreadHydration({
     loading,
     localSessionId,
     localThreadId,
-    messageStore,
     runtimeBuilding,
     runtimeLoading,
     setConversationRuntimeThreadId,
     setConversationSessionId,
     setConversationRuntimeSessionId,
     setConversationRun,
+    setRuntimeThreadProjection,
     setSubmittedInteractionRuns,
     setRuntimeStatusLight,
     setLocalThreadId,

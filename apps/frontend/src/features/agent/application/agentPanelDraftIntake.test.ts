@@ -4,9 +4,9 @@ import test from 'node:test'
 import { activateConversationForPanelDraft, consumeQueuedPanelDrafts, type AgentPanelDraftConversationDeps } from './agentPanelDraftIntake'
 import type { AgentPanelDraftPayload } from '@/features/agent/application/agentPanelBridge'
 
-test('activateConversationForPanelDraft selects the active conversation by default and binds page task', () => {
+test('activateConversationForPanelDraft selects the active conversation by default and binds page task', async () => {
   const calls: string[] = []
-  const result = activateConversationForPanelDraft({
+  const result = await activateConversationForPanelDraft({
     message: 'Hello',
     title: 'Task title',
     requestId: 'req_1',
@@ -20,33 +20,33 @@ test('activateConversationForPanelDraft selects the active conversation by defau
   ])
 })
 
-test('activateConversationForPanelDraft creates a new conversation when requested or when none is active', () => {
+test('activateConversationForPanelDraft creates a runtime conversation when requested or when none is active', async () => {
   const calls: string[] = []
-  const result = activateConversationForPanelDraft({
+  const result = await activateConversationForPanelDraft({
     message: 'Hello',
     newConversation: true,
   }, depsFixture(calls, { activeConversationId: 'active_conv' }))
 
-  assert.equal(result, 'created_conv_1')
-  assert.deepEqual(calls, ['create:created_conv_1', 'active:created_conv_1'])
+  assert.equal(result, 'runtime_conv_1')
+  assert.deepEqual(calls, ['runtime:Hello:runtime_conv_1', 'active:runtime_conv_1'])
 })
 
-test('consumeQueuedPanelDrafts drains consecutive queued payloads with messages', () => {
+test('consumeQueuedPanelDrafts drains consecutive queued payloads with messages', async () => {
   const calls: string[] = []
   const queue: Array<AgentPanelDraftPayload | null> = [
     { message: 'One', newConversation: true },
     { message: 'Two', title: 'Second' },
     { message: '   ' },
   ]
-  const result = consumeQueuedPanelDrafts(() => queue.shift(), depsFixture(calls, { activeConversationId: null }))
+  const result = await consumeQueuedPanelDrafts(() => queue.shift(), depsFixture(calls, { activeConversationId: null }))
 
-  assert.deepEqual(result, ['created_conv_1', 'created_conv_2'])
+  assert.deepEqual(result, ['runtime_conv_1', 'runtime_conv_2'])
   assert.deepEqual(calls, [
-    'create:created_conv_1',
-    'active:created_conv_1',
-    'create:created_conv_2',
-    'title:created_conv_2:Second',
-    'active:created_conv_2',
+    'runtime:One:runtime_conv_1',
+    'active:runtime_conv_1',
+    'runtime:Two:runtime_conv_2',
+    'title:runtime_conv_2:Second',
+    'active:runtime_conv_2',
   ])
 })
 
@@ -57,10 +57,10 @@ function depsFixture(
   let createCount = 0
   return {
     userId: 'user_1',
-    createConversation: () => {
+    createConversationForDraft: async (payload) => {
       createCount += 1
-      const id = `created_conv_${createCount}`
-      calls.push(`create:${id}`)
+      const id = `runtime_conv_${createCount}`
+      calls.push(`runtime:${payload.message}:${id}`)
       return id
     },
     getActiveConversationId: () => options.activeConversationId,

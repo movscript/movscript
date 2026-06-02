@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { FileAgentDraftStore, InMemoryAgentDraftStore, validateDraft } from './draftStore.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
+import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
 
 test('listDrafts filters by threadId and runId', () => {
   const store = new InMemoryAgentDraftStore()
@@ -725,6 +726,29 @@ test('file draft store persists draft content files across rebuilds', () => {
     assert.equal(restored?.source?.entityType, 'scene_moment')
     assert.equal(read.content, 'Check storyboard-line gaps.')
     assert.equal(rebuilt.listDrafts({ projectId: 42 }).length, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file draft store records storage telemetry on persist', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+  try {
+    const draftPath = join(dir, 'drafts.json')
+    const telemetry = new RuntimeTelemetryRegistry()
+    const store = new FileAgentDraftStore(draftPath, telemetry)
+
+    store.createDraft({
+      projectId: 42,
+      kind: 'project_standards_proposal',
+      title: 'Review note',
+      content: 'Check storyboard-line gaps.',
+    })
+
+    const metrics = telemetry.snapshot().metrics
+    assert.equal(metrics.some((sample) => sample.name === 'movscript_agent_storage_flush_duration_ms' && sample.labels?.component === 'draft_store'), true)
+    assert.equal(metrics.some((sample) => sample.name === 'movscript_agent_storage_file_bytes' && sample.labels?.kind === 'draft_index_file' && sample.value > 0), true)
+    assert.equal(metrics.some((sample) => sample.name === 'movscript_agent_storage_file_bytes' && sample.labels?.kind === 'draft_content_files' && sample.value > 0), true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

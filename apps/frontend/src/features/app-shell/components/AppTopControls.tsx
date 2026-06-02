@@ -77,7 +77,6 @@ export function AppTopControls({
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
   const conversationCount = useAgentStore((s) => s.convsByUser[userId]?.conversations.length ?? 0)
-  const createConversation = useAgentStore((s) => s.createConversation)
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
@@ -118,7 +117,6 @@ export function AppTopControls({
 
   function handleAssistantShortcut() {
     if (conversationCount === 0) {
-      createConversation(userId)
       setAgentPanelOpen(true)
       return
     }

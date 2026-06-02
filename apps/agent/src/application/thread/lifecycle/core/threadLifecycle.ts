@@ -1,5 +1,6 @@
 import { cloneJSONValue, isJSONRecord } from '../../../../shared/json/jsonValue.js'
 import { isValidAgentProjectId } from '../../../../context/runtime/runtimeContext.js'
+import type { AgentConversationLifecycle } from '@movscript/protocol'
 import type { AgentSession, AgentThread, AgentThreadRole, CreateThreadInput, UpdateThreadInput } from '../../../../state/shared/types.js'
 export {
   appendThreadMessage,
@@ -18,6 +19,8 @@ export function buildAgentSession(input: {
   const threadInput = input.threadInput ?? {}
   return {
     id: input.id,
+    lifecycle: normalizeAgentConversationLifecycle(threadInput.lifecycle) ?? 'active',
+    ...(typeof threadInput.expiresAt === 'string' && threadInput.expiresAt.trim() ? { expiresAt: threadInput.expiresAt.trim() } : {}),
     ...(typeof threadInput.title === 'string' && threadInput.title.trim() ? { title: threadInput.title.trim() } : {}),
     ...(isValidAgentProjectId(threadInput.projectId) ? { projectId: threadInput.projectId } : {}),
     ...(isJSONRecord(threadInput.metadata) ? { metadata: cloneJSONValue(threadInput.metadata) } : {}),
@@ -39,6 +42,8 @@ export function buildAgentThread(input: {
   return {
     id: input.id,
     ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    lifecycle: normalizeAgentConversationLifecycle(threadInput.lifecycle) ?? 'active',
+    ...(typeof threadInput.expiresAt === 'string' && threadInput.expiresAt.trim() ? { expiresAt: threadInput.expiresAt.trim() } : {}),
     ...(typeof threadInput.title === 'string' && threadInput.title.trim() ? { title: threadInput.title.trim() } : {}),
     ...(typeof threadInput.agentName === 'string' && threadInput.agentName.trim() ? { agentName: threadInput.agentName.trim() } : {}),
     agentRole,
@@ -58,6 +63,10 @@ function normalizeAgentThreadRole(value: unknown): AgentThreadRole | undefined {
   return value === 'root' || value === 'planner' || value === 'worker' ? value : undefined
 }
 
+function normalizeAgentConversationLifecycle(value: unknown): AgentConversationLifecycle | undefined {
+  return value === 'provisional' || value === 'active' || value === 'abandoned' ? value : undefined
+}
+
 export function applyThreadUpdate(input: {
   thread: AgentThread
   update: UpdateThreadInput
@@ -72,6 +81,13 @@ export function applyThreadUpdate(input: {
   if (typeof update.archived === 'boolean') thread.archived = update.archived
   if (isJSONRecord(update.metadata)) {
     thread.metadata = { ...(thread.metadata ?? {}), ...cloneJSONValue(update.metadata) }
+  }
+  const lifecycle = normalizeAgentConversationLifecycle(update.lifecycle)
+  if (lifecycle) thread.lifecycle = lifecycle
+  if (typeof update.expiresAt === 'string') {
+    const expiresAt = update.expiresAt.trim()
+    if (expiresAt) thread.expiresAt = expiresAt
+    else delete thread.expiresAt
   }
   thread.updatedAt = now
   return thread

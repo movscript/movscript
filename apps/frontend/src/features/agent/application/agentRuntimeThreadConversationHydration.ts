@@ -2,9 +2,8 @@ import { loadRuntimeThreadProjection, type RuntimeThreadHydrationResult } from '
 import { mergeRuntimeThreadProjectionMessages, runtimeThreadHydrationKey } from '@movscript/conversation'
 import { runHasRunInteraction, upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
-import type { AgentConversationMessageStore } from '@movscript/conversation'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage, ChatMessageMeta } from '@/features/agent/state/agentStore'
+import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export type RuntimeThreadConversationHydrationStatus = 'hydrated' | 'skipped' | 'cancelled'
 
@@ -23,7 +22,7 @@ export interface HydrateRuntimeThreadConversationDeps {
   setSubmittedInteractionRuns?: (updater: (current: AgentRun[]) => AgentRun[]) => void
   setRuntimeStatusLight?: (status: AgentRuntimeStatusLight) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'setConversationMessages'>
+  setRuntimeThreadProjection: (input: { conversationId: string; threadId: string; sessionId?: string; messages: ChatMessage[] }) => void
 }
 
 export async function hydrateRuntimeThreadConversation(input: {
@@ -77,11 +76,13 @@ export async function hydrateRuntimeThreadConversation(input: {
     deps.setRuntimeStatusLight?.(projection.runtimeStatusLight)
     const title = projection.thread.title?.trim()
     if (title) deps.updateConversationTitle(input.userId, input.conversationId, title)
-    deps.messageStore.setConversationMessages(
-      input.userId,
-      input.conversationId,
-      mergeRuntimeThreadProjectionMessages(input.existingMessages, projection),
-    )
+    const messages = mergeRuntimeThreadProjectionMessages(input.existingMessages, projection)
+    deps.setRuntimeThreadProjection({
+      conversationId: input.conversationId,
+      threadId: projection.thread.id,
+      ...(projectionSessionId ? { sessionId: projectionSessionId } : {}),
+      messages,
+    })
     return 'hydrated'
   } catch (error) {
     input.hydratedKeys.delete(hydrateKey)

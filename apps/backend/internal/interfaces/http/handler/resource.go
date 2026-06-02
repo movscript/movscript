@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -125,6 +127,13 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 	}
 	if r.StorageKey == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no storage key"})
+		return
+	}
+	etag := resourceFileETag(r)
+	c.Header("Cache-Control", "private, max-age=31536000, immutable")
+	c.Header("ETag", etag)
+	if resourceETagMatches(c.GetHeader("If-None-Match"), etag) {
+		c.Status(http.StatusNotModified)
 		return
 	}
 
@@ -308,6 +317,34 @@ func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
 
 func resourceURL(c *gin.Context, id uint) string {
 	return fmt.Sprintf("/api/v1/resources/%d/file", id)
+}
+
+func resourceFileETag(resource domainresource.RawResource) string {
+	raw := fmt.Sprintf("%d:%s:%d:%s", resource.ID, resource.StorageKey, resource.Size, resource.MimeType)
+	sum := sha256.Sum256([]byte(raw))
+	return fmt.Sprintf("%q", hex.EncodeToString(sum[:]))
+}
+
+func resourceETagMatches(ifNoneMatch string, etag string) bool {
+	if strings.TrimSpace(ifNoneMatch) == "" || strings.TrimSpace(etag) == "" {
+		return false
+	}
+	expected := normalizeResourceETag(etag)
+	for _, candidate := range strings.Split(ifNoneMatch, ",") {
+		normalized := normalizeResourceETag(candidate)
+		if normalized == "*" || (normalized != "" && normalized == expected) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeResourceETag(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(strings.ToLower(trimmed), "w/") {
+		trimmed = strings.TrimSpace(trimmed[2:])
+	}
+	return trimmed
 }
 
 func mimeToType(mime, filename string) string {

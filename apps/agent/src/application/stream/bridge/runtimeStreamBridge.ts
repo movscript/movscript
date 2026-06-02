@@ -131,8 +131,7 @@ export function createRuntimeStreamBridge(input: {
         ...(typeof event.durationMs === 'number' ? { durationMs: event.durationMs } : {}),
         ...(event.toolName ? { toolName: event.toolName } : {}),
         labels: {
-          ...(run.role ? { run_role: run.role } : {}),
-          ...(event.roundSource ? { round_source: event.roundSource } : {}),
+          ...(run.role ? { role: run.role } : {}),
         },
       })
       return event

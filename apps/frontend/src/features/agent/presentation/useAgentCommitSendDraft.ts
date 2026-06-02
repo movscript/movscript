@@ -20,6 +20,7 @@ export interface UseAgentCommitSendDraftInput {
   setConversationSessionId: CommitAgentSendDraftDeps['setConversationSessionId']
   setConversationRuntimeSessionId?: CommitAgentSendDraftDeps['setConversationRuntimeSessionId']
   setConversationRuntimeThreadId: CommitAgentSendDraftDeps['setConversationRuntimeThreadId']
+  setRuntimeThreadProjection: CommitAgentSendDraftDeps['setRuntimeThreadProjection']
   updateConversationTitle: CommitAgentSendDraftDeps['updateConversationTitle']
   setLocalThreadId: CommitAgentSendDraftDeps['setLocalThreadId']
   setPageTaskRunning: CommitAgentSendDraftDeps['setPageTaskRunning']
@@ -62,6 +63,7 @@ export function useAgentCommitSendDraft({
   setConversationSessionId,
   setConversationRuntimeSessionId,
   setConversationRuntimeThreadId,
+  setRuntimeThreadProjection,
   updateConversationTitle,
   setLocalThreadId,
   setPageTaskRunning,
@@ -97,6 +99,7 @@ export function useAgentCommitSendDraft({
       setConversationSessionId,
       setConversationRuntimeSessionId,
       setConversationRuntimeThreadId,
+      setRuntimeThreadProjection,
       updateConversationTitle,
       setLocalThreadId,
       setPageTaskRunning,
@@ -148,6 +151,7 @@ export function useAgentCommitSendDraft({
     setConversationRun,
     setConversationRuntime,
     setConversationRuntimeThreadId,
+    setRuntimeThreadProjection,
     setLiveTraceEvents,
     setLocalThreadId,
     setMentionRange,

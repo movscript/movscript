@@ -4,6 +4,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import type { AgentTraceEvent, AgentTraceEventKind, JSONValue } from '../../shared/types.js'
+import type { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
 interface FileTraceIndex {
   version: 1
@@ -24,6 +25,7 @@ interface FileTraceThreadIndex {
 interface FileTraceRunIndex {
   runId: string
   threadId?: string
+  eventIds?: string[]
   eventCount: number
   byKind: Partial<Record<AgentTraceEventKind, number>>
   firstEventAt?: string
@@ -43,36 +45,47 @@ export class FileTraceStore {
   readonly rootDir: string
   readonly indexPath: string
   private index: FileTraceIndex
+  private readonly telemetry: RuntimeTelemetryRegistry | undefined
 
-  constructor(rootDir: string) {
+  constructor(rootDir: string, telemetry?: RuntimeTelemetryRegistry) {
     this.rootDir = rootDir
     this.indexPath = join(rootDir, 'index.json')
+    this.telemetry = telemetry
     this.index = this.loadIndex()
   }
 
   appendTraceEvent(event: AgentTraceEvent, options: { threadId?: string } = {}): void {
-    const runIndex = this.ensureRunIndex(event.runId, options.threadId)
-    const replacesExistingEvent = this.readRunTraceEvents(event.runId).some((item) => item.id === event.id)
-    const storedEvent = this.prepareEventForStorage(event, runIndex)
-    const line = `${JSON.stringify(storedEvent)}\n`
-    const chunk = this.ensureWritableChunk(runIndex, Buffer.byteLength(line))
-    const chunkPath = join(this.rootDir, chunk)
-    mkdirSync(dirname(chunkPath), { recursive: true })
-    appendFileSync(chunkPath, line, 'utf8')
-    runIndex.bytes += Buffer.byteLength(line)
-    if (replacesExistingEvent) {
-      this.rebuildRunIndexMetrics(runIndex)
-    } else {
-      runIndex.eventCount += 1
-      runIndex.byKind[storedEvent.kind] = (runIndex.byKind[storedEvent.kind] ?? 0) + 1
-      runIndex.firstEventAt = minDate(runIndex.firstEventAt, storedEvent.createdAt)
-      runIndex.lastEventAt = maxDate(runIndex.lastEventAt, storedEvent.createdAt)
-      if (!runIndex.latestEvent || storedEvent.createdAt.localeCompare(runIndex.latestEvent.createdAt) >= 0) {
-        runIndex.latestEvent = storedEvent
+    const startedAt = Date.now()
+    try {
+      const runIndex = this.ensureRunIndex(event.runId, options.threadId)
+      const eventIds = this.ensureRunEventIds(runIndex)
+      const replacesExistingEvent = eventIds.has(event.id)
+      const storedEvent = this.prepareEventForStorage(event, runIndex)
+      const line = `${JSON.stringify(storedEvent)}\n`
+      const chunk = this.ensureWritableChunk(runIndex, Buffer.byteLength(line))
+      const chunkPath = join(this.rootDir, chunk)
+      mkdirSync(dirname(chunkPath), { recursive: true })
+      appendFileSync(chunkPath, line, 'utf8')
+      runIndex.bytes += Buffer.byteLength(line)
+      if (replacesExistingEvent) {
+        this.rebuildRunIndexMetrics(runIndex)
+      } else {
+        runIndex.eventIds = [...eventIds, storedEvent.id]
+        runIndex.eventCount += 1
+        runIndex.byKind[storedEvent.kind] = (runIndex.byKind[storedEvent.kind] ?? 0) + 1
+        runIndex.firstEventAt = minDate(runIndex.firstEventAt, storedEvent.createdAt)
+        runIndex.lastEventAt = maxDate(runIndex.lastEventAt, storedEvent.createdAt)
+        if (!runIndex.latestEvent || storedEvent.createdAt.localeCompare(runIndex.latestEvent.createdAt) >= 0) {
+          runIndex.latestEvent = storedEvent
+        }
       }
+      this.rebuildThreadIndex()
+      this.persistIndex()
+      this.recordTraceStoreOperation('append', 'success', Date.now() - startedAt)
+    } catch (error) {
+      this.recordTraceStoreOperation('append', 'error', Date.now() - startedAt)
+      throw error
     }
-    this.rebuildThreadIndex()
-    this.persistIndex()
   }
 
   listRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
@@ -178,6 +191,7 @@ export class FileTraceStore {
     const created: FileTraceRunIndex = {
       runId,
       ...(threadId ? { threadId } : {}),
+      eventIds: [],
       eventCount: 0,
       byKind: {},
       chunks: [],
@@ -208,6 +222,7 @@ export class FileTraceStore {
     for (const event of events) {
       byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
     }
+    runIndex.eventIds = events.map((event) => event.id)
     runIndex.eventCount = events.length
     runIndex.byKind = byKind
     runIndex.firstEventAt = events[0]?.createdAt
@@ -260,6 +275,7 @@ export class FileTraceStore {
       runs[runId] = {
         runId,
         threadId: stringValue(value.threadId),
+        eventIds: sanitizeEventIds(value.eventIds),
         eventCount: finiteNumber(value.eventCount) ?? 0,
         byKind: isRecord(value.byKind) ? sanitizeByKind(value.byKind) : {},
         firstEventAt: stringValue(value.firstEventAt),
@@ -279,11 +295,41 @@ export class FileTraceStore {
   }
 
   private persistIndex(): void {
-    atomicWriteJSON(this.indexPath, this.index)
+    const startedAt = Date.now()
+    try {
+      atomicWriteJSON(this.indexPath, this.index)
+      this.recordTraceStoreOperation('persist_index', 'success', Date.now() - startedAt)
+    } catch (error) {
+      this.recordTraceStoreOperation('persist_index', 'error', Date.now() - startedAt)
+      throw error
+    }
   }
 
   private rebuildThreadIndex(): void {
     this.index.threads = rebuildThreadIndexFromRuns(this.index.runs)
+  }
+
+  private ensureRunEventIds(runIndex: FileTraceRunIndex): Set<string> {
+    if (runIndex.eventIds && runIndex.eventIds.length >= runIndex.eventCount) {
+      return new Set(runIndex.eventIds)
+    }
+    const eventIds = this.readRunTraceEvents(runIndex.runId).map((event) => event.id)
+    runIndex.eventIds = eventIds
+    return new Set(eventIds)
+  }
+
+  private recordTraceStoreOperation(stage: 'append' | 'persist_index', status: 'success' | 'error', durationMs: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_trace_store_operation_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'trace_store',
+        kind: 'trace_file',
+        stage,
+        status,
+      },
+    })
   }
 }
 
@@ -392,6 +438,18 @@ function sanitizeByKind(value: Record<string, unknown>): Partial<Record<AgentTra
     }
   }
   return out
+}
+
+function sanitizeEventIds(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const seen = new Set<string>()
+  const eventIds: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string' || !item || seen.has(item)) continue
+    seen.add(item)
+    eventIds.push(item)
+  }
+  return eventIds
 }
 
 function rebuildThreadIndexFromRuns(runs: Record<string, FileTraceRunIndex>): Record<string, FileTraceThreadIndex> {

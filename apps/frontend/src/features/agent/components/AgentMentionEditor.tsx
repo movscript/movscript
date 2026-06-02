@@ -6,6 +6,7 @@ import { mentionEditorTextBeforeCaret, serializeMentionEditor } from '@/features
 import { AgentAttachmentMediaPreview } from '@/features/agent/components/AgentAttachmentMediaPreview'
 import { cn } from '@/shared/ui/cn'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
+import { performanceNow, recordAgentPerformanceMetric } from '@/features/agent/state/agentPerformanceStore'
 
 function isImeComposing(event: React.KeyboardEvent): boolean {
   return event.nativeEvent.isComposing || event.keyCode === 229
@@ -80,13 +81,23 @@ export function AgentMentionEditor({
   onAcceptMention: () => boolean
   onPaste?: (event: React.ClipboardEvent<HTMLDivElement>) => void
 }) {
-  function syncFromEditor() {
+  function syncFromEditor(kind: 'input' | 'click' | 'keyup') {
     const editor = editorRef.current
     if (!editor) return
+    const started = performanceNow()
     const next = serializeMentionEditor(editor)
+    const serializedAt = performanceNow()
     onChange(next)
     const { text, caret } = mentionEditorTextBeforeCaret(editor)
     onMentionState(text, caret)
+    const completedAt = performanceNow()
+    recordComposerInputMetric('frontend_agent_composer_serialize_ms', serializedAt - started, kind, 'serialize')
+    recordComposerInputMetric('frontend_agent_composer_input_latency_ms', completedAt - started, kind, 'handler')
+    if (kind === 'input' && typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        recordComposerInputMetric('frontend_agent_composer_input_latency_ms', performanceNow() - started, kind, 'next_frame')
+      })
+    }
   }
 
   return (
@@ -98,11 +109,11 @@ export function AgentMentionEditor({
       suppressContentEditableWarning
       data-placeholder={placeholder}
       className={cn('ai-agent-panel-mention-editor', disabled && 'ai-agent-panel-mention-editor--disabled')}
-      onInput={syncFromEditor}
-      onClick={syncFromEditor}
+      onInput={() => syncFromEditor('input')}
+      onClick={() => syncFromEditor('click')}
       onKeyUp={(event) => {
         if (event.key === 'Escape') return
-        syncFromEditor()
+        syncFromEditor('keyup')
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -128,4 +139,24 @@ export function AgentMentionEditor({
       }}
     />
   )
+}
+
+function recordComposerInputMetric(
+  name: 'frontend_agent_composer_input_latency_ms' | 'frontend_agent_composer_serialize_ms',
+  value: number,
+  kind: string,
+  stage: string,
+): void {
+  if (!Number.isFinite(value) || value < 0) return
+  if (value < 16 && Math.random() > 0.05) return
+  recordAgentPerformanceMetric({
+    name,
+    value,
+    unit: 'ms',
+    labels: {
+      component: 'agent_composer',
+      kind,
+      stage,
+    },
+  })
 }

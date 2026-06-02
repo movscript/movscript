@@ -612,6 +612,18 @@ test('manual script reading skill is discovered before it exposes script tools',
 
 test('config file tool deny stays restrictive for manual script reading skill', () => {
   const catalog = loadAgentPluginCatalog()
+  const registry = {
+    ...catalog.layeredRegistry,
+    configFiles: new Map(catalog.layeredRegistry.configFiles),
+  }
+  const baseConfigFile = registry.configFiles.get('movscript.config_file.base')
+  assert.ok(baseConfigFile)
+  registry.configFiles.set('movscript.config_file.base', {
+    ...baseConfigFile,
+    toolGrants: baseConfigFile.toolGrants.map((grant) => (
+      grant.name === 'movscript_script_locate' ? { ...grant, mode: 'deny' as const } : grant
+    )),
+  })
   const message = '请查看 projectId=5 的总剧本'
   const debugContext = {
     route: { pathname: '/project/scripts' },
@@ -623,21 +635,14 @@ test('config file tool deny stays restrictive for manual script reading skill', 
     memories: [],
     labels: [],
   }
-  const toolPermissionOverrides = catalog.manifest.tools.map((grant) => ({
-    ...grant,
-    mode: grant.name === 'movscript_script_locate' ? 'deny' as const : grant.mode,
-  }))
 
   const coreOnly = resolveRuntimeLayers({
-    registry: catalog.layeredRegistry,
+    registry,
     baseManifest: {
       ...catalog.manifest,
       metadata: {
         ...(catalog.manifest.metadata ?? {}),
         configFileId: 'movscript.config_file.base',
-        toolPermissionOverridesByConfigFile: {
-          'movscript.config_file.base': toolPermissionOverrides,
-        },
       },
     },
     message,
@@ -655,7 +660,7 @@ test('config file tool deny stays restrictive for manual script reading skill', 
   assert.equal(coreTools.byName.movscript_script_locate?.unavailableReason, 'denied')
 
   const loaded = resolveRuntimeLayers({
-    registry: catalog.layeredRegistry,
+    registry,
     baseManifest: coreOnly.manifest,
     message,
     debugContext,

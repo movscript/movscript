@@ -437,29 +437,8 @@ func resourceBlobFromModel(blob persistencemodel.ResourceBlob) resourceBlob {
 
 func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
 	updates := map[string]any{}
-	if spec.FilePath != nil {
-		updates["file_path"] = *spec.FilePath
-	}
-	if spec.StorageKey != nil {
-		updates["storage_key"] = *spec.StorageKey
-	}
-	if spec.StorageBackend != nil {
-		updates["storage_backend"] = *spec.StorageBackend
-	}
-	if spec.BlobID != nil {
-		updates["blob_id"] = *spec.BlobID
-	}
-	if spec.Type != nil {
-		updates["type"] = *spec.Type
-	}
 	if spec.Name != nil {
 		updates["name"] = *spec.Name
-	}
-	if spec.MimeType != nil {
-		updates["mime_type"] = *spec.MimeType
-	}
-	if spec.Size != nil {
-		updates["size"] = *spec.Size
 	}
 	if spec.OrgID != nil {
 		updates["org_id"] = *spec.OrgID

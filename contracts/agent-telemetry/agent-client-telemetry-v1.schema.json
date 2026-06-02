@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.dev/schemas/agent-client-telemetry-v1.schema.json",
+  "title": "Movscript Agent Client Telemetry Batch v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema"],
+  "properties": {
+    "schema": {
+      "const": "movscript.agent.client-telemetry.v1"
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operation"
+      },
+      "default": []
+    },
+    "longTasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/duration"
+      },
+      "default": []
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metric"
+      },
+      "default": []
+    },
+    "logs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/log"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "finiteNonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+    "labelValue": {
+      "type": ["string", "number", "boolean"]
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "area": { "$ref": "#/$defs/labelValue" },
+        "component": { "$ref": "#/$defs/labelValue" },
+        "kind": { "$ref": "#/$defs/labelValue" },
+        "level": { "$ref": "#/$defs/labelValue" },
+        "method": { "$ref": "#/$defs/labelValue" },
+        "route_group": { "$ref": "#/$defs/labelValue" },
+        "role": { "$ref": "#/$defs/labelValue" },
+        "stage": { "$ref": "#/$defs/labelValue" },
+        "status": { "$ref": "#/$defs/labelValue" },
+        "status_class": { "$ref": "#/$defs/labelValue" },
+        "tool_name": { "$ref": "#/$defs/labelValue" },
+        "transport": { "$ref": "#/$defs/labelValue" },
+        "vital": { "$ref": "#/$defs/labelValue" }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "status", "durationMs"],
+      "properties": {
+        "kind": { "type": "string" },
+        "status": { "type": "string" },
+        "durationMs": { "$ref": "#/$defs/finiteNonNegativeNumber" },
+        "slow": { "type": "boolean" },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "durationFromPreviousMs"],
+            "properties": {
+              "name": { "type": "string" },
+              "durationFromPreviousMs": { "$ref": "#/$defs/finiteNonNegativeNumber" }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durationMs"],
+      "properties": {
+        "durationMs": { "$ref": "#/$defs/finiteNonNegativeNumber" }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "unit", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "unit": {
+          "enum": ["ms", "bytes", "count", "score"]
+        },
+        "value": { "$ref": "#/$defs/finiteNonNegativeNumber" },
+        "labels": {
+          "$ref": "#/$defs/labels"
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "area", "kind"],
+      "properties": {
+        "level": {
+          "enum": ["info", "warning", "error"]
+        },
+        "area": { "type": "string" },
+        "kind": { "type": "string" }
+      }
+    }
+  }
+}

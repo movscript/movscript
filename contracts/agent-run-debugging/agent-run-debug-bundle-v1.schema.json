@@ -20,6 +20,7 @@
     "modelCallContexts",
     "runtimeSummary",
     "roundContextUpdates",
+    "roundContextChanges",
     "promptDetails",
     "contextMutations",
     "messageWrites",
@@ -100,6 +101,12 @@
         "$ref": "#/$defs/roundContextUpdate"
       }
     },
+    "roundContextChanges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/roundContextChange"
+      }
+    },
     "promptDetails": {
       "type": "array",
       "items": {
@@ -151,6 +158,7 @@
         "readinessChecklist",
         "runtimeSummary",
         "roundContextUpdates",
+        "roundContextChanges",
         "modelCallContexts",
         "promptDetails",
         "contextMutations",
@@ -870,6 +878,71 @@
         },
         "attachmentProjection": {
           "$ref": "#/$defs/genericProjection"
+        }
+      }
+    },
+    "roundContextChange": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "round",
+        "mutationCount",
+        "appended",
+        "amended",
+        "deleted",
+        "affectedContextKeys",
+        "appendedContextKeys",
+        "amendedContextKeys",
+        "deletedContextKeys",
+        "mutationEventIds",
+        "mutations"
+      ],
+      "properties": {
+        "round": {
+          "$ref": "#/$defs/roundContextUpdate"
+        },
+        "previousRoundEventId": {
+          "type": "string"
+        },
+        "mutationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "appended": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "amended": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "affectedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "appendedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "amendedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "deletedContextKeys": {
+          "$ref": "#/$defs/stringList"
+        },
+        "latestMutationReason": {
+          "type": "string"
+        },
+        "mutationEventIds": {
+          "$ref": "#/$defs/stringList"
+        },
+        "mutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contextMutation"
+          }
         }
       }
     },

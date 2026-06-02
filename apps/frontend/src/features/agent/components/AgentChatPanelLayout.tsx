@@ -30,7 +30,7 @@ export function AgentChatPanelLayout({
   const { t, i18n } = useTranslation()
   const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.draft
   const emptyConversation = !conversationStarted
-  const [historyOpen, setHistoryOpen] = useState(emptyConversation)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
@@ -42,6 +42,7 @@ export function AgentChatPanelLayout({
       await localAgentClient.ensureRunning()
       return localAgentClient.listThreads({
         limit: HISTORY_PAGE_SIZE,
+        includeProvisional: true,
         ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
       }, signal)
     },
@@ -63,6 +64,14 @@ export function AgentChatPanelLayout({
     () => new Set(archivedConversations.flatMap((conversation) => conversation.runtimeThreadId ? [conversation.runtimeThreadId] : [])),
     [archivedConversations],
   )
+  const openRuntimeThreadIds = useMemo(
+    () => new Set(runtimeHistory.conversations.flatMap((conversation) => {
+      const ids = conversation.runtimeThreadId ? [conversation.runtimeThreadId] : []
+      if (conversation.id.startsWith('thread_')) ids.push(conversation.id)
+      return ids
+    })),
+    [runtimeHistory.conversations],
+  )
   const historyItems = useMemo(() => [
     ...archivedConversations.map((conversation) => ({
       type: 'conversation' as const,
@@ -71,14 +80,14 @@ export function AgentChatPanelLayout({
       conversation,
     })),
     ...historyThreads
-      .filter((runtimeThread) => !archivedRuntimeThreadIds.has(runtimeThread.id))
+      .filter((runtimeThread) => !archivedRuntimeThreadIds.has(runtimeThread.id) && !openRuntimeThreadIds.has(runtimeThread.id))
       .map((runtimeThread) => ({
         type: 'runtime-thread' as const,
         id: runtimeThread.id,
         timestamp: Date.parse(runtimeThread.updatedAt) || 0,
         runtimeThread,
       })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, historyThreads])
+  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, historyThreads, openRuntimeThreadIds])
   const hasPinnedStatus = hasAgentPinnedStatus({
     plan: latestPlanFromMessages(thread.messages),
     generationProgressStates: thread.generationProgressStates,
@@ -113,7 +122,8 @@ export function AgentChatPanelLayout({
   })
 
   useEffect(() => {
-    setHistoryOpen(!conversationStarted)
+    setHistoryOpen(false)
+    setHistoryHeight(null)
   }, [header.activeConversation.id])
 
   useEffect(() => {

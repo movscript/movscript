@@ -7,10 +7,12 @@ import { PassThrough } from 'node:stream'
 import test from 'node:test'
 import { tmpdir } from 'node:os'
 import { createAgentRequestListener, normalizeDebugEvidenceRefQuery, normalizeTraceQuery } from './server.js'
+import { normalizeThreadListQuery, paginatedThreadSummaries } from './server-listener/normalizers.js'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '../core/http.js'
 import type { AgentServerContext } from '../../bootstrap/server/agentServerContext.js'
 import { RuntimeModelConfigStore } from '../../model/config/modelConfig.js'
 import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
+import type { AgentThreadSummary } from '../../state/shared/types.js'
 
 test('normalizeTraceQuery accepts bounded pagination and known trace kind', () => {
   const result = normalizeTraceQuery(new URL('http://127.0.0.1/runs/run_1/trace?cursor=trace_1&limit=25&kind=model_call'))
@@ -64,6 +66,29 @@ test('normalizeDebugEvidenceRefQuery accepts ref selectors and rejects unknown e
   if (invalid.ok) return
   assert.match(invalid.error, /invalid debug evidence kind/)
 })
+
+test('thread history pagination hides provisional sessions unless explicitly requested', () => {
+  const active = threadSummaryFixture('thread_active')
+  const provisional = threadSummaryFixture('thread_provisional', { lifecycle: 'provisional' })
+  const hidden = paginatedThreadSummaries([provisional, active], normalizeThreadListQuery(new URL('http://127.0.0.1/threads')))
+  const withProvisional = paginatedThreadSummaries([provisional, active], normalizeThreadListQuery(new URL('http://127.0.0.1/threads?includeProvisional=true')))
+
+  assert.deepEqual(hidden.threads.map((thread) => thread.id), ['thread_active'])
+  assert.equal(hidden.total, 1)
+  assert.deepEqual(withProvisional.threads.map((thread) => thread.id), ['thread_provisional', 'thread_active'])
+  assert.equal(withProvisional.total, 2)
+})
+
+function threadSummaryFixture(id: string, overrides: Partial<AgentThreadSummary> = {}): AgentThreadSummary {
+  return {
+    id,
+    archived: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    messageCount: 0,
+    ...overrides,
+  }
+}
 
 test('telemetry endpoints expose runtime snapshot and prometheus-compatible metrics', async () => {
   const telemetry = new RuntimeTelemetryRegistry()

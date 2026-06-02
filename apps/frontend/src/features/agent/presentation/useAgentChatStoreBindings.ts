@@ -36,10 +36,12 @@ export function useAgentChatStoreBindings({
   } = useAgentStore()
   const currentProject = useProjectStore((state) => state.current)
   const conversationRuntime = useAgentSessionStore((state) => state.conversationRuntimes[conversation.id] ?? null)
+  const runtimeThreadProjectionMessages = useAgentSessionStore((state) => state.runtimeThreadProjections[conversation.id]?.messages)
   const localSessionId = useAgentSessionStore((state) => state.sessionIdsByConversation[conversation.id] ?? conversation.runtimeSessionId ?? state.conversationRuntimes[conversation.id]?.sessionId ?? '')
   const localThreadId = useAgentSessionStore((state) => state.localThreadIdsByConversation[conversation.id] ?? conversation.runtimeThreadId ?? '')
   const setConversationSessionId = useAgentSessionStore((state) => state.setConversationSessionId)
   const setConversationRuntime = useAgentSessionStore((state) => state.setConversationRuntime)
+  const setRuntimeThreadProjection = useAgentSessionStore((state) => state.setRuntimeThreadProjection)
   const setConversationRun = useAgentSessionStore((state) => state.setConversationRun)
   const setLocalThreadId = useAgentSessionStore((state) => state.setLocalThreadId)
   const setPageTaskRunning = useAgentSessionStore((state) => state.setPageTaskRunning)
@@ -62,10 +64,12 @@ export function useAgentChatStoreBindings({
     localRuntimeEnabled: true,
     localSessionId,
     localThreadId,
+    runtimeThreadProjectionMessages,
     setConversationRuntimeSessionId,
     setConversationSessionId,
     setConversationRun,
     setConversationRuntime,
+    setRuntimeThreadProjection,
     setConversationRuntimeThreadId,
     setLocalThreadId,
     setPageTaskRunning,

@@ -8,6 +8,7 @@ import type {
   AgentPromptDetailView,
   AgentPromptSkillStateView,
   AgentRoundContextUpdateView,
+  AgentRoundContextChangeView,
   AgentRunRuntimeSummary,
   AgentRuntimeSkillOmissionView,
   AgentSkillTraceEntry,
@@ -154,6 +155,48 @@ export function buildRuntimeSummary(input: {
       ...(latestPrompt?.attachmentProjection ? { attachmentProjection: latestPrompt.attachmentProjection } : {}),
     },
   }
+}
+
+export function buildRoundContextChangeViews(input: {
+  events: AgentTraceEvent[]
+  roundContextUpdates: AgentRoundContextUpdateView[]
+  contextMutations: AgentContextMutationView[]
+}): AgentRoundContextChangeView[] {
+  const eventById = new Map(input.events.map((event) => [event.id, event]))
+  const mutationWithEvents = input.contextMutations
+    .map((mutation) => ({ mutation, event: eventById.get(mutation.eventId) }))
+    .filter((entry): entry is { mutation: AgentContextMutationView; event: AgentTraceEvent } => !!entry.event)
+
+  return input.roundContextUpdates.flatMap((round, index): AgentRoundContextChangeView[] => {
+    const roundEvent = eventById.get(round.eventId)
+    if (!roundEvent) return []
+    const previousRound = input.roundContextUpdates[index - 1]
+    const previousRoundEvent = previousRound ? eventById.get(previousRound.eventId) : undefined
+    const previousCreatedAt = previousRoundEvent?.createdAt
+    const mutations = mutationWithEvents
+      .filter(({ event }) => (!previousCreatedAt || event.createdAt > previousCreatedAt) && event.createdAt <= roundEvent.createdAt)
+      .map(({ mutation }) => mutation)
+    const affectedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.affectedContextKeys))
+    const appendedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.appendedContextKeys))
+    const amendedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.amendedContextKeys))
+    const deletedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.deletedContextKeys))
+    const latestMutationReason = mutations.at(-1)?.latest?.reason
+    return [{
+      round,
+      ...(previousRound ? { previousRoundEventId: previousRound.eventId } : {}),
+      mutationCount: mutations.length,
+      appended: mutations.reduce((sum, mutation) => sum + mutation.appended, 0),
+      amended: mutations.reduce((sum, mutation) => sum + mutation.amended, 0),
+      deleted: mutations.reduce((sum, mutation) => sum + mutation.deleted, 0),
+      affectedContextKeys,
+      appendedContextKeys,
+      amendedContextKeys,
+      deletedContextKeys,
+      ...(latestMutationReason ? { latestMutationReason } : {}),
+      mutationEventIds: mutations.map((mutation) => mutation.eventId),
+      mutations,
+    }]
+  })
 }
 
 function buildToolPermissionRuntimeSummary(events: AgentTraceEvent[]): {

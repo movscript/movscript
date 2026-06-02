@@ -44,10 +44,31 @@ test('RuntimeTelemetryRegistry records operations, metrics, logs, and prometheus
 
 test('RuntimeTelemetryRegistry renders prometheus output through prom-client', async () => {
   const telemetry = new RuntimeTelemetryRegistry()
+  telemetry.recordMetric({
+    name: 'movscript_agent_storage_flush_duration_ms',
+    value: 12,
+    unit: 'ms',
+    labels: { component: 'state_store', kind: 'state_file', stage: 'flush', status: 'success' },
+  })
+  telemetry.recordMetric({
+    name: 'movscript_agent_storage_file_bytes',
+    value: 2048,
+    unit: 'bytes',
+    labels: { component: 'state_store', kind: 'state_file', stage: 'flush', status: 'success' },
+  })
+  telemetry.recordMetric({
+    name: 'movscript_agent_trace_store_operation_duration_ms',
+    value: 3,
+    unit: 'ms',
+    labels: { component: 'trace_store', kind: 'trace_file', stage: 'append', status: 'success' },
+  })
   const text = await telemetry.prometheusTextAsync()
 
   assert.match(text, /movscript_agent_telemetry_info/)
   assert.match(text, /movscript_agent_telemetry_retention_limit\{kind="spans"\} 600/)
+  assert.match(text, /movscript_agent_storage_flush_duration_ms_count\{component="state_store",kind="state_file",stage="flush",status="success"\} 1/)
+  assert.match(text, /movscript_agent_storage_file_bytes\{component="state_store",kind="state_file",stage="flush",status="success"\} 2048/)
+  assert.match(text, /movscript_agent_trace_store_operation_duration_ms_count\{component="trace_store",kind="trace_file",stage="append",status="success"\} 1/)
 })
 
 test('RuntimeTelemetryRegistry forwards spans and logs to external telemetry exporter', async () => {

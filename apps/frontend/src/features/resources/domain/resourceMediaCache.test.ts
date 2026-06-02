@@ -5,8 +5,11 @@ import {
   __resetResourceMediaCacheForTests,
   acquireCachedResourceMediaUrl,
   isResourceFileUrl,
+  loadCachedResourceBlob,
+  loadCachedResourceDataURL,
   resourceMediaCacheKey,
 } from '@/shared/ui/resourceMediaCache'
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 
 test('isResourceFileUrl recognizes backend resource file endpoints', () => {
   assert.equal(isResourceFileUrl('/api/v1/resources/42/file'), true)
@@ -17,10 +20,89 @@ test('isResourceFileUrl recognizes backend resource file endpoints', () => {
 })
 
 test('resourceMediaCacheKey normalizes absolute resource URLs', () => {
+  const originalState = useUserStore.getState()
+  useUserStore.setState({ currentUser: null, currentOrgID: null, token: null })
+  try {
+    assert.equal(
+      resourceMediaCacheKey('https://example.test/api/v1/resources/42/file?variant=thumb'),
+      'https://example.test/api/v1/resources/42/file?variant=thumb::auth:user:anonymous:org:none:token:none',
+    )
+  } finally {
+    useUserStore.setState(originalState, true)
+  }
+})
+
+test('resourceMediaCacheKey keeps public media URLs outside auth scope', () => {
   assert.equal(
-    resourceMediaCacheKey('https://example.test/api/v1/resources/42/file?variant=thumb'),
-    'https://example.test/api/v1/resources/42/file?variant=thumb',
+    resourceMediaCacheKey('https://cdn.example.test/media/output.mp4'),
+    'https://cdn.example.test/media/output.mp4',
   )
+})
+
+test('loadCachedResourceBlob separates protected resource cache by auth scope', async () => {
+  __resetResourceMediaCacheForTests()
+  const originalState = useUserStore.getState()
+  let loads = 0
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob([`user-${useUserStore.getState().currentUser?.ID ?? 'anonymous'}`], { type: 'text/plain' })
+    }
+
+    useUserStore.setState({ currentUser: { ID: 1, username: 'one', system_role: 'user' }, currentOrgID: 10, token: 'token-one' })
+    const first = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+    const firstAgain = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+
+    useUserStore.setState({ currentUser: { ID: 2, username: 'two', system_role: 'user' }, currentOrgID: 20, token: 'token-two' })
+    const second = await loadCachedResourceBlob('/api/v1/resources/42/file', loadBlob)
+
+    assert.equal(loads, 2)
+    assert.equal(await first.text(), 'user-1')
+    assert.equal(await firstAgain.text(), 'user-1')
+    assert.equal(await second.text(), 'user-2')
+  } finally {
+    __resetResourceMediaCacheForTests()
+    useUserStore.setState(originalState, true)
+  }
+})
+
+test('resource media cache clears protected object URLs when auth scope changes', async () => {
+  __resetResourceMediaCacheForTests()
+  const originalState = useUserStore.getState()
+  const originalCreateObjectURL = URL.createObjectURL
+  const originalRevokeObjectURL = URL.revokeObjectURL
+  const revoked: string[] = []
+  let loads = 0
+  URL.createObjectURL = ((() => `blob:scoped-${loads}`) as typeof URL.createObjectURL)
+  URL.revokeObjectURL = ((url: string) => {
+    revoked.push(url)
+  }) as typeof URL.revokeObjectURL
+
+  try {
+    useUserStore.setState({ currentUser: { ID: 1, username: 'one', system_role: 'user' }, currentOrgID: 10, token: 'token-one' })
+    const first = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    })
+
+    useUserStore.setState({ currentUser: { ID: 2, username: 'two', system_role: 'user' }, currentOrgID: 20, token: 'token-two' })
+    const second = await acquireCachedResourceMediaUrl('/api/v1/resources/42/file', async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    })
+
+    assert.equal(loads, 2)
+    assert.deepEqual(revoked, [first.url])
+    assert.notEqual(second.url, first.url)
+    first.release()
+    second.release()
+  } finally {
+    __resetResourceMediaCacheForTests()
+    URL.createObjectURL = originalCreateObjectURL
+    URL.revokeObjectURL = originalRevokeObjectURL
+    useUserStore.setState(originalState, true)
+  }
 })
 
 test('acquireCachedResourceMediaUrl deduplicates resource blob loads', async () => {
@@ -156,5 +238,52 @@ test('acquireCachedResourceMediaUrl caches transformed variants separately', asy
     __resetResourceMediaCacheForTests()
     URL.createObjectURL = originalCreateObjectURL
     URL.revokeObjectURL = originalRevokeObjectURL
+  }
+})
+
+test('loadCachedResourceDataURL deduplicates resource blob loads and encodings', async () => {
+  __resetResourceMediaCacheForTests()
+  let loads = 0
+  let reads = 0
+  const originalFileReader = globalThis.FileReader
+
+  class MockFileReader {
+    result: string | ArrayBuffer | null = null
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    error: Error | null = null
+
+    readAsDataURL(blob: Blob) {
+      reads += 1
+      void blob.arrayBuffer().then((buffer) => {
+        this.result = `data:${blob.type};base64,${Buffer.from(buffer).toString('base64')}`
+        this.onload?.()
+      }).catch((error) => {
+        this.error = error instanceof Error ? error : new Error(String(error))
+        this.onerror?.()
+      })
+    }
+  }
+
+  globalThis.FileReader = MockFileReader as unknown as typeof FileReader
+
+  try {
+    const loadBlob = async () => {
+      loads += 1
+      return new Blob(['image'], { type: 'image/png' })
+    }
+
+    const [first, second] = await Promise.all([
+      loadCachedResourceDataURL('/api/v1/resources/42/file', loadBlob),
+      loadCachedResourceDataURL('/api/v1/resources/42/file', loadBlob),
+    ])
+
+    assert.equal(loads, 1)
+    assert.equal(reads, 1)
+    assert.equal(first, 'data:image/png;base64,aW1hZ2U=')
+    assert.equal(second, first)
+  } finally {
+    __resetResourceMediaCacheForTests()
+    globalThis.FileReader = originalFileReader
   }
 })

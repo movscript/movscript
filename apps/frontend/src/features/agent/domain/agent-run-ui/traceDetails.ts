@@ -1,6 +1,6 @@
 import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import { agentToolNameWithId } from '@/features/agent/domain/agentToolDisplay'
-import type { AgentTraceMessageDetail, AgentTraceModelDetail, AgentTraceToolDetail } from './types'
+import type { AgentTraceMessageDetail, AgentTraceModelDetail, AgentTraceModelMessageDetail, AgentTraceToolDetail } from './types'
 import { traceEventStatusLabel } from './labels'
 import {
   arrayValue,
@@ -10,6 +10,7 @@ import {
   isSensitiveFieldName,
   localizedTraceSummary,
   messageContentText,
+  modelMessageContentParts,
   messageRoleLabel,
   messageSourceLabel,
   modelFinishReasonLabel,
@@ -34,18 +35,7 @@ export function traceModelDetail(event: AgentTraceEvent, data: Record<string, un
   const response = recordValue(data.response)
   const body = recordValue(request?.body)
   const submittedBody = modelSubmittedBody(body)
-  const messages = arrayValue(body?.messages)?.map((message, index) => {
-    const record = recordValue(message)
-    const role = stringValue(record?.role) ?? 'unknown'
-    const content = messageContentText(record?.content)
-    return {
-      index: index + 1,
-      role,
-      roleLabel: messageRoleLabel(role),
-      content: content ?? '（空内容）',
-      contentChars: content?.length ?? 0,
-    }
-  }) ?? []
+  const messages = modelRequestMessagesFromPayload(body)
   const messageGroups = modelMessageGroups(messages)
   const tools = modelSubmittedTools(body, submittedBody).map((tool, index) => modelToolDetail(tool, index))
   const parsedBody = recordValue(response?.parsedBody)
@@ -99,6 +89,35 @@ export function traceModelDetail(event: AgentTraceEvent, data: Record<string, un
     ...(responseDetail ? { response: responseDetail } : {}),
     ...(Object.values(result).some((value) => !!value) ? { result } : {}),
   }
+}
+
+export function modelRequestMessagesFromPayload(value: unknown): AgentTraceModelMessageDetail[] {
+  const body = recordValue(value)
+  const submittedBody = modelSubmittedBody(body)
+  const submittedMessages = arrayValue(submittedBody?.messages)
+    ?? arrayValue(submittedBody?.input)
+    ?? arrayValue(body?.messages)
+    ?? arrayValue(body?.input)
+  return submittedMessages?.map((message, index) => {
+    const record = recordValue(message)
+    const role = stringValue(record?.role) ?? 'unknown'
+    const contentValue = record?.content ?? record?.input ?? record?.text ?? record
+    const parts = modelMessageContentParts(contentValue)
+    const content = parts.length > 0
+      ? parts.map((part) => part.type === 'image'
+        ? `[图片${part.mimeType ? ` ${part.mimeType}` : ''}${part.detail ? ` detail=${part.detail}` : ''}${part.chars ? ` ${part.chars} chars` : ''}]`
+        : part.text).join('\n')
+      : messageContentText(contentValue)
+    return {
+      index: index + 1,
+      role,
+      roleLabel: messageRoleLabel(role),
+      content: content ?? '（空内容）',
+      contentChars: content?.length ?? 0,
+      parts,
+      imageCount: parts.filter((part) => part.type === 'image').length,
+    }
+  }) ?? []
 }
 
 export function traceMessageDetail(event: AgentTraceEvent, data: Record<string, unknown> | undefined): AgentTraceMessageDetail | undefined {

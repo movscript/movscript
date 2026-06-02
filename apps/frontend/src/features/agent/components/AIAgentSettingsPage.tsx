@@ -1,8 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { Bot, Clipboard, Copy, Download, Loader2, Plus, RefreshCw, Save, Settings, Terminal, TestTube2, Trash2, Upload, XCircle } from 'lucide-react'
+import { Bot, Clipboard, Copy, Download, Loader2, Plus, RefreshCw, Save, Settings, TestTube2, Trash2, Upload, XCircle } from 'lucide-react'
 import {
   AgentDataBlock,
   AgentSettingsApiModeCapabilityMatrix,
@@ -83,7 +82,6 @@ import { hasSensitiveTextSecret, hasSensitiveURLSecret, redactAgentTraceDebugTex
 import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { localAgentClient, type AgentCapabilitiesResponse, type AgentCatalogConfigFile, type AgentCatalogSkill, type AgentDebugTool, type AgentInspectResponse, type RuntimeModelConfigPublic, type RuntimeModelTestResult } from '@/shared/infrastructure/localAgentClient'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
-import { ROUTES } from '@/routes/projectRoutes'
 import { agentConfigStatusRecipe, agentTestResultRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { useAgentStore, type AgentSettingsAuditEntry, type AgentSettingsConfigFileBackup, type AgentToolPermissionsFilterPreset } from '@/features/agent/state/agentStore'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
@@ -214,9 +212,7 @@ type SkillSourceKind = 'core' | 'plugin' | 'local' | 'team' | 'mcp' | 'catalog'
 type ToolPermissionsFilter = AgentToolPermissionsFilterPreset['filter']
 type ToolPermissionsBulkAction = 'allow_available' | 'deny' | 'approval_never' | 'approval_on_write' | 'approval_always'
 const SKILL_SOURCE_FILTERS = ['all', 'core', 'plugin', 'local', 'team', 'mcp', 'catalog'] as const
-const SKILL_LOAD_MODE_FILTERS = ['all', 'core', 'on_demand', 'manual'] as const
 type SkillSourceFilter = (typeof SKILL_SOURCE_FILTERS)[number]
-type SkillLoadModeFilter = (typeof SKILL_LOAD_MODE_FILTERS)[number]
 type SettingsSnapshotImportScope = 'model' | 'configFile' | 'limits' | 'skills' | 'tools'
 type SettingsSnapshotImportPresetId = 'all' | 'model-routing' | 'skills-tools' | 'limits'
 type SettingsSnapshotImpactItem = {
@@ -300,7 +296,6 @@ export default function AIAgentSettingsPage() {
   const [skillConfigSaveError, setSkillConfigSaveError] = useState<string | null>(null)
   const [skillSearch, setSkillSearch] = useState('')
   const [skillSourceFilter, setSkillSourceFilter] = useState<SkillSourceFilter>('all')
-  const [skillLoadModeFilter, setSkillLoadModeFilter] = useState<SkillLoadModeFilter>('all')
   const [selectedConfigFileId, setSelectedConfigFileId] = useState('')
   const [configFileNameDraft, setConfigFileNameDraft] = useState('')
   const [configFileDescriptionDraft, setConfigFileDescriptionDraft] = useState('')
@@ -392,8 +387,7 @@ export default function AIAgentSettingsPage() {
   const filteredSkills = useMemo(() => filterSkills(catalogQuery.data?.skills ?? [], {
     search: skillSearch,
     source: skillSourceFilter,
-    loadMode: skillLoadModeFilter,
-  }), [catalogQuery.data?.skills, skillLoadModeFilter, skillSearch, skillSourceFilter])
+  }), [catalogQuery.data?.skills, skillSearch, skillSourceFilter])
   const toolStats = useMemo(() => buildToolStats(capabilitiesQuery.data?.resolvedTools), [capabilitiesQuery.data?.resolvedTools])
   const currentConfigFileId = useMemo(() => currentAgentConfigFileId(catalogQuery.data), [catalogQuery.data])
   const currentConfigFile = useMemo(() => {
@@ -404,6 +398,8 @@ export default function AIAgentSettingsPage() {
     const configFiles = catalogQuery.data?.configFiles ?? []
     return configFiles.find((configFile) => configFile.id === selectedConfigFileId) ?? currentConfigFile
   }, [catalogQuery.data?.configFiles, currentConfigFile, selectedConfigFileId])
+  const selectedConfigFileEditable = isManagedConfigFile(selectedConfigFile)
+  const selectedConfigFileReadonly = Boolean(selectedConfigFile && !selectedConfigFileEditable)
   const skillConfigBaseline = useMemo(() => buildSkillConfigDrafts(catalogQuery.data?.skills ?? [], selectedConfigFile), [catalogQuery.data?.skills, selectedConfigFile])
   const skillDraftById = useMemo(() => new Map(skillDrafts.map((draft) => [draft.id, draft])), [skillDrafts])
   const selectedConfigFileDiff = useMemo(
@@ -444,7 +440,7 @@ export default function AIAgentSettingsPage() {
   const settingsSnapshotHasSelectedImportScope = Boolean(
     parsedSettingsSnapshot && hasSelectedSettingsSnapshotImportScope(parsedSettingsSnapshot, settingsSnapshotImportScopes),
   )
-  const settingsSnapshotNeedsCatalog = Boolean(selectedSettingsSnapshotForImport?.model || selectedSettingsSnapshotForImport?.configFiles || selectedSettingsSnapshotForImport?.runtimeLimits || selectedSettingsSnapshotForImport?.activeConfigFileId || selectedSettingsSnapshotForImport?.skillConfig || selectedSettingsSnapshotForImport?.toolPermissionOverrides)
+  const settingsSnapshotNeedsCatalog = Boolean(selectedSettingsSnapshotForImport?.configFiles || selectedSettingsSnapshotForImport?.runtimeLimits || selectedSettingsSnapshotForImport?.activeConfigFileId || selectedSettingsSnapshotForImport?.skillConfig || selectedSettingsSnapshotForImport?.toolPermissionOverrides)
   const settingsSnapshotNeedsCapabilities = Boolean(selectedSettingsSnapshotForImport?.toolPermissionOverrides)
   const settingsSnapshotNeedsModelCatalog = Boolean(selectedSettingsSnapshotForImport?.model?.model.startsWith('model_config:') || selectedSettingsSnapshotForImport?.model?.platformModelId)
   const settingsSnapshotReferenceIssues = useMemo(() => (
@@ -467,12 +463,11 @@ export default function AIAgentSettingsPage() {
   )
   const currentToolGrants = useMemo(() => new Set((selectedConfigFile?.toolGrants ?? []).map((grant) => grant.name)), [selectedConfigFile])
   const toolGrantBaseline = useMemo(
-    () => buildToolGrantDrafts(selectedConfigFile, catalogQuery.data?.activeAgentManifest),
-    [catalogQuery.data?.activeAgentManifest, selectedConfigFile],
+    () => buildToolGrantDrafts(selectedConfigFile),
+    [selectedConfigFile],
   )
   const toolGrantDraftByName = useMemo(() => new Map(toolGrantDrafts.map((grant) => [grant.name, grant])), [toolGrantDrafts])
   const toolPermissionsDiffItems = useMemo(() => buildToolPermissionsDiffItems(toolGrantBaseline, toolGrantDrafts), [toolGrantBaseline, toolGrantDrafts])
-  const coreSkills = useMemo(() => filteredSkills.filter((skill) => skill.loadMode === 'core'), [filteredSkills])
   const toolPermissionsFilteredTools = useMemo(() => {
     const tools = capabilitiesQuery.data?.resolvedTools.discovered ?? []
     const query = toolPermissionsSearch.trim().toLowerCase()
@@ -726,7 +721,6 @@ export default function AIAgentSettingsPage() {
     setTestError(null)
     try {
       await localAgentClient.ensureRunning()
-      const rollbackConfigFile = currentConfigFile ? duplicateSnapshotConfigFile(currentConfigFile) : null
       const nextConfig = await localAgentClient.saveModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
@@ -736,20 +730,10 @@ export default function AIAgentSettingsPage() {
         useForChat,
         useForPlanner,
       })
-      if (currentConfigFile && rollbackConfigFile) {
-        await saveCurrentConfigFileModel(buildConfigFileModelFromDraft({
-          apiKind: selectedApiKind,
-          modelId: draftModelValue,
-          platformModelId: usesModelCatalog && selectedModel ? String(selectedModel.id) : undefined,
-          manualModelId: usesManualModelId,
-          useForChat,
-          useForPlanner,
-        }), rollbackConfigFile)
-      }
       setSavedConfig(nextConfig)
       updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
       setModelApiKey('')
-      await Promise.all([runtimeQuery.refetch(), catalogQuery.refetch()])
+      await runtimeQuery.refetch()
       recordSettingsAudit({
         action: 'model_saved',
         target: 'model',
@@ -788,7 +772,6 @@ export default function AIAgentSettingsPage() {
     setSaveError(null)
     try {
       await localAgentClient.ensureRunning()
-      const rollbackConfigFile = currentConfigFile ? duplicateSnapshotConfigFile(currentConfigFile) : null
       await localAgentClient.saveModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
@@ -798,16 +781,6 @@ export default function AIAgentSettingsPage() {
         useForChat,
         useForPlanner,
       })
-      if (currentConfigFile && rollbackConfigFile) {
-        await saveCurrentConfigFileModel(buildConfigFileModelFromDraft({
-          apiKind: selectedApiKind,
-          modelId: draftModelValue,
-          platformModelId: usesModelCatalog && selectedModel ? String(selectedModel.id) : undefined,
-          manualModelId: usesManualModelId,
-          useForChat,
-          useForPlanner,
-        }), rollbackConfigFile)
-      }
       updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
       const result = await localAgentClient.testModelConfig({
         message: testMessage.trim() || t('agents.settings.testMessageDefault'),
@@ -820,7 +793,7 @@ export default function AIAgentSettingsPage() {
         useForPlanner,
       })
       setTestResult(result)
-      await Promise.all([runtimeQuery.refetch(), catalogQuery.refetch()])
+      await runtimeQuery.refetch()
       recordSettingsAudit({
         action: 'model_tested',
         target: 'model',
@@ -849,11 +822,7 @@ export default function AIAgentSettingsPage() {
     setTestResult(null)
     try {
       await localAgentClient.ensureRunning()
-      const rollbackConfigFile = currentConfigFile ? duplicateSnapshotConfigFile(currentConfigFile) : null
       const nextConfig = await localAgentClient.clearModelConfig()
-      if (currentConfigFile && rollbackConfigFile) {
-        await saveCurrentConfigFileModel(null, rollbackConfigFile)
-      }
       setSavedConfig(nextConfig)
       setSelectedModelId(NO_MODEL_VALUE)
       setDirectModelId('')
@@ -863,7 +832,7 @@ export default function AIAgentSettingsPage() {
       setUseForPlanner(true)
       setModelConfigClearConfirming(false)
       updateAgentSettings({ modelId: null })
-      await Promise.all([runtimeQuery.refetch(), catalogQuery.refetch()])
+      await runtimeQuery.refetch()
       recordSettingsAudit({
         action: 'model_cleared',
         target: 'model',
@@ -878,28 +847,13 @@ export default function AIAgentSettingsPage() {
     }
   }
 
-  async function saveCurrentConfigFileModel(model: AgentCatalogConfigFile['model'] | null, rollbackConfigFile: AgentCatalogConfigFile) {
-    if (!currentConfigFile) return
-    const nextConfigFile = model
-      ? {
-          ...currentConfigFile,
-          model,
-          metadata: { ...(currentConfigFile.metadata ?? {}), managed: true },
-        }
-      : configFileWithoutModel(currentConfigFile)
-    await localAgentClient.saveAgentConfigFile({ configFile: nextConfigFile, activate: true })
-    updateAgentSettings({
-      lastConfigFileBackup: buildConfigFileRollbackBackup({
-        configFile: rollbackConfigFile,
-        activeConfigFileId: currentConfigFile.id,
-        manifest: catalogQuery.data?.activeAgentManifest,
-      }),
-    })
-  }
-
   async function saveConfigFileSkillActivation() {
     if (!selectedConfigFile) {
       setSkillConfigSaveError(t('agents.settings.configFileMissing'))
+      return
+    }
+    if (!selectedConfigFileEditable) {
+      setSkillConfigSaveError(t('agents.settings.configFileReadonlyHelp'))
       return
     }
     setSkillConfigSaving(true)
@@ -920,7 +874,6 @@ export default function AIAgentSettingsPage() {
           lastConfigFileBackup: buildConfigFileRollbackBackup({
             configFile: rollbackConfigFile,
             activeConfigFileId: currentConfigFile?.id ?? null,
-            manifest: catalogQuery.data?.activeAgentManifest,
           }),
         })
       }
@@ -957,7 +910,6 @@ export default function AIAgentSettingsPage() {
           lastConfigFileBackup: buildConfigFileRollbackBackup({
             configFile: rollbackConfigFile,
             activeConfigFileId: currentConfigFile?.id ?? null,
-            manifest: catalogQuery.data?.activeAgentManifest,
           }),
         })
       }
@@ -992,7 +944,6 @@ export default function AIAgentSettingsPage() {
           lastConfigFileBackup: buildConfigFileRollbackBackup({
             configFile: rollbackConfigFile,
             activeConfigFileId: currentConfigFile?.id ?? null,
-            manifest: catalogQuery.data?.activeAgentManifest,
           }),
         })
       }
@@ -1026,7 +977,6 @@ export default function AIAgentSettingsPage() {
           lastConfigFileBackup: buildConfigFileRollbackBackup({
             configFile: rollbackConfigFile,
             activeConfigFileId: currentConfigFile?.id ?? null,
-            manifest: catalogQuery.data?.activeAgentManifest,
           }),
         })
       }
@@ -1080,7 +1030,7 @@ export default function AIAgentSettingsPage() {
     setConfigFileMessage(null)
     try {
       if (file.size > MAX_CONFIG_FILE_BYTES) throw new Error(t('agents.settings.configFileTooLarge', { size: formatBytes(MAX_CONFIG_FILE_BYTES) }))
-      const configFile = parseConfigFileExport(await file.text())
+      const configFile = markConfigFileManaged(parseConfigFileExport(await file.text()))
       const rollbackConfigFile = currentConfigFile ? duplicateSnapshotConfigFile(currentConfigFile) : null
       setConfigFileManaging(true)
       await localAgentClient.ensureRunning()
@@ -1090,7 +1040,6 @@ export default function AIAgentSettingsPage() {
           lastConfigFileBackup: buildConfigFileRollbackBackup({
             configFile: rollbackConfigFile,
             activeConfigFileId: currentConfigFile?.id ?? null,
-            manifest: catalogQuery.data?.activeAgentManifest,
           }),
         })
       }
@@ -1114,6 +1063,10 @@ export default function AIAgentSettingsPage() {
 
   async function saveSelectedConfigFileDetails() {
     if (!selectedConfigFile) return
+    if (!selectedConfigFileEditable) {
+      setConfigFileSaveError(t('agents.settings.configFileReadonlyHelp'))
+      return
+    }
     if (!configFileNameDraftValue) {
       setConfigFileSaveError(t('agents.settings.configFileNameRequired'))
       return
@@ -1152,7 +1105,6 @@ export default function AIAgentSettingsPage() {
         lastConfigFileBackup: buildConfigFileRollbackBackup({
           configFile: rollbackConfigFile,
           activeConfigFileId: currentConfigFile?.id ?? null,
-          manifest: catalogQuery.data?.activeAgentManifest,
         }),
       })
       setSelectedConfigFileId(nextConfigFile.id)
@@ -1173,6 +1125,10 @@ export default function AIAgentSettingsPage() {
 
   async function deleteSelectedConfigFile() {
     if (!selectedConfigFile || selectedConfigFile.id === currentConfigFile?.id) return
+    if (!selectedConfigFileEditable) {
+      setConfigFileSaveError(t('agents.settings.configFileReadonlyHelp'))
+      return
+    }
     const rollbackConfigFile = duplicateSnapshotConfigFile(selectedConfigFile)
     setConfigFileManaging(true)
     setConfigFileSaveError(null)
@@ -1184,7 +1140,6 @@ export default function AIAgentSettingsPage() {
         lastConfigFileBackup: buildConfigFileRollbackBackup({
           configFile: rollbackConfigFile,
           activeConfigFileId: currentConfigFile?.id ?? null,
-          manifest: catalogQuery.data?.activeAgentManifest,
         }),
       })
       setSelectedConfigFileId(currentConfigFile?.id ?? '')
@@ -1217,18 +1172,11 @@ export default function AIAgentSettingsPage() {
         configFile: configFileRollbackBackup.configFile,
         activate: configFileRollbackBackup.activeConfigFileId === configFileRollbackBackup.configFile.id,
       })
-      if (configFileRollbackBackup.toolPermissionOverrides) {
-        await localAgentClient.saveConfigFileToolPermissions({
-          configFileId: configFileRollbackBackup.configFile.id,
-          toolGrants: configFileRollbackBackup.toolPermissionOverrides,
-        })
-      }
       updateAgentSettings({
         lastConfigFileBackup: currentVersion
           ? buildConfigFileRollbackBackup({
               configFile: duplicateSnapshotConfigFile(currentVersion),
               activeConfigFileId: currentConfigFile?.id ?? null,
-              manifest: catalogQuery.data?.activeAgentManifest,
             })
           : null,
       })
@@ -1253,6 +1201,10 @@ export default function AIAgentSettingsPage() {
       setToolPermissionsSaveError(t('agents.settings.configFileMissing'))
       return
     }
+    if (!selectedConfigFileEditable) {
+      setToolPermissionsSaveError(t('agents.settings.configFileReadonlyHelp'))
+      return
+    }
     if (toolPermissionsDraftIssues.length > 0) {
       setToolPermissionsSaveError(t('agents.settings.toolPermissionsDraftInvalid', { count: toolPermissionsDraftIssues.length }))
       return
@@ -1262,12 +1214,22 @@ export default function AIAgentSettingsPage() {
     const rollbackConfigFile = duplicateSnapshotConfigFile(selectedConfigFile)
     try {
       await localAgentClient.ensureRunning()
-      await localAgentClient.saveConfigFileToolPermissions({ configFileId: selectedConfigFile.id, toolGrants: toolGrantDrafts })
+      await localAgentClient.saveAgentConfigFile({
+        configFile: {
+          ...selectedConfigFile,
+          toolGrants: toolGrantDrafts.map((grant) => ({
+            name: grant.name,
+            mode: grant.mode,
+            ...(grant.approval ? { approval: grant.approval } : {}),
+          })),
+          metadata: { ...(selectedConfigFile.metadata ?? {}), managed: true },
+        },
+        activate: selectedConfigFile.id === currentConfigFile?.id,
+      })
       updateAgentSettings({
         lastConfigFileBackup: buildConfigFileRollbackBackup({
           configFile: rollbackConfigFile,
           activeConfigFileId: currentConfigFile?.id ?? null,
-          manifest: catalogQuery.data?.activeAgentManifest,
         }),
       })
       await Promise.all([catalogQuery.refetch(), capabilitiesQuery.refetch()])
@@ -1308,6 +1270,7 @@ export default function AIAgentSettingsPage() {
   }
 
   function updateToolGrantDraft(name: string, patch: Partial<ToolGrantDraft>) {
+    if (!selectedConfigFileEditable) return
     setToolGrantDrafts((drafts) => drafts.map((grant) => (
       grant.name === name
         ? { ...grant, ...patch }
@@ -1316,6 +1279,7 @@ export default function AIAgentSettingsPage() {
   }
 
   function applyToolPermissionsBulkEdit(action: ToolPermissionsBulkAction) {
+    if (!selectedConfigFileEditable) return
     const visibleToolByName = new Map(toolPermissionsFilteredTools.map((tool) => [tool.name, tool]))
     setToolGrantDrafts((drafts) => drafts.map((grant) => {
       const tool = visibleToolByName.get(grant.name)
@@ -1478,7 +1442,6 @@ export default function AIAgentSettingsPage() {
       configFiles: catalogQuery.data?.configFiles ?? [],
       skillConfig: skillDrafts,
       toolPermissionOverrides: buildSettingsSnapshotToolPermissionOverrides({
-        manifest: catalogQuery.data?.activeAgentManifest,
         currentConfigFileId: selectedConfigFile?.id ?? currentConfigFileId,
         currentToolGrantDrafts: toolGrantDrafts,
       }),
@@ -1652,9 +1615,6 @@ export default function AIAgentSettingsPage() {
     if (snapshot.runtimeLimits && !targetSnapshotConfigFile(snapshot, catalogQuery.data, currentConfigFile)) {
       return t('agents.settings.settingsSnapshotLimitsTargetMissing')
     }
-    if (snapshot.model && !targetSnapshotConfigFile(snapshot, catalogQuery.data, currentConfigFile)) {
-      return t('agents.settings.settingsSnapshotModelTargetMissing')
-    }
     if (snapshot.skillConfig && !targetSnapshotConfigFile(snapshot, catalogQuery.data, currentConfigFile)) {
       return t('agents.settings.settingsSnapshotSkillsTargetMissing')
     }
@@ -1709,16 +1669,8 @@ export default function AIAgentSettingsPage() {
     }
     if (snapshot.configFiles) {
       for (const configFile of snapshot.configFiles) {
-        queueConfigFileWrite(configFile, Boolean(snapshot.activeConfigFileId && configFile.id === snapshot.activeConfigFileId))
+        queueConfigFileWrite(markConfigFileManaged(configFile), Boolean(snapshot.activeConfigFileId && configFile.id === snapshot.activeConfigFileId))
       }
-    }
-    if (snapshot.model) {
-      const targetConfigFile = targetConfigFileForSnapshot(t('agents.settings.settingsSnapshotModelTargetMissing'))
-      queueConfigFileWrite({
-        ...targetConfigFile,
-        model: buildConfigFileModelFromSnapshotModel(snapshot.model),
-        metadata: { ...(targetConfigFile.metadata ?? {}), managed: true },
-      }, targetConfigFile.id === currentConfigFile?.id || targetConfigFile.id === snapshot.activeConfigFileId)
     }
     if (snapshot.runtimeLimits) {
       const targetConfigFile = targetConfigFileForSnapshot(t('agents.settings.settingsSnapshotLimitsTargetMissing'))
@@ -1736,6 +1688,21 @@ export default function AIAgentSettingsPage() {
         metadata: { ...(targetConfigFile.metadata ?? {}), managed: true },
       }, targetConfigFile.id === currentConfigFile?.id || targetConfigFile.id === snapshot.activeConfigFileId)
     }
+    if (snapshot.toolPermissionOverrides) {
+      for (const overrides of snapshot.toolPermissionOverrides) {
+        const targetConfigFile = snapshotConfigFileById(snapshot, overrides.configFileId, catalogQuery.data, currentConfigFile)
+        if (!targetConfigFile) throw new Error(`config file ${overrides.configFileId} not found`)
+        queueConfigFileWrite({
+          ...targetConfigFile,
+          toolGrants: overrides.toolGrants.map((grant) => ({
+            name: grant.name,
+            mode: grant.mode,
+            ...(grant.approval ? { approval: grant.approval } : {}),
+          })),
+          metadata: { ...(targetConfigFile.metadata ?? {}), managed: true },
+        }, targetConfigFile.id === currentConfigFile?.id || targetConfigFile.id === snapshot.activeConfigFileId)
+      }
+    }
     for (const configFile of configFileWrites.values()) {
       await localAgentClient.saveAgentConfigFile({
         configFile,
@@ -1744,11 +1711,6 @@ export default function AIAgentSettingsPage() {
     }
     if (snapshot.activeConfigFileId && !configFileWrites.has(snapshot.activeConfigFileId)) {
       await localAgentClient.saveActiveAgentConfigFile({ configFileId: snapshot.activeConfigFileId })
-    }
-    if (snapshot.toolPermissionOverrides) {
-      for (const overrides of snapshot.toolPermissionOverrides) {
-        await localAgentClient.saveConfigFileToolPermissions({ configFileId: overrides.configFileId, toolGrants: overrides.toolGrants })
-      }
     }
     if (writesRuntime) await Promise.all([runtimeQuery.refetch(), catalogQuery.refetch(), capabilitiesQuery.refetch()])
   }
@@ -1819,12 +1781,6 @@ export default function AIAgentSettingsPage() {
             </AgentSettingsScopeRail>
           </AgentSettingsHeaderCopy>
           <AgentSettingsHeaderActions>
-            <AgentSettingsActionButton asChild variant="outline" data-testid="agent-settings-open-debug">
-              <Link to={ROUTES.agentDebug}>
-                <Terminal size={14} />
-                {t('agents.settings.openDebug')}
-              </Link>
-            </AgentSettingsActionButton>
             <AgentSettingsActionButton variant="outline" onClick={() => void copySettingsStatusSummary()} data-testid="agent-settings-copy-status">
               <Clipboard size={14} />
               {settingsStatusCopied ? t('agents.settings.settingsStatusCopied') : t('agents.settings.copySettingsStatus')}
@@ -1956,6 +1912,15 @@ export default function AIAgentSettingsPage() {
                             {selectedConfigFile.id !== currentConfigFile?.id && (
                               <AgentSettingsCallout tone="warning" compact>
                                 {t('agents.settings.configFileSwitchResetsToolPermissions')}
+                              </AgentSettingsCallout>
+                            )}
+                            {selectedConfigFileReadonly && (
+                              <AgentSettingsCallout tone="neutral" compact data-testid="agent-settings-config-file-readonly">
+                                {t('agents.settings.configFileReadonlyHelp')}
+                                <AgentSettingsActionButton size="sm" variant="outline" onClick={duplicateSelectedConfigFile} disabled={configFileManaging}>
+                                  <Copy size={14} />
+                                  {t('agents.settings.duplicateConfigFile')}
+                                </AgentSettingsActionButton>
                               </AgentSettingsCallout>
                             )}
                             <AgentSettingsConfigFileEditorSection
@@ -2130,6 +2095,7 @@ export default function AIAgentSettingsPage() {
                                   <AgentSettingsFieldLabel>{t('agents.settings.configFileNameLabel')}</AgentSettingsFieldLabel>
                                   <AgentSettingsInput
                                     value={configFileNameDraft}
+                                    disabled={!selectedConfigFileEditable}
                                     onChange={(event) => {
                                       setConfigFileNameDraft(event.target.value)
                                       setConfigFileSaveError(null)
@@ -2141,6 +2107,7 @@ export default function AIAgentSettingsPage() {
                                   <AgentSettingsFieldLabel>{t('agents.settings.configFileDescriptionLabel')}</AgentSettingsFieldLabel>
                                   <AgentSettingsInput
                                     value={configFileDescriptionDraft}
+                                    disabled={!selectedConfigFileEditable}
                                     onChange={(event) => {
                                       setConfigFileDescriptionDraft(event.target.value)
                                       setConfigFileSaveError(null)
@@ -2150,7 +2117,7 @@ export default function AIAgentSettingsPage() {
                                 </AgentSettingsFormField>
                               </AgentSettingsFormGrid>
                               <AgentSettingsActionRow>
-                                <AgentSettingsActionButton variant="outline" onClick={saveSelectedConfigFileDetails} disabled={!hasConfigFileDetailsChange || configFileManaging} data-testid="agent-settings-save-config-file-details">
+                                <AgentSettingsActionButton variant="outline" onClick={saveSelectedConfigFileDetails} disabled={!selectedConfigFileEditable || !hasConfigFileDetailsChange || configFileManaging} data-testid="agent-settings-save-config-file-details">
                                   {configFileManaging ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
                                   {t('agents.settings.saveConfigFileDetails')}
                                 </AgentSettingsActionButton>
@@ -2158,7 +2125,7 @@ export default function AIAgentSettingsPage() {
                                   {configFileManaging ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Copy size={14} />}
                                   {t('agents.settings.duplicateConfigFile')}
                                 </AgentSettingsActionButton>
-                                <AgentSettingsActionButton variant="outline" onClick={deleteSelectedConfigFile} disabled={selectedConfigFile.id === currentConfigFile?.id || configFileManaging} data-testid="agent-settings-delete-config-file">
+                                <AgentSettingsActionButton variant="outline" onClick={deleteSelectedConfigFile} disabled={!selectedConfigFileEditable || selectedConfigFile.id === currentConfigFile?.id || configFileManaging} data-testid="agent-settings-delete-config-file">
                                   <Trash2 size={14} />
                                   {t('agents.settings.deleteConfigFile')}
                                 </AgentSettingsActionButton>
@@ -2176,6 +2143,7 @@ export default function AIAgentSettingsPage() {
                                       type="number"
                                       min="0"
                                       value={configFileLimitDrafts[key]}
+                                      disabled={!selectedConfigFileEditable}
                                       onChange={(event) => {
                                         setConfigFileLimitDrafts((drafts) => ({ ...drafts, [key]: event.target.value }))
                                         setConfigFileSaveError(null)
@@ -2196,6 +2164,7 @@ export default function AIAgentSettingsPage() {
                                     <AgentSettingsFieldLabel>{t(`agents.settings.configFileApprovalDefaultFields.${key}`)}</AgentSettingsFieldLabel>
                                     <Select
                                       value={configFileApprovalDefaultDrafts[key]}
+                                      disabled={!selectedConfigFileEditable}
                                       onValueChange={(value) => {
                                         setConfigFileApprovalDefaultDrafts((drafts) => ({ ...drafts, [key]: value as ConfigFileApprovalDefaultDraftValue }))
                                         setConfigFileSaveError(null)
@@ -2221,13 +2190,12 @@ export default function AIAgentSettingsPage() {
                               description={t('agents.settings.skillConfigEditHelp')}
                               id="agent-settings-skills"
                             >
-                              <AgentSettingsFormGrid columns="four">
+                              <AgentSettingsFormGrid columns="three">
                                 <AgentSettingsKeyValue label={t('agents.settings.configFileFields.skills')} value={draftSkillIds.length} />
-                                <AgentSettingsKeyValue label={t('agents.settings.skillLoadModes.core')} value={coreSkills.length} />
+                                <AgentSettingsKeyValue label={t('agents.settings.skillConfigSelected')} value={draftSkillIds.length} />
                                 <AgentSettingsKeyValue label={t('agents.settings.configFileFields.current')} value={selectedConfigFile.name} />
-                                <AgentSettingsKeyValue label={t('agents.settings.skillConfigIssues')} value={skillConfigIssues.length} />
                               </AgentSettingsFormGrid>
-                              <AgentSettingsFormGrid columns="three" data-testid="agent-settings-skill-filters">
+                              <AgentSettingsFormGrid columns="two" data-testid="agent-settings-skill-filters">
                                 <AgentSettingsFormField>
                                   <AgentSettingsFieldLabel>{t('agents.settings.skillFilters.search')}</AgentSettingsFieldLabel>
                                   <AgentSettingsInput
@@ -2250,19 +2218,6 @@ export default function AIAgentSettingsPage() {
                                     </SelectContent>
                                   </Select>
                                 </AgentSettingsFormField>
-                                <AgentSettingsFormField>
-                                  <AgentSettingsFieldLabel>{t('agents.settings.skillFilters.loadMode')}</AgentSettingsFieldLabel>
-                                  <Select value={skillLoadModeFilter} onValueChange={(value) => setSkillLoadModeFilter(value as SkillLoadModeFilter)}>
-                                    <AgentSettingsSelectTrigger data-testid="agent-settings-skill-load-mode-filter">
-                                      <SelectValue />
-                                    </AgentSettingsSelectTrigger>
-                                    <SelectContent>
-                                      {SKILL_LOAD_MODE_FILTERS.map((filter) => (
-                                        <SelectItem key={filter} value={filter}>{t(`agents.settings.skillLoadModeFilters.${filter}`)}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </AgentSettingsFormField>
                               </AgentSettingsFormGrid>
                               <AgentSettingsInlineNote>
                                 {t('agents.settings.skillFilterResult', { count: filteredSkills.length, total: catalogQuery.data?.skills.length ?? 0 })}
@@ -2281,13 +2236,13 @@ export default function AIAgentSettingsPage() {
                               <AgentSettingsActionRow>
                                 <AgentSettingsActionButton
                                   onClick={saveConfigFileSkillActivation}
-                                  disabled={!hasSkillConfigSelectionChange || skillConfigSaving || skillConfigIssues.length > 0}
+                                  disabled={!selectedConfigFileEditable || !hasSkillConfigSelectionChange || skillConfigSaving || skillConfigIssues.length > 0}
                                   data-testid="agent-settings-save-skill-config"
                                 >
                                   {skillConfigSaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
                                   {hasSkillConfigSelectionChange ? t('agents.settings.saveSkillConfig') : t('agents.settings.skillConfigSaved')}
                                 </AgentSettingsActionButton>
-                                <AgentSettingsActionButton variant="outline" onClick={() => setSkillDrafts(skillConfigBaseline)} disabled={!hasSkillConfigChange || skillConfigSaving}>
+                                <AgentSettingsActionButton variant="outline" onClick={() => setSkillDrafts(skillConfigBaseline)} disabled={!selectedConfigFileEditable || !hasSkillConfigChange || skillConfigSaving}>
                                   {t('agents.settings.resetSkillConfig')}
                                 </AgentSettingsActionButton>
                               </AgentSettingsActionRow>
@@ -2301,6 +2256,7 @@ export default function AIAgentSettingsPage() {
                                       key={skill.id}
                                       skill={skill}
                                       draft={skillDraftById.get(skill.id)}
+                                      readOnly={!selectedConfigFileEditable}
                                       onDraftChange={updateSkillDraft}
                                     />
                                   ))}
@@ -2382,13 +2338,13 @@ export default function AIAgentSettingsPage() {
                                   <AgentSettingsActionRow>
                                     <AgentSettingsActionButton
                                       onClick={saveConfigFileToolPermissions}
-                                      disabled={!hasToolPermissionsChange || toolPermissionsSaving || toolPermissionsDraftIssues.length > 0}
+                                      disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving || toolPermissionsDraftIssues.length > 0}
                                       data-testid="agent-settings-save-tool-permissions"
                                     >
                                       {toolPermissionsSaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
                                       {hasToolPermissionsChange ? t('agents.settings.saveToolPermissions') : t('agents.settings.toolPermissionsSaved')}
                                     </AgentSettingsActionButton>
-                                    <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!hasToolPermissionsChange || toolPermissionsSaving}>
+                                    <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving}>
                                       {t('agents.settings.resetToolPermissions')}
                                     </AgentSettingsActionButton>
                                   </AgentSettingsActionRow>
@@ -2403,6 +2359,7 @@ export default function AIAgentSettingsPage() {
                                           tool={tool}
                                           draft={toolGrantDraftByName.get(tool.name)}
                                           configFileGranted={currentToolGrants.has(tool.name)}
+                                          readOnly={!selectedConfigFileEditable}
                                           onDraftChange={updateToolGrantDraft}
                                         />
                                       ))}
@@ -2477,17 +2434,11 @@ function filterSkills(
   filters: {
     search: string
     source: SkillSourceFilter
-    loadMode: SkillLoadModeFilter
   },
 ): AgentCatalogSkill[] {
   const query = filters.search.trim().toLowerCase()
   return skills
     .filter((skill) => filters.source === 'all' || skillSourceKind(skill) === filters.source)
-    .filter((skill) => {
-      if (filters.loadMode === 'all') return true
-      if (filters.loadMode === 'on_demand') return !skill.loadMode || skill.loadMode === 'on_demand'
-      return skill.loadMode === filters.loadMode
-    })
     .filter((skill) => {
       if (!query) return true
       const searchableValues = [
@@ -2498,17 +2449,9 @@ function filterSkills(
         skill.enabled ? 'enabled' : 'disabled',
         skill.instruction,
         skill.instructionTemplate,
-        skill.loadMode,
         skill.source,
-        skill.activationScope,
-        skill.tokenEstimate,
-        ...skillContextBudgetSearchValues(skill.contextBudget),
-        skill.runtime?.defaultActivation,
-        skill.runtime?.contextBehavior,
-        skill.runtime?.reason,
         skill.outputContract,
         skillSourceKind(skill),
-        ...skillTriggerSearchValues(skill.triggers),
         ...(skill.tags ?? []),
         ...(skill.aliases ?? []),
         ...(skill.useWhen ?? []),
@@ -3162,32 +3105,20 @@ function buildToolStats(tools?: AgentCapabilitiesResponse['resolvedTools']) {
   }
 }
 
-function buildToolGrantDrafts(configFile: AgentCatalogConfigFile | null, manifest?: AgentInspectResponse['activeAgentManifest']): ToolGrantDraft[] {
+function buildToolGrantDrafts(configFile: AgentCatalogConfigFile | null): ToolGrantDraft[] {
   const grants = configFile?.toolGrants ?? []
-  const manifestByName = new Map((manifest?.tools ?? []).map((grant) => [grant.name, grant]))
-  return grants.map((grant) => {
-    const manifestGrant = manifestByName.get(grant.name)
-    return {
-      name: grant.name,
-      mode: manifestGrant?.mode ?? grant.mode,
-      ...(manifestGrant?.approval ?? grant.approval ? { approval: manifestGrant?.approval ?? grant.approval } : {}),
-    }
-  })
+  return grants.map((grant) => ({
+    name: grant.name,
+    mode: grant.mode,
+    ...(grant.approval ? { approval: grant.approval } : {}),
+  }))
 }
 
 function buildSettingsSnapshotToolPermissionOverrides(input: {
-  manifest?: AgentInspectResponse['activeAgentManifest']
   currentConfigFileId: string
   currentToolGrantDrafts: ToolGrantDraft[]
 }): ConfigFileToolPermissionOverrides[] {
   const overridesByConfigFile = new Map<string, ToolGrantDraft[]>()
-  const storedOverrides = input.manifest?.metadata?.toolPermissionOverridesByConfigFile
-  if (isRecord(storedOverrides)) {
-    for (const [configFileId, value] of Object.entries(storedOverrides)) {
-      const toolGrants = parseStoredToolGrantDrafts(value)
-      if (configFileId && toolGrants) overridesByConfigFile.set(configFileId, toolGrants)
-    }
-  }
   if (input.currentConfigFileId) {
     overridesByConfigFile.set(input.currentConfigFileId, input.currentToolGrantDrafts)
   }
@@ -3206,47 +3137,13 @@ function buildSettingsSnapshotToolPermissionOverrides(input: {
 function buildConfigFileRollbackBackup(input: {
   configFile: AgentCatalogConfigFile
   activeConfigFileId: string | null
-  manifest?: AgentInspectResponse['activeAgentManifest']
 }): AgentSettingsConfigFileBackup {
   return {
     configFile: input.configFile,
-    toolPermissionOverrides: configFileToolPermissionOverridesForBackup(input.manifest, input.configFile.id),
+    toolPermissionOverrides: [],
     activeConfigFileId: input.activeConfigFileId,
     createdAt: new Date().toISOString(),
   }
-}
-
-function configFileToolPermissionOverridesForBackup(
-  manifest: AgentInspectResponse['activeAgentManifest'] | undefined,
-  configFileId: string,
-): ToolGrantDraft[] {
-  const storedOverrides = manifest?.metadata?.toolPermissionOverridesByConfigFile
-  if (!isRecord(storedOverrides)) return []
-  return parseStoredToolGrantDrafts(storedOverrides[configFileId]) ?? []
-}
-
-function parseStoredToolGrantDrafts(value: unknown): ToolGrantDraft[] | null {
-  if (!Array.isArray(value)) return null
-  const grants: ToolGrantDraft[] = []
-  const seenNames = new Set<string>()
-  for (const item of value) {
-    if (!isRecord(item)) return null
-    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : ''
-    if (!name || seenNames.has(name)) return null
-    const mode = item.mode === 'allow' || item.mode === 'deny' ? item.mode : null
-    if (!mode) return null
-    const approval = item.approval === 'never' || item.approval === 'always' || item.approval === 'on_write'
-      ? item.approval
-      : undefined
-    if (item.approval !== undefined && !approval) return null
-    seenNames.add(name)
-    grants.push({
-      name,
-      mode,
-      ...(approval ? { approval } : {}),
-    })
-  }
-  return grants
 }
 
 function buildToolPermissionsDraftIssues(input: {
@@ -3379,6 +3276,17 @@ function duplicateSnapshotConfigFile(configFile: AgentCatalogConfigFile): AgentC
     ...(configFile.model ? { model: { ...configFile.model, ...(Array.isArray(configFile.model.routes) ? { routes: [...configFile.model.routes] } : {}) } } : {}),
     ...(configFile.limits ? { limits: { ...configFile.limits } } : {}),
     ...(configFile.metadata ? { metadata: { ...configFile.metadata } } : {}),
+  }
+}
+
+function isManagedConfigFile(configFile: AgentCatalogConfigFile | null | undefined): boolean {
+  return configFile?.metadata?.managed === true
+}
+
+function markConfigFileManaged(configFile: AgentCatalogConfigFile): AgentCatalogConfigFile {
+  return {
+    ...configFile,
+    metadata: { ...(configFile.metadata ?? {}), managed: true },
   }
 }
 
@@ -3682,46 +3590,6 @@ function runtimeConfigUsesModelCatalog(config: RuntimeModelConfigPublic): boolea
   return !baseURL || isBackendCompatibleBaseURL(baseURL)
 }
 
-function buildConfigFileModelFromDraft(input: {
-  apiKind: RuntimeModelAPIKind
-  modelId: string
-  platformModelId?: string
-  manualModelId: boolean
-  useForChat: boolean
-  useForPlanner: boolean
-}): NonNullable<AgentCatalogConfigFile['model']> {
-  const provider = configFileModelProvider(input.apiKind, input.manualModelId)
-  const use = {
-    provider,
-    modelId: input.modelId,
-    ...(input.platformModelId ? { platformModelId: input.platformModelId } : {}),
-  }
-  const taskRoutes = [
-    ...(input.useForChat ? ['reasoning', 'text', 'multimodal'] : []),
-    ...(input.useForPlanner ? ['planning'] : []),
-  ]
-  return {
-    provider,
-    modelId: input.modelId,
-    ...(input.platformModelId ? { platformModelId: input.platformModelId } : {}),
-    ...(taskRoutes.length > 0 ? { routes: [{ when: { task: taskRoutes }, use }] } : {}),
-  }
-}
-
-function buildConfigFileModelFromSnapshotModel(
-  model: NonNullable<AgentSettingsSnapshot['model']>,
-): NonNullable<AgentCatalogConfigFile['model']> {
-  const baseURL = model.baseURL?.trim() ?? ''
-  return buildConfigFileModelFromDraft({
-    apiKind: model.apiKind ?? DEFAULT_API_KIND,
-    modelId: model.model,
-    ...(model.platformModelId ? { platformModelId: model.platformModelId } : {}),
-    manualModelId: Boolean(baseURL && !isBackendCompatibleBaseURL(baseURL)),
-    useForChat: model.useForChat !== false,
-    useForPlanner: model.useForPlanner !== false,
-  })
-}
-
 function buildRuntimeModelConfigFromSnapshotModel(
   model: NonNullable<AgentSettingsSnapshot['model']>,
 ): Parameters<typeof localAgentClient.saveModelConfig>[0] {
@@ -3733,19 +3601,6 @@ function buildRuntimeModelConfigFromSnapshotModel(
     ...(model.baseURL ? { baseURL: model.baseURL } : {}),
     useForChat: model.useForChat !== false,
     useForPlanner: model.useForPlanner !== false,
-  }
-}
-
-function configFileModelProvider(apiKind: RuntimeModelAPIKind, manualModelId: boolean): NonNullable<AgentCatalogConfigFile['model']>['provider'] {
-  if (apiKind === 'anthropic_messages') return manualModelId ? 'custom' : 'anthropic'
-  return manualModelId ? 'custom' : 'openai'
-}
-
-function configFileWithoutModel(configFile: AgentCatalogConfigFile): AgentCatalogConfigFile {
-  const { model: _model, ...rest } = configFile
-  return {
-    ...rest,
-    metadata: { ...(configFile.metadata ?? {}), managed: true },
   }
 }
 
@@ -3962,7 +3817,7 @@ function buildSettingsSnapshotImpactItems(snapshot: AgentSettingsSnapshot): Sett
     snapshot.model
       ? {
         id: 'model',
-        scope: 'config',
+        scope: 'local',
         labelKey: 'agents.settings.settingsSnapshotImpact.model',
         detailKey: 'agents.settings.settingsSnapshotImpactDetails.model',
         detailValues: { model: redactAgentTraceDebugText(snapshot.model.model) },
@@ -4043,10 +3898,12 @@ function settingsSectionLabelKey(sectionId: SettingsActionItem['targetSection'])
 function SkillRow({
   skill,
   draft,
+  readOnly = false,
   onDraftChange,
 }: {
   skill: AgentCatalogSkill
   draft?: SkillConfigDraft
+  readOnly?: boolean
   onDraftChange: (id: string, enabled: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -4061,15 +3918,14 @@ function SkillRow({
       enabled={skill.enabled !== false}
       enabledLabel={t('agents.settings.skillStatus.enabled')}
       disabledLabel={t('agents.settings.skillStatus.disabled')}
-      loadModeLabel={skillLoadModeLabel(skill.loadMode, t)}
       versionLabel={skill.version ? `v${skill.version}` : undefined}
       sourceLabel={skillSourceLabel(skill, t)}
       priorityLabel={typeof skill.priority === 'number' ? `p${skill.priority}` : undefined}
       draftEnabled={draft?.enabled}
-      draftDisabled={isCore}
-      draftLocked={isCore}
+      draftDisabled={readOnly || isCore}
+      draftLocked={readOnly || isCore}
       draftTitle={draft ? (draft.enabled ? t('agents.settings.skillStatus.enabled') : t('agents.settings.skillStatus.disabled')) : undefined}
-      draftHelp={draft ? (isCore ? t('agents.settings.skillConfigCoreLocked') : t('agents.settings.skillConfigToggleHelp')) : undefined}
+      draftHelp={draft ? (readOnly ? t('agents.settings.configFileReadonlyHelp') : isCore ? t('agents.settings.skillConfigCoreLocked') : t('agents.settings.skillConfigToggleHelp')) : undefined}
       onDraftChange={draft ? (checked) => onDraftChange(skill.id, checked) : undefined}
       metaItems={skillMetaItems(skill, dependencyCount, conflictCount, t)}
     />
@@ -4083,51 +3939,10 @@ function skillMetaItems(
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   return [
-    ...(skill.runtime ? [
-      { id: 'runtimeActivation', label: `${t('agents.settings.skillRuntimeFields.activation')}: ${t(`agents.settings.skillRuntimeActivation.${skill.runtime.defaultActivation}`)}` },
-      { id: 'runtimeContext', label: `${t('agents.settings.skillRuntimeFields.context')}: ${t(`agents.settings.skillRuntimeContext.${skill.runtime.contextBehavior}`)}` },
-    ] : []),
     ...(dependencyCount > 0 ? [{ id: 'dependencies', label: `${t('agents.settings.skillFields.dependencies')}: ${dependencyCount}` }] : []),
     ...(conflictCount > 0 ? [{ id: 'conflicts', label: `${t('agents.settings.skillFields.conflicts')}: ${conflictCount}` }] : []),
-    ...((skill.triggers?.length ?? 0) > 0 ? [{ id: 'triggers', label: `${t('agents.settings.skillFields.triggers')}: ${skillTriggerSummary(skill.triggers)}` }] : []),
-    ...(skill.tokenEstimate !== undefined ? [{ id: 'tokenEstimate', label: `${t('agents.settings.skillFields.tokenEstimate')}: ${skill.tokenEstimate}` }] : []),
-    ...(skill.contextBudget ? [{ id: 'contextBudget', label: `${t('agents.settings.skillFields.contextBudget')}: ${skillContextBudgetSummary(skill.contextBudget)}` }] : []),
-    ...((skill.runtime?.toolGrantNames.length ?? 0) > 0 ? [{ id: 'toolGrants', label: `${t('agents.settings.skillRuntimeFields.toolGrants')}: ${skill.runtime!.toolGrantNames.length}` }] : []),
     ...(skill.tags?.slice(0, 4).map((tag) => ({ id: `tag:${tag}`, label: tag })) ?? []),
   ]
-}
-
-function skillTriggerSummary(triggers: AgentCatalogSkill['triggers']): string {
-  const values = skillTriggerSearchValues(triggers)
-  if (values.length === 0) return '0'
-  return values.slice(0, 3).join(', ')
-}
-
-function skillTriggerSearchValues(triggers: AgentCatalogSkill['triggers']): string[] {
-  return (triggers ?? []).flatMap((trigger, index) => {
-    if (!isRecord(trigger)) return [`trigger:${index}`]
-    const kind = typeof trigger.kind === 'string' ? trigger.kind : `trigger:${index}`
-    if (kind === 'keyword' && Array.isArray(trigger.any)) {
-      return [`keyword:${trigger.any.filter((item): item is string => typeof item === 'string').slice(0, 4).join('|')}`]
-    }
-    if (kind === 'regex' && typeof trigger.pattern === 'string') return [`regex:${trigger.pattern}`]
-    if (kind === 'intent' && typeof trigger.id === 'string') return [`intent:${trigger.id}`]
-    if (kind === 'context') return ['context']
-    return [kind]
-  })
-}
-
-function skillContextBudgetSummary(contextBudget: AgentCatalogSkill['contextBudget']): string {
-  return skillContextBudgetSearchValues(contextBudget).join(', ') || '-'
-}
-
-function skillContextBudgetSearchValues(contextBudget: AgentCatalogSkill['contextBudget']): string[] {
-  if (!contextBudget) return []
-  return [
-    typeof contextBudget.maxChars === 'number' ? `${contextBudget.maxChars} chars` : undefined,
-    typeof contextBudget.reserveRatio === 'number' ? `${Math.round(contextBudget.reserveRatio * 100)}% reserve` : undefined,
-    contextBudget.strategy,
-  ].filter((value): value is string => Boolean(value))
 }
 
 function ConfigFileRow({ configFile, current = false, preview = false }: { configFile: AgentCatalogConfigFile; current?: boolean; preview?: boolean }) {
@@ -4282,15 +4097,17 @@ function ToolPermissionsRow({
   tool,
   draft,
   configFileGranted,
+  readOnly = false,
   onDraftChange,
 }: {
   tool: AgentDebugTool
   draft?: ToolGrantDraft
   configFileGranted: boolean
+  readOnly?: boolean
   onDraftChange: (name: string, patch: Partial<ToolGrantDraft>) => void
 }) {
   const { t } = useTranslation()
-  const canAllow = tool.available && configFileGranted
+  const canAllow = !readOnly && tool.available && configFileGranted
   return (
     <AgentSettingsToolPermissionsRow
       name={tool.name}
@@ -4305,7 +4122,7 @@ function ToolPermissionsRow({
       configFileGrantedLabel={t('agents.settings.toolPermissionsStatus.configFileGranted')}
       requiresApproval={tool.requiresApproval}
       description={tool.description}
-      draft={draft ? { mode: draft.mode, approval: draft.approval ?? 'never', canAllow } : undefined}
+      draft={draft && !readOnly ? { mode: draft.mode, approval: draft.approval ?? 'never', canAllow } : undefined}
       modeLabel={t('agents.settings.toolPermissionsFields.mode')}
       approvalLabel={t('agents.settings.toolPermissionsFields.approval')}
       allowLabel={t('agents.settings.toolPermissionsModes.allow')}
@@ -4373,12 +4190,6 @@ function skillSourceKind(skill: AgentCatalogSkill): SkillSourceKind {
 
 function skillSourceLabel(skill: AgentCatalogSkill, t: (key: string) => string): string {
   return t(`agents.settings.skillSources.${skillSourceKind(skill)}`)
-}
-
-function skillLoadModeLabel(loadMode: AgentCatalogSkill['loadMode'], t: (key: string) => string): string {
-  if (loadMode === 'core') return t('agents.settings.skillLoadModes.core')
-  if (loadMode === 'manual') return t('agents.settings.skillLoadModes.manual')
-  return t('agents.settings.skillLoadModes.onDemand')
 }
 
 function ApiModeCapabilityMatrix({ apiKind, t }: { apiKind: RuntimeModelAPIKind; t: (key: string) => string }) {

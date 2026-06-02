@@ -3310,9 +3310,7 @@ test('runtime persists selected active config file in catalog state', () => {
     assert.equal(saved.metadata?.configFileId, 'config_file_writer')
     assert.equal(saved.metadata?.configFileVersion, '2.0.0')
     assert.equal(catalogStateStore.load().metadata?.activeConfigFileId, 'config_file_writer')
-    assert.deepEqual(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, {
-      movscript_config_file_old: [{ name: 'old_config_file_tool', mode: 'deny' }],
-    })
+    assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)
 
     const restarted = createTestRuntime({
       mcpClient: new FakeMCPClient(),
@@ -3328,7 +3326,7 @@ test('runtime persists selected active config file in catalog state', () => {
   }
 })
 
-test('runtime persists restrictive tool permission overrides for the active config file', () => {
+test('runtime persists restrictive tool permissions on managed config files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-permissions-state-'))
   const toolsDir = join(dir, 'tools')
   const packsDir = join(dir, 'packs')
@@ -3391,21 +3389,40 @@ test('runtime persists restrictive tool permission overrides for the active conf
       catalogStateStore,
     })
 
+    assert.throws(
+      () => runtime.saveConfigFileToolPermissions({
+        configFileId: 'movscript.config_file.base',
+        toolGrants: [{ name: 'draft_apply_preview', mode: 'deny' }],
+      }),
+      /config file movscript\.config_file\.base not found/,
+    )
+
+    runtime.saveAgentConfigFile({
+      activate: true,
+      configFile: {
+        schema: 'movscript.agent.config_file.v1',
+        id: 'config_file_permissions',
+        version: '1.0.0',
+        name: 'Permissions Config File',
+        enabledPackIds: ['movscript.pack.permissions-test'],
+        skillIds: [],
+        toolGrants: [
+          { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+          { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
+        ],
+      },
+    })
+
     const saved = runtime.saveConfigFileToolPermissions({
-      configFileId: 'movscript.config_file.base',
+      configFileId: 'config_file_permissions',
       toolGrants: [
         { name: 'draft_apply_preview', mode: 'deny' },
         { name: 'core_memory_delete', mode: 'allow', approval: 'always' },
       ],
     })
 
-    assert.deepEqual(saved.metadata?.toolPermissionOverridesByConfigFile, {
-      'movscript.config_file.base': [
-        { name: 'draft_apply_preview', mode: 'deny', approval: 'never' },
-        { name: 'core_memory_delete', mode: 'allow', approval: 'always' },
-      ],
-    })
-    assert.deepEqual(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, saved.metadata?.toolPermissionOverridesByConfigFile)
+    assert.equal(saved.metadata?.toolPermissionOverridesByConfigFile, undefined)
+    assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)
     assert.deepEqual(saved.tools, [
       { name: 'draft_apply_preview', mode: 'deny', approval: 'never' },
       { name: 'core_memory_delete', mode: 'allow', approval: 'always' },
@@ -3419,12 +3436,12 @@ test('runtime persists restrictive tool permission overrides for the active conf
 
     assert.deepEqual(restarted.getActiveAgentManifest().tools, saved.tools)
     assert.throws(
-      () => restarted.saveConfigFileToolPermissions({ configFileId: 'movscript.config_file.base', toolGrants: [{ name: 'core_memory_delete', mode: 'allow', approval: 'never' }] }),
+      () => restarted.saveConfigFileToolPermissions({ configFileId: 'config_file_permissions', toolGrants: [{ name: 'core_memory_delete', mode: 'allow', approval: 'never' }] }),
       /approval cannot be weaker/,
     )
     assert.throws(
-      () => restarted.saveConfigFileToolPermissions({ configFileId: 'movscript.config_file.base', toolGrants: [{ name: 'movscript_project_create', mode: 'allow', approval: 'always' }] }),
-      /not granted by config file movscript\.config_file\.base/,
+      () => restarted.saveConfigFileToolPermissions({ configFileId: 'config_file_permissions', toolGrants: [{ name: 'movscript_project_create', mode: 'allow', approval: 'always' }] }),
+      /not granted by config file config_file_permissions/,
     )
   } finally {
     rmSync(dir, { recursive: true, force: true })

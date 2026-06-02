@@ -32,7 +32,7 @@ export function ConversationList({
     queryKey: ['local-agent-threads', localAgentClient.baseURL],
     queryFn: async () => {
       await localAgentClient.ensureRunning()
-      return localAgentClient.listThreads().then((r) => r.threads)
+      return localAgentClient.listThreads({ includeProvisional: true }).then((r) => r.threads)
     },
     enabled: true,
     retry: false,
@@ -62,6 +62,14 @@ export function ConversationList({
     () => new Set(archivedConversations.flatMap((conversation) => conversation.runtimeThreadId ? [conversation.runtimeThreadId] : [])),
     [archivedConversations],
   )
+  const openRuntimeThreadIds = useMemo(
+    () => new Set(conversations.flatMap((conversation) => {
+      const ids = conversation.runtimeThreadId ? [conversation.runtimeThreadId] : []
+      if (conversation.id.startsWith('thread_')) ids.push(conversation.id)
+      return ids
+    })),
+    [conversations],
+  )
   const mappedHistoryItems: AgentConversationListItem[] = useMemo(() => [
     ...archivedConversations.map((conv) => ({
       id: conv.id,
@@ -70,7 +78,7 @@ export function ConversationList({
       meta: formatAgentDate(conv.updatedAt, locale),
       onClick: () => onSelect(conv.id),
     })),
-    ...localThreads.filter((thread) => !archivedRuntimeThreadIds.has(thread.id)).map((thread) => ({
+    ...localThreads.filter((thread) => !archivedRuntimeThreadIds.has(thread.id) && !openRuntimeThreadIds.has(thread.id)).map((thread) => ({
     id: thread.id,
     title: localThreadTitle(thread, t),
     description: [
@@ -80,7 +88,7 @@ export function ConversationList({
     meta: restoringThreadId === thread.id ? t('agents.chat.restoring') : formatAgentDate(thread.updatedAt, locale),
     onClick: () => { void restoreThread(thread.id) },
     })),
-  ], [archivedConversations, archivedRuntimeThreadIds, locale, localThreads, onSelect, restoringThreadId, t])
+  ], [archivedConversations, archivedRuntimeThreadIds, locale, localThreads, onSelect, openRuntimeThreadIds, restoringThreadId, t])
 
   return (
     <AgentConversationListPanel

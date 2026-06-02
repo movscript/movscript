@@ -1091,7 +1091,7 @@ export function AgentSettingsSkillCard({
   enabled: boolean;
   enabledLabel: ReactNode;
   disabledLabel: ReactNode;
-  loadModeLabel: ReactNode;
+  loadModeLabel?: ReactNode;
   versionLabel?: ReactNode;
   sourceLabel: ReactNode;
   priorityLabel?: ReactNode;
@@ -1131,7 +1131,7 @@ export function AgentSettingsSkillCard({
           <div className="agent-settings-skill-card__title-row">
             <p className="agent-settings-skill-card__title">{name}</p>
             <StatusBadge {...agentSettingsBooleanStatusRecipe(enabled)}>{enabled ? enabledLabel : disabledLabel}</StatusBadge>
-            <Badge variant="outline">{loadModeLabel}</Badge>
+            {loadModeLabel ? <Badge variant="outline">{loadModeLabel}</Badge> : null}
             {versionLabel ? <Badge variant="outline">{versionLabel}</Badge> : null}
             <Badge variant="outline">{sourceLabel}</Badge>
           </div>

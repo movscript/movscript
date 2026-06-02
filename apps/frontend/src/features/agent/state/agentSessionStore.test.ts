@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { conversationIdForRuntimeThread } from '@movscript/conversation'
-import { pageTaskStatusFromRuntime } from './agentSessionStore'
+import { pageTaskStatusFromRuntime, useAgentSessionStore } from './agentSessionStore'
 
 test('conversationIdForRuntimeThread resolves persisted direct conversation mappings first', () => {
   assert.equal(conversationIdForRuntimeThread({
@@ -53,6 +53,39 @@ test('conversationIdForRuntimeThread returns undefined for unmapped runtime thre
       },
     },
   }), undefined)
+})
+
+test('agent session persistence excludes runtime thread mappings and projections', () => {
+  useAgentSessionStore.setState({
+    localThreadIdsByConversation: { conv_1: 'thread_1' },
+    sessionIdsByConversation: { conv_1: 'session_1' },
+    conversationRuntimes: {
+      conv_1: {
+        conversationId: 'conv_1',
+        threadId: 'thread_1',
+        sessionId: 'session_1',
+        loading: false,
+        building: false,
+        approving: false,
+        stopping: false,
+        stopRequested: false,
+        updatedAt: Date.now(),
+      },
+    },
+    runtimeThreadProjections: {
+      conv_1: {
+        conversationId: 'conv_1',
+        threadId: 'thread_1',
+        sessionId: 'session_1',
+        messages: [{ id: 'msg_1', role: 'user', content: 'cached', timestamp: Date.now() }],
+        updatedAt: Date.now(),
+      },
+    },
+  })
+
+  const partialized = useAgentSessionStore.persist.getOptions().partialize?.(useAgentSessionStore.getState())
+
+  assert.deepEqual(partialized, {})
 })
 
 test('pageTaskStatusFromRuntime settles explicit panel payload statuses', () => {

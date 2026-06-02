@@ -12,6 +12,7 @@ export async function renderRuntimeTelemetryWithPromClient(snapshot: RuntimeTele
   renderTelemetryMetadata(registry, snapshot)
   renderOperationMetrics(registry, snapshot)
   renderTraceMetrics(registry, snapshot)
+  renderStorageMetrics(registry, snapshot)
   return await registry.metrics()
 }
 
@@ -120,6 +121,50 @@ function renderTraceMetrics(registry: Registry, snapshot: RuntimeTelemetrySnapsh
   errors.set({}, snapshot.summary.errorSpanCount)
 }
 
+function renderStorageMetrics(registry: Registry, snapshot: RuntimeTelemetrySnapshot): void {
+  renderSummaryMetric(
+    registry,
+    snapshot,
+    'movscript_agent_storage_flush_duration_ms',
+    'Agent local storage flush duration in milliseconds.',
+  )
+  renderSummaryMetric(
+    registry,
+    snapshot,
+    'movscript_agent_trace_store_operation_duration_ms',
+    'Agent trace store operation duration in milliseconds.',
+  )
+
+  const fileBytesSamples = snapshot.metrics.filter((item) => item.name === 'movscript_agent_storage_file_bytes')
+  const fileBytesLabelNames = metricLabelNames(fileBytesSamples)
+  const fileBytes = new Gauge({
+    name: 'movscript_agent_storage_file_bytes',
+    help: 'Agent local storage file size in bytes.',
+    labelNames: fileBytesLabelNames,
+    registers: [registry],
+  })
+  for (const samples of groupSamples(fileBytesSamples, (sample) => stableLabelKey(sample.labels)).values()) {
+    const latest = latestSample(samples)
+    if (!latest) continue
+    fileBytes.set(labelValues(fileBytesLabelNames, latest.labels), latest.value)
+  }
+}
+
+function renderSummaryMetric(registry: Registry, snapshot: RuntimeTelemetrySnapshot, name: string, help: string): void {
+  const samples = snapshot.metrics.filter((item) => item.name === name)
+  const labelNames = metricLabelNames(samples)
+  const summary = new Summary({
+    name,
+    help,
+    labelNames,
+    registers: [registry],
+    percentiles: [0.95, 0.99],
+  })
+  for (const sample of samples) {
+    summary.observe(labelValues(labelNames, sample.labels), sample.value)
+  }
+}
+
 function activeOperationsByKind(operations: RuntimeTelemetryOperation[]): Map<string, number> {
   const map = new Map<string, number>()
   for (const operation of operations) {
@@ -163,4 +208,8 @@ function stableLabelKey(labels?: RuntimeTelemetryMetricSample['labels']): string
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}:${String(value)}`)
     .join('|')
+}
+
+function latestSample(samples: RuntimeTelemetryMetricSample[]): RuntimeTelemetryMetricSample | undefined {
+  return [...samples].sort((left, right) => left.createdAt.localeCompare(right.createdAt)).at(-1)
 }

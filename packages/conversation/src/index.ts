@@ -121,6 +121,14 @@ export interface RuntimeConversationProjection<Message extends AgentConversation
   messages: Message[]
 }
 
+export interface RuntimeThreadProjectionSinkInput<Message extends AgentConversationMessageShape = AgentChatMessage> {
+  userId: string
+  conversationId: string
+  threadId: string
+  sessionId?: string
+  messages: Message[]
+}
+
 export interface RuntimeThreadRunState<Run extends AgentRun = AgentRun> {
   runs: Run[]
   actionableRuns: Run[]
@@ -762,11 +770,11 @@ export interface RestoreRuntimeThreadConversationDeps<
   restoredLabel: string
   titleForThread: (thread: Thread) => string
   loadProjection: (threadId: string) => Promise<RuntimeConversationProjection<Message> & { thread: Thread }>
-  createConversation: (userId: string) => string
+  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string }) => string
   setActiveConversation: (userId: string, conversationId: string) => void
   unarchiveConversation?: (userId: string, conversationId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'upsertMessage'>
+  setRuntimeThreadProjection: (input: RuntimeThreadProjectionSinkInput<Message>) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
@@ -873,12 +881,21 @@ export async function restoreRuntimeThreadConversation<
       restoredMessageCount: 0,
     }
   }
-  const conversationId = deps.createConversation(deps.userId)
-  deps.updateConversationTitle(deps.userId, conversationId, deps.titleForThread(projection.thread))
+  const title = deps.titleForThread(projection.thread)
+  const conversationId = deps.createRuntimeConversation(deps.userId, {
+    threadId: projection.thread.id,
+    ...(sessionId ? { sessionId } : {}),
+    title,
+  })
+  deps.updateConversationTitle(deps.userId, conversationId, title)
   const restoredMessages = markRuntimeMessagesRestored(projection.messages, deps.restoredLabel)
-  for (const message of restoredMessages) {
-    deps.messageStore.upsertMessage(deps.userId, conversationId, message.id, message)
-  }
+  deps.setRuntimeThreadProjection({
+    userId: deps.userId,
+    conversationId,
+    threadId: projection.thread.id,
+    ...(sessionId ? { sessionId } : {}),
+    messages: restoredMessages,
+  })
   deps.setLocalThreadId(conversationId, projection.thread.id)
   if (sessionId) {
     deps.setConversationSessionId?.(conversationId, sessionId)
@@ -957,7 +974,7 @@ export interface CompleteRuntimeSendDeps<
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'updateMessageMeta' | 'setConversationMessages'>
+  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'updateMessageMeta'>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: Run; thread?: Thread; threadId?: string; artifacts?: Artifact[] }) => void
   setConversationRun: (conversationId: string, run: Run, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
@@ -965,6 +982,7 @@ export interface CompleteRuntimeSendDeps<
   setPendingAssistantState: (state: PendingAssistantState | null) => void
   appendAssistantRunResult: (run: Run, thread: Thread, liveEvents: ActivityEvent[]) => Promise<unknown>
   getExistingMessages: () => Message[]
+  setRuntimeThreadProjection: (input: RuntimeThreadProjectionSinkInput<Message>) => void
   setLiveTraceEvents: (events: ActivityEvent[]) => void
   threadResolutionActivityEvent?: (resolution: ThreadResolution | undefined) => ActivityEvent | null | undefined
   upsertActivityEvent?: (events: ActivityEvent[], event: ActivityEvent) => ActivityEvent[]
@@ -1129,7 +1147,13 @@ export async function completeRuntimeSendRunResult<
       existingMessages,
       liveEventsByRunId: { [run.id]: liveEvents },
     })
-    deps.messageStore.setConversationMessages(deps.userId, deps.conversationId, mergeRuntimeThreadProjectionMessages(existingMessages, projection))
+    deps.setRuntimeThreadProjection({
+      userId: deps.userId,
+      conversationId: deps.conversationId,
+      threadId: projection.thread.id,
+      ...(sessionId ? { sessionId } : {}),
+      messages: mergeRuntimeThreadProjectionMessages(existingMessages, projection),
+    })
   }
   deps.setLiveEventsRef([])
   deps.setLiveTraceEvents([])

@@ -46,7 +46,7 @@ test('completeRuntimeSendRunResult binds runtime refs, merges projection, and re
   assert.equal(calls.includes('title:Thread title'), true)
   assert.equal(calls.includes('task:request_1:run_1:thread_1:1'), true)
   assert.equal(calls.includes('append:run_1:2'), true)
-  assert.equal(calls.includes('messages:2'), true)
+  assert.equal(calls.includes('projectionSink:thread_1:none:2'), true)
   assert.equal(calls.includes('settled:request_1:completed:run_1:thread_1:1'), true)
 })
 
@@ -99,7 +99,7 @@ test('completeRuntimeSendRunResult skips thread projection for diagnostic comman
   })
 
   assert.equal(calls.some((call) => call.startsWith('setLocalThread')), false)
-  assert.equal(calls.some((call) => call.startsWith('messages:')), false)
+  assert.equal(calls.some((call) => call.startsWith('projectionSink:')), false)
   assert.equal(calls.includes('append:run_1:2'), true)
 })
 
@@ -140,7 +140,7 @@ test('completeRuntimeSendRunResult leaves requires_action runs to runtime projec
   })
 
   assert.equal(calls.some((call) => call.startsWith('append:')), false)
-  assert.equal(calls.includes('messages:2'), true)
+  assert.equal(calls.includes('projectionSink:thread_1:none:2'), true)
 })
 
 test('appendAssistantRunResultMessage owns assistant result ids and message upserts', async () => {
@@ -208,9 +208,6 @@ function depsFixture(calls: string[]): CompleteRuntimeSendDeps<AgentChatMessage,
       updateMessageMeta: (_userId, _conversationId, messageId, meta) => {
         calls.push(`messageMeta:${messageId}:${meta.runtimeMessage?.messageId}:${meta.runtimeMessage?.runId}`)
       },
-      setConversationMessages: (_userId, _conversationId, messages) => {
-        calls.push(`messages:${messages.length}`)
-      },
     },
     updateConversationTitle: (_userId, _conversationId, title) => {
       calls.push(`title:${title}`)
@@ -231,6 +228,9 @@ function depsFixture(calls: string[]): CompleteRuntimeSendDeps<AgentChatMessage,
       calls.push(`append:${run.id}:${liveEvents.length}`)
     },
     getExistingMessages: () => [chatMessage({ id: 'local_user', role: 'user', content: 'Hello' })],
+    setRuntimeThreadProjection: (input) => {
+      calls.push(`projectionSink:${input.threadId}:${input.sessionId ?? 'none'}:${input.messages.length}`)
+    },
     setLiveTraceEvents: (events) => {
       calls.push(`liveState:${events.length}`)
     },

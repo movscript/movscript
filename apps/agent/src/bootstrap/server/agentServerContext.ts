@@ -173,7 +173,7 @@ export function createAgentServerContext(): AgentServerContext {
   const telemetry = new RuntimeTelemetryRegistry({
     externalExporter: createRuntimeOtlpExporterFromEnv(),
   })
-  const store = timeStartupStep('state-store', () => new FileAgentStore(statePath), (stateStore) => [
+  const store = timeStartupStep('state-store', () => new FileAgentStore(statePath, telemetry), (stateStore) => [
     pathDiagnostic(statePath),
     `trace=${traceIndexDiagnostic(stateStore.tracePath)}`,
     `threads=${stateStore.listThreads().length}`,
@@ -184,15 +184,15 @@ export function createAgentServerContext(): AgentServerContext {
     `interactions=${stateStore.listRuntimeInteractions().length}`,
     `continuations=${stateStore.listRuntimeContinuations().length}`,
   ].join(' '))
-  const draftStore = timeStartupStep('draft-store', () => new FileAgentDraftStore(draftPath), () => [
+  const draftStore = timeStartupStep('draft-store', () => new FileAgentDraftStore(draftPath, telemetry), () => [
     pathDiagnostic(draftPath),
     'load=lazy',
   ].join(' '))
-  const memoryStore = timeStartupStep('memory-store', () => new FileAgentMemoryStore(memoryPath), () => [
+  const memoryStore = timeStartupStep('memory-store', () => new FileAgentMemoryStore(memoryPath, telemetry), () => [
     pathDiagnostic(memoryPath),
     'load=lazy',
   ].join(' '))
-  const toolResultStore = timeStartupStep('tool-result-store', () => new FileAgentToolResultStore(toolResultPath), (store) => [
+  const toolResultStore = timeStartupStep('tool-result-store', () => new FileAgentToolResultStore(toolResultPath, telemetry), (store) => [
     pathDiagnostic(toolResultPath),
     `records=${store.listToolResults().length}`,
   ].join(' '))

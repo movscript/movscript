@@ -1,9 +1,10 @@
 import { renderRuntimeTelemetryWithPromClient } from '../exporters/prometheus/runtimePrometheusExporter.js'
 import type { RuntimeTelemetryExternalExporter } from '../exporters/otlp/runtimeOtlpExporter.js'
+import { createAgentTelemetryMetricSample, type AgentTelemetryMetricUnit } from '@movscript/protocol'
 
 export type RuntimeTelemetryOperationKind = 'http_request' | 'run_create' | 'tool_run_create' | 'interaction_approve' | 'interaction_reject' | 'run_stream'
 export type RuntimeTelemetryOperationStatus = 'running' | 'success' | 'error'
-export type RuntimeTelemetryMetricUnit = 'ms' | 'bytes' | 'count'
+export type RuntimeTelemetryMetricUnit = AgentTelemetryMetricUnit
 export type RuntimeTelemetryLogLevel = 'info' | 'warning' | 'error'
 export type RuntimeTelemetrySpanStatus = 'started' | 'completed' | 'blocked' | 'failed' | 'info'
 
@@ -186,13 +187,13 @@ export class RuntimeTelemetryRegistry {
       name: 'movscript_agent_operation_phase_offset_ms',
       value: offsetMs,
       unit: 'ms',
-      labels: { kind: operation.kind, phase: name },
+      labels: { kind: operation.kind, stage: name },
     })
     this.recordMetric({
       name: 'movscript_agent_operation_phase_delta_ms',
       value: deltaMs,
       unit: 'ms',
-      labels: { kind: operation.kind, phase: name },
+      labels: { kind: operation.kind, stage: name },
     })
   }
 
@@ -311,9 +312,16 @@ export class RuntimeTelemetryRegistry {
   }
 
   recordMetric(sample: Omit<RuntimeTelemetryMetricSample, 'createdAt'>): void {
-    this.metrics.unshift({
-      ...sample,
+    const normalizedSample = createAgentTelemetryMetricSample(sample)
+    const metric: RuntimeTelemetryMetricSample = {
+      name: normalizedSample.name,
+      value: normalizedSample.value,
+      unit: normalizedSample.unit,
+      ...(normalizedSample.labels ? { labels: { ...normalizedSample.labels } } : {}),
       createdAt: new Date().toISOString(),
+    }
+    this.metrics.unshift({
+      ...metric,
     })
     this.metrics = this.metrics.slice(0, MAX_METRICS)
   }

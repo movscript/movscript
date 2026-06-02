@@ -118,7 +118,6 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
     'src/features/agent/components/AgentConsolePage.tsx',
     'src/features/agent/components/AgentRunsPage.tsx',
     'src/features/agent/components/AIAgentRunPage.tsx',
-    'src/features/agent/components/AIAgentDebugPage.tsx',
     'src/features/agent/components/AIAgentSettingsPage.tsx',
     'src/features/agent/components/AIAgentPerformancePage.tsx',
     'src/features/agent/components/AIDraftsPage.tsx',
@@ -177,7 +176,8 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(chatPanelLayoutSource, /<AgentChatHeaderActions[\s\S]*historyOpen=\{historyOpen\}[\s\S]*pinnedStatusExpanded=\{pinnedStatusExpanded\}/)
   assert.match(chatPanelLayoutSource, /const conversationStarted = thread\.messages\.length > 0 \|\| thread\.conversationBlocks\.length > 0 \|\| !!debugPreview\.draft/)
   assert.match(chatPanelLayoutSource, /const emptyConversation = !conversationStarted/)
-  assert.match(chatPanelLayoutSource, /setHistoryOpen\(!conversationStarted\)/)
+  assert.match(chatPanelLayoutSource, /const \[historyOpen, setHistoryOpen\] = useState\(false\)/)
+  assert.match(chatPanelLayoutSource, /setHistoryOpen\(false\)/)
   assert.match(chatPanelLayoutSource, /if \(conversationStarted\) setHistoryOpen\(false\)/)
   assert.match(chatPanelLayoutSource, /historyThreads/)
   assert.match(chatPanelLayoutSource, /agents\.chat\.conversationHistory/)
@@ -257,9 +257,11 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(runtimeHydrationHookSource, /signal: controller\.signal/)
   assert.match(runtimeHydrationHookSource, /controller\.abort\(\)/)
   assert.match(runtimeHydrationHookSource, /loadRuntimeThreadProjection\(\{[\s\S]*threadId/)
-  assert.match(conversationHydrationSource, /deps\.messageStore\.setConversationMessages\([\s\S]*mergeRuntimeThreadProjectionMessages\(input\.existingMessages, projection\)/)
+  assert.match(conversationHydrationSource, /const messages = mergeRuntimeThreadProjectionMessages\(input\.existingMessages, projection\)/)
+  assert.match(conversationHydrationSource, /deps\.setRuntimeThreadProjection\(\{[\s\S]*messages,/)
   assert.match(agentConversationSource, /markRuntimeMessagesRestored\(projection\.messages, deps\.restoredLabel\)/)
-  assert.match(agentConversationSource, /deps\.messageStore\.upsertMessage/)
+  assert.match(agentConversationSource, /deps\.setRuntimeThreadProjection\(\{[\s\S]*messages: restoredMessages/)
+  assert.doesNotMatch(agentConversationSource, /deps\.messageStore\.upsertMessage/)
   assert.match(agentConversationSource, /conversationIdForRuntimeSession/)
   assert.match(agentConversationSource, /conversationIdForRuntimeThread\(\{[\s\S]*localThreadIdsByConversation[\s\S]*conversationRuntimes/)
   assert.match(agentConversationSource, /if \(existingConversationId\) \{[\s\S]*activateConversation\(existingConversationId\)[\s\S]*return/)
@@ -267,7 +269,7 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(panelSource, /hasOpenConversations/)
   assert.match(panelSource, /className="hidden"/)
   assert.match(appTopControlsSource, /conversationCount === 0 \? Plus : MessageCircle/)
-  assert.match(appTopControlsSource, /createConversation\(userId\)/)
+  assert.doesNotMatch(appTopControlsSource, /createConversation\(userId\)/)
   assert.match(appTopControlsSource, /setAgentPanelOpen\(true\)/)
   assert.match(appTopControlsSource, /getAppRouteSurface\(pathname\)/)
   assert.match(appTopControlsSource, /workModeForRoute\(pathname, workMode\)/)
@@ -477,6 +479,7 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(sendActivitySource, /本地线程不存在，已创建新线程/)
   assert.match(agentConversationSource, /completeRuntimeSendRunResult/)
   assert.match(agentConversationSource, /appendAssistantRunResult\(run, thread, liveEvents\)/)
+  assert.match(agentConversationSource, /setRuntimeThreadProjection/)
   assert.match(agentConversationSource, /mergeRuntimeThreadProjectionMessages\(existingMessages, projection\)/)
   assert.match(sendCompletionSource, /completeRuntimeSendRunResult/)
   assert.match(sendCompletionSource, /threadResolutionActivityEvent/)
@@ -486,8 +489,8 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(commitSendHookSource, /commitAgentSendDraft\(draft, \{/)
   assert.match(commitSendHookSource, /messageStore,/)
   assert.match(agentConversationSource, /interface AgentConversationMessageStore/)
-  assert.match(conversationHydrationSource, /messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'setConversationMessages'>/)
-  assert.match(sendCommitSource, /messageStore: AgentConversationMessageStore<ChatMessage, ChatMessageMeta>/)
+  assert.match(conversationHydrationSource, /setRuntimeThreadProjection: \(input: \{ conversationId: string; threadId: string; sessionId\?: string; messages: ChatMessage\[\] \}\) => void/)
+  assert.match(sendCommitSource, /setRuntimeThreadProjection: \(input: \{ conversationId: string; threadId: string; sessionId\?: string; messages: ChatMessage\[\] \}\) => void/)
   assert.match(sendCommitSource, /completeSendRunResult\(\{/)
 })
 

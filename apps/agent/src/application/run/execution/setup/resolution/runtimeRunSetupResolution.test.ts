@@ -275,7 +275,7 @@ test('resolveRuntimeRunSetup honors the active manifest configFile id when layer
   assert.equal(run.agentManifest?.metadata?.configFileId, 'config_file_writer')
 })
 
-test('resolveRuntimeRunSetup applies default tool permission overrides without changing configFile catalog', async () => {
+test('resolveRuntimeRunSetup ignores legacy tool permission metadata overrides', async () => {
   const layeredRegistry = buildLayeredCatalogRegistry({
     manifest: DEFAULT_AGENT_MANIFEST,
     tools: [],
@@ -333,13 +333,13 @@ test('resolveRuntimeRunSetup applies default tool permission overrides without c
   })
 
   assert.deepEqual(result.activeManifest.tools, [
-    { name: 'tool_a', mode: 'deny', approval: 'never' },
-    { name: 'tool_b', mode: 'allow', approval: 'always' },
+    { name: 'tool_a', mode: 'allow', approval: 'never' },
+    { name: 'tool_b', mode: 'allow', approval: 'on_write' },
   ])
   assert.deepEqual(result.layers?.ctx.configFile.toolGrants, result.activeManifest.tools)
 })
 
-test('resolveRuntimeRunSetup keeps stored tool permission overrides at least as strict as config file approval defaults', async () => {
+test('resolveRuntimeRunSetup ignores legacy tool permission metadata when config file grants are unchanged', async () => {
   const layeredRegistry = buildLayeredCatalogRegistry({
     manifest: DEFAULT_AGENT_MANIFEST,
     tools: [tool('tool_writer', 'write')],
@@ -350,7 +350,6 @@ test('resolveRuntimeRunSetup keeps stored tool permission overrides at least as 
       name: 'Base Config File',
       enabledPackIds: [],
       skillIds: [],
-      approvalDefaults: { write: 'always' },
       toolGrants: [
         { name: 'tool_writer', mode: 'allow', approval: 'never' },
       ],
@@ -360,11 +359,6 @@ test('resolveRuntimeRunSetup keeps stored tool permission overrides at least as 
     ...DEFAULT_AGENT_MANIFEST,
     metadata: {
       configFileId: 'movscript.config_file.base',
-      toolPermissionOverridesByConfigFile: {
-        'movscript.config_file.base': [
-          { name: 'tool_writer', mode: 'allow', approval: 'never' },
-        ],
-      },
     },
   }
   const run = makeRun({ metadata: { manifestSource: 'default' } })
@@ -396,7 +390,7 @@ test('resolveRuntimeRunSetup keeps stored tool permission overrides at least as 
   })
 
   assert.deepEqual(result.activeManifest.tools, [
-    { name: 'tool_writer', mode: 'allow', approval: 'always' },
+    { name: 'tool_writer', mode: 'allow', approval: 'never' },
   ])
   assert.deepEqual(result.layers?.ctx.configFile.toolGrants, result.activeManifest.tools)
 })

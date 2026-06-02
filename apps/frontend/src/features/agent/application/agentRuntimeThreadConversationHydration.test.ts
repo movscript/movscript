@@ -7,7 +7,7 @@ import { WAITING_RUNTIME_STATUS_LIGHT } from '@/features/agent/domain/agentRunti
 import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
-test('hydrateRuntimeThreadConversation projects runtime thread into the conversation store', async () => {
+test('hydrateRuntimeThreadConversation projects runtime thread into runtime projection state', async () => {
   const calls: string[] = []
   const status = await hydrateRuntimeThreadConversation({
     userId: 'user_1',
@@ -30,7 +30,7 @@ test('hydrateRuntimeThreadConversation projects runtime thread into the conversa
     'runtimeThread:conv_1:thread_1',
     'run:conv_1:run_1:completed',
     'title:conv_1:Runtime title',
-    'messages:conv_1:2',
+    'projection:conv_1:thread_1:none:2',
   ])
 })
 
@@ -294,10 +294,8 @@ function depsFixture(
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)
     },
-    messageStore: {
-      setConversationMessages: (_userId, conversationId, messages) => {
-        calls.push(`messages:${conversationId}:${messages.length}`)
-      },
+    setRuntimeThreadProjection: ({ conversationId, threadId, sessionId, messages }) => {
+      calls.push(`projection:${conversationId}:${threadId}:${sessionId ?? 'none'}:${messages.length}`)
     },
   }
 }

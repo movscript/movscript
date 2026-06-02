@@ -187,10 +187,11 @@ export function normalizeDebugEvidenceRefQuery(url: URL): { ok: true; query: Run
   } }
 }
 
-export function normalizeThreadListQuery(url: URL): { cursor?: string; limit: number } {
+export function normalizeThreadListQuery(url: URL): { cursor?: string; limit: number; includeProvisional?: boolean } {
   return {
     ...(url.searchParams.get('cursor') ? { cursor: url.searchParams.get('cursor') ?? undefined } : {}),
     limit: parseLimitParam(url.searchParams.get('limit'), 100) ?? 100,
+    ...(url.searchParams.get('includeProvisional') === 'true' ? { includeProvisional: true } : {}),
   }
 }
 
@@ -201,13 +202,16 @@ export function activeAgentConfigFileId(manifest: { metadata?: Record<string, un
 
 export function paginatedThreadSummaries(
   summaries: AgentThreadSummary[],
-  query: { cursor?: string; limit: number },
+  query: { cursor?: string; limit: number; includeProvisional?: boolean },
 ): AgentThreadListPage {
-  const total = summaries.length
-  const cursorIndex = query.cursor ? summaries.findIndex((thread) => thread.id === query.cursor) : -1
+  const visibleSummaries = query.includeProvisional
+    ? summaries
+    : summaries.filter((thread) => thread.lifecycle !== 'provisional' && thread.lifecycle !== 'abandoned')
+  const total = visibleSummaries.length
+  const cursorIndex = query.cursor ? visibleSummaries.findIndex((thread) => thread.id === query.cursor) : -1
   const startIndex = query.cursor ? cursorIndex + 1 : 0
   const pageStartIndex = query.cursor && cursorIndex < 0 ? total : startIndex
-  const threads = summaries.slice(pageStartIndex, pageStartIndex + query.limit)
+  const threads = visibleSummaries.slice(pageStartIndex, pageStartIndex + query.limit)
   const nextIndex = pageStartIndex + threads.length
   const hasMore = nextIndex < total
   return {

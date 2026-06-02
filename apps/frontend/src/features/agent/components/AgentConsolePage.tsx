@@ -231,7 +231,7 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 Agent 的配置文件、已安装能力、可执行工具、运行记录、高级诊断和草稿索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
+              管理 Agent 的配置文件、已安装能力、可执行工具、运行记录和草稿索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -300,7 +300,7 @@ export default function AgentConsolePage() {
             <ConsolePanel title="控制台边界" icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid columns="three">
                 <BoundaryCard title="业务前台" detail="Agent 面板发起任务，业务页面负责对比、审阅和应用建议。" />
-                <BoundaryCard title="控制台" detail="集中处理配置、插件、运行记录、诊断报告和草稿索引，不替代业务审阅。" />
+                <BoundaryCard title="控制台" detail="集中处理配置、插件、运行记录和草稿索引，不替代业务审阅。" />
                 <BoundaryCard title="Trace 详情" detail="从运行记录、聊天过程或草稿来源进入，用于定位模型、工具和上下文问题。" />
               </AgentConsoleGrid>
             </ConsolePanel>
@@ -338,7 +338,6 @@ export default function AgentConsolePage() {
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-model')} icon={<Settings size={14} />} title="模型与运行限制" detail="配置模型、API 模式、预算和默认审批行为。" />
                 <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Pack / 插件市场" detail="Pack 是安装和发布单元；插件市场是未来的 Pack 来源之一，也承载应用插件、画布节点和工具页。" />
                 <ManagementLink to={ROUTES.agentRuns} icon={<ListTree size={14} />} title="运行记录" detail="统一查看 Run 状态，并进入 trace 详情。" />
-                <ManagementLink to={ROUTES.agentDebug} icon={<Terminal size={14} />} title="高级诊断" detail="Prompt preview、工具控制台、调试包。" />
                 <ManagementLink to={ROUTES.agentDrafts} icon={<FileSearch size={14} />} title="草稿索引" detail={`${drafts.length} 个待业务审阅草稿，可追踪来源。`} />
               </AgentConsoleGrid>
               <AgentConsoleDivider>
@@ -836,7 +835,7 @@ function buildConsoleIssues(input: {
       tone: 'action',
       title: 'Runtime 不可用',
       detail: errorMessage(input.healthError),
-      to: ROUTES.agentDebug,
+      to: ROUTES.agentSettings,
     })
   }
   if (!input.modelConfigured || input.modelError) {

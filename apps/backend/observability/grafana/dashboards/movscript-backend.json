@@ -409,18 +409,6 @@
                 "value": "ms"
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "storage latest"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              }
-            ]
           }
         ]
       },
@@ -447,15 +435,582 @@
           "expr": "movscript_agent_client_long_task_duration_milliseconds_max",
           "legendFormat": "long task max",
           "refId": "A"
-        },
-        {
-          "expr": "movscript_agent_client_storage_bytes{kind=\"latest\"}",
-          "legendFormat": "storage latest",
-          "refId": "B"
         }
       ],
       "title": "Agent Client Browser Health",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Route-level request rate by status class. New backend routes appear automatically when they are recorded by RequestMetrics.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(sum(rate(movscript_http_requests_total[5m])) by (route, status_class))",
+          "legendFormat": "{{route}} {{status_class}}"
+        }
+      ],
+      "title": "HTTP Interface Traffic Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Route-level p95 latency. This keeps important interfaces visible without hardcoding a fixed route list.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(histogram_quantile(0.95, sum(rate(movscript_http_request_duration_milliseconds_bucket[5m])) by (le, route)))",
+          "legendFormat": "{{route}} p95"
+        }
+      ],
+      "title": "HTTP Interface Latency Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Agent frontend operation average latency by operation kind and status. New operation kinds appear automatically.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 47
+      },
+      "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[5m])) by (kind, status) / sum(rate(movscript_agent_client_operation_duration_milliseconds_count[5m])) by (kind, status))",
+          "legendFormat": "{{kind}} {{status}} avg"
+        }
+      ],
+      "title": "Agent Client Operation Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Agent frontend phase average latency by operation kind and phase. New phases are surfaced without dashboard edits.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 47
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[5m])) by (kind, phase) / sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[5m])) by (kind, phase))",
+          "legendFormat": "{{kind}} {{phase}} avg"
+        }
+      ],
+      "title": "Agent Client Phase Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Backend telemetry intake health. Rejected statuses indicate invalid payloads, unsupported schemas, or future ingestion guardrails.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 55
+      },
+      "id": 15,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sum(rate(movscript_agent_client_telemetry_batches_total[5m])) by (status)",
+          "legendFormat": "{{status}} batches/s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "B",
+          "expr": "sum(rate(movscript_agent_client_telemetry_samples_total[5m])) by (status)",
+          "legendFormat": "{{status}} samples/s"
+        }
+      ],
+      "title": "Agent Telemetry Ingest Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Optional local/runtime Agent stage latency. It is populated when Prometheus also scrapes the Agent runtime /metrics target.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 55
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(movscript_agent_trace_span_duration_ms{quantile=\"0.95\"})",
+          "legendFormat": "{{kind}} {{status}} {{tool_name}} p95"
+        }
+      ],
+      "title": "Agent Runtime Stage Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Frontend/Agent request latency by method, route group, status class, and transport. Route groups are normalized to avoid high-cardinality IDs.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 63
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_agent_network_request_duration_ms\"}[5m])) by (method, route_group, status_class, transport) / sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_agent_network_request_duration_ms\"}[5m])) by (method, route_group, status_class, transport))",
+          "legendFormat": "{{method}} {{route_group}} {{status_class}} {{transport}} avg"
+        }
+      ],
+      "title": "Agent Network Request Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Browser performance vitals reported through the shared telemetry sample format. Millisecond vitals and CLS score share this table.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 63
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=~\"frontend_web_vital_.*_ms\"}) by (metric, vital)",
+          "legendFormat": "{{metric}} {{vital}} max"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "B",
+          "expr": "max(movscript_agent_client_metric_score_max{metric=\"frontend_web_vital_cls_score\"}) by (metric, vital)",
+          "legendFormat": "{{metric}} {{vital}} score"
+        }
+      ],
+      "title": "Frontend Web Vitals Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Frontend diagnostic error rate by area, kind, and level. Error messages and stack traces are intentionally not reported.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 71
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sum(rate(movscript_agent_client_metric_count_total{metric=\"frontend_ui_errors_total\"}[5m])) by (area, kind, level)",
+          "legendFormat": "{{area}} {{kind}} {{level}} metric"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "B",
+          "expr": "sum(rate(movscript_agent_client_logs_total[5m])) by (area, kind, level)",
+          "legendFormat": "{{area}} {{kind}} {{level}} log"
+        }
+      ],
+      "title": "Frontend Error Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Centralized Agent runtime latency forwarded by the authenticated frontend reporter from /runtime/telemetry. This works when Grafana only scrapes the backend /metrics endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 71
+      },
+      "id": 20,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "sort_desc(sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"movscript_agent_trace_span_duration_ms\"}[5m])) by (kind, status) / sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"movscript_agent_trace_span_duration_ms\"}[5m])) by (kind, status))",
+          "legendFormat": "{{kind}} {{status}} trace span avg"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "B",
+          "expr": "sort_desc(sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"movscript_agent_operation_duration_ms\"}[5m])) by (kind, status) / sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"movscript_agent_operation_duration_ms\"}[5m])) by (kind, status))",
+          "legendFormat": "{{kind}} {{status}} operation avg"
+        }
+      ],
+      "title": "Agent Runtime Central Table",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Active Prometheus alerts loaded with the MovScript observability stack. New rules appear automatically through the ALERTS metric.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 79
+      },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "expr": "ALERTS{alertstate=~\"firing|pending\"}",
+          "legendFormat": "{{alertname}} {{alertstate}}"
+        }
+      ],
+      "title": "Active Alerts Table",
+      "type": "table"
     }
   ],
   "refresh": "5s",
@@ -464,7 +1019,14 @@
     "movscript",
     "backend",
     "agent-client",
-    "shot-vectors"
+    "shot-vectors",
+    "interfaces",
+    "agent-stages",
+    "web-vitals",
+    "agent-network",
+    "frontend-errors",
+    "agent-runtime-central",
+    "alerts"
   ],
   "templating": {
     "list": []
@@ -477,6 +1039,6 @@
   "timezone": "browser",
   "title": "Movscript Backend",
   "uid": "movscript-backend",
-  "version": 1,
+  "version": 5,
   "weekStart": ""
 }

@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { atomicWriteJSON, resolveAgentMemoryPath } from '../../../state/store/file/fileStore.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import { isValidMemoryProjectId, type AgentMemory, type CreateMemoryInput } from '../../shared/types.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../in-memory/memoryStore.js'
+import type { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
 interface MemoryStateFile {
   version: 2
@@ -13,7 +14,7 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
   readonly filePath: string
   private loaded = false
 
-  constructor(filePath = resolveAgentMemoryPath()) {
+  constructor(filePath = resolveAgentMemoryPath(), private readonly telemetry?: RuntimeTelemetryRegistry) {
     super()
     this.filePath = filePath
   }
@@ -87,10 +88,54 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
   }
 
   private persist(): void {
-    atomicWriteJSON(this.filePath, {
-      version: 2,
-      memories: this.snapshotMemories(),
-    } satisfies MemoryStateFile)
+    const startedAt = Date.now()
+    try {
+      atomicWriteJSON(this.filePath, {
+        version: 2,
+        memories: this.snapshotMemories(),
+      } satisfies MemoryStateFile)
+      this.recordStorageFlush('success', Date.now() - startedAt)
+    } catch (error) {
+      this.recordStorageFlush('error', Date.now() - startedAt)
+      throw error
+    }
+  }
+
+  private recordStorageFlush(status: 'success' | 'error', durationMs: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_flush_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'memory_store',
+        kind: 'memory_file',
+        stage: 'flush',
+        status,
+      },
+    })
+    if (status !== 'success') return
+    const bytes = fileSizeSafe(this.filePath)
+    if (bytes !== undefined) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'memory_store',
+          kind: 'memory_file',
+          stage: 'flush',
+          status,
+        },
+      })
+    }
+  }
+}
+
+function fileSizeSafe(filePath: string): number | undefined {
+  try {
+    return statSync(filePath).size
+  } catch {
+    return undefined
   }
 }
 

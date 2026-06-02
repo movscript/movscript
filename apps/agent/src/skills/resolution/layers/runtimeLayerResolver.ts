@@ -1,5 +1,5 @@
 import type { AgentManifest, AgentToolApprovalMode, AgentToolGrant } from '../../../catalog/manifest/agentManifest.js'
-import type { AgentConfigFile, CatalogRegistry, RuntimeContext, SkillDefinition, SkillTrigger, ToolGrant } from '../../../catalog/registry/shared/types.js'
+import type { CatalogRegistry, RuntimeContext, SkillDefinition, SkillTrigger } from '../../../catalog/registry/shared/types.js'
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
 import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
 import type { AgentDebugContextPanel, AgentMessage, ResolvedAgentSkill } from '../../../state/shared/types.js'
@@ -51,10 +51,8 @@ export function resolveRuntimeLayers(input: {
 }): RuntimeLayerResolution {
   const rawConfigFileId = typeof input.baseManifest.metadata?.configFileId === 'string' ? input.baseManifest.metadata.configFileId : undefined
   const configFileId = resolveManifestConfigFileId(input.registry, rawConfigFileId)
-  const userToolPermissions = userToolPermissionsConfigFile(input.registry, input.baseManifest, configFileId)
   const resolvedConfigFile = resolveConfigFile(input.registry, {
     ...(configFileId ? { configFileId: configFileId } : {}),
-    ...(userToolPermissions ? { userConfigFile: userToolPermissions } : {}),
   })
   const intentResolution = resolveRuntimeIntents(input.message, input.debugContext)
   const ctx: RuntimeContext = {
@@ -119,7 +117,7 @@ export function resolveRuntimeLayers(input: {
   })
 
   const manifest = addSkillToolGrantsToManifest(
-    manifestFromConfigFile(input.baseManifest, resolvedConfigFile.configFile),
+    manifestFromConfigFile(input.baseManifest, resolvedConfigFile.configFile, input.registry),
     {
       registry: input.registry,
       skillIds: skills.map((skill) => skill.id),
@@ -234,7 +232,7 @@ function agentApprovalRank(value?: AgentToolApprovalMode): number {
   return 0
 }
 
-function manifestFromConfigFile(baseManifest: AgentManifest, configFile: RuntimeContext['configFile']): AgentManifest {
+function manifestFromConfigFile(baseManifest: AgentManifest, configFile: RuntimeContext['configFile'], registry: CatalogRegistry): AgentManifest {
   const baseConfigFile = baseConfigFileLayer(configFile)
   return {
     ...baseManifest,
@@ -242,11 +240,7 @@ function manifestFromConfigFile(baseManifest: AgentManifest, configFile: Runtime
     version: configFile.version,
     name: configFile.name,
     ...(configFile.description ? { description: configFile.description } : {}),
-    tools: configFile.toolGrants.map((grant) => ({
-      name: grant.name,
-      mode: grant.mode,
-      ...(grant.approval ? { approval: grant.approval } : {}),
-    })),
+    tools: configFile.toolGrants.map((grant) => manifestToolGrantWithApprovalDefaults(grant, configFile, registry)),
     ...(configFile.model?.provider && configFile.model.modelId
       ? {
         model: {
@@ -266,6 +260,33 @@ function manifestFromConfigFile(baseManifest: AgentManifest, configFile: Runtime
       ...(configFile.resolvedFrom ? { resolvedFrom: configFileResolutionTraceMetadata(configFile.resolvedFrom) } : {}),
     },
   }
+}
+
+function manifestToolGrantWithApprovalDefaults(
+  grant: RuntimeContext['configFile']['toolGrants'][number],
+  configFile: RuntimeContext['configFile'],
+  registry: CatalogRegistry,
+): AgentToolGrant {
+  const tool = registry.tools.get(grant.name)
+  const defaultApproval = (tool ? configFile.approvalDefaults?.[tool.risk] : undefined) ?? configFile.approvalDefaults?.default
+  const approval = stricterLayerApproval(grant.approval, defaultApproval)
+  return {
+    name: grant.name,
+    mode: grant.mode,
+    ...(approval ? { approval } : {}),
+  }
+}
+
+function stricterLayerApproval(left?: AgentToolApprovalMode, right?: AgentToolApprovalMode): AgentToolApprovalMode | undefined {
+  if (!left) return right
+  if (!right) return left
+  return approvalRank(right) > approvalRank(left) ? right : left
+}
+
+function approvalRank(value?: AgentToolApprovalMode): number {
+  if (value === 'always') return 2
+  if (value === 'on_write') return 1
+  return 0
 }
 
 function resolveManifestConfigFileId(registry: CatalogRegistry, rawConfigFileId: string | undefined): string | undefined {
@@ -298,89 +319,6 @@ function configFileResolutionTraceMetadata(trace: NonNullable<RuntimeContext['co
       version: layer.version,
     })),
   }
-}
-
-function userToolPermissionsConfigFile(registry: CatalogRegistry, manifest: AgentManifest, baseConfigFileId: string | undefined): AgentConfigFile | undefined {
-  const configFileId = baseConfigFileId ?? stripToolPermissionsConfigFileSuffix(typeof manifest.metadata?.configFileId === 'string' ? manifest.metadata.configFileId : '') ?? 'movscript.config_file.base'
-  const toolGrants = normalizeUserToolPermissionGrants(
-    toolGrantsForConfigFile(manifest.metadata?.toolPermissionOverridesByConfigFile, configFileId),
-    registry,
-    configFileId,
-  )
-  if (toolGrants.length === 0) return undefined
-  return {
-    schema: 'movscript.agent.config_file.v1',
-    id: `${configFileId}.tool-permissions`,
-    version: String(manifest.metadata?.configFileVersion ?? manifest.version),
-    name: 'User Tool Permissions',
-    enabledPackIds: [],
-    skillIds: [],
-    toolGrants,
-  }
-}
-
-function normalizeUserToolPermissionGrants(
-  grants: ToolGrant[],
-  registry: CatalogRegistry,
-  configFileId: string,
-): ToolGrant[] {
-  if (grants.length === 0) return grants
-  const configFile = registry.configFiles.get(configFileId)
-  if (!configFile) return grants
-  const baseGrants = new Map(configFile.toolGrants.map((grant) => [grant.name, grant]))
-  return grants.map((grant) => {
-    const baseGrant = baseGrants.get(grant.name)
-    if (!baseGrant) return grant
-    const approval = stricterConfigApproval(
-      stricterConfigApproval(baseGrant.approval, configFileApprovalDefault(configFile, registry, grant.name)),
-      grant.approval,
-    )
-    return { ...grant, ...(approval ? { approval } : {}) }
-  })
-}
-
-function configFileApprovalDefault(
-  configFile: AgentConfigFile,
-  registry: CatalogRegistry,
-  toolName: string,
-): ToolGrant['approval'] {
-  if (!configFile.approvalDefaults) return undefined
-  const tool = registry.tools.get(toolName)
-  return (tool ? configFile.approvalDefaults[tool.risk] : undefined) ?? configFile.approvalDefaults.default
-}
-
-function stricterConfigApproval(left?: ToolGrant['approval'], right?: ToolGrant['approval']): ToolGrant['approval'] {
-  if (!left) return right
-  if (!right) return left
-  return configApprovalRank(right) > configApprovalRank(left) ? right : left
-}
-
-function configApprovalRank(value?: ToolGrant['approval']): number {
-  if (value === 'always') return 2
-  if (value === 'on_write') return 1
-  return 0
-}
-
-function toolGrantsForConfigFile(input: unknown, configFileId: string): ToolGrant[] {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return []
-  return toolGrantsFromMetadata((input as Record<string, unknown>)[configFileId])
-}
-
-function toolGrantsFromMetadata(input: unknown): ToolGrant[] {
-  if (!Array.isArray(input)) return []
-  const grants: ToolGrant[] = []
-  for (const item of input) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-    const record = item as Record<string, unknown>
-    const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : undefined
-    const mode = record.mode === 'deny' ? 'deny' : record.mode === 'allow' ? 'allow' : undefined
-    if (!name || !mode) continue
-    const approval = record.approval === 'always' || record.approval === 'on_write' || record.approval === 'never'
-      ? record.approval
-      : undefined
-    grants.push({ name, mode, ...(approval ? { approval } : {}) })
-  }
-  return grants
 }
 
 function buildSkillDiscoverySummary(input: {

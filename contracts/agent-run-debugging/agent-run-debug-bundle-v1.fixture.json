@@ -7,6 +7,7 @@
     "readinessChecklist",
     "runtimeSummary",
     "roundContextUpdates",
+    "roundContextChanges",
     "modelCallContexts",
     "promptDetails",
     "contextMutations",
@@ -344,6 +345,116 @@
         "metadataOnlyCount": 0,
         "decisions": []
       }
+    }
+  ],
+  "roundContextChanges": [
+    {
+      "round": {
+        "eventId": "evt_round_context_update",
+        "title": "Round 1: context projection updated",
+        "roundIndex": 1,
+        "messageCount": "4",
+        "systemMessageCount": "1",
+        "promptChars": "160",
+        "contextBundle": {
+          "kind": "context_bundle",
+          "label": "ctxb_fixture",
+          "id": "ctxb_fixture",
+          "hash": "sha256:context"
+        },
+        "historyProjection": {
+          "inputCount": 3,
+          "retainedCount": 2,
+          "compactedCount": 1,
+          "filteredCount": 0,
+          "summaryChars": 24,
+          "decisions": [
+            {
+              "action": "compact",
+              "stage": "history",
+              "reason": "预算压缩"
+            }
+          ]
+        },
+        "historicalVisualProjection": {
+          "candidateCount": 2,
+          "selectedCount": 1,
+          "includedInlineImageCount": 1,
+          "metadataOnlyCount": 0,
+          "droppedCount": 1,
+          "decisions": [
+            {
+              "action": "retain",
+              "stage": "historical_visual_context",
+              "reason": "从历史图片资源重建视觉输入"
+            }
+          ]
+        },
+        "attachmentProjection": {
+          "attachmentCount": 0,
+          "inlineImageCount": 0,
+          "metadataOnlyCount": 0,
+          "decisions": []
+        }
+      },
+      "mutationCount": 1,
+      "appended": 1,
+      "amended": 1,
+      "deleted": 0,
+      "affectedContextKeys": [
+        "reference:storyboard.rhythm.basic:sha256:old",
+        "reference:storyboard.rhythm.basic:sha256:new"
+      ],
+      "appendedContextKeys": [
+        "reference:storyboard.rhythm.basic:sha256:old"
+      ],
+      "amendedContextKeys": [
+        "reference:storyboard.rhythm.basic:sha256:old",
+        "reference:storyboard.rhythm.basic:sha256:new"
+      ],
+      "deletedContextKeys": [],
+      "latestMutationReason": "reference refreshed",
+      "mutationEventIds": [
+        "evt_context_ledger"
+      ],
+      "mutations": [
+        {
+          "eventId": "evt_context_ledger",
+          "title": "上下文变动",
+          "total": 2,
+          "appended": 1,
+          "amended": 1,
+          "deleted": 0,
+          "affectedContextKeys": [
+            "reference:storyboard.rhythm.basic:sha256:old",
+            "reference:storyboard.rhythm.basic:sha256:new"
+          ],
+          "appendedContextKeys": [
+            "reference:storyboard.rhythm.basic:sha256:old"
+          ],
+          "amendedContextKeys": [
+            "reference:storyboard.rhythm.basic:sha256:old",
+            "reference:storyboard.rhythm.basic:sha256:new"
+          ],
+          "deletedContextKeys": [],
+          "latest": {
+            "id": "ctx_mut_amend_fixture",
+            "type": "amend",
+            "createdAt": "2026-05-16T08:00:02.500Z",
+            "reason": "reference refreshed"
+          },
+          "refs": [
+            {
+              "kind": "context",
+              "label": "reference:storyboard.rhythm.basic",
+              "key": "reference:storyboard.rhythm.basic:sha256:new",
+              "id": "storyboard.rhythm.basic",
+              "type": "reference",
+              "hash": "sha256:new"
+            }
+          ]
+        }
+      ]
     }
   ],
   "promptDetails": [

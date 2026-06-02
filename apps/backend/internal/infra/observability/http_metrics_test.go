@@ -86,3 +86,16 @@ func TestHTTPMetricsPrometheusText(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPMetricsPrometheusTextIncludesRegisteredProviders(t *testing.T) {
+	metrics := NewHTTPMetrics(HTTPMetricsConfig{})
+	unregister := RegisterPrometheusTextProvider(func() string {
+		return "# HELP movscript_test_extension_total Test extension.\n# TYPE movscript_test_extension_total counter\nmovscript_test_extension_total 1\n"
+	})
+	t.Cleanup(unregister)
+
+	text := metrics.PrometheusText()
+	if !strings.Contains(text, "movscript_test_extension_total 1") {
+		t.Fatalf("Prometheus text missing registered provider output in:\n%s", text)
+	}
+}

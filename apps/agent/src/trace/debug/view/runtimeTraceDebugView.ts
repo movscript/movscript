@@ -32,6 +32,7 @@ import {
 } from './runtime-trace-debug-view/report.js'
 import {
   buildContextMutationViews,
+  buildRoundContextChangeViews,
   buildRuntimeSummary,
   buildSkillTraceSummary,
   correlatePromptDetailsWithRuntimeState,
@@ -56,6 +57,7 @@ export type {
   AgentPromptDetailView,
   AgentPromptHistoryProjectionView,
   AgentPromptSkillStateView,
+  AgentRoundContextChangeView,
   AgentRoundContextUpdateView,
   AgentRunRuntimeSummary,
   AgentRuntimeSkillOmissionView,
@@ -81,6 +83,7 @@ export function buildRuntimeTraceDebugView(input: {
   const basePromptDetails = buildPromptDetails(events)
   const roundContextUpdates = buildRoundContextUpdateViews(events)
   const contextMutations = buildContextMutationViews(events)
+  const roundContextChanges = buildRoundContextChangeViews({ events, roundContextUpdates, contextMutations })
   const messageWrites = buildMessageWrites(events)
   const toolCalls = buildToolCalls(events)
   const modelCallContexts = buildModelCallContexts({ modelCalls, events, messageWriteFromEvent })
@@ -130,6 +133,7 @@ export function buildRuntimeTraceDebugView(input: {
     modelCallContexts,
     runtimeSummary,
     roundContextUpdates,
+    roundContextChanges,
     promptDetails,
     contextMutations,
     messageWrites,
@@ -151,6 +155,7 @@ export function buildRuntimeTraceDebugView(input: {
     runtimeSummary,
     skillTimeline,
     roundContextUpdates,
+    roundContextChanges,
     promptDetails,
     contextMutations,
     messageWrites,

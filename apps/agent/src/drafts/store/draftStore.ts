@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../../shared/protocol/types.js'
 import { isJSONValue, isRecord } from '../../shared/json/jsonValue.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../../state/store/file/fileStore.js'
 import { DRAFT_KIND_VALUES, type DraftKindValue } from '@movscript/drafts'
+import type { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
 
 export { validateDraft } from './draft-store/validation.js'
 
@@ -282,7 +283,7 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
   readonly filePath: string
   private loaded = false
 
-  constructor(filePath = resolveAgentDraftPath()) {
+  constructor(filePath = resolveAgentDraftPath(), private readonly telemetry?: RuntimeTelemetryRegistry) {
     super()
     this.filePath = filePath
   }
@@ -432,14 +433,65 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
   }
 
   private persist(): void {
-    atomicWriteJSON(this.filePath, {
-      version: 2,
-      drafts: this.allDrafts(),
-    })
-    mkdirSync(dirname(this.filePath), { recursive: true })
-    for (const draft of this.allDrafts()) {
-      writeDraftContent(this.getDraftFilePath(draft.id), draft.content)
+    const startedAt = Date.now()
+    try {
+      const drafts = this.allDrafts()
+      atomicWriteJSON(this.filePath, {
+        version: 2,
+        drafts,
+      })
+      mkdirSync(dirname(this.filePath), { recursive: true })
+      for (const draft of drafts) {
+        writeDraftContent(this.getDraftFilePath(draft.id), draft.content)
+      }
+      this.recordStorageFlush('success', Date.now() - startedAt)
+    } catch (error) {
+      this.recordStorageFlush('error', Date.now() - startedAt)
+      throw error
     }
+  }
+
+  private recordStorageFlush(status: 'success' | 'error', durationMs: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_flush_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'draft_store',
+        kind: 'draft_files',
+        stage: 'flush',
+        status,
+      },
+    })
+    if (status !== 'success') return
+    this.recordStorageFileBytes('draft_index_file', fileSizeSafe(this.filePath), status)
+    const contentBytes = this.allDrafts()
+      .map((draft) => fileSizeSafe(this.getDraftFilePath(draft.id)) ?? 0)
+      .reduce((sum, bytes) => sum + bytes, 0)
+    this.recordStorageFileBytes('draft_content_files', contentBytes, status)
+  }
+
+  private recordStorageFileBytes(kind: 'draft_index_file' | 'draft_content_files', bytes: number | undefined, status: 'success'): void {
+    if (bytes === undefined) return
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_file_bytes',
+      value: bytes,
+      unit: 'bytes',
+      labels: {
+        component: 'draft_store',
+        kind,
+        stage: 'flush',
+        status,
+      },
+    })
+  }
+}
+
+function fileSizeSafe(filePath: string): number | undefined {
+  try {
+    return statSync(filePath).size
+  } catch {
+    return undefined
   }
 }
 

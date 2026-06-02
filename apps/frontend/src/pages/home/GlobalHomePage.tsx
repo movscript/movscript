@@ -20,8 +20,11 @@ import {
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { useAgentStore } from '@/features/agent/state/agentStore'
+import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { api } from '@/shared/infrastructure/api'
+import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { routeForWorkMode } from '@/routes/appRouteModel'
@@ -52,9 +55,12 @@ export default function GlobalHomePage() {
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
-  const createConversation = useAgentStore((s) => s.createConversation)
+  const createRuntimeConversation = useAgentStore((s) => s.createRuntimeConversation)
   const updateConversationDraft = useAgentStore((s) => s.updateConversationDraft)
   const updateConversationTitle = useAgentStore((s) => s.updateConversationTitle)
+  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
+  const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
   const openProjectDialog = useAppShellDialogStore((s) => s.openProjectDialog)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
@@ -71,13 +77,38 @@ export default function GlobalHomePage() {
 
   function startInAgent(option: InspirationOption) {
     setWorkMode('agent')
-    const conversationId = createConversation(userId)
-    const label = String(t(`home.inspiration.${option.key}`))
-    updateConversationTitle(userId, conversationId, label)
-    updateConversationDraft(userId, conversationId, {
-      input: String(t(`home.inspirationPrompts.${option.key}`)),
-    })
-    navigate(ROUTES.project.agent)
+    void (async () => {
+      const label = String(t(`home.inspiration.${option.key}`))
+      try {
+        await localAgentClient.ensureRunning()
+        const thread = await localAgentClient.startProvisionalConversation({ title: label })
+        const createdAt = Date.parse(thread.createdAt)
+        const updatedAt = Date.parse(thread.updatedAt)
+        const conversationId = createRuntimeConversation(userId, {
+          threadId: thread.id,
+          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+          title: localThreadTitle(thread, t),
+          createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+          updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+        })
+        setLocalThreadId(conversationId, thread.id)
+        if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+        setConversationRuntime(conversationId, {
+          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+          threadId: thread.id,
+          loading: false,
+          building: false,
+          error: undefined,
+        })
+        updateConversationTitle(userId, conversationId, label)
+        updateConversationDraft(userId, conversationId, {
+          input: String(t(`home.inspirationPrompts.${option.key}`)),
+        })
+        navigate(ROUTES.project.agent)
+      } catch (error) {
+        console.error('[agent] failed to start provisional conversation', error)
+      }
+    })()
   }
 
   function openProject(project: Project) {

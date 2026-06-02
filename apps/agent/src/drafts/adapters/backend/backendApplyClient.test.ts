@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { BackendApplyClient, buildPatchRequest } from './backendApplyClient.js'
 import type { ApplyDraftReview } from '../../apply/draftApply.js'
 
@@ -132,6 +135,122 @@ test('BackendApplyClient drops invalid auth user ids from backend headers', asyn
     assert.equal((calls[0].init.headers as Record<string, string>)['X-User-ID'], undefined)
   } finally {
     globalThis.fetch = originalFetch
+  }
+})
+
+test('downloadResourceFile caches immutable backend resource bytes between reads', async () => {
+  const originalFetch = globalThis.fetch
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-agent-resource-cache-test-'))
+  let fetchCalls = 0
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    fetchCalls += 1
+    assert.equal(String(url), 'http://backend/api/v1/resources/42/file')
+    assert.equal(init?.method, 'GET')
+    return new Response('resource-bytes', {
+      status: 200,
+      headers: {
+        'content-type': 'image/png',
+        'content-length': '14',
+      },
+    })
+  }) as typeof fetch
+
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend', resourceCacheDir: join(dir, 'cache') })
+    const firstPath = join(dir, 'first.bin')
+    const secondPath = join(dir, 'second.bin')
+
+    const first = await client.downloadResourceFile(42, firstPath, { userId: 7 })
+    const second = await client.downloadResourceFile(42, secondPath, { userId: 7 })
+
+    assert.equal(fetchCalls, 1)
+    assert.equal(first.contentType, 'image/png')
+    assert.equal(second.contentType, 'image/png')
+    assert.equal(await readFile(firstPath, 'utf8'), 'resource-bytes')
+    assert.equal(await readFile(secondPath, 'utf8'), 'resource-bytes')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('downloadResourceFile shares an in-flight immutable resource download', async () => {
+  const originalFetch = globalThis.fetch
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-agent-resource-cache-inflight-test-'))
+  let fetchCalls = 0
+  let releaseFetch: (() => void) | undefined
+  const fetchGate = new Promise<void>((resolve) => {
+    releaseFetch = resolve
+  })
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    fetchCalls += 1
+    assert.equal(String(url), 'http://backend/api/v1/resources/42/file')
+    assert.equal(init?.method, 'GET')
+    await fetchGate
+    return new Response('resource-bytes', {
+      status: 200,
+      headers: {
+        'content-type': 'image/png',
+        'content-length': '14',
+      },
+    })
+  }) as typeof fetch
+
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend', resourceCacheDir: join(dir, 'cache') })
+    const firstPath = join(dir, 'first.bin')
+    const secondPath = join(dir, 'second.bin')
+
+    const firstDownload = client.downloadResourceFile(42, firstPath, { userId: 7 })
+    const secondDownload = client.downloadResourceFile(42, secondPath, { userId: 7 })
+    await new Promise((resolve) => setImmediate(resolve))
+    releaseFetch?.()
+    const [first, second] = await Promise.all([firstDownload, secondDownload])
+
+    assert.equal(fetchCalls, 1)
+    assert.equal(first.contentType, 'image/png')
+    assert.equal(second.contentType, 'image/png')
+    assert.equal(await readFile(firstPath, 'utf8'), 'resource-bytes')
+    assert.equal(await readFile(secondPath, 'utf8'), 'resource-bytes')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('downloadResourceFile separates immutable resource cache by backend auth token', async () => {
+  const originalFetch = globalThis.fetch
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-agent-resource-cache-auth-test-'))
+  let fetchCalls = 0
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    fetchCalls += 1
+    const token = (init?.headers as Record<string, string> | undefined)?.Authorization ?? 'none'
+    return new Response(`resource-bytes-${token}`, {
+      status: 200,
+      headers: {
+        'content-type': 'image/png',
+        'content-length': String(`resource-bytes-${token}`.length),
+      },
+    })
+  }) as typeof fetch
+
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend', resourceCacheDir: join(dir, 'cache') })
+    const firstPath = join(dir, 'first.bin')
+    const secondPath = join(dir, 'second.bin')
+    const thirdPath = join(dir, 'third.bin')
+
+    await client.downloadResourceFile(42, firstPath, { userId: 7, backendAuthToken: 'token-one' })
+    await client.downloadResourceFile(42, secondPath, { userId: 7, backendAuthToken: 'token-two' })
+    await client.downloadResourceFile(42, thirdPath, { userId: 7, backendAuthToken: 'token-one' })
+
+    assert.equal(fetchCalls, 2)
+    assert.equal(await readFile(firstPath, 'utf8'), 'resource-bytes-Bearer token-one')
+    assert.equal(await readFile(secondPath, 'utf8'), 'resource-bytes-Bearer token-two')
+    assert.equal(await readFile(thirdPath, 'utf8'), 'resource-bytes-Bearer token-one')
+  } finally {
+    globalThis.fetch = originalFetch
+    await rm(dir, { recursive: true, force: true })
   }
 })
 

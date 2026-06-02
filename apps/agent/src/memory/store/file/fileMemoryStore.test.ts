@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { FileAgentMemoryStore } from './fileMemoryStore.js'
+import { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
 test('file memory store ignores corrupt or non-object state files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-memory-store-'))
@@ -62,6 +63,28 @@ test('file memory store skips memories with invalid project ids', () => {
     const store = new FileAgentMemoryStore(filePath)
 
     assert.deepEqual(store.listMemories({ projectId: 1 }), [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file memory store records storage telemetry on persist', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-memory-store-'))
+  try {
+    const filePath = join(dir, 'memory.json')
+    const telemetry = new RuntimeTelemetryRegistry()
+    const store = new FileAgentMemoryStore(filePath, telemetry)
+
+    store.createMemory({
+      projectId: 1,
+      kind: 'fact',
+      title: 'Project fact',
+      content: 'Keep scene continuity notes.',
+    })
+
+    const metrics = telemetry.snapshot().metrics
+    assert.equal(metrics.some((sample) => sample.name === 'movscript_agent_storage_flush_duration_ms' && sample.labels?.component === 'memory_store'), true)
+    assert.equal(metrics.some((sample) => sample.name === 'movscript_agent_storage_file_bytes' && sample.labels?.kind === 'memory_file' && sample.value > 0), true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

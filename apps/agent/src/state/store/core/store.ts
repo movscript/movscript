@@ -601,6 +601,8 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
   return {
     id: thread.id,
     ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+    ...(thread.lifecycle ? { lifecycle: thread.lifecycle } : {}),
+    ...(thread.expiresAt ? { expiresAt: thread.expiresAt } : {}),
     ...(thread.title ? { title: thread.title } : {}),
     ...(thread.agentName ? { agentName: thread.agentName } : {}),
     ...(thread.agentRole ? { agentRole: thread.agentRole } : {}),
@@ -624,6 +626,8 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
 export function toSessionSummary(session: AgentSession, threadCount: number): AgentSessionSummary {
   return {
     id: session.id,
+    ...(session.lifecycle ? { lifecycle: session.lifecycle } : {}),
+    ...(session.expiresAt ? { expiresAt: session.expiresAt } : {}),
     ...(session.title ? { title: session.title } : {}),
     ...(isValidAgentProjectId(session.projectId) ? { projectId: session.projectId } : {}),
     ...(session.metadata ? { metadata: clone(session.metadata) } : {}),

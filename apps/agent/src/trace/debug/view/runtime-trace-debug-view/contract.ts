@@ -7,6 +7,7 @@ export const DEBUG_BUNDLE_CAPABILITIES = [
   'readinessChecklist',
   'runtimeSummary',
   'roundContextUpdates',
+  'roundContextChanges',
   'modelCallContexts',
   'promptDetails',
   'contextMutations',

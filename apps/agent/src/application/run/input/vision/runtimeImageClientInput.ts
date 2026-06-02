@@ -2,11 +2,13 @@ import type { NormalizedClientInput } from '../../../../context/input/client/nor
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { AgentClientAttachmentRef, AgentRun } from '../../../../state/shared/types.js'
 
+const IMAGE_PREPROCESSING_TIMEOUT_MS = 12_000
+
 export interface RuntimeVisionAttachmentProjection {
   attachmentId?: string
   resourceId?: number
   name?: string
-  status: 'optimized' | 'metadata_only' | 'failed'
+  status: 'optimized' | 'original' | 'metadata_only' | 'failed'
   originalBytes?: number
   optimizedBytes?: number
   originalWidth?: number
@@ -39,23 +41,37 @@ export async function prepareRuntimeVisionClientInput(input: {
       continue
     }
     if (!input.imageProcessingPort) {
-      attachments.push(metadataOnlyAttachment(attachment))
-      projections.push(projectionForAttachment(attachment, {
-        status: 'metadata_only',
-        reason: 'no image preprocessing port available; original image payload was not sent to the model',
-      }))
+      if (attachment.dataUrl) {
+        attachments.push(originalPayloadAttachment(attachment, 'no image preprocessing port available; original image payload was sent to the model'))
+        projections.push(projectionForAttachment(attachment, {
+          status: 'original',
+          reason: 'no image preprocessing port available; original image payload was sent to the model',
+        }))
+      } else {
+        attachments.push(metadataOnlyAttachment(attachment, 'no image preprocessing port available and no image dataUrl was provided'))
+        projections.push(projectionForAttachment(attachment, {
+          status: 'metadata_only',
+          reason: 'no image preprocessing port available and no image dataUrl was provided',
+        }))
+      }
       continue
     }
     try {
-      const processed = await input.imageProcessingPort.process({
-        run: input.run,
-        resourceId: attachment.resourceId,
-        dataUrl: attachment.dataUrl,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        preset: 'vision_default',
-        signal: input.signal,
-      })
+      const timeout = preprocessingTimeoutSignal(input.signal, IMAGE_PREPROCESSING_TIMEOUT_MS)
+      let processed: Awaited<ReturnType<CoreImageProcessingPort['process']>>
+      try {
+        processed = await input.imageProcessingPort.process({
+          run: input.run,
+          resourceId: attachment.resourceId,
+          dataUrl: attachment.dataUrl,
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          preset: 'vision_default',
+          signal: timeout.signal,
+        })
+      } finally {
+        timeout.cleanup()
+      }
       attachments.push({
         ...attachment,
         mimeType: processed.output.mimeType,
@@ -89,12 +105,21 @@ export async function prepareRuntimeVisionClientInput(input: {
       }))
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      warnings.push(`Image attachment ${attachment.name ?? attachment.id ?? attachment.resourceId ?? 'unknown'} was not preprocessed: ${reason}`)
-      attachments.push(metadataOnlyAttachment(attachment))
-      projections.push(projectionForAttachment(attachment, {
-        status: 'failed',
-        reason: `${reason}; original image payload was not sent to the model`,
-      }))
+      if (attachment.dataUrl) {
+        warnings.push(`Image attachment ${attachment.name ?? attachment.id ?? attachment.resourceId ?? 'unknown'} was not preprocessed; sending original image payload: ${reason}`)
+        attachments.push(originalPayloadAttachment(attachment, `image preprocessing failed; original image payload was sent to the model: ${reason}`))
+        projections.push(projectionForAttachment(attachment, {
+          status: 'original',
+          reason: `${reason}; original image payload was sent to the model`,
+        }))
+      } else {
+        warnings.push(`Image attachment ${attachment.name ?? attachment.id ?? attachment.resourceId ?? 'unknown'} was not preprocessed and has no image dataUrl: ${reason}`)
+        attachments.push(metadataOnlyAttachment(attachment, `image preprocessing failed and no image dataUrl was provided: ${reason}`))
+        projections.push(projectionForAttachment(attachment, {
+          status: 'failed',
+          reason: `${reason}; no image dataUrl was provided`,
+        }))
+      }
     }
   }
   return {
@@ -123,16 +148,49 @@ function isImageAttachment(attachment: AgentClientAttachmentRef): boolean {
   return attachment.type === 'image' || attachment.mimeType?.toLowerCase().startsWith('image/') === true
 }
 
-function metadataOnlyAttachment(attachment: AgentClientAttachmentRef): AgentClientAttachmentRef {
+function originalPayloadAttachment(attachment: AgentClientAttachmentRef, reason: string): AgentClientAttachmentRef {
+  return {
+    ...attachment,
+    vision: {
+      payload: 'original',
+      reason,
+      ...(attachment.resourceId !== undefined ? { originalResourceId: attachment.resourceId } : {}),
+      ...(attachment.mimeType ? { originalMimeType: attachment.mimeType } : {}),
+      ...(attachment.size !== undefined ? { originalSize: attachment.size } : {}),
+    },
+  }
+}
+
+function metadataOnlyAttachment(attachment: AgentClientAttachmentRef, reason = 'original image payload withheld from model context'): AgentClientAttachmentRef {
   const { dataUrl: _dataUrl, vision: _vision, ...metadata } = attachment
   return {
     ...metadata,
     vision: {
       payload: 'metadata_only',
-      reason: 'original image payload withheld from model context',
+      reason,
       ...(attachment.resourceId !== undefined ? { originalResourceId: attachment.resourceId } : {}),
       ...(attachment.mimeType ? { originalMimeType: attachment.mimeType } : {}),
       ...(attachment.size !== undefined ? { originalSize: attachment.size } : {}),
+    },
+  }
+}
+
+function preprocessingTimeoutSignal(parent: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController()
+  const abortFromParent = () => controller.abort(parent?.reason ?? new Error('image preprocessing aborted'))
+  if (parent?.aborted) {
+    abortFromParent()
+    return { signal: controller.signal, cleanup: () => undefined }
+  }
+  parent?.addEventListener('abort', abortFromParent, { once: true })
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`image preprocessing timed out after ${timeoutMs}ms`))
+  }, timeoutMs)
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeout)
+      parent?.removeEventListener('abort', abortFromParent)
     },
   }
 }

@@ -2,31 +2,63 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   beginAgentPerformanceOperation,
+  createInstrumentedAgentStateStorage,
   finishAgentPerformanceOperation,
   markAgentPerformancePhase,
   recordAgentPerformanceMetric,
   resetAgentTelemetrySink,
   setAgentTelemetrySink,
   summarizeAgentPerformanceMetrics,
-  useAgentPerformanceStore,
+  type AgentPerformanceMetricSample,
+  type AgentPerformanceOperation,
   type AgentTelemetrySink,
 } from './agentPerformanceStore'
+import { isAgentTelemetryReportableMetricName } from '@movscript/protocol'
 
-test('agent performance store records operation timeline and duration metric', () => {
+test('agent performance instrumentation forwards completed operation without storing local history', () => {
   resetAgentTelemetrySink()
-  useAgentPerformanceStore.getState().clear()
+  const operations: AgentPerformanceOperation[] = []
+  const metrics: AgentPerformanceMetricSample[] = []
+  setAgentTelemetrySink({
+    ...emptySink(),
+    beginOperation: (input) => {
+      const id = `op_${operations.length + 1}`
+      operations.push({
+        id,
+        kind: input.kind,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        startedMs: 0,
+        updatedAt: new Date().toISOString(),
+        phases: [{ id: 'phase_start', name: 'operation_start', label: 'start', at: 0, offsetMs: 0, durationFromPreviousMs: 0 }],
+      })
+      return id
+    },
+    markPhase: (operationId, name) => {
+      const operation = operations.find((item) => item.id === operationId)
+      operation?.phases.push({ id: `phase_${name}`, name, label: name, at: 1, offsetMs: 1, durationFromPreviousMs: 1 })
+    },
+    finishOperation: (operationId, status) => {
+      const operation = operations.find((item) => item.id === operationId)
+      if (operation) operation.status = status
+    },
+    recordMetric: (sample) => {
+      metrics.push({ ...sample, id: `metric_${metrics.length + 1}`, createdAt: new Date().toISOString() })
+    },
+  })
 
   const operationId = beginAgentPerformanceOperation({ kind: 'send', meta: { inputLength: 12 } })
   markAgentPerformancePhase(operationId, 'build_draft_start')
   markAgentPerformancePhase(operationId, 'build_draft_done', { details: { warningCount: 0 } })
   finishAgentPerformanceOperation(operationId, 'success')
+  recordAgentPerformanceMetric({ name: 'frontend_agent_network_request_duration_ms', value: 10, unit: 'ms' })
 
-  const state = useAgentPerformanceStore.getState()
-  assert.equal(state.operations.length, 1)
-  assert.equal(state.operations[0]?.kind, 'send')
-  assert.equal(state.operations[0]?.status, 'success')
-  assert.equal(state.operations[0]?.phases.some((phase) => phase.name === 'build_draft_done'), true)
-  assert.equal(state.metrics.some((sample) => sample.name === 'agent_operation_duration_ms'), true)
+  assert.equal(operations.length, 1)
+  assert.equal(operations[0]?.kind, 'send')
+  assert.equal(operations[0]?.status, 'success')
+  assert.equal(operations[0]?.phases.some((phase) => phase.name === 'build_draft_done'), true)
+  assert.equal(metrics.some((sample) => sample.name === 'frontend_agent_network_request_duration_ms'), true)
+  resetAgentTelemetrySink()
 })
 
 test('agent performance metrics summarize p95 and max by metric name', () => {
@@ -34,7 +66,7 @@ test('agent performance metrics summarize p95 and max by metric name', () => {
     { id: 'a', name: 'frontend_send_click_to_visible_ms', value: 10, unit: 'ms', createdAt: '2026-01-01T00:00:00.000Z' },
     { id: 'b', name: 'frontend_send_click_to_visible_ms', value: 50, unit: 'ms', createdAt: '2026-01-01T00:00:01.000Z' },
     { id: 'c', name: 'frontend_send_click_to_visible_ms', value: 100, unit: 'ms', createdAt: '2026-01-01T00:00:02.000Z' },
-    { id: 'd', name: 'frontend_store_persist_bytes', value: 2048, unit: 'bytes', createdAt: '2026-01-01T00:00:03.000Z' },
+    { id: 'd', name: 'frontend_agent_network_request_duration_ms', value: 20, unit: 'ms', createdAt: '2026-01-01T00:00:03.000Z' },
   ])
 
   const sendMetric = summary.find((item) => item.name === 'frontend_send_click_to_visible_ms')
@@ -65,9 +97,6 @@ test('agent telemetry sink can be replaced without changing instrumentation call
     recordLongTask: (task) => {
       calls.push(`longtask:${task.durationMs}`)
     },
-    recordStorageSnapshot: (snapshot) => {
-      calls.push(`storage:${snapshot.totalBytes}`)
-    },
   }
 
   setAgentTelemetrySink(sink)
@@ -84,3 +113,85 @@ test('agent telemetry sink can be replaced without changing instrumentation call
     'metric:custom_metric',
   ])
 })
+
+test('instrumented agent state storage records low-cardinality storage metrics', () => {
+  const metrics: AgentPerformanceMetricSample[] = []
+  const backing = new Map<string, string>()
+  const storage = createInstrumentedAgentStateStorage('agent_store', {
+    getItem: (key) => backing.get(key) ?? null,
+    setItem: (key, value) => {
+      backing.set(key, value)
+    },
+    removeItem: (key) => {
+      backing.delete(key)
+    },
+  } as Storage)
+  setAgentTelemetrySink({
+    ...emptySink(),
+    recordMetric: (sample) => {
+      metrics.push({ ...sample, id: `metric_${metrics.length + 1}`, createdAt: new Date().toISOString() })
+    },
+  })
+
+  storage.setItem('agent-store-v4', '{"state":{"settings":{}}}')
+  assert.equal(storage.getItem('agent-store-v4'), '{"state":{"settings":{}}}')
+  storage.flush?.()
+  storage.removeItem('agent-store-v4')
+  storage.flush?.()
+  resetAgentTelemetrySink()
+
+  assert.equal(isAgentTelemetryReportableMetricName('frontend_storage_operation_duration_ms'), true)
+  assert.equal(isAgentTelemetryReportableMetricName('frontend_storage_payload_bytes'), true)
+  assert.equal(metrics.some((sample) => sample.name === 'frontend_storage_operation_duration_ms' && sample.labels?.kind === 'agent_store' && sample.labels?.stage === 'set'), true)
+  assert.equal(metrics.some((sample) => sample.name === 'frontend_storage_payload_bytes' && sample.unit === 'bytes'), true)
+})
+
+test('instrumented agent state storage coalesces duplicate pending writes', () => {
+  const metrics: AgentPerformanceMetricSample[] = []
+  const writes: string[] = []
+  const backing = new Map<string, string>()
+  const storage = createInstrumentedAgentStateStorage('agent_store', {
+    getItem: (key) => backing.get(key) ?? null,
+    setItem: (key, value) => {
+      writes.push(`${key}:${value}`)
+      backing.set(key, value)
+    },
+    removeItem: (key) => {
+      backing.delete(key)
+    },
+  } as Storage)
+  setAgentTelemetrySink({
+    ...emptySink(),
+    recordMetric: (sample) => {
+      metrics.push({ ...sample, id: `metric_${metrics.length + 1}`, createdAt: new Date().toISOString() })
+    },
+  })
+
+  storage.setItem('agent-store-v4', 'first')
+  storage.setItem('agent-store-v4', 'second')
+  storage.setItem('agent-store-v4', 'second')
+
+  assert.equal(storage.getItem('agent-store-v4'), 'second')
+  assert.deepEqual(writes, [])
+
+  storage.flush?.()
+  storage.setItem('agent-store-v4', 'second')
+  storage.flush?.()
+  resetAgentTelemetrySink()
+
+  assert.deepEqual(writes, ['agent-store-v4:second'])
+  assert.equal(backing.get('agent-store-v4'), 'second')
+  assert.equal(metrics.filter((sample) => sample.name === 'frontend_storage_operation_duration_ms' && sample.labels?.stage === 'set').length, 1)
+  assert.equal(metrics.some((sample) => sample.labels?.stage === 'set_skip'), true)
+})
+
+function emptySink(): AgentTelemetrySink {
+  return {
+    beginOperation: () => 'noop',
+    markPhase: () => {},
+    finishOperation: () => {},
+    recordMetric: () => {},
+    recordLog: () => {},
+    recordLongTask: () => {},
+  }
+}

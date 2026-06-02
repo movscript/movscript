@@ -330,6 +330,8 @@ export interface CreateThreadInput {
   projectId?: unknown
   metadata?: unknown
   archived?: unknown
+  lifecycle?: unknown
+  expiresAt?: unknown
 }
 
 export interface CreateMessageInput {
@@ -508,6 +510,8 @@ export interface UpdateThreadInput {
   title?: unknown
   archived?: unknown
   metadata?: unknown
+  lifecycle?: unknown
+  expiresAt?: unknown
 }
 
 export type ToolCall = ProtocolToolCall

@@ -14,6 +14,15 @@ import (
 )
 
 var defaultHTTPMetrics = NewHTTPMetrics(HTTPMetricsConfig{})
+var prometheusTextProviders = struct {
+	mu        sync.RWMutex
+	nextID    uint64
+	providers map[uint64]PrometheusTextProvider
+}{
+	providers: map[uint64]PrometheusTextProvider{},
+}
+
+type PrometheusTextProvider func() string
 
 type HTTPMetricsConfig struct {
 	SlowThreshold  time.Duration
@@ -133,6 +142,23 @@ func NewHTTPMetrics(cfg HTTPMetricsConfig) *HTTPMetrics {
 
 func DefaultHTTPMetrics() *HTTPMetrics {
 	return defaultHTTPMetrics
+}
+
+func RegisterPrometheusTextProvider(provider PrometheusTextProvider) func() {
+	if provider == nil {
+		return func() {}
+	}
+	prometheusTextProviders.mu.Lock()
+	prometheusTextProviders.nextID++
+	id := prometheusTextProviders.nextID
+	prometheusTextProviders.providers[id] = provider
+	prometheusTextProviders.mu.Unlock()
+
+	return func() {
+		prometheusTextProviders.mu.Lock()
+		delete(prometheusTextProviders.providers, id)
+		prometheusTextProviders.mu.Unlock()
+	}
 }
 
 func RequestMetrics(recorder *HTTPMetrics) gin.HandlerFunc {
@@ -324,6 +350,25 @@ func (m *HTTPMetrics) PrometheusText() string {
 	}
 	b.WriteString(DefaultVectorMetrics().PrometheusText())
 	b.WriteString(DefaultAgentClientMetrics().PrometheusText())
+	b.WriteString(extraPrometheusText())
+	return b.String()
+}
+
+func extraPrometheusText() string {
+	prometheusTextProviders.mu.RLock()
+	providers := make([]PrometheusTextProvider, 0, len(prometheusTextProviders.providers))
+	for _, provider := range prometheusTextProviders.providers {
+		providers = append(providers, provider)
+	}
+	prometheusTextProviders.mu.RUnlock()
+
+	if len(providers) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, provider := range providers {
+		b.WriteString(provider())
+	}
 	return b.String()
 }
 

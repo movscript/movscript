@@ -275,6 +275,24 @@ test('resource blob loading is isolated to the shared blob helper', () => {
   assert.deepEqual(offenders, [])
 })
 
+test('resource file byte HTTP requests are isolated to the shared blob helper', () => {
+  const allowed = new Set([
+    'src/shared/ui/resourceBlob.ts',
+  ])
+  const blobSource = readFileSync(resolve('src/shared/ui/resourceBlob.ts'), 'utf8')
+
+  assert.match(blobSource, /api\.get\(`\/resources\/\$\{resourceId\}\/file`/)
+  assert.match(blobSource, /loadCachedResourceBlob\(src/)
+  assert.match(blobSource, /loadCachedResourceDataURL\(src/)
+
+  const offenders = listSourceFiles(resolve('src'))
+    .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
+    .filter(({ relativePath, source }) => resourceFileByteRequestPattern.test(source) && !allowed.has(relativePath))
+    .map(({ relativePath }) => relativePath)
+
+  assert.deepEqual(offenders, [])
+})
+
 test('object URL lifecycle is isolated to the shared object URL helper', () => {
   const allowed = new Set([
     'src/shared/ui/objectUrl.ts',
@@ -357,6 +375,8 @@ test('text resource loading is isolated to the shared text helper', () => {
   assert.doesNotMatch(canvasAssetSource, /responseType: 'text'/)
 
   assert.match(textSource, /responseType: 'text'/)
+  assert.match(textSource, /resourceMediaCacheKey\(url\)/)
+  assert.match(textSource, /resourceTextCache\.set\(key, loaded\)/)
 
   const offenders = listSourceFiles(resolve('src'))
     .map((file) => ({ file, source: readFileSync(file, 'utf8'), relativePath: relative(process.cwd(), file) }))
@@ -382,6 +402,7 @@ test('resource file URL synthesis is limited to data normalization and shared re
     'src/features/canvas/runtime/runtimeValues.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
     'src/shared/ui/ResourceFileImage.tsx',
+    'src/shared/ui/resourceBlob.ts',
     'src/shared/ui/resourceFileUrl.ts',
   ])
   const offenders = listSourceFiles(resolve('src'))
@@ -475,3 +496,8 @@ function listSourceFiles(dir: string): string[] {
     return [path]
   })
 }
+
+const resourceFileByteRequestPattern = new RegExp([
+  'api\\.get\\([\\s\\S]{0,240}/resources/[\\s\\S]{0,120}/file',
+  'fetch\\([\\s\\S]{0,240}/api/v1/resources/[\\s\\S]{0,120}/file',
+].join('|'))

@@ -11,6 +11,7 @@ export interface AgentChatViewLayoutProps {
   header: AgentChatHeaderSectionProps
   runtimeHistory: {
     archivedConversations: Conversation[]
+    conversations: Conversation[]
     onRestoreArchivedConversation?: (id: string) => void
     onRestoreLocalThread: (threadId: string) => Promise<void>
   }

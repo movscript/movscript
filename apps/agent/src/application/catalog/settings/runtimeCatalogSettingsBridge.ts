@@ -25,8 +25,6 @@ type SkillInstructionOverride = {
   instructionTemplate?: string
 }
 
-type ToolPermissionOverridesByConfigFile = Record<string, AgentToolGrant[]>
-
 export function createRuntimeCatalogSettingsBridge(input: {
   getState: () => RuntimeCatalogSettingsState
   setActiveAgentManifest: (manifest: AgentManifest) => void
@@ -44,21 +42,15 @@ export function createRuntimeCatalogSettingsBridge(input: {
       const configFile = state.layeredRegistry.configFiles.get(configFileId)
       if (!configFile) throw new Error(`config file ${configFileId} not found`)
       const existing = input.catalogStateStore.load()
-      const toolPermissionOverrides = catalogStateToolPermissionOverridesByConfigFile(existing)
-      const nextManifest = applyToolPermissionOverrides(
-        manifestWithActiveConfigFile(state.activeAgentManifest, configFile, state.layeredRegistry),
-        configFile.id,
-        toolPermissionOverrides,
-      )
+      const nextManifest = manifestWithActiveConfigFile(state.activeAgentManifest, configFile, state.layeredRegistry)
       input.setActiveAgentManifest(nextManifest)
       input.catalogStateStore.save({
         version: 1,
         updatedAt: input.now(),
-        metadata: {
+        metadata: omitLegacyToolPermissionOverrides({
           ...(existing.metadata ?? {}),
           activeConfigFileId: configFile.id,
-          toolPermissionOverridesByConfigFile: toolPermissionOverrides as unknown as JSONValue,
-        },
+        }),
       })
       input.catalogSnapshots.replaceCurrent(input.catalogSnapshotBridge.createSnapshot())
       return nextManifest
@@ -74,19 +66,17 @@ export function createRuntimeCatalogSettingsBridge(input: {
       const shouldActivate = request.activate === true
       const currentConfigFile = activeManifestConfigFile(state.activeAgentManifest, nextRegistry)
       const nextBaseConfigFile = shouldActivate ? configFile : currentConfigFile
-      const toolPermissionOverrides = catalogStateToolPermissionOverridesByConfigFile(existing)
       const nextManifest = nextBaseConfigFile
-        ? applyToolPermissionOverrides(manifestWithActiveConfigFile(state.activeAgentManifest, nextBaseConfigFile, nextRegistry), nextBaseConfigFile.id, toolPermissionOverrides)
+        ? manifestWithActiveConfigFile(state.activeAgentManifest, nextBaseConfigFile, nextRegistry)
         : state.activeAgentManifest
       input.catalogStateStore.save({
         version: 1,
         updatedAt: input.now(),
-        metadata: {
+        metadata: omitLegacyToolPermissionOverrides({
           ...(existing.metadata ?? {}),
           managedConfigFiles: managedConfigFiles as unknown as JSONValue,
           ...(shouldActivate ? { activeConfigFileId: configFile.id } : {}),
-          toolPermissionOverridesByConfigFile: toolPermissionOverrides as unknown as JSONValue,
-        },
+        }),
       })
       input.setLayeredRegistry(nextRegistry)
       input.setActiveAgentManifest(nextManifest)
@@ -106,16 +96,13 @@ export function createRuntimeCatalogSettingsBridge(input: {
       if (currentConfigFile?.id === configFileId) throw new Error(`cannot delete active config file ${configFileId}`)
       const nextManagedConfigFiles = managedConfigFiles.filter((configFile) => configFile.id !== configFileId)
       const nextRegistry = applyManagedConfigFiles(removeConfigFile(state.layeredRegistry, configFileId), nextManagedConfigFiles)
-      const toolPermissionOverrides = catalogStateToolPermissionOverridesByConfigFile(existing)
-      delete toolPermissionOverrides[configFileId]
       input.catalogStateStore.save({
         version: 1,
         updatedAt: input.now(),
-        metadata: {
+        metadata: omitLegacyToolPermissionOverrides({
           ...(existing.metadata ?? {}),
           managedConfigFiles: nextManagedConfigFiles as unknown as JSONValue,
-          toolPermissionOverridesByConfigFile: toolPermissionOverrides as unknown as JSONValue,
-        },
+        }),
       })
       input.setLayeredRegistry(nextRegistry)
       input.catalogSnapshots.replaceCurrent(input.catalogSnapshotBridge.createSnapshot())
@@ -123,33 +110,28 @@ export function createRuntimeCatalogSettingsBridge(input: {
     },
     saveConfigFileToolPermissions: (request = {}) => {
       const state = input.getState()
+      const existing = input.catalogStateStore.load()
+      const managedConfigFiles = catalogStateManagedConfigFiles(existing)
       const configFileId = typeof request.configFileId === 'string' ? request.configFileId.trim() : ''
       if (!configFileId) throw new Error('configFileId is required')
-      const configFile = state.layeredRegistry.configFiles.get(configFileId)
+      const configFile = managedConfigFiles.find((item) => item.id === configFileId)
       if (!configFile) throw new Error(`config file ${configFileId} not found`)
-      const overrides = normalizeToolPermissionOverrides(request.toolGrants, configFile, state.layeredRegistry)
-      const existing = input.catalogStateStore.load()
-      const toolPermissionOverrides = {
-        ...catalogStateToolPermissionOverridesByConfigFile(existing),
-        [configFile.id]: overrides,
-      }
-      if (overrides.length === 0) delete toolPermissionOverrides[configFile.id]
+      const nextConfigFile = configFileWithToolPermissionUpdates(configFile, request.toolGrants, state.layeredRegistry)
+      const nextManagedConfigFiles = upsertManagedConfigFile(managedConfigFiles, nextConfigFile)
+      const nextRegistry = applyManagedConfigFiles(state.layeredRegistry, nextManagedConfigFiles)
+      const currentConfigFile = activeManifestConfigFile(state.activeAgentManifest, nextRegistry)
+      const nextManifest = currentConfigFile
+        ? manifestWithActiveConfigFile(state.activeAgentManifest, currentConfigFile, nextRegistry)
+        : state.activeAgentManifest
       input.catalogStateStore.save({
         version: 1,
         updatedAt: input.now(),
-        metadata: {
+        metadata: omitLegacyToolPermissionOverrides({
           ...(existing.metadata ?? {}),
-          toolPermissionOverridesByConfigFile: toolPermissionOverrides as unknown as JSONValue,
-        },
+          managedConfigFiles: nextManagedConfigFiles as unknown as JSONValue,
+        }),
       })
-      const currentConfigFile = activeManifestConfigFile(state.activeAgentManifest, state.layeredRegistry)
-      const nextManifest = applyToolPermissionOverrides(
-        currentConfigFile
-          ? manifestWithActiveConfigFile(state.activeAgentManifest, currentConfigFile, state.layeredRegistry)
-          : state.activeAgentManifest,
-        currentConfigFile?.id,
-        toolPermissionOverrides,
-      )
+      input.setLayeredRegistry(nextRegistry)
       input.setActiveAgentManifest(nextManifest)
       input.catalogSnapshots.replaceCurrent(input.catalogSnapshotBridge.createSnapshot())
       return nextManifest
@@ -191,8 +173,7 @@ export function applyCatalogStateToActiveManifest(
 ): AgentManifest {
   const configFileId = typeof state.metadata?.activeConfigFileId === 'string' ? state.metadata.activeConfigFileId.trim() : ''
   const configFile = configFileId ? registry.configFiles.get(configFileId) : activeManifestConfigFile(manifest, registry)
-  const baseManifest = configFile ? manifestWithActiveConfigFile(manifest, configFile, registry) : manifest
-  return applyToolPermissionOverrides(baseManifest, configFile?.id, catalogStateToolPermissionOverridesByConfigFile(state))
+  return configFile ? manifestWithActiveConfigFile(manifest, configFile, registry) : manifest
 }
 
 function manifestWithActiveConfigFile(manifest: AgentManifest, configFile: AgentConfigFile, registry: CatalogRegistry): AgentManifest {
@@ -249,42 +230,6 @@ function removeConfigFile(registry: CatalogRegistry, configFileId: string): Cata
   const configFiles = new Map(registry.configFiles)
   configFiles.delete(configFileId)
   return { ...registry, configFiles }
-}
-
-function applyToolPermissionOverrides(
-  manifest: AgentManifest,
-  configFileId: string | undefined,
-  overridesByConfigFile: ToolPermissionOverridesByConfigFile,
-): AgentManifest {
-  const overrides = configFileId ? overridesByConfigFile[configFileId] ?? [] : []
-  const metadata = {
-    ...(manifest.metadata ?? {}),
-    toolPermissionOverridesByConfigFile: overridesByConfigFile as unknown as JSONValue,
-  }
-  if (overrides.length === 0) {
-    return {
-      ...manifest,
-      metadata,
-    }
-  }
-  const byName = new Map(manifest.tools.map((grant) => [grant.name, grant]))
-  for (const override of overrides) {
-    if (!byName.has(override.name)) continue
-    byName.set(override.name, {
-      name: override.name,
-      mode: override.mode,
-      ...(override.approval ? { approval: override.approval } : {}),
-    })
-  }
-  return {
-    ...manifest,
-    tools: manifest.tools.map((grant) => byName.get(grant.name) ?? grant),
-    metadata,
-  }
-}
-
-function catalogStateToolPermissionOverridesByConfigFile(state: ReturnType<AgentCatalogStateStore['load']>): ToolPermissionOverridesByConfigFile {
-  return normalizeStoredToolPermissionOverridesByConfigFile(state.metadata?.toolPermissionOverridesByConfigFile)
 }
 
 function catalogStateSkillInstructionOverrides(state: ReturnType<AgentCatalogStateStore['load']>): SkillInstructionOverride[] {
@@ -368,6 +313,23 @@ function normalizeConfigFileToolGrants(input: unknown): ToolGrant[] {
     grants.set(name, { name, mode, ...(approval ? { approval } : {}) })
   }
   return Array.from(grants.values())
+}
+
+function configFileWithToolPermissionUpdates(configFile: AgentConfigFile, input: unknown, registry: CatalogRegistry): AgentConfigFile {
+  const updates = normalizeToolPermissionUpdates(input, configFile, registry)
+  if (updates.length === 0) return configFile
+  const byName = new Map(configFile.toolGrants.map((grant) => [grant.name, grant]))
+  for (const update of updates) {
+    byName.set(update.name, {
+      name: update.name,
+      mode: update.mode,
+      ...(update.approval ? { approval: update.approval } : {}),
+    })
+  }
+  return {
+    ...configFile,
+    toolGrants: configFile.toolGrants.map((grant) => byName.get(grant.name) ?? grant),
+  }
 }
 
 function normalizeConfigFileApprovalDefaults(input: Record<string, unknown>): AgentConfigFile['approvalDefaults'] {
@@ -477,7 +439,7 @@ function normalizeStoredSkillInstructionOverrides(input: unknown): SkillInstruct
   return overrides
 }
 
-function normalizeToolPermissionOverrides(input: unknown, configFile: AgentConfigFile, registry: CatalogRegistry): AgentToolGrant[] {
+function normalizeToolPermissionUpdates(input: unknown, configFile: AgentConfigFile, registry: CatalogRegistry): AgentToolGrant[] {
   if (!Array.isArray(input)) throw new Error('toolGrants must be an array')
   const baseGrants = configFile.toolGrants.map((grant) => manifestToolGrantWithApprovalDefaults(grant, configFile, registry))
   const baseByName = new Map(baseGrants.map((grant) => [grant.name, grant]))
@@ -504,32 +466,6 @@ function normalizeToolPermissionOverrides(input: unknown, configFile: AgentConfi
     })
   }
   return Array.from(normalized.values())
-}
-
-function normalizeStoredToolGrants(input: unknown): AgentToolGrant[] {
-  if (!Array.isArray(input)) return []
-  const grants: AgentToolGrant[] = []
-  for (const item of input) {
-    if (!isToolGrantRecord(item)) continue
-    const name = normalizeNonEmptyString(item.name)
-    const mode = item.mode === 'deny' ? 'deny' : item.mode === 'allow' ? 'allow' : undefined
-    if (!name || !mode) continue
-    const approval = normalizeApprovalMode(item.approval)
-    grants.push({ name, mode, ...(approval ? { approval } : {}) })
-  }
-  return grants
-}
-
-function normalizeStoredToolPermissionOverridesByConfigFile(input: unknown): ToolPermissionOverridesByConfigFile {
-  if (!isToolGrantRecord(input)) return {}
-  const overrides: ToolPermissionOverridesByConfigFile = {}
-  for (const [configFileId, toolGrants] of Object.entries(input)) {
-    const id = normalizeNonEmptyString(configFileId)
-    if (!id) continue
-    const grants = normalizeStoredToolGrants(toolGrants)
-    if (grants.length > 0) overrides[id] = grants
-  }
-  return overrides
 }
 
 function normalizeApprovalMode(value: unknown): AgentToolApprovalMode | undefined {
@@ -563,6 +499,11 @@ function isJSONValue(value: unknown): value is JSONValue {
   if (Array.isArray(value)) return value.every(isJSONValue)
   if (!isToolGrantRecord(value)) return false
   return Object.values(value).every(isJSONValue)
+}
+
+function omitLegacyToolPermissionOverrides(metadata: Record<string, JSONValue>): Record<string, JSONValue> {
+  const { toolPermissionOverridesByConfigFile: _legacy, ...rest } = metadata
+  return rest
 }
 
 function isToolGrantRecord(value: unknown): value is Record<string, unknown> {

@@ -44,14 +44,7 @@ type NewStoredGeneratedResourceSpec struct {
 }
 
 type UpdateSpec struct {
-	FilePath             *string
-	StorageKey           *string
-	StorageBackend       *string
-	BlobID               *uint
-	Type                 *string
 	Name                 *string
-	MimeType             *string
-	Size                 *int64
 	OrgID                *uint
 	FolderID             *uint
 	ClearFolder          bool
@@ -99,14 +92,7 @@ type UserRef struct {
 }
 
 func (spec UpdateSpec) Empty() bool {
-	return spec.FilePath == nil &&
-		spec.StorageKey == nil &&
-		spec.StorageBackend == nil &&
-		spec.BlobID == nil &&
-		spec.Type == nil &&
-		spec.Name == nil &&
-		spec.MimeType == nil &&
-		spec.Size == nil &&
+	return spec.Name == nil &&
 		spec.OrgID == nil &&
 		spec.FolderID == nil &&
 		!spec.ClearFolder &&
@@ -118,30 +104,8 @@ func (spec UpdateSpec) Empty() bool {
 }
 
 func (resource *RawResource) ApplyUpdate(spec UpdateSpec) {
-	if spec.FilePath != nil {
-		resource.FilePath = *spec.FilePath
-	}
-	if spec.StorageKey != nil {
-		resource.StorageKey = *spec.StorageKey
-	}
-	if spec.StorageBackend != nil {
-		resource.StorageBackend = *spec.StorageBackend
-	}
-	if spec.BlobID != nil {
-		blobID := *spec.BlobID
-		resource.BlobID = &blobID
-	}
-	if spec.Type != nil {
-		resource.Type = *spec.Type
-	}
 	if spec.Name != nil {
 		resource.Name = *spec.Name
-	}
-	if spec.MimeType != nil {
-		resource.MimeType = *spec.MimeType
-	}
-	if spec.Size != nil {
-		resource.Size = *spec.Size
 	}
 	if spec.OrgID != nil {
 		orgID := *spec.OrgID

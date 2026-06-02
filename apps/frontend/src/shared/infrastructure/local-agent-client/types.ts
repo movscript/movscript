@@ -37,11 +37,13 @@ import type {
   AgentTaskGraphSnapshot,
   AgentTaskGraphStatus,
   AgentTaskStatus,
+  AgentTelemetryMetricUnit,
   AgentThread,
   AgentThreadClearResult,
   AgentThreadDeletionResult,
   AgentThreadListPage,
   AgentThreadRole,
+  AgentConversationLifecycle,
   AgentThreadResolution,
   AgentThreadSummary,
   AgentThreadStatus,
@@ -109,6 +111,7 @@ export type {
   AgentThreadDeletionResult,
   AgentThreadListPage,
   AgentThreadRole,
+  AgentConversationLifecycle,
   AgentThreadResolution,
   AgentThreadSummary,
   AgentThreadStatus,
@@ -140,6 +143,7 @@ export type AgentRuntimeLimitsOverride = Partial<Pick<AgentRuntimeLimits, 'appro
 export interface AgentThreadListQuery {
   cursor?: string
   limit?: number
+  includeProvisional?: boolean
 }
 
 export interface AgentHealth {
@@ -175,7 +179,7 @@ export interface AgentHealth {
 export interface AgentRuntimeTelemetryMetricSample {
   name: string
   value: number
-  unit: 'ms' | 'bytes' | 'count'
+  unit: AgentTelemetryMetricUnit
   createdAt: string
   labels?: Record<string, string | number | boolean>
 }
@@ -584,6 +588,21 @@ export interface AgentTraceDebugView {
     toolLoopProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
     historicalVisualProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
     attachmentProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
+  }>
+  roundContextChanges: Array<{
+    round: AgentTraceDebugView['roundContextUpdates'][number]
+    previousRoundEventId?: string
+    mutationCount: number
+    appended: number
+    amended: number
+    deleted: number
+    affectedContextKeys: string[]
+    appendedContextKeys: string[]
+    amendedContextKeys: string[]
+    deletedContextKeys: string[]
+    latestMutationReason?: string
+    mutationEventIds: string[]
+    mutations: AgentTraceDebugView['contextMutations']
   }>
   skillTimeline: {
     timeline: Array<{

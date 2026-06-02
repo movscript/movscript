@@ -1,8 +1,7 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware'
 import {
   appendConversationMessage,
-  normalizeConvsByUser as normalizeAgentConvsByUser,
   normalizeConversations,
   normalizeDraftsByConversation,
   normalizeMessages as normalizeAgentMessages,
@@ -13,6 +12,7 @@ import {
 } from '@movscript/conversation'
 import i18n from '@/i18n'
 import { isRecord } from '@/shared/domain/jsonValue'
+import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
 import type {
   AgentAttachment as ProtocolAgentAttachment,
   AgentChatMessage,
@@ -124,7 +124,7 @@ interface AgentStore {
   // Conversations keyed by userId (string). Use '' for unauthenticated.
   convsByUser: Record<string, UserConvState>
 
-  createConversation: (userId: string) => string
+  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string; createdAt?: number; updatedAt?: number }) => string
   deleteConversation: (userId: string, id: string) => void
   deleteConversations: (userId: string, ids: string[]) => void
   archiveConversation: (userId: string, id: string) => void
@@ -188,16 +188,6 @@ function archiveConversationsState(state: Pick<AgentStore, 'convsByUser'>, userI
   }
 }
 
-function frontendOnlyNewConversationId(conversations: Conversation[]): string | undefined {
-  return [...conversations]
-    .filter((conversation) => (
-      conversation.messages.length === 0
-      && !conversation.runtimeSessionId?.trim()
-      && !conversation.runtimeThreadId?.trim()
-    ))
-    .sort((a, b) => b.createdAt - a.createdAt || b.updatedAt - a.updatedAt || b.id.localeCompare(a.id))[0]?.id
-}
-
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   modelId: null,
   includeProjectContext: true,
@@ -220,6 +210,8 @@ const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
 }
 
 const LEGACY_AGENT_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
+const agentStoreStorage = createInstrumentedAgentStateStorage('agent_store')
+const agentStorePartialize = createAgentStorePartialize()
 
 if (typeof window !== 'undefined') {
   for (const key of LEGACY_AGENT_STORAGE_KEYS) {
@@ -257,21 +249,32 @@ export const useAgentStore = create<AgentStore>()(
     getConversations: (userId) => getUserState(get(), userId).conversations,
     getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
 
-    createConversation: (userId) => {
-      const id = genId()
+    createRuntimeConversation: (userId, input) => {
+      const threadId = input.threadId.trim()
+      if (!threadId) return getUserState(get(), userId).activeConversationId ?? ''
       set((state) => {
         const cur = getUserState(state, userId)
-        const reusableConversationId = frontendOnlyNewConversationId(cur.conversations)
-        if (reusableConversationId) {
+        const existing = cur.conversations.find((conversation) => conversation.id === threadId)
+        const now = Date.now()
+        const createdAt = input.createdAt ?? now
+        const updatedAt = input.updatedAt ?? now
+        if (existing) {
           return {
             convsByUser: {
               ...state.convsByUser,
               [userId]: {
                 ...cur,
-                conversations: cur.conversations.map((conversation) => conversation.id === reusableConversationId
-                  ? { ...conversation, archived: false }
+                conversations: cur.conversations.map((conversation) => conversation.id === threadId
+                  ? {
+                    ...conversation,
+                    title: input.title?.trim() || conversation.title,
+                    runtimeThreadId: threadId,
+                    ...(input.sessionId?.trim() ? { runtimeSessionId: input.sessionId.trim() } : {}),
+                    archived: false,
+                    updatedAt,
+                  }
                   : conversation),
-                activeConversationId: reusableConversationId,
+                activeConversationId: threadId,
               },
             },
           }
@@ -280,17 +283,25 @@ export const useAgentStore = create<AgentStore>()(
           convsByUser: {
             ...state.convsByUser,
             [userId]: {
+              ...cur,
               conversations: [
                 ...cur.conversations,
-                { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+                {
+                  id: threadId,
+                  title: input.title?.trim() || i18n.t('agents.chat.newConversation'),
+                  messages: [],
+                  ...(input.sessionId?.trim() ? { runtimeSessionId: input.sessionId.trim() } : {}),
+                  runtimeThreadId: threadId,
+                  createdAt,
+                  updatedAt,
+                },
               ],
-              activeConversationId: id,
-              draftsByConversation: cur.draftsByConversation,
+              activeConversationId: threadId,
             },
           },
         }
       })
-      return getUserState(get(), userId).activeConversationId ?? id
+      return threadId
     },
 
     deleteConversation: (userId, id) => set((state) => {
@@ -298,6 +309,7 @@ export const useAgentStore = create<AgentStore>()(
       const conversations = cur.conversations.filter((c) => c.id !== id)
       const draftsByConversation = { ...cur.draftsByConversation }
       delete draftsByConversation[id]
+      removePersistedConversationDrafts(userId, new Set([id]))
       return {
         convsByUser: {
           ...state.convsByUser,
@@ -321,6 +333,7 @@ export const useAgentStore = create<AgentStore>()(
       idsToDelete.forEach((id) => {
         delete draftsByConversation[id]
       })
+      removePersistedConversationDrafts(userId, idsToDelete)
       return {
         convsByUser: {
           ...state.convsByUser,
@@ -531,31 +544,37 @@ export const useAgentStore = create<AgentStore>()(
 
     getConversationDraft: (userId, conversationId) => getUserState(get(), userId).draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
 
-    updateConversationDraft: (userId, conversationId, patch) => set((state) => {
-      const cur = getUserState(state, userId)
-      const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            draftsByConversation: {
-              ...cur.draftsByConversation,
-              [conversationId]: {
-                ...currentDraft,
-                ...patch,
+    updateConversationDraft: (userId, conversationId, patch) => {
+      let nextDraft: ConversationDraft | undefined
+      set((state) => {
+        const cur = getUserState(state, userId)
+        const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
+        nextDraft = {
+          ...currentDraft,
+          ...patch,
+        }
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              draftsByConversation: {
+                ...cur.draftsByConversation,
+                [conversationId]: nextDraft,
               },
             },
           },
-        },
-      }
-    }),
+        }
+      })
+      if (nextDraft) persistConversationDraft(userId, conversationId, nextDraft)
+    },
 
     clearConversationDraft: (userId, conversationId) => set((state) => {
       const cur = getUserState(state, userId)
       if (!cur.draftsByConversation[conversationId]) return {}
       const draftsByConversation = { ...cur.draftsByConversation }
       delete draftsByConversation[conversationId]
+      removePersistedConversationDrafts(userId, new Set([conversationId]))
       return {
         convsByUser: {
           ...state.convsByUser,
@@ -569,33 +588,86 @@ export const useAgentStore = create<AgentStore>()(
     }),
     {
       name: 'agent-store-v4',
-      partialize: (state) => ({
-        settings: state.settings,
-        convsByUser: normalizeConvsByUser(state.convsByUser),
-      }),
+      storage: createAgentStorePersistStorage(),
+      partialize: agentStorePartialize,
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AgentStore> | undefined
         return {
           ...currentState,
           settings: normalizeAgentSettings(persisted?.settings),
-          convsByUser: normalizeConvsByUser(persisted?.convsByUser),
         }
       },
       onRehydrateStorage: () => (state) => {
         if (!state) return
         state.settings = normalizeAgentSettings(state.settings)
-        state.convsByUser = normalizeConvsByUser(state.convsByUser)
       },
     }
   ),
 )
 
-function normalizeConvsByUser(value?: Record<string, UserConvState> | null): Record<string, UserConvState> {
-  return normalizeAgentConvsByUser<Conversation, ConversationDraft>(value, {
-    createId: genId,
-    defaultTitle: i18n.t('agents.chat.newConversation'),
-    now: () => Date.now(),
-  })
+type AgentStorePersistedState = Pick<AgentStore, 'settings'>
+
+function createAgentStorePartialize(): (state: AgentStore) => AgentStorePersistedState {
+  let previousSettings: AgentSettings | undefined
+  let previousResult: AgentStorePersistedState | undefined
+  return (state) => {
+    if (previousResult && previousSettings === state.settings) {
+      return previousResult
+    }
+    previousSettings = state.settings
+    previousResult = {
+      settings: state.settings,
+    }
+    return previousResult
+  }
+}
+
+function createAgentStorePersistStorage(): PersistStorage<AgentStorePersistedState> {
+  let lastState: AgentStorePersistedState | undefined
+  let lastVersion: number | undefined
+  let lastSerialized: string | undefined
+  return {
+    getItem: (name) => {
+      const raw = agentStoreStorage.getItem(name)
+      if (!raw) return null
+      try {
+        const parsed = JSON.parse(raw) as StorageValue<AgentStorePersistedState>
+        lastState = parsed.state
+        lastVersion = parsed.version
+        lastSerialized = raw
+        return parsed
+      } catch {
+        return null
+      }
+    },
+    setItem: (name, value) => {
+      if (lastState === value.state && lastVersion === value.version) return
+      const serialized = JSON.stringify(value)
+      if (serialized === lastSerialized) {
+        lastState = value.state
+        lastVersion = value.version
+        return
+      }
+      lastState = value.state
+      lastVersion = value.version
+      lastSerialized = serialized
+      agentStoreStorage.setItem(name, serialized)
+    },
+    removeItem: (name) => {
+      lastState = undefined
+      lastVersion = undefined
+      lastSerialized = undefined
+      agentStoreStorage.removeItem(name)
+    },
+  }
+}
+
+function persistConversationDraft(_userId: string, _conversationId: string, _draft: ConversationDraft): void {
+  // Drafts remain in the in-memory UI shell; agent threads are the persistent source of conversation data.
+}
+
+function removePersistedConversationDrafts(_userId: string, _conversationIds: Set<string>): void {
+  // See persistConversationDraft.
 }
 
 export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {

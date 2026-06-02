@@ -17,6 +17,7 @@ export interface AgentTraceDebugView {
   runtimeSummary: AgentRunRuntimeSummary
   skillTimeline: AgentSkillTraceSummary
   roundContextUpdates: AgentRoundContextUpdateView[]
+  roundContextChanges: AgentRoundContextChangeView[]
   promptDetails: AgentPromptDetailView[]
   contextMutations: AgentContextMutationView[]
   messageWrites: AgentMessageWriteView[]
@@ -171,6 +172,22 @@ export interface AgentRoundContextUpdateView {
   toolLoopProjection?: AgentGenericPromptProjectionView
   historicalVisualProjection?: AgentGenericPromptProjectionView
   attachmentProjection?: AgentGenericPromptProjectionView
+}
+
+export interface AgentRoundContextChangeView {
+  round: AgentRoundContextUpdateView
+  previousRoundEventId?: string
+  mutationCount: number
+  appended: number
+  amended: number
+  deleted: number
+  affectedContextKeys: string[]
+  appendedContextKeys: string[]
+  amendedContextKeys: string[]
+  deletedContextKeys: string[]
+  latestMutationReason?: string
+  mutationEventIds: string[]
+  mutations: AgentContextMutationView[]
 }
 
 export interface AgentTraceRefView {

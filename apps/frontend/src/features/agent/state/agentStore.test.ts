@@ -2,45 +2,23 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { appendSettingsAuditEntry, normalizeAgentSettings, useAgentStore } from './agentStore'
 
-test('createConversation reuses the existing frontend-only new conversation', () => {
-  const userId = 'new-conversation-reuse-user'
+test('agent store persistence excludes conversations and drafts', () => {
+  const userId = 'persistence-agent-source-user'
   useAgentStore.setState({ convsByUser: { ...useAgentStore.getState().convsByUser, [userId]: { conversations: [], activeConversationId: null, draftsByConversation: {} } } })
+  const conversationId = useAgentStore.getState().createRuntimeConversation(userId, {
+    threadId: 'thread_persist_test',
+    title: 'Runtime conversation',
+  })
+  useAgentStore.getState().addMessage(userId, conversationId, {
+    role: 'user',
+    content: 'persist check',
+    timestamp: Date.now(),
+  })
+  useAgentStore.getState().updateConversationDraft(userId, conversationId, { input: 'draft check' })
 
-  const firstConversationId = useAgentStore.getState().createConversation(userId)
-  const secondConversationId = useAgentStore.getState().createConversation(userId)
-  const state = useAgentStore.getState().getConversations(userId)
+  const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>
 
-  assert.equal(secondConversationId, firstConversationId)
-  assert.equal(state.length, 1)
-  assert.equal(useAgentStore.getState().getActiveConversationId(userId), firstConversationId)
-})
-
-test('createConversation opens a new conversation after the current one connects to runtime', () => {
-  const userId = 'new-conversation-runtime-user'
-  useAgentStore.setState({ convsByUser: { ...useAgentStore.getState().convsByUser, [userId]: { conversations: [], activeConversationId: null, draftsByConversation: {} } } })
-
-  const connectedConversationId = useAgentStore.getState().createConversation(userId)
-  useAgentStore.getState().setConversationRuntimeThreadId(userId, connectedConversationId, 'thread_1')
-  const nextConversationId = useAgentStore.getState().createConversation(userId)
-  const conversations = useAgentStore.getState().getConversations(userId)
-
-  assert.notEqual(nextConversationId, connectedConversationId)
-  assert.equal(conversations.length, 2)
-  assert.equal(useAgentStore.getState().getActiveConversationId(userId), nextConversationId)
-})
-
-test('createConversation reopens an archived frontend-only new conversation', () => {
-  const userId = 'new-conversation-archived-user'
-  useAgentStore.setState({ convsByUser: { ...useAgentStore.getState().convsByUser, [userId]: { conversations: [], activeConversationId: null, draftsByConversation: {} } } })
-
-  const conversationId = useAgentStore.getState().createConversation(userId)
-  useAgentStore.getState().archiveConversation(userId, conversationId)
-  const reopenedConversationId = useAgentStore.getState().createConversation(userId)
-  const conversation = useAgentStore.getState().getConversations(userId).find((item) => item.id === conversationId)
-
-  assert.equal(reopenedConversationId, conversationId)
-  assert.notEqual(conversation?.archived, true)
-  assert.equal(useAgentStore.getState().getActiveConversationId(userId), conversationId)
+  assert.equal('convsByUser' in partialized, false)
 })
 
 test('normalizeAgentSettings preserves valid planner dispatch preferences', () => {

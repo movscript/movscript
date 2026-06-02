@@ -8265,7 +8265,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentRunSource, /function ToolDetail[\s\S]*?AgentRunDebugStack/)
   assert.match(agentRunSource, /<AgentRunChildRunButton[\s\S]*?data-testid="agent-run-child-run"/)
   assert.match(agentRunSource, /<AgentRunTraceCategoryButton[\s\S]*?data-testid="agent-run-trace-category-filter"[\s\S]*?<AgentRunPageBadge/)
-  assert.match(agentRunSource, /data-testid="agent-run-trace-view-mode"[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('debug'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('timeline'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('tools'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('skills'\)/)
+  assert.match(agentRunSource, /data-testid="agent-run-trace-view-mode"[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('debug'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('runtime'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('context'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('timeline'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('tools'\)[\s\S]*?<AgentRunTraceViewModeButton[\s\S]*?setTraceViewMode\('skills'\)/)
   assert.match(agentRunSource, /<AgentRunTraceSearchInput[\s\S]*?data-testid="agent-run-trace-search"/)
   assert.match(agentRunSource, /<AgentRunTraceEventActionButton[\s\S]*?data-testid="agent-run-skill-trace-event"/)
   assert.doesNotMatch(agentRunSource, /<button\b/)

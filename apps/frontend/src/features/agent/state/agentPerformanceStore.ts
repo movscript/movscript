@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import type { AgentTelemetryMetricUnit } from '@movscript/protocol'
 
 export type AgentPerformanceOperationKind = 'send' | 'send_preview_confirm' | 'approval' | 'rejection' | 'input_answer' | 'runtime_input' | 'external_task'
 export type AgentPerformanceOperationStatus = 'running' | 'success' | 'error' | 'cancelled'
@@ -34,7 +34,7 @@ export interface AgentPerformanceMetricSample {
   id: string
   name: string
   value: number
-  unit: 'ms' | 'bytes' | 'count'
+  unit: AgentTelemetryMetricUnit
   createdAt: string
   labels?: Record<string, string | number | boolean>
 }
@@ -56,29 +56,7 @@ export interface AgentPerformanceLongTask {
   name?: string
 }
 
-export interface AgentPerformanceStorageSnapshot {
-  id: string
-  createdAt: string
-  keys: Array<{ key: string; bytes: number }>
-  totalBytes: number
-}
-
 export interface AgentTelemetrySink {
-  beginOperation: AgentPerformanceStore['beginOperation']
-  markPhase: AgentPerformanceStore['markPhase']
-  finishOperation: AgentPerformanceStore['finishOperation']
-  recordMetric: AgentPerformanceStore['recordMetric']
-  recordLog: AgentPerformanceStore['recordLog']
-  recordLongTask: AgentPerformanceStore['recordLongTask']
-  recordStorageSnapshot: AgentPerformanceStore['recordStorageSnapshot']
-}
-
-interface AgentPerformanceStore {
-  operations: AgentPerformanceOperation[]
-  metrics: AgentPerformanceMetricSample[]
-  logs: AgentPerformanceLogEntry[]
-  longTasks: AgentPerformanceLongTask[]
-  storageSnapshots: AgentPerformanceStorageSnapshot[]
   beginOperation: (input: {
     kind: AgentPerformanceOperationKind
     conversationId?: string
@@ -91,15 +69,8 @@ interface AgentPerformanceStore {
   recordMetric: (sample: Omit<AgentPerformanceMetricSample, 'id' | 'createdAt'>) => void
   recordLog: (entry: Omit<AgentPerformanceLogEntry, 'id' | 'createdAt'>) => void
   recordLongTask: (task: Omit<AgentPerformanceLongTask, 'id' | 'startedAt'>) => void
-  recordStorageSnapshot: (snapshot: Omit<AgentPerformanceStorageSnapshot, 'id' | 'createdAt'>) => void
-  clear: () => void
 }
 
-const MAX_OPERATIONS = 100
-const MAX_METRICS = 800
-const MAX_LOGS = 250
-const MAX_LONG_TASKS = 250
-const MAX_STORAGE_SNAPSHOTS = 40
 const SLOW_OPERATION_THRESHOLDS_MS: Record<AgentPerformanceOperationKind, number> = {
   send: 1_000,
   send_preview_confirm: 600,
@@ -110,244 +81,138 @@ const SLOW_OPERATION_THRESHOLDS_MS: Record<AgentPerformanceOperationKind, number
   external_task: 1_000,
 }
 
-const STORAGE_KEYS_TO_TRACK = ['agent-store-v4', 'agent-session-store-v2'] as const
-
 let observerInstalled = false
-let storageProbeInstalled = false
-let originalStorageSetItem: ((this: Storage, key: string, value: string) => void) | null = null
-
-export const useAgentPerformanceStore = create<AgentPerformanceStore>()((set, get) => ({
-  operations: [],
-  metrics: [],
-  logs: [],
-  longTasks: [],
-  storageSnapshots: [],
-
-  beginOperation: (input) => {
-    const id = createPerformanceId('agent_op')
-    const startedMs = performanceNow()
-    const operation: AgentPerformanceOperation = {
-      id,
-      kind: input.kind,
-      status: 'running',
-      startedAt: new Date().toISOString(),
-      startedMs,
-      updatedAt: new Date().toISOString(),
-      ...(input.conversationId ? { conversationId: input.conversationId } : {}),
-      ...(input.requestId ? { requestId: input.requestId } : {}),
-      ...(input.runId ? { runId: input.runId } : {}),
-      ...(input.meta ? { meta: input.meta } : {}),
-      phases: [{
-        id: createPerformanceId('agent_phase'),
-        name: 'operation_start',
-        label: phaseLabel('operation_start'),
-        at: startedMs,
-        offsetMs: 0,
-        durationFromPreviousMs: 0,
-      }],
-    }
-    set((state) => ({
-      operations: [operation, ...state.operations].slice(0, MAX_OPERATIONS),
-    }))
-    return id
-  },
-
-  markPhase: (operationId, name, input = {}) => {
-    if (!operationId) return
-    const at = performanceNow()
-    let phaseMetric: { kind: AgentPerformanceOperationKind; offsetMs: number; deltaMs: number } | undefined
-    set((state) => ({
-      operations: state.operations.map((operation) => {
-        if (operation.id !== operationId) return operation
-        if (operation.status !== 'running') return operation
-        const previous = operation.phases[operation.phases.length - 1]
-        const offsetMs = Math.max(0, at - operation.startedMs)
-        const deltaMs = previous ? Math.max(0, at - previous.at) : offsetMs
-        phaseMetric = { kind: operation.kind, offsetMs, deltaMs }
-        return {
-          ...operation,
-          updatedAt: new Date().toISOString(),
-          phases: [
-            ...operation.phases,
-            {
-              id: createPerformanceId('agent_phase'),
-              name,
-              label: input.label ?? phaseLabel(name),
-              at,
-              offsetMs,
-              durationFromPreviousMs: deltaMs,
-              ...(input.details ? { details: input.details } : {}),
-            },
-          ],
-        }
-      }),
-    }))
-    if (phaseMetric) {
-      get().recordMetric({
-        name: 'agent_operation_phase_offset_ms',
-        value: phaseMetric.offsetMs,
-        unit: 'ms',
-        labels: { kind: phaseMetric.kind, phase: name },
-      })
-      get().recordMetric({
-        name: 'agent_operation_phase_delta_ms',
-        value: phaseMetric.deltaMs,
-        unit: 'ms',
-        labels: { kind: phaseMetric.kind, phase: name },
-      })
-    }
-  },
-
-  finishOperation: (operationId, status, details) => {
-    if (!operationId) return
-    const endedMs = performanceNow()
-    let finished: AgentPerformanceOperation | undefined
-    let alreadyFinished = false
-    set((state) => ({
-      operations: state.operations.map((operation) => {
-        if (operation.id !== operationId) return operation
-        if (operation.status !== 'running') {
-          finished = operation
-          alreadyFinished = true
-          return operation
-        }
-        const durationMs = Math.max(0, endedMs - operation.startedMs)
-        const previous = operation.phases[operation.phases.length - 1]
-        finished = {
-          ...operation,
-          status,
-          updatedAt: new Date().toISOString(),
-          endedAt: new Date().toISOString(),
-          durationMs,
-          phases: [
-            ...operation.phases,
-            {
-              id: createPerformanceId('agent_phase'),
-              name: `operation_${status}`,
-              label: phaseLabel(`operation_${status}`),
-              at: endedMs,
-              offsetMs: durationMs,
-              durationFromPreviousMs: previous ? Math.max(0, endedMs - previous.at) : durationMs,
-              ...(details ? { details } : {}),
-            },
-          ],
-        }
-        return finished
-      }),
-    }))
-    if (!finished || alreadyFinished) return
-    get().recordMetric({
-      name: 'agent_operation_duration_ms',
-      value: finished.durationMs ?? 0,
-      unit: 'ms',
-      labels: { kind: finished.kind, status },
-    })
-    const threshold = SLOW_OPERATION_THRESHOLDS_MS[finished.kind]
-    if ((finished.durationMs ?? 0) >= threshold || status === 'error') {
-      const slowest = slowestPhase(finished)
-      get().recordLog({
-        level: status === 'error' ? 'error' : 'warning',
-        operationId: finished.id,
-        message: status === 'error'
-          ? `${operationKindLabel(finished.kind)}失败：${formatMs(finished.durationMs ?? 0)}`
-          : `${operationKindLabel(finished.kind)}较慢：${formatMs(finished.durationMs ?? 0)}，主要耗时 ${slowest?.label ?? '未知阶段'} ${formatMs(slowest?.durationFromPreviousMs ?? 0)}`,
-        details: {
-          kind: finished.kind,
-          durationMs: finished.durationMs,
-          slowestPhase: slowest?.name,
-          ...(details ?? {}),
-        },
-      })
-    }
-  },
-
-  recordMetric: (sample) => set((state) => ({
-    metrics: [{
-      ...sample,
-      id: createPerformanceId('agent_metric'),
-      createdAt: new Date().toISOString(),
-    }, ...state.metrics].slice(0, MAX_METRICS),
-  })),
-
-  recordLog: (entry) => set((state) => ({
-    logs: [{
-      ...entry,
-      id: createPerformanceId('agent_log'),
-      createdAt: new Date().toISOString(),
-    }, ...state.logs].slice(0, MAX_LOGS),
-  })),
-
-  recordLongTask: (task) => {
-    set((state) => ({
-      longTasks: [{
-        ...task,
-        id: createPerformanceId('agent_longtask'),
-        startedAt: new Date(Date.now() - Math.max(0, performanceNow() - task.startTime)).toISOString(),
-      }, ...state.longTasks].slice(0, MAX_LONG_TASKS),
-    }))
-    get().recordMetric({
-      name: 'frontend_long_task_duration_ms',
-      value: task.durationMs,
-      unit: 'ms',
-      labels: { name: task.name ?? 'longtask' },
-    })
-  },
-
-  recordStorageSnapshot: (snapshot) => {
-    set((state) => ({
-      storageSnapshots: [{
-        ...snapshot,
-        id: createPerformanceId('agent_storage'),
-        createdAt: new Date().toISOString(),
-      }, ...state.storageSnapshots].slice(0, MAX_STORAGE_SNAPSHOTS),
-    }))
-    get().recordMetric({
-      name: 'frontend_agent_storage_total_bytes',
-      value: snapshot.totalBytes,
-      unit: 'bytes',
-    })
-    for (const item of snapshot.keys) {
-      get().recordMetric({
-        name: 'frontend_agent_storage_key_bytes',
-        value: item.bytes,
-        unit: 'bytes',
-        labels: { key: item.key },
-      })
-    }
-  },
-
-  clear: () => set({
-    operations: [],
-    metrics: [],
-    logs: [],
-    longTasks: [],
-    storageSnapshots: [],
-  }),
-}))
-
-let agentTelemetrySink: AgentTelemetrySink = createLocalAgentTelemetrySink()
+let webVitalsInstalled = false
+let frontendErrorObserversInstalled = false
+let agentTelemetrySink: AgentTelemetrySink = createNoopAgentTelemetrySink()
 
 export function setAgentTelemetrySink(sink: AgentTelemetrySink): void {
   agentTelemetrySink = sink
 }
 
 export function resetAgentTelemetrySink(): void {
-  agentTelemetrySink = createLocalAgentTelemetrySink()
+  agentTelemetrySink = createNoopAgentTelemetrySink()
 }
 
-export function createLocalAgentTelemetrySink(): AgentTelemetrySink {
+export function createTransientAgentTelemetrySink(onComplete: {
+  operation?: (operation: AgentPerformanceOperation) => void
+  metric?: (sample: AgentPerformanceMetricSample) => void
+  log?: (entry: AgentPerformanceLogEntry) => void
+  longTask?: (task: AgentPerformanceLongTask) => void
+}): AgentTelemetrySink {
+  const activeOperations = new Map<string, AgentPerformanceOperation>()
   return {
-    beginOperation: (input) => useAgentPerformanceStore.getState().beginOperation(input),
-    markPhase: (operationId, name, input) => useAgentPerformanceStore.getState().markPhase(operationId, name, input),
-    finishOperation: (operationId, status, details) => useAgentPerformanceStore.getState().finishOperation(operationId, status, details),
-    recordMetric: (sample) => useAgentPerformanceStore.getState().recordMetric(sample),
-    recordLog: (entry) => useAgentPerformanceStore.getState().recordLog(entry),
-    recordLongTask: (task) => useAgentPerformanceStore.getState().recordLongTask(task),
-    recordStorageSnapshot: (snapshot) => useAgentPerformanceStore.getState().recordStorageSnapshot(snapshot),
+    beginOperation: (input) => {
+      const id = createPerformanceId('agent_op')
+      const startedMs = performanceNow()
+      const operation: AgentPerformanceOperation = {
+        id,
+        kind: input.kind,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        startedMs,
+        updatedAt: new Date().toISOString(),
+        ...(input.conversationId ? { conversationId: input.conversationId } : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+        ...(input.runId ? { runId: input.runId } : {}),
+        ...(input.meta ? { meta: input.meta } : {}),
+        phases: [{
+          id: createPerformanceId('agent_phase'),
+          name: 'operation_start',
+          label: phaseLabel('operation_start'),
+          at: startedMs,
+          offsetMs: 0,
+          durationFromPreviousMs: 0,
+        }],
+      }
+      activeOperations.set(id, operation)
+      return id
+    },
+
+    markPhase: (operationId, name, input = {}) => {
+      if (!operationId) return
+      const operation = activeOperations.get(operationId)
+      if (!operation || operation.status !== 'running') return
+      const at = performanceNow()
+      const previous = operation.phases[operation.phases.length - 1]
+      const offsetMs = Math.max(0, at - operation.startedMs)
+      const deltaMs = previous ? Math.max(0, at - previous.at) : offsetMs
+      operation.updatedAt = new Date().toISOString()
+      operation.phases.push({
+        id: createPerformanceId('agent_phase'),
+        name,
+        label: input.label ?? phaseLabel(name),
+        at,
+        offsetMs,
+        durationFromPreviousMs: deltaMs,
+        ...(input.details ? { details: input.details } : {}),
+      })
+    },
+
+    finishOperation: (operationId, status, details) => {
+      if (!operationId) return
+      const operation = activeOperations.get(operationId)
+      if (!operation || operation.status !== 'running') return
+      const endedMs = performanceNow()
+      const durationMs = Math.max(0, endedMs - operation.startedMs)
+      const previous = operation.phases[operation.phases.length - 1]
+      operation.status = status
+      operation.updatedAt = new Date().toISOString()
+      operation.endedAt = new Date().toISOString()
+      operation.durationMs = durationMs
+      operation.phases.push({
+        id: createPerformanceId('agent_phase'),
+        name: `operation_${status}`,
+        label: phaseLabel(`operation_${status}`),
+        at: endedMs,
+        offsetMs: durationMs,
+        durationFromPreviousMs: previous ? Math.max(0, endedMs - previous.at) : durationMs,
+        ...(details ? { details } : {}),
+      })
+      activeOperations.delete(operationId)
+      if (durationMs >= SLOW_OPERATION_THRESHOLDS_MS[operation.kind] || status === 'error') {
+        const slowest = slowestPhase(operation)
+        onComplete.log?.({
+          id: createPerformanceId('agent_log'),
+          level: status === 'error' ? 'error' : 'warning',
+          operationId: operation.id,
+          message: status === 'error'
+            ? `${operationKindLabel(operation.kind)}失败：${formatMs(durationMs)}`
+            : `${operationKindLabel(operation.kind)}较慢：${formatMs(durationMs)}，主要耗时 ${slowest?.label ?? '未知阶段'} ${formatMs(slowest?.durationFromPreviousMs ?? 0)}`,
+          createdAt: new Date().toISOString(),
+          details: {
+            telemetryArea: 'agent_frontend',
+            telemetryKind: status === 'error' ? 'operation_error' : 'slow_operation',
+            kind: operation.kind,
+            durationMs,
+            slowestPhase: slowest?.name,
+            ...(details ?? {}),
+          },
+        })
+      }
+      onComplete.operation?.({ ...operation, phases: [...operation.phases] })
+    },
+
+    recordMetric: (sample) => onComplete.metric?.(createMetricSample(sample)),
+
+    recordLog: (entry) => onComplete.log?.({
+      ...entry,
+      id: createPerformanceId('agent_log'),
+      createdAt: new Date().toISOString(),
+    }),
+
+    recordLongTask: (task) => {
+      const longTask: AgentPerformanceLongTask = {
+        ...task,
+        id: createPerformanceId('agent_longtask'),
+        startedAt: new Date(Date.now() - Math.max(0, performanceNow() - task.startTime)).toISOString(),
+      }
+      onComplete.longTask?.(longTask)
+    },
   }
 }
 
-export function beginAgentPerformanceOperation(input: Parameters<AgentPerformanceStore['beginOperation']>[0]): string {
+export function beginAgentPerformanceOperation(input: Parameters<AgentTelemetrySink['beginOperation']>[0]): string {
   return agentTelemetrySink.beginOperation(input)
 }
 
@@ -367,59 +232,254 @@ export function recordAgentPerformanceLog(entry: Omit<AgentPerformanceLogEntry, 
   agentTelemetrySink.recordLog(entry)
 }
 
-export function captureAgentStorageSnapshot(): AgentPerformanceStorageSnapshot | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const keys = STORAGE_KEYS_TO_TRACK.map((key) => ({
-      key,
-      bytes: byteLength(window.localStorage.getItem(key) ?? ''),
-    }))
-    const snapshot = {
-      keys,
-      totalBytes: keys.reduce((sum, item) => sum + item.bytes, 0),
-    }
-    agentTelemetrySink.recordStorageSnapshot(snapshot)
-    return {
-      ...snapshot,
-      id: createPerformanceId('agent_storage'),
-      createdAt: new Date().toISOString(),
-    }
-  } catch (error) {
-    recordAgentPerformanceLog({
-      level: 'warning',
-      message: `读取 Agent 本地存储体积失败：${error instanceof Error ? error.message : String(error)}`,
-    })
-    return null
-  }
+export interface InstrumentedAgentStateStorage {
+  getItem: (name: string) => string | null
+  setItem: (name: string, value: string) => void
+  removeItem: (name: string) => void
+  flush?: () => void
 }
 
-export function installAgentPerformanceObservers(): void {
-  if (typeof window === 'undefined') return
-  if (!observerInstalled) {
-    observerInstalled = true
-    captureAgentStorageSnapshot()
-    const PerformanceObserverCtor = window.PerformanceObserver
-    if (PerformanceObserverCtor) {
+interface InstrumentedAgentStateStorageOptions {
+  writeDelayMs?: number
+}
+
+type PendingStorageWrite =
+  | { kind: 'set'; value: string; payloadBytes: number }
+  | { kind: 'remove' }
+
+export function createInstrumentedAgentStateStorage(
+  component: string,
+  storage?: Storage | null,
+  options: InstrumentedAgentStateStorageOptions = {},
+): InstrumentedAgentStateStorage {
+  const resolvedStorage = storage ?? (typeof window !== 'undefined' ? window.localStorage : null)
+  const writeDelayMs = Math.max(0, options.writeDelayMs ?? 250)
+  const pendingWrites = new Map<string, PendingStorageWrite>()
+  const cachedValues = new Map<string, string | null>()
+  let flushTimer: ReturnType<typeof setTimeout> | undefined
+
+  const flush = (): void => {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+      flushTimer = undefined
+    }
+    if (pendingWrites.size === 0) return
+    const writes = [...pendingWrites.entries()]
+    pendingWrites.clear()
+    for (const [name, write] of writes) {
       try {
-        const observer = new PerformanceObserverCtor((list) => {
-          for (const entry of list.getEntries()) {
-            agentTelemetrySink.recordLongTask({
-              startTime: entry.startTime,
-              durationMs: entry.duration,
-              name: entry.name,
-            })
-          }
-        })
-        observer.observe({ entryTypes: ['longtask'] })
+        if (write.kind === 'set') {
+          measureAgentStorageOperation({
+            component,
+            kind: storageKindFromKey(name),
+            stage: 'set',
+            payloadBytes: write.payloadBytes,
+            run: () => {
+              resolvedStorage?.setItem(name, write.value)
+            },
+          })
+        } else {
+          measureAgentStorageOperation({
+            component,
+            kind: storageKindFromKey(name),
+            stage: 'remove',
+            run: () => {
+              resolvedStorage?.removeItem(name)
+            },
+          })
+        }
       } catch {
-        recordAgentPerformanceLog({
-          level: 'info',
-          message: '当前运行环境不支持 Long Task 观测。',
-        })
+        pendingWrites.set(name, write)
       }
     }
   }
-  installStorageProbe()
+
+  const scheduleFlush = (): void => {
+    if (flushTimer) return
+    flushTimer = setTimeout(flush, writeDelayMs)
+  }
+
+  installStorageFlushGuards(flush)
+
+  return {
+    getItem: (name) => {
+      const pending = pendingWrites.get(name)
+      if (pending?.kind === 'set') return pending.value
+      if (pending?.kind === 'remove') return null
+      const value = measureAgentStorageOperation({
+        component,
+        kind: storageKindFromKey(name),
+        stage: 'get',
+        run: () => resolvedStorage?.getItem(name) ?? null,
+        bytes: (item) => typeof item === 'string' ? utf8ByteLength(item) : undefined,
+      })
+      cachedValues.set(name, value)
+      return value
+    },
+    setItem: (name, value) => {
+      const pending = pendingWrites.get(name)
+      if ((pending?.kind === 'set' && pending.value === value) || (!pending && cachedValues.get(name) === value)) {
+        recordFrontendStorageMetrics({
+          component,
+          kind: storageKindFromKey(name),
+          stage: 'set_skip',
+          status: 'success',
+          durationMs: 0,
+          bytes: utf8ByteLength(value),
+        })
+        return
+      }
+      pendingWrites.set(name, { kind: 'set', value, payloadBytes: utf8ByteLength(value) })
+      cachedValues.set(name, value)
+      scheduleFlush()
+    },
+    removeItem: (name) => {
+      const pending = pendingWrites.get(name)
+      if (pending?.kind === 'remove' || (!pending && cachedValues.get(name) === null)) {
+        recordFrontendStorageMetrics({
+          component,
+          kind: storageKindFromKey(name),
+          stage: 'remove_skip',
+          status: 'success',
+          durationMs: 0,
+        })
+        return
+      }
+      pendingWrites.set(name, { kind: 'remove' })
+      cachedValues.set(name, null)
+      scheduleFlush()
+    },
+    flush,
+  }
+}
+
+function installStorageFlushGuards(flush: () => void): void {
+  if (typeof window === 'undefined') return
+  window.addEventListener('pagehide', flush)
+  window.addEventListener('beforeunload', flush)
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush()
+    })
+  }
+}
+
+function measureAgentStorageOperation<T>(input: {
+  component: string
+  kind: string
+  stage: 'get' | 'set' | 'remove'
+  payloadBytes?: number
+  bytes?: (value: T) => number | undefined
+  run: () => T
+}): T {
+  const startedAt = performanceNow()
+  try {
+    const result = input.run()
+    recordFrontendStorageMetrics({
+      component: input.component,
+      kind: input.kind,
+      stage: input.stage,
+      status: 'success',
+      durationMs: Math.max(0, performanceNow() - startedAt),
+      bytes: input.payloadBytes ?? input.bytes?.(result),
+    })
+    return result
+  } catch (error) {
+    recordFrontendStorageMetrics({
+      component: input.component,
+      kind: input.kind,
+      stage: input.stage,
+      status: 'error',
+      durationMs: Math.max(0, performanceNow() - startedAt),
+      bytes: input.payloadBytes,
+    })
+    throw error
+  }
+}
+
+function recordFrontendStorageMetrics(input: {
+  component: string
+  kind: string
+  stage: string
+  status: string
+  durationMs: number
+  bytes?: number
+}): void {
+  const labels = {
+    component: input.component,
+    kind: input.kind,
+    stage: input.stage,
+    status: input.status,
+  }
+  recordAgentPerformanceMetric({
+    name: 'frontend_storage_operation_duration_ms',
+    value: input.durationMs,
+    unit: 'ms',
+    labels,
+  })
+  if (typeof input.bytes === 'number' && Number.isFinite(input.bytes) && input.bytes >= 0) {
+    recordAgentPerformanceMetric({
+      name: 'frontend_storage_payload_bytes',
+      value: input.bytes,
+      unit: 'bytes',
+      labels,
+    })
+  }
+}
+
+function storageKindFromKey(name: string): string {
+  if (name === 'agent-store-v4') return 'agent_store'
+  if (name === 'agent-drafts-v1') return 'agent_draft_store'
+  if (name === 'agent-session-store-v2') return 'agent_session_store'
+  if (name.startsWith('agent-')) return 'agent'
+  return 'unknown'
+}
+
+export function installAgentPerformanceObservers(): void {
+  if (typeof window === 'undefined' || observerInstalled) return
+  observerInstalled = true
+  installWebVitalsObservers()
+  installFrontendErrorObservers()
+  const PerformanceObserverCtor = window.PerformanceObserver
+  if (!PerformanceObserverCtor) return
+  try {
+    const observer = new PerformanceObserverCtor((list) => {
+      for (const entry of list.getEntries()) {
+        agentTelemetrySink.recordLongTask({
+          startTime: entry.startTime,
+          durationMs: entry.duration,
+          name: entry.name,
+        })
+      }
+    })
+    observer.observe({ entryTypes: ['longtask'] })
+  } catch {
+    recordAgentPerformanceLog({
+      level: 'info',
+      message: '当前运行环境不支持 Long Task 观测。',
+      details: { telemetryArea: 'agent_frontend', telemetryKind: 'longtask_unsupported' },
+    })
+  }
+}
+
+export function recordAgentNetworkRequestMetric(input: {
+  method: string
+  routeGroup: string
+  statusClass: string
+  durationMs: number
+  transport?: string
+}): void {
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_network_request_duration_ms',
+    value: input.durationMs,
+    unit: 'ms',
+    labels: {
+      method: normalizeMetricLabel(input.method, 'GET'),
+      route_group: normalizeRouteGroup(input.routeGroup),
+      status_class: normalizeMetricLabel(input.statusClass, 'unknown'),
+      transport: normalizeMetricLabel(input.transport ?? 'http', 'http'),
+    },
+  })
 }
 
 export function summarizeAgentPerformanceMetrics(samples: AgentPerformanceMetricSample[]): Array<{
@@ -545,61 +605,121 @@ export function performanceNow(): number {
   return Date.now()
 }
 
-function installStorageProbe(): void {
-  if (storageProbeInstalled || typeof window === 'undefined') return
+function installWebVitalsObservers(): void {
+  if (webVitalsInstalled || typeof window === 'undefined') return
+  webVitalsInstalled = true
+
+  observePerformanceEntries('paint', (entry) => {
+    if (entry.name === 'first-contentful-paint') recordWebVital('fcp', entry.startTime, 'ms')
+  })
+  observePerformanceEntries('largest-contentful-paint', (entry) => recordWebVital('lcp', entry.startTime, 'ms'))
+  observePerformanceEntries('navigation', (entry) => {
+    const nav = entry as PerformanceNavigationTiming
+    if (Number.isFinite(nav.responseStart)) recordWebVital('ttfb', nav.responseStart, 'ms')
+  })
+  observePerformanceEntries('layout-shift', (entry) => {
+    const shift = entry as PerformanceEntry & { value?: number; hadRecentInput?: boolean }
+    if (!shift.hadRecentInput && typeof shift.value === 'number') recordWebVital('cls', shift.value, 'score')
+  })
+  observePerformanceEntries('event', (entry) => {
+    const eventEntry = entry as PerformanceEntry & { interactionId?: number; duration?: number }
+    if ((eventEntry.interactionId ?? 0) > 0 && typeof eventEntry.duration === 'number') recordWebVital('inp', eventEntry.duration, 'ms')
+  })
+}
+
+function observePerformanceEntries(type: string, handle: (entry: PerformanceEntry) => void): void {
+  const PerformanceObserverCtor = window.PerformanceObserver
+  if (!PerformanceObserverCtor) return
   try {
-    const proto = Object.getPrototypeOf(window.localStorage) as Storage
-    originalStorageSetItem = proto.setItem
-    proto.setItem = function setItemWithAgentProbe(this: Storage, key: string, value: string) {
-      const started = performanceNow()
-      try {
-        return originalStorageSetItem!.call(this, key, value)
-      } finally {
-        if (STORAGE_KEYS_TO_TRACK.includes(key as typeof STORAGE_KEYS_TO_TRACK[number])) {
-          const durationMs = Math.max(0, performanceNow() - started)
-          const bytes = byteLength(value)
-          recordAgentPerformanceMetric({
-            name: 'frontend_store_persist_duration_ms',
-            value: durationMs,
-            unit: 'ms',
-            labels: { key },
-          })
-          recordAgentPerformanceMetric({
-            name: 'frontend_store_persist_bytes',
-            value: bytes,
-            unit: 'bytes',
-            labels: { key },
-          })
-          if (durationMs >= 100) {
-            recordAgentPerformanceLog({
-              level: 'warning',
-              message: `${key} 写入较慢：${formatMs(durationMs)}，体积 ${formatBytes(bytes)}`,
-              details: { key, durationMs, bytes },
-            })
-          }
-        }
-      }
-    }
-    storageProbeInstalled = true
-  } catch (error) {
-    recordAgentPerformanceLog({
-      level: 'warning',
-      message: `安装 localStorage 性能探针失败：${error instanceof Error ? error.message : String(error)}`,
+    const observer = new PerformanceObserverCtor((list) => {
+      for (const entry of list.getEntries()) handle(entry)
     })
+    observer.observe({ type, buffered: true })
+  } catch {
+    // Unsupported observer types are expected across browsers.
   }
 }
 
+function recordWebVital(name: 'fcp' | 'lcp' | 'ttfb' | 'cls' | 'inp', value: number, unit: AgentPerformanceMetricSample['unit']): void {
+  if (!Number.isFinite(value) || value < 0) return
+  recordAgentPerformanceMetric({
+    name: `frontend_web_vital_${name}_${unit === 'score' ? 'score' : 'ms'}`,
+    value,
+    unit,
+    labels: { vital: name },
+  })
+}
+
+function installFrontendErrorObservers(): void {
+  if (frontendErrorObserversInstalled || typeof window === 'undefined') return
+  frontendErrorObserversInstalled = true
+  window.addEventListener('error', () => {
+    recordAgentPerformanceMetric({
+      name: 'frontend_ui_errors_total',
+      value: 1,
+      unit: 'count',
+      labels: { area: 'agent_frontend', kind: 'window_error', level: 'error' },
+    })
+    recordAgentPerformanceLog({
+      level: 'error',
+      message: '前端运行错误。',
+      details: { telemetryArea: 'agent_frontend', telemetryKind: 'window_error' },
+    })
+  })
+  window.addEventListener('unhandledrejection', () => {
+    recordAgentPerformanceMetric({
+      name: 'frontend_ui_errors_total',
+      value: 1,
+      unit: 'count',
+      labels: { area: 'agent_frontend', kind: 'unhandled_rejection', level: 'error' },
+    })
+    recordAgentPerformanceLog({
+      level: 'error',
+      message: '前端 Promise 未处理异常。',
+      details: { telemetryArea: 'agent_frontend', telemetryKind: 'unhandled_rejection' },
+    })
+  })
+}
+
+function createMetricSample(sample: Omit<AgentPerformanceMetricSample, 'id' | 'createdAt'>): AgentPerformanceMetricSample {
+  return {
+    ...sample,
+    id: createPerformanceId('agent_metric'),
+    createdAt: new Date().toISOString(),
+  }
+}
+
+function createNoopAgentTelemetrySink(): AgentTelemetrySink {
+  const transient = createTransientAgentTelemetrySink({})
+  return transient
+}
+
 function createPerformanceId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const random = Math.random().toString(36).slice(2, 10)
+  return `${prefix}_${Date.now().toString(36)}_${random}`
 }
 
-function byteLength(value: string): number {
-  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(value).byteLength
-  return value.length * 2
-}
-
-function percentile(values: number[], ratio: number): number {
+function percentile(values: number[], percentileValue: number): number {
   if (values.length === 0) return 0
-  const index = Math.min(values.length - 1, Math.max(0, Math.ceil(values.length * ratio) - 1))
+  const index = Math.min(values.length - 1, Math.max(0, Math.ceil(values.length * percentileValue) - 1))
   return values[index] ?? 0
+}
+
+function normalizeMetricLabel(value: string, fallback: string): string {
+  const normalized = value.trim().toLowerCase()
+  return normalized || fallback
+}
+
+function normalizeRouteGroup(path: string): string {
+  return path
+    .replace(/\/threads\/[^/?#]+/g, '/threads/:id')
+    .replace(/\/runs\/[^/?#]+/g, '/runs/:id')
+    .replace(/\/sessions\/[^/?#]+/g, '/sessions/:id')
+    .replace(/\/interactions\/[^/?#]+/g, '/interactions/:id')
+    .replace(/\/plans\/[^/?#]+/g, '/plans/:id')
+}
+
+function utf8ByteLength(value: string): number {
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(value).byteLength
+  return value.length
 }

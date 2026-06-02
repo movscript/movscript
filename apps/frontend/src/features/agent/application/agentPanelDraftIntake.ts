@@ -2,35 +2,34 @@ import type { AgentPanelDraftPayload } from '@/features/agent/application/agentP
 
 export interface AgentPanelDraftConversationDeps {
   userId: string
-  createConversation: (userId: string) => string
+  createConversationForDraft: (payload: AgentPanelDraftPayload) => Promise<string>
   getActiveConversationId: (userId: string) => string | null | undefined
   setActiveConversation: (userId: string, conversationId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
 }
 
-export function activateConversationForPanelDraft(
+export async function activateConversationForPanelDraft(
   payload: AgentPanelDraftPayload | null | undefined,
   deps: AgentPanelDraftConversationDeps,
-): string | null {
+): Promise<string | null> {
   if (!payload?.message?.trim()) return null
-  const conversationId = payload.newConversation
-    ? deps.createConversation(deps.userId)
-    : deps.getActiveConversationId(deps.userId) ?? deps.createConversation(deps.userId)
+  const activeConversationId = payload.newConversation ? null : deps.getActiveConversationId(deps.userId)
+  const conversationId = activeConversationId ?? await deps.createConversationForDraft(payload)
   if (payload.title) deps.updateConversationTitle(deps.userId, conversationId, payload.title)
   deps.setActiveConversation(deps.userId, conversationId)
   if (payload.requestId) deps.attachPageTaskConversation(payload.requestId, conversationId)
   return conversationId
 }
 
-export function consumeQueuedPanelDrafts(
+export async function consumeQueuedPanelDrafts(
   consumeDraft: () => AgentPanelDraftPayload | null | undefined,
   deps: AgentPanelDraftConversationDeps,
-): string[] {
+): Promise<string[]> {
   const conversationIds: string[] = []
   let pending = consumeDraft()
   while (pending?.message?.trim()) {
-    const conversationId = activateConversationForPanelDraft(pending, deps)
+    const conversationId = await activateConversationForPanelDraft(pending, deps)
     if (conversationId) conversationIds.push(conversationId)
     pending = consumeDraft()
   }

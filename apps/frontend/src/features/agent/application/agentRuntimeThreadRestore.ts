@@ -1,12 +1,9 @@
 import { loadRuntimeThreadProjection, type RuntimeThreadHydrationResult } from '@/features/agent/application/agentRuntimeThreadHydration'
 import { restoreRuntimeThreadConversation as restoreRuntimeThreadConversationCore } from '@movscript/conversation'
-import type {
-  AgentConversationMessageStore,
-  RestoreRuntimeThreadConversationResult,
-} from '@movscript/conversation'
+import type { RestoreRuntimeThreadConversationResult } from '@movscript/conversation'
 import type { AgentThread } from '@/shared/infrastructure/localAgentClient'
 import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
-import type { ChatMessage, ChatMessageMeta, Conversation } from '@/features/agent/state/agentStore'
+import type { ChatMessage, Conversation } from '@/features/agent/state/agentStore'
 
 export interface RestoreRuntimeThreadDeps {
   userId: string
@@ -20,11 +17,11 @@ export interface RestoreRuntimeThreadDeps {
   restoredLabel: string
   titleForThread: (thread: AgentThread) => string
   loadProjection?: (threadId: string) => Promise<RuntimeThreadHydrationResult>
-  createConversation: (userId: string) => string
+  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string }) => string
   setActiveConversation: (userId: string, conversationId: string) => void
   unarchiveConversation?: (userId: string, conversationId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'upsertMessage'>
+  setRuntimeThreadProjection: (input: { conversationId: string; threadId: string; sessionId?: string; messages: ChatMessage[] }) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
@@ -37,7 +34,7 @@ export async function restoreRuntimeThreadConversation(
   threadId: string,
   deps: RestoreRuntimeThreadDeps,
 ): Promise<RestoreRuntimeThreadResult> {
-  return restoreRuntimeThreadConversationCore<ChatMessage, ChatMessageMeta, Conversation, AgentThread>(threadId, {
+  return restoreRuntimeThreadConversationCore<ChatMessage, NonNullable<ChatMessage['meta']>, Conversation, AgentThread>(threadId, {
     ...deps,
     loadProjection: (runtimeThreadId) => deps.loadProjection ? deps.loadProjection(runtimeThreadId) : loadRuntimeThreadProjection({ threadId: runtimeThreadId }),
   })

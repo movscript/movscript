@@ -69,6 +69,14 @@ pnpm --filter movscript-frontend dev
 curl http://localhost:8765/health
 ```
 
+启动社区版观测栈，包括后端、Prometheus 和 Grafana：
+
+```bash
+docker compose --profile observability up --build
+```
+
+Grafana 默认地址为 `http://localhost:3002`。Prometheus 会自动抓取后端 `/metrics`，包含 HTTP 路由指标、镜头向量指标、Agent 前端关键阶段、Agent 网络耗时、Web Vitals、前端错误和隐私安全的 telemetry 采集健康指标。同一个 profile 还会自动加载 Prometheus 告警规则，覆盖后端可用性、HTTP 延迟/错误、Agent telemetry 拒收、Agent runtime 延迟/失败、前端错误和 Web Vitals 阈值。
+
 开发 Agent 流程时启动本地 Agent：
 
 ```bash

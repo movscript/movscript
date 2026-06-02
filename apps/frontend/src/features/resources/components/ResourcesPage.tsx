@@ -567,7 +567,7 @@ function VideoClipDialog({
                   </ResourceClipStageState>
                 ) : (
                   <ResourceMediaFillFrame fit="contain">
-                    <video
+                    <UrlVideo
                       ref={videoRef}
                       src={sourceUrl}
                       controls={false}

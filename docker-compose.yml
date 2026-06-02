@@ -95,7 +95,68 @@ services:
       createbuckets:
         condition: service_completed_successfully
 
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./apps/backend/observability/prometheus-compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./apps/backend/observability/rules:/etc/prometheus/rules:ro
+      - prometheusdata:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+      - node-exporter
+      - cadvisor
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3002}:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./apps/backend/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./apps/backend/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./apps/backend/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    profiles: ["observability"]
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+
+  cadvisor:
+    profiles: ["observability"]
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+
 volumes:
   pgdata:
   miniodata:
   redisdata:
+  prometheusdata:
+  grafanadata:

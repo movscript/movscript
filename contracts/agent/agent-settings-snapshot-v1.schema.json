@@ -25,7 +25,7 @@
       "format": "date-time"
     },
     "model": {
-      "description": "Model routing values exported for partial import. Import saves Runtime connection state and writes a public model binding into the target config file model field; API keys are intentionally excluded.",
+      "description": "Model routing values exported for partial import. Import saves Runtime model settings; API keys are intentionally excluded.",
       "type": "object",
       "additionalProperties": false,
       "required": ["model"],
@@ -60,7 +60,7 @@
       "items": { "$ref": "#/$defs/skillConfigItem" }
     },
     "toolPermissionOverrides": {
-      "description": "Per-config-file tool permission overrides. Import preserves configFileId boundaries instead of applying one global tool permission rule.",
+      "description": "Config-file tool grants exported for partial import. Import preserves configFileId boundaries instead of applying one global tool permission rule.",
       "type": "array",
       "items": { "$ref": "#/$defs/toolPermissionOverride" }
     }

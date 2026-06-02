@@ -3,8 +3,20 @@ import test from 'node:test'
 
 import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentThread } from '@/shared/infrastructure/localAgentClient'
 import type { AgentRuntimeTransport } from '@/shared/infrastructure/agentRuntimeTransport'
+import { resetAgentTelemetrySink, setAgentTelemetrySink, type AgentPerformanceMetricSample } from '@/features/agent/state/agentPerformanceStore'
 
 test('local agent client delegates requests through the runtime transport', async () => {
+  const metrics: AgentPerformanceMetricSample[] = []
+  setAgentTelemetrySink({
+    beginOperation: () => 'noop',
+    markPhase: () => {},
+    finishOperation: () => {},
+    recordMetric: (sample) => {
+      metrics.push({ ...sample, id: `metric_${metrics.length + 1}`, createdAt: new Date().toISOString() })
+    },
+    recordLog: () => {},
+    recordLongTask: () => {},
+  })
   const requests: string[] = []
   const transport: AgentRuntimeTransport = {
     kind: 'unix-socket',
@@ -30,6 +42,11 @@ test('local agent client delegates requests through the runtime transport', asyn
   assert.equal(client.transportKind, 'unix-socket')
   assert.equal(health.ok, true)
   assert.deepEqual(requests, ['GET /runtime/compat'])
+  const networkMetric = metrics.find((sample) => sample.name === 'frontend_agent_network_request_duration_ms')
+  assert.equal(networkMetric?.labels?.route_group, '/runtime/compat')
+  assert.equal(networkMetric?.labels?.status_class, '2xx')
+  assert.equal(networkMetric?.labels?.transport, 'unix-socket')
+  resetAgentTelemetrySink()
 })
 
 test('local agent client passes transport metadata when asking Electron to start runtime', async () => {
@@ -163,6 +180,43 @@ test('runMessageStream reports when a missing saved thread id is replaced by a n
   })
 })
 
+test('runMessageStream creates provisional runtime threads before the first message', async () => {
+  const requests: string[] = []
+  const threadBodies: Array<Record<string, unknown>> = []
+  const thread = threadFixture('thread_provisional')
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/threads' && init?.method === 'POST') {
+      threadBodies.push(parseJSONBody(init?.body))
+      return jsonResponse(thread)
+    }
+    if (url.pathname === '/threads/thread_provisional') return jsonResponse(thread)
+    if (url.pathname === '/threads/thread_provisional/runs') return jsonResponse(messageRunFixture('run_1', 'thread_provisional', 'completed'))
+    if (url.pathname === '/threads/thread_provisional/stream') {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_provisional', 'completed'), 1))}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').runMessageStream({
+      message: 'start',
+      title: 'New agent space',
+    }, { timeoutMs: 1, pollMs: 1 })
+
+    assert.equal(result.thread.id, 'thread_provisional')
+    assert.equal(threadBodies[0]?.title, 'New agent space')
+    assert.equal(threadBodies[0]?.lifecycle, 'provisional')
+    assert.deepEqual(requests.slice(0, 3), [
+      'POST /threads',
+      'POST /threads/thread_provisional/runs',
+      'GET /threads/thread_provisional/stream',
+    ])
+  })
+})
+
 test('runMessageStream only replaces saved thread ids for not-found responses', async () => {
   const requests: string[] = []
   await withFetch(async (input, init) => {
@@ -259,6 +313,41 @@ test('listThreads sends pagination query parameters', async () => {
     assert.deepEqual(requests, ['GET /threads?cursor=thread_2&limit=1'])
     assert.equal(result.total, 2)
     assert.equal(result.nextCursor, 'thread_1')
+  })
+})
+
+test('updateThread patches archive and lifecycle metadata', async () => {
+  const requests: Array<{ request: string; body: unknown }> = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined
+    requests.push({ request: `${init?.method ?? 'GET'} ${url.pathname}`, body })
+    if (url.pathname === '/threads/thread_1') {
+      return jsonResponse({
+        id: 'thread_1',
+        archived: true,
+        lifecycle: 'abandoned',
+        expiresAt: '2026-06-03T00:00:00.000Z',
+        createdAt: '2026-06-02T00:00:00.000Z',
+        updatedAt: '2026-06-02T00:00:00.000Z',
+        messageCount: 0,
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').updateThread('thread_1', {
+      archived: true,
+      lifecycle: 'abandoned',
+      expiresAt: '2026-06-03T00:00:00.000Z',
+    })
+
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0]?.request, 'PATCH /threads/thread_1')
+    assert.equal((requests[0]?.body as { archived?: unknown }).archived, true)
+    assert.equal((requests[0]?.body as { lifecycle?: unknown }).lifecycle, 'abandoned')
+    assert.equal((requests[0]?.body as { expiresAt?: unknown }).expiresAt, '2026-06-03T00:00:00.000Z')
+    assert.equal(result.archived, true)
+    assert.equal(result.lifecycle, 'abandoned')
   })
 })
 
@@ -555,14 +644,42 @@ test('trace reads preserve pagination and kind filters', async () => {
         readinessChecklist: [],
         modelCalls: [],
         modelCallContexts: [],
+        runtimeSummary: {
+          skills: {
+            activeSkillIds: [],
+            loadedSkillIds: [],
+            unloadedSkillIds: [],
+            availableSkillIds: [],
+            contextProjection: [],
+            omissions: [],
+          },
+          tools: {
+            availableToolNames: [],
+            usedToolNames: [],
+            failedToolNames: [],
+            blockedToolNames: [],
+            approvalRequiredToolNames: [],
+            deniedToolNames: [],
+            permissionGateBlockedToolNames: [],
+            pendingApprovalToolNames: [],
+          },
+          context: {
+            contextMutationCount: 0,
+            roundContextUpdateCount: 0,
+          },
+        },
+        roundContextUpdates: [],
+        roundContextChanges: [],
         skillTimeline: {
           timeline: [],
           currentActiveSkillIds: [],
           currentLoadedSkillIds: [],
           currentUnloadedSkillIds: [],
           currentAvailableSkillIds: [],
+          currentOmissions: [],
         },
         promptDetails: [],
+        contextMutations: [],
         messageWrites: [],
         toolCalls: [],
         attentionEvents: [],

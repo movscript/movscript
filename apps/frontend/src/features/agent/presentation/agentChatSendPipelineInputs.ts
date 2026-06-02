@@ -54,14 +54,13 @@ export function buildAgentChatSendPipelineInput({
       liveTraceEventsRef: runtime.liveTraceEventsRef,
       messageStore: {
         addMessage: store.messageStore.addMessage,
-        upsertMessage: store.messageStore.upsertMessage,
         removeMessage: store.messageStore.removeMessage,
         updateMessageMeta: store.messageStore.updateMessageMeta,
-        setConversationMessages: store.messageStore.setConversationMessages,
         clearConversationDraft: store.messageStore.clearConversationDraft,
       },
       setConversationSessionId: store.setConversationSessionId,
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
+      setRuntimeThreadProjection: store.setRuntimeThreadProjection,
       setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
         store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
         store.setConversationSessionId(conversationId, sessionId)
@@ -101,12 +100,10 @@ export function buildAgentChatSendPipelineInput({
       },
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
       setConversationRun: store.setConversationRun,
+      setRuntimeThreadProjection: store.setRuntimeThreadProjection,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       setRuntimeStatusLight: runtime.setRuntimeStatusLight,
       updateConversationTitle: store.updateConversationTitle,
-      messageStore: {
-        setConversationMessages: store.messageStore.setConversationMessages,
-      },
     },
     sendActions: {
       input: composer.input,

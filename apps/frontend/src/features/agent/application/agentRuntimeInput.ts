@@ -1,6 +1,6 @@
 import { sendRuntimeInputMessage, type AgentConversationMessageStore } from '@movscript/conversation'
 import { localAgentClient, type AgentClientInput, type AgentRun } from '@/shared/infrastructure/localAgentClient'
-import { blobToDataURL, loadResourceFileBlob } from '@/shared/ui/resourceBlob'
+import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment, ChatMessage, ChatMessageMeta } from '@/features/agent/state/agentStore'
 
 export interface SendActiveRunRuntimeInputDeps {
@@ -38,14 +38,14 @@ export async function sendActiveRunRuntimeInput(input: {
 async function resolveRuntimeInputAttachments(attachments: AgentAttachment[]): Promise<AgentAttachment[]> {
   return Promise.all(attachments.map(async (attachment) => {
     if (attachment.dataUrl || attachment.type !== 'image' || !attachment.resourceId) return attachment
-    const dataUrl = await resolveAttachmentDataUrl(attachment)
+    let dataUrl: string | undefined
+    try {
+      dataUrl = await resolveAgentAttachmentDataUrl(attachment)
+    } catch {
+      dataUrl = undefined
+    }
     return dataUrl ? { ...attachment, dataUrl } : attachment
   }))
-}
-
-async function resolveAttachmentDataUrl(attachment: AgentAttachment): Promise<string | undefined> {
-  if (!attachment.resourceId) return undefined
-  return blobToDataURL(await loadResourceFileBlob(attachment.resourceId))
 }
 
 function agentAttachmentToClientInputRef(attachment: AgentAttachment) {

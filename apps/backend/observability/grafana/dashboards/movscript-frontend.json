@@ -1,0 +1,111 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 2500 }, { "color": "red", "value": 4000 }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=\"frontend_web_vital_lcp_ms\"}) or vector(0)", "legendFormat": "LCP", "refId": "A" }],
+      "title": "LCP",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 200 }, { "color": "red", "value": 500 }] }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=\"frontend_web_vital_inp_ms\"}) or vector(0)", "legendFormat": "INP", "refId": "A" }],
+      "title": "INP",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.1 }, { "color": "red", "value": 0.25 }] }, "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_score_max{metric=\"frontend_web_vital_cls_score\"}) or vector(0)", "legendFormat": "CLS", "refId": "A" }],
+      "title": "CLS",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] }, "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_count_total{metric=\"frontend_ui_errors_total\"}[$window])) or vector(0)", "legendFormat": "errors", "refId": "A" }],
+      "title": "UI Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=~\"frontend_web_vital_.*_ms\"}) by (metric, vital)", "legendFormat": "{{vital}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_score_max{metric=\"frontend_web_vital_cls_score\"}) by (metric, vital)", "legendFormat": "{{vital}} score", "refId": "B" }
+      ],
+      "title": "Web Vitals Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport), 1)", "legendFormat": "{{method}} {{route_group}} {{status_class}}", "refId": "A" }],
+      "title": "Agent Network Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_client_long_task_duration_milliseconds_max", "legendFormat": "long task max", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status), 1)", "legendFormat": "{{component}} {{kind}} {{stage}} {{status}}", "refId": "B" }
+      ],
+      "title": "Long Task and Storage Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 8,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sum(rate(movscript_agent_client_metric_count_total{metric=\"frontend_ui_errors_total\"}[$window])) by (area, kind, level))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sum(rate(movscript_agent_client_logs_total[$window])) by (area, kind, level))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "B" }
+      ],
+      "title": "Frontend Error Evidence",
+      "type": "table"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["movscript", "frontend", "observability"],
+  "templating": { "list": [{ "current": { "selected": true, "text": "5m", "value": "5m" }, "hide": 0, "includeAll": false, "label": "Window", "name": "window", "options": [{ "selected": true, "text": "5m", "value": "5m" }, { "selected": false, "text": "15m", "value": "15m" }, { "selected": false, "text": "1h", "value": "1h" }], "query": "5m,15m,1h", "skipUrlSync": false, "type": "custom" }] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "MovScript Frontend",
+  "uid": "movscript-frontend",
+  "version": 1,
+  "weekStart": ""
+}

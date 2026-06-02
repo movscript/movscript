@@ -12,6 +12,8 @@ type AgentTelemetryHandler struct {
 	metrics *observability.AgentClientMetrics
 }
 
+const agentClientTelemetrySchema = "movscript.agent.client-telemetry.v1"
+
 func NewAgentTelemetryHandler(metrics *observability.AgentClientMetrics) *AgentTelemetryHandler {
 	if metrics == nil {
 		metrics = observability.DefaultAgentClientMetrics()
@@ -23,7 +25,8 @@ type agentTelemetryBatchRequest struct {
 	Schema           string                           `json:"schema"`
 	Operations       []agentTelemetryOperationRequest `json:"operations"`
 	LongTasks        []agentTelemetryDurationRequest  `json:"longTasks"`
-	StorageSnapshots []agentTelemetryStorageRequest   `json:"storageSnapshots"`
+	Metrics          []agentTelemetryMetricRequest    `json:"metrics"`
+	Logs             []agentTelemetryLogRequest       `json:"logs"`
 }
 
 type agentTelemetryOperationRequest struct {
@@ -43,17 +46,28 @@ type agentTelemetryDurationRequest struct {
 	DurationMS float64 `json:"durationMs"`
 }
 
-type agentTelemetryStorageRequest struct {
-	TotalBytes int64 `json:"totalBytes"`
+type agentTelemetryMetricRequest struct {
+	Name   string            `json:"name"`
+	Unit   string            `json:"unit"`
+	Value  float64           `json:"value"`
+	Labels map[string]string `json:"labels"`
+}
+
+type agentTelemetryLogRequest struct {
+	Level string `json:"level"`
+	Area  string `json:"area"`
+	Kind  string `json:"kind"`
 }
 
 func (h *AgentTelemetryHandler) Record(c *gin.Context) {
 	var req agentTelemetryBatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.metrics.RecordIngest("invalid_payload", 0)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid telemetry payload"})
 		return
 	}
-	if req.Schema != "" && req.Schema != "movscript.agent.client-telemetry.v1" {
+	if req.Schema != "" && req.Schema != agentClientTelemetrySchema {
+		h.metrics.RecordIngest("unsupported_schema", 0)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported telemetry schema"})
 		return
 	}
@@ -75,12 +89,24 @@ func (h *AgentTelemetryHandler) Record(c *gin.Context) {
 		})
 		recorded++
 	}
-	for _, snapshot := range req.StorageSnapshots {
-		h.metrics.RecordStorage(observability.AgentClientStorageSample{
-			TotalBytes: snapshot.TotalBytes,
+	for _, metric := range req.Metrics {
+		h.metrics.RecordMetric(observability.AgentClientMetricSample{
+			Name:   metric.Name,
+			Unit:   metric.Unit,
+			Value:  metric.Value,
+			Labels: metric.Labels,
 		})
 		recorded++
 	}
+	for _, log := range req.Logs {
+		h.metrics.RecordLog(observability.AgentClientLogSample{
+			Level: log.Level,
+			Area:  log.Area,
+			Kind:  log.Kind,
+		})
+		recorded++
+	}
+	h.metrics.RecordIngest("accepted", recorded)
 
 	c.JSON(http.StatusAccepted, gin.H{"recorded": recorded})
 }

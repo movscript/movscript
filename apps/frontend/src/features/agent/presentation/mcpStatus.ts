@@ -10,7 +10,7 @@ export interface MCPServerStatus {
 
 export function isLikelyMCPError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /MCP request failed|MCP HTTP|fetch failed|ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i.test(message)
+  return /MCP request failed|MCP HTTP|MCP status check timed out|MCP server is not available|fetch failed|ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i.test(message)
 }
 
 export function toastMCPError(error: unknown, fallbackEndpoint?: string): boolean {

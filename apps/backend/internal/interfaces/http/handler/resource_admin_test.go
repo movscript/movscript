@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -157,6 +159,70 @@ func TestResourceAdminDetailReturnsResourceBindings(t *testing.T) {
 	}
 }
 
+func TestResourceServeFileReturnsImmutableCacheHeadersAndNotModified(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-resource-serve-file.db", &persistencemodel.User{}, &persistencemodel.RawResource{}, &persistencemodel.ResourceBinding{})
+	store := &handlerFakeStorage{objects: map[string]string{"resources/poster.png": "resource-bytes"}}
+	handler := NewResourceHandler(db.Session(&gorm.Session{SkipHooks: true}), store, nil, 0)
+	user := persistencemodel.User{Username: "alice", SystemRole: "user", Status: "active"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	resource := persistencemodel.RawResource{
+		OwnerID:        user.ID,
+		Type:           "image",
+		Name:           "poster.png",
+		FilePath:       "stored:resources/poster.png",
+		StorageKey:     "resources/poster.png",
+		StorageBackend: "local",
+		MimeType:       "image/png",
+		Size:           14,
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.ContextUserKey, domainauth.UserProfile{ID: user.ID, Username: user.Username, SystemRole: "user", Status: "active"})
+		c.Next()
+	})
+	router.GET("/resources/:id/file", handler.ServeFile)
+
+	firstReq := httptest.NewRequest(http.MethodGet, "/resources/1/file", nil)
+	firstRes := httptest.NewRecorder()
+	router.ServeHTTP(firstRes, firstReq)
+
+	if firstRes.Code != http.StatusOK {
+		t.Fatalf("expected resource file to return 200, got %d: %s", firstRes.Code, firstRes.Body.String())
+	}
+	if firstRes.Body.String() != "resource-bytes" {
+		t.Fatalf("unexpected response body: %q", firstRes.Body.String())
+	}
+	if firstRes.Header().Get("Cache-Control") != "private, max-age=31536000, immutable" {
+		t.Fatalf("unexpected Cache-Control: %q", firstRes.Header().Get("Cache-Control"))
+	}
+	etag := firstRes.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag header")
+	}
+
+	secondReq := httptest.NewRequest(http.MethodGet, "/resources/1/file", nil)
+	secondReq.Header.Set("If-None-Match", etag)
+	secondRes := httptest.NewRecorder()
+	router.ServeHTTP(secondRes, secondReq)
+
+	if secondRes.Code != http.StatusNotModified {
+		t.Fatalf("expected matching ETag to return 304, got %d: %s", secondRes.Code, secondRes.Body.String())
+	}
+	if secondRes.Body.Len() != 0 {
+		t.Fatalf("expected 304 response body to be empty, got %q", secondRes.Body.String())
+	}
+	if store.getObjectCalls != 1 {
+		t.Fatalf("expected storage to be read once, got %d", store.getObjectCalls)
+	}
+}
+
 func TestResourceAdminCollectUnusedBlobs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, db, store := newTestResourceAdminRouter(t)
@@ -198,7 +264,9 @@ func newTestResourceAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, *handlerFa
 }
 
 type handlerFakeStorage struct {
-	deleted []string
+	deleted        []string
+	objects        map[string]string
+	getObjectCalls int
 }
 
 func (s *handlerFakeStorage) Put(context.Context, string, io.Reader, int64, string) error {
@@ -214,8 +282,13 @@ func (s *handlerFakeStorage) DirectURL(context.Context, string) (string, error) 
 	return "", nil
 }
 
-func (s *handlerFakeStorage) GetObject(context.Context, string, int64, int64) (io.ReadCloser, int64, string, error) {
-	return io.NopCloser(strings.NewReader("")), 0, "", nil
+func (s *handlerFakeStorage) GetObject(_ context.Context, key string, _, _ int64) (io.ReadCloser, int64, string, error) {
+	s.getObjectCalls++
+	body := ""
+	if s.objects != nil {
+		body = s.objects[key]
+	}
+	return io.NopCloser(strings.NewReader(body)), int64(len(body)), "image/png", nil
 }
 
 func (s *handlerFakeStorage) Backend() string {

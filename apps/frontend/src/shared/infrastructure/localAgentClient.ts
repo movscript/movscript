@@ -1,5 +1,6 @@
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
+import { performanceNow, recordAgentNetworkRequestMetric } from '@/features/agent/state/agentPerformanceStore'
 import type { AgentRuntimeTransport } from '@/shared/infrastructure/agentRuntimeTransport'
 import {
   DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS,
@@ -70,6 +71,7 @@ import type {
   AgentThreadDeletionResult,
   AgentThreadListPage,
   AgentThreadRole,
+  AgentConversationLifecycle,
   AgentThreadResolution,
   AgentThreadSummary,
   AgentThreadStatus,
@@ -172,6 +174,7 @@ export type {
   AgentThreadDeletionResult,
   AgentThreadListPage,
   AgentThreadRole,
+  AgentConversationLifecycle,
   AgentThreadResolution,
   AgentThreadSummary,
   AgentThreadStatus,
@@ -302,14 +305,22 @@ export class LocalAgentClient {
     return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/runtime`, { signal })
   }
 
-  createThread(input: { sessionId?: string; title?: string; projectId?: number; agentName?: string; agentRole?: AgentThreadRole; parentThreadId?: string; parentRunId?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
+  createThread(input: { sessionId?: string; title?: string; projectId?: number; agentName?: string; agentRole?: AgentThreadRole; parentThreadId?: string; parentRunId?: string; lifecycle?: AgentConversationLifecycle; expiresAt?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
     return this.postJSON('/threads', input, signal)
+  }
+
+  startProvisionalConversation(input: { title?: string; projectId?: number; expiresAt?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
+    return this.createThread({
+      ...input,
+      lifecycle: 'provisional',
+    }, signal)
   }
 
   listThreads(query: AgentThreadListQuery = {}, signal?: AbortSignal): Promise<AgentThreadListPage> {
     const params = new URLSearchParams()
     if (query.cursor) params.set('cursor', query.cursor)
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    if (query.includeProvisional === true) params.set('includeProvisional', 'true')
     return this.getJSON(`/threads${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
@@ -667,7 +678,7 @@ export class LocalAgentClient {
     path: string,
     options: { onRuntimeEvent?: (event: AgentRuntimeEventV2) => void; signal?: AbortSignal } = {},
   ): Promise<void> {
-    const stream = await this.transport.openEventStream(path, {
+    const stream = await this.openMeasuredEventStream(path, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
       signal: options.signal,
     })
@@ -734,7 +745,7 @@ export class LocalAgentClient {
   }
 
   private async readRunStreamAttempt(runId: string, options: RunMessageOptions, signal: AbortSignal): Promise<{ run: AgentRun }> {
-    const stream = await this.transport.openEventStream(`/runs/${encodeURIComponent(runId)}/stream`, {
+    const stream = await this.openMeasuredEventStream(`/runs/${encodeURIComponent(runId)}/stream`, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
       signal,
     })
@@ -768,7 +779,13 @@ export class LocalAgentClient {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}`, { signal })
   }
 
-  updateThread(threadId: string, input: { title?: string; archived?: boolean; metadata?: Record<string, unknown> }, signal?: AbortSignal): Promise<AgentThread> {
+  updateThread(threadId: string, input: {
+    title?: string
+    archived?: boolean
+    metadata?: Record<string, unknown>
+    lifecycle?: AgentConversationLifecycle
+    expiresAt?: string
+  }, signal?: AbortSignal): Promise<AgentThread> {
     return this.patchJSON(`/threads/${encodeURIComponent(threadId)}`, input, signal)
   }
 
@@ -908,7 +925,7 @@ export class LocalAgentClient {
     resolution: AgentThreadResolution
   }> {
     if (!input.threadId) {
-      const thread = await this.createThread({ title: input.title, projectId: input.projectId }, signal)
+      const thread = await this.startProvisionalConversation({ title: input.title, projectId: input.projectId }, signal)
       return {
         thread,
         resolution: {
@@ -947,7 +964,7 @@ export class LocalAgentClient {
     } catch (error) {
       if (options.signal?.aborted) throw options.signal.reason ?? createLocalAgentAbortError()
       if (!options.input.threadId || !isLocalAgentNotFoundError(error)) throw error
-      const thread = await this.createThread({ title: options.input.title, projectId: options.input.projectId }, options.signal)
+      const thread = await this.startProvisionalConversation({ title: options.input.title, projectId: options.input.projectId }, options.signal)
       options.resolvedThread.thread = thread
       options.resolvedThread.resolution = {
         requestedThreadId: options.input.threadId,
@@ -963,7 +980,7 @@ export class LocalAgentClient {
   private async getJSON<T>(path: string, options: { auth?: boolean; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
     const request = createLocalAgentRequestSignal(options.signal, options.timeoutMs ?? this.requestTimeoutMs)
     try {
-      const res = await this.transport.request(path, {
+      const res = await this.requestMeasured(path, {
         headers: options.auth === false ? {} : this.authHeaders(),
         signal: request.signal,
       })
@@ -977,7 +994,7 @@ export class LocalAgentClient {
   private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await this.transport.request(path, {
+      const res = await this.requestMeasured(path, {
         method: 'POST',
         headers: this.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(this.withBackendContext(body)),
@@ -993,7 +1010,7 @@ export class LocalAgentClient {
   private async patchJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await this.transport.request(path, {
+      const res = await this.requestMeasured(path, {
         method: 'PATCH',
         headers: this.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(this.withBackendContext(body)),
@@ -1009,7 +1026,7 @@ export class LocalAgentClient {
   private async deleteJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await this.transport.request(path, {
+      const res = await this.requestMeasured(path, {
         method: 'DELETE',
         headers: this.authHeaders(),
         signal: request.signal,
@@ -1019,6 +1036,42 @@ export class LocalAgentClient {
     } finally {
       request.cleanup()
     }
+  }
+
+  private async requestMeasured(path: string, init: RequestInit = {}): Promise<Response> {
+    const started = performanceNow()
+    const method = init.method ?? 'GET'
+    try {
+      const response = await this.transport.request(path, init)
+      this.recordNetworkMetric(path, method, statusClass(response.status), started)
+      return response
+    } catch (error) {
+      this.recordNetworkMetric(path, method, init.signal?.aborted ? 'aborted' : 'network_error', started)
+      throw error
+    }
+  }
+
+  private async openMeasuredEventStream(path: string, init: RequestInit = {}) {
+    const started = performanceNow()
+    const method = init.method ?? 'GET'
+    try {
+      const stream = await this.transport.openEventStream(path, init)
+      this.recordNetworkMetric(path, method, statusClass(stream.status), started)
+      return stream
+    } catch (error) {
+      this.recordNetworkMetric(path, method, init.signal?.aborted ? 'aborted' : 'network_error', started)
+      throw error
+    }
+  }
+
+  private recordNetworkMetric(path: string, method: string, status: string, started: number): void {
+    recordAgentNetworkRequestMetric({
+      method,
+      routeGroup: path,
+      statusClass: status,
+      durationMs: Math.max(0, performanceNow() - started),
+      transport: this.transportKind,
+    })
   }
 
   private authHeaders(base: Record<string, string> = {}): Record<string, string> {
@@ -1035,3 +1088,8 @@ export class LocalAgentClient {
 }
 
 export const localAgentClient = new LocalAgentClient()
+
+function statusClass(status: number): string {
+  if (!Number.isFinite(status) || status <= 0) return 'unknown'
+  return `${Math.floor(status / 100)}xx`
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -260,13 +260,17 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const userId = currentUser ? String(currentUser.ID) : ''
   const getConversations = useAgentStore((s) => s.getConversations)
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
-  const createConversation = useAgentStore((s) => s.createConversation)
+  const createRuntimeConversation = useAgentStore((s) => s.createRuntimeConversation)
   const setActiveConversation = useAgentStore((s) => s.setActiveConversation)
   const archiveConversations = useAgentStore((s) => s.archiveConversations)
   const unarchiveConversation = useAgentStore((s) => s.unarchiveConversation)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
+  const runtimeThreadProjections = useAgentSessionStore((s) => s.runtimeThreadProjections)
   const localThreadIdsByConversation = useAgentSessionStore((s) => s.localThreadIdsByConversation)
   const sessionIdsByConversation = useAgentSessionStore((s) => s.sessionIdsByConversation)
+  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
+  const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [showAllProjectGroups, setShowAllProjectGroups] = useState(false)
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
@@ -312,7 +316,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     queryKey: ['local-agent-threads', localAgentClient.baseURL, 'agent-mode-sidebar'],
     queryFn: async () => {
       await localAgentClient.ensureRunning()
-      return localAgentClient.listThreads().then((r) => r.threads)
+      return localAgentClient.listThreads({ includeProvisional: true }).then((r) => r.threads)
     },
     retry: false,
   })
@@ -326,21 +330,36 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   })
 
   const conversations = getConversations(userId)
+  const conversationsWithRuntimeProjection = useMemo(
+    () => conversations.map((conversation) => {
+      const projectionMessages = runtimeThreadProjections[conversation.id]?.messages
+      return projectionMessages ? { ...conversation, messages: projectionMessages } : conversation
+    }),
+    [conversations, runtimeThreadProjections],
+  )
   const activeConversationId = getActiveConversationId(userId)
   const openConversations = useMemo(
-    () => conversations.filter((conversation) => conversation.archived !== true),
-    [conversations],
+    () => conversationsWithRuntimeProjection.filter((conversation) => conversation.archived !== true),
+    [conversationsWithRuntimeProjection],
   )
   const runtimeStatusLights = useAgentConversationTabRuntimeStatusLights(openConversations)
   const archivedConversations = useMemo(
-    () => conversations
+    () => conversationsWithRuntimeProjection
       .filter((conversation) => conversation.archived === true)
       .sort((a, b) => b.updatedAt - a.updatedAt),
-    [conversations],
+    [conversationsWithRuntimeProjection],
   )
   const archivedRuntimeThreadIds = useMemo(
     () => new Set(archivedConversations.flatMap((conversation) => conversation.runtimeThreadId ? [conversation.runtimeThreadId] : [])),
     [archivedConversations],
+  )
+  const openRuntimeThreadIds = useMemo(
+    () => new Set(openConversations.flatMap((conversation) => {
+      const ids = conversation.runtimeThreadId ? [conversation.runtimeThreadId] : []
+      if (conversation.id.startsWith('thread_')) ids.push(conversation.id)
+      return ids
+    })),
+    [openConversations],
   )
   const localSessionsById = useMemo(() => new Map(localSessions.map((session) => [session.id, session])), [localSessions])
   const localThreadsById = useMemo(() => new Map(localThreads.map((thread) => [thread.id, thread])), [localThreads])
@@ -401,28 +420,77 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
       conversation,
     })),
     ...localThreads
-      .filter((thread) => !archivedRuntimeThreadIds.has(thread.id))
+      .filter((thread) => !archivedRuntimeThreadIds.has(thread.id) && !openRuntimeThreadIds.has(thread.id))
       .map((thread) => ({
         type: 'runtime-thread' as const,
         id: thread.id,
         timestamp: Date.parse(thread.updatedAt) || 0,
         thread,
       })),
-  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, localThreads])
+  ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, localThreads, openRuntimeThreadIds])
   const visibleHistoryItems = showAllHistoryConversations
     ? historyItems
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  function startNewConversation() {
-    createConversation(userId)
-    navigate(ROUTES.project.agent)
+  function threadIdForConversation(conversation: Conversation) {
+    return localThreadIdsByConversation[conversation.id]
+      ?? conversation.runtimeThreadId
+      ?? (conversation.id.startsWith('thread_') ? conversation.id : undefined)
+  }
+
+  async function startNewConversation() {
+    try {
+      await localAgentClient.ensureRunning()
+      const thread = await localAgentClient.startProvisionalConversation({
+        title: t('agents.chat.newConversation'),
+        ...(project?.ID ? { projectId: project.ID } : {}),
+      })
+      const createdAt = Date.parse(thread.createdAt)
+      const updatedAt = Date.parse(thread.updatedAt)
+      const conversationId = createRuntimeConversation(userId, {
+        threadId: thread.id,
+        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+        title: localThreadTitle(thread, t),
+        createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+      })
+      setLocalThreadId(conversationId, thread.id)
+      if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+      setConversationRuntime(conversationId, {
+        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+        threadId: thread.id,
+        loading: false,
+        building: false,
+        error: undefined,
+      })
+      navigate(ROUTES.project.agent)
+    } catch (error) {
+      console.error('[agent] failed to start provisional conversation', error)
+    }
   }
 
   function selectConversation(id: string) {
-    unarchiveConversation(userId, id)
-    setActiveConversation(userId, id)
-    navigate(ROUTES.project.agent)
+    void (async () => {
+      const conversation = getConversations(userId).find((candidate) => candidate.id === id)
+      const runtimeThreadId = conversation ? threadIdForConversation(conversation) : id.startsWith('thread_') ? id : undefined
+      if (runtimeThreadId) await localAgentClient.updateThread(runtimeThreadId, { archived: false })
+      unarchiveConversation(userId, id)
+      setActiveConversation(userId, id)
+      navigate(ROUTES.project.agent)
+    })().catch((error) => {
+      console.error('[agent] failed to restore runtime conversation', error)
+    })
+  }
+
+  function archiveConversationFromSidebar(conversation: Conversation) {
+    void (async () => {
+      const runtimeThreadId = threadIdForConversation(conversation)
+      if (runtimeThreadId) await localAgentClient.updateThread(runtimeThreadId, { archived: true })
+      archiveConversations(userId, [conversation.id])
+    })().catch((error) => {
+      console.error('[agent] failed to archive runtime conversation', error)
+    })
   }
 
   function toggleProjectGroup(projectId: number) {
@@ -519,7 +587,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
                           now={relativeTimeNow}
                           runtimeStatusLight={runtimeStatusLights[conversation.id]}
                           onClick={() => selectConversation(conversation.id)}
-                          onArchive={() => archiveConversations(userId, [conversation.id])}
+                          onArchive={() => archiveConversationFromSidebar(conversation)}
                           archiveLabel={t('agents.chat.archiveConversation')}
                         />
                       ))}
@@ -567,7 +635,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
                   now={relativeTimeNow}
                   runtimeStatusLight={runtimeStatusLights[conversation.id]}
                   onClick={() => selectConversation(conversation.id)}
-                  onArchive={() => archiveConversations(userId, [conversation.id])}
+                  onArchive={() => archiveConversationFromSidebar(conversation)}
                   archiveLabel={t('agents.chat.archiveConversation')}
                 />
               ))}
@@ -773,10 +841,15 @@ function AgentSidebarConversation({
 }
 
 function ProjectAgentChatSurface({ userId }: { userId: string }) {
+  const { t } = useTranslation()
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
   const getConversations = useAgentStore((s) => s.getConversations)
-  const createConversation = useAgentStore((s) => s.createConversation)
+  const createRuntimeConversation = useAgentStore((s) => s.createRuntimeConversation)
+  const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
+  const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
+  const creatingConversationRef = useRef(false)
   const activeConversationId = getActiveConversationId(userId)
   const activeConversationOpen = !!activeConversationId && getConversations(userId).some((conversation) => conversation.id === activeConversationId && conversation.archived !== true)
 
@@ -791,9 +864,42 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
   }, [])
 
   useEffect(() => {
-    if (activeConversationOpen) return
-    createConversation(userId)
-  }, [activeConversationOpen, createConversation, userId])
+    if (activeConversationOpen) {
+      creatingConversationRef.current = false
+      return
+    }
+    if (creatingConversationRef.current) return
+    creatingConversationRef.current = true
+    void (async () => {
+      try {
+        await localAgentClient.ensureRunning()
+        const thread = await localAgentClient.startProvisionalConversation({
+          title: t('agents.chat.newConversation'),
+        })
+        const createdAt = Date.parse(thread.createdAt)
+        const updatedAt = Date.parse(thread.updatedAt)
+        const conversationId = createRuntimeConversation(userId, {
+          threadId: thread.id,
+          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+          title: localThreadTitle(thread, t),
+          createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+          updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+        })
+        setLocalThreadId(conversationId, thread.id)
+        if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+        setConversationRuntime(conversationId, {
+          ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
+          threadId: thread.id,
+          loading: false,
+          building: false,
+          error: undefined,
+        })
+      } catch (error) {
+        creatingConversationRef.current = false
+        console.error('[agent] failed to start provisional conversation', error)
+      }
+    })()
+  }, [activeConversationOpen, createRuntimeConversation, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
 
   return (
     <AgentModeChatSurface>

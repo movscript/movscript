@@ -36,7 +36,7 @@ export function buildRuntimeUserMessage(input: NormalizedClientInput): string {
         const payload = a.dataUrl ? `, image_payload=${imagePayload}` : isVideoAttachment(a.type, a.mimeType) ? ', video_payload=metadata_only' : ''
         return `${i + 1}. ${a.name ?? '未命名附件'} (${a.type ?? 'file'}, ${a.mimeType ?? 'unknown'}, ${a.size ?? 0} bytes, ${identity}${payload})`
       }),
-      '图片附件会在 runtime 上下文中先尝试本地预处理；只有优化后的 data_url 会传给支持 vision 的模型，原始 payload 默认只保留为附件元数据或 resource_id。',
+      '图片附件会在 runtime 上下文中先尝试本地预处理；优化后的 data_url 会优先传给支持 vision 的模型，预处理不可用或失败时会回退发送原始 data_url；没有 data_url 时只保留附件元数据或 resource_id。',
       '视频附件不会作为视频 payload 发送给模型；如需理解画面内容，调用 core_video_extract_frames 按 resource_id 本地抽帧，抽出的帧会作为图片输入传给模型。',
     ].join('\n'))
   }

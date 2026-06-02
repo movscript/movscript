@@ -123,7 +123,7 @@ export function deleteAllRuntimeThreads(input: {
 }
 
 export function addRuntimeThreadMessage(input: {
-  store: Pick<AgentStore, 'getThread' | 'updateThread'>
+  store: Pick<AgentStore, 'getThread' | 'updateThread'> & Partial<Pick<AgentStore, 'getSession' | 'updateSession'>>
   threadId: string
   messageId: string
   messageInput: CreateMessageInput
@@ -137,6 +137,29 @@ export function addRuntimeThreadMessage(input: {
     now: input.now,
   })
   appendThreadMessage({ thread, message, clientInput })
+  activateProvisionalThreadSession({
+    store: input.store,
+    thread,
+    now: input.now,
+  })
   input.store.updateThread(thread)
   return message
+}
+
+function activateProvisionalThreadSession(input: {
+  store: Pick<AgentStore, 'updateThread'> & Partial<Pick<AgentStore, 'getSession' | 'updateSession'>>
+  thread: AgentThread
+  now: string
+}): void {
+  if (input.thread.lifecycle !== 'provisional') return
+  input.thread.lifecycle = 'active'
+  delete input.thread.expiresAt
+  input.thread.updatedAt = input.now
+  if (!input.thread.sessionId || !input.store.getSession || !input.store.updateSession) return
+  const session = input.store.getSession(input.thread.sessionId)
+  if (!session || session.lifecycle !== 'provisional') return
+  session.lifecycle = 'active'
+  delete session.expiresAt
+  session.updatedAt = input.now
+  input.store.updateSession(session)
 }

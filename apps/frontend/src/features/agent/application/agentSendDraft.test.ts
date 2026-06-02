@@ -76,6 +76,33 @@ test('buildLocalAgentSendDraft resolves image attachments to runtime input data 
   assert.doesNotMatch(draft.outbound.enrichedUserContent, /data:image\/png/)
 })
 
+test('buildLocalAgentSendDraft keeps sending when image attachment data URL resolution fails', async () => {
+  const draft = await buildLocalAgentSendDraft({
+    draftInput: 'Describe this image',
+    attachments: [],
+    composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png' })],
+    resourceAttachmentIndex: new Map(),
+    settings: settings(),
+    currentProject: null,
+    conversationMessages: [],
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    localAgentBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+    resolveAttachmentDataUrl: async () => {
+      throw new Error('download stalled')
+    },
+  })
+
+  assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.resourceId, 42)
+  assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, undefined)
+  assert.match(draft.warnings.join('\n'), /metadata-only/)
+  assert.match(draft.warnings.join('\n'), /download stalled/)
+})
+
 test('buildLocalAgentSendDraft keeps video attachments metadata-only for local frame extraction', async () => {
   let resolved = false
   const draft = await buildLocalAgentSendDraft({

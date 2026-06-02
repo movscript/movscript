@@ -1,7 +1,9 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
+import { createInstrumentedAgentStateStorage } from '@/features/agent/state/agentPerformanceStore'
+import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
@@ -56,6 +58,14 @@ export interface AgentConversationRuntimeState {
   updatedAt: number
 }
 
+export interface AgentRuntimeThreadProjectionState {
+  conversationId: string
+  threadId: string
+  sessionId?: string
+  messages: ChatMessage[]
+  updatedAt: number
+}
+
 export interface AgentStandaloneTaskState {
   taskId: string
   taskType: string
@@ -76,6 +86,7 @@ export interface AgentStandaloneTaskState {
 interface AgentSessionStore {
   pageTasks: Record<string, AgentPageTaskState>
   conversationRuntimes: Record<string, AgentConversationRuntimeState>
+  runtimeThreadProjections: Record<string, AgentRuntimeThreadProjectionState>
   localThreadIdsByConversation: Record<string, string>
   sessionIdsByConversation: Record<string, string>
   standaloneTasks: Record<string, AgentStandaloneTaskState>
@@ -87,6 +98,8 @@ interface AgentSessionStore {
   updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[]; status?: 'completed' | 'error' | 'cancelled' }) => void
 
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
+  setRuntimeThreadProjection: (input: { conversationId: string; threadId: string; sessionId?: string; messages: ChatMessage[] }) => void
+  clearRuntimeThreadProjection: (conversationId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
   clearConversationRuntime: (conversationId: string) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
@@ -146,6 +159,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
     (set, get) => ({
       pageTasks: {},
       conversationRuntimes: {},
+      runtimeThreadProjections: {},
       localThreadIdsByConversation: {},
       sessionIdsByConversation: {},
       standaloneTasks: {},
@@ -285,6 +299,25 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
 
+      setRuntimeThreadProjection: ({ conversationId, threadId, sessionId, messages }) => set((state) => ({
+        runtimeThreadProjections: {
+          ...state.runtimeThreadProjections,
+          [conversationId]: {
+            conversationId,
+            threadId,
+            ...(sessionId?.trim() ? { sessionId: sessionId.trim() } : {}),
+            messages,
+            updatedAt: Date.now(),
+          },
+        },
+      })),
+
+      clearRuntimeThreadProjection: (conversationId) => set((state) => {
+        const next = { ...state.runtimeThreadProjections }
+        delete next[conversationId]
+        return { runtimeThreadProjections: next }
+      }),
+
       setConversationRun: (conversationId, run, patch = {}) => set((state) => {
         const sessionId = patch.sessionId ?? run.sessionId ?? state.conversationRuntimes[conversationId]?.sessionId
         return {
@@ -404,71 +437,12 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
     }),
     {
       name: 'agent-session-store-v2',
-      partialize: (state) => ({
-        localThreadIdsByConversation: state.localThreadIdsByConversation,
-        sessionIdsByConversation: state.sessionIdsByConversation,
-        conversationRuntimes: Object.fromEntries(
-          Object.entries(state.conversationRuntimes)
-            .filter(([, runtime]) => runtime.threadId || runtime.runId)
-            .map(([conversationId, runtime]) => [conversationId, {
-              ...defaultConversationRuntime(conversationId),
-              sessionId: runtime.sessionId,
-              threadId: runtime.threadId,
-              runId: runtime.runId,
-              status: runtime.status,
-              loading: false,
-              building: false,
-              approving: false,
-              stopping: false,
-              stopRequested: false,
-              error: undefined,
-              updatedAt: runtime.updatedAt,
-            }]),
-        ),
-      }),
-      merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<AgentSessionStore> | undefined
-        return {
-          ...currentState,
-          localThreadIdsByConversation: normalizeStringRecord(persisted?.localThreadIdsByConversation),
-          sessionIdsByConversation: normalizeStringRecord(persisted?.sessionIdsByConversation),
-          conversationRuntimes: normalizeConversationRuntimes(persisted?.conversationRuntimes),
-        }
-      },
+      storage: createJSONStorage(() => createInstrumentedAgentStateStorage('agent_session_store')),
+      partialize: () => ({}),
+      merge: (_persistedState, currentState) => currentState,
     },
   ),
 )
-
-function normalizeStringRecord(value: unknown): Record<string, string> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .flatMap(([key, item]) => typeof item === 'string' && item.trim() ? [[key, item]] : []),
-  )
-}
-
-function normalizeConversationRuntimes(value: unknown): Record<string, AgentConversationRuntimeState> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .flatMap(([conversationId, runtime]) => {
-        if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime)) return []
-        const record = runtime as Record<string, unknown>
-        const sessionId = typeof record.sessionId === 'string' && record.sessionId ? record.sessionId : undefined
-        const threadId = typeof record.threadId === 'string' && record.threadId ? record.threadId : undefined
-        const runId = typeof record.runId === 'string' && record.runId ? record.runId : undefined
-        if (!threadId && !runId) return []
-        return [[conversationId, {
-          ...defaultConversationRuntime(conversationId),
-          ...(sessionId ? { sessionId } : {}),
-          ...(threadId ? { threadId } : {}),
-          ...(runId ? { runId } : {}),
-          ...(typeof record.status === 'string' ? { status: record.status } : {}),
-          updatedAt: typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now(),
-        }]]
-      }),
-  )
-}
 
 function isRuntimeTerminalRun(run: AgentRun): boolean {
   return run.status === 'completed'

@@ -1591,7 +1591,7 @@
       "scope": {
         "controlPlane": "Control plane: configures future new runs",
         "futureRuns": "Does not show per-run diagnostics",
-        "debugReadOnly": "Use Agent Debug for Runtime observation"
+        "debugReadOnly": "Runtime observation remains read-only"
       },
       "settingsStatusSummaryTitle": "Agent Settings Status Summary",
       "settingsStatusSummaryReadiness": "Configuration readiness",
@@ -1599,11 +1599,10 @@
       "settingsStatusSummaryAudit": "Recent configuration changes",
       "copySettingsStatus": "Copy Status",
       "settingsStatusCopied": "Status Copied",
-      "openDebug": "Open Debug",
       "refresh": "Refresh",
-      "modelPanel": "Config File Model",
-      "modelLabel": "Config file text model",
-      "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text/reasoning model and save it as the active config file's default model.",
+      "modelPanel": "Runtime Model",
+      "modelLabel": "Runtime text model",
+      "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text/reasoning model and save it into Runtime model settings.",
       "providerModelIdLabel": "Provider model ID",
       "providerModelIdHelp": "For direct OpenAI or Anthropic modes, enter the provider model ID directly. It does not need a matching backend model catalog entry.",
       "providerModelIdPlaceholder": "Enter a configured model ID",
@@ -1839,9 +1838,10 @@
       "saveSkillConfig": "Save Skill Config",
       "skillConfigSaved": "Skill config saved",
       "resetSkillConfig": "Reset",
-      "skillConfigEditHelp": "Manage only the selected config file's Skill activation choices and activation hints here. Edit Skill content in Packs or the plugin marketplace.",
+      "skillConfigEditHelp": "Manage which Skills are included by the selected config file. Skill trigger and loading strategy are defined by the Skill itself and the runtime.",
+      "skillConfigSelected": "Config selected",
       "skillConfigCoreLocked": "Core skills are loaded by the system and cannot be disabled here.",
-      "skillConfigToggleHelp": "Affects skill activation candidates for future new Agent runs.",
+      "skillConfigToggleHelp": "Saving writes this into the selected config file and affects future new Agent runs.",
       "skillInstructionLabel": "Instruction",
       "skillInstructionHelp": "Edit Skill content in Packs or the plugin marketplace. Config files only save activation choices.",
       "skillConfigIssues": "The current config file's Skill selection has dependency or conflict issues",
@@ -1939,33 +1939,34 @@
       "configFileDownloaded": "Config file JSON downloaded: {{configFileId}}.",
       "configFileImported": "Imported and activated config file from {{fileName}}: {{configFileId}}.",
       "configFileTooLarge": "Config file exceeds the {{size}} limit.",
-      "configFileBackupHelp": "Kept the previous config file snapshot and tool permission overrides: {{name}} ({{time}}). Restore only affects future new runs; existing runs keep their creation-time snapshot.",
+      "configFileReadonlyHelp": "Default config files are read-only. Duplicate or import a user config file before editing and overriding its Skills, tool grants, approval, or runtime limits.",
+      "configFileBackupHelp": "Kept the previous config file snapshot: {{name}} ({{time}}). Restore only affects future new runs; existing runs keep their creation-time snapshot.",
       "restoreConfigFileBackup": "Restore Previous Config File",
       "configFileDiffTitle": "Switch Impact Preview",
       "configFileDiffAdded": "Adds",
       "configFileDiffRemoved": "Removes",
       "configFileDiffChanged": "Changes",
       "configFileDiffNoChange": "No change",
-      "configFileSwitchResetsToolPermissions": "Changing the active config file uses that config file's own tool grants and tool permissions overrides. Tool permissions are saved separately per config file.",
+      "configFileSwitchResetsToolPermissions": "Changing the active config file makes future new runs use that config file's own tool grants, approval, and runtime limits.",
       "toolPermissionsPanel": "Tool Permissions",
       "noTools": "No tools found.",
       "saveToolPermissions": "Save Tool Permissions",
       "toolPermissionsSaved": "Tool permissions saved",
       "resetToolPermissions": "Reset",
-      "toolPermissionsEditHelp": "Manage the selected config file's tool permissions and approval overrides here. Tool permissions are saved independently per config file.",
+      "toolPermissionsEditHelp": "Edit the selected user config file's toolGrants here. Default configs are read-only; duplicate or import a config file to override tool grants and approval.",
       "toolPermissionsSearchPlaceholder": "Search tools by name, source, risk, or reason",
       "toolPermissionsFilterSummary": "Showing {{shown}} / {{total}} tools.",
       "toolPermissionsFilters": {
         "all": "All tools",
         "available": "Available",
-        "blocked": "Blocked",
+        "blocked": "Unavailable now",
         "config_file_granted": "Current config granted",
         "requires_approval": "Needs approval",
         "write_risk": "Write risk"
       },
       "toolPermissionsBulkActions": "Bulk edit filtered",
       "toolPermissionsBulkHelp": "Applies to the currently filtered tool permission rows only. Review the diff before saving.",
-      "toolPermissionsBulkAllowAvailable": "Allow available",
+      "toolPermissionsBulkAllowAvailable": "Restore allow",
       "toolPermissionsBulkDeny": "Deny",
       "toolPermissionsBulkApprovalNever": "No approval",
       "toolPermissionsBulkApprovalOnWrite": "Approve on write",
@@ -1973,7 +1974,7 @@
       "toolPermissionsFilterPresets": "Saved filters",
       "saveToolPermissionsFilterPreset": "Save Filter",
       "deleteToolPermissionsFilterPreset": "Delete filter",
-      "toolPermissionsFilterPresetsHelp": "Save recurring tool reviews such as write-risk or blocked tools.",
+      "toolPermissionsFilterPresetsHelp": "Save recurring tool reviews such as write-risk or currently unavailable tools.",
       "toolPermissionsFilterPresetsEmpty": "No saved filters yet.",
       "toolPermissionsAllowDisabled": "Only tools granted by the current config file and available in Runtime can be saved as allowed.",
       "toolPermissionsDraftIssues": "Tool permission draft has unsavable items",
@@ -2050,9 +2051,9 @@
         "settings_operation_failed": "Operation failed"
       },
       "auditSummaries": {
-        "modelSaved": "Saved current config file model config: {{model}} ({{apiKind}} / {{routes}})",
-        "modelTested": "Saved and tested current config file model config: {{model}} ({{apiKind}} / {{routes}})",
-        "modelCleared": "Cleared current config file model config",
+        "modelSaved": "Saved Runtime model config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelTested": "Saved and tested Runtime model config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelCleared": "Cleared Runtime model config",
         "configFileSaved": "Set active config file: {{configFileId}}",
         "configFileDetailsSaved": "Saved config file details: {{name}} ({{configFileId}})",
         "configFileCreated": "Created and activated config file: {{configFileId}}",
@@ -2097,8 +2098,8 @@
         "applied": "Local fix applied. Review and save any configuration that should persist."
       },
       "actionItems": {
-        "modelMissing": "Current config file model is not configured",
-        "modelUnsaved": "Current config file model config has unsaved changes",
+        "modelMissing": "Runtime model is not configured",
+        "modelUnsaved": "Runtime model config has unsaved changes",
         "modelIdSensitive": "Saved model ID may contain secrets",
         "apiModeCompatibility": "Call mode is still compatibility mode",
         "modelCredentialsMissing": "Direct model credentials are not loaded",
@@ -2114,8 +2115,8 @@
         "toolsBlocked": "All tools are unavailable"
       },
       "actionItemDetails": {
-        "modelMissing": "Choose a model, call mode, and usage routes, then save them to the current config file.",
-        "modelUnsaved": "Save or reset the current config file model config; future new runs still use the old config until then.",
+        "modelMissing": "Choose a model, call mode, and usage routes, then save them to Runtime model settings.",
+        "modelUnsaved": "Save or reset the Runtime model config; future new runs still use the old config until then.",
         "modelIdSensitive": "The saved direct Provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in the API key field.",
         "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new Agent runs to OpenAI Responses.",
         "modelCredentialsMissing": "API key settings did not detect {{env}}; direct provider calls will fail.",
@@ -2187,7 +2188,7 @@
         "noPendingChanges": "Current configuration is saved."
       },
       "settingsSnapshotPanel": "Config Import / Export",
-      "settingsSnapshotHelp": "Export includes the current config file model, active config file, runtime limits, Skill enablement and instruction, and Tool Permissions, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, config file, runtime limits, skills, then tools order, and rejects Base URLs that contain secret URL credentials.",
+      "settingsSnapshotHelp": "Export includes the Runtime model, active config file, runtime limits, Skill enablement and instruction, and Tool Permissions, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, config file, runtime limits, skills, then tools order, and rejects Base URLs that contain secret URL credentials.",
       "settingsSnapshotPlaceholder": "Generate or paste Agent Settings Snapshot JSON here.",
       "settingsSnapshotSummary": "Snapshot Summary",
       "settingsSnapshotFields": {
@@ -2209,22 +2210,22 @@
         "skipped": "No Change"
       },
       "settingsSnapshotImpact": {
-        "model": "Config file model",
+        "model": "Runtime model",
         "configFile": "Active config file",
         "limits": "Runtime limits",
         "skills": "Skill enablement and instruction",
         "tools": "Tool permissions"
       },
       "settingsSnapshotImpactDetails": {
-        "model": "Import writes model {{model}} into the target config file and syncs Runtime connection state.",
-        "modelSkipped": "The snapshot has no model config; the current config file model is unchanged.",
+        "model": "Import writes model {{model}} into Runtime model settings and does not alter config files.",
+        "modelSkipped": "The snapshot has no model config; current Runtime model settings are unchanged.",
         "configFile": "Import saves {{count}} config files and activates {{configFileId}} when present.",
         "configFileSkipped": "The snapshot has no config files or active config file; the current capability config is unchanged.",
         "limits": "Import writes {{count}} runtime limits into the target config file.",
         "limitsSkipped": "The snapshot has no runtime limits; the current config file limits are unchanged.",
         "skills": "Import writes {{count}} Skill enablement choices into the target config file and saves matching instruction.",
         "skillsSkipped": "The snapshot has no Skill enablement or instruction; the current config file's Skill selection is unchanged.",
-        "tools": "Import saves {{count}} config-file tool permission overrides.",
+        "tools": "Import saves {{count}} config-file tool grants.",
         "toolsSkipped": "The snapshot has no tool permissions; current config-file tool permissions are unchanged."
       },
       "settingsSnapshotImportScopes": "Import sections",
@@ -2239,7 +2240,7 @@
         "limits": "Runtime limits only"
       },
       "settingsSnapshotImportScopeDetails": {
-        "model": "Model routing and provider API mode for the target config file.",
+        "model": "Runtime model and provider API mode.",
         "configFile": "Saved config files and the active config file used by future runs.",
         "limits": "Context, system prompt, history, and reference budgets on the current config file.",
         "skills": "Enabled and disabled Skill rules.",
@@ -2269,7 +2270,7 @@
       "settingsSnapshotModelCatalogUnavailable": "The snapshot references a backend model config, but the current model catalog is not available.",
       "settingsSnapshotCatalogUnavailable": "The snapshot references config files, Skills, or tool permissions, but the current catalog is not available.",
       "settingsSnapshotCapabilitiesUnavailable": "The snapshot references tool permissions, but the current Runtime capabilities catalog is not available.",
-      "settingsSnapshotModelTargetMissing": "The snapshot includes model configuration, but there is no config file to write it into.",
+      "settingsSnapshotModelTargetMissing": "The snapshot includes model configuration, but model settings cannot be written right now.",
       "settingsSnapshotLimitsTargetMissing": "The snapshot includes runtime limits, but there is no config file to write them into.",
       "settingsSnapshotSkillsTargetMissing": "The snapshot includes Skill enablement or instruction, but there is no config file to write them into.",
       "settingsSnapshotToolPermissionsInvalid": "Snapshot tool permissions have {{count}} items that cannot be imported.",
@@ -2303,35 +2304,13 @@
       "availableModels": "Available Text/Reasoning Models",
       "configured": "Configured",
       "notConfigured": "Not configured",
-      "skillRuntimeFields": {
-        "activation": "Activation",
-        "context": "Context",
-        "toolGrants": "Linked tools",
-        "baseContext": "Base context",
-        "triggered": "Triggered",
-        "manual": "Manual",
-        "excluded": "Excluded"
-      },
-      "skillRuntimeActivation": {
-        "always": "Default active",
-        "triggered": "Triggered",
-        "manual": "Manual load",
-        "disabled": "Disabled"
-      },
-      "skillRuntimeContext": {
-        "base_context": "Base context",
-        "on_demand": "On demand",
-        "manual": "Manual",
-        "excluded": "Excluded"
-      },
       "skillFiltersPanel": "Skill filters",
-      "skillFiltersHelp": "Filter Skills by source and loading mode. Search still matches Skill name, description, tags, instruction, and tool refs.",
+      "skillFiltersHelp": "Filter Skills by source. Search still matches Skill name, description, tags, instruction, and tool refs.",
       "skillSearchPlaceholder": "Search Skill name, description, tags, instruction, or tool refs",
       "skillFilterResult": "Showing {{count}} / {{total}} Skills.",
       "skillFilters": {
         "search": "Search",
-        "source": "Source",
-        "loadMode": "Loading mode"
+        "source": "Source"
       },
       "skillSourceFilters": {
         "all": "All sources",
@@ -2342,20 +2321,9 @@
         "mcp": "MCP",
         "catalog": "Catalog"
       },
-      "skillLoadModeFilters": {
-        "all": "All loading modes",
-        "core": "Core",
-        "on_demand": "On demand",
-        "manual": "Manual"
-      },
       "skillStatus": {
         "enabled": "Enabled",
         "disabled": "Disabled"
-      },
-      "skillLoadModes": {
-        "core": "Core",
-        "onDemand": "On demand",
-        "manual": "Manual"
       },
       "skillSources": {
         "core": "Built-in",
@@ -2371,10 +2339,7 @@
         "core": "Core",
         "onDemand": "On demand",
         "dependencies": "Dependencies",
-        "conflicts": "Conflicts",
-        "triggers": "Triggers",
-        "tokenEstimate": "Token estimate",
-        "contextBudget": "Context budget"
+        "conflicts": "Conflicts"
       },
       "configFileStatus": {
         "current": "Current",
@@ -2391,7 +2356,7 @@
       },
       "toolPermissionsStatus": {
         "available": "Available",
-        "blocked": "Blocked",
+        "blocked": "Unavailable now",
         "configFileGranted": "Config-file grant"
       },
       "toolPermissionsValues": {
@@ -2429,7 +2394,7 @@
       "toolPermissionsFields": {
         "discovered": "Discovered",
         "available": "Available",
-        "blocked": "Blocked",
+        "blocked": "Unavailable now",
         "requiresApproval": "Needs approval",
         "writeRisk": "Write risk",
         "projectScoped": "Project scoped",
@@ -4174,7 +4139,6 @@
       "jobs": "Generation Jobs",
       "plugins": "Local Plugins",
       "agents": "Agents",
-      "agentDebug": "Agent Debug",
       "agentConsole": "Console",
       "agentSettings": "Agent Settings",
       "user": "User Profile",
@@ -4236,7 +4200,6 @@
       "plugins": "Plugins",
       "aiDrafts": "AI Drafts",
       "myAgents": "My Agents",
-      "agentDebug": "Agent Debug",
       "agentConsole": "Console",
       "agentSettings": "Agent Settings",
       "agentSet": "Agent Settings",

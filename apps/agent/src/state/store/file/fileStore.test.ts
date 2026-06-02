@@ -416,10 +416,11 @@ test('file trace store rolls trace events into multiple chunk files', () => {
 
     const index = JSON.parse(readFileSync(join(dir, 'traces', 'index.json'), 'utf8')) as {
       threads?: Record<string, { runIds?: string[] }>
-      runs?: Record<string, { chunks?: string[]; threadId?: string }>
+      runs?: Record<string, { chunks?: string[]; eventIds?: string[]; threadId?: string }>
     }
 
     assert.ok((index.runs?.run_1?.chunks?.length ?? 0) > 1)
+    assert.deepEqual(index.runs?.run_1?.eventIds, ['trace_1', 'trace_2', 'trace_3'])
     assert.equal(index.runs?.run_1?.threadId, 'thread_1')
     assert.deepEqual(index.threads?.thread_1?.runIds, ['run_1'])
     assert.equal(index.runs?.run_1?.chunks?.every((chunk) => chunk.startsWith('threads/thread_1/runs/run_1/')), true)
@@ -481,6 +482,64 @@ test('file trace store preserves replacement semantics for repeated trace ids', 
     assert.equal(summary.total, 1)
     assert.equal(summary.byKind.tool_call, 1)
     assert.equal(summary.latestEvent?.title, 'Replacement trace')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file trace store lazily rebuilds missing event id indexes before replacing repeated trace ids', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  try {
+    const statePath = join(dir, 'state.json')
+    const store = new FileAgentStore(statePath)
+    store.createRun({
+      id: 'run_1',
+      threadId: 'thread_1',
+      status: 'in_progress',
+      role: 'planner',
+      runtimeLimits: { approvalMode: 'interactive',
+        maxToolCalls: 20,
+        maxIterations: 20,
+        allowNetwork: false,
+        allowFileBytes: false,
+      },
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:00:00.000Z',
+      steps: [],
+    })
+    store.appendTraceEvent({
+      id: 'trace_1',
+      runId: 'run_1',
+      kind: 'context',
+      title: 'Initial trace',
+      status: 'started',
+      createdAt: '2026-05-21T00:00:01.000Z',
+    })
+
+    const indexPath = join(dir, 'traces', 'index.json')
+    const legacyIndex = JSON.parse(readFileSync(indexPath, 'utf8')) as { runs?: Record<string, { eventIds?: unknown }> }
+    if (legacyIndex.runs?.run_1) delete legacyIndex.runs.run_1.eventIds
+    writeFileSync(indexPath, JSON.stringify(legacyIndex, null, 2), 'utf8')
+
+    const restored = new FileAgentStore(statePath)
+    restored.appendTraceEvent({
+      id: 'trace_1',
+      runId: 'run_1',
+      kind: 'tool_call',
+      title: 'Replacement trace',
+      status: 'completed',
+      createdAt: '2026-05-21T00:00:02.000Z',
+    })
+
+    const events = restored.listRunTraceEvents('run_1')
+    const summary = restored.summarizeRunTraceEvents('run_1')
+    const rebuiltIndex = JSON.parse(readFileSync(indexPath, 'utf8')) as { runs?: Record<string, { eventIds?: string[] }> }
+
+    assert.equal(events.length, 1)
+    assert.equal(events[0]?.kind, 'tool_call')
+    assert.equal(summary.total, 1)
+    assert.equal(summary.byKind.tool_call, 1)
+    assert.deepEqual(rebuiltIndex.runs?.run_1?.eventIds, ['trace_1'])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

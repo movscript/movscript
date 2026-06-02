@@ -1,3 +1,4 @@
+import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 
 export interface CachedMediaUrl {
@@ -15,6 +16,7 @@ interface ObjectUrlEntry {
 
 interface CacheEntry {
   blobPromise: Promise<Blob>
+  dataUrlPromise?: Promise<string>
   full: ObjectUrlEntry
   variants: Map<string, ObjectUrlEntry>
   refCount: number
@@ -39,9 +41,10 @@ export function isResourceFileUrl(src: string): boolean {
 export function resourceMediaCacheKey(src: string): string {
   try {
     const url = new URL(src, globalThis.location?.origin ?? 'http://movscript.local')
-    return `${url.origin}${url.pathname}${url.search}`
+    const baseKey = `${url.origin}${url.pathname}${url.search}`
+    return isResourceFilePath(url.pathname) ? `${baseKey}::${resourceAuthCacheScope()}` : baseKey
   } catch {
-    return src
+    return isResourceFilePath(src) ? `${src}::${resourceAuthCacheScope()}` : src
   }
 }
 
@@ -93,7 +96,49 @@ export async function acquireCachedResourceMediaUrl(
   }
 }
 
+export async function loadCachedResourceBlob(src: string, loadBlob: BlobLoader): Promise<Blob> {
+  const key = resourceMediaCacheKey(src)
+  const entry = getOrCreateCacheEntry(key, loadBlob)
+
+  try {
+    const blob = await entry.blobPromise
+    entry.byteSize = blob.size
+    entry.lastAccessed = Date.now()
+    pruneResourceMediaCache()
+    return blob
+  } catch (error) {
+    mediaCache.delete(key)
+    throw error
+  }
+}
+
+export async function loadCachedResourceDataURL(src: string, loadBlob: BlobLoader): Promise<string> {
+  const key = resourceMediaCacheKey(src)
+  const entry = getOrCreateCacheEntry(key, loadBlob)
+
+  if (!entry.dataUrlPromise) {
+    entry.dataUrlPromise = entry.blobPromise.then((blob) => {
+      entry.byteSize = blob.size
+      return blobToDataURL(blob)
+    })
+  }
+
+  try {
+    const dataUrl = await entry.dataUrlPromise
+    entry.lastAccessed = Date.now()
+    pruneResourceMediaCache()
+    return dataUrl
+  } catch (error) {
+    mediaCache.delete(key)
+    throw error
+  }
+}
+
 export function __resetResourceMediaCacheForTests() {
+  clearResourceMediaCache()
+}
+
+function clearResourceMediaCache() {
   for (const entry of mediaCache.values()) {
     revokeObjectUrlEntry(entry.full)
     for (const variant of entry.variants.values()) {
@@ -111,6 +156,21 @@ function releaseCacheReference(key: string) {
   pruneResourceMediaCache()
 }
 
+function getOrCreateCacheEntry(key: string, loadBlob: BlobLoader): CacheEntry {
+  let entry = mediaCache.get(key)
+  if (!entry) {
+    entry = {
+      blobPromise: loadBlob(),
+      full: {},
+      variants: new Map(),
+      refCount: 0,
+      lastAccessed: Date.now(),
+    }
+    mediaCache.set(key, entry)
+  }
+  return entry
+}
+
 function getOrCreateObjectUrl(entry: CacheEntry, variantKey?: string, transformBlob?: BlobTransformer): Promise<string> {
   const objectUrlEntry = getObjectUrlEntry(entry, variantKey)
   if (objectUrlEntry.objectUrl) return Promise.resolve(objectUrlEntry.objectUrl)
@@ -123,6 +183,15 @@ function getOrCreateObjectUrl(entry: CacheEntry, variantKey?: string, transformB
       })
   }
   return objectUrlEntry.objectUrlPromise
+}
+
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('failed to read blob as data URL'))
+    reader.readAsDataURL(blob)
+  })
 }
 
 function getObjectUrlEntry(entry: CacheEntry, variantKey: string | undefined): ObjectUrlEntry {
@@ -167,3 +236,29 @@ function totalCachedBytes() {
 function isResourceFilePath(pathname: string): boolean {
   return /^\/(?:api\/v1\/)?resources\/\d+\/file(?:$|[?#])/.test(pathname)
 }
+
+function resourceAuthCacheScope(): string {
+  const { currentUser, currentOrgID, token } = useUserStore.getState()
+  const user = currentUser?.ID ? String(currentUser.ID) : 'anonymous'
+  const org = currentOrgID ? String(currentOrgID) : 'none'
+  const tokenHash = token ? hashCacheScopeValue(token) : 'none'
+  return `auth:user:${user}:org:${org}:token:${tokenHash}`
+}
+
+function hashCacheScopeValue(value: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+let lastResourceAuthCacheScope = resourceAuthCacheScope()
+
+useUserStore.subscribe(() => {
+  const nextScope = resourceAuthCacheScope()
+  if (nextScope === lastResourceAuthCacheScope) return
+  lastResourceAuthCacheScope = nextScope
+  clearResourceMediaCache()
+})

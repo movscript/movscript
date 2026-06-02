@@ -7,7 +7,7 @@ import type { AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastru
 import type { RawResource } from '@/types'
 import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
 import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import type { AgentConversationMessageStore } from '@movscript/conversation'
+import type { AgentConversationMessageStore, RuntimeThreadProjectionSinkInput } from '@movscript/conversation'
 
 export interface CompleteSendRunResultDeps {
   userId: string
@@ -20,7 +20,7 @@ export interface CompleteSendRunResultDeps {
   setConversationSessionId?: (conversationId: string, sessionId: string) => void
   setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'updateMessageMeta' | 'setConversationMessages'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'updateMessageMeta'>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
@@ -28,6 +28,7 @@ export interface CompleteSendRunResultDeps {
   setPendingAssistantState: (state: AgentLivePendingAssistantState | null) => void
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
   getExistingMessages: () => ChatMessage[]
+  setRuntimeThreadProjection: (input: Omit<RuntimeThreadProjectionSinkInput<ChatMessage>, 'userId'>) => void
   setLiveTraceEvents: (events: ChatRunActivityEvent[]) => void
   fetchResourceById: (id: number) => Promise<RawResource | undefined>
   runTouchesAgentCatalog: (run: AgentRun) => boolean

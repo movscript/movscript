@@ -21,6 +21,7 @@ import { FileTraceStore } from '../trace/fileTraceStore.js'
 import type { AgentRunDebugLedger } from '../../../trace/debug/ledger/runDebugLedger.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import { isValidAgentProjectId } from '../../../context/runtime/runtimeContext.js'
+import type { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
 interface AgentStateFile {
   version: 6
@@ -53,12 +54,14 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   private flushing = false
   private readonly flushBeforeExit: () => void
   private readonly traceStore: FileTraceStore
+  private readonly telemetry: RuntimeTelemetryRegistry | undefined
 
-  constructor(filePath = resolveAgentStatePath()) {
+  constructor(filePath = resolveAgentStatePath(), telemetry?: RuntimeTelemetryRegistry) {
     super()
     this.filePath = filePath
+    this.telemetry = telemetry
     this.tracePath = resolveAgentTracePath(filePath)
-    this.traceStore = new FileTraceStore(this.tracePath)
+    this.traceStore = new FileTraceStore(this.tracePath, telemetry)
     const compactedOnLoad = this.load()
     this.flushBeforeExit = () => this.flush()
     process.once('beforeExit', this.flushBeforeExit)
@@ -221,7 +224,14 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.flushing = true
     try {
       this.dirty = false
-      this.persist()
+      const startedAt = Date.now()
+      try {
+        this.persist()
+        this.recordStorageFlush('success', Date.now() - startedAt)
+      } catch (error) {
+        this.recordStorageFlush('error', Date.now() - startedAt)
+        throw error
+      }
     } finally {
       this.flushing = false
       if (this.dirty) this.schedulePersist()
@@ -370,6 +380,35 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     }
     atomicWriteJSON(this.filePath, state)
   }
+
+  private recordStorageFlush(status: 'success' | 'error', durationMs: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_flush_duration_ms',
+      value: durationMs,
+      unit: 'ms',
+      labels: {
+        component: 'state_store',
+        kind: 'state_file',
+        stage: 'flush',
+        status,
+      },
+    })
+    if (status !== 'success') return
+    const bytes = fileSizeSafe(this.filePath)
+    if (bytes !== undefined) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'state_store',
+          kind: 'state_file',
+          stage: 'flush',
+          status,
+        },
+      })
+    }
+  }
 }
 
 export function resolveAgentStatePath(): string {
@@ -403,6 +442,14 @@ export function atomicWriteJSON(filePath: string, value: unknown): void {
   const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
   writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   renameSync(tmpPath, filePath)
+}
+
+function fileSizeSafe(filePath: string): number | undefined {
+  try {
+    return statSync(filePath).size
+  } catch {
+    return undefined
+  }
 }
 
 function normalizeThread(thread: AgentThread): AgentThread {

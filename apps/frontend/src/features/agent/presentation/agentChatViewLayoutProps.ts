@@ -84,6 +84,7 @@ export function buildAgentChatViewLayoutProps({
     },
     runtimeHistory: {
       archivedConversations,
+      conversations,
       onRestoreArchivedConversation,
       onRestoreLocalThread,
     },

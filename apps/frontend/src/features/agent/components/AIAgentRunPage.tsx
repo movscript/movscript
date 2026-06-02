@@ -132,11 +132,13 @@ import { buildApprovalImpactSummary, type AgentApprovalImpactSummary } from '@/f
 import { buildRunConfigurationSnapshotView, type AgentRunConfigurationSnapshotView } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
 import { fallbackToolCallSummaries, formatAgentTraceRawJSON, searchTextToken, toolCallSearchText, toolCallSummariesFromUnknown, type AgentToolCallSummary } from '@/features/agent/domain/agent-run-page/toolCallSummaries'
 import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/features/agent/domain/agentRunUi'
+import { modelRequestMessagesFromPayload } from '@/features/agent/domain/agent-run-ui/traceDetails'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/features/agent/domain/agentTraceDebugData'
 import { agentToolCallStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { isRecord } from '@/shared/domain/jsonValue'
-import { localAgentClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentRun, type AgentRunDebugEvidence, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
+import { UrlImage } from '@/shared/ui/UrlMedia'
 import { agentRunPath } from '@/routes/projectRoutes'
 
 const TRACE_PAGE_SIZE = 25
@@ -151,6 +153,7 @@ const DEBUG_BUNDLE_CAPABILITIES = [
   'readinessChecklist',
   'runtimeSummary',
   'roundContextUpdates',
+  'roundContextChanges',
   'modelCallContexts',
   'promptDetails',
   'contextMutations',
@@ -223,11 +226,13 @@ type AgentRunRuntimeSummary = AgentTraceDebugView['runtimeSummary']
 type AgentSkillTraceSummary = AgentTraceDebugView['skillTimeline']
 type AgentContextMutationView = AgentTraceDebugView['contextMutations'][number]
 type AgentRoundContextUpdateView = AgentTraceDebugView['roundContextUpdates'][number]
+type AgentRoundContextChangeView = AgentTraceDebugView['roundContextChanges'][number]
 type AgentPromptDebugDetail = AgentTraceDebugView['promptDetails'][number]
 type AgentTraceEventView = ReturnType<typeof agentTraceView>
+type AgentModelRequestMessageView = NonNullable<AgentTraceEventView['modelDetail']>['messages'][number]
 type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & Partial<Pick<AgentPromptDebugDetail, 'budgetDecisions' | 'runtimeSkillState' | 'contextLedgerState'>>
 type AgentTraceEventDisplayView = Omit<AgentTraceEventView, 'promptDetail'> & { promptDetail?: AgentPromptDetailDisplay }
-type AgentTraceViewMode = 'debug' | 'runtime' | 'timeline' | 'tools' | 'skills'
+type AgentTraceViewMode = 'debug' | 'runtime' | 'context' | 'timeline' | 'tools' | 'skills'
 
 interface AgentDebugHotspot {
   id: string
@@ -346,6 +351,20 @@ export default function AIAgentRunPage() {
   const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
   const contextMutations = debugViewQuery.data?.contextMutations ?? []
   const roundContextUpdates = debugViewQuery.data?.roundContextUpdates ?? []
+  const roundContextChanges = debugViewQuery.data?.roundContextChanges ?? []
+  const modelRequestEvidenceQuery = useQuery({
+    queryKey: ['agent-run-model-request-evidence', localAgentClient.baseURL, runId],
+    queryFn: async () => {
+      const refs = await localAgentClient.findRunDebugEvidenceRefs(runId, { kind: 'model_request' })
+      const evidence = await Promise.all(refs.evidenceRefs.map((ref) => localAgentClient.getRunDebugEvidence(runId, ref.evidenceId)))
+      return evidence
+    },
+    enabled: !!runId && traceViewMode === 'context' && roundContextChanges.length > 0,
+    retry: false,
+  })
+  const modelRequestEvidenceByEventId = useMemo(() => new Map(
+    (modelRequestEvidenceQuery.data ?? []).map((evidence) => [evidence.eventId, evidence]),
+  ), [modelRequestEvidenceQuery.data])
   const debugHotspots = useMemo(
     () => buildDebugHotspots({
       events: debugViewEvents,
@@ -1060,6 +1079,14 @@ export default function AIAgentRunPage() {
                 </AgentRunTraceViewModeButton>
                 <AgentRunTraceViewModeButton
                   type="button"
+                  variant={traceViewMode === 'context' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'context'}
+                  onClick={() => setTraceViewMode('context')}
+                >
+                  上下文变动
+                </AgentRunTraceViewModeButton>
+                <AgentRunTraceViewModeButton
+                  type="button"
                   variant={traceViewMode === 'timeline' ? 'soft' : 'ghost'}
                   aria-pressed={traceViewMode === 'timeline'}
                   onClick={() => setTraceViewMode('timeline')}
@@ -1197,6 +1224,19 @@ export default function AIAgentRunPage() {
                 {roundContextUpdates.length > 0 && <RoundContextUpdatesPanel updates={roundContextUpdates} onFocusEvent={focusTraceEvent} />}
               </>
             )}
+            {traceViewMode === 'context' && (
+              <RoundContextChangesPanel
+                changes={roundContextChanges}
+                contextMutations={contextMutations}
+                roundContextUpdates={roundContextUpdates}
+                modelCallContexts={modelCallContexts}
+                modelRequestEvidenceByEventId={modelRequestEvidenceByEventId}
+                events={debugViewEvents}
+                loading={debugViewQuery.isLoading || loadingEvents}
+                requestEvidenceLoading={modelRequestEvidenceQuery.isLoading}
+                onFocusEvent={focusTraceEvent}
+              />
+            )}
             {traceViewMode === 'tools' && (
               <ToolCallProcessPanel
                 toolCalls={toolCallSummaries}
@@ -1230,6 +1270,7 @@ export default function AIAgentRunPage() {
                 onFocusEvent={focusTraceEvent}
                 onShowAttentionEvents={showAttentionEvents}
                 onOpenRuntime={() => setTraceViewMode('runtime')}
+                onOpenContext={() => setTraceViewMode('context')}
                 onOpenTimeline={() => setTraceViewMode('timeline')}
                 onOpenTools={() => setTraceViewMode('tools')}
                 onCopy={copyDebugReport}
@@ -1639,6 +1680,7 @@ function DebugWorkbenchPanel({
   onFocusEvent,
   onShowAttentionEvents,
   onOpenRuntime,
+  onOpenContext,
   onOpenTimeline,
   onOpenTools,
   onCopy,
@@ -1663,6 +1705,7 @@ function DebugWorkbenchPanel({
   onFocusEvent: (eventId: string) => void
   onShowAttentionEvents: () => void
   onOpenRuntime: () => void
+  onOpenContext: () => void
   onOpenTimeline: () => void
   onOpenTools: () => void
   onCopy: () => void
@@ -1689,6 +1732,9 @@ function DebugWorkbenchPanel({
             {loading && <AgentRunPageBadge variant="outline">加载中</AgentRunPageBadge>}
             <AgentRunDebugActionButton variant="outline" onClick={onOpenRuntime}>
               运行时
+            </AgentRunDebugActionButton>
+            <AgentRunDebugActionButton variant="outline" onClick={onOpenContext}>
+              上下文变动
             </AgentRunDebugActionButton>
             <AgentRunDebugActionButton variant="outline" onClick={onOpenTimeline}>
               打开时间线
@@ -2300,6 +2346,310 @@ function RoundContextUpdatesPanel({ updates, onFocusEvent }: { updates: AgentRou
   )
 }
 
+function RoundContextChangesPanel({
+  changes,
+  contextMutations,
+  roundContextUpdates,
+  modelCallContexts,
+  modelRequestEvidenceByEventId,
+  events,
+  loading,
+  requestEvidenceLoading,
+  onFocusEvent,
+}: {
+  changes: AgentRoundContextChangeView[]
+  contextMutations: AgentContextMutationView[]
+  roundContextUpdates: AgentRoundContextUpdateView[]
+  modelCallContexts: AgentModelCallContextView[]
+  modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>
+  events: AgentTraceEvent[]
+  loading: boolean
+  requestEvidenceLoading: boolean
+  onFocusEvent: (eventId: string) => void
+}) {
+  const eventsById = new Map(events.map((event) => [event.id, event]))
+  return (
+    <AgentRunDebugSection data-testid="agent-run-round-context-changes">
+      <AgentRunDebugPanel variant="subtle">
+        <AgentRunDebugHeader>
+          <AgentRunDebugHeaderCopy>
+            <AgentRunDebugTitle>上下文变动视图</AgentRunDebugTitle>
+            <AgentRunDebugDescription>按 round 展示模型调用前发送的上下文投影，以及自上一轮以来的 context key 变动</AgentRunDebugDescription>
+          </AgentRunDebugHeaderCopy>
+          <AgentRunDebugActions>
+            {loading && <AgentRunPageBadge variant="outline">加载中</AgentRunPageBadge>}
+            <AgentRunPageBadge variant="outline">{changes.length} 轮</AgentRunPageBadge>
+          </AgentRunDebugActions>
+        </AgentRunDebugHeader>
+        <AgentRunDebugMetricGrid>
+          <DebugCoverageMetric label="Round 投影" value={String(roundContextUpdates.length)} />
+          <DebugCoverageMetric label="Context 事件" value={String(contextMutations.length)} />
+          <DebugCoverageMetric label="关联变动" value={String(changes.reduce((sum, change) => sum + change.mutationCount, 0))} />
+          <DebugCoverageMetric label="append" value={String(changes.reduce((sum, change) => sum + change.appended, 0))} />
+          <DebugCoverageMetric label="amend" value={String(changes.reduce((sum, change) => sum + change.amended, 0))} />
+          <DebugCoverageMetric label="delete" value={String(changes.reduce((sum, change) => sum + change.deleted, 0))} />
+        </AgentRunDebugMetricGrid>
+      </AgentRunDebugPanel>
+
+      {changes.length === 0 && !loading && (
+        <AgentRunTraceEmptyState data-testid="agent-run-round-context-changes-empty">
+          已加载 trace 中还没有 round 级上下文投影事件。旧运行可能只有上下文变动链，尚不能按 round 对齐。
+        </AgentRunTraceEmptyState>
+      )}
+
+      {changes.length > 0 && (
+        <AgentRunDebugList>
+          {changes.slice(0, 12).map((change, index) => {
+            const requestContexts = modelRequestContextsForRound({
+              change,
+              nextChange: changes[index + 1],
+              modelCallContexts,
+              modelRequestEvidenceByEventId,
+              eventsById,
+            })
+            return (
+              <AgentRunTraceContextGroup key={change.round.eventId} data-testid="agent-run-round-context-change-item" variant="card">
+                <AgentRunTraceContextGroupLabel>
+                  {change.round.roundLabel ?? change.round.title}
+                </AgentRunTraceContextGroupLabel>
+                <AgentRunTraceEventMeta>
+                  {change.round.messageCount && <AgentRunTraceEventMetaItem>{change.round.messageCount} 条消息</AgentRunTraceEventMetaItem>}
+                  {change.round.systemMessageCount && <AgentRunTraceEventMetaItem>{change.round.systemMessageCount} 条系统消息</AgentRunTraceEventMetaItem>}
+                  {change.round.promptChars && <AgentRunTraceEventMetaItem>{change.round.promptChars} 字符</AgentRunTraceEventMetaItem>}
+                  {requestContexts.length > 0 && <AgentRunTraceEventMetaItem>请求上下文 {requestContexts.reduce((sum, context) => sum + context.messages.length, 0)} 条</AgentRunTraceEventMetaItem>}
+                  {requestContexts.some((context) => context.imageCount > 0) && <AgentRunTraceEventMetaItem>图片 {requestContexts.reduce((sum, context) => sum + context.imageCount, 0)} 张</AgentRunTraceEventMetaItem>}
+                  <AgentRunTraceEventMetaItem>变动 {change.mutationCount} 次</AgentRunTraceEventMetaItem>
+                  <AgentRunTraceEventMetaItem>append {change.appended}</AgentRunTraceEventMetaItem>
+                  <AgentRunTraceEventMetaItem>amend {change.amended}</AgentRunTraceEventMetaItem>
+                  <AgentRunTraceEventMetaItem>delete {change.deleted}</AgentRunTraceEventMetaItem>
+                </AgentRunTraceEventMeta>
+                {change.latestMutationReason && (
+                  <AgentRunDebugHotspotSummary>{redactAgentTraceDebugText(change.latestMutationReason)}</AgentRunDebugHotspotSummary>
+                )}
+                <AgentRunTraceContextGroupItems>
+                  {change.round.historyProjection && (
+                    <AgentRunTraceContextRow>
+                      <AgentRunTraceContextKey>发送历史</AgentRunTraceContextKey>
+                      <AgentRunTraceContextValue>保留 {change.round.historyProjection.retainedCount}/{change.round.historyProjection.inputCount}，压缩 {change.round.historyProjection.compactedCount}，过滤 {change.round.historyProjection.filteredCount}</AgentRunTraceContextValue>
+                    </AgentRunTraceContextRow>
+                  )}
+                  {change.round.toolLoopProjection && (
+                    <AgentRunTraceContextRow>
+                      <AgentRunTraceContextKey>Tool loop</AgentRunTraceContextKey>
+                      <AgentRunTraceContextValue>{String(projectionNumber(change.round.toolLoopProjection, 'messageCount'))} 条，{String(projectionNumber(change.round.toolLoopProjection, 'chars'))} 字符</AgentRunTraceContextValue>
+                    </AgentRunTraceContextRow>
+                  )}
+                  {change.round.historicalVisualProjection && (
+                    <AgentRunTraceContextRow>
+                      <AgentRunTraceContextKey>历史图片</AgentRunTraceContextKey>
+                      <AgentRunTraceContextValue>候选 {String(projectionNumber(change.round.historicalVisualProjection, 'candidateCount'))}，内联 {String(projectionNumber(change.round.historicalVisualProjection, 'includedInlineImageCount'))}，元数据 {String(projectionNumber(change.round.historicalVisualProjection, 'metadataOnlyCount'))}</AgentRunTraceContextValue>
+                    </AgentRunTraceContextRow>
+                  )}
+                  {change.round.attachmentProjection && (
+                    <AgentRunTraceContextRow>
+                      <AgentRunTraceContextKey>当前附件</AgentRunTraceContextKey>
+                      <AgentRunTraceContextValue>附件 {String(projectionNumber(change.round.attachmentProjection, 'attachmentCount'))}，内联图片 {String(projectionNumber(change.round.attachmentProjection, 'inlineImageCount'))}，元数据 {String(projectionNumber(change.round.attachmentProjection, 'metadataOnlyCount'))}</AgentRunTraceContextValue>
+                    </AgentRunTraceContextRow>
+                  )}
+                  {change.affectedContextKeys.slice(0, 8).map((key) => (
+                    <AgentRunTraceContextRow key={`${change.round.eventId}:key:${key}`}>
+                      <AgentRunTraceContextKey>{contextKeyChangeTypeLabel(change, key)}</AgentRunTraceContextKey>
+                      <AgentRunTraceContextValue>{redactAgentTraceDebugText(key)}</AgentRunTraceContextValue>
+                    </AgentRunTraceContextRow>
+                  ))}
+                </AgentRunTraceContextGroupItems>
+                {requestContexts.length > 0 ? (
+                  <AgentRunDebugList data-testid="agent-run-round-concrete-context">
+                    {requestContexts.map((context) => (
+                      <AgentRunTraceDisclosure key={`${change.round.eventId}:${context.eventId}`} title={`具体上下文 · ${context.label}`} defaultOpen>
+                        <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(context.eventId)}>
+                          定位模型请求
+                        </AgentRunTraceEventActionButton>
+                        <ModelRequestMessageList messages={context.messages} />
+                      </AgentRunTraceDisclosure>
+                    ))}
+                  </AgentRunDebugList>
+                ) : (
+                  <AgentRunDebugStatusNote>{requestEvidenceLoading ? '正在加载模型请求 payload...' : '这轮尚未关联到模型请求 payload；请确认 trace 已加载完整，或打开时间线中的模型请求事件查看原始负载。'}</AgentRunDebugStatusNote>
+                )}
+                {change.mutations.length > 0 && (
+                  <AgentRunDebugList data-testid="agent-run-round-context-change-mutations">
+                    {change.mutations.slice(0, 4).map((mutation) => (
+                      <AgentRunDebugStatusNote key={`${change.round.eventId}:${mutation.eventId}`}>
+                        <AgentRunDebugHeader>
+                          <AgentRunDebugHeaderCopy>
+                            <AgentRunDebugTitle>{mutation.latest ? `${mutation.latest.type} · ${mutation.latest.id}` : mutation.title}</AgentRunDebugTitle>
+                            <AgentRunDebugDescription>{mutation.eventId}</AgentRunDebugDescription>
+                          </AgentRunDebugHeaderCopy>
+                          <AgentRunDebugTags>
+                            <AgentRunPageBadge variant="outline">append {mutation.appended}</AgentRunPageBadge>
+                            <AgentRunPageBadge variant="outline">amend {mutation.amended}</AgentRunPageBadge>
+                            <AgentRunPageBadge variant="outline">delete {mutation.deleted}</AgentRunPageBadge>
+                          </AgentRunDebugTags>
+                        </AgentRunDebugHeader>
+                        {mutation.latest?.reason && <AgentRunTraceDetailLine label="原因" value={redactAgentTraceDebugText(mutation.latest.reason)} />}
+                        <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(mutation.eventId)}>
+                          定位变动
+                        </AgentRunTraceEventActionButton>
+                      </AgentRunDebugStatusNote>
+                    ))}
+                  </AgentRunDebugList>
+                )}
+                <AgentRunDebugActions>
+                  <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(change.round.eventId)}>
+                    定位 Round
+                  </AgentRunTraceEventActionButton>
+                </AgentRunDebugActions>
+              </AgentRunTraceContextGroup>
+            )
+          })}
+        </AgentRunDebugList>
+      )}
+      {changes.length > 12 && <AgentRunTraceStateMessage>还有 {changes.length - 12} 轮上下文变动，请复制调试包查看完整列表。</AgentRunTraceStateMessage>}
+    </AgentRunDebugSection>
+  )
+}
+
+function modelRequestContextsForRound(input: {
+  change: AgentRoundContextChangeView
+  nextChange?: AgentRoundContextChangeView
+  modelCallContexts: AgentModelCallContextView[]
+  modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>
+  eventsById: Map<string, AgentTraceEvent>
+}): Array<{ eventId: string; label: string; messages: AgentModelRequestMessageView[]; imageCount: number }> {
+  const roundEvent = input.eventsById.get(input.change.round.eventId)
+  const nextRoundEvent = input.nextChange ? input.eventsById.get(input.nextChange.round.eventId) : undefined
+  if (!roundEvent) return []
+  const candidates = input.modelCallContexts.flatMap((context) => {
+    const eventIds = uniqueStableStrings([context.requestEventId, ...context.modelEventIds])
+    return eventIds.flatMap((eventId) => {
+      if (!eventId) return []
+      const event = input.eventsById.get(eventId)
+      if (!event || event.kind !== 'model_call') return []
+      if (!modelEventBelongsToRound(event, roundEvent, nextRoundEvent)) return []
+      const messages = modelRequestMessagesForEvent(event, input.modelRequestEvidenceByEventId)
+      if (messages.length === 0) return []
+      return [{
+        eventId,
+        label: context.label,
+        messages,
+        imageCount: messages.reduce((sum, message) => sum + message.imageCount, 0),
+      }]
+    })
+  })
+  for (const [eventId, evidence] of input.modelRequestEvidenceByEventId.entries()) {
+    const event = input.eventsById.get(eventId)
+    if (!event || event.kind !== 'model_call') continue
+    if (!modelEventBelongsToRound(event, roundEvent, nextRoundEvent)) continue
+    const messages = modelRequestMessagesFromPayload(evidence.value)
+    if (messages.length === 0) continue
+    candidates.push({
+      eventId,
+      label: '模型请求负载',
+      messages,
+      imageCount: messages.reduce((sum, message) => sum + message.imageCount, 0),
+    })
+  }
+  const seen = new Set<string>()
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.eventId)) return false
+    seen.add(candidate.eventId)
+    return true
+  })
+}
+
+function modelRequestMessagesForEvent(event: AgentTraceEvent, modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>): AgentModelRequestMessageView[] {
+  const detail = agentTraceView(event).modelDetail
+  if (detail?.messages.length) return detail.messages
+  const evidence = modelRequestEvidenceByEventId.get(event.id)
+  return evidence ? modelRequestMessagesFromPayload(evidence.value) : []
+}
+
+function modelEventBelongsToRound(event: AgentTraceEvent, roundEvent: AgentTraceEvent, nextRoundEvent: AgentTraceEvent | undefined): boolean {
+  if (roundEvent.roundId && event.roundId === roundEvent.roundId) return true
+  if (roundEvent.roundIndex !== undefined && event.roundIndex === roundEvent.roundIndex) return true
+  if (event.createdAt < roundEvent.createdAt) return false
+  return nextRoundEvent ? event.createdAt < nextRoundEvent.createdAt : true
+}
+
+function uniqueStableStrings(values: Array<string | undefined>): string[] {
+  const seen = new Set<string>()
+  return values.flatMap((value) => {
+    if (!value || seen.has(value)) return []
+    seen.add(value)
+    return [value]
+  })
+}
+
+function ModelRequestMessageList({ messages }: { messages: AgentModelRequestMessageView[] }) {
+  return (
+    <AgentRunDebugList data-testid="agent-run-round-request-messages">
+      {messages.map((message) => (
+        <AgentRunTraceContextGroup key={`${message.index}:${message.role}`} data-testid="agent-run-round-request-message" variant="card">
+          <AgentRunTraceContextGroupLabel>{message.index}. {message.roleLabel}</AgentRunTraceContextGroupLabel>
+          <AgentRunTraceEventMeta>
+            <AgentRunTraceEventMetaItem>{message.contentChars} 字符</AgentRunTraceEventMetaItem>
+            {message.parts.length > 0 && <AgentRunTraceEventMetaItem>{message.parts.length} 个部件</AgentRunTraceEventMetaItem>}
+            {message.imageCount > 0 && <AgentRunTraceEventMetaItem>{message.imageCount} 张图片</AgentRunTraceEventMetaItem>}
+          </AgentRunTraceEventMeta>
+          <ModelMessageParts message={message} />
+        </AgentRunTraceContextGroup>
+      ))}
+    </AgentRunDebugList>
+  )
+}
+
+function ModelMessageParts({ message }: { message: AgentModelRequestMessageView }) {
+  if (message.parts.length === 0) {
+    return (
+      <AgentRunDebugCodeBlock>
+        {redactAgentTraceDebugText(message.content)}
+      </AgentRunDebugCodeBlock>
+    )
+  }
+  return (
+    <AgentRunDebugStack>
+      {message.parts.map((part) => (
+        <AgentRunTraceContextGroup key={`${message.index}:part:${part.index}`} variant="subtle">
+          <AgentRunTraceContextGroupLabel>{part.index}. {part.typeLabel}</AgentRunTraceContextGroupLabel>
+          {part.type === 'image' ? (
+            <ModelMessageImagePart part={part} />
+          ) : (
+            <AgentRunDebugCodeBlock>
+              {redactAgentTraceDebugText(part.text)}
+            </AgentRunDebugCodeBlock>
+          )}
+        </AgentRunTraceContextGroup>
+      ))}
+    </AgentRunDebugStack>
+  )
+}
+
+function ModelMessageImagePart({ part }: { part: Extract<AgentModelRequestMessageView['parts'][number], { type: 'image' }> }) {
+  const canRender = part.imageUrl?.startsWith('data:image/') || /^https?:\/\//i.test(part.imageUrl ?? '')
+  return (
+    <AgentRunDebugStack>
+      <AgentRunTraceContextGroupItems>
+        {part.mimeType && <ModelMetaRow label="类型" value={part.mimeType} />}
+        {part.detail && <ModelMetaRow label="detail" value={part.detail} />}
+        {part.chars !== undefined && <ModelMetaRow label="载荷" value={`${part.chars} 字符`} />}
+        {!part.imageUrl && part.metadata && <ModelMetaRow label="元数据" value={redactAgentTraceDebugText(part.metadata)} />}
+      </AgentRunTraceContextGroupItems>
+      {canRender && part.imageUrl ? (
+        <UrlImage
+          alt="模型请求上下文图片"
+          data-testid="agent-run-round-context-image"
+          src={part.imageUrl}
+          loading="lazy"
+          style={{ maxWidth: '100%', maxHeight: 360, borderRadius: 6, border: '1px solid var(--border)', objectFit: 'contain' }}
+        />
+      ) : part.imageUrl ? (
+        <AgentRunDebugCodeBlock>{redactAgentTraceDebugText(part.imageUrl)}</AgentRunDebugCodeBlock>
+      ) : null}
+    </AgentRunDebugStack>
+  )
+}
+
 function RuntimeProjectionDecisionList({ title, projection, testId }: { title: string; projection?: { decisions: Array<Record<string, unknown>> }; testId: string }) {
   if (!projection || projection.decisions.length === 0) return null
   return (
@@ -2336,6 +2686,13 @@ function skillOmissionStageLabel(stage: string): string {
 function projectionNumber(projection: Record<string, unknown>, key: string): number {
   const value = projection[key]
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function contextKeyChangeTypeLabel(change: AgentRoundContextChangeView, key: string): string {
+  if (change.deletedContextKeys.includes(key)) return 'delete'
+  if (change.amendedContextKeys.includes(key)) return 'amend'
+  if (change.appendedContextKeys.includes(key)) return 'append'
+  return 'key'
 }
 
 function historyProjectionActionLabel(action: string): string {
@@ -3134,7 +3491,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
                 <AgentRunTraceContextGroup key={group.role} variant="card">
                   <AgentRunTraceContextGroupLabel>{group.roleLabel}</AgentRunTraceContextGroupLabel>
                   <AgentRunTraceContextGroupItems>
-                    <ModelMetaRow label="规模" value={`${group.count} 条 / ${group.contentChars} 字符`} />
+                    <ModelMetaRow label="规模" value={`${group.count} 条 / ${group.contentChars} 字符${group.imageCount > 0 ? ` / ${group.imageCount} 张图片` : ''}`} />
                   </AgentRunTraceContextGroupItems>
                   <AgentRunDebugTags>
                     {group.messages.slice(0, 6).map((message) => (
@@ -3153,10 +3510,9 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
               <AgentRunTraceContextGroupLabel>{message.index}. {message.roleLabel}</AgentRunTraceContextGroupLabel>
               <AgentRunTraceContextGroupItems>
                 <ModelMetaRow label="长度" value={`${message.contentChars} 字符`} />
+                {message.imageCount > 0 && <ModelMetaRow label="图片" value={`${message.imageCount} 张`} />}
               </AgentRunTraceContextGroupItems>
-              <AgentRunDebugCodeBlock>
-                {redactAgentTraceDebugText(message.content)}
-              </AgentRunDebugCodeBlock>
+              <ModelMessageParts message={message} />
             </AgentRunTraceContextGroup>
           ))}
         </ModelDetailSection>

@@ -2,6 +2,7 @@ import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type {
   AgentTraceContextGroup,
+  AgentTraceModelMessageContentPart,
   AgentTraceModelMessageDetail,
   AgentTraceModelMessageGroup,
   AgentTraceModelToolDetail,
@@ -258,6 +259,78 @@ export function messageContentText(value: unknown): string | undefined {
   }
 }
 
+export function modelMessageContentParts(value: unknown): AgentTraceModelMessageContentPart[] {
+  if (typeof value === 'string') {
+    return value ? [{ index: 1, type: 'text', typeLabel: '文本', text: value, chars: value.length }] : []
+  }
+  const entries = arrayValue(value)
+  if (!entries) {
+    const text = messageContentText(value)
+    return text ? [{ index: 1, type: 'metadata', typeLabel: '内容', text, chars: text.length }] : []
+  }
+  return entries.flatMap((entry, index): AgentTraceModelMessageContentPart[] => {
+    const part = recordValue(entry)
+    if (!part) {
+      const text = messageContentText(entry)
+      return text ? [{ index: index + 1, type: 'metadata', typeLabel: '内容', text, chars: text.length }] : []
+    }
+    const type = stringValue(part.type)
+    const text = stringValue(part.text) ?? stringValue(part.input_text) ?? stringValue(part.content)
+    if ((type === 'text' || type === 'input_text' || type === 'output_text') && text) {
+      return [{ index: index + 1, type: 'text', typeLabel: modelMessagePartTypeLabel(type), text, chars: text.length }]
+    }
+    const image = modelMessageImagePart(part)
+    if (image) {
+      return [{
+        index: index + 1,
+        type: 'image',
+        typeLabel: modelMessagePartTypeLabel(type ?? 'image'),
+        ...image,
+      }]
+    }
+    if (text) return [{ index: index + 1, type: 'text', typeLabel: modelMessagePartTypeLabel(type), text, chars: text.length }]
+    const fallback = messageContentText(part)
+    return fallback ? [{ index: index + 1, type: 'metadata', typeLabel: modelMessagePartTypeLabel(type), text: fallback, chars: fallback.length }] : []
+  })
+}
+
+function modelMessageImagePart(part: Record<string, unknown>): Omit<Extract<AgentTraceModelMessageContentPart, { type: 'image' }>, 'index' | 'type' | 'typeLabel'> | undefined {
+  const directUrl = stringValue(part.image_url) ?? stringValue(part.imageUrl) ?? stringValue(part.url)
+  const imageRecord = recordValue(part.image_url) ?? recordValue(part.image) ?? recordValue(part.input_image)
+  const imageUrl = directUrl ?? stringValue(imageRecord?.url) ?? stringValue(imageRecord?.image_url) ?? stringValue(part.dataUrl) ?? stringValue(part.data_url)
+  const metadata = !imageUrl ? messageContentText(part) : undefined
+  const isImageType = (stringValue(part.type) ?? '').includes('image') || !!imageRecord || !!imageUrl
+  if (!isImageType) return undefined
+  return {
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(imageMimeType(imageUrl) ? { mimeType: imageMimeType(imageUrl) } : stringValue(part.mimeType) ? { mimeType: stringValue(part.mimeType) } : {}),
+    ...(stringValue(part.detail) ? { detail: stringValue(part.detail) } : stringValue(imageRecord?.detail) ? { detail: stringValue(imageRecord?.detail) } : {}),
+    ...(imageUrl ? { chars: imageUrl.length } : {}),
+    ...(metadata ? { metadata } : {}),
+  }
+}
+
+function imageMimeType(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const match = /^data:([^;,]+)[;,]/i.exec(value)
+  return match?.[1]
+}
+
+function modelMessagePartTypeLabel(type: string | undefined): string {
+  switch (type) {
+    case 'text':
+    case 'input_text':
+    case 'output_text':
+      return '文本'
+    case 'image':
+    case 'image_url':
+    case 'input_image':
+      return '图片'
+    default:
+      return type ? type.replace(/_/g, ' ') : '内容'
+  }
+}
+
 export function modelMessageGroups(messages: AgentTraceModelMessageDetail[]): AgentTraceModelMessageGroup[] {
   const order = ['system', 'user', 'assistant', 'tool']
   const groups = new Map<string, AgentTraceModelMessageGroup>()
@@ -268,10 +341,12 @@ export function modelMessageGroups(messages: AgentTraceModelMessageDetail[]): Ag
       roleLabel: message.roleLabel,
       count: 0,
       contentChars: 0,
+      imageCount: 0,
       messages: [],
     }
     group.count += 1
     group.contentChars += message.contentChars
+    group.imageCount += message.imageCount
     group.messages.push(message)
     groups.set(key, group)
   }

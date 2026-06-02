@@ -67,13 +67,42 @@ export interface AgentTraceModelMessageDetail {
   roleLabel: string
   content: string
   contentChars: number
+  parts: AgentTraceModelMessageContentPart[]
+  imageCount: number
 }
+
+export type AgentTraceModelMessageContentPart =
+  | {
+    index: number
+    type: 'text'
+    typeLabel: string
+    text: string
+    chars: number
+  }
+  | {
+    index: number
+    type: 'image'
+    typeLabel: string
+    imageUrl?: string
+    mimeType?: string
+    detail?: string
+    chars?: number
+    metadata?: string
+  }
+  | {
+    index: number
+    type: 'metadata'
+    typeLabel: string
+    text: string
+    chars: number
+  }
 
 export interface AgentTraceModelMessageGroup {
   role: string
   roleLabel: string
   count: number
   contentChars: number
+  imageCount: number
   messages: AgentTraceModelMessageDetail[]
 }
 

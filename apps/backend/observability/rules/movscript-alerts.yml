@@ -1,0 +1,156 @@
+groups:
+  - name: movscript.backend.health
+    rules:
+      - alert: MovscriptBackendDown
+        expr: up{job=~"movscript-backend|movscript-enterprise"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          area: backend
+        annotations:
+          summary: "MovScript backend metrics target is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} at {{ $labels.instance }}."
+
+      - alert: MovscriptHTTP5xxSpike
+        expr: sum(rate(movscript_http_route_errors_total[5m])) by (route) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          area: backend
+        annotations:
+          summary: "Backend 5xx responses are elevated"
+          description: "Route {{ $labels.route }} is returning more than 0.5 5xx responses per second over 5 minutes."
+
+      - alert: MovscriptHTTPP95High
+        expr: histogram_quantile(0.95, sum(rate(movscript_http_request_duration_milliseconds_bucket[5m])) by (le, route)) > 2000
+        for: 10m
+        labels:
+          severity: warning
+          area: backend
+        annotations:
+          summary: "Backend route p95 latency is high"
+          description: "Route {{ $labels.route }} p95 latency is above 2s for 10 minutes."
+
+  - name: movscript.agent.client
+    rules:
+      - alert: MovscriptAgentTelemetryRejected
+        expr: sum(rate(movscript_agent_client_telemetry_batches_total{status!="accepted"}[5m])) by (status) > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: agent-client
+        annotations:
+          summary: "Agent client telemetry batches are being rejected"
+          description: "Telemetry status {{ $labels.status }} is non-zero. Check schema compatibility and payload validation."
+
+      - alert: MovscriptAgentNetworkLatencyHigh
+        expr: |
+          sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="frontend_agent_network_request_duration_ms"}[5m])) by (route_group, status_class)
+            /
+          sum(rate(movscript_agent_client_metric_milliseconds_count{metric="frontend_agent_network_request_duration_ms"}[5m])) by (route_group, status_class) > 1500
+        for: 10m
+        labels:
+          severity: warning
+          area: agent-client
+        annotations:
+          summary: "Agent frontend network latency is high"
+          description: "Route group {{ $labels.route_group }} average latency is above 1.5s for status class {{ $labels.status_class }}."
+
+      - alert: MovscriptAgentFrontendErrors
+        expr: sum(rate(movscript_agent_client_metric_count_total{metric="frontend_ui_errors_total"}[5m])) by (kind) > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: agent-frontend
+        annotations:
+          summary: "Agent frontend errors reported"
+          description: "Frontend error kind {{ $labels.kind }} has been reported for 5 minutes."
+
+  - name: movscript.agent.runtime
+    rules:
+      - alert: MovscriptAgentRuntimeStageLatencyHigh
+        expr: |
+          sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_trace_span_duration_ms"}[5m])) by (kind, status)
+            /
+          sum(rate(movscript_agent_client_metric_milliseconds_count{metric="movscript_agent_trace_span_duration_ms"}[5m])) by (kind, status) > 3000
+        for: 10m
+        labels:
+          severity: warning
+          area: agent-runtime
+        annotations:
+          summary: "Agent runtime span latency is high"
+          description: "Runtime span kind {{ $labels.kind }} average latency is above 3s for status {{ $labels.status }}."
+
+      - alert: MovscriptAgentRuntimeFailedSpans
+        expr: sum(rate(movscript_agent_client_metric_count_total{metric="movscript_agent_trace_event_total",status=~"failed|error"}[5m])) by (kind, status) > 0
+        for: 5m
+        labels:
+          severity: warning
+          area: agent-runtime
+        annotations:
+          summary: "Agent runtime failed spans reported"
+          description: "Runtime span kind {{ $labels.kind }} is reporting status {{ $labels.status }}."
+
+  - name: movscript.frontend.web-vitals
+    rules:
+      - alert: MovscriptFrontendLCPHigh
+        expr: max(movscript_agent_client_metric_milliseconds_max{metric="frontend_web_vital_lcp_ms"}) by (vital) > 2500
+        for: 10m
+        labels:
+          severity: warning
+          area: frontend
+        annotations:
+          summary: "Frontend LCP is high"
+          description: "Largest Contentful Paint is above 2.5s."
+
+      - alert: MovscriptFrontendINPHigh
+        expr: max(movscript_agent_client_metric_milliseconds_max{metric="frontend_web_vital_inp_ms"}) by (vital) > 200
+        for: 10m
+        labels:
+          severity: warning
+          area: frontend
+        annotations:
+          summary: "Frontend INP is high"
+          description: "Interaction to Next Paint is above 200ms."
+
+      - alert: MovscriptFrontendCLSHigh
+        expr: max(movscript_agent_client_metric_score_max{metric="frontend_web_vital_cls_score"}) by (vital) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          area: frontend
+        annotations:
+          summary: "Frontend CLS is high"
+          description: "Cumulative Layout Shift is above 0.1."
+
+  - name: movscript.infrastructure
+    rules:
+      - alert: MovscriptInfrastructureExporterDown
+        expr: up{job=~"node-exporter|cadvisor"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          area: infrastructure
+        annotations:
+          summary: "Infrastructure metrics target is down"
+          description: "{{ $labels.job }} at {{ $labels.instance }} is not being scraped."
+
+      - alert: MovscriptHostMemoryHigh
+        expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          area: infrastructure
+        annotations:
+          summary: "Host memory usage is high"
+          description: "Host {{ $labels.instance }} memory usage is above 90% for 10 minutes."
+
+      - alert: MovscriptHostDiskUsageHigh
+        expr: 1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          area: infrastructure
+        annotations:
+          summary: "Host disk usage is high"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is above 90% usage."
