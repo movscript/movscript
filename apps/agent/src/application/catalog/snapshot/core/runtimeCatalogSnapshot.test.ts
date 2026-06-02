@@ -98,7 +98,7 @@ test('buildRunConfigurationSnapshot serializes config files, packs, skill instru
         skillIds: ['skill_writer'],
         approvalDefaults: { default: 'never', write: 'on_write' },
         toolGrants: [{ name: 'tool_write', mode: 'allow', approval: 'on_write' }],
-        model: { provider: 'openai', modelId: 'gpt-4.1', platformModelId: '42', routes: [{ when: { task: ['draft'] }, use: { provider: 'openai', modelId: 'gpt-4.1-mini' } }] },
+        model: { provider: 'openai', modelId: 'gpt-4.1', platformModelId: '42', routes: [{ when: { task: ['workspace'] }, use: { provider: 'openai', modelId: 'gpt-4.1-mini' } }] },
         limits: { maxHistoryMessages: 8 },
         metadata: { owner: 'agent-settings' },
       }]]),
@@ -125,16 +125,16 @@ test('buildRunConfigurationSnapshot serializes config files, packs, skill instru
         instructionTemplate: 'Write with continuity.',
         loadMode: 'on_demand',
         source: 'plugin',
-        triggers: [{ kind: 'keyword', any: ['scene', 'draft'] }],
+        triggers: [{ kind: 'keyword', any: ['scene', 'workspace'] }],
         aliases: ['scene writer'],
-        useWhen: ['drafting scenes'],
+        useWhen: ['workspaceing scenes'],
         dependencies: ['skill_base'],
         conflicts: ['skill_legacy'],
         tokenEstimate: 120,
         contextBudget: { maxChars: 4000, reserveRatio: 0.2, strategy: 'proportional' },
         toolGrants: ['tool_write'],
         schemaRefs: ['schema_scene'],
-        outputContract: 'Return a concise scene draft.',
+        outputContract: 'Return a concise scene workspace.',
         metadata: { editableInstruction: true },
       }]]),
       tools: new Map([['tool_write', {
@@ -199,7 +199,7 @@ test('buildRunConfigurationSnapshot serializes config files, packs, skill instru
   assert.equal(runSnapshot.configFiles[0]?.description, 'Run config used by the storyboard agent.')
   assert.deepEqual(runSnapshot.configFiles[0]?.approvalDefaults, { default: 'never', write: 'on_write' })
   assert.equal(runSnapshot.configFiles[0]?.toolGrants[0]?.approval, 'on_write')
-  assert.deepEqual(runSnapshot.configFiles[0]?.model, { provider: 'openai', modelId: 'gpt-4.1', platformModelId: '42', routes: [{ when: { task: ['draft'] }, use: { provider: 'openai', modelId: 'gpt-4.1-mini' } }] })
+  assert.deepEqual(runSnapshot.configFiles[0]?.model, { provider: 'openai', modelId: 'gpt-4.1', platformModelId: '42', routes: [{ when: { task: ['workspace'] }, use: { provider: 'openai', modelId: 'gpt-4.1-mini' } }] })
   assert.equal(runSnapshot.configFiles[0]?.limits?.maxHistoryMessages, 8)
   assert.deepEqual(runSnapshot.configFiles[0]?.metadata, { owner: 'agent-settings' })
   assert.equal(runSnapshot.packs[0]?.source, 'plugin')
@@ -209,16 +209,16 @@ test('buildRunConfigurationSnapshot serializes config files, packs, skill instru
   assert.deepEqual(runSnapshot.packs[0]?.conflicts, ['pack_legacy'])
   assert.equal(runSnapshot.skills[0]?.instructionTemplate, 'Write with continuity.')
   assert.equal(runSnapshot.skills[0]?.source, 'plugin')
-  assert.deepEqual(runSnapshot.skills[0]?.triggers, [{ kind: 'keyword', any: ['scene', 'draft'] }])
+  assert.deepEqual(runSnapshot.skills[0]?.triggers, [{ kind: 'keyword', any: ['scene', 'workspace'] }])
   assert.deepEqual(runSnapshot.skills[0]?.aliases, ['scene writer'])
-  assert.deepEqual(runSnapshot.skills[0]?.useWhen, ['drafting scenes'])
+  assert.deepEqual(runSnapshot.skills[0]?.useWhen, ['workspaceing scenes'])
   assert.deepEqual(runSnapshot.skills[0]?.dependencies, ['skill_base'])
   assert.deepEqual(runSnapshot.skills[0]?.conflicts, ['skill_legacy'])
   assert.equal(runSnapshot.skills[0]?.tokenEstimate, 120)
   assert.deepEqual(runSnapshot.skills[0]?.contextBudget, { maxChars: 4000, reserveRatio: 0.2, strategy: 'proportional' })
   assert.deepEqual(runSnapshot.skills[0]?.toolGrants, ['tool_write'])
   assert.deepEqual(runSnapshot.skills[0]?.schemaRefs, ['schema_scene'])
-  assert.equal(runSnapshot.skills[0]?.outputContract, 'Return a concise scene draft.')
+  assert.equal(runSnapshot.skills[0]?.outputContract, 'Return a concise scene workspace.')
   assert.deepEqual(runSnapshot.skills[0]?.metadata, { editableInstruction: true })
   assert.equal(runSnapshot.tools[0]?.defaults.approval, 'on_write')
   assert.deepEqual(runSnapshot.tools[0]?.execution, { readOnly: false, destructive: false, concurrencySafe: false, interruptBehavior: 'block', maxResultSizeChars: 2048, resultRefStrategy: 'summary_ref' })

@@ -25,7 +25,7 @@
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(movscript_http_request_duration_milliseconds_bucket[$window])) by (le, route))", "legendFormat": "{{route}} p95", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_http_request_duration_milliseconds_sum[$window])) by (route) / clamp_min(sum(rate(movscript_http_request_duration_milliseconds_count[$window])) by (route), 1)", "legendFormat": "{{route}} avg", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_http_request_duration_milliseconds_sum[$window])) by (route) / clamp_min(sum(rate(movscript_http_request_duration_milliseconds_count[$window])) by (route), 1e-9)", "legendFormat": "{{route}} avg", "refId": "B" }
       ],
       "title": "HTTP Latency",
       "type": "timeseries"
@@ -50,7 +50,7 @@
       "id": 4,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_shot_vector_operation_duration_milliseconds_sum[$window])) by (operation, status) / clamp_min(sum(rate(movscript_shot_vector_operation_duration_milliseconds_count[$window])) by (operation, status), 1)", "legendFormat": "{{operation}} {{status}} avg", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_shot_vector_operation_duration_milliseconds_sum[$window])) by (operation, status) / clamp_min(sum(rate(movscript_shot_vector_operation_duration_milliseconds_count[$window])) by (operation, status), 1e-9)", "legendFormat": "{{operation}} {{status}} avg", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_shot_vector_operation_duration_milliseconds_max) by (operation, status)", "legendFormat": "{{operation}} {{status}} max", "refId": "B" }
       ],
       "title": "Shot Vector Latency",
@@ -63,8 +63,8 @@
       "id": 5,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_db_query_duration_ms_sum[$window])) by (operation, table_group, status) / clamp_min(sum(rate(movscript_db_query_duration_ms_count[$window])) by (operation, table_group, status), 1)", "legendFormat": "db {{operation}} {{table_group}} {{status}}", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_job_run_duration_ms_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_job_run_duration_ms_count[$window])) by (kind, status), 1)", "legendFormat": "job {{kind}} {{status}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_db_query_duration_ms_sum[$window])) by (operation, table_group, status) / clamp_min(sum(rate(movscript_db_query_duration_ms_count[$window])) by (operation, table_group, status), 1e-9)", "legendFormat": "db {{operation}} {{table_group}} {{status}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_job_run_duration_ms_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_job_run_duration_ms_count[$window])) by (kind, status), 1e-9)", "legendFormat": "job {{kind}} {{status}}", "refId": "B" }
       ],
       "title": "DB and Job Latency",
       "type": "timeseries"
@@ -76,8 +76,8 @@
       "id": 6,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_external_request_duration_ms_sum[$window])) by (provider, operation, status_class) / clamp_min(sum(rate(movscript_external_request_duration_ms_count[$window])) by (provider, operation, status_class), 1)", "legendFormat": "external {{provider}} {{operation}} {{status_class}}", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_ai_provider_request_duration_ms_sum[$window])) by (provider, model_group, operation, status) / clamp_min(sum(rate(movscript_ai_provider_request_duration_ms_count[$window])) by (provider, model_group, operation, status), 1)", "legendFormat": "ai {{provider}} {{model_group}} {{operation}} {{status}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_external_request_duration_ms_sum[$window])) by (provider, operation, status_class) / clamp_min(sum(rate(movscript_external_request_duration_ms_count[$window])) by (provider, operation, status_class), 1e-9)", "legendFormat": "external {{provider}} {{operation}} {{status_class}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_ai_provider_request_duration_ms_sum[$window])) by (provider, model_group, operation, status) / clamp_min(sum(rate(movscript_ai_provider_request_duration_ms_count[$window])) by (provider, model_group, operation, status), 1e-9)", "legendFormat": "ai {{provider}} {{model_group}} {{operation}} {{status}}", "refId": "B" }
       ],
       "title": "External and AI Provider Latency",
       "type": "timeseries"

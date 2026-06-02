@@ -1,0 +1,73 @@
+.project-workspace-review-loading,
+.project-workspace-review-empty-text,
+.project-workspace-review-empty-block,
+.project-workspace-review-callout,
+.project-workspace-review-entry-callout,
+.project-workspace-review-action-button,
+.project-workspace-review-detail-text {
+  min-width: 0;
+}
+
+.project-workspace-review-badge,
+.project-workspace-review-status-badge {
+  border-radius: var(--ms-radius-full);
+  padding-inline: 6px;
+}
+
+.project-workspace-review-badge--tiny,
+.project-workspace-review-status-badge--tiny {
+  height: 20px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-badge--micro,
+.project-workspace-review-status-badge--micro {
+  height: 20px;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-action-button {
+  padding-inline: var(--ms-space-2);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-detail-text,
+.project-workspace-review-note {
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-badge,
+.project-workspace-review-status-badge {
+  height: 1.25rem;
+  border-radius: var(--ms-radius-full);
+  padding-right: 6px;
+  padding-left: 6px;
+}
+
+.project-workspace-review-badge--tiny,
+.project-workspace-review-status-badge--tiny,
+.project-workspace-review-action-button,
+.project-workspace-review-detail-text {
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-badge--micro,
+.project-workspace-review-status-badge--micro {
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+}
+
+.project-workspace-review-action-button {
+  padding-right: var(--ms-space-2);
+  padding-left: var(--ms-space-2);
+}
+
+.project-workspace-review-detail-text {
+  color: var(--ms-color-muted-foreground);
+}

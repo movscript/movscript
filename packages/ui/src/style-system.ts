@@ -92,8 +92,8 @@ export const uiBusinessSemanticExamples = {
     failed: "danger",
     default: "neutral"
   }),
-  reviewDraft: defineStatusRecipeGroup("review.draft.status", {
-    draft: "warning",
+  reviewWorkspace: defineStatusRecipeGroup("review.workspace.status", {
+    workspace: "warning",
     changed: "info",
     accepted: "success",
     blocked: "warning",

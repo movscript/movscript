@@ -44,7 +44,7 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		ReturnLastFrame:       params.BoolPtr("return_last_frame"),
 		ServiceTier:           params.String("service_tier"),
 		ExecutionExpiresAfter: params.Int("execution_expires_after"),
-		Draft:                 params.BoolPtr("draft"),
+		Workspace:                 params.BoolPtr("workspace"),
 		WebSearch:             params.Bool("web_search"),
 		MovementAmplitude:     params.String("movement_amplitude"),
 		OffPeak:               params.BoolPtr("off_peak"),

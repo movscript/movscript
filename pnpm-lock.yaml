@@ -10,9 +10,9 @@ importers:
 
   apps/admin:
     dependencies:
-      '@movscript/drafts':
+      '@movscript/workspaces':
         specifier: workspace:*
-        version: link:../../packages/drafts
+        version: link:../../packages/workspaces
       '@movscript/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -98,9 +98,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.9
         version: 1.2.9(@langchain/core@1.1.44(@opentelemetry/api@1.9.1)(openai@6.38.0(zod@4.4.2)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@4.4.2)
-      '@movscript/drafts':
+      '@movscript/workspaces':
         specifier: workspace:*
-        version: link:../../packages/drafts
+        version: link:../../packages/workspaces
       '@movscript/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -137,9 +137,9 @@ importers:
       '@movscript/conversation':
         specifier: workspace:*
         version: link:../../packages/conversation
-      '@movscript/drafts':
+      '@movscript/workspaces':
         specifier: workspace:*
-        version: link:../../packages/drafts
+        version: link:../../packages/workspaces
       '@movscript/event-state':
         specifier: workspace:*
         version: link:../../packages/event-state
@@ -333,7 +333,7 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
-  packages/drafts:
+  packages/workspaces:
     devDependencies:
       tsup:
         specifier: ^8.5.0

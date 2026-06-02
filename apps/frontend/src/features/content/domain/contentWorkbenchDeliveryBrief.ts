@@ -17,7 +17,7 @@ export interface ContentWorkbenchDeliveryBriefInput {
   generationContextReady: boolean
   generationContextLoading: boolean
   generationContextError: boolean
-  pendingReviewDraftCount: number
+  pendingReviewWorkspaceCount: number
   completedJobCount?: number
   previewItemCount?: number
   deliveryVersionCount?: number
@@ -54,7 +54,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   const assetSlotCount = positiveInteger(input.assetSlotCount)
   const keyframeCount = positiveInteger(input.keyframeCount)
   const requiresKeyframe = input.requiresKeyframe ?? true
-  const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
+  const pendingReviewWorkspaceCount = positiveInteger(input.pendingReviewWorkspaceCount)
   const completedJobCount = positiveInteger(input.completedJobCount)
   const previewItemCount = positiveInteger(input.previewItemCount)
   const deliveryVersionCount = positiveInteger(input.deliveryVersionCount)
@@ -64,7 +64,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
     missingSlotCount > 0 ? `补齐 ${missingSlotCount} 个素材需求` : '',
     requiresKeyframe && keyframeCount === 0 ? '添加至少一张画面锚点' : '',
     input.generationContextError ? '修复生成上下文检查失败' : input.generationContextLoading ? '等待生成上下文检查完成' : contextDone ? '' : '补齐生成上下文检查',
-    pendingReviewDraftCount > 0 ? `处理 ${pendingReviewDraftCount} 个 AI 草案` : '',
+    pendingReviewWorkspaceCount > 0 ? `处理 ${pendingReviewWorkspaceCount} 个 AI 草案` : '',
   ].filter(Boolean)
   const metrics: ContentWorkbenchDeliveryBriefMetric[] = [
     { label: '检查', value: preGenerationBlockers.length > 0 ? `${preGenerationBlockers.length} 待补齐` : '已通过', done: preGenerationBlockers.length === 0 },

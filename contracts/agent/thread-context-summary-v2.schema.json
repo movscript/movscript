@@ -91,7 +91,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["reference", "memory", "draft", "tool_result", "project", "production", "asset_slot", "generation_job", "taskGraph"]
+          "enum": ["reference", "memory", "workspace", "tool_result", "project", "production", "asset_slot", "generation_job", "taskGraph"]
         },
         "id": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
@@ -113,11 +113,11 @@
         "claim": { "type": "string", "minLength": 1 },
         "evidence": {
           "type": "string",
-          "enum": ["verified", "runtime_state", "user_claimed", "draft", "advisory", "summary", "unknown"]
+          "enum": ["verified", "runtime_state", "user_claimed", "workspace", "advisory", "summary", "unknown"]
         },
         "source": {
           "type": "string",
-          "enum": ["system", "catalog", "config_file", "skill", "tool_result", "mcp", "backend", "draft", "memory", "reference", "user_input", "assistant_history", "thread_summary"]
+          "enum": ["system", "catalog", "config_file", "skill", "tool_result", "mcp", "backend", "workspace", "memory", "reference", "user_input", "assistant_history", "thread_summary"]
         },
         "refs": {
           "type": "array",

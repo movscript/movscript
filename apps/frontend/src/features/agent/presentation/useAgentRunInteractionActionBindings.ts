@@ -5,74 +5,50 @@ import {
   rejectRunInteractionAction,
   type AgentRunInteractionActionDeps,
 } from '@/features/agent/application/agentRunInteractionActions'
-import { localAgentClient, type AgentRun, type AgentThread } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
-import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
-import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface UseAgentRunInteractionActionBindingsInput {
   conversationId: string
-  userId: string
   actionableRun: AgentRun | null
   interactionRuns?: AgentRun[]
   approving: boolean
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
   setConversationRuntime: (conversationId: string, patch: Parameters<AgentRunInteractionActionDeps['setConversationRuntime']>[0]) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentRunInteractionActionDeps['setConversationRun']>[1]) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage' | 'updateMessageMeta'>
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
-  appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
-  liveEvents: () => ChatRunActivityEvent[]
   runTouchesAgentCatalog: (run: AgentRun) => boolean
   refreshAgentCatalogContext: () => void
 }
 
 export function useAgentRunInteractionActionBindings({
   conversationId,
-  userId,
   actionableRun,
   interactionRuns,
   approving,
   setSubmittedInteractionRuns,
   setConversationRuntime,
   setConversationRun,
-  messageStore,
   streamFollowUpRun,
-  appendAssistantRunResult,
-  liveEvents,
   runTouchesAgentCatalog,
   refreshAgentCatalogContext,
 }: UseAgentRunInteractionActionBindingsInput) {
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
-    userId,
     conversationId,
     setSubmittedInteractionRuns,
     setConversationRuntime: (patch) => setConversationRuntime(conversationId, patch),
     setConversationRun: (run, patch) => setConversationRun(conversationId, run, patch),
-    messageStore,
-    addAssistantMessage: (content, meta) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
-      content,
-      ...(meta ? { meta } : {}),
-      deps: { userId, conversationId, messageStore },
-    }),
-    getThread: (threadId) => localAgentClient.getThread(threadId),
     streamFollowUpRun,
-    appendAssistantRunResult,
-    liveEvents,
     runTouchesAgentCatalog,
     refreshAgentCatalogContext,
   }), [
-    appendAssistantRunResult,
     conversationId,
-    liveEvents,
-    messageStore,
     refreshAgentCatalogContext,
     runTouchesAgentCatalog,
     setConversationRun,
     setConversationRuntime,
     setSubmittedInteractionRuns,
     streamFollowUpRun,
-    userId,
   ])
 
   const runById = useMemo(() => {

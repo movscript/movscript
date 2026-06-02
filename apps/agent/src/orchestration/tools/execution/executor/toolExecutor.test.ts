@@ -3,18 +3,18 @@ import test from 'node:test'
 
 import { MCPError } from '../../../../adapters/mcp/client/mcpClient.js'
 import type { AgentRun, JSONValue } from '../../../../state/shared/types.js'
-import { ReferenceManager, loadBuiltinReferenceStore } from '../../../../reference/index.js'
+import { InMemoryReferenceStore, ReferenceManager } from '../../../../reference/index.js'
 import { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
-import { InMemoryAgentDraftStore, validateDraft } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore, validateWorkspace } from '../../../../workspaces/store/workspaceStore.js'
 import { executeTool } from './toolExecutor.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
-import { draftContentFileRef } from '../../../../files/providers/draftFileProvider.js'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
+import { workspaceContentFileRef } from '../../../../files/providers/workspaceFileProvider.js'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
@@ -25,7 +25,46 @@ import { createRuntimeToolHandlerRegistry } from '../../../../ports/runtime/runt
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultDraftApplyBackend = {
+const storyboardRhythmContent = '分镜节奏基础正文。短剧内容单元需要明确节拍、转折和信息递进，避免每个镜头只重复同一个动作。'
+const storyboardHookContent = '短剧钩子正文。开场要用具体冲突、反常动作或强目标建立观看理由，并在二十字后仍有足够内容用于截断测试。'
+
+function createTestReferenceManager(): ReferenceManager {
+  return new ReferenceManager(new InMemoryReferenceStore({
+    referenceSets: [{
+      id: 'film.reference.storyboard',
+      version: '1.0.0',
+      domain: 'storyboard',
+      name: 'Storyboard Test Reference',
+      tags: ['test'],
+      chunkIds: ['storyboard.rhythm.basic', 'storyboard.hook.short_drama'],
+    }],
+    chunks: [{
+      id: 'storyboard.rhythm.basic',
+      localReferenceSetId: 'film.reference.storyboard',
+      domain: 'storyboard',
+      title: '分镜节奏基础',
+      tags: ['rhythm'],
+      summary: '用于测试分镜节奏参考搜索。',
+      content: storyboardRhythmContent,
+      sourcePath: '/test/reference/storyboard/rhythm.md',
+      contentHash: 'sha256:rhythm',
+      charCount: storyboardRhythmContent.length,
+    }, {
+      id: 'storyboard.hook.short_drama',
+      localReferenceSetId: 'film.reference.storyboard',
+      domain: 'storyboard',
+      title: '短剧钩子',
+      tags: ['hook'],
+      summary: '用于测试短剧钩子参考读取。',
+      content: storyboardHookContent,
+      sourcePath: '/test/reference/storyboard/hook.md',
+      contentHash: 'sha256:hook',
+      charCount: storyboardHookContent.length,
+    }],
+  }))
+}
+
+const defaultWorkspaceApplyBackend = {
   async applyReview(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
@@ -33,8 +72,8 @@ const defaultDraftApplyBackend = {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
 }
-const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
-const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
+const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 const defaultProjectStandardsBackend = {
   async getProject(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
@@ -63,10 +102,10 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
     run: testRun(),
     mcpClient,
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    draftStore: {} as never,
-    draftApplyPort: defaultDraftApplyPort,
-    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    workspaceStore: {} as never,
+    workspaceApplyPort: defaultWorkspaceApplyPort,
+    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
@@ -334,7 +373,7 @@ test('executeTool serves runtime reference search and bounded get', async () => 
         throw new Error('MCP should not be called for runtime reference tools')
       },
     }),
-    referenceManager: new ReferenceManager(loadBuiltinReferenceStore()),
+    referenceManager: createTestReferenceManager(),
   }
 
   const search = await executeTool({
@@ -487,18 +526,18 @@ test('executeTool extracts local video frames and returns image parts only throu
   assert.equal(supplemental?.content.filter((part: any) => part.type === 'image').length, 2)
 })
 
-test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool creates content unit workspace workspaces after media workspace deprecation', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'content_unit_proposal',
-      proposal: true,
+      kind: 'content_unit_workspace',
+      workspace: true,
       projectId: 1,
       content: JSON.stringify({
-        schema: 'movscript.content_unit_proposal.v1',
-        scope: 'content_unit_proposal',
-        proposal: {
+        schema: 'movscript.content_unit_workspace.v1',
+        scope: 'content_unit_workspace',
+        workspace: {
           units: [{
             title: 'Opening shot',
             kind: 'shot',
@@ -513,23 +552,23 @@ test('executeTool creates content unit proposal drafts after media proposal depr
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime draft creation')
+        throw new Error('MCP should not be called for runtime workspace creation')
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
+  assert.equal(workspaceStore.listWorkspaces()[0]?.kind, 'content_unit_workspace')
 })
 
-test('executeTool rejects proposal-kind draft creation without content instead of creating an empty draft', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool rejects workspace-kind workspace creation without content instead of creating an empty workspace', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   await assert.rejects(
     executeTool({
-      name: 'draft_create',
+      name: 'workspace_open',
       args: {
-        kind: 'asset_proposal',
+        kind: 'asset_workspace',
         projectId: 42,
         seedMode: 'editable_snapshot',
         hydrate: true,
@@ -540,31 +579,31 @@ test('executeTool rejects proposal-kind draft creation without content instead o
           return {}
         },
         async callTool(): Promise<JSONValue> {
-          throw new Error('MCP should not be called when proposal content is missing')
+          throw new Error('MCP should not be called when workspace content is missing')
         },
       }),
-      draftStore,
+      workspaceStore,
     }),
-    /create_proposal requires content/,
+    /create_workspace requires content/,
   )
 
-  assert.equal(draftStore.listDrafts().length, 0)
+  assert.equal(workspaceStore.listWorkspaces().length, 0)
 })
 
-test('executeTool hydrates missing asset proposal rows into proposal during draft creation', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool hydrates missing asset workspace rows into workspace during workspace creation', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
           asset_slots: [],
           candidate_plans: [],
@@ -594,40 +633,40 @@ test('executeTool hydrates missing asset proposal rows into proposal during draf
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  assert.equal(calls.some((call) => call.name === 'draft_model_get'), true)
-  const mcpCall = calls.find((call) => call.name === 'draft_model_get')
+  assert.equal(calls.some((call) => call.name === 'get_workspace_model'), true)
+  const mcpCall = calls.find((call) => call.name === 'get_workspace_model')
   assert.deepEqual(mcpCall?.args, {
-    kind: 'asset_proposal',
+    kind: 'asset_workspace',
     target: {
       projectId: 42,
     },
     seedMode: 'editable_snapshot',
     hydrate: true,
   })
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
-  assert.deepEqual((draft.metadata as any)?.seed.data.asset_slots.map((slot: any) => slot.id), [9])
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
+  assert.deepEqual((workspace.metadata as any)?.seed.data.asset_slots.map((slot: any) => slot.id), [9])
 })
 
-test('executeTool seeds omitted asset proposal snapshot from current project data', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool seeds omitted asset workspace snapshot from current project data', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
         slot: {
           ID: 9,
@@ -638,7 +677,7 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
           CreatedAt: '2026-05-21T00:00:00Z',
           UpdatedAt: '2026-05-21T00:00:00Z',
         },
-        proposal: {
+        workspace: {
           creative_references: [],
           candidate_plans: [],
         },
@@ -654,7 +693,7 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
           seed: {
             data: {
               asset_slots: [{
-                proposal_client_id: 'slot-existing-9',
+                workspace_client_id: 'slot-existing-9',
                 ID: 9,
                 project_id: 42,
                 owner_type: 'creative_reference',
@@ -675,15 +714,15 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
-  assert.deepEqual(content.proposal.asset_slots[0], {
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
+  assert.deepEqual(content.workspace.asset_slots[0], {
     client_id: 'slot-existing-9',
     id: 9,
     creative_reference_id: 7,
@@ -701,24 +740,24 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
     kind: 'image',
     name: 'Existing portrait',
   })
-  assert.equal(validateDraft(draft).ok, true)
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+  assert.equal(validateWorkspace(workspace).ok, true)
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
 })
 
-test('executeTool normalizes hydrated setting proposal rows during draft creation', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool normalizes hydrated setting workspace rows during workspace creation', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'setting_proposal',
-      proposal: true,
+      kind: 'setting_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
-        scope: 'setting_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
+        scope: 'setting_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
         },
       }),
@@ -735,7 +774,7 @@ test('executeTool normalizes hydrated setting proposal rows during draft creatio
               creative_references: [{
                 ID: 14,
                 project_id: 42,
-                proposal_client_id: 'cr_tongzilou_old_room',
+                workspace_client_id: 'cr_tongzilou_old_room',
                 kind: 'location',
                 name: '筒子楼老屋/旧屋',
                 description: '周建国一家1982年初居住的狭小旧屋。',
@@ -752,13 +791,13 @@ test('executeTool normalizes hydrated setting proposal rows during draft creatio
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
-  assert.deepEqual(content.proposal.creative_references, [{
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
+  assert.deepEqual(content.workspace.creative_references, [{
     client_id: 'cr_tongzilou_old_room',
     id: 14,
     kind: 'location',
@@ -770,24 +809,24 @@ test('executeTool normalizes hydrated setting proposal rows during draft creatio
     profile_json: '',
     tags_json: '',
   }])
-  assert.equal(validateDraft(draft).ok, true)
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+  assert.equal(validateWorkspace(workspace).ok, true)
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
 })
 
-test('executeTool merges new-only asset proposal snapshots onto hydrated project data', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool merges new-only asset workspace snapshots onto hydrated project data', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
           asset_slots: [{
             client_id: 'new-slot',
@@ -820,32 +859,32 @@ test('executeTool merges new-only asset proposal snapshots onto hydrated project
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Existing portrait', 'New cane detail'])
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal(validateDraft(draft).ok, true)
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Existing portrait', 'New cane detail'])
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal(validateWorkspace(workspace).ok, true)
 })
 
-test('executeTool falls back to asset slot query when draft model seed omits asset slots', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool falls back to asset slot query when workspace model seed omits asset slots', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const calls: string[] = []
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
           candidate_plans: [],
         },
@@ -858,7 +897,7 @@ test('executeTool falls back to asset slot query when draft model seed omits ass
       },
       async callTool(name: string): Promise<JSONValue> {
         calls.push(name)
-        if (name === 'draft_model_get') {
+        if (name === 'get_workspace_model') {
           return { seed: { data: {}, warnings: ['asset_slots: backend timeout'] } }
         }
         if (name === 'movscript_asset_slot_query') {
@@ -875,29 +914,29 @@ test('executeTool falls back to asset slot query when draft model seed omits ass
         throw new Error(`unexpected tool ${name}`)
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(calls, ['draft_model_get', 'movscript_asset_slot_query'])
-  const content = JSON.parse(draftStore.listDrafts()[0]!.content)
+  assert.deepEqual(calls, ['get_workspace_model', 'movscript_asset_slot_query'])
+  const content = JSON.parse(workspaceStore.listWorkspaces()[0]!.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
 })
 
-test('executeTool unwraps MCP tool data while hydrating asset proposal snapshots', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool unwraps MCP tool data while hydrating asset workspace snapshots', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
           candidate_plans: [],
         },
@@ -926,28 +965,28 @@ test('executeTool unwraps MCP tool data while hydrating asset proposal snapshots
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const content = JSON.parse(draftStore.listDrafts()[0]!.content)
+  const content = JSON.parse(workspaceStore.listWorkspaces()[0]!.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Wrapped portrait'])
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Wrapped portrait'])
 })
 
-test('executeTool hydrates missing setting proposal rows into proposal during draft creation', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool hydrates missing setting workspace rows into workspace during workspace creation', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'setting_proposal',
-      proposal: true,
+      kind: 'setting_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
-        scope: 'setting_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
+        scope: 'setting_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
         },
       }),
@@ -958,7 +997,7 @@ test('executeTool hydrates missing setting proposal rows into proposal during dr
         return {}
       },
       async callTool(name: string): Promise<JSONValue> {
-        assert.equal(name, 'draft_model_get')
+        assert.equal(name, 'get_workspace_model')
         return {
           seed: {
             data: {
@@ -973,31 +1012,31 @@ test('executeTool hydrates missing setting proposal rows into proposal during dr
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.creative_references.map((reference: any) => reference.id), [7])
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+  assert.deepEqual(content.workspace.creative_references.map((reference: any) => reference.id), [7])
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
 })
 
-test('executeTool seeds omitted setting proposal snapshot from current project data', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool seeds omitted setting workspace snapshot from current project data', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'setting_proposal',
-      proposal: true,
+      kind: 'setting_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
-        scope: 'setting_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
+        scope: 'setting_workspace',
         mode: 'snapshot',
-        proposal: {},
+        workspace: {},
       }),
     },
   }, {
@@ -1006,7 +1045,7 @@ test('executeTool seeds omitted setting proposal snapshot from current project d
         return {}
       },
       async callTool(name: string): Promise<JSONValue> {
-        assert.equal(name, 'draft_model_get')
+        assert.equal(name, 'get_workspace_model')
         return {
           seed: {
             data: {
@@ -1021,31 +1060,31 @@ test('executeTool seeds omitted setting proposal snapshot from current project d
         }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.proposal.creative_references.map((reference: any) => reference.id), [7])
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
-  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+  assert.deepEqual(content.workspace.creative_references.map((reference: any) => reference.id), [7])
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
 })
 
-test('executeTool does not duplicate proposal rows that already have backend ids', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool does not duplicate workspace rows that already have backend ids', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'asset_proposal',
-      proposal: true,
+      kind: 'asset_workspace',
+      workspace: true,
       projectId: 42,
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-        scope: 'asset_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+        scope: 'asset_workspace',
         mode: 'snapshot',
-        proposal: {
+        workspace: {
           creative_references: [],
           asset_slots: [{
             id: 9,
@@ -1065,29 +1104,29 @@ test('executeTool does not duplicate proposal rows that already have backend ids
         return { seed: { data: { asset_slots: [{ id: 9, name: 'Existing portrait', kind: 'image' }] } } }
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  const draft = draftStore.listDrafts()[0]!
-  const content = JSON.parse(draft.content)
+  const workspace = workspaceStore.listWorkspaces()[0]!
+  const content = JSON.parse(workspace.content)
   assert.equal(content.snapshot_base, undefined)
-  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
 })
 
 test('executeTool reports automatic snapshot base hydration failures clearly', async () => {
   await assert.rejects(
     () => executeTool({
-      name: 'draft_create',
+      name: 'workspace_open',
       args: {
-        kind: 'asset_proposal',
-        proposal: true,
+        kind: 'asset_workspace',
+        workspace: true,
         projectId: 42,
         content: JSON.stringify({
-          schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-          scope: 'asset_proposal',
+          schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+          scope: 'asset_workspace',
           mode: 'snapshot',
-          proposal: {
+          workspace: {
             creative_references: [],
             asset_slots: [],
             candidate_plans: [],
@@ -1103,23 +1142,23 @@ test('executeTool reports automatic snapshot base hydration failures clearly', a
           return { seed: { data: {} } }
         },
       }),
-      draftStore: new InMemoryAgentDraftStore(),
+      workspaceStore: new InMemoryAgentWorkspaceStore(),
     }),
-    /could not hydrate proposal\.asset_slots automatically: hydrated seed did not include asset_slots/,
+    /could not hydrate workspace\.asset_slots automatically: hydrated seed did not include asset_slots/,
   )
 })
 
-test('executeTool edits draft files with explicit file revision preconditions', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
-  const draft = draftStore.createDraft({
+test('executeTool edits workspace files with explicit file revision preconditions', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
+  const workspace = workspaceStore.createWorkspace({
     projectId: 42,
-    kind: 'asset_proposal',
+    kind: 'asset_workspace',
     title: 'Asset requirements',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-      scope: 'asset_proposal',
+      schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+      scope: 'asset_workspace',
       mode: 'snapshot',
-      proposal: {
+      workspace: {
         creative_references: [],
         asset_slots: [{
           id: 9,
@@ -1138,17 +1177,17 @@ test('executeTool edits draft files with explicit file revision preconditions', 
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime draft file tools')
+        throw new Error('MCP should not be called for runtime workspace file tools')
       },
     }),
-    draftStore,
+    workspaceStore,
   }
 
   await assert.rejects(
     () => executeTool({
       name: 'core_file_edit',
       args: {
-        ref: draftContentFileRef(draft.id),
+        ref: workspaceContentFileRef(workspace.id),
         baseRevision: 'sha256:stale',
         edits: [{
           type: 'replace_text',
@@ -1162,18 +1201,18 @@ test('executeTool edits draft files with explicit file revision preconditions', 
 
   const read = await executeTool({
     name: 'core_file_read',
-    args: { ref: draftContentFileRef(draft.id), jsonPointer: '/proposal/asset_slots' },
+    args: { ref: workspaceContentFileRef(workspace.id), jsonPointer: '/workspace/asset_slots' },
   }, options)
 
   assert.equal((read.result as any)?.status, 'read')
   assert.equal((read.result as any)?.value.length, 1)
 
-  const original = draftStore.getDraft(draft.id)?.content ?? ''
+  const original = workspaceStore.getWorkspace(workspace.id)?.content ?? ''
   const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"TaskGraph A"}]')
   const edited = await executeTool({
     name: 'core_file_edit',
     args: {
-      ref: draftContentFileRef(draft.id),
+      ref: workspaceContentFileRef(workspace.id),
       baseRevision: (read.result as any).revision,
       edits: [{
         type: 'replace_text',
@@ -1184,12 +1223,12 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   }, options)
 
   assert.equal((edited.result as any)?.status, 'edited')
-  const content = JSON.parse(draftStore.getDraft(draft.id)?.content ?? '{}')
-  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Existing portrait'])
-  assert.deepEqual(content.proposal.candidate_plans.map((taskGraph: any) => taskGraph.name), ['TaskGraph A'])
+  const content = JSON.parse(workspaceStore.getWorkspace(workspace.id)?.content ?? '{}')
+  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Existing portrait'])
+  assert.deepEqual(content.workspace.candidate_plans.map((taskGraph: any) => taskGraph.name), ['TaskGraph A'])
 })
 
-test('executeTool delegates agent file tools to the injected file system without requiring a draft', async () => {
+test('executeTool delegates agent file tools to the injected file system without requiring a workspace', async () => {
   const files = new Map([['/workspace/notes.md', 'alpha\nbeta\ngamma']])
   const fileSystem = {
     read(input: { ref: string }) {
@@ -1245,7 +1284,7 @@ test('executeTool delegates agent file tools to the injected file system without
     name: 'core_file_read',
     args: { ref: '/workspace/notes.md' },
   }, options)
-  assert.equal((read.result as any)?.draft, undefined)
+  assert.equal((read.result as any)?.workspace, undefined)
   assert.equal((read.result as any)?.file.provider, 'workspace')
   assert.equal((read.result as any)?.content, 'alpha\nbeta\ngamma')
 
@@ -1269,7 +1308,7 @@ test('executeTool delegates agent file tools to the injected file system without
       }],
     },
   }, options)
-  assert.equal((edited.result as any)?.draft, undefined)
+  assert.equal((edited.result as any)?.workspace, undefined)
   assert.equal((edited.result as any)?.replacementCount, 1)
   assert.equal(files.get('/workspace/notes.md'), 'alpha\ndelta\ngamma')
 })
@@ -1329,18 +1368,18 @@ test('executeTool reads and searches readonly movscript resources through core f
   )
 })
 
-test('executeTool applies valid proposal drafts through runtime apply tool', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
-  const draft = draftStore.createDraft({
+test('executeTool applies valid workspace workspaces through runtime apply tool', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
+  const workspace = workspaceStore.createWorkspace({
     projectId: 42,
-    kind: 'asset_proposal',
+    kind: 'asset_workspace',
     title: 'Asset candidates',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-      scope: 'asset_proposal',
+      schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+      scope: 'asset_workspace',
       assetSlotId: 9,
       slot: { id: 9, name: 'Hero portrait', kind: 'image' },
-      proposal: {
+      workspace: {
         creative_references: [],
         asset_slots: [],
         candidate_plans: [{
@@ -1355,49 +1394,49 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
       projectId: 42,
       entityType: 'project',
       entityId: 42,
-      field: 'proposal',
+      field: 'workspace',
     },
   })
 
   const result = await executeTool({
-    name: 'draft_apply',
-    args: { draftId: draft.id },
+    name: 'workspace_apply',
+    args: { workspaceId: workspace.id },
   }, {
     ...testOptions({
       async initialize(): Promise<JSONValue> {
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime draft apply')
+        throw new Error('MCP should not be called for runtime workspace apply')
       },
     }),
-    draftStore,
-    draftApplyPort: createDefaultDraftApplyPort({
+    workspaceStore,
+    workspaceApplyPort: createDefaultWorkspaceApplyPort({
       async applyReview(): Promise<any> {
-        throw new Error('backend apply should be skipped for asset planning drafts without asset slots')
+        throw new Error('backend apply should be skipped for asset planning workspaces without asset slots')
       },
     }),
   })
 
   assert.equal((result.result as any)?.status, 'applied')
-  const applied = draftStore.getDraft(draft.id)
-  assert.equal(applied?.status, 'draft')
+  const applied = workspaceStore.getWorkspace(workspace.id)
+  assert.equal(applied?.status, 'workspace')
   assert.equal((applied?.metadata as any)?.lastApplyStatus, 'applied')
   assert.equal((applied?.metadata as any)?.appliedBy, 'movscript-agent')
 })
 
-test('executeTool ignores non-plain runtime draft source and metadata records', async () => {
+test('executeTool ignores non-plain runtime workspace source and metadata records', async () => {
   class RuntimeRecord {
     injected = 'runtime'
   }
 
-  const draftStore = new InMemoryAgentDraftStore()
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
       kind: 'runtime_note',
-      title: 'Runtime draft',
-      content: 'Draft content',
+      title: 'Runtime workspace',
+      content: 'Workspace content',
       source: new RuntimeRecord() as unknown as JSONValue,
       metadata: new RuntimeRecord() as unknown as JSONValue,
     },
@@ -1407,23 +1446,23 @@ test('executeTool ignores non-plain runtime draft source and metadata records', 
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime draft creation')
+        throw new Error('MCP should not be called for runtime workspace creation')
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
-  const draft = draftStore.listDrafts()[0]
-  assert.equal((result.result as any)?.id, draft?.id)
-  assert.deepEqual(draft?.source, {
+  const workspace = workspaceStore.listWorkspaces()[0]
+  assert.equal((result.result as any)?.id, workspace?.id)
+  assert.deepEqual(workspace?.source, {
     runId: 'run-1',
     threadId: 'thread-1',
   })
-  assert.equal(draft?.metadata, undefined)
+  assert.equal(workspace?.metadata, undefined)
 })
 
-test('executeTool drops invalid numeric page entity ids from runtime draft source', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool drops invalid numeric page entity ids from runtime workspace source', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const run = testRun()
   run.metadata = {
     clientInput: {
@@ -1442,11 +1481,11 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
   }
 
   await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
       kind: 'runtime_note',
-      title: 'Runtime draft',
-      content: 'Draft content',
+      title: 'Runtime workspace',
+      content: 'Workspace content',
     },
   }, {
     ...testOptions({
@@ -1454,32 +1493,32 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime draft creation')
+        throw new Error('MCP should not be called for runtime workspace creation')
       },
     }),
     run,
-    draftStore,
+    workspaceStore,
   })
 
-  assert.deepEqual(draftStore.listDrafts()[0]?.source, {
+  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.source, {
     runId: 'run-1',
     threadId: 'thread-1',
   })
 })
 
-test('executeTool rejects invalid project ids for project standards proposals', async () => {
+test('executeTool rejects invalid project ids for project standards workspaces', async () => {
   for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
     await assert.rejects(
       () => executeTool({
-        name: 'draft_create',
+        name: 'workspace_open',
         args: {
-          kind: 'project_standards_proposal',
-          proposal: true,
+          kind: 'project_standards_workspace',
+          workspace: true,
           projectId,
           content: JSON.stringify({
-            schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
-            scope: 'project_standards_proposal',
-            proposal: {},
+            schema: WORKSPACE_CONTENT_SCHEMA_IDS.projectStandardsWorkspace,
+            scope: 'project_standards_workspace',
+            workspace: {},
           }),
         },
       }, {
@@ -1488,32 +1527,32 @@ test('executeTool rejects invalid project ids for project standards proposals', 
             return {}
           },
           async callTool(): Promise<JSONValue> {
-            throw new Error('MCP should not be called for runtime proposal creation')
+            throw new Error('MCP should not be called for runtime workspace creation')
           },
         }),
-        draftStore: new InMemoryAgentDraftStore(),
+        workspaceStore: new InMemoryAgentWorkspaceStore(),
       }),
-      /create_proposal requires projectId for project_standards_proposal/,
+      /create_workspace requires projectId for project_standards_workspace/,
     )
   }
 })
 
-test('executeTool ignores invalid production ids for inferred proposal targets', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool ignores invalid production ids for inferred workspace targets', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'production_proposal',
-      proposal: true,
+      kind: 'production_workspace',
+      workspace: true,
       projectId: 42,
       productionId: '7',
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-        scope: 'production_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
+        scope: 'production_workspace',
         mode: 'snapshot',
         productionId: 7,
-        proposalScope: 'production',
-        proposal: {
+        workspaceScope: 'production',
+        workspace: {
           segments: [],
         },
         impact_notes: [],
@@ -1525,40 +1564,40 @@ test('executeTool ignores invalid production ids for inferred proposal targets',
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime proposal creation')
+        throw new Error('MCP should not be called for runtime workspace creation')
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(draftStore.listDrafts()[0]?.target, {
+  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
     projectId: 42,
     entityType: 'production',
-    field: 'proposal',
+    field: 'workspace',
   })
 })
 
-test('executeTool drops invalid numeric entity ids from explicit proposal targets', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('executeTool drops invalid numeric entity ids from explicit workspace targets', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
-      kind: 'production_proposal',
-      proposal: true,
+      kind: 'production_workspace',
+      workspace: true,
       projectId: 42,
       target: {
         entityType: 'production',
         entityId: 7.5,
-        field: 'proposal',
+        field: 'workspace',
       },
       content: JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-        scope: 'production_proposal',
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
+        scope: 'production_workspace',
         mode: 'snapshot',
         productionId: 7,
-        proposalScope: 'production',
-        proposal: {
+        workspaceScope: 'production',
+        workspace: {
           segments: [],
         },
         impact_notes: [],
@@ -1570,16 +1609,16 @@ test('executeTool drops invalid numeric entity ids from explicit proposal target
         return {}
       },
       async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime proposal creation')
+        throw new Error('MCP should not be called for runtime workspace creation')
       },
     }),
-    draftStore,
+    workspaceStore,
   })
 
   assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(draftStore.listDrafts()[0]?.target, {
+  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
     entityType: 'production',
-    field: 'proposal',
+    field: 'workspace',
   })
 })
 
@@ -1659,7 +1698,7 @@ test('executeTool enforces per-run reference character budget', async () => {
         },
       },
     },
-    referenceManager: new ReferenceManager(loadBuiltinReferenceStore()),
+    referenceManager: createTestReferenceManager(),
   }
 
   const body = await executeTool({
@@ -1700,7 +1739,7 @@ test('executeTool enforces per-run reference chunk budget', async () => {
         },
       },
     },
-    referenceManager: new ReferenceManager(loadBuiltinReferenceStore()),
+    referenceManager: createTestReferenceManager(),
   }
 
   await assert.rejects(

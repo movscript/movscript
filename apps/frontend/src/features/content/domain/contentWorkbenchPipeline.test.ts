@@ -8,7 +8,7 @@ test('content workbench pipeline identifies the first production action', () => 
     keyframeCount: 0,
     missingSlotCount: 0,
     generationContextReady: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     runningJobCount: 0,
     completedJobCount: 0,
   })
@@ -20,7 +20,7 @@ test('content workbench pipeline identifies the first production action', () => 
   assert.equal(summary.blockedCount, 6)
 })
 
-test('content workbench pipeline moves the current blocker to AI review drafts', () => {
+test('content workbench pipeline moves the current blocker to AI review workspaces', () => {
   const summary = buildContentWorkbenchPipeline({
     productionTitle: '雨夜重逢制作',
     segmentTitle: '重逢前奏',
@@ -30,7 +30,7 @@ test('content workbench pipeline moves the current blocker to AI review drafts',
     keyframeCount: 4,
     missingSlotCount: 0,
     generationContextReady: true,
-    pendingReviewDraftCount: 2,
+    pendingReviewWorkspaceCount: 2,
     runningJobCount: 0,
     completedJobCount: 1,
   })
@@ -51,7 +51,7 @@ test('content workbench pipeline reports generation readiness when all gates are
     keyframeCount: 4,
     missingSlotCount: 0,
     generationContextReady: true,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     runningJobCount: 0,
     completedJobCount: 0,
   })
@@ -72,7 +72,7 @@ test('content workbench pipeline continues from generation into preview delivery
     keyframeCount: 4,
     missingSlotCount: 0,
     generationContextReady: true,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 0,
@@ -95,7 +95,7 @@ test('content workbench pipeline marks delivery records as complete', () => {
     keyframeCount: 4,
     missingSlotCount: 0,
     generationContextReady: true,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     runningJobCount: 0,
     completedJobCount: 1,
     previewItemCount: 3,

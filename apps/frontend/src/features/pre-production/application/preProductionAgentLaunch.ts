@@ -1,24 +1,24 @@
 import { buildCommandFirstClientInput } from '@/features/agent/domain/agentCommandInput'
 import {
-  openAgentPanelDraft,
+  openAgentPanelWorkspace,
   registerAgentPanelPageTool,
-  type AgentPanelDraftPayload,
+  type AgentPanelWorkspacePayload,
   type AgentPanelPageTool,
   type AgentPanelRunSettledPayload,
 } from '@/features/agent/application/agentPanelBridge'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { selectLatestGeneratedResource, type AgentGeneratedResourceRef } from '@/features/agent/domain/agentGenerationArtifacts'
-import { buildEmptyAssetProposalDraftContent } from '@/features/pre-production/domain/assetProposalDraft'
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import { buildEmptyAssetWorkspaceWorkspaceContent } from '@/features/pre-production/domain/assetWorkspaceWorkspace'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 import {
   mergeProjectWorkbenchArtifactReviewSearchParams,
   type ProjectWorkbenchArtifactReviewSearchInput,
-} from '@/features/project-workbenches/application/projectWorkbenchDraftReview'
+} from '@/features/project-workbenches/application/projectWorkbenchWorkspaceReview'
 import { ROUTES } from '@/routes/projectRoutes'
 
 export type PreProductionCandidateGenerationKind = 'image' | 'video'
 
-export interface CreateAssetCandidateProposalDraftInput {
+export interface CreateAssetCandidateWorkspaceWorkspaceInput {
   projectId: number
   assetSlotId: number
   slotName: string
@@ -30,12 +30,12 @@ export interface CreateAssetCandidateProposalDraftInput {
   requestedOutputKind: PreProductionCandidateGenerationKind
 }
 
-export interface AssetCandidateProposalAgentPayloadInput {
+export interface AssetCandidateWorkspaceAgentPayloadInput {
   requestId: string
   projectId: number
   assetSlotId: number
   slotName: string
-  draftId: string
+  workspaceId: string
 }
 
 export interface PreProductionAuditAgentPayloadInput {
@@ -55,9 +55,9 @@ export interface MediaCandidateGenerationAgentPayloadInput {
   promptHint?: string
 }
 
-export interface AssetCandidateProposalReviewSearchInput {
+export interface AssetCandidateWorkspaceReviewSearchInput {
   assetSlotId: number
-  fallbackDraftId: string
+  fallbackWorkspaceId: string
   artifacts?: AgentTaskArtifactRef[]
 }
 
@@ -65,12 +65,12 @@ export interface PreProductionAuditReviewSearchInput {
   artifacts?: AgentTaskArtifactRef[]
 }
 
-export async function createAssetCandidateProposalDraft(input: CreateAssetCandidateProposalDraftInput): Promise<AgentDraft> {
-  return localAgentClient.createDraft({
+export async function createAssetCandidateWorkspaceWorkspace(input: CreateAssetCandidateWorkspaceWorkspaceInput): Promise<AgentWorkspace> {
+  return localAgentClient.createWorkspace({
     projectId: input.projectId,
-    kind: 'asset_proposal',
-    title: `素材候选提案 - ${input.slotName}`,
-    content: JSON.stringify(buildEmptyAssetProposalDraftContent({
+    kind: 'asset_workspace',
+    title: `素材候选 workspace - ${input.slotName}`,
+    content: JSON.stringify(buildEmptyAssetWorkspaceWorkspaceContent({
       projectId: input.projectId,
       assetSlotId: input.assetSlotId,
       slotName: input.slotName,
@@ -84,7 +84,7 @@ export async function createAssetCandidateProposalDraft(input: CreateAssetCandid
     source: {
       entityType: 'asset_slot',
       entityId: input.assetSlotId,
-      pageType: 'asset_proposal',
+      pageType: 'asset_workspace',
       pageRoute: ROUTES.project.preProduction,
     },
     target: {
@@ -102,37 +102,37 @@ export async function createAssetCandidateProposalDraft(input: CreateAssetCandid
   })
 }
 
-export function buildAssetCandidateProposalReviewSearchParams(current: URLSearchParams, input: AssetCandidateProposalReviewSearchInput): URLSearchParams {
-  return mergeProjectWorkbenchArtifactReviewSearchParams(current, buildAssetCandidateProposalReviewSearchInput(input))
+export function buildAssetCandidateWorkspaceReviewSearchParams(current: URLSearchParams, input: AssetCandidateWorkspaceReviewSearchInput): URLSearchParams {
+  return mergeProjectWorkbenchArtifactReviewSearchParams(current, buildAssetCandidateWorkspaceReviewSearchInput(input))
 }
 
 export function buildPreProductionAuditReviewSearchParams(current: URLSearchParams, input: PreProductionAuditReviewSearchInput): URLSearchParams {
   return mergeProjectWorkbenchArtifactReviewSearchParams(current, {
     workbenchId: 'pre_production',
     artifacts: input.artifacts,
-    primary: { proposalKind: 'setting_proposal' },
-    relatedDraftParams: [
-      { proposalKind: 'setting_proposal', queryParam: 'settingDraftId' },
-      { proposalKind: 'asset_proposal', queryParam: 'assetProposalDraftId' },
+    primary: { workspaceKind: 'setting_workspace' },
+    relatedWorkspaceParams: [
+      { workspaceKind: 'setting_workspace', queryParam: 'settingWorkspaceId' },
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId' },
     ],
   })
 }
 
-export function buildAssetCandidateProposalAgentPanelDraftPayload(input: AssetCandidateProposalAgentPayloadInput): AgentPanelDraftPayload {
+export function buildAssetCandidateWorkspaceAgentPanelWorkspacePayload(input: AssetCandidateWorkspaceAgentPayloadInput): AgentPanelWorkspacePayload {
   return {
     requestId: input.requestId,
-    taskType: 'asset_candidate_proposal',
-    message: `请准备素材候选提案：${input.slotName}`,
-    title: `素材提案: ${input.slotName}`,
+    taskType: 'asset_candidate_workspace',
+    message: `请准备素材候选 workspace：${input.slotName}`,
+    title: `素材 workspace: ${input.slotName}`,
     newConversation: true,
     autoSend: true,
     projectId: input.projectId,
     clientInput: buildCommandFirstClientInput({
-      message: `请为当前素材需求编写一份可审阅的素材候选生成提案：${input.slotName}`,
-      labels: ['asset-slots', 'asset-proposal', 'draft-application'],
+      message: `请为当前素材需求编写一份可审阅的素材候选 workspace：${input.slotName}`,
+      labels: ['asset-slots', 'asset-workspace', 'workspace-save'],
       hints: {
         projectId: input.projectId,
-        draftId: input.draftId,
+        workspaceId: input.workspaceId,
         route: { pathname: ROUTES.project.preProduction },
         selection: {
           entityType: 'asset_slot',
@@ -146,7 +146,7 @@ export function buildAssetCandidateProposalAgentPanelDraftPayload(input: AssetCa
   }
 }
 
-export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProductionAuditAgentPayloadInput): AgentPanelDraftPayload {
+export function buildPreProductionAuditAgentPanelWorkspacePayload(input: PreProductionAuditAgentPayloadInput): AgentPanelWorkspacePayload {
   return {
     requestId: input.requestId,
     taskType: 'pre_production_audit',
@@ -158,15 +158,15 @@ export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProducti
     clientInput: buildCommandFirstClientInput({
       message: [
         `请梳理当前项目「${input.projectLabel}」的前期准备。`,
-        '读取当前 draft model / 已有 proposal draft 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅草稿：',
-        '1. 如果设定资料缺漏、重复、下一步不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，不写 asset_slots。',
-        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
-        '3. 本轮只做设定与素材需求提案；不处理图片/视频输出、媒体任务或候选 prompt。',
-        '4. 已有 setting_proposal draft 时，直接读取并局部编辑 draft 的 proposal.creative_references；不要用 live creative reference 查询重写整份快照。',
-        '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
+        '读取当前 workspace model / 已有 workspace 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅工作区变更：',
+        '1. 如果设定资料缺漏、重复、下一步不清晰，打开或更新 setting_edit workspace；只修改 workspace.creative_references，不写 asset_slots。',
+        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，打开或更新 asset_edit workspace；只修改 workspace.asset_slots，workspace.creative_references 必须为空。',
+        '3. 本轮只做设定与素材需求 workspace；不处理图片/视频输出、媒体任务或候选 prompt。',
+        '4. 已有 setting_edit workspace 时，直接读取并局部编辑 workspace 的 workspace.creative_references；不要用 live creative reference 查询重写整份快照。',
+        '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 workspace seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
         '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
       ].join('\n'),
-      labels: ['pre-production', 'setting_proposal', 'asset_proposal', 'draft-review'],
+      labels: ['pre-production', 'setting_edit', 'asset_edit', 'workspace-review'],
       hints: {
         projectId: input.projectId,
         route: { pathname: ROUTES.project.preProduction },
@@ -182,7 +182,7 @@ export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProducti
   }
 }
 
-export function buildMediaCandidateGenerationAgentPanelDraftPayload(input: MediaCandidateGenerationAgentPayloadInput): AgentPanelDraftPayload {
+export function buildMediaCandidateGenerationAgentPanelWorkspacePayload(input: MediaCandidateGenerationAgentPayloadInput): AgentPanelWorkspacePayload {
   return {
     requestId: input.requestId,
     taskType: 'asset_candidate_generation',
@@ -197,7 +197,7 @@ export function buildMediaCandidateGenerationAgentPanelDraftPayload(input: Media
         `目标 assetSlotId=${input.assetSlotId}，类型=${input.slotKind}。`,
         input.description ? `素材说明：${input.description}` : '',
         input.promptHint ? `提示词线索：${input.promptHint}` : '',
-        '这不是素材方案草稿，请走 asset_candidate_generation / visual_generation，创建生成任务并监控结果；如果得到一个或多个 output_resource_id，请逐个加入候选集并逐项报告写入结果。',
+        '这不是素材方案 workspace，请走 asset_candidate_generation / visual_generation，创建生成任务并监控结果；如果得到一个或多个 output_resource_id，请逐个加入候选集并逐项报告写入结果。',
       ].filter(Boolean).join('\n'),
       labels: ['pre-production', 'asset-candidate-generation', input.outputKind === 'video' ? 'video-generation' : 'image-generation'],
       hints: {
@@ -215,21 +215,21 @@ export function buildMediaCandidateGenerationAgentPanelDraftPayload(input: Media
   }
 }
 
-export function launchAssetCandidateProposalAgent(input: AssetCandidateProposalAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
+export function launchAssetCandidateWorkspaceAgent(input: AssetCandidateWorkspaceAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
   const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
-  openAgentPanelDraft(buildAssetCandidateProposalAgentPanelDraftPayload(input))
+  openAgentPanelWorkspace(buildAssetCandidateWorkspaceAgentPanelWorkspacePayload(input))
   return cleanup
 }
 
 export function launchPreProductionAuditAgent(input: PreProductionAuditAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
   const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
-  openAgentPanelDraft(buildPreProductionAuditAgentPanelDraftPayload(input))
+  openAgentPanelWorkspace(buildPreProductionAuditAgentPanelWorkspacePayload(input))
   return cleanup
 }
 
 export function launchMediaCandidateGenerationAgent(input: MediaCandidateGenerationAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
   const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
-  openAgentPanelDraft(buildMediaCandidateGenerationAgentPanelDraftPayload(input))
+  openAgentPanelWorkspace(buildMediaCandidateGenerationAgentPanelWorkspacePayload(input))
   return cleanup
 }
 
@@ -245,20 +245,20 @@ export function mediaCandidateOutputResourceIds(generated?: AgentGeneratedResour
       : []
 }
 
-export function buildAssetCandidateProposalReviewSearchInput(input: AssetCandidateProposalReviewSearchInput): ProjectWorkbenchArtifactReviewSearchInput {
+export function buildAssetCandidateWorkspaceReviewSearchInput(input: AssetCandidateWorkspaceReviewSearchInput): ProjectWorkbenchArtifactReviewSearchInput {
   return {
     workbenchId: 'pre_production',
     artifacts: input.artifacts,
     primary: {
-      proposalKind: 'asset_proposal',
-      fallbackDraftId: input.fallbackDraftId,
+      workspaceKind: 'asset_workspace',
+      fallbackWorkspaceId: input.fallbackWorkspaceId,
       entityType: 'asset_slot',
       entityId: input.assetSlotId,
     },
     entityType: 'asset_slot',
     entityId: input.assetSlotId,
-    relatedDraftParams: [
-      { proposalKind: 'asset_proposal', queryParam: 'assetProposalDraftId', fallbackDraftId: input.fallbackDraftId },
+    relatedWorkspaceParams: [
+      { workspaceKind: 'asset_workspace', queryParam: 'assetWorkspaceWorkspaceId', fallbackWorkspaceId: input.fallbackWorkspaceId },
     ],
   }
 }

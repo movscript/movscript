@@ -726,7 +726,7 @@
 .agent-settings-skill-card__id,
 .agent-settings-skill-card__priority,
 .agent-settings-skill-card__meta,
-.agent-settings-skill-card__draft-help {
+.agent-settings-skill-card__workspace-help {
   color: var(--ms-color-muted-foreground);
 }
 
@@ -755,7 +755,7 @@
   -webkit-line-clamp: 2;
 }
 
-.agent-settings-skill-card__draft {
+.agent-settings-skill-card__workspace {
   margin-top: var(--ms-space-2);
   padding: 6px var(--ms-space-2);
 }
@@ -772,7 +772,7 @@
   opacity: 0.7;
 }
 
-.agent-settings-skill-card__draft-copy {
+.agent-settings-skill-card__workspace-copy {
   display: inline-flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -780,7 +780,7 @@
   gap: 6px;
 }
 
-.agent-settings-skill-card__draft-title {
+.agent-settings-skill-card__workspace-title {
   display: inline;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-label);
@@ -788,7 +788,7 @@
   line-height: var(--ms-leading-label);
 }
 
-.agent-settings-skill-card__draft-help {
+.agent-settings-skill-card__workspace-help {
   display: inline;
   min-width: 0;
   font-size: var(--ms-text-tiny);

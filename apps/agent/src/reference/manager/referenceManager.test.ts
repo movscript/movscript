@@ -3,29 +3,36 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AGENT_REFERENCE_DIR_ENV, ReferenceManager, loadAgentReferenceStore, loadBuiltinReferenceStore, loadReferenceStore } from '../index.js'
+import { AGENT_REFERENCE_DIR_ENV, EMPTY_REFERENCE_STORE, ReferenceManager, loadAgentReferenceStore, loadReferenceStore } from '../index.js'
 
 test('reference manager searches summaries and reads bounded text reference bodies', async () => {
-  const manager = new ReferenceManager(loadBuiltinReferenceStore())
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-reference-'))
 
-  const search = await manager.search({ query: '分镜 钩子 节奏', kind: 'text', domain: 'storyboard', limit: 3 })
-  assert.ok(search.results.length > 0)
-  assert.ok(search.results.some((result) => result.id === 'local_reference:storyboard.rhythm.basic' || result.id === 'local_reference:storyboard.hook.short_drama'))
-  assert.equal(search.results.some((result) => 'content' in result), false)
-  assert.equal(typeof search.results[0]!.title, 'string')
-  assert.equal(search.results[0]!.kind, 'text')
-  assert.equal(search.results[0]!.source, 'local_reference')
-  assert.match(String(search.results[0]!.metadata?.contentHash), /^sha256:/)
-  assert.equal(typeof search.results[0]!.metadata?.sourcePath, 'string')
+  try {
+    writeExternalReference(dir)
+    const manager = new ReferenceManager(loadReferenceStore(dir))
 
-  const body = manager.get({ id: search.results[0]!.id, maxChars: 40 }) as any
-  assert.equal(`local_reference:${body.id}`, search.results[0]!.id)
-  assert.equal(typeof body.title, 'string')
-  assert.equal(body.domain, 'storyboard')
-  assert.equal(typeof body.contentHash, 'string')
-  assert.equal(typeof body.sourcePath, 'string')
-  assert.equal(body.content.length <= 40, true)
-  assert.equal(body.truncated, true)
+    const search = await manager.search({ query: '测试 外部 参考', kind: 'text', domain: 'storyboard', limit: 3 })
+    assert.ok(search.results.length > 0)
+    assert.ok(search.results.some((result) => result.id === 'local_reference:studio.test.chunk'))
+    assert.equal(search.results.some((result) => 'content' in result), false)
+    assert.equal(typeof search.results[0]!.title, 'string')
+    assert.equal(search.results[0]!.kind, 'text')
+    assert.equal(search.results[0]!.source, 'local_reference')
+    assert.match(String(search.results[0]!.metadata?.contentHash), /^sha256:/)
+    assert.equal(typeof search.results[0]!.metadata?.sourcePath, 'string')
+
+    const body = manager.get({ id: search.results[0]!.id, maxChars: 10 }) as any
+    assert.equal(`local_reference:${body.id}`, search.results[0]!.id)
+    assert.equal(typeof body.title, 'string')
+    assert.equal(body.domain, 'storyboard')
+    assert.equal(typeof body.contentHash, 'string')
+    assert.equal(typeof body.sourcePath, 'string')
+    assert.equal(body.content.length <= 10, true)
+    assert.equal(body.truncated, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('agent reference store includes local reference directory from environment', async () => {
@@ -85,7 +92,7 @@ test('reference loader skips corrupt indexes and unreadable chunks', () => {
 
 test('reference manager maps backend external resources and shot library results', async () => {
   const calls: string[] = []
-  const manager = new ReferenceManager(loadBuiltinReferenceStore(), {
+  const manager = new ReferenceManager(EMPTY_REFERENCE_STORE, {
     backendClient: {
       async getJSON(path) {
         calls.push(path)

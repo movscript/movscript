@@ -8,17 +8,17 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
   const state: Record<string, AgentUserConversationState> = {
     '7': {
       activeConversationId: 'conv-1',
-      draftsByConversation: {
+      workspacesByConversation: {
         'conv-1': {
           input: 'continue',
           attachments: [{
-            id: 'draft-res-42',
-            name: 'draft.png',
+            id: 'workspace-res-42',
+            name: 'workspace.png',
             type: 'image',
             mimeType: 'image/png',
             size: 100,
             resourceId: 42,
-            previewUrl: 'blob:stale-draft',
+            previewUrl: 'blob:stale-workspace',
           }],
         },
       },
@@ -64,7 +64,7 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
   const userState = normalized['7']
   const message = userState?.conversations[0]?.messages[0]
   const messageAttachment = message?.attachments?.[0]
-  const draftAttachment = userState?.draftsByConversation['conv-1']?.attachments[0]
+  const workspaceAttachment = userState?.workspacesByConversation['conv-1']?.attachments[0]
 
   assert.equal(userState?.activeConversationId, 'conv-1')
   assert.equal(userState?.conversations[0]?.runtimeSessionId, 'session-1')
@@ -72,8 +72,8 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
   assert.equal(message?.meta?.localRunActivity?.runId, 'run-1')
   assert.equal(messageAttachment?.url, '/api/v1/resources/42/file')
   assert.equal(messageAttachment?.previewUrl, undefined)
-  assert.equal(draftAttachment?.url, '/api/v1/resources/42/file')
-  assert.equal(draftAttachment?.previewUrl, undefined)
+  assert.equal(workspaceAttachment?.url, '/api/v1/resources/42/file')
+  assert.equal(workspaceAttachment?.previewUrl, undefined)
 })
 
 test('normalizeConvsByUser ignores non-plain persisted conversation records', () => {
@@ -89,7 +89,7 @@ test('normalizeConvsByUser ignores non-plain persisted conversation records', ()
     '7': {
       activeConversationId: 'conv-runtime',
       conversations: [new RuntimeConversation()],
-      draftsByConversation: {},
+      workspacesByConversation: {},
     },
   })
 
@@ -101,7 +101,7 @@ test('normalizeConvsByUser uses injected defaults for missing ids, titles, and t
   const normalized = normalizeConvsByUser({
     user: {
       activeConversationId: 'missing',
-      draftsByConversation: {},
+      workspacesByConversation: {},
       conversations: [{
         messages: [{ content: 'hello' }],
       }],

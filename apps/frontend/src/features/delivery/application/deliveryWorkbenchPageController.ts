@@ -130,7 +130,7 @@ export function useDeliveryWorkbenchVersionController({
       : Number(sessionSnapshot.filters?.productionId) || 0
     const snapshotFilter = sessionSnapshot.filters?.versionFilter
     const snapshotSearch = sessionSnapshot.filters?.versionSearch
-    if (snapshotFilter === 'all' || snapshotFilter === 'draft' || snapshotFilter === 'checking' || snapshotFilter === 'approved' || snapshotFilter === 'exported') {
+    if (snapshotFilter === 'all' || snapshotFilter === 'workspace' || snapshotFilter === 'checking' || snapshotFilter === 'approved' || snapshotFilter === 'exported') {
       setFilter(snapshotFilter)
     }
     if (typeof snapshotSearch === 'string') setSearch(snapshotSearch)

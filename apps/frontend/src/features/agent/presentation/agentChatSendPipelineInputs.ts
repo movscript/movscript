@@ -4,18 +4,15 @@ import type {
 } from '@/features/agent/presentation/agentChatInteractionInputTypes'
 import { sendActiveRunRuntimeInput } from '@/features/agent/application/agentRuntimeInput'
 import { isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
-import { appendAssistantConversationMessage } from '@movscript/conversation'
-import type { ChatMessage, ChatMessageMeta } from '@/features/agent/state/agentStore'
 
 export function buildAgentChatSendPipelineInput({
   activeLocalRun,
-  buildingSendDraft,
+  buildingSendWorkspace,
   composer,
   context,
   conv,
   externalTask,
-  loading,
-  onExternalDraftConsumed,
+  onExternalWorkspaceConsumed,
   pageToolRequestId,
   presentation,
   runtime,
@@ -23,7 +20,7 @@ export function buildAgentChatSendPipelineInput({
   userId,
 }: BuildAgentChatInteractionControllerInputOptions): AgentChatSendPipelineInput {
   return {
-    draftBuilder: {
+    workspaceBuilder: {
       input: composer.input,
       attachments: composer.attachments,
       composerAttachments: composer.composerAttachments,
@@ -32,7 +29,6 @@ export function buildAgentChatSendPipelineInput({
       currentProject: store.currentProject,
       systemPrompt: '',
       contextLabels: context.contextLabels,
-      conversationMessages: conv.messages,
       localThreadId: store.localThreadId,
       modelId: composer.modelId,
       activeModel: composer.activeModel,
@@ -43,24 +39,17 @@ export function buildAgentChatSendPipelineInput({
       ...(context.localAgentHealth?.mcpEndpoint ? { mcpEndpoint: context.localAgentHealth.mcpEndpoint } : {}),
       refetchLocalAgentHealth: context.refetchLocalAgentHealth,
     },
-    commitDraft: {
+    commitWorkspace: {
       userId,
       conversationId: conv.id,
-      conversationMessages: conv.messages,
       localAgentOnline: context.localAgentOnline,
       ...(context.localAgentHealth?.mcpEndpoint ? { mcpEndpoint: context.localAgentHealth.mcpEndpoint } : {}),
       activeSendAbortControllerRef: runtime.activeSendAbortControllerRef,
       cancelRequestedRunIdsRef: runtime.cancelRequestedRunIdsRef,
       liveTraceEventsRef: runtime.liveTraceEventsRef,
-      messageStore: {
-        addMessage: store.messageStore.addMessage,
-        removeMessage: store.messageStore.removeMessage,
-        updateMessageMeta: store.messageStore.updateMessageMeta,
-        clearConversationDraft: store.messageStore.clearConversationDraft,
-      },
+      clearConversationWorkspace: store.clearConversationWorkspace,
       setConversationSessionId: store.setConversationSessionId,
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
-      setRuntimeThreadProjection: store.setRuntimeThreadProjection,
       setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
         store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
         store.setConversationSessionId(conversationId, sessionId)
@@ -75,42 +64,18 @@ export function buildAgentChatSendPipelineInput({
       setPendingAssistantState: runtime.setPendingAssistantState,
       resetStreamingAssistant: runtime.resetStreamingAssistant,
       updateStreamingAssistantText: runtime.updateStreamingAssistantText,
-      getStreamingAssistantMessageId: runtime.getStreamingAssistantMessageId,
       recordLiveTraceEvent: runtime.recordLiveTraceEvent,
       revokeAttachmentPreviewUrls: composer.revokeAttachmentPreviewUrls,
       setMentionRange: composer.setMentionRange,
       refetchLocalAgentHealth: context.refetchLocalAgentHealth,
       refreshAgentCatalogContext: context.refreshAgentCatalogContext,
     },
-    runtimeThreadHydration: {
-      userId,
-      conversationId: conv.id,
-      conversationMessages: conv.messages,
-      localSessionId: store.localSessionId,
-      localThreadId: store.localThreadId,
-      loading,
-      building: buildingSendDraft,
-      runtimeLoading: store.conversationRuntime?.loading,
-      runtimeBuilding: store.conversationRuntime?.building,
-      setLocalThreadId: store.setLocalThreadId,
-      setConversationSessionId: store.setConversationSessionId,
-      setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
-        store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
-        store.setConversationSessionId(conversationId, sessionId)
-      },
-      setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
-      setConversationRun: store.setConversationRun,
-      setRuntimeThreadProjection: store.setRuntimeThreadProjection,
-      setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
-      setRuntimeStatusLight: runtime.setRuntimeStatusLight,
-      updateConversationTitle: store.updateConversationTitle,
-    },
     sendActions: {
       input: composer.input,
       composerAttachments: composer.composerAttachments,
       loading: presentation.loading,
       uploading: composer.uploading,
-      buildingSendDraft,
+      buildingSendWorkspace,
       answeringPendingInput: presentation.answeringPendingInput,
       activePendingInputRequest: presentation.activePendingInputRequest,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
@@ -120,21 +85,13 @@ export function buildAgentChatSendPipelineInput({
       }),
       modelId: composer.modelId,
       debugBeforeSend: runtime.debugBeforeSend,
-      pendingSendDraft: runtime.pendingSendDraft,
+      pendingSendWorkspace: runtime.pendingSendWorkspace,
       externalTask,
       processedExternalTaskRequestIdRef: runtime.processedExternalTaskRequestIdRef,
       inputRef: runtime.inputRef,
-      onExternalDraftConsumed,
-      updateDraft: composer.updateDraft,
+      onExternalWorkspaceConsumed,
+      updateWorkspace: composer.updateWorkspace,
       setMentionRange: composer.setMentionRange,
-      addAssistantMessage: (content) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
-        content,
-        deps: {
-          userId,
-          conversationId: conv.id,
-          messageStore: store.messageStore,
-        },
-      }),
       setConversationBuilding: (patch) => store.setConversationRuntime(conv.id, patch),
       sendActiveRunRuntimeInput: async ({ content, attachments }) => {
         const run = activeLocalRun ?? store.conversationRuntime?.run
@@ -144,20 +101,15 @@ export function buildAgentChatSendPipelineInput({
           content,
           attachments,
           deps: {
-            userId,
             conversationId: conv.id,
             threadId,
             run,
-            messageStore: {
-              addMessage: store.messageStore.addMessage,
-              updateMessageMeta: store.messageStore.updateMessageMeta,
-            },
             setConversationRun: store.setConversationRun,
             setConversationRuntime: store.setConversationRuntime,
           },
         })
       },
-      setPendingSendDraft: runtime.setPendingSendDraft,
+      setPendingSendWorkspace: runtime.setPendingSendWorkspace,
     },
   }
 }

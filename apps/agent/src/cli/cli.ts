@@ -1,5 +1,5 @@
 import { MCPClient } from '../adapters/mcp/client/mcpClient.js'
-import { FileAgentDraftStore } from '../drafts/store/draftStore.js'
+import { FileAgentWorkspaceStore } from '../workspaces/store/workspaceStore.js'
 import type { JSONValue } from '../shared/protocol/types.js'
 
 const defaultEndpoint = 'http://127.0.0.1:18765/mcp'
@@ -32,19 +32,19 @@ export async function runAgentCli(argv = process.argv.slice(2), env = process.en
     return
   }
 
-  if (command === 'draft') {
-    const kind = getFlag(args, '--kind') || 'project_standards_proposal'
-    const title = getFlag(args, '--title') || 'Untitled draft'
+  if (command === 'workspace') {
+    const kind = getFlag(args, '--kind') || 'project_standards_workspace'
+    const title = getFlag(args, '--title') || 'Untitled workspace'
     const content = getFlag(args, '--content') || ''
     const projectId = getNumberFlag(args, '--project-id')
-    const store = new FileAgentDraftStore()
-    const draft = store.createDraft(compact({
+    const store = new FileAgentWorkspaceStore()
+    const workspace = store.createWorkspace(compact({
       projectId,
       kind,
       title,
       content,
     }))
-    printJSON({ draft })
+    printJSON({ workspace })
     return
   }
 

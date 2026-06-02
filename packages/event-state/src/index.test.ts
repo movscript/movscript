@@ -192,7 +192,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     threadId: 'thread_1',
     status: 'in_progress',
     role: 'planner',
-    policy: {
+    runtimeLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 10,
       maxIterations: 10,

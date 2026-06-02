@@ -9,10 +9,10 @@ test('source boundary classifies reference as advisory context', () => {
   })
 })
 
-test('source boundary classifies drafts and memories separately from project facts', () => {
-  assert.deepEqual(sourceBoundaryForContextRef({ type: 'draft', id: 'draft_1' }, 'runtime'), {
-    source: 'draft',
-    evidence: 'draft',
+test('source boundary classifies workspaces and memories separately from project facts', () => {
+  assert.deepEqual(sourceBoundaryForContextRef({ type: 'workspace', id: 'workspace_1' }, 'runtime'), {
+    source: 'workspace',
+    evidence: 'workspace',
   })
   assert.deepEqual(sourceBoundaryForContextRef({ type: 'memory', id: 'memory_1' }, 'runtime'), {
     source: 'memory',

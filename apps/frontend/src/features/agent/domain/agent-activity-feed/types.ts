@@ -2,7 +2,7 @@ import type { RunActivityTokenUsage } from '@/features/agent/domain/agentRunActi
 import type { AgentRunTimelineRound } from '@movscript/conversation'
 import type { ChatRunActivity, ChatRunActivityApproval, ChatRunActivityInputRequest } from '@/features/agent/state/agentStore'
 
-export type AgentActivityKind = 'read' | 'draft' | 'write' | 'task' | 'system' | 'error'
+export type AgentActivityKind = 'read' | 'workspace' | 'write' | 'task' | 'system' | 'error'
 
 export type AgentActivityItem =
   | AgentActivityDecisionItem

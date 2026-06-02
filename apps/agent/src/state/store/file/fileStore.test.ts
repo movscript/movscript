@@ -627,14 +627,14 @@ test('file agent store compacts oversized run step results and rollback records'
       },
       metadata: {
         rollbackRecords: [{
-          call: { name: 'draft_apply', args: {} },
+          call: { name: 'workspace_apply', args: {} },
           rollback: {
             policy: 'manual_compensation',
             reason: 'backend write',
             metadata: { result: { payload: 'r'.repeat(20_000) } },
           },
         }, ...Array.from({ length: 8 }, (_, index) => ({
-          call: { id: `call_${index}`, name: 'draft_apply', args: { index } },
+          call: { id: `call_${index}`, name: 'workspace_apply', args: { index } },
           rollback: {
             policy: 'manual_compensation',
             reason: `backend write ${index}`,

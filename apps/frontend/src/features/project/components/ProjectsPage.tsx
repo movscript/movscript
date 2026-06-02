@@ -46,7 +46,7 @@ const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed
 
 interface ContentUnitProgress {
   total: number
-  draft: number
+  workspace: number
   prompt_ready: number
   generating: number
   approved: number

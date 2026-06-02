@@ -29,7 +29,7 @@ test('requiresToolApproval applies explicit grant approval before tool defaults'
 
 test('isSandboxAutoAllowedTool allows sandbox interception only for write-like risks', () => {
   assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'read' }), true), false)
-  assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'draft' }), true), false)
+  assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'workspace' }), true), false)
   assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'write' }), true), true)
   assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'generate' }), true), true)
   assert.equal(isSandboxAutoAllowedTool(buildTool({ risk: 'destructive' }), true), true)

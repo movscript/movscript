@@ -34,7 +34,7 @@ export function buildContentWorkbenchAiSuggestPrompt(input: ContentWorkbenchAiPr
     : '当前情节还没有制作项。'
 
   return [
-    '请基于当前情节生成 content_unit_proposal snapshot 草案。',
+    '请基于当前情节生成 content_unit_workspace snapshot 草案。',
     '',
     `当前情节：${input.momentTitle}`,
     input.sceneMomentId ? `情节 ID：${input.sceneMomentId}` : null,
@@ -45,11 +45,11 @@ export function buildContentWorkbenchAiSuggestPrompt(input: ContentWorkbenchAiPr
     '',
     '输出要求：',
     '- 输出 3-6 条完整制作项快照。',
-    '- 草案 kind 必须是 content_unit_proposal，schema 必须是 movscript.content_unit_proposal.v1。',
-    `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "proposal": {"units": [...]}}。`,
+    '- 草案 kind 必须是 content_unit_workspace，schema 必须是 movscript.content_unit_workspace.v1。',
+    `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "workspace": {"units": [...]}}。`,
     '- 每条包含 title、kind、description、prompt、duration_sec、story_purpose、emotional_intent、shot、performance、lighting、blocking、sound、transition 等可判断字段。',
     '- 如果已有制作项带 unit_code，保留原 unit_code；新增制作项不要自己编 unit_code，留给后端自动分配。',
-    '- 如果需要表达节奏或局部落位，只能写进单条 unit.timing，例如 local_start_sec、rhythm_role、transition_in、transition_out；不要在 content_unit_proposal 里创建 production 级 preview_timeline 或 timeline_items。',
+    '- 如果需要表达节奏或局部落位，只能写进单条 unit.timing，例如 local_start_sec、rhythm_role、transition_in、transition_out；不要在 content_unit_workspace 里创建 production 级 preview_timeline 或 timeline_items。',
     '- 不要输出 action、operation、patch 等操作字段或增量指令。',
     '- 审阅时会用完整草案快照和当前快照做对比；请让每条制作项都能独立判断创作目标和生成约束。',
   ].filter(Boolean).join('\n')
@@ -90,9 +90,9 @@ export function buildContentWorkbenchVisualPlanPrompt(input: ContentWorkbenchVis
     unitLines,
     '',
     '输出要求：',
-    '- 仍然输出 content_unit_proposal snapshot 草案，schema 必须是 movscript.content_unit_proposal.v1。',
-    `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "proposal": {"units": [...]}}。`,
-    '- proposal.units 必须包含当前情节的完整制作项快照，不要只输出 selected unit，避免审阅时误判删除其他制作项。',
+    '- 仍然输出 content_unit_workspace snapshot 草案，schema 必须是 movscript.content_unit_workspace.v1。',
+    `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "workspace": {"units": [...]}}。`,
+    '- workspace.units 必须包含当前情节的完整制作项快照，不要只输出 selected unit，避免审阅时误判删除其他制作项。',
     '- 只强化当前选中的制作项；其他制作项应保持现有 title、kind、description、prompt、duration_sec 和镜头参数。',
     '- 在当前制作项内写入 visual_taskGraph 和 storyboard_brief 字段。',
     '- visual_taskGraph 包含 space、blocking、camera_path、beats、props、lighting、risks。',

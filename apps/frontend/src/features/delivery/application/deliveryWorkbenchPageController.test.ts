@@ -14,7 +14,7 @@ function version(input: Partial<DeliveryVersion> & Pick<DeliveryVersion, 'ID'>):
   return {
     project_id: 1,
     name: `Delivery ${input.ID}`,
-    status: 'draft',
+    status: 'workspace',
     is_primary: false,
     duration_sec: 0,
     ...input,
@@ -46,7 +46,7 @@ test('delivery workbench page controller reads and writes production scope param
 
 test('delivery workbench page controller resolves selected version and item fallbacks', () => {
   const versions = [
-    version({ ID: 10, name: 'Draft A' }),
+    version({ ID: 10, name: 'Workspace A' }),
     version({ ID: 11, name: 'Primary', is_primary: true }),
     version({ ID: 12, name: 'Approved', status: 'approved' }),
   ]
@@ -62,7 +62,7 @@ test('delivery workbench page controller resolves selected version and item fall
 
 test('delivery workbench page controller filters visible versions through the shared delivery model', () => {
   const versions = [
-    version({ ID: 10, name: 'Rough cut', status: 'draft' }),
+    version({ ID: 10, name: 'Rough cut', status: 'workspace' }),
     version({ ID: 11, name: 'Client approved', status: 'approved' }),
     version({ ID: 12, name: 'Export package', status: 'exported' }),
   ]

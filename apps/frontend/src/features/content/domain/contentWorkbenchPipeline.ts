@@ -21,7 +21,7 @@ export interface ContentWorkbenchPipelineInput {
   keyframeCount: number
   missingSlotCount: number
   generationContextReady: boolean
-  pendingReviewDraftCount: number
+  pendingReviewWorkspaceCount: number
   runningJobCount: number
   completedJobCount: number
   previewItemCount?: number
@@ -54,7 +54,7 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
     keyframeCount: positiveInteger(input.keyframeCount),
     missingSlotCount: positiveInteger(input.missingSlotCount),
     generationContextReady: Boolean(input.generationContextReady),
-    pendingReviewDraftCount: positiveInteger(input.pendingReviewDraftCount),
+    pendingReviewWorkspaceCount: positiveInteger(input.pendingReviewWorkspaceCount),
     runningJobCount: positiveInteger(input.runningJobCount),
     completedJobCount: positiveInteger(input.completedJobCount),
     previewItemCount: positiveInteger(input.previewItemCount),
@@ -114,9 +114,9 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
     {
       key: 'ai_review',
       label: 'AI 审稿',
-      value: normalized.pendingReviewDraftCount > 0 ? `${normalized.pendingReviewDraftCount} 待审` : '已清空',
-      detail: normalized.pendingReviewDraftCount > 0 ? '处理草案后再进入生成计划' : '没有待处理草案',
-      blocked: normalized.pendingReviewDraftCount > 0,
+      value: normalized.pendingReviewWorkspaceCount > 0 ? `${normalized.pendingReviewWorkspaceCount} 待审` : '已清空',
+      detail: normalized.pendingReviewWorkspaceCount > 0 ? '处理草案后再进入生成计划' : '没有待处理草案',
+      blocked: normalized.pendingReviewWorkspaceCount > 0,
     },
     {
       key: 'generation_taskGraph',

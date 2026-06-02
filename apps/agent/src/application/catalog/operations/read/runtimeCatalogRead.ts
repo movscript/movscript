@@ -130,16 +130,16 @@ export function updateRuntimeActiveSkills(input: {
 }
 
 const SCRIPT_READING_SKILL_ID = 'movscript.script_reading'
-const SCRIPT_ADJACENT_PROPOSAL_SKILL_IDS = new Set([
-  'movscript.asset_proposal',
-  'movscript.asset_proposal',
-  'movscript.setting_proposal',
-  'movscript.setting_proposal',
-  'movscript.project_standards_proposal',
-  'movscript.production_proposal',
-  'movscript.production_proposal',
-  'movscript.content_unit_proposal',
-  'movscript.content_unit_proposal',
+const SCRIPT_ADJACENT_WORKSPACE_SKILL_IDS = new Set([
+  'movscript.asset_workspace',
+  'movscript.asset_workspace',
+  'movscript.setting_workspace',
+  'movscript.setting_workspace',
+  'movscript.project_standards_workspace',
+  'movscript.production_workspace',
+  'movscript.production_workspace',
+  'movscript.content_unit_workspace',
+  'movscript.content_unit_workspace',
 ])
 
 function correctScriptReadingSkillActivation(input: {
@@ -154,10 +154,10 @@ function correctScriptReadingSkillActivation(input: {
 } {
   if (!isPlainScriptReadingRequest(input.userMessage)) return { load: input.load, unload: input.unload, applied: false }
   if (input.load.includes(SCRIPT_READING_SKILL_ID)) return { load: input.load, unload: input.unload, applied: false }
-  if (!input.load.some(isScriptAdjacentProposalSkillId)) return { load: input.load, unload: input.unload, applied: false }
+  if (!input.load.some(isScriptAdjacentWorkspaceSkillId)) return { load: input.load, unload: input.unload, applied: false }
 
-  const suppressed = input.load.filter(isScriptAdjacentProposalSkillId)
-  const preserved = input.load.filter((id) => !isScriptAdjacentProposalSkillId(id))
+  const suppressed = input.load.filter(isScriptAdjacentWorkspaceSkillId)
+  const preserved = input.load.filter((id) => !isScriptAdjacentWorkspaceSkillId(id))
   return {
     load: Array.from(new Set([...preserved, SCRIPT_READING_SKILL_ID])).sort(),
     unload: input.unload,
@@ -171,9 +171,9 @@ function correctScriptReadingSkillActivation(input: {
   }
 }
 
-function isScriptAdjacentProposalSkillId(id: string): boolean {
-  if (SCRIPT_ADJACENT_PROPOSAL_SKILL_IDS.has(id)) return true
-  return /(?:^|\.)((asset|setting|project|production)[-_]proposal|content[-_]unit[-_]proposal)$/.test(id)
+function isScriptAdjacentWorkspaceSkillId(id: string): boolean {
+  if (SCRIPT_ADJACENT_WORKSPACE_SKILL_IDS.has(id)) return true
+  return /(?:^|\.)((asset|setting|project|production)[-_]workspace|content[-_]unit[-_]workspace)$/.test(id)
 }
 
 function isPlainScriptReadingRequest(message: string | undefined): boolean {
@@ -183,7 +183,7 @@ function isPlainScriptReadingRequest(message: string | undefined): boolean {
   if (!hasScriptTarget) return false
   const hasReadIntent = /查看|读取|读|看一下|看看|理解|分析|总结|梳理|内容|正文|read|show|view|inspect|summari[sz]e|analy[sz]e/.test(text)
   if (!hasReadIntent) return false
-  return !/提案|方案|创建|起草|生成|修改|更新|改写|补充|拆分|素材|素材位|候选|设定资料|人物设定|地点设定|asset|setting proposal|proposal|create|draft|update|revise/.test(text)
+  return !/工作区|方案|创建|起草|生成|修改|更新|改写|补充|拆分|素材|素材位|候选|设定资料|人物设定|地点设定|asset|setting workspace|workspace|create|workspace|update|revise/.test(text)
 }
 
 function selectCatalogConfigFile(registry: CatalogRegistry, manifest?: AgentManifest): AgentConfigFile | undefined {

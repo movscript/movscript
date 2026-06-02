@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve, relative } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { DRAFT_SCHEMA_REGISTRY, getActiveSchemaForKind, getDraftSchemaEntry, listSchemasByKind } from '@movscript/drafts'
+import { WORKSPACE_SCHEMA_REGISTRY, getActiveSchemaForKind, getWorkspaceSchemaEntry, listSchemasByKind } from '@movscript/workspaces'
 import { buildLayeredCatalogRegistry } from '../registry/core/registry.js'
 import { lintCatalog } from './linter.js'
 import { buildMCPVirtualPack } from '../loading/mcp/mcpVirtualPack.js'
@@ -57,27 +57,27 @@ function catalogRelativeFiles(root: URL): string[] {
   return files.sort((left, right) => left.localeCompare(right))
 }
 
-test('draft schema registry is keyed by full schema id and supports active kind lookup', () => {
-  assert.ok(DRAFT_SCHEMA_REGISTRY['movscript.project_standards_proposal.v1'])
-  assert.equal(getDraftSchemaEntry('movscript.project_standards_proposal.v1')?.kind, 'project_standards_proposal')
-  assert.equal(getActiveSchemaForKind('project_standards_proposal').id, 'movscript.project_standards_proposal.v1')
-  assert.deepEqual(listSchemasByKind('project_standards_proposal').map((schema) => schema.id), ['movscript.project_standards_proposal.v1'])
-  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /shot_size/)
-  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /lighting/)
-  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /performance/)
-  const settingProposal = getActiveSchemaForKind('setting_proposal')
-  const settingProposalSchema = settingProposal.jsonSchema as { properties?: Record<string, { properties?: Record<string, unknown> }> }
-  assert.doesNotMatch(settingProposal.promptSummary, /asset_slots/)
-  assert.equal(settingProposalSchema.properties?.proposal?.properties?.asset_slots, undefined)
+test('workspace schema registry is keyed by full schema id and supports active kind lookup', () => {
+  assert.ok(WORKSPACE_SCHEMA_REGISTRY['movscript.project_standards_workspace.v1'])
+  assert.equal(getWorkspaceSchemaEntry('movscript.project_standards_workspace.v1')?.kind, 'project_standards_workspace')
+  assert.equal(getActiveSchemaForKind('project_standards_workspace').id, 'movscript.project_standards_workspace.v1')
+  assert.deepEqual(listSchemasByKind('project_standards_workspace').map((schema) => schema.id), ['movscript.project_standards_workspace.v1'])
+  assert.match(getActiveSchemaForKind('content_unit_workspace').promptSummary, /shot_size/)
+  assert.match(getActiveSchemaForKind('content_unit_workspace').promptSummary, /lighting/)
+  assert.match(getActiveSchemaForKind('content_unit_workspace').promptSummary, /performance/)
+  const settingWorkspace = getActiveSchemaForKind('setting_workspace')
+  const settingWorkspaceSchema = settingWorkspace.jsonSchema as { properties?: Record<string, { properties?: Record<string, unknown> }> }
+  assert.doesNotMatch(settingWorkspace.promptSummary, /asset_slots/)
+  assert.equal(settingWorkspaceSchema.properties?.workspace?.properties?.asset_slots, undefined)
 })
 
 test('layered catalog registry exposes schema/tool/skill/pack/configFile boundaries', () => {
   const catalog = loadAgentPluginCatalog()
   const registry = catalog.layeredRegistry
 
-  assert.ok(registry.schemas.has('movscript.project_standards_proposal.v1'))
-  assert.ok(registry.tools.has('draft_apply_preview'))
-  assert.ok(registry.tools.has('draft_model_get'))
+  assert.ok(registry.schemas.has('movscript.project_standards_workspace.v1'))
+  assert.ok(registry.tools.has('workspace_validate'))
+  assert.ok(registry.tools.has('get_workspace_model'))
   assert.ok(registry.tools.has('reference_search'))
   assert.ok(registry.tools.has('reference_get'))
   const readScriptsTool = registry.tools.get('movscript_script_locate')
@@ -89,11 +89,11 @@ test('layered catalog registry exposes schema/tool/skill/pack/configFile boundar
   assert.ok(readScriptsProperties.scriptTitle)
   assert.ok(readScriptsProperties.query)
   assert.ok(readScriptsProperties.contentLimit)
-  assert.ok(registry.skills.has('draft.rules.lifecycle'))
+  assert.ok(registry.skills.has('workspace.rules.lifecycle'))
   assert.ok(registry.skills.has('film.storyboard.director'))
   assert.ok(registry.packs.has('core.pack.base'))
   assert.ok(registry.packs.has('core.pack.agent'))
-  assert.ok(registry.packs.has('draft.pack.lifecycle'))
+  assert.ok(registry.packs.has('workspace.pack.lifecycle'))
   assert.ok(registry.packs.has('movscript.pack.workspace'))
   assert.ok(registry.configFiles.has('movscript.config_file.base'))
   assert.equal(registry.configFiles.size, 1)
@@ -111,13 +111,13 @@ test('target-state pack files and config files are loaded as first-class catalog
   assert.deepEqual(movscriptPack.schemas, [])
   assert.deepEqual(movscriptPack.requires?.packs, {
     'core.pack.agent': '>=1.0.0',
-    'draft.pack.lifecycle': '>=1.0.0',
+    'workspace.pack.lifecycle': '>=1.0.0',
   })
-  assert.ok(movscriptPack.skills.includes('movscript.project_standards_proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.setting_proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.asset_proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.production_proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.content_unit_proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.project_standards_workspace'))
+  assert.ok(movscriptPack.skills.includes('movscript.setting_workspace'))
+  assert.ok(movscriptPack.skills.includes('movscript.asset_workspace'))
+  assert.ok(movscriptPack.skills.includes('movscript.production_workspace'))
+  assert.ok(movscriptPack.skills.includes('movscript.content_unit_workspace'))
   assert.ok(movscriptPack.skills.includes('generation.visual_execution'))
   assert.ok(movscriptPack.skills.includes('film.storyboard.director'))
   assert.ok(movscriptPack.tools.includes('reference_search'))
@@ -129,14 +129,14 @@ test('target-state pack files and config files are loaded as first-class catalog
   assert.equal(baseConfigFile?.limits?.maxHistoryMessages, 6)
   assert.equal(baseConfigFile?.limits?.contextWindowCharLimit, 96000)
   const corePack = catalog.packs.find((pack) => pack.id === 'core.pack.agent')
-  const draftPack = catalog.packs.find((pack) => pack.id === 'draft.pack.lifecycle')
+  const workspacePack = catalog.packs.find((pack) => pack.id === 'workspace.pack.lifecycle')
   assert.ok(corePack?.skills.includes('core.subagent_planning'))
-  assert.ok(draftPack?.skills.includes('draft.lifecycle_support'))
-  assert.deepEqual(draftPack?.requires?.packs, { 'core.pack.agent': '>=1.0.0' })
+  assert.ok(workspacePack?.skills.includes('workspace.lifecycle_support'))
+  assert.deepEqual(workspacePack?.requires?.packs, { 'core.pack.agent': '>=1.0.0' })
   assert.ok(baseConfigFile)
   assert.deepEqual(baseConfigFile.enabledPackIds, [
     'core.pack.agent',
-    'draft.pack.lifecycle',
+    'workspace.pack.lifecycle',
     'movscript.pack.workspace',
   ])
   assert.deepEqual(baseConfigFile.skillIds, [
@@ -144,75 +144,73 @@ test('target-state pack files and config files are loaded as first-class catalog
     'core.rules.runtime',
     'core.memory_access',
     'core.subagent_planning',
-    'draft.lifecycle_support',
-    'movscript.project_progress_review',
+    'workspace.lifecycle_support',
     'movscript.script_reading',
-    'kernel.proposal_first',
-    'movscript.project_standards_proposal',
-    'movscript.setting_proposal',
-    'movscript.asset_proposal',
+    'kernel.workspace_first',
+    'movscript.project_standards_workspace',
+    'movscript.setting_workspace',
+    'movscript.asset_workspace',
     'movscript.setting_prep',
-    'movscript.production_proposal',
+    'movscript.production_workspace',
     'candidate.asset_planning',
-    'movscript.content_unit_proposal',
-    'movscript.storyboard_gap_review',
+    'movscript.content_unit_workspace',
     'generation.visual_execution',
   ])
 
   const resolved = resolveConfigFile(catalog.layeredRegistry)
   assert.equal(resolved.configFile.id, 'movscript.config_file.base')
-  assert.ok(resolved.configFile.skillIds.includes('movscript.project_standards_proposal'))
+  assert.ok(resolved.configFile.skillIds.includes('movscript.project_standards_workspace'))
   assert.ok(resolved.configFile.skillIds.includes('core.subagent_planning'))
-  assert.ok(resolved.configFile.skillIds.includes('draft.lifecycle_support'))
+  assert.ok(resolved.configFile.skillIds.includes('workspace.lifecycle_support'))
   assert.ok(resolved.configFile.skillIds.includes('movscript.script_reading'))
-  assert.ok(resolved.configFile.skillIds.includes('movscript.production_proposal'))
+  assert.ok(resolved.configFile.skillIds.includes('movscript.production_workspace'))
   assert.ok(resolved.configFile.toolGrants.some((grant) => grant.name === 'core_work_start' && grant.approval === 'always'))
   assert.ok(resolved.configFile.toolGrants.some((grant) => grant.name === 'core_user_input_request' && grant.approval === 'never'))
 })
 
-test('draft lifecycle task describes read-before-write draft handling', () => {
+test('workspace lifecycle task describes read-before-write workspace handling', () => {
   const catalog = loadAgentPluginCatalog()
   const configFile = resolveConfigFile(catalog.layeredRegistry).configFile
-  const task = catalog.layeredRegistry.skills.get('draft.lifecycle_support')
+  const task = catalog.layeredRegistry.skills.get('workspace.lifecycle_support')
 
   assert.ok(task)
   const taskToolGrants = task.toolGrants ?? []
   assert.ok(taskToolGrants.includes('core_file_read'))
-  assert.ok(taskToolGrants.includes('draft_create'))
-  assert.ok(taskToolGrants.includes('draft_apply_preview'))
-  assert.equal(taskToolGrants.includes('movscript_list_drafts'), false)
-  assert.match(task.instructionTemplate, /当前会话没有 draftId/)
-  assert.match(task.instructionTemplate, /agent:\/\/draft\/\{draftId\}\/content/)
-  assert.match(task.instructionTemplate, /不要跨会话查找旧 draft/)
-  assert.match(task.instructionTemplate, /绝不在未读取当前会话现有 draft 前直接覆盖写入/)
+  assert.ok(taskToolGrants.includes('workspace_open'))
+  assert.ok(taskToolGrants.includes('workspace_validate'))
+  assert.equal(taskToolGrants.includes('movscript_list_workspaces'), false)
+  assert.match(task.instructionTemplate, /当前会话没有 workspaceId/)
+  assert.match(task.instructionTemplate, /agent:\/\/workspace\/\{workspaceId\}\/content/)
+  assert.match(task.instructionTemplate, /不要跨会话查找旧 workspace/)
+  assert.match(task.instructionTemplate, /绝不在未读取当前会话现有 workspace 前直接覆盖写入/)
 
   const selected = selectActiveTriggeredSkills([task], {
     configFile,
-    message: '修改这个 draft',
+    message: '修改这个 workspace',
     intents: [],
     uiContext: { projectId: 1 },
     conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
     catalogVersion: catalog.layeredRegistry.version,
   })
   assert.deepEqual(selected.warnings, [])
-  assert.deepEqual(selected.skills.map((item) => item.id), ['draft.lifecycle_support'])
+  assert.deepEqual(selected.skills.map((item) => item.id), ['workspace.lifecycle_support'])
 })
 
-test('proposal tasks reference runtime draft model contract before field-specific edits', () => {
+test('workspace tasks reference runtime workspace model contract before field-specific edits', () => {
   const catalog = loadAgentPluginCatalog()
   const skillIds = [
-    'draft.lifecycle_support',
-    'movscript.project_standards_proposal',
-    'movscript.production_proposal',
+    'workspace.lifecycle_support',
+    'movscript.project_standards_workspace',
+    'movscript.production_workspace',
   ]
 
   for (const taskId of skillIds) {
     const task = catalog.layeredRegistry.skills.get(taskId)
     assert.ok(task, `${taskId} should exist`)
-    assert.match(task.instructionTemplate, /runtime draft model contract|模型契约/, `${taskId} should point to the runtime draft model contract`)
+    assert.match(task.instructionTemplate, /runtime workspace model contract|模型契约/, `${taskId} should point to the runtime workspace model contract`)
     assert.match(task.instructionTemplate, /MCP/, `${taskId} should route field contracts through MCP`)
     assert.match(task.instructionTemplate, /schema fallback|schema.*fallback/i, `${taskId} should define the current schema fallback`)
-    assert.ok((task.toolGrants ?? []).includes('draft_model_get'), `${taskId} should be able to call the draft model MCP contract tool`)
+    assert.ok((task.toolGrants ?? []).includes('get_workspace_model'), `${taskId} should be able to call the workspace model MCP contract tool`)
   }
 })
 
@@ -256,7 +254,7 @@ test('planner subagent behavior is provided by agent-core Skill', () => {
   assert.doesNotMatch(prompt.systemPrompt, /\{\{tool:/)
 })
 
-test('asset candidate preparation is separated from generation execution', () => {
+test('asset candidate execution consumes asset workspace plans', () => {
   const catalog = loadAgentPluginCatalog()
   const assetCandidate = catalog.layeredRegistry.skills.get('candidate.asset_planning')
   const visualGeneration = catalog.layeredRegistry.skills.get('generation.visual_execution')
@@ -293,9 +291,9 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.equal(assetCandidateToolGrants.includes('candidate_keyframe_attach'), false)
   assert.equal(assetCandidateToolGrants.includes('core_work_cancel'), true)
   assert.ok(assetCandidateToolGrants.includes('movscript_focus_get'))
-  assert.ok(assetCandidateToolGrants.includes('draft_model_get'))
+  assert.ok(assetCandidateToolGrants.includes('get_workspace_model'))
   assert.ok(visualGenerationToolGrants.includes('movscript_focus_get'))
-  assert.ok(visualGenerationToolGrants.includes('draft_model_get'))
+  assert.ok(visualGenerationToolGrants.includes('get_workspace_model'))
   assert.ok(visualGenerationToolGrants.includes('core_user_input_request'))
   assert.ok(visualGenerationToolGrants.includes('core_work_start'))
   assert.ok(visualGenerationToolGrants.includes('core_work_wait'))
@@ -305,7 +303,7 @@ test('asset candidate preparation is separated from generation execution', () =>
 
   const ctx = {
     configFile,
-    message: '请准备素材候选',
+    message: '请生成素材候选',
     intents: ['asset_candidate_generation'],
     uiContext: { projectId: 1 },
     conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
@@ -319,7 +317,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.equal(assetTools.available.some((tool) => tool.name === 'candidate_keyframe_attach'), false)
   assert.ok(assetTools.available.some((tool) => tool.name === 'core_work_cancel'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_focus_get'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'draft_model_get'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'get_workspace_model'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'core_work_start'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'core_work_wait'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'candidate_asset_slot_attach'))
@@ -327,7 +325,9 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(visualTools.available.some((tool) => tool.name === 'core_work_cancel'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'core_user_input_request'))
 
-  assert.match(assetCandidate.instructionTemplate, /生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集/)
+  assert.match(assetCandidate.instructionTemplate, /真实候选生成的执行、监控，以及把成功输出加入目标 asset slot 候选集/)
+  assert.match(assetCandidate.instructionTemplate, /候选方案编写、prompt 方案、参考资源清单、模型能力需求、风险和验收标准的整理，都属于 asset_workspace/)
+  assert.match(assetCandidate.instructionTemplate, /如果缺少生成所需参数，不在此 Skill 中现场补齐/)
   assert.match(assetCandidate.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach`/)
   assert.match(assetCandidate.instructionTemplate, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
   assert.match(assetCandidate.instructionTemplate, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
@@ -469,7 +469,7 @@ test('asset candidate preparation is separated from generation execution', () =>
 
 test('storyboard reference tools are only visible for content unit Skills', () => {
   const catalog = loadAgentPluginCatalog()
-  const contentUnit = catalog.layeredRegistry.skills.get('movscript.content_unit_proposal')
+  const contentUnit = catalog.layeredRegistry.skills.get('movscript.content_unit_workspace')
   assert.ok(contentUnit)
 
   const inactive = resolveToolCatalog({
@@ -506,7 +506,7 @@ test('storyboard reference tools are only visible for content unit Skills', () =
   assert.equal(active.byName.reference_get?.available, true)
 })
 
-test('content unit proposal activates referenced storyboard director skill', () => {
+test('content unit workspace activates referenced storyboard director skill', () => {
   const catalog = loadAgentPluginCatalog()
   const layers = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
@@ -525,15 +525,15 @@ test('content unit proposal activates referenced storyboard director skill', () 
     },
   })
 
-  assert.ok(layers.trace.skillIds.includes('movscript.content_unit_proposal'))
-  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.content_unit_proposal'))
+  assert.ok(layers.trace.skillIds.includes('movscript.content_unit_workspace'))
+  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.content_unit_workspace'))
   assert.equal(layers.skillDiscovery.configFileId, 'movscript.config_file.base')
   assert.ok(layers.skillDiscovery.enabledPackIds.includes('movscript.pack.workspace'))
   assert.deepEqual(layers.manifest.metadata?.promptOptions, {
     projectStandards: { mode: 'required_for_project_work' },
     finalSourceBlock: true,
   })
-  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'movscript.content_unit_proposal' && skill.active))
+  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'movscript.content_unit_workspace' && skill.active))
   assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'film.storyboard.director'))
   const storyboardSkill = layers.skills.find((skill) => skill.id === 'film.storyboard.director')
   assert.ok(storyboardSkill)
@@ -788,16 +788,50 @@ test('asset candidate generation activates visual generation tools on asset slot
   assert.notEqual(tools.byName.core_work_start?.unavailableReason, 'skill_scope')
 })
 
-test('pre-production prep routes to setting and asset proposal drafts without generation tools', () => {
+test('asset candidate wording without generation stays in asset workspace', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = '图片候选 人物主视图 周建军，先写两版 prompt 方案'
+  const layers = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: catalog.manifest,
+    message,
+    debugContext: {
+      route: { pathname: '/asset-slots' },
+      projects: [{ id: 4, name: '测试项目' }],
+      project: { id: 4, name: '测试项目' },
+      selection: { entityType: 'asset_slot', entityId: 24 },
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+  })
+
+  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.asset_workspace'))
+  assert.ok(!layers.ctx.intents.includes('asset_candidate_generation'))
+  assert.ok(!layers.ctx.intents.includes('visual_generation'))
+
+  const tools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: layers.manifest,
+    currentProjectId: 4,
+    activeSkills: layers.skills,
+    userMessage: message,
+  })
+  assert.equal(tools.byName.core_work_start?.unavailableReason, 'skill_scope')
+})
+
+test('pre-production prep routes to setting and asset workspace workspaces without generation tools', () => {
   const catalog = loadAgentPluginCatalog()
   const message = [
     '请梳理当前项目「测试项目」的前期准备。',
-    '读取当前 draft model / 已有 proposal draft 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅草稿：',
-    '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，不写 asset_slots。',
-    '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
+    '读取当前 workspace model / 已有 workspace workspace 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅workspace：',
+    '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_workspace；只修改 workspace.creative_references，不写 asset_slots。',
+    '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_workspace；只修改 workspace.asset_slots，workspace.creative_references 必须为空。',
     '3. 不要生成候选素材，不要创建生成任务，不要把候选图 prompt 写成本轮结果。',
-    '4. 已有 setting_proposal draft 时，直接读取并局部编辑 draft 的 proposal.creative_references；不要用 live creative reference 查询重写整份快照。',
-    '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
+    '4. 已有 setting_workspace workspace 时，直接读取并局部编辑 workspace 的 workspace.creative_references；不要用 live creative reference 查询重写整份快照。',
+    '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 workspace seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
     '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
   ].join('\n')
   const layers = resolveRuntimeLayers({
@@ -812,16 +846,16 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
       recentResources: [],
       attachments: [],
       memories: [],
-      labels: ['pre-production', 'setting_proposal', 'asset_proposal', 'draft-review'],
+      labels: ['pre-production', 'setting_workspace', 'asset_workspace', 'workspace-review'],
     },
   })
 
   assert.deepEqual(layers.skills.map((skill) => skill.id).filter((id) => [
-    'movscript.setting_proposal',
-    'movscript.asset_proposal',
+    'movscript.setting_workspace',
+    'movscript.asset_workspace',
   ].includes(id)), [
-    'movscript.setting_proposal',
-    'movscript.asset_proposal',
+    'movscript.setting_workspace',
+    'movscript.asset_workspace',
   ])
   assert.ok(!layers.ctx.intents.includes('asset_candidate_generation'))
   assert.ok(!layers.ctx.intents.includes('visual_generation'))
@@ -834,22 +868,22 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'draft_create'))
-  assert.ok(tools.available.some((tool) => tool.name === 'draft_apply_preview'))
+  assert.ok(tools.available.some((tool) => tool.name === 'workspace_open'))
+  assert.ok(tools.available.some((tool) => tool.name === 'workspace_validate'))
   assert.equal(tools.byName.core_work_start?.unavailableReason, 'skill_scope')
 })
 
 test('Skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('legacy/general-skills.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/project-standards-proposal.skill.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/project-standards-proposal.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/proposal-skills.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/proposal-first.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/production-proposal.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/project-standards-workspace.skill.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/project-standards-workspace.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/workspace-skills.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/workspace-first.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/production-workspace.instruction.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/dual-orchestration.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/asset-proposal.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/content-unit-proposal.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('legacy/content-unit-media-proposal.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/asset-workspace.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/content-unit-workspace.instruction.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('legacy/content-unit-media-workspace.instruction.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/setting-prep.instruction.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/script-writing.instruction.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/project-progress.instruction.md', CATALOG_SKILLS_DIR)), false)
@@ -858,17 +892,17 @@ test('Skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('legacy/visual-generation.skill.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/visual-generation.instruction.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('legacy/asset-candidate-generation.instruction.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('kernel/proposal_first/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/project/project_standards_proposal/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/production/production_proposal/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/production/dual-orchestration/skill.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/proposal/asset/asset_proposal/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/content_unit/content_unit_proposal/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/content-unit/content-unit-media-proposal/skill.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/proposal/project/setting_prep/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('kernel/workspace_first/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/project/project_standards_workspace/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/production/production_workspace/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/production/dual-orchestration/skill.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workspace/asset/asset_workspace/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/content_unit/content_unit_workspace/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/content-unit/content-unit-media-workspace/skill.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workspace/project/setting_prep/skill.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/writing/script-writing/skill.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workspace/project_progress_review/skill.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/proposal/content_unit/storyboard_gap_review/skill.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workspace/project_progress_review/skill.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workspace/content_unit/storyboard_gap_review/skill.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/creative/creative-workbench/skill.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('generation/visual_execution/skill.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('generation/visual_execution/instruction.md', CATALOG_SKILLS_DIR)), true)
@@ -878,14 +912,14 @@ test('Skills use isolated skill directories', () => {
 
 test('target-state skill and tool files define the active runtime resources', () => {
   const catalog = loadAgentPluginCatalog()
-  const task = catalog.layeredRegistry.skills.get('movscript.project_standards_proposal')
+  const task = catalog.layeredRegistry.skills.get('movscript.project_standards_workspace')
   const inputTool = catalog.layeredRegistry.tools.get('core_user_input_request')
 
   assert.ok(task)
   assert.equal(task.version, '1.0.0')
-  assert.ok(task.schemaRefs?.includes('schema://movscript.project_standards_proposal.v1'))
-  assert.match(task.instructionTemplate, /目标：\n产出或编辑一个本地 project_standards_proposal draft/)
-  assert.match(task.instructionTemplate, /\{\{schema:movscript\.project_standards_proposal\.v1\}\}/)
+  assert.ok(task.schemaRefs?.includes('schema://movscript.project_standards_workspace.v1'))
+  assert.match(task.instructionTemplate, /目标：\n产出或编辑一个本地 project_standards_workspace workspace/)
+  assert.match(task.instructionTemplate, /\{\{schema:movscript\.project_standards_workspace\.v1\}\}/)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.script-writing'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.creative-workbench'), false)
   assert.ok(inputTool)
@@ -924,7 +958,7 @@ test('linter rejects missing refs and old config file permissions field', () => 
     enabledPackIds: ['core.pack.base'],
     skillIds: [],
     toolGrants: [],
-    permissions: ['draft.write'],
+    permissions: ['workspace.write'],
   } as never)
 
   const issues = lintCatalog(registry)
@@ -1033,10 +1067,10 @@ test('linter flags task language in tool descriptions', () => {
       tools: [],
     },
     tools: [{
-      name: 'studio_create_draft',
-      description: 'Create a draft. Use this only when the user asks for a proposal task.',
-      permission: 'draft.write',
-      risk: 'draft',
+      name: 'studio_create_workspace',
+      description: 'Create a workspace. Use this only when the user asks for a workspace task.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       projectScoped: true,
       requiresApprovalByDefault: false,
       source: 'runtime',
@@ -1052,28 +1086,28 @@ test('config file resolution, trigger selection, prompt refs, and tool scope wor
   const { configFile, warnings } = resolveConfigFile(catalog.layeredRegistry)
   assert.deepEqual(warnings, [])
 
-  const task = catalog.layeredRegistry.skills.get('movscript.project_standards_proposal')
-  const rules = catalog.layeredRegistry.skills.get('draft.rules.lifecycle')
+  const task = catalog.layeredRegistry.skills.get('movscript.project_standards_workspace')
+  const rules = catalog.layeredRegistry.skills.get('workspace.rules.lifecycle')
   assert.ok(task)
   assert.ok(rules)
 
   configFile.skillIds = [task.id, rules.id]
   configFile.toolGrants = [
-    { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+    { name: 'workspace_validate', mode: 'allow', approval: 'never' },
     { name: 'core_work_start', mode: 'allow', approval: 'always' },
     { name: 'core_user_input_request', mode: 'allow', approval: 'never' },
   ]
 
   const ctx = {
     configFile,
-    message: '请帮我做项目规范提案',
+    message: '请帮我做项目规范工作区',
     intents: [],
     uiContext: { projectId: 1 },
     conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
     catalogVersion: catalog.layeredRegistry.version,
   }
 
-  if (!task) assert.fail('movscript.project_standards_proposal should exist')
+  if (!task) assert.fail('movscript.project_standards_workspace should exist')
   const selected = selectActiveTriggeredSkills([task], ctx)
   assert.equal(selected.skills.length, 1)
 
@@ -1082,7 +1116,7 @@ test('config file resolution, trigger selection, prompt refs, and tool scope wor
     ctx,
     skills: [rules, ...selected.skills],
   })
-  assert.match(prompt.systemPrompt, /Project Standards Proposal/)
+  assert.match(prompt.systemPrompt, /Project Standards Workspace/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
 
   const tools = resolveVisibleTools({
@@ -1090,7 +1124,7 @@ test('config file resolution, trigger selection, prompt refs, and tool scope wor
     ctx,
     activeSkills: selected.skills,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'draft_apply_preview'))
+  assert.ok(tools.available.some((tool) => tool.name === 'workspace_validate'))
   assert.ok(tools.available.some((tool) => tool.name === 'core_user_input_request'))
   assert.equal(tools.available.some((tool) => tool.name === 'core_work_start'), false)
 })
@@ -1103,11 +1137,11 @@ test('org and user config file overrides can only narrow runtime capability', ()
     id: 'acme.config_file.org',
     version: '1.0.0',
     name: 'Org Override',
-    enabledPackIds: ['core.pack.agent', 'draft.pack.lifecycle', 'movscript.pack.workspace'],
+    enabledPackIds: ['core.pack.agent', 'workspace.pack.lifecycle', 'movscript.pack.workspace'],
     skillIds: [...base.skillIds],
     toolGrants: [
-      { name: 'draft_apply_preview', mode: 'allow' as const, approval: 'always' as const },
-      { name: 'draft_create', mode: 'deny' as const },
+      { name: 'workspace_validate', mode: 'allow' as const, approval: 'always' as const },
+      { name: 'workspace_open', mode: 'deny' as const },
     ],
     limits: { maxActiveTriggeredSkills: 1 },
   }
@@ -1117,9 +1151,9 @@ test('org and user config file overrides can only narrow runtime capability', ()
     version: '1.0.0',
     name: 'User Override',
     enabledPackIds: [],
-    skillIds: ['movscript.project_standards_proposal'],
+    skillIds: ['movscript.project_standards_workspace'],
     toolGrants: [
-      { name: 'draft_apply_preview', mode: 'deny' as const },
+      { name: 'workspace_validate', mode: 'deny' as const },
     ],
   }
 
@@ -1129,10 +1163,10 @@ test('org and user config file overrides can only narrow runtime capability', ()
   })
 
   assert.deepEqual(resolved.warnings, [])
-  assert.deepEqual(resolved.configFile.enabledPackIds, ['core.pack.agent', 'draft.pack.lifecycle', 'movscript.pack.workspace'])
-  assert.deepEqual(resolved.configFile.skillIds, ['movscript.project_standards_proposal'])
-  assert.equal(resolved.configFile.toolGrants.find((grant) => grant.name === 'draft_apply_preview')?.mode, 'deny')
-  assert.equal(resolved.configFile.toolGrants.find((grant) => grant.name === 'draft_create')?.mode, 'deny')
+  assert.deepEqual(resolved.configFile.enabledPackIds, ['core.pack.agent', 'workspace.pack.lifecycle', 'movscript.pack.workspace'])
+  assert.deepEqual(resolved.configFile.skillIds, ['movscript.project_standards_workspace'])
+  assert.equal(resolved.configFile.toolGrants.find((grant) => grant.name === 'workspace_validate')?.mode, 'deny')
+  assert.equal(resolved.configFile.toolGrants.find((grant) => grant.name === 'workspace_open')?.mode, 'deny')
   assert.equal(resolved.configFile.limits?.maxActiveTriggeredSkills, 1)
   assert.deepEqual(resolved.configFile.resolvedFrom?.layers.map((layer) => layer.source), ['base', 'org', 'user'])
 })
@@ -1148,7 +1182,7 @@ test('org and user config file overrides are rejected as a whole when they add o
     enabledPackIds: [...base.enabledPackIds, 'movscript.pack.nonexistent'],
     skillIds: [],
     toolGrants: [
-      { name: 'draft_apply_preview', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'workspace_validate', mode: 'allow' as const, approval: 'never' as const },
       { name: 'core_work_start', mode: 'allow' as const, approval: 'never' as const },
     ],
   }
@@ -1158,7 +1192,7 @@ test('org and user config file overrides are rejected as a whole when they add o
     version: '1.0.0',
     name: 'Bad User Override',
     enabledPackIds: [],
-    skillIds: ['draft.rules.lifecycle'],
+    skillIds: ['workspace.rules.lifecycle'],
     toolGrants: [],
   }
 
@@ -1168,7 +1202,7 @@ test('org and user config file overrides are rejected as a whole when they add o
   })
 
   assert.ok(resolved.warnings.some((warning) => warning.includes('config_file.override.rejected: org config file acme.config_file.bad-org cannot add enabledPack movscript.pack.nonexistent')))
-  assert.ok(resolved.warnings.some((warning) => warning.includes('config_file.override.rejected: user config file acme.config_file.bad-user cannot add skill draft.rules.lifecycle')))
+  assert.ok(resolved.warnings.some((warning) => warning.includes('config_file.override.rejected: user config file acme.config_file.bad-user cannot add skill workspace.rules.lifecycle')))
   assert.deepEqual(resolved.configFile.enabledPackIds, base.enabledPackIds)
   assert.deepEqual(resolved.configFile.toolGrants, base.toolGrants)
   assert.deepEqual(resolved.configFile.resolvedFrom?.layers.map((layer) => layer.source), ['base'])

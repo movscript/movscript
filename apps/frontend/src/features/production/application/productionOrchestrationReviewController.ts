@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 import {
-  buildProposalReviewSegments,
-  collectProposalReviewNodes,
-  parseProductionProposalDraft,
-  type ProposalDraftContent,
-  type ProposalNodeDecisions,
-  type ProposalSegmentNode,
-} from '@/features/production/domain/productionProposalReviewModel'
+  buildWorkspaceReviewSegments,
+  collectWorkspaceReviewNodes,
+  parseProductionWorkspaceWorkspace,
+  type WorkspaceWorkspaceContent,
+  type WorkspaceNodeDecisions,
+  type WorkspaceSegmentNode,
+} from '@/features/production/domain/productionWorkspaceReviewModel'
 
 interface ProductionOrchestrationReviewControllerInput {
   projectId?: number
   searchParams: URLSearchParams
-  currentProductionSnapshot: { segments: ProposalSegmentNode[] }
+  currentProductionSnapshot: { segments: WorkspaceSegmentNode[] }
   structureStatusLabel: string
 }
 
@@ -24,83 +24,83 @@ export function useProductionOrchestrationReviewController({
   currentProductionSnapshot,
   structureStatusLabel,
 }: ProductionOrchestrationReviewControllerInput) {
-  const openedDraftId = searchParams.get('draftId')?.trim() || ''
-  const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
-  const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
+  const openedWorkspaceId = searchParams.get('workspaceId')?.trim() || ''
+  const openedSettingWorkspaceId = searchParams.get('settingWorkspaceId')?.trim() || ''
+  const openedAssetWorkspaceWorkspaceId = searchParams.get('assetWorkspaceWorkspaceId')?.trim() || ''
   const reviewOpen = searchParams.get('view') === 'review'
-  const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
-  const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
+  const [workspacePreviewWorkspace, setWorkspacePreviewWorkspace] = useState<WorkspaceWorkspaceContent | null>(null)
+  const [workspaceNodeDecisions, setWorkspaceNodeDecisions] = useState<WorkspaceNodeDecisions>({})
 
-  const openedDraftQuery = useQuery<AgentDraft | null>({
-    queryKey: ['production-orchestration-draft', projectId, openedDraftId],
+  const openedWorkspaceQuery = useQuery<AgentWorkspace | null>({
+    queryKey: ['production-orchestration-workspace', projectId, openedWorkspaceId],
     queryFn: async () => {
-      if (!projectId || !openedDraftId) return null
-      return localAgentClient.getDraft(openedDraftId)
+      if (!projectId || !openedWorkspaceId) return null
+      return localAgentClient.getWorkspace(openedWorkspaceId)
     },
-    enabled: !!projectId && !!openedDraftId,
+    enabled: !!projectId && !!openedWorkspaceId,
   })
-  const openedSettingDraftQuery = useQuery<AgentDraft | null>({
-    queryKey: ['production-orchestration-setting-draft', projectId, openedSettingDraftId],
+  const openedSettingWorkspaceQuery = useQuery<AgentWorkspace | null>({
+    queryKey: ['production-orchestration-setting-workspace', projectId, openedSettingWorkspaceId],
     queryFn: async () => {
-      if (!projectId || !openedSettingDraftId) return null
-      return localAgentClient.getDraft(openedSettingDraftId)
+      if (!projectId || !openedSettingWorkspaceId) return null
+      return localAgentClient.getWorkspace(openedSettingWorkspaceId)
     },
-    enabled: !!projectId && !!openedSettingDraftId,
+    enabled: !!projectId && !!openedSettingWorkspaceId,
   })
-  const openedAssetProposalDraftQuery = useQuery<AgentDraft | null>({
-    queryKey: ['production-orchestration-asset-proposal-draft', projectId, openedAssetProposalDraftId],
+  const openedAssetWorkspaceWorkspaceQuery = useQuery<AgentWorkspace | null>({
+    queryKey: ['production-orchestration-asset-workspace-workspace', projectId, openedAssetWorkspaceWorkspaceId],
     queryFn: async () => {
-      if (!projectId || !openedAssetProposalDraftId) return null
-      return localAgentClient.getDraft(openedAssetProposalDraftId)
+      if (!projectId || !openedAssetWorkspaceWorkspaceId) return null
+      return localAgentClient.getWorkspace(openedAssetWorkspaceWorkspaceId)
     },
-    enabled: !!projectId && !!openedAssetProposalDraftId,
+    enabled: !!projectId && !!openedAssetWorkspaceWorkspaceId,
   })
 
-  const proposalReviewNodeCount = useMemo(
-    () => proposalPreviewDraft ? collectProposalReviewNodes(buildProposalReviewSegments(proposalPreviewDraft.proposal.segments, currentProductionSnapshot)).length : 0,
-    [currentProductionSnapshot, proposalPreviewDraft],
+  const workspaceReviewNodeCount = useMemo(
+    () => workspacePreviewWorkspace ? collectWorkspaceReviewNodes(buildWorkspaceReviewSegments(workspacePreviewWorkspace.workspace.segments, currentProductionSnapshot)).length : 0,
+    [currentProductionSnapshot, workspacePreviewWorkspace],
   )
   const workspaceStatusLabel = reviewOpen
-    ? proposalPreviewDraft
-      ? `待审节点 ${proposalReviewNodeCount}`
-      : '等待 AI 草稿'
+    ? workspacePreviewWorkspace
+      ? `待审节点 ${workspaceReviewNodeCount}`
+      : '等待 AI 工作区'
     : structureStatusLabel
 
   useEffect(() => {
-    const draft = openedDraftQuery.data
-    if (!draft || draft.kind !== 'production_proposal') {
-      setProposalPreviewDraft(null)
+    const workspace = openedWorkspaceQuery.data
+    if (!workspace || workspace.kind !== 'production_workspace') {
+      setWorkspacePreviewWorkspace(null)
       return
     }
-    const parsed = parseProductionProposalDraft(draft)
-    setProposalPreviewDraft(parsed)
-    setProposalNodeDecisions({})
-  }, [openedDraftId, openedDraftQuery.data])
+    const parsed = parseProductionWorkspaceWorkspace(workspace)
+    setWorkspacePreviewWorkspace(parsed)
+    setWorkspaceNodeDecisions({})
+  }, [openedWorkspaceId, openedWorkspaceQuery.data])
 
   useEffect(() => {
-    if (proposalPreviewDraft) {
-      setProposalNodeDecisions({})
+    if (workspacePreviewWorkspace) {
+      setWorkspaceNodeDecisions({})
     }
-  }, [proposalPreviewDraft])
+  }, [workspacePreviewWorkspace])
 
-  function clearProposalReview() {
-    setProposalPreviewDraft(null)
-    setProposalNodeDecisions({})
+  function clearWorkspaceReview() {
+    setWorkspacePreviewWorkspace(null)
+    setWorkspaceNodeDecisions({})
   }
 
   return {
-    openedDraftId,
-    openedSettingDraftId,
-    openedAssetProposalDraftId,
-    openedDraftQuery,
-    openedSettingDraftQuery,
-    openedAssetProposalDraftQuery,
-    proposalPreviewDraft,
-    proposalNodeDecisions,
-    setProposalNodeDecisions,
-    proposalReviewNodeCount,
+    openedWorkspaceId,
+    openedSettingWorkspaceId,
+    openedAssetWorkspaceWorkspaceId,
+    openedWorkspaceQuery,
+    openedSettingWorkspaceQuery,
+    openedAssetWorkspaceWorkspaceQuery,
+    workspacePreviewWorkspace,
+    workspaceNodeDecisions,
+    setWorkspaceNodeDecisions,
+    workspaceReviewNodeCount,
     reviewOpen,
     workspaceStatusLabel,
-    clearProposalReview,
+    clearWorkspaceReview,
   }
 }

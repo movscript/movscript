@@ -65,7 +65,7 @@ go test ./...
 - Keep public docs in `docs/`; keep design history and maintainer-only context in `memory/`.
 - Keep machine-readable contracts and fixtures in `contracts/`, not in `docs/`.
 - Prefer updating the consolidated docs index instead of adding narrow one-off guides.
-- Document current behavior first. If a section describes a proposal, move it to `memory/` or label it clearly.
+- Document current behavior first. If a section describes a workspace, move it to `memory/` or label it clearly.
 
 ## Internationalization
 

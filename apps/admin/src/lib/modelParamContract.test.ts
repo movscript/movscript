@@ -50,8 +50,8 @@ test('model param contract audit summarizes rule types for admin preview', () =>
       type: 'select',
       options: ['5'],
       conflicts_with: ['frames'],
-      conditional_enum: [{ when_param: 'draft', when_value: true, options: ['5'] }],
-      conditional_const: [{ when_param: 'draft', when_value: true, value: '5' }],
+      conditional_enum: [{ when_param: 'workspace', when_value: true, options: ['5'] }],
+      conditional_const: [{ when_param: 'workspace', when_value: true, value: '5' }],
       requires_value: [{ param: 'resolution', value: '720p' }],
     },
     {
@@ -76,8 +76,8 @@ test('agent compact param contract keeps supported keys and compact rules', () =
   assert.deepEqual(
     buildAgentCompactParamContract([
       {
-        key: 'draft',
-        label: 'Draft',
+        key: 'workspace',
+        label: 'Workspace',
         type: 'boolean',
       },
       {
@@ -86,7 +86,7 @@ test('agent compact param contract keeps supported keys and compact rules', () =
         type: 'select',
         options: ['360p', '480p'],
         default: '480p',
-        conditional_enum: [{ when_param: 'draft', when_value: true, options: ['480p'] }],
+        conditional_enum: [{ when_param: 'workspace', when_value: true, options: ['480p'] }],
       },
       {
         key: 'frames',
@@ -102,7 +102,7 @@ test('agent compact param contract keeps supported keys and compact rules', () =
         label: 'Return Last Frame',
         type: 'boolean',
         default: false,
-        conditional_const: [{ when_param: 'draft', when_value: true, value: false }],
+        conditional_const: [{ when_param: 'workspace', when_value: true, value: false }],
       },
       {
         key: 'sequential_image_generation',
@@ -234,8 +234,8 @@ test('model param contract audit accepts string params and preserves defaults', 
 
 test('model param serialization preserves explicit boolean false default', () => {
   const encoded = serializeParamDefs([{
-    key: 'draft',
-    label: 'Draft',
+    key: 'workspace',
+    label: 'Workspace',
     type: 'boolean',
     default: 'false',
   } as ParamDef])
@@ -270,8 +270,8 @@ test('model param serialization tolerates malformed array fields without throwin
     type: 'select',
     options: '480p',
     conflicts_with: ['frames'],
-    conditional_enum: ['draft', { when_param: 'draft', when_value: true, options: '480p' }],
-    conditional_const: ['draft'],
+    conditional_enum: ['workspace', { when_param: 'workspace', when_value: true, options: '480p' }],
+    conditional_const: ['workspace'],
     requires_value: ['sequential_image_generation'],
   } as unknown as ParamDef])
   const parsed = JSON.parse(encoded) as ParamDef[]
@@ -418,7 +418,7 @@ test('model param contract audit reports malformed array fields without throwing
       type: 'select',
       options: [480],
       conflicts_with: [1],
-      conditional_enum: ['draft'],
+      conditional_enum: ['workspace'],
       json_schema: [],
     },
   ]), [])
@@ -437,7 +437,7 @@ test('model param contract audit reports non-array fields without throwing', () 
       type: 'select',
       options: '480p',
       conflicts_with: 'frames',
-      conditional_enum: { when_param: 'draft', when_value: true, options: ['480p'] },
+      conditional_enum: { when_param: 'workspace', when_value: true, options: ['480p'] },
     },
   ]), [])
 
@@ -459,13 +459,13 @@ test('model param contract audit reports invalid default values', () => {
   const audit = buildParamContractAudit(JSON.stringify([
     { key: 'duration', label: 'Duration', type: 'select', options: ['5'], default: '10' },
     { key: 'frames', label: 'Frames', type: 'number', min: 29, max: 289, default: 10 },
-    { key: 'draft', label: 'Draft', type: 'boolean', default: 'false' },
+    { key: 'workspace', label: 'Workspace', type: 'boolean', default: 'false' },
     { key: 'negative_prompt', label: 'Negative Prompt', type: 'string', default: 123 },
   ]), [])
 
   assert.equal(audit.errors.some((error) => error.includes('duration') && error.includes('default is not in options')), true)
   assert.equal(audit.errors.some((error) => error.includes('frames') && error.includes('default is less than min')), true)
-  assert.equal(audit.errors.some((error) => error.includes('draft') && error.includes('default must be a boolean')), true)
+  assert.equal(audit.errors.some((error) => error.includes('workspace') && error.includes('default must be a boolean')), true)
   assert.equal(audit.errors.some((error) => error.includes('negative_prompt') && error.includes('default must be a string')), true)
 })
 
@@ -485,9 +485,9 @@ test('model param contract audit reports invalid json schema keywords', () => {
 
 test('model param contract audit reports invalid rule values', () => {
   const audit = buildParamContractAudit(JSON.stringify([
-    { key: 'draft', label: 'Draft', type: 'boolean' },
-    { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'draft', when_value: 'true', options: ['720p', '720p'], whenParam: 'draft' }, { when_param: 1, when_value: true, options: '480p' }, { when_param: 'draft', when_value: true, options: [480] }, { when_param: null, when_value: true, options: ['480p'] }] },
-    { key: 'return_last_frame', label: 'Return Last Frame', type: 'boolean', conditional_const: [{ when_param: 'draft', when_value: true, vale: false }, { when_param: 1, when_value: true, value: false }, { when_param: 'draft', when_value: true, value: null }] },
+    { key: 'workspace', label: 'Workspace', type: 'boolean' },
+    { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'workspace', when_value: 'true', options: ['720p', '720p'], whenParam: 'workspace' }, { when_param: 1, when_value: true, options: '480p' }, { when_param: 'workspace', when_value: true, options: [480] }, { when_param: null, when_value: true, options: ['480p'] }] },
+    { key: 'return_last_frame', label: 'Return Last Frame', type: 'boolean', conditional_const: [{ when_param: 'workspace', when_value: true, vale: false }, { when_param: 1, when_value: true, value: false }, { when_param: 'workspace', when_value: true, value: null }] },
     { key: 'sequential_image_generation', label: 'Sequential', type: 'select', options: ['disabled', 'auto'] },
     { key: 'image_count', label: 'Image Count', type: 'number', min: 1, max: 15, requires_value: [{ param: 'sequential_image_generation', value: 'enabled', parameter: 'sequential_image_generation' }, { param: 1, value: 'auto' }, { param: null, value: 'auto' }] },
   ]), [])

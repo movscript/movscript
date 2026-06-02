@@ -39,8 +39,8 @@ func TestNormalizeCreateInputDefaults(t *testing.T) {
 	if input.Version != 1 {
 		t.Fatalf("version = %d, want 1", input.Version)
 	}
-	if input.Status != "draft" {
-		t.Fatalf("status = %q, want draft", input.Status)
+	if input.Status != "workspace" {
+		t.Fatalf("status = %q, want workspace", input.Status)
 	}
 	if input.SourceType != "manual" {
 		t.Fatalf("source type = %q, want manual", input.SourceType)
@@ -55,7 +55,7 @@ func TestValidateCreateInputRejectsUnknownOwner(t *testing.T) {
 		OwnerID:    3,
 		Role:       "attachment",
 		Version:    1,
-		Status:     "draft",
+		Status:     "workspace",
 		SourceType: "manual",
 	}
 	if err := validateCreateInput(input); err != ErrOwnerInvalidType {
@@ -262,7 +262,7 @@ func TestCreateAdoptsOwnedPersonalResourceIntoTeam(t *testing.T) {
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
 		t.Fatalf("create slot: %v", err)
 	}
-	resource := model.RawResource{OwnerID: userID, Type: "image", Name: "personal-draft.png", FilePath: "/tmp/personal-draft.png"}
+	resource := model.RawResource{OwnerID: userID, Type: "image", Name: "personal-workspace.png", FilePath: "/tmp/personal-workspace.png"}
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestUpdateAndDeleteRequireBindingProjectInCurrentOrg(t *testing.T) {
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}
-	binding := model.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 1, Role: "attachment", Status: "draft", SourceType: "manual", Version: 1}
+	binding := model.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 1, Role: "attachment", Status: "workspace", SourceType: "manual", Version: 1}
 	if err := db.Create(&binding).Error; err != nil {
 		t.Fatalf("create binding: %v", err)
 	}

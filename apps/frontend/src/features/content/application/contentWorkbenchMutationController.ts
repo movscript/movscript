@@ -4,12 +4,12 @@ import {
   updateSemanticEntity,
   type SemanticEntityConfig,
 } from '@/shared/infrastructure/api/semanticEntities'
-import { buildContentUnitProposalPatch, buildContentUnitReorderPatchTaskGraph, buildContentUnitTimelineMoveTaskGraph } from '@/features/content/domain/contentWorkbenchWriteModel'
+import { buildContentUnitWorkspacePatch, buildContentUnitReorderPatchTaskGraph, buildContentUnitTimelineMoveTaskGraph } from '@/features/content/domain/contentWorkbenchWriteModel'
 import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatus'
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from '@/features/content/domain/contentWorkbenchModel'
 import type { ContentWorkbenchDropPosition } from '@/features/content/domain/contentWorkbenchTimeline'
-import { draftEntityId } from '@/features/content/domain/contentWorkbenchDraftReviewModel'
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import { workspaceEntityId } from '@/features/content/domain/contentWorkbenchWorkspaceReviewModel'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import { toast } from '@/shared/ui/toastStore'
 
@@ -17,15 +17,15 @@ export interface ContentWorkbenchMutationQueryClient {
   invalidateQueries: (input: { queryKey: readonly unknown[] | unknown[] }) => Promise<unknown>
 }
 
-export function buildRejectContentDraftMutationOptions(input: {
-  refetchDrafts: () => Promise<unknown>
+export function buildRejectContentWorkspaceMutationOptions(input: {
+  refetchWorkspaces: () => Promise<unknown>
   closeReview: () => void
 }) {
   return {
-    mutationFn: async (draft: AgentDraft) => localAgentClient.rejectDraft(draft.id, '用户在内容编排工作台退回该制作项草案'),
+    mutationFn: async (workspace: AgentWorkspace) => localAgentClient.rejectWorkspace(workspace.id, '用户在内容编排工作台退回该制作项草案'),
     onSuccess: async () => {
       toast.success('AI 草案已退回')
-      await input.refetchDrafts()
+      await input.refetchWorkspaces()
       input.closeReview()
     },
     onError: (error: unknown) => {
@@ -34,24 +34,24 @@ export function buildRejectContentDraftMutationOptions(input: {
   }
 }
 
-export function buildMarkContentDraftReviewedMutationOptions(input: {
+export function buildMarkContentWorkspaceReviewedMutationOptions(input: {
   projectId?: number
   selectedMomentId?: number
-  refetchDrafts: () => Promise<unknown>
+  refetchWorkspaces: () => Promise<unknown>
   closeReview: () => void
 }) {
   return {
-    mutationFn: async (draft: AgentDraft) => localAgentClient.updateDraft(draft.id, {
+    mutationFn: async (workspace: AgentWorkspace) => localAgentClient.updateWorkspace(workspace.id, {
       status: 'applied',
       target: {
-        ...(isRecord(draft.target) ? draft.target : {}),
+        ...(isRecord(workspace.target) ? workspace.target : {}),
         projectId: input.projectId,
         entityType: 'scene_moment',
-        entityId: input.selectedMomentId ?? draftEntityId(draft.target) ?? draftEntityId(draft.source),
-        field: 'content_unit_proposal_review',
+        entityId: input.selectedMomentId ?? workspaceEntityId(workspace.target) ?? workspaceEntityId(workspace.source),
+        field: 'content_unit_workspace_review',
       },
       metadata: {
-        ...(isRecord(draft.metadata) ? draft.metadata : {}),
+        ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
         reviewedFrom: 'content-workbench',
         reviewedAt: new Date().toISOString(),
         backendWritePerformed: false,
@@ -60,7 +60,7 @@ export function buildMarkContentDraftReviewedMutationOptions(input: {
     }),
     onSuccess: async () => {
       toast.success('AI 草案已标记为处理完成')
-      await input.refetchDrafts()
+      await input.refetchWorkspaces()
       input.closeReview()
     },
     onError: (error: unknown) => {
@@ -69,7 +69,7 @@ export function buildMarkContentDraftReviewedMutationOptions(input: {
   }
 }
 
-export function buildApplyContentUnitProposalMutationOptions(input: {
+export function buildApplyContentUnitWorkspaceMutationOptions(input: {
   projectId?: number
   contentUnitConfig: SemanticEntityConfig
   contentUnits: ContentWorkbenchRecord[]
@@ -79,10 +79,10 @@ export function buildApplyContentUnitProposalMutationOptions(input: {
   setOptimisticSelectedUnit: (unit: ContentWorkbenchRecord) => void
 }) {
   return {
-    mutationFn: async ({ unitId, proposal }: { unitId: number; proposal: Record<string, unknown> }) => {
+    mutationFn: async ({ unitId, workspace }: { unitId: number; workspace: Record<string, unknown> }) => {
       if (!input.projectId) throw new Error('缺少项目')
       const current = input.contentUnits.find((unit) => unit.ID === unitId)
-      return updateSemanticEntity(input.projectId, input.contentUnitConfig, unitId, buildContentUnitProposalPatch(current, proposal))
+      return updateSemanticEntity(input.projectId, input.contentUnitConfig, unitId, buildContentUnitWorkspacePatch(current, workspace))
     },
     onSuccess: async (saved: ContentWorkbenchRecord) => {
       input.selectContentUnit(saved.ID)

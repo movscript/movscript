@@ -3,7 +3,7 @@ import type { ClipboardEvent, DragEvent, RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
-import { fetchResourceById } from '@/features/agent/domain/agentMessageViewModel'
+import { fetchResourceById } from '@/features/agent/domain/agentResourceLookup'
 import {
   RESOURCE_MENTION_RE,
   RESOURCE_MENTION_TRIGGER_RE,
@@ -21,7 +21,7 @@ import type { RawResource } from '@/types'
 interface UseAgentComposerControllerInput {
   userId: string
   conversationId: string
-  draft: { input: string; attachments: AgentAttachment[] }
+  workspace: { input: string; attachments: AgentAttachment[] }
   recentResources: RawResource[]
   fileRef: RefObject<HTMLInputElement>
   inputRef: RefObject<HTMLDivElement>
@@ -30,20 +30,20 @@ interface UseAgentComposerControllerInput {
 export function useAgentComposerController({
   userId,
   conversationId,
-  draft,
+  workspace,
   recentResources,
   fileRef,
   inputRef,
 }: UseAgentComposerControllerInput) {
   const qc = useQueryClient()
-  const updateConversationDraft = useAgentSessionStore((s) => s.updateConversationDraft)
+  const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
   const [uploadedFileCount, setUploadedFileCount] = useState(0)
   const [draggingFiles, setDraggingFiles] = useState(false)
-  const input = draft.input
-  const attachments = draft.attachments
+  const input = workspace.input
+  const attachments = workspace.attachments
 
   const resourceAttachmentIndex = useMemo(() => {
     const map = new Map<number, AgentAttachment>()
@@ -105,8 +105,8 @@ export function useAgentComposerController({
 
   const composerAttachments = useMemo(() => composerAttachmentEntries.map((entry) => entry.attachment), [composerAttachmentEntries])
 
-  function updateDraft(patch: Partial<typeof draft>) {
-    updateConversationDraft(userId, conversationId, patch)
+  function updateWorkspace(patch: Partial<typeof workspace>) {
+    updateConversationWorkspace(userId, conversationId, patch)
   }
 
   function revokeAttachmentPreviewUrls(items: AgentAttachment[]) {
@@ -136,8 +136,8 @@ export function useAgentComposerController({
           ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
         } satisfies AgentAttachment
       }))
-      const currentAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
-      updateDraft({ attachments: [...currentAttachments, ...pending] })
+      const currentAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
+      updateWorkspace({ attachments: [...currentAttachments, ...pending] })
       const uploaded: AgentAttachment[] = []
       for (const [index, file] of list.entries()) {
         const fd = new FormData()
@@ -151,18 +151,18 @@ export function useAgentComposerController({
           ...(pending[index]?.dataUrl ? { dataUrl: pending[index].dataUrl } : {}),
         })
       }
-      const latestAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
+      const latestAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
       const uploadedByPendingId = new Map(uploaded.map((attachment) => [attachment.id, attachment]))
-      updateDraft({
+      updateWorkspace({
         attachments: latestAttachments.map((attachment) => uploadedByPendingId.get(attachment.id) ?? attachment),
       })
       setMentionRange(null)
       qc.invalidateQueries({ queryKey: ['resources'] })
       qc.invalidateQueries({ queryKey: ['resources', 'agent-panel'] })
     } catch (e) {
-      const latestAttachments = useAgentSessionStore.getState().getConversationDraft(userId, conversationId).attachments
+      const latestAttachments = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId).attachments
       const pendingIds = new Set(pending.map((attachment) => attachment.id))
-      updateDraft({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
+      updateWorkspace({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
       revokeAttachmentPreviewUrls(pending)
       throw e
     } finally {
@@ -250,13 +250,13 @@ export function useAgentComposerController({
 
     const resource = droppedResource ?? await fetchResourceById(resourceId)
     const nextAttachment = resource ? attachmentFromResource(resource) : placeholderAttachment(resourceId)
-    const latestDraft = useAgentSessionStore.getState().getConversationDraft(userId, conversationId)
-    const nextInput = latestDraft.input.includes(resourceMentionToken(resourceId))
-      ? latestDraft.input
-      : normalizeInlineSpacing(`${latestDraft.input.trimEnd()} ${resourceMentionToken(resourceId)} `)
-    updateDraft({
+    const latestWorkspace = useAgentSessionStore.getState().getConversationWorkspace(userId, conversationId)
+    const nextInput = latestWorkspace.input.includes(resourceMentionToken(resourceId))
+      ? latestWorkspace.input
+      : normalizeInlineSpacing(`${latestWorkspace.input.trimEnd()} ${resourceMentionToken(resourceId)} `)
+    updateWorkspace({
       input: nextInput,
-      attachments: dedupeAttachments([...latestDraft.attachments, nextAttachment]),
+      attachments: dedupeAttachments([...latestWorkspace.attachments, nextAttachment]),
     })
     setMentionRange(null)
     window.requestAnimationFrame(() => {
@@ -331,7 +331,7 @@ export function useAgentComposerController({
     const end = mentionRange?.end ?? start
     const token = `${resourceMentionToken(attachment.resourceId)} `
     const next = `${value.slice(0, start)}${token}${value.slice(end)}`
-    updateDraft({ input: next })
+    updateWorkspace({ input: next })
     setMentionRange(null)
     window.requestAnimationFrame(() => {
       editor?.focus()
@@ -346,7 +346,7 @@ export function useAgentComposerController({
     const start = caretState.caret
     const end = start
     const next = `${value.slice(0, start)}@${value.slice(end)}`
-    updateDraft({ input: next })
+    updateWorkspace({ input: next })
     const caret = start + 1
     setMentionRange({ start, end: caret, query: '' })
     window.requestAnimationFrame(() => {
@@ -357,11 +357,11 @@ export function useAgentComposerController({
 
   function removeAttachment(id: string) {
     const removed = composerAttachments.find((a) => a.id === id)
-    updateDraft({ attachments: attachments.filter((a) => a.id !== id) })
+    updateWorkspace({ attachments: attachments.filter((a) => a.id !== id) })
     revokeObjectUrl(removed?.previewUrl)
     if (removed?.resourceId !== undefined) {
       const tokenPattern = new RegExp(`\\s*@\\[resource:${removed.resourceId}\\]\\s*`, 'g')
-      updateDraft({ input: normalizeInlineSpacing(input.replace(tokenPattern, ' ')) })
+      updateWorkspace({ input: normalizeInlineSpacing(input.replace(tokenPattern, ' ')) })
     }
     setMentionRange(null)
   }
@@ -388,7 +388,7 @@ export function useAgentComposerController({
     removeAttachment,
     revokeAttachmentPreviewUrls,
     setMentionRange,
-    updateDraft,
+    updateWorkspace,
     updateMentionState,
     uploadFiles,
   }

@@ -18,7 +18,7 @@ export function ContentWorkbenchDialogs({
   assetSlotConfig,
   keyframeConfig,
   creatingUnit,
-  unitDraftDefaults,
+  unitWorkspaceDefaults,
   editingUnit,
   creatingAssetSlot,
   assetSlotDefaults,
@@ -41,7 +41,7 @@ export function ContentWorkbenchDialogs({
   assetSlotConfig: EntityConfig
   keyframeConfig: EntityConfig
   creatingUnit: boolean
-  unitDraftDefaults: Partial<SemanticEntityPayload> | null
+  unitWorkspaceDefaults: Partial<SemanticEntityPayload> | null
   editingUnit: boolean
   creatingAssetSlot: boolean
   assetSlotDefaults?: Partial<SemanticEntityPayload>
@@ -61,7 +61,7 @@ export function ContentWorkbenchDialogs({
         open={creatingUnit}
         onOpenChange={onCreatingUnitChange}
         title="添加制作项"
-        description={selected ? `将作为候选草稿加入当前情节：${selected.title}` : '请先选择情节再添加制作项。'}
+        description={selected ? `将作为候选工作区加入当前情节：${selected.title}` : '请先选择情节再添加制作项。'}
       >
         {selected ? (
           <CreateContentUnitQuickCard
@@ -71,7 +71,7 @@ export function ContentWorkbenchDialogs({
             selectedUnit={selectedUnit}
             defaults={{
               kind: 'shot',
-              ...unitDraftDefaults,
+              ...unitWorkspaceDefaults,
             }}
             queryKey={queryKey}
             onSaved={onUnitSaved}

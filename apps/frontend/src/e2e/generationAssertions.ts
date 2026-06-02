@@ -89,7 +89,7 @@ export async function mockGenerationKeyframeCandidateAttachSuccess(page: Page, r
           {
             ID: 88,
             title: '开场画面锚点',
-            status: 'draft',
+            status: 'workspace',
             description: '雨夜街口的首帧画面',
             prompt: 'rainy neon street opening keyframe',
             order: 1,
@@ -151,7 +151,7 @@ export async function mockGenerationBulkKeyframeCandidateAttachSuccess(page: Pag
           {
             ID: 88,
             title: '开场画面锚点',
-            status: 'draft',
+            status: 'workspace',
             description: '雨夜街口的首帧画面',
             prompt: 'rainy neon street opening keyframe',
             order: 1,

@@ -79,10 +79,10 @@ import {
 
 type ShotImportPhase = 'idle' | 'preparing' | 'cutting' | 'review' | 'saving'
 type ShotImportSourceKind = 'file' | 'resource'
-type ShotManualDraft = ReturnType<typeof detailDraftFromEntry>
+type ShotManualWorkspace = ReturnType<typeof detailWorkspaceFromEntry>
 type ShotCutRange = { startSec: number; endSec: number }
 
-interface ShotImportDraft extends ShotManualDraft {
+interface ShotImportWorkspace extends ShotManualWorkspace {
   id: string
   order: number
   status: 'cutting' | 'ready'
@@ -99,8 +99,8 @@ interface ShotImportSession {
   objectUrl?: string
   metadata: ShotLibraryVideoMetadata
   phase: ShotImportPhase
-  drafts: ShotImportDraft[]
-  activeDraftId?: string
+  workspaces: ShotImportWorkspace[]
+  activeWorkspaceId?: string
   error?: string
   progressPercent?: number
   targetGroupId?: number
@@ -118,7 +118,7 @@ type ShotTagSuggestions = Record<ShotLibrarySemanticCategory, string[]>
 const RESOURCE_LIBRARY_PAGE_SIZE = 12
 const SHOT_LIBRARY_PAGE_SIZE = 12
 const VIDEO_METADATA_TIMEOUT_MS = 8000
-const SHOT_IMPORT_DRAFT_REVEAL_DELAY_MS = 110
+const SHOT_IMPORT_WORKSPACE_REVEAL_DELAY_MS = 110
 const SHOT_IMPORT_THUMBNAIL_WIDTH = 320
 const EMPTY_FACET_FILTERS: ShotLibraryFacetFilters = {}
 
@@ -245,7 +245,7 @@ export default function ShotLibraryPage() {
         duration_sec: session.metadata.durationSec,
         width: session.metadata.width,
         height: session.metadata.height,
-        shots: session.drafts.filter(isDraftSelected).map(importDraftToManualUpdate),
+        shots: session.workspaces.filter(isWorkspaceSelected).map(importWorkspaceToManualUpdate),
       })
       return { created, source }
     },
@@ -323,7 +323,7 @@ export default function ShotLibraryPage() {
       objectUrl,
       metadata: {},
       phase: 'preparing',
-      drafts: [],
+      workspaces: [],
       targetGroupId: undefined,
       targetGroupTitle: defaultImportGroupTitle(file.name),
     })
@@ -334,17 +334,17 @@ export default function ShotLibraryPage() {
         ...current,
         metadata,
         phase: 'cutting',
-        drafts: [],
-        activeDraftId: undefined,
+        workspaces: [],
+        activeWorkspaceId: undefined,
         error: undefined,
         progressPercent: undefined,
       } : current)
       const sourceData = await file.arrayBuffer()
-      const drafts = await buildImportDraftsWithThumbnails(resource, metadata, sourceData, objectUrl)
-      await revealImportDrafts(sourceKey, metadata, drafts)
+      const workspaces = await buildImportWorkspacesWithThumbnails(resource, metadata, sourceData, objectUrl)
+      await revealImportWorkspaces(sourceKey, metadata, workspaces)
     } catch (error) {
-      const drafts = await buildImportDraftThumbnails(objectUrl, buildImportDrafts(resource, metadata))
-      await revealImportDrafts(sourceKey, metadata, drafts, uploadErrorMessage(error, t('pages.shotLibrary.uploadFailed')))
+      const workspaces = await buildImportWorkspaceThumbnails(objectUrl, buildImportWorkspaces(resource, metadata))
+      await revealImportWorkspaces(sourceKey, metadata, workspaces, uploadErrorMessage(error, t('pages.shotLibrary.uploadFailed')))
     }
   }
 
@@ -359,7 +359,7 @@ export default function ShotLibraryPage() {
       sourceResource: resource,
       metadata: {},
       phase: 'preparing',
-      drafts: [],
+      workspaces: [],
       targetGroupId: undefined,
       targetGroupTitle: defaultImportGroupTitle(resource.name),
     })
@@ -378,41 +378,41 @@ export default function ShotLibraryPage() {
         ...current,
         metadata,
         phase: 'cutting',
-        drafts: [],
-        activeDraftId: undefined,
+        workspaces: [],
+        activeWorkspaceId: undefined,
         error: undefined,
         progressPercent: undefined,
       } : current)
       const sourceData = await blob.arrayBuffer()
-      const drafts = await buildImportDraftsWithThumbnails(resource, metadata, sourceData, thumbnailObjectUrl)
-      await revealImportDrafts(sourceKey, metadata, drafts)
+      const workspaces = await buildImportWorkspacesWithThumbnails(resource, metadata, sourceData, thumbnailObjectUrl)
+      await revealImportWorkspaces(sourceKey, metadata, workspaces)
     } catch (error) {
-      const drafts = thumbnailObjectUrl
-        ? await buildImportDraftThumbnails(thumbnailObjectUrl, buildImportDrafts(resource, metadata))
-        : buildImportDrafts(resource, metadata)
-      await revealImportDrafts(sourceKey, metadata, drafts, uploadErrorMessage(error, t('pages.shotLibrary.uploadFailed')))
+      const workspaces = thumbnailObjectUrl
+        ? await buildImportWorkspaceThumbnails(thumbnailObjectUrl, buildImportWorkspaces(resource, metadata))
+        : buildImportWorkspaces(resource, metadata)
+      await revealImportWorkspaces(sourceKey, metadata, workspaces, uploadErrorMessage(error, t('pages.shotLibrary.uploadFailed')))
     } finally {
       revokeObjectUrl(thumbnailObjectUrl)
     }
   }
 
-  async function revealImportDrafts(sourceKey: string, metadata: ShotLibraryVideoMetadata, drafts: ShotImportDraft[], error?: string) {
+  async function revealImportWorkspaces(sourceKey: string, metadata: ShotLibraryVideoMetadata, workspaces: ShotImportWorkspace[], error?: string) {
     setImportSession(current => current?.sourceKey === sourceKey ? {
       ...current,
       metadata,
       phase: 'review',
-      drafts: [],
-      activeDraftId: undefined,
+      workspaces: [],
+      activeWorkspaceId: undefined,
       error,
       progressPercent: undefined,
     } : current)
-    for (const draft of drafts) {
-      await delay(SHOT_IMPORT_DRAFT_REVEAL_DELAY_MS)
+    for (const workspace of workspaces) {
+      await delay(SHOT_IMPORT_WORKSPACE_REVEAL_DELAY_MS)
       setImportSession(current => current?.sourceKey === sourceKey ? {
         ...current,
         phase: 'review',
-        drafts: [...current.drafts, draft],
-        activeDraftId: current.activeDraftId ?? draft.id,
+        workspaces: [...current.workspaces, workspace],
+        activeWorkspaceId: current.activeWorkspaceId ?? workspace.id,
       } : current)
     }
   }
@@ -426,23 +426,23 @@ export default function ShotLibraryPage() {
     })
   }
 
-  function updateImportDraft(draftId: string, patch: Partial<ShotManualDraft>) {
+  function updateImportWorkspace(workspaceId: string, patch: Partial<ShotManualWorkspace>) {
     setImportSession(current => current ? {
       ...current,
-      drafts: current.drafts.map(draft => draft.id === draftId ? { ...draft, ...patch } : draft),
+      workspaces: current.workspaces.map(workspace => workspace.id === workspaceId ? { ...workspace, ...patch } : workspace),
     } : current)
   }
 
-  function toggleImportDraft(draftId: string, selected: boolean) {
+  function toggleImportWorkspace(workspaceId: string, selected: boolean) {
     setImportSession(current => current ? {
       ...current,
-      drafts: current.drafts.map(draft => draft.id === draftId ? { ...draft, selected } : draft),
+      workspaces: current.workspaces.map(workspace => workspace.id === workspaceId ? { ...workspace, selected } : workspace),
     } : current)
   }
 
   function handleConfirmImport() {
-    if (!importSession || !uploadSource || importSession.drafts.length === 0) return
-    if (!importSession.drafts.some(isDraftSelected)) return
+    if (!importSession || !uploadSource || importSession.workspaces.length === 0) return
+    if (!importSession.workspaces.some(isWorkspaceSelected)) return
     const source = importSession.sourceKind === 'resource' ? currentApiSource : uploadSource
     if (!source) return
     confirmShotImport.mutate({ session: importSession, source })
@@ -631,9 +631,9 @@ export default function ShotLibraryPage() {
         onResourcePage={setResourcePage}
         onSelectResource={startImportFromResource}
         onClearResource={() => setSelectedLibraryResource(null)}
-        onSelectDraft={(draftId) => setImportSession(current => current ? { ...current, activeDraftId: draftId } : current)}
-        onToggleDraft={toggleImportDraft}
-        onUpdateDraft={updateImportDraft}
+        onSelectWorkspace={(workspaceId) => setImportSession(current => current ? { ...current, activeWorkspaceId: workspaceId } : current)}
+        onToggleWorkspace={toggleImportWorkspace}
+        onUpdateWorkspace={updateImportWorkspace}
         onTargetGroup={(targetGroupId) => setImportSession(current => current ? { ...current, targetGroupId } : current)}
         onTargetGroupTitle={(targetGroupTitle) => setImportSession(current => current ? { ...current, targetGroupTitle } : current)}
         onConfirm={handleConfirmImport}
@@ -761,9 +761,9 @@ function ShotImportDialog({
   onResourcePage,
   onSelectResource,
   onClearResource,
-  onSelectDraft,
-  onToggleDraft,
-  onUpdateDraft,
+  onSelectWorkspace,
+  onToggleWorkspace,
+  onUpdateWorkspace,
   onTargetGroup,
   onTargetGroupTitle,
   onConfirm,
@@ -787,40 +787,40 @@ function ShotImportDialog({
   onResourcePage: (value: number) => void
   onSelectResource: (resource: RawResource) => void
   onClearResource: () => void
-  onSelectDraft: (draftId: string) => void
-  onToggleDraft: (draftId: string, selected: boolean) => void
-  onUpdateDraft: (draftId: string, patch: Partial<ShotManualDraft>) => void
+  onSelectWorkspace: (workspaceId: string) => void
+  onToggleWorkspace: (workspaceId: string, selected: boolean) => void
+  onUpdateWorkspace: (workspaceId: string, patch: Partial<ShotManualWorkspace>) => void
   onTargetGroup: (groupId: number | undefined) => void
   onTargetGroupTitle: (title: string) => void
   onConfirm: () => void
 }) {
   const { t } = useTranslation()
-  const activeDraft = session?.drafts.find(draft => draft.id === session.activeDraftId) ?? session?.drafts[0]
-  const canConfirm = Boolean(uploadSource && session?.phase === 'review' && session.drafts.some(isDraftSelected))
-  const draftGridRef = useRef<HTMLDivElement | null>(null)
-  const [draftPage, setDraftPage] = useState(0)
-  const draftGridMetrics = useShotDraftGridMetrics(draftGridRef, session?.drafts.length ?? 0)
+  const activeWorkspace = session?.workspaces.find(workspace => workspace.id === session.activeWorkspaceId) ?? session?.workspaces[0]
+  const canConfirm = Boolean(uploadSource && session?.phase === 'review' && session.workspaces.some(isWorkspaceSelected))
+  const workspaceGridRef = useRef<HTMLDivElement | null>(null)
+  const [workspacePage, setWorkspacePage] = useState(0)
+  const workspaceGridMetrics = useShotWorkspaceGridMetrics(workspaceGridRef, session?.workspaces.length ?? 0)
   const previewAspectRatio = normalizedCssAspectRatio(session?.metadata.width ?? 0, session?.metadata.height ?? 0) ?? '16 / 9'
-  const draftGridStyle = useMemo(() => ({
-    '--shot-import-draft-columns': String(draftGridMetrics.columns),
-  }) as CSSProperties, [draftGridMetrics.columns])
-  const drafts = session?.drafts ?? []
-  const draftPageSize = Math.max(4, draftGridMetrics.pageSize)
-  const draftPageCount = Math.max(1, Math.ceil(drafts.length / draftPageSize))
-  const normalizedDraftPage = Math.min(draftPage, draftPageCount - 1)
-  const pagedDrafts = drafts.slice(normalizedDraftPage * draftPageSize, normalizedDraftPage * draftPageSize + draftPageSize)
+  const workspaceGridStyle = useMemo(() => ({
+    '--shot-import-workspace-columns': String(workspaceGridMetrics.columns),
+  }) as CSSProperties, [workspaceGridMetrics.columns])
+  const workspaces = session?.workspaces ?? []
+  const workspacePageSize = Math.max(4, workspaceGridMetrics.pageSize)
+  const workspacePageCount = Math.max(1, Math.ceil(workspaces.length / workspacePageSize))
+  const normalizedWorkspacePage = Math.min(workspacePage, workspacePageCount - 1)
+  const pagedWorkspaces = workspaces.slice(normalizedWorkspacePage * workspacePageSize, normalizedWorkspacePage * workspacePageSize + workspacePageSize)
 
   useEffect(() => {
-    setDraftPage(current => Math.min(current, Math.max(0, draftPageCount - 1)))
-  }, [draftPageCount])
+    setWorkspacePage(current => Math.min(current, Math.max(0, workspacePageCount - 1)))
+  }, [workspacePageCount])
 
   useEffect(() => {
-    if (!activeDraft) return
-    const activeIndex = drafts.findIndex(draft => draft.id === activeDraft.id)
+    if (!activeWorkspace) return
+    const activeIndex = workspaces.findIndex(workspace => workspace.id === activeWorkspace.id)
     if (activeIndex < 0) return
-    const activePage = Math.floor(activeIndex / draftPageSize)
-    setDraftPage(activePage)
-  }, [activeDraft?.id, draftPageSize, drafts])
+    const activePage = Math.floor(activeIndex / workspacePageSize)
+    setWorkspacePage(activePage)
+  }, [activeWorkspace?.id, workspacePageSize, workspaces])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !isSaving && onOpenChange(nextOpen)}>
@@ -901,7 +901,7 @@ function ShotImportDialog({
                   className="shot-import-dialog__preview"
                   style={{ '--shot-import-preview-aspect-ratio': previewAspectRatio } as CSSProperties}
                 >
-                  <ShotDraftClipPlayer resource={session.sourceResource} draft={activeDraft} />
+                  <ShotWorkspaceClipPlayer resource={session.sourceResource} workspace={activeWorkspace} />
                 </div>
                 <div className="shot-import-dialog__status-row">
                   <StatusBadge intent={session.phase === 'review' ? 'success' : session.error ? 'danger' : 'info'} emphasis="soft">
@@ -915,57 +915,57 @@ function ShotImportDialog({
                     <span>{session.error}</span>
                   </div>
                 ) : null}
-                <div className="shot-import-dialog__draft-layout">
-                  <div className="shot-import-dialog__draft-browser">
-                    <div ref={draftGridRef} className="shot-import-dialog__draft-grid" style={draftGridStyle}>
-                    {session.drafts.length === 0 ? (
+                <div className="shot-import-dialog__workspace-layout">
+                  <div className="shot-import-dialog__workspace-browser">
+                    <div ref={workspaceGridRef} className="shot-import-dialog__workspace-grid" style={workspaceGridStyle}>
+                    {session.workspaces.length === 0 ? (
                       <div className="shot-import-dialog__empty">
                         {session.phase === 'preparing' ? <Loader2 size={16} /> : <Scissors size={16} />}
                         <span>{session.phase === 'preparing' ? t('pages.shotLibrary.readingSource') : t('pages.shotLibrary.cuttingShots')}</span>
                       </div>
-                    ) : pagedDrafts.map(draft => (
+                    ) : pagedWorkspaces.map(workspace => (
                       <button
-                        key={draft.id}
+                        key={workspace.id}
                         type="button"
-                        className={cn('shot-import-dialog__draft-card', activeDraft?.id === draft.id && 'shot-import-dialog__draft-card--active')}
-                        onClick={() => onSelectDraft(draft.id)}
+                        className={cn('shot-import-dialog__workspace-card', activeWorkspace?.id === workspace.id && 'shot-import-dialog__workspace-card--active')}
+                        onClick={() => onSelectWorkspace(workspace.id)}
                       >
                         <span
-                          className="shot-import-dialog__draft-thumb"
-                          style={{ '--shot-import-draft-aspect-ratio': previewAspectRatio } as CSSProperties}
+                          className="shot-import-dialog__workspace-thumb"
+                          style={{ '--shot-import-workspace-aspect-ratio': previewAspectRatio } as CSSProperties}
                         >
-                          {draft.thumbnailUrl ? <UrlImage src={draft.thumbnailUrl} alt="" /> : <Film size={18} />}
-                          <span>{formatDraftRange(draft)}</span>
+                          {workspace.thumbnailUrl ? <UrlImage src={workspace.thumbnailUrl} alt="" /> : <Film size={18} />}
+                          <span>{formatWorkspaceRange(workspace)}</span>
                         </span>
-                        <span className="shot-import-dialog__draft-card-body">
-                          <span className="shot-import-dialog__draft-card-topline">
-                            <span>{String(draft.order).padStart(2, '0')}</span>
-                            {draft.status === 'ready' ? <CheckCircle2 size={14} /> : <Loader2 size={14} />}
+                        <span className="shot-import-dialog__workspace-card-body">
+                          <span className="shot-import-dialog__workspace-card-topline">
+                            <span>{String(workspace.order).padStart(2, '0')}</span>
+                            {workspace.status === 'ready' ? <CheckCircle2 size={14} /> : <Loader2 size={14} />}
                           </span>
-                          <strong>{draft.title}</strong>
+                          <strong>{workspace.title}</strong>
                         </span>
-                        <span className="shot-import-dialog__draft-include" onClick={event => event.stopPropagation()}>
+                        <span className="shot-import-dialog__workspace-include" onClick={event => event.stopPropagation()}>
                           <input
                             type="checkbox"
-                            checked={isDraftSelected(draft)}
+                            checked={isWorkspaceSelected(workspace)}
                             disabled={isSaving}
-                            onChange={event => onToggleDraft(draft.id, event.currentTarget.checked)}
+                            onChange={event => onToggleWorkspace(workspace.id, event.currentTarget.checked)}
                             aria-label={t('pages.shotLibrary.includeShot')}
                           />
                         </span>
                       </button>
                     ))}
                     </div>
-                    {drafts.length > draftPageSize ? (
-                      <div className="shot-import-dialog__draft-pager">
-                        <span>{t('pages.shotLibrary.storyboardPageStatus', { page: normalizedDraftPage + 1, total: draftPageCount })}</span>
+                    {workspaces.length > workspacePageSize ? (
+                      <div className="shot-import-dialog__workspace-pager">
+                        <span>{t('pages.shotLibrary.storyboardPageStatus', { page: normalizedWorkspacePage + 1, total: workspacePageCount })}</span>
                         <div>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            disabled={normalizedDraftPage <= 0}
-                            onClick={() => setDraftPage(page => Math.max(0, page - 1))}
+                            disabled={normalizedWorkspacePage <= 0}
+                            onClick={() => setWorkspacePage(page => Math.max(0, page - 1))}
                           >
                             {t('pages.resources.previousPage')}
                           </Button>
@@ -973,8 +973,8 @@ function ShotImportDialog({
                             type="button"
                             size="sm"
                             variant="outline"
-                            disabled={normalizedDraftPage >= draftPageCount - 1}
-                            onClick={() => setDraftPage(page => Math.min(draftPageCount - 1, page + 1))}
+                            disabled={normalizedWorkspacePage >= workspacePageCount - 1}
+                            onClick={() => setWorkspacePage(page => Math.min(workspacePageCount - 1, page + 1))}
                           >
                             {t('pages.resources.nextPage')}
                           </Button>
@@ -982,12 +982,12 @@ function ShotImportDialog({
                       </div>
                     ) : null}
                   </div>
-                  {activeDraft ? (
-                    <ShotImportDraftEditor
-                      draft={activeDraft}
+                  {activeWorkspace ? (
+                    <ShotImportWorkspaceEditor
+                      workspace={activeWorkspace}
                       disabled={isSaving}
                       tagSuggestions={tagSuggestions}
-                      onChange={(patch) => onUpdateDraft(activeDraft.id, patch)}
+                      onChange={(patch) => onUpdateWorkspace(activeWorkspace.id, patch)}
                     />
                   ) : null}
                 </div>
@@ -1015,7 +1015,7 @@ function ShotImportDialog({
   )
 }
 
-function useShotDraftGridMetrics(gridRef: RefObject<HTMLElement>, draftCount: number): { columns: number; pageSize: number } {
+function useShotWorkspaceGridMetrics(gridRef: RefObject<HTMLElement>, workspaceCount: number): { columns: number; pageSize: number } {
   const [size, setSize] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
@@ -1038,22 +1038,22 @@ function useShotDraftGridMetrics(gridRef: RefObject<HTMLElement>, draftCount: nu
     return () => window.removeEventListener('resize', update)
   }, [gridRef])
 
-  return calculateShotDraftGridMetrics(size.width, size.height, draftCount)
+  return calculateShotWorkspaceGridMetrics(size.width, size.height, workspaceCount)
 }
 
-function calculateShotDraftGridMetrics(width: number, height: number, draftCount: number): { columns: number; pageSize: number } {
-  if (draftCount <= 0) return { columns: 1, pageSize: 1 }
-  if (width <= 0) return { columns: Math.min(draftCount, 2), pageSize: Math.min(draftCount, 2) }
+function calculateShotWorkspaceGridMetrics(width: number, height: number, workspaceCount: number): { columns: number; pageSize: number } {
+  if (workspaceCount <= 0) return { columns: 1, pageSize: 1 }
+  if (width <= 0) return { columns: Math.min(workspaceCount, 2), pageSize: Math.min(workspaceCount, 2) }
   const gap = 10
   const minimumCardWidth = width < 520 ? 190 : 220
   const preferredCardWidth = width >= 920 ? 300 : width >= 680 ? 260 : 230
   let columns = Math.max(1, Math.floor((width + gap) / (preferredCardWidth + gap)))
-  columns = Math.min(columns, draftCount)
+  columns = Math.min(columns, workspaceCount)
   while (columns > 1 && (width - gap * (columns - 1)) / columns < minimumCardWidth) {
     columns -= 1
   }
   while (
-    columns < draftCount
+    columns < workspaceCount
     && columns < 4
     && (width - gap * columns) / (columns + 1) >= minimumCardWidth
     && (width - gap * (columns - 1)) / columns > 360
@@ -1183,13 +1183,13 @@ function ShotImportResourceGrid({
   )
 }
 
-function ShotDraftClipPlayer({
+function ShotWorkspaceClipPlayer({
   resource,
-  draft,
+  workspace,
   onAspectRatio,
 }: {
   resource: RawResource
-  draft?: ShotImportDraft
+  workspace?: ShotImportWorkspace
   onAspectRatio?: (aspectRatio: string) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -1197,10 +1197,10 @@ function ShotDraftClipPlayer({
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [ready, setReady] = useState(false)
-  const startSec = draft ? optionalNumber(draft.startSec) ?? 0 : 0
-  const endSec = draft ? optionalNumber(draft.endSec) : undefined
-  const previewKey = `${resource.ID}:${draft?.id ?? 'source'}:${startSec}:${endSec ?? ''}`
-  const clipDuration = draftRangeDuration(draft)
+  const startSec = workspace ? optionalNumber(workspace.startSec) ?? 0 : 0
+  const endSec = workspace ? optionalNumber(workspace.endSec) : undefined
+  const previewKey = `${resource.ID}:${workspace?.id ?? 'source'}:${startSec}:${endSec ?? ''}`
+  const clipDuration = workspaceRangeDuration(workspace)
 
   const seekToStart = (video: HTMLVideoElement) => {
     if (!Number.isFinite(startSec)) return
@@ -1210,7 +1210,7 @@ function ShotDraftClipPlayer({
     updateClipProgress(video)
   }
 
-  const withinDraftRange = (video: HTMLVideoElement) => {
+  const withinWorkspaceRange = (video: HTMLVideoElement) => {
     if (video.currentTime < startSec - 0.15) return false
     if (endSec !== undefined && video.currentTime >= endSec) return false
     return true
@@ -1241,7 +1241,7 @@ function ShotDraftClipPlayer({
       video.pause()
       return
     }
-    if (!withinDraftRange(video)) seekToStart(video)
+    if (!withinWorkspaceRange(video)) seekToStart(video)
     await video.play().catch(() => setPlaying(false))
   }
 
@@ -1262,7 +1262,7 @@ function ShotDraftClipPlayer({
         resource={resource}
         playsInline
         preload="metadata"
-        diagnosticLabel={`shot-import:${resource.ID}:${draft?.id ?? 'source'}`}
+        diagnosticLabel={`shot-import:${resource.ID}:${workspace?.id ?? 'source'}`}
         onLoadedMetadata={event => {
           setReady(true)
           const aspectRatio = videoElementAspectRatio(event.currentTarget)
@@ -1271,7 +1271,7 @@ function ShotDraftClipPlayer({
         }}
         onPlay={event => {
           setPlaying(true)
-          if (!withinDraftRange(event.currentTarget)) seekToStart(event.currentTarget)
+          if (!withinWorkspaceRange(event.currentTarget)) seekToStart(event.currentTarget)
         }}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
@@ -1291,7 +1291,7 @@ function ShotDraftClipPlayer({
           size="icon-sm"
           variant="outline"
           onClick={togglePlayback}
-          disabled={!ready || !draft}
+          disabled={!ready || !workspace}
           aria-label={playing ? t('pages.shotLibrary.pauseShot') : t('pages.shotLibrary.playShot')}
           title={playing ? t('pages.shotLibrary.pauseShot') : t('pages.shotLibrary.playShot')}
         >
@@ -1302,7 +1302,7 @@ function ShotDraftClipPlayer({
           min="0"
           max="1000"
           value={Math.round(progress * 1000)}
-          disabled={!ready || !draft}
+          disabled={!ready || !workspace}
           onChange={event => seekClipProgress(Number(event.currentTarget.value) / 1000)}
           aria-label={t('pages.shotLibrary.clipProgress')}
         />
@@ -1312,40 +1312,40 @@ function ShotDraftClipPlayer({
   )
 }
 
-function ShotImportDraftEditor({
-  draft,
+function ShotImportWorkspaceEditor({
+  workspace,
   disabled,
   tagSuggestions,
   onChange,
 }: {
-  draft: ShotImportDraft
+  workspace: ShotImportWorkspace
   disabled: boolean
   tagSuggestions: ShotTagSuggestions
-  onChange: (patch: Partial<ShotManualDraft>) => void
+  onChange: (patch: Partial<ShotManualWorkspace>) => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="shot-import-dialog__editor">
       <ManualField label={t('pages.shotLibrary.titleField')}>
-        <Input value={draft.title} disabled={disabled} onChange={event => onChange({ title: event.target.value })} />
+        <Input value={workspace.title} disabled={disabled} onChange={event => onChange({ title: event.target.value })} />
       </ManualField>
       <ManualField label={t('pages.shotLibrary.summaryField')}>
-        <Textarea value={draft.summary} disabled={disabled} rows={3} onChange={event => onChange({ summary: event.target.value })} />
+        <Textarea value={workspace.summary} disabled={disabled} rows={3} onChange={event => onChange({ summary: event.target.value })} />
       </ManualField>
       <div className="shot-library-manual-form__range">
         <ManualField label={t('pages.shotLibrary.startSec')}>
-          <Input value={draft.startSec} disabled={disabled} onChange={event => onChange({ startSec: event.target.value })} />
+          <Input value={workspace.startSec} disabled={disabled} onChange={event => onChange({ startSec: event.target.value })} />
         </ManualField>
         <ManualField label={t('pages.shotLibrary.endSec')}>
-          <Input value={draft.endSec} disabled={disabled} onChange={event => onChange({ endSec: event.target.value })} />
+          <Input value={workspace.endSec} disabled={disabled} onChange={event => onChange({ endSec: event.target.value })} />
         </ManualField>
       </div>
-      <TagInputField label={t('pages.shotLibrary.intent')} value={draft.intent} disabled={disabled} suggestions={tagSuggestions.intent} category="intent" onChange={value => onChange({ intent: value })} />
-      <TagInputField label={t('pages.shotLibrary.pattern')} value={draft.pattern} disabled={disabled} suggestions={tagSuggestions.pattern} category="pattern" onChange={value => onChange({ pattern: value })} />
-      <TagInputField label={t('pages.shotLibrary.shotFunction')} value={draft.shotFunction} disabled={disabled} suggestions={tagSuggestions.shotFunction} category="shotFunction" onChange={value => onChange({ shotFunction: value })} />
-      <TagInputField label={t('pages.shotLibrary.visualPreference')} value={draft.visualPreference} disabled={disabled} suggestions={tagSuggestions.visualPreference} category="visualPreference" onChange={value => onChange({ visualPreference: value })} />
-      <TagInputField label={t('pages.shotLibrary.emotionalEffect')} value={draft.emotionalEffect} disabled={disabled} suggestions={tagSuggestions.emotionalEffect} category="emotionalEffect" onChange={value => onChange({ emotionalEffect: value })} />
-      <StructuredShotEditor draft={draft} disabled={disabled} onChange={onChange} />
+      <TagInputField label={t('pages.shotLibrary.intent')} value={workspace.intent} disabled={disabled} suggestions={tagSuggestions.intent} category="intent" onChange={value => onChange({ intent: value })} />
+      <TagInputField label={t('pages.shotLibrary.pattern')} value={workspace.pattern} disabled={disabled} suggestions={tagSuggestions.pattern} category="pattern" onChange={value => onChange({ pattern: value })} />
+      <TagInputField label={t('pages.shotLibrary.shotFunction')} value={workspace.shotFunction} disabled={disabled} suggestions={tagSuggestions.shotFunction} category="shotFunction" onChange={value => onChange({ shotFunction: value })} />
+      <TagInputField label={t('pages.shotLibrary.visualPreference')} value={workspace.visualPreference} disabled={disabled} suggestions={tagSuggestions.visualPreference} category="visualPreference" onChange={value => onChange({ visualPreference: value })} />
+      <TagInputField label={t('pages.shotLibrary.emotionalEffect')} value={workspace.emotionalEffect} disabled={disabled} suggestions={tagSuggestions.emotionalEffect} category="emotionalEffect" onChange={value => onChange({ emotionalEffect: value })} />
+      <StructuredShotEditor workspace={workspace} disabled={disabled} onChange={onChange} />
     </div>
   )
 }
@@ -1409,9 +1409,9 @@ function videoElementAspectRatio(video: HTMLVideoElement): string | undefined {
   return normalizedCssAspectRatio(video.videoWidth, video.videoHeight)
 }
 
-function shotClipDraftFromEntry(entry: ShotLibraryEntry): ShotImportDraft {
+function shotClipWorkspaceFromEntry(entry: ShotLibraryEntry): ShotImportWorkspace {
   return {
-    ...detailDraftFromEntry(entry),
+    ...detailWorkspaceFromEntry(entry),
     id: shotEntryKey(entry),
     order: entry.order || 1,
     status: 'ready',
@@ -1442,36 +1442,36 @@ function ShotReferenceDetail({
 }) {
   const { t, i18n } = useTranslation()
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(() => detailDraftFromEntry(entry))
+  const [workspace, setWorkspace] = useState(() => detailWorkspaceFromEntry(entry))
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<string>()
-  const draftKey = shotEntryKey(entry)
+  const workspaceKey = shotEntryKey(entry)
   useEffect(() => {
-    setDraft(detailDraftFromEntry(entry))
+    setWorkspace(detailWorkspaceFromEntry(entry))
     setEditing(false)
     setDetectedAspectRatio(undefined)
-  }, [draftKey])
+  }, [workspaceKey])
   const confirmDelete = () => {
     if (!window.confirm(t('pages.shotLibrary.deleteConfirm', { title: entry.title }))) return
     onDelete()
   }
   const submit = () => {
     onSave({
-      title: draft.title,
-      summary: draft.summary,
-      intent: splitTags(draft.intent),
-      pattern: splitTags(draft.pattern),
-      shot_function: splitTags(draft.shotFunction),
-      visual_preference: splitTags(draft.visualPreference),
-      emotional_effect: splitTags(draft.emotionalEffect),
-      execution_details: executionDetailsFromDraft(draft, entry),
-      visual_analysis: visualAnalysisFromDraft(draft),
-      scene_semantics: sceneSemanticsFromDraft(draft),
-      narrative_function: narrativeFunctionFromDraft(draft),
-      emotional_profile: emotionalProfileFromDraft(draft),
-      reusable_pattern: reusablePatternFromDraft(draft),
-      start_sec: optionalNumber(draft.startSec),
+      title: workspace.title,
+      summary: workspace.summary,
+      intent: splitTags(workspace.intent),
+      pattern: splitTags(workspace.pattern),
+      shot_function: splitTags(workspace.shotFunction),
+      visual_preference: splitTags(workspace.visualPreference),
+      emotional_effect: splitTags(workspace.emotionalEffect),
+      execution_details: executionDetailsFromWorkspace(workspace, entry),
+      visual_analysis: visualAnalysisFromWorkspace(workspace),
+      scene_semantics: sceneSemanticsFromWorkspace(workspace),
+      narrative_function: narrativeFunctionFromWorkspace(workspace),
+      emotional_profile: emotionalProfileFromWorkspace(workspace),
+      reusable_pattern: reusablePatternFromWorkspace(workspace),
+      start_sec: optionalNumber(workspace.startSec),
       start_sec_set: true,
-      end_sec: optionalNumber(draft.endSec),
+      end_sec: optionalNumber(workspace.endSec),
       end_sec_set: true,
     })
   }
@@ -1515,32 +1515,32 @@ function ShotReferenceDetail({
           className="shot-library-page__preview"
           style={{ '--shot-reference-aspect-ratio': detectedAspectRatio ?? shotReferenceAspectRatio(entry) } as CSSProperties}
         >
-          <ShotDraftClipPlayer
+          <ShotWorkspaceClipPlayer
             resource={resourceFromEntry(entry)}
-            draft={shotClipDraftFromEntry(entry)}
+            workspace={shotClipWorkspaceFromEntry(entry)}
             onAspectRatio={setDetectedAspectRatio}
           />
         </div>
         {editing ? (
           <div className="shot-library-manual-form">
             <ManualField label={t('pages.shotLibrary.titleField')}>
-              <Input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} />
+              <Input value={workspace.title} onChange={event => setWorkspace(current => ({ ...current, title: event.target.value }))} />
             </ManualField>
             <ManualField label={t('pages.shotLibrary.summaryField')}>
-              <Textarea value={draft.summary} rows={3} onChange={event => setDraft(current => ({ ...current, summary: event.target.value }))} />
+              <Textarea value={workspace.summary} rows={3} onChange={event => setWorkspace(current => ({ ...current, summary: event.target.value }))} />
             </ManualField>
-            <TagInputField label={t('pages.shotLibrary.intent')} value={draft.intent} suggestions={tagSuggestions.intent} category="intent" onChange={value => setDraft(current => ({ ...current, intent: value }))} />
-            <TagInputField label={t('pages.shotLibrary.pattern')} value={draft.pattern} suggestions={tagSuggestions.pattern} category="pattern" onChange={value => setDraft(current => ({ ...current, pattern: value }))} />
-            <TagInputField label={t('pages.shotLibrary.shotFunction')} value={draft.shotFunction} suggestions={tagSuggestions.shotFunction} category="shotFunction" onChange={value => setDraft(current => ({ ...current, shotFunction: value }))} />
-            <TagInputField label={t('pages.shotLibrary.visualPreference')} value={draft.visualPreference} suggestions={tagSuggestions.visualPreference} category="visualPreference" onChange={value => setDraft(current => ({ ...current, visualPreference: value }))} />
-            <TagInputField label={t('pages.shotLibrary.emotionalEffect')} value={draft.emotionalEffect} suggestions={tagSuggestions.emotionalEffect} category="emotionalEffect" onChange={value => setDraft(current => ({ ...current, emotionalEffect: value }))} />
-            <StructuredShotEditor draft={draft} onChange={patch => setDraft(current => ({ ...current, ...patch }))} />
+            <TagInputField label={t('pages.shotLibrary.intent')} value={workspace.intent} suggestions={tagSuggestions.intent} category="intent" onChange={value => setWorkspace(current => ({ ...current, intent: value }))} />
+            <TagInputField label={t('pages.shotLibrary.pattern')} value={workspace.pattern} suggestions={tagSuggestions.pattern} category="pattern" onChange={value => setWorkspace(current => ({ ...current, pattern: value }))} />
+            <TagInputField label={t('pages.shotLibrary.shotFunction')} value={workspace.shotFunction} suggestions={tagSuggestions.shotFunction} category="shotFunction" onChange={value => setWorkspace(current => ({ ...current, shotFunction: value }))} />
+            <TagInputField label={t('pages.shotLibrary.visualPreference')} value={workspace.visualPreference} suggestions={tagSuggestions.visualPreference} category="visualPreference" onChange={value => setWorkspace(current => ({ ...current, visualPreference: value }))} />
+            <TagInputField label={t('pages.shotLibrary.emotionalEffect')} value={workspace.emotionalEffect} suggestions={tagSuggestions.emotionalEffect} category="emotionalEffect" onChange={value => setWorkspace(current => ({ ...current, emotionalEffect: value }))} />
+            <StructuredShotEditor workspace={workspace} onChange={patch => setWorkspace(current => ({ ...current, ...patch }))} />
             <div className="shot-library-manual-form__range">
               <ManualField label={t('pages.shotLibrary.startSec')}>
-                <Input value={draft.startSec} onChange={event => setDraft(current => ({ ...current, startSec: event.target.value }))} />
+                <Input value={workspace.startSec} onChange={event => setWorkspace(current => ({ ...current, startSec: event.target.value }))} />
               </ManualField>
               <ManualField label={t('pages.shotLibrary.endSec')}>
-                <Input value={draft.endSec} onChange={event => setDraft(current => ({ ...current, endSec: event.target.value }))} />
+                <Input value={workspace.endSec} onChange={event => setWorkspace(current => ({ ...current, endSec: event.target.value }))} />
               </ManualField>
             </div>
             <div className="shot-library-manual-form__actions">
@@ -1628,67 +1628,67 @@ function SearchMatchPanel({ score, matches }: { score: number; matches: ShotSear
 }
 
 function StructuredShotEditor({
-  draft,
+  workspace,
   disabled = false,
   onChange,
 }: {
-  draft: ReturnType<typeof detailDraftFromEntry>
+  workspace: ReturnType<typeof detailWorkspaceFromEntry>
   disabled?: boolean
-  onChange: (patch: Partial<ReturnType<typeof detailDraftFromEntry>>) => void
+  onChange: (patch: Partial<ReturnType<typeof detailWorkspaceFromEntry>>) => void
 }) {
   const { t, i18n } = useTranslation()
   return (
     <div className="shot-library-structured-editor">
       <h2>{t('pages.shotLibrary.structuredAnnotation')}</h2>
       <div className="shot-library-manual-form__grid">
-        <TextDraftField label={localizeShotField('shot_size', i18n.language)} value={draft.shotSize} disabled={disabled} onChange={value => onChange({ shotSize: value })} />
-        <TextDraftField label={localizeShotField('camera_angle', i18n.language)} value={draft.cameraAngle} disabled={disabled} onChange={value => onChange({ cameraAngle: value })} />
-        <TextDraftField label={localizeShotField('camera_height', i18n.language)} value={draft.cameraHeight} disabled={disabled} onChange={value => onChange({ cameraHeight: value })} />
-        <TextDraftField label={localizeShotField('movement', i18n.language)} value={draft.cameraMovementType} disabled={disabled} onChange={value => onChange({ cameraMovementType: value })} />
-        <TextDraftField label={localizeShotField('camera_movement.speed', i18n.language)} value={draft.cameraMovementSpeed} disabled={disabled} onChange={value => onChange({ cameraMovementSpeed: value })} />
-        <TextDraftField label={localizeShotField('camera_movement.stability', i18n.language)} value={draft.cameraMovementStability} disabled={disabled} onChange={value => onChange({ cameraMovementStability: value })} />
-        <TextDraftField label={localizeShotField('camera_movement.motivation', i18n.language)} value={draft.cameraMovementMotivation} disabled={disabled} onChange={value => onChange({ cameraMovementMotivation: value })} />
-        <TextDraftField label={localizeShotField('lens', i18n.language)} value={draft.lensFocalLength} disabled={disabled} onChange={value => onChange({ lensFocalLength: value })} />
-        <TextDraftField label={localizeShotField('lens.depth_of_field', i18n.language)} value={draft.lensDepthOfField} disabled={disabled} onChange={value => onChange({ lensDepthOfField: value })} />
-        <TextDraftField label={localizeShotField('focus', i18n.language)} value={draft.focusBehavior} disabled={disabled} onChange={value => onChange({ focusBehavior: value })} />
-        <TextDraftField label={localizeShotField('lighting', i18n.language)} value={draft.lightingStyle} disabled={disabled} onChange={value => onChange({ lightingStyle: value })} />
-        <TextDraftField label={localizeShotField('lighting.contrast', i18n.language)} value={draft.lightingContrast} disabled={disabled} onChange={value => onChange({ lightingContrast: value })} />
-        <TextDraftField label={localizeShotField('color', i18n.language)} value={draft.colorPalette} disabled={disabled} onChange={value => onChange({ colorPalette: value })} />
-        <TextDraftField label={localizeShotField('color.saturation', i18n.language)} value={draft.colorSaturation} disabled={disabled} onChange={value => onChange({ colorSaturation: value })} />
-        <TextDraftField label={localizeShotField('environment', i18n.language)} value={draft.environmentLocationType} disabled={disabled} onChange={value => onChange({ environmentLocationType: value })} />
-        <TextDraftField label={localizeShotField('primary', i18n.language)} value={draft.narrativePrimary} disabled={disabled} onChange={value => onChange({ narrativePrimary: value })} />
-        <TextDraftField label={localizeShotField('information_state', i18n.language)} value={draft.informationState} disabled={disabled} onChange={value => onChange({ informationState: value })} />
-        <TextDraftField label={localizeShotField('scene_type', i18n.language)} value={draft.sceneType} disabled={disabled} onChange={value => onChange({ sceneType: value })} />
-        <TextDraftField label={localizeShotField('location_type', i18n.language)} value={draft.sceneLocationType} disabled={disabled} onChange={value => onChange({ sceneLocationType: value })} />
-        <TextDraftField label={localizeShotField('conflict_level', i18n.language)} value={draft.conflictLevel} disabled={disabled} onChange={value => onChange({ conflictLevel: value })} />
-        <TextDraftField label={localizeShotField('emotion.valence', i18n.language)} value={draft.emotionValence} disabled={disabled} onChange={value => onChange({ emotionValence: value })} />
-        <TextDraftField label={localizeShotField('emotion.arousal', i18n.language)} value={draft.emotionArousal} disabled={disabled} onChange={value => onChange({ emotionArousal: value })} />
-        <TextDraftField label={localizeShotField('emotion.viewer_position', i18n.language)} value={draft.viewerPosition} disabled={disabled} onChange={value => onChange({ viewerPosition: value })} />
-        <TextDraftField label={localizeShotField('coverage_role', i18n.language)} value={draft.coverageRole} disabled={disabled} onChange={value => onChange({ coverageRole: value })} />
-        <TextDraftField label={localizeShotField('difficulty', i18n.language)} value={draft.difficulty} disabled={disabled} onChange={value => onChange({ difficulty: value })} />
+        <TextWorkspaceField label={localizeShotField('shot_size', i18n.language)} value={workspace.shotSize} disabled={disabled} onChange={value => onChange({ shotSize: value })} />
+        <TextWorkspaceField label={localizeShotField('camera_angle', i18n.language)} value={workspace.cameraAngle} disabled={disabled} onChange={value => onChange({ cameraAngle: value })} />
+        <TextWorkspaceField label={localizeShotField('camera_height', i18n.language)} value={workspace.cameraHeight} disabled={disabled} onChange={value => onChange({ cameraHeight: value })} />
+        <TextWorkspaceField label={localizeShotField('movement', i18n.language)} value={workspace.cameraMovementType} disabled={disabled} onChange={value => onChange({ cameraMovementType: value })} />
+        <TextWorkspaceField label={localizeShotField('camera_movement.speed', i18n.language)} value={workspace.cameraMovementSpeed} disabled={disabled} onChange={value => onChange({ cameraMovementSpeed: value })} />
+        <TextWorkspaceField label={localizeShotField('camera_movement.stability', i18n.language)} value={workspace.cameraMovementStability} disabled={disabled} onChange={value => onChange({ cameraMovementStability: value })} />
+        <TextWorkspaceField label={localizeShotField('camera_movement.motivation', i18n.language)} value={workspace.cameraMovementMotivation} disabled={disabled} onChange={value => onChange({ cameraMovementMotivation: value })} />
+        <TextWorkspaceField label={localizeShotField('lens', i18n.language)} value={workspace.lensFocalLength} disabled={disabled} onChange={value => onChange({ lensFocalLength: value })} />
+        <TextWorkspaceField label={localizeShotField('lens.depth_of_field', i18n.language)} value={workspace.lensDepthOfField} disabled={disabled} onChange={value => onChange({ lensDepthOfField: value })} />
+        <TextWorkspaceField label={localizeShotField('focus', i18n.language)} value={workspace.focusBehavior} disabled={disabled} onChange={value => onChange({ focusBehavior: value })} />
+        <TextWorkspaceField label={localizeShotField('lighting', i18n.language)} value={workspace.lightingStyle} disabled={disabled} onChange={value => onChange({ lightingStyle: value })} />
+        <TextWorkspaceField label={localizeShotField('lighting.contrast', i18n.language)} value={workspace.lightingContrast} disabled={disabled} onChange={value => onChange({ lightingContrast: value })} />
+        <TextWorkspaceField label={localizeShotField('color', i18n.language)} value={workspace.colorPalette} disabled={disabled} onChange={value => onChange({ colorPalette: value })} />
+        <TextWorkspaceField label={localizeShotField('color.saturation', i18n.language)} value={workspace.colorSaturation} disabled={disabled} onChange={value => onChange({ colorSaturation: value })} />
+        <TextWorkspaceField label={localizeShotField('environment', i18n.language)} value={workspace.environmentLocationType} disabled={disabled} onChange={value => onChange({ environmentLocationType: value })} />
+        <TextWorkspaceField label={localizeShotField('primary', i18n.language)} value={workspace.narrativePrimary} disabled={disabled} onChange={value => onChange({ narrativePrimary: value })} />
+        <TextWorkspaceField label={localizeShotField('information_state', i18n.language)} value={workspace.informationState} disabled={disabled} onChange={value => onChange({ informationState: value })} />
+        <TextWorkspaceField label={localizeShotField('scene_type', i18n.language)} value={workspace.sceneType} disabled={disabled} onChange={value => onChange({ sceneType: value })} />
+        <TextWorkspaceField label={localizeShotField('location_type', i18n.language)} value={workspace.sceneLocationType} disabled={disabled} onChange={value => onChange({ sceneLocationType: value })} />
+        <TextWorkspaceField label={localizeShotField('conflict_level', i18n.language)} value={workspace.conflictLevel} disabled={disabled} onChange={value => onChange({ conflictLevel: value })} />
+        <TextWorkspaceField label={localizeShotField('emotion.valence', i18n.language)} value={workspace.emotionValence} disabled={disabled} onChange={value => onChange({ emotionValence: value })} />
+        <TextWorkspaceField label={localizeShotField('emotion.arousal', i18n.language)} value={workspace.emotionArousal} disabled={disabled} onChange={value => onChange({ emotionArousal: value })} />
+        <TextWorkspaceField label={localizeShotField('emotion.viewer_position', i18n.language)} value={workspace.viewerPosition} disabled={disabled} onChange={value => onChange({ viewerPosition: value })} />
+        <TextWorkspaceField label={localizeShotField('coverage_role', i18n.language)} value={workspace.coverageRole} disabled={disabled} onChange={value => onChange({ coverageRole: value })} />
+        <TextWorkspaceField label={localizeShotField('difficulty', i18n.language)} value={workspace.difficulty} disabled={disabled} onChange={value => onChange({ difficulty: value })} />
       </div>
-      <TextDraftField label={localizeShotField('framing', i18n.language)} value={draft.framing} disabled={disabled} onChange={value => onChange({ framing: value })} />
-      <TextDraftField label={localizeShotField('composition', i18n.language)} value={draft.composition} disabled={disabled} onChange={value => onChange({ composition: value })} />
-      <TextDraftField label={localizeShotField('lens.optical_effects', i18n.language)} value={draft.opticalEffects} disabled={disabled} onChange={value => onChange({ opticalEffects: value })} />
-      <TextDraftField label={localizeShotField('environment.spatial_feeling', i18n.language)} value={draft.spatialFeeling} disabled={disabled} onChange={value => onChange({ spatialFeeling: value })} />
-      <TextDraftField label={localizeShotField('genre', i18n.language)} value={draft.genre} disabled={disabled} onChange={value => onChange({ genre: value })} />
-      <TextDraftField label={localizeShotField('secondary', i18n.language)} value={draft.narrativeSecondary} disabled={disabled} onChange={value => onChange({ narrativeSecondary: value })} />
-      <TextDraftField label={localizeShotField('emotion.names', i18n.language)} value={draft.emotionNames} disabled={disabled} onChange={value => onChange({ emotionNames: value })} />
-      <TextDraftField label={localizeShotField('pattern_ids', i18n.language)} value={draft.patternIds} disabled={disabled} onChange={value => onChange({ patternIds: value })} />
+      <TextWorkspaceField label={localizeShotField('framing', i18n.language)} value={workspace.framing} disabled={disabled} onChange={value => onChange({ framing: value })} />
+      <TextWorkspaceField label={localizeShotField('composition', i18n.language)} value={workspace.composition} disabled={disabled} onChange={value => onChange({ composition: value })} />
+      <TextWorkspaceField label={localizeShotField('lens.optical_effects', i18n.language)} value={workspace.opticalEffects} disabled={disabled} onChange={value => onChange({ opticalEffects: value })} />
+      <TextWorkspaceField label={localizeShotField('environment.spatial_feeling', i18n.language)} value={workspace.spatialFeeling} disabled={disabled} onChange={value => onChange({ spatialFeeling: value })} />
+      <TextWorkspaceField label={localizeShotField('genre', i18n.language)} value={workspace.genre} disabled={disabled} onChange={value => onChange({ genre: value })} />
+      <TextWorkspaceField label={localizeShotField('secondary', i18n.language)} value={workspace.narrativeSecondary} disabled={disabled} onChange={value => onChange({ narrativeSecondary: value })} />
+      <TextWorkspaceField label={localizeShotField('emotion.names', i18n.language)} value={workspace.emotionNames} disabled={disabled} onChange={value => onChange({ emotionNames: value })} />
+      <TextWorkspaceField label={localizeShotField('pattern_ids', i18n.language)} value={workspace.patternIds} disabled={disabled} onChange={value => onChange({ patternIds: value })} />
       <ManualField label={localizeShotField('principle', i18n.language)}>
-        <Textarea value={draft.reusablePrinciple} disabled={disabled} rows={3} onChange={event => onChange({ reusablePrinciple: event.target.value })} />
+        <Textarea value={workspace.reusablePrinciple} disabled={disabled} rows={3} onChange={event => onChange({ reusablePrinciple: event.target.value })} />
       </ManualField>
-      <TextDraftField label={localizeShotField('works_when', i18n.language)} value={draft.worksWhen} disabled={disabled} onChange={value => onChange({ worksWhen: value })} />
-      <TextDraftField label={localizeShotField('avoid_when', i18n.language)} value={draft.avoidWhen} disabled={disabled} onChange={value => onChange({ avoidWhen: value })} />
-      <TextDraftField label={localizeShotField('requirement', i18n.language)} value={draft.requirements} disabled={disabled} onChange={value => onChange({ requirements: value })} />
+      <TextWorkspaceField label={localizeShotField('works_when', i18n.language)} value={workspace.worksWhen} disabled={disabled} onChange={value => onChange({ worksWhen: value })} />
+      <TextWorkspaceField label={localizeShotField('avoid_when', i18n.language)} value={workspace.avoidWhen} disabled={disabled} onChange={value => onChange({ avoidWhen: value })} />
+      <TextWorkspaceField label={localizeShotField('requirement', i18n.language)} value={workspace.requirements} disabled={disabled} onChange={value => onChange({ requirements: value })} />
       <ManualField label={localizeShotField('blocking', i18n.language)}>
-        <Textarea value={draft.blocking} disabled={disabled} rows={2} onChange={event => onChange({ blocking: event.target.value })} />
+        <Textarea value={workspace.blocking} disabled={disabled} rows={2} onChange={event => onChange({ blocking: event.target.value })} />
       </ManualField>
     </div>
   )
 }
 
-function TextDraftField({ label, value, disabled = false, onChange }: { label: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
+function TextWorkspaceField({ label, value, disabled = false, onChange }: { label: string; value: string; disabled?: boolean; onChange: (value: string) => void }) {
   return (
     <ManualField label={label}>
       <Input value={value} disabled={disabled} onChange={event => onChange(event.target.value)} />
@@ -1821,7 +1821,7 @@ function TagInputField({
   )
 }
 
-function detailDraftFromEntry(entry: ShotLibraryEntry) {
+function detailWorkspaceFromEntry(entry: ShotLibraryEntry) {
   return {
     title: entry.title,
     summary: entry.summary,
@@ -1875,88 +1875,88 @@ function detailDraftFromEntry(entry: ShotLibraryEntry) {
   }
 }
 
-function executionDetailsFromDraft(draft: ReturnType<typeof detailDraftFromEntry>, entry?: ShotLibraryEntry): ShotReferenceManualUpdate['execution_details'] {
+function executionDetailsFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>, entry?: ShotLibraryEntry): ShotReferenceManualUpdate['execution_details'] {
   return {
     duration_sec: entry?.executionDetails.durationSec,
-    resolution: entry?.executionDetails.resolution ?? cleanText(draft.resolution),
-    aspect_ratio: entry?.executionDetails.aspectRatio ?? cleanText(draft.aspectRatio),
+    resolution: entry?.executionDetails.resolution ?? cleanText(workspace.resolution),
+    aspect_ratio: entry?.executionDetails.aspectRatio ?? cleanText(workspace.aspectRatio),
     transition_in: entry?.executionDetails.transitionIn,
     transition_out: entry?.executionDetails.transitionOut,
-    coverage_role: cleanText(draft.coverageRole),
-    difficulty: cleanText(draft.difficulty),
-    requirements: splitTags(draft.requirements),
-    blocking: cleanText(draft.blocking),
+    coverage_role: cleanText(workspace.coverageRole),
+    difficulty: cleanText(workspace.difficulty),
+    requirements: splitTags(workspace.requirements),
+    blocking: cleanText(workspace.blocking),
   }
 }
 
-function visualAnalysisFromDraft(draft: ReturnType<typeof detailDraftFromEntry>): ShotReferenceManualUpdate['visual_analysis'] {
+function visualAnalysisFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>): ShotReferenceManualUpdate['visual_analysis'] {
   return {
-    shot_size: cleanText(draft.shotSize),
-    framing: splitTags(draft.framing),
-    composition: splitTags(draft.composition),
-    camera_angle: cleanText(draft.cameraAngle),
-    camera_height: cleanText(draft.cameraHeight),
+    shot_size: cleanText(workspace.shotSize),
+    framing: splitTags(workspace.framing),
+    composition: splitTags(workspace.composition),
+    camera_angle: cleanText(workspace.cameraAngle),
+    camera_height: cleanText(workspace.cameraHeight),
     lens: {
-      focal_length_class: cleanText(draft.lensFocalLength),
-      depth_of_field: cleanText(draft.lensDepthOfField),
-      optical_effects: splitTags(draft.opticalEffects),
+      focal_length_class: cleanText(workspace.lensFocalLength),
+      depth_of_field: cleanText(workspace.lensDepthOfField),
+      optical_effects: splitTags(workspace.opticalEffects),
     },
     focus: {
-      behavior: cleanText(draft.focusBehavior),
+      behavior: cleanText(workspace.focusBehavior),
     },
     camera_movement: {
-      type: cleanText(draft.cameraMovementType),
-      speed: cleanText(draft.cameraMovementSpeed),
-      stability: cleanText(draft.cameraMovementStability),
-      motivation: cleanText(draft.cameraMovementMotivation),
+      type: cleanText(workspace.cameraMovementType),
+      speed: cleanText(workspace.cameraMovementSpeed),
+      stability: cleanText(workspace.cameraMovementStability),
+      motivation: cleanText(workspace.cameraMovementMotivation),
     },
     lighting: {
-      style: cleanText(draft.lightingStyle),
-      contrast: cleanText(draft.lightingContrast),
+      style: cleanText(workspace.lightingStyle),
+      contrast: cleanText(workspace.lightingContrast),
     },
     color: {
-      palette: cleanText(draft.colorPalette),
-      saturation: cleanText(draft.colorSaturation),
+      palette: cleanText(workspace.colorPalette),
+      saturation: cleanText(workspace.colorSaturation),
     },
     environment: {
-      location_type: cleanText(draft.environmentLocationType),
-      spatial_feeling: splitTags(draft.spatialFeeling),
+      location_type: cleanText(workspace.environmentLocationType),
+      spatial_feeling: splitTags(workspace.spatialFeeling),
     },
   }
 }
 
-function sceneSemanticsFromDraft(draft: ReturnType<typeof detailDraftFromEntry>): ShotReferenceManualUpdate['scene_semantics'] {
+function sceneSemanticsFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>): ShotReferenceManualUpdate['scene_semantics'] {
   return {
-    genre: splitTags(draft.genre),
-    scene_type: cleanText(draft.sceneType),
-    location_type: cleanText(draft.sceneLocationType),
-    conflict_level: cleanText(draft.conflictLevel),
+    genre: splitTags(workspace.genre),
+    scene_type: cleanText(workspace.sceneType),
+    location_type: cleanText(workspace.sceneLocationType),
+    conflict_level: cleanText(workspace.conflictLevel),
   }
 }
 
-function narrativeFunctionFromDraft(draft: ReturnType<typeof detailDraftFromEntry>): ShotReferenceManualUpdate['narrative_function'] {
+function narrativeFunctionFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>): ShotReferenceManualUpdate['narrative_function'] {
   return {
-    primary: cleanText(draft.narrativePrimary),
-    secondary: splitTags(draft.narrativeSecondary),
-    information_state: cleanText(draft.informationState),
+    primary: cleanText(workspace.narrativePrimary),
+    secondary: splitTags(workspace.narrativeSecondary),
+    information_state: cleanText(workspace.informationState),
   }
 }
 
-function emotionalProfileFromDraft(draft: ReturnType<typeof detailDraftFromEntry>): ShotReferenceManualUpdate['emotional_profile'] {
+function emotionalProfileFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>): ShotReferenceManualUpdate['emotional_profile'] {
   return {
-    names: splitTags(draft.emotionNames),
-    valence: cleanText(draft.emotionValence),
-    arousal: cleanText(draft.emotionArousal),
-    viewer_position: cleanText(draft.viewerPosition),
+    names: splitTags(workspace.emotionNames),
+    valence: cleanText(workspace.emotionValence),
+    arousal: cleanText(workspace.emotionArousal),
+    viewer_position: cleanText(workspace.viewerPosition),
   }
 }
 
-function reusablePatternFromDraft(draft: ReturnType<typeof detailDraftFromEntry>): ShotReferenceManualUpdate['reusable_pattern'] {
+function reusablePatternFromWorkspace(workspace: ReturnType<typeof detailWorkspaceFromEntry>): ShotReferenceManualUpdate['reusable_pattern'] {
   return {
-    pattern_ids: splitTags(draft.patternIds),
-    principle: cleanText(draft.reusablePrinciple),
-    works_when: splitTags(draft.worksWhen),
-    avoid_when: splitTags(draft.avoidWhen),
+    pattern_ids: splitTags(workspace.patternIds),
+    principle: cleanText(workspace.reusablePrinciple),
+    works_when: splitTags(workspace.worksWhen),
+    avoid_when: splitTags(workspace.avoidWhen),
   }
 }
 
@@ -2050,8 +2050,8 @@ function buildShotGroupOptions(entries: ShotLibraryEntry[]): ShotLibraryGroupOpt
   return Array.from(groups.values()).sort((a, b) => a.title.localeCompare(b.title, 'zh-Hans-CN'))
 }
 
-function isDraftSelected(draft: ShotImportDraft) {
-  return draft.selected !== false
+function isWorkspaceSelected(workspace: ShotImportWorkspace) {
+  return workspace.selected !== false
 }
 
 function appendTagValue(current: string, next: string) {
@@ -2072,13 +2072,13 @@ function tempResourceFromFile(file: File, objectUrl: string): RawResource {
   }
 }
 
-async function buildLocalImportDrafts(
+async function buildLocalImportWorkspaces(
   resource: RawResource,
   metadata: ShotLibraryVideoMetadata,
   sourceData: ArrayBuffer,
-): Promise<ShotImportDraft[]> {
+): Promise<ShotImportWorkspace[]> {
   const analyzeShotCuts = typeof window === 'undefined' ? undefined : window.api?.analyzeShotCuts
-  if (!analyzeShotCuts || !metadata.durationSec) return buildImportDrafts(resource, metadata)
+  if (!analyzeShotCuts || !metadata.durationSec) return buildImportWorkspaces(resource, metadata)
   try {
     const result = await analyzeShotCuts({
       sourceData,
@@ -2086,38 +2086,38 @@ async function buildLocalImportDrafts(
       durationSec: metadata.durationSec,
     })
     if (result.ok && result.shots?.length) {
-      return buildImportDrafts(resource, metadata, result.shots)
+      return buildImportWorkspaces(resource, metadata, result.shots)
     }
   } catch {
-    // Fall through to deterministic local draft ranges when desktop scene detection is unavailable.
+    // Fall through to deterministic local workspace ranges when desktop scene detection is unavailable.
   }
-  return buildImportDrafts(resource, metadata)
+  return buildImportWorkspaces(resource, metadata)
 }
 
-async function buildImportDraftsWithThumbnails(
+async function buildImportWorkspacesWithThumbnails(
   resource: RawResource,
   metadata: ShotLibraryVideoMetadata,
   sourceData: ArrayBuffer,
   thumbnailSourceUrl: string,
-): Promise<ShotImportDraft[]> {
-  const drafts = await buildLocalImportDrafts(resource, metadata, sourceData)
-  return buildImportDraftThumbnails(thumbnailSourceUrl, drafts)
+): Promise<ShotImportWorkspace[]> {
+  const workspaces = await buildLocalImportWorkspaces(resource, metadata, sourceData)
+  return buildImportWorkspaceThumbnails(thumbnailSourceUrl, workspaces)
 }
 
-async function buildImportDraftThumbnails(sourceUrl: string, drafts: ShotImportDraft[]): Promise<ShotImportDraft[]> {
-  if (typeof document === 'undefined' || drafts.length === 0) return drafts
+async function buildImportWorkspaceThumbnails(sourceUrl: string, workspaces: ShotImportWorkspace[]): Promise<ShotImportWorkspace[]> {
+  if (typeof document === 'undefined' || workspaces.length === 0) return workspaces
   try {
-    const thumbnails = await captureDraftThumbnails(sourceUrl, drafts)
-    return drafts.map((draft, index) => ({ ...draft, thumbnailUrl: thumbnails[index] }))
+    const thumbnails = await captureWorkspaceThumbnails(sourceUrl, workspaces)
+    return workspaces.map((workspace, index) => ({ ...workspace, thumbnailUrl: thumbnails[index] }))
   } catch {
-    return drafts
+    return workspaces
   }
 }
 
-async function captureDraftThumbnails(sourceUrl: string, drafts: ShotImportDraft[]): Promise<Array<string | undefined>> {
+async function captureWorkspaceThumbnails(sourceUrl: string, workspaces: ShotImportWorkspace[]): Promise<Array<string | undefined>> {
   return captureVideoThumbnails(
     sourceUrl,
-    drafts.map((draft) => optionalNumber(draft.startSec) ?? 0),
+    workspaces.map((workspace) => optionalNumber(workspace.startSec) ?? 0),
     {
       width: SHOT_IMPORT_THUMBNAIL_WIDTH,
       metadataTimeoutMs: VIDEO_METADATA_TIMEOUT_MS,
@@ -2127,7 +2127,7 @@ async function captureDraftThumbnails(sourceUrl: string, drafts: ShotImportDraft
   )
 }
 
-function buildImportDrafts(resource: RawResource, metadata: ShotLibraryVideoMetadata, ranges?: ShotCutRange[]): ShotImportDraft[] {
+function buildImportWorkspaces(resource: RawResource, metadata: ShotLibraryVideoMetadata, ranges?: ShotCutRange[]): ShotImportWorkspace[] {
   const duration = metadata.durationSec && metadata.durationSec > 0 ? metadata.durationSec : undefined
   const normalizedRanges = ranges?.length ? ranges : undefined
   const segmentCount = normalizedRanges?.length ?? (duration ? Math.max(1, Math.ceil(duration / 6)) : 1)
@@ -2146,7 +2146,7 @@ function buildImportDrafts(resource: RawResource, metadata: ShotLibraryVideoMeta
       width: metadata.width,
       height: metadata.height,
     })
-    const draft = detailDraftFromEntry({
+    const workspace = detailWorkspaceFromEntry({
       ...analyzed,
       order: index + 1,
       title: `${analyzed.title} · ${String(index + 1).padStart(2, '0')}`,
@@ -2154,8 +2154,8 @@ function buildImportDrafts(resource: RawResource, metadata: ShotLibraryVideoMeta
       endSec: end,
     })
     return {
-      ...draft,
-      id: `draft-${index + 1}`,
+      ...workspace,
+      id: `workspace-${index + 1}`,
       order: index + 1,
       status: 'ready' as const,
       selected: false,
@@ -2163,24 +2163,24 @@ function buildImportDrafts(resource: RawResource, metadata: ShotLibraryVideoMeta
   })
 }
 
-function importDraftToManualUpdate(draft: ShotImportDraft): ShotReferenceManualUpdate {
+function importWorkspaceToManualUpdate(workspace: ShotImportWorkspace): ShotReferenceManualUpdate {
   return {
-    title: draft.title,
-    summary: draft.summary,
-    intent: splitTags(draft.intent),
-    pattern: splitTags(draft.pattern),
-    shot_function: splitTags(draft.shotFunction),
-    visual_preference: splitTags(draft.visualPreference),
-    emotional_effect: splitTags(draft.emotionalEffect),
-    execution_details: executionDetailsFromDraft(draft),
-    visual_analysis: visualAnalysisFromDraft(draft),
-    scene_semantics: sceneSemanticsFromDraft(draft),
-    narrative_function: narrativeFunctionFromDraft(draft),
-    emotional_profile: emotionalProfileFromDraft(draft),
-    reusable_pattern: reusablePatternFromDraft(draft),
-    start_sec: optionalNumber(draft.startSec),
+    title: workspace.title,
+    summary: workspace.summary,
+    intent: splitTags(workspace.intent),
+    pattern: splitTags(workspace.pattern),
+    shot_function: splitTags(workspace.shotFunction),
+    visual_preference: splitTags(workspace.visualPreference),
+    emotional_effect: splitTags(workspace.emotionalEffect),
+    execution_details: executionDetailsFromWorkspace(workspace),
+    visual_analysis: visualAnalysisFromWorkspace(workspace),
+    scene_semantics: sceneSemanticsFromWorkspace(workspace),
+    narrative_function: narrativeFunctionFromWorkspace(workspace),
+    emotional_profile: emotionalProfileFromWorkspace(workspace),
+    reusable_pattern: reusablePatternFromWorkspace(workspace),
+    start_sec: optionalNumber(workspace.startSec),
     start_sec_set: true,
-    end_sec: optionalNumber(draft.endSec),
+    end_sec: optionalNumber(workspace.endSec),
     end_sec_set: true,
   }
 }
@@ -2195,7 +2195,7 @@ function importProgressLabel(session: ShotImportSession, t: (key: string, option
     return `${t('pages.shotLibrary.readingSource')}${suffix}`
   }
   if (session.phase === 'cutting') return t('pages.shotLibrary.cuttingShots')
-  return t('pages.shotLibrary.importedShotCount', { count: session.drafts.filter(isDraftSelected).length })
+  return t('pages.shotLibrary.importedShotCount', { count: session.workspaces.filter(isWorkspaceSelected).length })
 }
 
 function defaultImportGroupTitle(sourceName: string): string {
@@ -2213,17 +2213,17 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, ms))
 }
 
-function draftRangeDuration(draft?: ShotImportDraft): number {
-  if (!draft) return 0
-  const start = optionalNumber(draft.startSec)
-  const end = optionalNumber(draft.endSec)
+function workspaceRangeDuration(workspace?: ShotImportWorkspace): number {
+  if (!workspace) return 0
+  const start = optionalNumber(workspace.startSec)
+  const end = optionalNumber(workspace.endSec)
   if (start !== undefined && end !== undefined) return Math.max(0, end - start)
   return 0
 }
 
-function formatDraftRange(draft: ShotImportDraft): string {
-  const start = optionalNumber(draft.startSec)
-  const end = optionalNumber(draft.endSec)
+function formatWorkspaceRange(workspace: ShotImportWorkspace): string {
+  const start = optionalNumber(workspace.startSec)
+  const end = optionalNumber(workspace.endSec)
   if (start === undefined && end === undefined) return '--'
   if (start !== undefined && end !== undefined) return `${formatTimecode(start)}-${formatTimecode(end)}`
   if (start !== undefined) return `${formatTimecode(start)}+`

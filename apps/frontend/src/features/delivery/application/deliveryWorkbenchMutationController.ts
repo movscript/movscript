@@ -85,7 +85,7 @@ export function buildCreateDeliveryVersionFromProductionTimelineMutationOptions(
         production_id: input.selectedProductionId,
         preview_timeline_id: input.sourcePreviewTimelineId,
         name: `交付版本 ${input.versions.length + 1}`,
-        status: 'draft',
+        status: 'workspace',
         is_primary: input.versions.length === 0,
         duration_sec: sumDeliverySourceTimelineDuration(input.sourcePreviewTimelineItems, input.sourceContentUnits),
       })

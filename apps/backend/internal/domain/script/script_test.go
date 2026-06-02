@@ -36,7 +36,7 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 	item := ScriptSnapshot{
 		ID:         2,
 		ProjectID:  1,
-		Title:      "Draft",
+		Title:      "Workspace",
 		Content:    "content",
 		RawSource:  "raw",
 		Summary:    "summary",
@@ -51,7 +51,7 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 	if version.SourceType != ScriptSourceTypeRaw || version.Status != ScriptVersionStatusActive {
 		t.Fatalf("unexpected version defaults: %+v", version)
 	}
-	if version.Title != "Draft" || version.Content != "content" || version.RawSource != "raw" || version.Summary != "summary" {
+	if version.Title != "Workspace" || version.Content != "content" || version.RawSource != "raw" || version.Summary != "summary" {
 		t.Fatalf("unexpected version snapshot: %+v", version)
 	}
 	if version.CreatedByID == nil || *version.CreatedByID != createdByID {
@@ -60,7 +60,7 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 	modelVersion := version.ToModel()
 	modelVersion.ID = 17
 	roundTrip := ScriptVersionFromModel(modelVersion)
-	if roundTrip.ID != 17 || roundTrip.Title != "Draft" || roundTrip.Status != ScriptVersionStatusActive {
+	if roundTrip.ID != 17 || roundTrip.Title != "Workspace" || roundTrip.Status != ScriptVersionStatusActive {
 		t.Fatalf("unexpected version round-trip: %+v", roundTrip)
 	}
 }

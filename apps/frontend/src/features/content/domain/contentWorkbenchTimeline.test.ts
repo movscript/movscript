@@ -73,7 +73,7 @@ test('content workbench timeline ranks units and timeline items deterministicall
   )
 
   const picked = pickPreviewTimelineItemForUnit([
-    { ID: 1, content_unit_id: 9, start_sec: 5, status: 'draft', order: 1 },
+    { ID: 1, content_unit_id: 9, start_sec: 5, status: 'workspace', order: 1 },
     { ID: 2, content_unit_id: 9, start_sec: 8, status: 'confirmed', order: 2 },
     { ID: 3, content_unit_id: 10, start_sec: 1, status: 'confirmed', order: 3 },
   ], 9)

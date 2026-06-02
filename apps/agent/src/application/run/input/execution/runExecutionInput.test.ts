@@ -89,9 +89,9 @@ test('resolveToolRunUserMessage uses client input, explicit message, then tool f
 
 test('resolveToolRunThreadTitle uses explicit title then tool fallback', () => {
   assert.equal(resolveToolRunThreadTitle({
-    title: '  Draft tool run  ',
+    title: '  Workspace tool run  ',
     toolName: 'movscript_project_create',
-  }), 'Draft tool run')
+  }), 'Workspace tool run')
   assert.equal(resolveToolRunThreadTitle({
     toolName: 'movscript_project_create',
   }), 'Tool run: movscript_project_create')

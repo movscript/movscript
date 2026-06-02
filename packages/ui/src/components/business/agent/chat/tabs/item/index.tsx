@@ -97,9 +97,19 @@ export function AgentConversationTab({
         variant="ghost"
         size="icon-xs"
         className="ai-agent-panel-conversation-tab-close"
+        draggable={false}
         aria-label={closeConversationLabel}
         title={closeConversationLabel}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
           onCloseConversation(item.id);
         }}

@@ -14,8 +14,8 @@ export function projectStandardsEnabledRuleRecipe(enabled: boolean): ProjectStan
   return projectStandardsRuleStatus.recipe(enabled ? 'enabled' : 'default')
 }
 
-export function projectStandardsDraftStatusRecipe(status?: string): ProjectStandardsStatusRecipe {
-  return projectStandardsDraftStatus.recipe(status)
+export function projectStandardsWorkspaceStatusRecipe(status?: string): ProjectStandardsStatusRecipe {
+  return projectStandardsWorkspaceStatus.recipe(status)
 }
 
 const projectStandardsReadinessStatus = defineFeatureStatusRecipeGroup('project-standards.readiness.status', {
@@ -30,9 +30,9 @@ const projectStandardsRuleStatus = defineFeatureStatusRecipeGroup('project-stand
   default: 'neutral',
 })
 
-const projectStandardsDraftStatus = defineFeatureStatusRecipeGroup('project-standards.draft.status', {
+const projectStandardsWorkspaceStatus = defineFeatureStatusRecipeGroup('project-standards.workspace.status', {
   applied: 'success',
   rejected: 'danger',
-  draft: 'warning',
+  workspace: 'warning',
   default: 'neutral',
 })

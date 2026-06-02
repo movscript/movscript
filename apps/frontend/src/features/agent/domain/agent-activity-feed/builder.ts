@@ -169,7 +169,7 @@ function decisionToolLine(call: ModelDecisionToolCall): string {
     numberValue(args?.projectId) !== undefined ? `项目：#${numberValue(args?.projectId)}` : undefined,
     numberValue(args?.contentLimit) !== undefined ? `内容上限：${numberValue(args?.contentLimit)}` : undefined,
     stringValue(args?.kind) ? `类型：${stringValue(args?.kind)}` : undefined,
-    idFromAliases(args, ['draftId', 'draft_id']) !== undefined ? `草稿：#${idFromAliases(args, ['draftId', 'draft_id'])}` : undefined,
+    idFromAliases(args, ['workspaceId', 'workspace_id']) !== undefined ? `工作区：#${idFromAliases(args, ['workspaceId', 'workspace_id'])}` : undefined,
   ]).join('，')
   return `${agentToolNameLabel(call.name)}${details ? `：${details}` : ''}`
 }

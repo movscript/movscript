@@ -27,6 +27,11 @@ import {
   streamThreadEvents,
 } from '../streams/runtimeStreams.js'
 import {
+  streamSessionMessageEvents,
+  streamThreadMessageEvents,
+} from '../streams/messageFeedStreams.js'
+import { buildRuntimeMessageFeedPage } from '../protocol/messageFeed.js'
+import {
   AgentHTTPError,
   isCrossSiteBrowserRequest,
   isLoopbackRequest,
@@ -49,8 +54,8 @@ import {
   normalizeAgentPackBody,
   normalizeAgentPackUninstallBody,
   normalizeDebugEvidenceRefQuery,
-  normalizeDraftBody,
-  normalizeDraftQuery,
+  normalizeWorkspaceBody,
+  normalizeWorkspaceQuery,
   normalizeMemoryBody,
   normalizeMemoryProjectId,
   normalizeMemoryQuery,
@@ -149,7 +154,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         const healthStartedAt = Date.now()
         writeJSON(res, 200, {
           ...getAgentRuntimeCompatibility(context),
-          draftPath: context.paths.draftPath,
+          workspacePath: context.paths.workspacePath,
           modelConfigPath: context.paths.modelConfigPath,
         })
         logSlowRequest(req.method, url.pathname, requestStartedAt, healthStartedAt)
@@ -389,72 +394,72 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      if (req.method === 'POST' && url.pathname === '/draft') {
-        const body = normalizeDraftBody(await readJSON(req))
-        const result = context.runtimeRouter.createLocalDraft(body)
+      if (req.method === 'POST' && url.pathname === '/workspace') {
+        const body = normalizeWorkspaceBody(await readJSON(req))
+        const result = context.runtimeRouter.createLocalWorkspace(body)
         writeJSON(res, 200, result)
         return
       }
 
-      if (req.method === 'GET' && url.pathname === '/drafts') {
-        writeJSON(res, 200, { drafts: context.runtimeRouter.listDrafts(normalizeDraftQuery(url)) })
+      if (req.method === 'GET' && url.pathname === '/workspaces') {
+        writeJSON(res, 200, { workspaces: context.runtimeRouter.listWorkspaces(normalizeWorkspaceQuery(url)) })
         return
       }
 
-      const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
-      if (draftMatch && req.method === 'GET') {
-        const draft = context.runtimeRouter.getDraft(draftMatch[1])
-        if (!draft) {
-          writeJSON(res, 404, { error: 'draft not found' })
+      const workspaceMatch = url.pathname.match(/^\/workspaces\/([^/]+)$/)
+      if (workspaceMatch && req.method === 'GET') {
+        const workspace = context.runtimeRouter.getWorkspace(workspaceMatch[1])
+        if (!workspace) {
+          writeJSON(res, 404, { error: 'workspace not found' })
           return
         }
-        writeJSON(res, 200, draft)
+        writeJSON(res, 200, workspace)
         return
       }
-      if (draftMatch && req.method === 'PATCH') {
-        const body = await readOptionalJSONObject(req, 'draft update body')
-        writeJSON(res, 200, context.runtimeRouter.updateDraft({
-          draftId: draftMatch[1],
+      if (workspaceMatch && req.method === 'PATCH') {
+        const body = await readOptionalJSONObject(req, 'workspace update body')
+        writeJSON(res, 200, context.runtimeRouter.updateWorkspace({
+          workspaceId: workspaceMatch[1],
           ...body,
         }))
         return
       }
 
-      const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
-      if (draftApplyPreviewMatch && req.method === 'POST') {
+      const workspaceApplyPreviewMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply-preview$/)
+      if (workspaceApplyPreviewMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'apply preview body')
-        writeJSON(res, 200, context.runtimeRouter.previewApplyDraft({
-          draftId: draftApplyPreviewMatch[1],
+        writeJSON(res, 200, context.runtimeRouter.previewApplyWorkspace({
+          workspaceId: workspaceApplyPreviewMatch[1],
           ...body,
         }))
         return
       }
 
-      const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
-      if (draftApplySimulateMatch && req.method === 'POST') {
+      const workspaceApplySimulateMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply-simulate$/)
+      if (workspaceApplySimulateMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'apply simulate body')
-        writeJSON(res, 200, await context.runtimeRouter.simulateApplyDraft({
-          draftId: draftApplySimulateMatch[1],
+        writeJSON(res, 200, await context.runtimeRouter.simulateApplyWorkspace({
+          workspaceId: workspaceApplySimulateMatch[1],
           ...withRequestAuth(body, req),
         }))
         return
       }
 
-      const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
-      if (draftApplyMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'draft apply body')
-        writeJSON(res, 200, await context.runtimeRouter.applyDraftFromUI({
-          draftId: draftApplyMatch[1],
+      const workspaceApplyMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply$/)
+      if (workspaceApplyMatch && req.method === 'POST') {
+        const body = await readOptionalJSONObject(req, 'workspace apply body')
+        writeJSON(res, 200, await context.runtimeRouter.applyWorkspaceFromUI({
+          workspaceId: workspaceApplyMatch[1],
           ...withRequestAuth(body, req),
         }))
         return
       }
 
-      const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
-      if (draftRejectMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'draft rejection body')
-        writeJSON(res, 200, context.runtimeRouter.rejectDraft({
-          draftId: draftRejectMatch[1],
+      const workspaceRejectMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/reject$/)
+      if (workspaceRejectMatch && req.method === 'POST') {
+        const body = await readOptionalJSONObject(req, 'workspace rejection body')
+        writeJSON(res, 200, context.runtimeRouter.rejectWorkspace({
+          workspaceId: workspaceRejectMatch[1],
           reason: body.reason,
         }))
         return
@@ -479,6 +484,41 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         writeJSON(res, 200, session)
+        return
+      }
+
+      const sessionMessagesMatch = url.pathname.match(/^\/sessions\/([^/]+)\/messages$/)
+      if (sessionMessagesMatch && req.method === 'GET') {
+        const sessionId = decodeURIComponent(sessionMessagesMatch[1] ?? '')
+        const snapshot = await context.runtimeRouter.getSessionRuntimeSnapshot(sessionId)
+        if (!snapshot) {
+          writeJSON(res, 404, { error: 'session not found' })
+          return
+        }
+        const threadId = url.searchParams.get('threadId')?.trim() || undefined
+        if (threadId && !snapshot.threads.some((thread) => thread.id === threadId)) {
+          writeJSON(res, 404, { error: 'thread not found in session' })
+          return
+        }
+        writeJSON(res, 200, buildRuntimeMessageFeedPage({
+          threads: snapshot.threads,
+          runs: snapshot.runs,
+          ...(threadId ? { threadId } : {}),
+          before: url.searchParams.get('before') ?? undefined,
+          limit: url.searchParams.get('limit') ?? undefined,
+        }))
+        return
+      }
+
+      const sessionMessagesStreamMatch = url.pathname.match(/^\/sessions\/([^/]+)\/messages\/stream$/)
+      if (sessionMessagesStreamMatch && req.method === 'GET') {
+        await streamSessionMessageEvents(
+          req,
+          res,
+          context.runtimeRouter,
+          decodeURIComponent(sessionMessagesStreamMatch[1] ?? ''),
+          url.searchParams.get('threadId')?.trim() || undefined,
+        )
         return
       }
 
@@ -562,6 +602,21 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
+      if (messagesMatch && req.method === 'GET') {
+        const threadId = decodeURIComponent(messagesMatch[1] ?? '')
+        const thread = context.runtimeRouter.getThread(threadId)
+        if (!thread) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
+        }
+        writeJSON(res, 200, buildRuntimeMessageFeedPage({
+          threads: [thread],
+          runs: context.runtimeRouter.listRunsByThread(threadId),
+          before: url.searchParams.get('before') ?? undefined,
+          limit: url.searchParams.get('limit') ?? undefined,
+        }))
+        return
+      }
       if (messagesMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'message body')
         writeJSON(res, 201, context.runtimeRouter.addMessage(messagesMatch[1], body))
@@ -596,6 +651,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const threadStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/stream$/)
       if (threadStreamMatch && req.method === 'GET') {
         streamThreadEvents(req, res, context.runtimeRouter, threadStreamMatch[1])
+        return
+      }
+
+      const threadMessagesStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages\/stream$/)
+      if (threadMessagesStreamMatch && req.method === 'GET') {
+        await streamThreadMessageEvents(req, res, context.runtimeRouter, decodeURIComponent(threadMessagesStreamMatch[1] ?? ''))
         return
       }
 

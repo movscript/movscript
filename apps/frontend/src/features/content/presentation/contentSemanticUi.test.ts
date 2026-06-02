@@ -17,7 +17,7 @@ test('content entity statuses map to UI semantic recipes', () => {
   assert.deepEqual(contentEntityStatusRecipe('candidate'), { intent: 'info', emphasis: 'soft' })
   assert.deepEqual(contentEntityStatusRecipe('missing'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(contentEntityStatusRecipe('blocked'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(contentEntityStatusRecipe('draft'), { intent: 'neutral', emphasis: 'soft' })
+  assert.deepEqual(contentEntityStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('content readiness recipes keep required and optional states distinct', () => {

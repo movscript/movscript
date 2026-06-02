@@ -251,7 +251,7 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000026",
-			Name:    "add_creative_reference_proposal_client_id",
+			Name:    "add_creative_reference_workspace_client_id",
 			Up: func(db *gorm.DB) error {
 				return db.AutoMigrate(&persistencemodel.CreativeReference{})
 			},
@@ -838,7 +838,7 @@ func migrateShotReferenceGroups(db *gorm.DB) error {
 			Updates(map[string]any{
 				"group_id":        group.ID,
 				"order":           1,
-				"analysis_source": "manual_draft",
+				"analysis_source": "manual_workspace",
 			}).Error; err != nil {
 			return err
 		}

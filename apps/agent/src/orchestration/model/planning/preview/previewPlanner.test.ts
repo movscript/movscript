@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
-import { InMemoryAgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import { StaticToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../../../../contracts/runtime/runtimeContract.js'
 import { planPreviewToolRequests } from './previewPlanner.js'
@@ -18,8 +18,8 @@ const registry = new StaticToolRegistry([
   },
 ])
 
-test('planPreviewToolRequests predicts approval-gated write calls without draft apply metadata', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
+test('planPreviewToolRequests predicts approval-gated write calls without workspace apply metadata', async () => {
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
     tools: [{ name: 'movscript_project_create', mode: 'allow' as const, approval: 'always' as const }],
@@ -74,7 +74,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
     },
     currentProjectId: 42,
     registry,
-    draftStore,
+    workspaceStore,
     contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
     makeApprovalId: () => 'approval_1',
     now: () => '2026-05-06T00:00:00.000Z',
@@ -153,7 +153,7 @@ test('planPreviewToolRequests returns an empty taskGraph without a model config'
       systemContract: 'Chat.',
     },
     registry,
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
     makeApprovalId: () => 'approval_1',
     now: () => '2026-05-06T00:00:00.000Z',

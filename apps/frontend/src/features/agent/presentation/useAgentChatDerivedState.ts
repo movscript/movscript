@@ -6,7 +6,7 @@ import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain
 import { isRuntimeAsyncWorkHandoffRun } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import { getThinkingBubbleState, type ThinkingBubbleState } from '@/features/agent/presentation/agentThinkingBubbleState'
 import { useAgentChatRunInteractionState } from '@/features/agent/presentation/useAgentChatRunInteractionState'
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
 import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
@@ -18,7 +18,7 @@ export interface UseAgentChatDerivedStateOptions {
   inputPlaceholder: string
   loading?: boolean
   pendingAssistantState: AgentLivePendingAssistantState | null
-  pendingSendDraft: AgentSendDraft | null
+  pendingSendWorkspace: AgentSendWorkspace | null
   run: AgentRun | null
   runtimeApproving?: boolean
   runtimeBuilding?: boolean
@@ -40,7 +40,7 @@ export function useAgentChatDerivedState({
   loading = false,
   messages,
   pendingAssistantState,
-  pendingSendDraft,
+  pendingSendWorkspace,
   run,
   runtimeApproving = false,
   runtimeBuilding = false,
@@ -53,7 +53,7 @@ export function useAgentChatDerivedState({
   visibleActivityEvents,
 }: UseAgentChatDerivedStateOptions) {
   const activeLocalRun = run ?? null
-  const buildingSendDraft = runtimeBuilding
+  const buildingSendWorkspace = runtimeBuilding
   const asyncWorkHandoffRun = isRuntimeAsyncWorkHandoffRun(activeLocalRun)
   const inputBlockingLoading = loading && !asyncWorkHandoffRun
   const thinkingState: ThinkingBubbleState = useMemo(
@@ -67,12 +67,21 @@ export function useAgentChatDerivedState({
   }), [activeLocalRun, messages, visibleActivityEvents])
   const generationProgressState = generationProgressStates.at(-1) ?? null
   const pendingRuntimeInputQueue = useMemo(() => buildPendingRuntimeInputQueueItems(messages), [messages])
+  const visibleStreamingAssistantText = useMemo(() => {
+    const streamingRunId = streamingAssistantMessageId ? runIdFromStreamingAssistantMessageId(streamingAssistantMessageId) : undefined
+    if (!streamingRunId) return streamingAssistantText
+    const hasFinalAssistantMessage = messages.some((message) => (
+      message.role === 'assistant'
+      && message.meta?.runtimeMessage?.runId === streamingRunId
+    ))
+    return hasFinalAssistantMessage ? '' : streamingAssistantText
+  }, [messages, streamingAssistantMessageId, streamingAssistantText])
   const conversationPresentation = useMemo(() => buildAgentConversationPresentation({
     streamingAssistantMessageId,
-    streamingAssistantText,
-    pendingSendDraft,
+    streamingAssistantText: visibleStreamingAssistantText,
+    pendingSendWorkspace,
     loading: inputBlockingLoading,
-    buildingSendDraft,
+    buildingSendWorkspace,
     hasPendingAssistantState: !!pendingAssistantState,
     activeRun: activeLocalRun,
     visibleActivityEvents,
@@ -80,14 +89,14 @@ export function useAgentChatDerivedState({
     generationProgressState,
   }), [
     activeLocalRun,
-    buildingSendDraft,
+    buildingSendWorkspace,
     generationProgressState,
     generationProgressStates,
     inputBlockingLoading,
     pendingAssistantState,
-    pendingSendDraft,
+    pendingSendWorkspace,
     streamingAssistantMessageId,
-    streamingAssistantText,
+    visibleStreamingAssistantText,
     visibleActivityEvents,
   ])
 
@@ -101,8 +110,8 @@ export function useAgentChatDerivedState({
     runInteractionState.answeringPendingInput
       ? runInteractionState.canAnswerPendingInputWithText && !!input.trim()
       : (!!input.trim() || composerAttachments.length > 0)
-  ) && !uploading && !buildingSendDraft
-  const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (inputBlockingLoading || buildingSendDraft)
+  ) && !uploading && !buildingSendWorkspace
+  const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (inputBlockingLoading || buildingSendWorkspace)
   const canStopLocalRun = !runInteractionState.answeringPendingInput && (isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || runtimeStopRequested)
   const composerPlaceholder = runInteractionState.activePendingInputRequest
     ? runInteractionState.activePendingInputRequest.inputType === 'choice'
@@ -113,7 +122,7 @@ export function useAgentChatDerivedState({
   return {
     activeLocalRun,
     approvingLocalRun: runtimeApproving,
-    buildingSendDraft,
+    buildingSendWorkspace,
     canSend,
     canStopLocalRun,
     composerPlaceholder,
@@ -129,4 +138,8 @@ export function useAgentChatDerivedState({
     thinkingState,
     ...runInteractionState,
   }
+}
+
+function runIdFromStreamingAssistantMessageId(messageId: string): string | undefined {
+  return messageId.startsWith('stream-') ? messageId.slice('stream-'.length) : undefined
 }

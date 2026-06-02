@@ -20,19 +20,19 @@ function readProjectFile(relativePath) {
       'apps/frontend/src/features/canvas/ui/',
     )), 'utf8')
   }
-  if (relativePath.startsWith('apps/frontend/src/components/proposals/')) {
+  if (relativePath.startsWith('apps/frontend/src/components/workspaces/')) {
     const fileName = path.basename(relativePath)
     if (fileName.startsWith('ProjectStandards')) {
-      return readFileSync(path.join(root, `apps/frontend/src/features/project-standards/components/proposals/${fileName}`), 'utf8')
+      return readFileSync(path.join(root, `apps/frontend/src/features/project-standards/components/workspaces/${fileName}`), 'utf8')
     }
     if (fileName.startsWith('ProjectLayer')) {
-      return readFileSync(path.join(root, 'apps/frontend/src/features/pre-production/components/proposals/PreProductionProposalReviewPanel.tsx'), 'utf8')
+      return readFileSync(path.join(root, 'apps/frontend/src/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel.tsx'), 'utf8')
     }
     const featureArea = fileName.startsWith('Project') ? 'project' : 'production'
-    return readFileSync(path.join(root, `apps/frontend/src/features/${featureArea}/components/proposals/${fileName}`), 'utf8')
+    return readFileSync(path.join(root, `apps/frontend/src/features/${featureArea}/components/workspaces/${fileName}`), 'utf8')
   }
-  if (relativePath === 'apps/frontend/src/features/project/domain/projectLayerProposalReview.ts') {
-    return readFileSync(path.join(root, 'apps/frontend/src/features/pre-production/domain/preProductionProposalReview.ts'), 'utf8')
+  if (relativePath === 'apps/frontend/src/features/project/domain/projectLayerWorkspaceReview.ts') {
+    return readFileSync(path.join(root, 'apps/frontend/src/features/pre-production/domain/preProductionWorkspaceReview.ts'), 'utf8')
   }
   if (relativePath.startsWith('apps/frontend/src/features/production/components/Delivery')) {
     return readFileSync(path.join(root, relativePath.replace(
@@ -477,14 +477,14 @@ function readReviewSource() {
     'packages/ui/src/components/business/review/types.ts',
     'packages/ui/src/components/business/review/change-action/index.tsx',
     'packages/ui/src/components/business/review/callout/index.tsx',
-    'packages/ui/src/components/business/review/proposal/index.tsx',
-    'packages/ui/src/components/business/review/proposal/draft/index.tsx',
-    'packages/ui/src/components/business/review/proposal/shell/index.tsx',
-    'packages/ui/src/components/business/review/proposal/empty-state/index.tsx',
-    'packages/ui/src/components/business/review/proposal/impact/index.tsx',
-    'packages/ui/src/components/business/review/proposal/footer-actions/index.tsx',
-    'packages/ui/src/components/business/review/proposal/apply-gate/index.tsx',
-    'packages/ui/src/components/business/review/proposal/upstream/index.tsx',
+    'packages/ui/src/components/business/review/workspace/index.tsx',
+    'packages/ui/src/components/business/review/workspace/workspace/index.tsx',
+    'packages/ui/src/components/business/review/workspace/shell/index.tsx',
+    'packages/ui/src/components/business/review/workspace/empty-state/index.tsx',
+    'packages/ui/src/components/business/review/workspace/impact/index.tsx',
+    'packages/ui/src/components/business/review/workspace/footer-actions/index.tsx',
+    'packages/ui/src/components/business/review/workspace/apply-gate/index.tsx',
+    'packages/ui/src/components/business/review/workspace/upstream/index.tsx',
   ].map(readProjectFile).join('\n')
 }
 
@@ -493,13 +493,13 @@ function readReviewCss() {
     'packages/ui/src/components/business/review/styles.css',
     'packages/ui/src/components/business/review/change-action/styles.css',
     'packages/ui/src/components/business/review/callout/styles.css',
-    'packages/ui/src/components/business/review/proposal/styles.css',
-    'packages/ui/src/components/business/review/proposal/draft/styles.css',
-    'packages/ui/src/components/business/review/proposal/empty-state/styles.css',
-    'packages/ui/src/components/business/review/proposal/impact/styles.css',
-    'packages/ui/src/components/business/review/proposal/footer-actions/styles.css',
-    'packages/ui/src/components/business/review/proposal/apply-gate/styles.css',
-    'packages/ui/src/components/business/review/proposal/upstream/styles.css',
+    'packages/ui/src/components/business/review/workspace/styles.css',
+    'packages/ui/src/components/business/review/workspace/workspace/styles.css',
+    'packages/ui/src/components/business/review/workspace/empty-state/styles.css',
+    'packages/ui/src/components/business/review/workspace/impact/styles.css',
+    'packages/ui/src/components/business/review/workspace/footer-actions/styles.css',
+    'packages/ui/src/components/business/review/workspace/apply-gate/styles.css',
+    'packages/ui/src/components/business/review/workspace/upstream/styles.css',
   ].map(readProjectFile).join('\n')
 }
 
@@ -1632,31 +1632,31 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/review/change-action/styles.css',
     'packages/ui/src/components/business/review/callout/index.tsx',
     'packages/ui/src/components/business/review/callout/styles.css',
-    'packages/ui/src/components/business/review/proposal/index.tsx',
-    'packages/ui/src/components/business/review/proposal/styles.css',
-    'packages/ui/src/components/business/review/proposal/shell/index.tsx',
-    'packages/ui/src/components/business/review/proposal/empty-state/index.tsx',
-    'packages/ui/src/components/business/review/proposal/empty-state/styles.css',
-    'packages/ui/src/components/business/review/proposal/impact/index.tsx',
-    'packages/ui/src/components/business/review/proposal/impact/styles.css',
-    'packages/ui/src/components/business/review/proposal/footer-actions/index.tsx',
-    'packages/ui/src/components/business/review/proposal/footer-actions/styles.css',
-    'packages/ui/src/components/business/review/proposal/apply-gate/index.tsx',
-    'packages/ui/src/components/business/review/proposal/apply-gate/styles.css',
+    'packages/ui/src/components/business/review/workspace/index.tsx',
+    'packages/ui/src/components/business/review/workspace/styles.css',
+    'packages/ui/src/components/business/review/workspace/shell/index.tsx',
+    'packages/ui/src/components/business/review/workspace/empty-state/index.tsx',
+    'packages/ui/src/components/business/review/workspace/empty-state/styles.css',
+    'packages/ui/src/components/business/review/workspace/impact/index.tsx',
+    'packages/ui/src/components/business/review/workspace/impact/styles.css',
+    'packages/ui/src/components/business/review/workspace/footer-actions/index.tsx',
+    'packages/ui/src/components/business/review/workspace/footer-actions/styles.css',
+    'packages/ui/src/components/business/review/workspace/apply-gate/index.tsx',
+    'packages/ui/src/components/business/review/workspace/apply-gate/styles.css',
     'packages/ui/src/components/business/organization/index.tsx',
     'packages/ui/src/components/business/organization/styles.css',
     'packages/ui/src/components/business/plugins/index.tsx',
     'packages/ui/src/components/business/plugins/styles.css',
     'packages/ui/src/components/business/project/index.tsx',
     'packages/ui/src/components/business/project/styles.css',
-    'packages/ui/src/components/business/project/proposal-review/index.tsx',
-    'packages/ui/src/components/business/project/proposal-review/styles.css',
+    'packages/ui/src/components/business/project/workspace-review/index.tsx',
+    'packages/ui/src/components/business/project/workspace-review/styles.css',
     'packages/ui/src/components/business/project/tasks/index.tsx',
     'packages/ui/src/components/business/project/tasks/styles.css',
     'packages/ui/src/components/business/production/index.tsx',
     'packages/ui/src/components/business/production/styles.css',
-    'packages/ui/src/components/business/production/proposal-review/index.tsx',
-    'packages/ui/src/components/business/production/proposal-review/styles.css',
+    'packages/ui/src/components/business/production/workspace-review/index.tsx',
+    'packages/ui/src/components/business/production/workspace-review/styles.css',
     'packages/ui/src/components/business/production/scene-writing/index.tsx',
     'packages/ui/src/components/business/production/scene-writing/styles.css',
     'packages/ui/src/components/business/production/script-binding/index.tsx',
@@ -2431,7 +2431,7 @@ test('status badges use semantic intent API without legacy semantic helper expor
     ...walkFiles('apps/frontend/src/shared', (file) => /\.(ts|tsx)$/.test(file)),
   ].map(readProjectFile).join('\n')
 
-  for (const helper of ['runStatusBadge', 'draftStatusBadge', 'stateBadge', 'priorityBadge', 'BadgeSemanticProps']) {
+  for (const helper of ['runStatusBadge', 'workspaceStatusBadge', 'stateBadge', 'priorityBadge', 'BadgeSemanticProps']) {
     assert.ok(!badgeSource.includes(helper), `${helper} should not be defined by Badge`)
     assert.ok(!primitiveIndex.includes(helper), `${helper} should not be exported from primitives`)
     assert.ok(!agentRunUiSource.includes(helper), `${helper} should not be defined in agentRunUi`)
@@ -2461,31 +2461,31 @@ test('status badges use semantic intent API without legacy semantic helper expor
   assert.match(semanticCss, /\.ms-tone-dot\s*\{/)
 })
 
-test('review proposal components expose business semantics instead of review tones', () => {
-  const reviewProposalDraftSource = readProjectFile('packages/ui/src/components/business/review/proposal/draft/index.tsx')
-  const reviewProposalUpstreamSource = readProjectFile('packages/ui/src/components/business/review/proposal/upstream/index.tsx')
-  const reviewProposalIndexSource = readProjectFile('packages/ui/src/components/business/review/proposal/index.tsx')
-  const preProductionReviewSource = readProjectFile('apps/frontend/src/features/pre-production/components/proposals/PreProductionProposalReviewPanel.tsx')
-  const preProductionReviewDomainSource = readProjectFile('apps/frontend/src/features/pre-production/domain/preProductionProposalReview.ts')
-  const projectStandardsReviewSource = readProjectFile('apps/frontend/src/features/project-standards/components/proposals/ProjectStandardsProposalReviewPanel.tsx')
-  const productionUpstreamReviewSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionUpstreamProposalReviewSummary.tsx')
+test('review workspace components expose business semantics instead of review tones', () => {
+  const reviewWorkspaceWorkspaceSource = readProjectFile('packages/ui/src/components/business/review/workspace/workspace/index.tsx')
+  const reviewWorkspaceUpstreamSource = readProjectFile('packages/ui/src/components/business/review/workspace/upstream/index.tsx')
+  const reviewWorkspaceIndexSource = readProjectFile('packages/ui/src/components/business/review/workspace/index.tsx')
+  const preProductionReviewSource = readProjectFile('apps/frontend/src/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel.tsx')
+  const preProductionReviewDomainSource = readProjectFile('apps/frontend/src/features/pre-production/domain/preProductionWorkspaceReview.ts')
+  const projectStandardsReviewSource = readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel.tsx')
+  const productionUpstreamReviewSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionUpstreamWorkspaceReviewSummary.tsx')
 
-  assert.match(reviewProposalDraftSource, /export type ReviewProposalFieldDiffChange = "added" \| "deleted" \| "modified" \| "unchanged"/)
-  assert.match(reviewProposalUpstreamSource, /export type ReviewProposalUpstreamImpact = "neutral" \| "destructive"/)
-  assert.match(reviewProposalIndexSource, /type ReviewProposalFieldDiffChange/)
-  assert.match(reviewProposalIndexSource, /type ReviewProposalUpstreamImpact/)
-  assert.doesNotMatch(reviewProposalDraftSource, /\bReviewTone\b/)
-  assert.doesNotMatch(reviewProposalUpstreamSource, /\bReviewTone\b/)
-  assert.doesNotMatch(reviewProposalDraftSource, /\btone\?: ReviewTone/)
-  assert.doesNotMatch(reviewProposalUpstreamSource, /\btone\?: ReviewTone/)
-  assert.doesNotMatch(reviewProposalUpstreamSource, /\btone\?:/)
-  assert.doesNotMatch(`${preProductionReviewSource}\n${projectStandardsReviewSource}`, /<ReviewProposalFieldDiffRow\b[\s\S]{0,240}\btone=/)
-  assert.doesNotMatch(`${preProductionReviewSource}\n${projectStandardsReviewSource}`, /<ReviewProposalSummaryCallout\b[\s\S]{0,240}\btone=/)
-  assert.doesNotMatch(preProductionReviewDomainSource, /\bPreProductionProposalDiffRow[\s\S]{0,180}\btone\b/)
+  assert.match(reviewWorkspaceWorkspaceSource, /export type ReviewWorkspaceFieldDiffChange = "added" \| "deleted" \| "modified" \| "unchanged"/)
+  assert.match(reviewWorkspaceUpstreamSource, /export type ReviewWorkspaceUpstreamImpact = "neutral" \| "destructive"/)
+  assert.match(reviewWorkspaceIndexSource, /type ReviewWorkspaceFieldDiffChange/)
+  assert.match(reviewWorkspaceIndexSource, /type ReviewWorkspaceUpstreamImpact/)
+  assert.doesNotMatch(reviewWorkspaceWorkspaceSource, /\bReviewTone\b/)
+  assert.doesNotMatch(reviewWorkspaceUpstreamSource, /\bReviewTone\b/)
+  assert.doesNotMatch(reviewWorkspaceWorkspaceSource, /\btone\?: ReviewTone/)
+  assert.doesNotMatch(reviewWorkspaceUpstreamSource, /\btone\?: ReviewTone/)
+  assert.doesNotMatch(reviewWorkspaceUpstreamSource, /\btone\?:/)
+  assert.doesNotMatch(`${preProductionReviewSource}\n${projectStandardsReviewSource}`, /<ReviewWorkspaceFieldDiffRow\b[\s\S]{0,240}\btone=/)
+  assert.doesNotMatch(`${preProductionReviewSource}\n${projectStandardsReviewSource}`, /<ReviewWorkspaceSummaryCallout\b[\s\S]{0,240}\btone=/)
+  assert.doesNotMatch(preProductionReviewDomainSource, /\bPreProductionWorkspaceDiffRow[\s\S]{0,180}\btone\b/)
   assert.doesNotMatch(preProductionReviewSource, /\brow\.tone\b/)
   assert.doesNotMatch(productionUpstreamReviewSource, /\btone:\s*['"](?:danger|warning|success|info|neutral)['"]/)
-  assert.match(preProductionReviewSource, /<ReviewProposalFieldDiffRow\b[\s\S]*?\bchange=/)
-  assert.match(projectStandardsReviewSource, /<ReviewProposalFieldDiffRow\b[\s\S]*?\bchange=/)
+  assert.match(preProductionReviewSource, /<ReviewWorkspaceFieldDiffRow\b[\s\S]*?\bchange=/)
+  assert.match(projectStandardsReviewSource, /<ReviewWorkspaceFieldDiffRow\b[\s\S]*?\bchange=/)
   assert.match(productionUpstreamReviewSource, /\bimpact:\s*'destructive'/)
 })
 
@@ -3018,7 +3018,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentRunsPackageSource = readProjectFile('packages/ui/src/components/business/agent/run/list/index.tsx')
   const agentPerformanceSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')
   const agentPerformancePackageSource = readProjectFile('packages/ui/src/components/business/agent/performance/index.tsx')
-  const aiDraftsSource = readProjectFile('apps/frontend/src/features/agent/components/AIDraftsPage.tsx')
+  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentSettingsUiSource = readProjectFile('packages/ui/src/components/business/agent/settings/index.tsx')
   const agentRunSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')
@@ -3026,7 +3026,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const agentBrowserSource = readProjectFile('apps/frontend/src/features/agent/components/AgentBrowserPanel.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const agentResultSurfaceSources = [
-    'apps/frontend/src/features/agent/components/AgentDraftResultCards.tsx',
+    'apps/frontend/src/features/agent/components/AgentWorkspaceResultCards.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx',
     'apps/frontend/src/features/agent/components/GeneratedResultCard.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
@@ -3036,7 +3036,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
     'apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx',
     'apps/frontend/src/features/agent/components/AgentComposerSection.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
-  const sources = `${agentConsoleSource}\n${agentRunsSource}\n${agentPerformanceSource}\n${aiDraftsSource}\n${agentRunSource}`
+  const sources = `${agentConsoleSource}\n${agentRunsSource}\n${agentPerformanceSource}\n${aiWorkspacesSource}\n${agentRunSource}`
   const agentSettingsOwnershipSource = `${agentSettingsSource}\n${agentSettingsUiSource}`
   const migratedSettingsSurfaceIds = [
     'agent-settings-config-file-limits',
@@ -3066,7 +3066,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block\s*\{/)
   assert.doesNotMatch(uiCss, /\.ms-agent-surface-block--subtle\s*\{/)
   assert.match(sources, /AgentSurfaceBlock/)
-  assert.match(aiDraftsSource, /AppCodeBlock/)
+  assert.match(aiWorkspacesSource, /AppCodeBlock/)
   assert.match(agentRunsSource, /\bAgentRunsSearchInput\b/)
   assert.match(agentRunsSource, /\bAgentRunsFilterButton\b/)
   assert.match(agentRunsSource, /RUN_FILTERS\.map[\s\S]*?<AgentRunsFilterButton[\s\S]*?active=\{filter === item\.value\}/)
@@ -3130,14 +3130,14 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentCss, /\.agent-performance-operation-button\s*\{/)
   assert.match(agentCss, /\.agent-performance-panel__header\s*\{/)
   assert.match(agentCss, /\.agent-performance-stat-card\s*\{/)
-  assert.match(aiDraftsSource, /\bInput\b/)
-  assert.match(aiDraftsSource, /\bAppInlineError\b/)
-  assert.match(aiDraftsSource, /drafts\.map\(\(draft\)[\s\S]*?<AgentSurfaceBlock key=\{draft\.id\} asChild variant="subtle"[\s\S]*?<Button/)
-  assert.doesNotMatch(aiDraftsSource, /<pre\b/)
+  assert.match(aiWorkspacesSource, /\bInput\b/)
+  assert.match(aiWorkspacesSource, /\bAppInlineError\b/)
+  assert.match(aiWorkspacesSource, /workspaces\.map\(\(workspace\)[\s\S]*?<AgentSurfaceBlock key=\{workspace\.id\} asChild variant="subtle"[\s\S]*?<Button/)
+  assert.doesNotMatch(aiWorkspacesSource, /<pre\b/)
   assert.doesNotMatch(agentRunsSource, /<input\b/)
   assert.doesNotMatch(agentRunsSource, /<button\b/)
-  assert.doesNotMatch(aiDraftsSource, /<input\b/)
-  assert.doesNotMatch(aiDraftsSource, /<button\b/)
+  assert.doesNotMatch(aiWorkspacesSource, /<input\b/)
+  assert.doesNotMatch(aiWorkspacesSource, /<button\b/)
   assert.doesNotMatch(agentPerformanceSource, /<button\b/)
   assert.doesNotMatch(agentPerformanceSource, /block w-full rounded-md border px-3 py-2/)
   assert.doesNotMatch(agentPerformanceSource, /overflow-hidden rounded-md border border-border/)
@@ -3148,8 +3148,8 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentPerformanceSource, /bg-current/)
   assert.doesNotMatch(agentRunsSource, /rounded-md border border-input/)
   assert.doesNotMatch(agentRunsSource, /text-destructive/)
-  assert.doesNotMatch(aiDraftsSource, /rounded-md border border-input/)
-  assert.doesNotMatch(aiDraftsSource, /rounded-md border border-destructive\/30 bg-destructive\/10/)
+  assert.doesNotMatch(aiWorkspacesSource, /rounded-md border border-input/)
+  assert.doesNotMatch(aiWorkspacesSource, /rounded-md border border-destructive\/30 bg-destructive\/10/)
   assert.doesNotMatch(sources, /rounded-md border border-border bg-(?:background|muted\/10|card)/)
   assert.match(agentResultSurfaceSources, /AgentSurfaceBlock/)
   const agentBrowserExportNames = [
@@ -3290,7 +3290,7 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsSource, /<AgentSettingsStateMessage[\s\S]*?text=\{t\('common\.loading'\)\}/)
   assert.match(agentSettingsSource, /<AgentSettingsKeyValue[\s\S]*?label=\{t\('agents\.settings\.fields\.modelId'\)\}/)
   assert.match(agentSettingsSource, /<AgentSettingsCallout[\s\S]*?data-testid="agent-settings-provider-model-id-secret-warning"/)
-  assert.match(agentSettingsSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPermissionsDraftIssues/)
+  assert.match(agentSettingsSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPermissionsWorkspaceIssues/)
   assert.doesNotMatch(agentSettingsSource, /\b(?:AppStateMessage|AppKeyValue|ReviewCallout|toneTextClass)\b/)
   assert.match(agentSettingsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
   assert.doesNotMatch(agentSettingsUiSource, /<StatusBadge\b[^>]*\btone=/)
@@ -3483,7 +3483,7 @@ test('agent panel and page surfaces use package agent styles', () => {
   const agentConsoleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsolePage.tsx')
   const agentRunsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunsPage.tsx')
   const agentPerformanceSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')
-  const aiDraftsSource = readProjectFile('apps/frontend/src/features/agent/components/AIDraftsPage.tsx')
+  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
   const agentSettingsSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx')
   const agentRunSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')
   const agentDebugSource = readProjectFile('apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx')
@@ -3549,7 +3549,7 @@ test('agent panel and page surfaces use package agent styles', () => {
   assert.match(agentRunsSource, /AgentRunsRecordItem/)
   assert.match(agentPerformanceSource, /AgentPerformanceMetricTable/)
   assert.doesNotMatch(agentPerformanceSource, /\b(?:AgentSurfaceBlock|AgentDataBlock)\b/)
-  assert.match(aiDraftsSource, /AgentSurfaceBlock/)
+  assert.match(aiWorkspacesSource, /AgentSurfaceBlock/)
   assert.match(agentSettingsSource, /AgentSettingsModelOptionButton/)
   assert.match(agentRunSource, /AgentSurfaceBlock/)
   assert.match(agentDebugSource, /\bAgentDebugPanel\b/)
@@ -3713,60 +3713,60 @@ test('desktop entity and creative reference tones use @movscript/ui contracts', 
   assert.doesNotMatch(uiCss, /\.ms-accent-/)
 })
 
-test('production proposal review surfaces use @movscript/ui review contracts', () => {
-  const proposalReviewSources = [
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalApplyGatePanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalApplyPreviewPanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalBackendPreviewPanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalReviewControls.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalReviewHeader.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalReviewPanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalReviewResultPanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionProposalSemanticDiffPanel.tsx',
-    'apps/frontend/src/features/production/components/proposals/ProductionUpstreamProposalReviewSummary.tsx',
-    'apps/frontend/src/features/pre-production/components/proposals/PreProductionProposalReviewPanel.tsx',
-    'apps/frontend/src/features/project-standards/components/proposals/ProjectStandardsProposalReviewPanel.tsx',
-    'apps/frontend/src/features/production/presentation/useProductionProposalReviewController.ts',
+test('production workspace review surfaces use @movscript/ui review contracts', () => {
+  const workspaceReviewSources = [
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceApplyGatePanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceApplyPreviewPanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceBackendPreviewPanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewControls.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewHeader.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewPanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewResultPanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel.tsx',
+    'apps/frontend/src/features/production/components/workspaces/ProductionUpstreamWorkspaceReviewSummary.tsx',
+    'apps/frontend/src/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel.tsx',
+    'apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel.tsx',
+    'apps/frontend/src/features/production/presentation/useProductionWorkspaceReviewController.ts',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
   const uiReviewSource = readReviewSource()
-  const projectProposalReviewPackageSource = readProjectFile('packages/ui/src/components/business/project/proposal-review/index.tsx')
-  const projectProposalReviewPackageCss = readProjectFile('packages/ui/src/components/business/project/proposal-review/styles.css')
-  const productionProposalReviewPackageSource = readProjectFile('packages/ui/src/components/business/production/proposal-review/index.tsx')
-  const productionProposalReviewPackageCss = readProjectFile('packages/ui/src/components/business/production/proposal-review/styles.css')
+  const projectWorkspaceReviewPackageSource = readProjectFile('packages/ui/src/components/business/project/workspace-review/index.tsx')
+  const projectWorkspaceReviewPackageCss = readProjectFile('packages/ui/src/components/business/project/workspace-review/styles.css')
+  const productionWorkspaceReviewPackageSource = readProjectFile('packages/ui/src/components/business/production/workspace-review/index.tsx')
+  const productionWorkspaceReviewPackageCss = readProjectFile('packages/ui/src/components/business/production/workspace-review/styles.css')
   const uiCss = readProjectFile('packages/ui/src/base.css')
   const reviewCss = readReviewCss()
-  const upstreamSummarySource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionUpstreamProposalReviewSummary.tsx')
-  const backendPreviewSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalBackendPreviewPanel.tsx')
-  const applyPreviewSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalApplyPreviewPanel.tsx')
-  const reviewControlsSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalReviewControls.tsx')
-  const reviewHeaderSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalReviewHeader.tsx')
-  const reviewPanelSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalReviewPanel.tsx')
-  const reviewResultSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalReviewResultPanel.tsx')
-  const preProductionProposalSource = readProjectFile('apps/frontend/src/features/pre-production/components/proposals/PreProductionProposalReviewPanel.tsx')
-  const projectStandardsSource = readProjectFile('apps/frontend/src/features/project-standards/components/proposals/ProjectStandardsProposalReviewPanel.tsx')
-  const semanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalSemanticDiffPanel.tsx')
-  const productionProposalReviewPresentationTypesSource = readProjectFile('apps/frontend/src/features/production/presentation/productionProposalReviewPresentationTypes.ts')
+  const upstreamSummarySource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionUpstreamWorkspaceReviewSummary.tsx')
+  const backendPreviewSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceBackendPreviewPanel.tsx')
+  const applyPreviewSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceApplyPreviewPanel.tsx')
+  const reviewControlsSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewControls.tsx')
+  const reviewHeaderSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewHeader.tsx')
+  const reviewPanelSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewPanel.tsx')
+  const reviewResultSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewResultPanel.tsx')
+  const preProductionWorkspaceSource = readProjectFile('apps/frontend/src/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel.tsx')
+  const projectStandardsSource = readProjectFile('apps/frontend/src/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel.tsx')
+  const semanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel.tsx')
+  const productionWorkspaceReviewPresentationTypesSource = readProjectFile('apps/frontend/src/features/production/presentation/productionWorkspaceReviewPresentationTypes.ts')
   const productionSemanticUiSource = readProjectFile('apps/frontend/src/features/production/presentation/productionSemanticUi.ts')
   const deliverySemanticUiSource = readProjectFile('apps/frontend/src/features/delivery/presentation/deliverySemanticUi.ts')
   const projectSemanticUiSource = readProjectFile('apps/frontend/src/features/project/presentation/projectSemanticUi.ts')
   const preProductionSemanticUiSource = readProjectFile('apps/frontend/src/features/pre-production/presentation/preProductionSemanticUi.ts')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
-  assert.doesNotMatch(proposalReviewSources, rawPaletteClassPattern)
-  assert.match(proposalReviewSources, /ReviewCallout/)
-  assert.match(proposalReviewSources, /ReviewStat/)
-  assert.match(proposalReviewSources, /ChangeActionBadge/)
-  assert.match(productionProposalReviewPackageSource, /ReviewDecisionBadge/)
-  assert.doesNotMatch(proposalReviewSources, /\bAppKeyValue\b/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamSection/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamActionButton/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamMetricGrid/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamSummary/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamPreviewGrid/)
-  assert.match(upstreamSummarySource, /ReviewProposalUpstreamEntryPreview/)
-  assert.match(uiReviewSource, /function ReviewProposalUpstreamSection[\s\S]*?<AppSection/)
-  assert.match(uiReviewSource, /function ReviewProposalUpstreamMetricGrid[\s\S]*?<AppKeyValue/)
-  assert.match(uiReviewSource, /function ReviewProposalUpstreamEntryPreview[\s\S]*?<AppPanel[\s\S]*?<AppSurfaceItem[\s\S]*?<AppInlineMeta/)
+  assert.doesNotMatch(workspaceReviewSources, rawPaletteClassPattern)
+  assert.match(workspaceReviewSources, /ReviewCallout/)
+  assert.match(workspaceReviewSources, /ReviewStat/)
+  assert.match(workspaceReviewSources, /ChangeActionBadge/)
+  assert.match(productionWorkspaceReviewPackageSource, /ReviewDecisionBadge/)
+  assert.doesNotMatch(workspaceReviewSources, /\bAppKeyValue\b/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamSection/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamActionButton/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamMetricGrid/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamSummary/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamPreviewGrid/)
+  assert.match(upstreamSummarySource, /ReviewWorkspaceUpstreamEntryPreview/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceUpstreamSection[\s\S]*?<AppSection/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceUpstreamMetricGrid[\s\S]*?<AppKeyValue/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceUpstreamEntryPreview[\s\S]*?<AppPanel[\s\S]*?<AppSurfaceItem[\s\S]*?<AppInlineMeta/)
   assert.doesNotMatch(upstreamSummarySource, /\bAppSection\b/)
   assert.doesNotMatch(upstreamSummarySource, /\bAppPanel\b/)
   assert.doesNotMatch(upstreamSummarySource, /\bAppSurfaceItem\b/)
@@ -3781,99 +3781,99 @@ test('production proposal review surfaces use @movscript/ui review contracts', (
   assert.doesNotMatch(upstreamSummarySource, /rounded-md border border-border bg-muted\/10 p-3/)
   assert.doesNotMatch(upstreamSummarySource, /rounded border px-2 py-1\.5/)
   assert.doesNotMatch(upstreamSummarySource, /rounded bg-muted px-1\.5 py-0\.5/)
-  assert.equal(existsSync(path.join(root, 'apps/frontend/src/components/proposals/ProposalReviewShell.tsx')), false)
-  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/production/components/proposals/ProductionProposalReviewEmptyState.tsx')), false)
-  assert.match(proposalReviewSources, /ReviewProposalShell/)
-  assert.match(uiReviewSource, /export function ReviewProposalShell/)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/components/workspaces/WorkspaceReviewShell.tsx')), false)
+  assert.equal(existsSync(path.join(root, 'apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceReviewEmptyState.tsx')), false)
+  assert.match(workspaceReviewSources, /ReviewWorkspaceShell/)
+  assert.match(uiReviewSource, /export function ReviewWorkspaceShell/)
   assert.match(uiReviewSource, /<AppSection/)
   assert.match(uiReviewSource, /eyebrow=\{kind\}/)
-  assert.match(uiReviewSource, /export function ReviewProposalEmptyState/)
+  assert.match(uiReviewSource, /export function ReviewWorkspaceEmptyState/)
   assert.match(uiReviewSource, /<AppEmptyState/)
-  assert.doesNotMatch(proposalReviewSources, /min-w-0 rounded-lg border border-border bg-card p-4/)
-  assert.doesNotMatch(proposalReviewSources, /rounded-lg border border-dashed border-border bg-background p-6/)
-  assert.match(backendPreviewSource, /ProductionProposalBackendPreviewIssueCallout/)
-  assert.match(backendPreviewSource, /PackageProductionProposalBackendPreviewSemanticSummary/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalBackendPreviewPanel/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalBackendPreviewIssueCallout/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalBackendPreviewSemanticSummary/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalResultStack/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalResultCallout/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalResultStatGrid/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalResultActions/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewShell/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewActionGroup/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewActionButton/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewScrollArea/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewContentStack/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewErrorCallout/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalResultActionButton/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalBackendPreviewReadyPanel/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalContinueReviewPanel/)
+  assert.doesNotMatch(workspaceReviewSources, /min-w-0 rounded-lg border border-border bg-card p-4/)
+  assert.doesNotMatch(workspaceReviewSources, /rounded-lg border border-dashed border-border bg-background p-6/)
+  assert.match(backendPreviewSource, /ProductionWorkspaceBackendPreviewIssueCallout/)
+  assert.match(backendPreviewSource, /PackageProductionWorkspaceBackendPreviewSemanticSummary/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceBackendPreviewPanel/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceBackendPreviewIssueCallout/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceBackendPreviewSemanticSummary/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceResultStack/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceResultCallout/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceResultStatGrid/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceResultActions/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewShell/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewActionGroup/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewActionButton/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewScrollArea/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewContentStack/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewErrorCallout/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceResultActionButton/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceBackendPreviewReadyPanel/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceContinueReviewPanel/)
   for (const className of [
-    'production-proposal-review-shell',
-    'production-proposal-review-action-group',
-    'production-proposal-review-action-button',
-    'production-proposal-review-scroll-area',
-    'production-proposal-review-content-stack',
-    'production-proposal-review-error',
-    'production-proposal-result-action-button',
-    'production-proposal-backend-preview-badge',
-    'production-proposal-continue-review__description',
-    'production-proposal-continue-review__body',
+    'production-workspace-review-shell',
+    'production-workspace-review-action-group',
+    'production-workspace-review-action-button',
+    'production-workspace-review-scroll-area',
+    'production-workspace-review-content-stack',
+    'production-workspace-review-error',
+    'production-workspace-result-action-button',
+    'production-workspace-backend-preview-badge',
+    'production-workspace-continue-review__description',
+    'production-workspace-continue-review__body',
   ]) {
-    assert.match(productionProposalReviewPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
+    assert.match(productionWorkspaceReviewPackageCss, cssClassSelectorPattern(className), `${className} style must be package-owned`)
   }
-  assert.match(productionProposalReviewPackageSource, /export type ProductionProposalReviewState =/)
-  assert.match(reviewPanelSource, /ProductionProposalReviewShell/)
-  assert.match(reviewPanelSource, /ProductionProposalReviewActionGroup/)
-  assert.match(reviewPanelSource, /ProductionProposalReviewScrollArea/)
-  assert.match(reviewPanelSource, /ProductionProposalReviewContentStack/)
-  assert.match(reviewPanelSource, /ProductionProposalReviewErrorCallout/)
-  assert.doesNotMatch(reviewPanelSource, /className=|<div\b|<p\b|\b(?:Button|ReviewCallout|ReviewProposalShell)\b/)
-  assert.match(productionProposalReviewPackageSource, /ProductionProposalReviewStatus[\s\S]*?state: ProductionProposalReviewState/)
-  assert.match(proposalReviewSources, /\bstate:\s*'backend_preview_ready'/)
-  assert.match(proposalReviewSources, /\bstate:\s*'ready_for_preview'/)
-  assert.match(proposalReviewSources, /\bstate:\s*'blocked'/)
-  assert.doesNotMatch(productionProposalReviewPackageSource, /\bProductionProposalReviewStatusTone\b/)
-  assert.doesNotMatch(productionProposalReviewPackageSource, /\bproductionProposalReviewTone\b/)
-  assert.doesNotMatch(productionProposalReviewPresentationTypesSource, /\btone:\s*'neutral' \| 'ok' \| 'warn' \| 'danger'/)
-  assert.doesNotMatch(proposalReviewSources, /\btone:\s*['"](?:ok|warn|danger|neutral)['"]/)
-  assert.match(productionProposalReviewPackageSource, /export type ProductionProposalResultStatOutcome = "created" \| "accepted" \| "rejected" \| "pending" \| "neutral"/)
-  assert.match(productionProposalReviewPackageSource, /export type ProductionProposalApplyPreviewGroupState = "write" \| "blocked" \| "pending" \| "rejected"/)
-  assert.match(productionProposalReviewPackageSource, /ProductionProposalResultStat[\s\S]*?outcome\?: ProductionProposalResultStatOutcome/)
-  assert.match(productionProposalReviewPackageSource, /ProductionProposalApplyPreviewGroup[\s\S]*?state: ProductionProposalApplyPreviewGroupState/)
-  assert.doesNotMatch(productionProposalReviewPackageSource, /ProductionProposalResultStat[\s\S]{0,180}\btone\?: ReviewTone/)
-  assert.doesNotMatch(productionProposalReviewPackageSource, /ProductionProposalResultCallout[\s\S]{0,260}\btone\?: ReviewTone/)
-  assert.doesNotMatch(productionProposalReviewPackageSource, /ProductionProposalApplyPreviewGroup[\s\S]{0,260}\btone: ReviewTone/)
-  assert.match(productionProposalReviewPackageSource, /showZero/)
-  assert.match(productionProposalReviewPackageSource, /<AppPanel[\s\S]*?<ProductionProposalResultStatGrid/)
-  assert.match(productionProposalReviewPackageSource, /issue\.detail[\s\S]*?<AppSurfaceItem density="compact" variant="overlay"[\s\S]*?<AppCodeBlock>/)
-  assert.match(productionProposalReviewPackageSource, /changes\.slice\(0, 6\)\.map[\s\S]*?<AppSurfaceItem/)
+  assert.match(productionWorkspaceReviewPackageSource, /export type ProductionWorkspaceReviewState =/)
+  assert.match(reviewPanelSource, /ProductionWorkspaceReviewShell/)
+  assert.match(reviewPanelSource, /ProductionWorkspaceReviewActionGroup/)
+  assert.match(reviewPanelSource, /ProductionWorkspaceReviewScrollArea/)
+  assert.match(reviewPanelSource, /ProductionWorkspaceReviewContentStack/)
+  assert.match(reviewPanelSource, /ProductionWorkspaceReviewErrorCallout/)
+  assert.doesNotMatch(reviewPanelSource, /className=|<div\b|<p\b|\b(?:Button|ReviewCallout|ReviewWorkspaceShell)\b/)
+  assert.match(productionWorkspaceReviewPackageSource, /ProductionWorkspaceReviewStatus[\s\S]*?state: ProductionWorkspaceReviewState/)
+  assert.match(workspaceReviewSources, /\bstate:\s*'backend_preview_ready'/)
+  assert.match(workspaceReviewSources, /\bstate:\s*'ready_for_preview'/)
+  assert.match(workspaceReviewSources, /\bstate:\s*'blocked'/)
+  assert.doesNotMatch(productionWorkspaceReviewPackageSource, /\bProductionWorkspaceReviewStatusTone\b/)
+  assert.doesNotMatch(productionWorkspaceReviewPackageSource, /\bproductionWorkspaceReviewTone\b/)
+  assert.doesNotMatch(productionWorkspaceReviewPresentationTypesSource, /\btone:\s*'neutral' \| 'ok' \| 'warn' \| 'danger'/)
+  assert.doesNotMatch(workspaceReviewSources, /\btone:\s*['"](?:ok|warn|danger|neutral)['"]/)
+  assert.match(productionWorkspaceReviewPackageSource, /export type ProductionWorkspaceResultStatOutcome = "created" \| "accepted" \| "rejected" \| "pending" \| "neutral"/)
+  assert.match(productionWorkspaceReviewPackageSource, /export type ProductionWorkspaceApplyPreviewGroupState = "write" \| "blocked" \| "pending" \| "rejected"/)
+  assert.match(productionWorkspaceReviewPackageSource, /ProductionWorkspaceResultStat[\s\S]*?outcome\?: ProductionWorkspaceResultStatOutcome/)
+  assert.match(productionWorkspaceReviewPackageSource, /ProductionWorkspaceApplyPreviewGroup[\s\S]*?state: ProductionWorkspaceApplyPreviewGroupState/)
+  assert.doesNotMatch(productionWorkspaceReviewPackageSource, /ProductionWorkspaceResultStat[\s\S]{0,180}\btone\?: ReviewTone/)
+  assert.doesNotMatch(productionWorkspaceReviewPackageSource, /ProductionWorkspaceResultCallout[\s\S]{0,260}\btone\?: ReviewTone/)
+  assert.doesNotMatch(productionWorkspaceReviewPackageSource, /ProductionWorkspaceApplyPreviewGroup[\s\S]{0,260}\btone: ReviewTone/)
+  assert.match(productionWorkspaceReviewPackageSource, /showZero/)
+  assert.match(productionWorkspaceReviewPackageSource, /<AppPanel[\s\S]*?<ProductionWorkspaceResultStatGrid/)
+  assert.match(productionWorkspaceReviewPackageSource, /issue\.detail[\s\S]*?<AppSurfaceItem density="compact" variant="overlay"[\s\S]*?<AppCodeBlock>/)
+  assert.match(productionWorkspaceReviewPackageSource, /changes\.slice\(0, 6\)\.map[\s\S]*?<AppSurfaceItem/)
   assert.doesNotMatch(backendPreviewSource, /<pre\b/)
   assert.doesNotMatch(backendPreviewSource, /rounded-md border border-border\/60 bg-muted\/30 p-2/)
   assert.doesNotMatch(backendPreviewSource, /rounded bg-background\/70 px-2 py-1/)
   assert.doesNotMatch(backendPreviewSource, /whitespace-pre-wrap rounded bg-background\/70 p-2/)
-  assert.match(applyPreviewSource, /PackageProductionProposalApplyPreviewPanel/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalApplyPreviewPanel/)
-  assert.match(productionProposalReviewPackageSource, /items\.slice\(0, 8\)\.map[\s\S]*?<ProductionProposalApplyPreviewItemRow/)
-  assert.match(productionProposalReviewPackageSource, /<AppSurfaceItem[\s\S]*?production-proposal-apply-preview-item/)
+  assert.match(applyPreviewSource, /PackageProductionWorkspaceApplyPreviewPanel/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceApplyPreviewPanel/)
+  assert.match(productionWorkspaceReviewPackageSource, /items\.slice\(0, 8\)\.map[\s\S]*?<ProductionWorkspaceApplyPreviewItemRow/)
+  assert.match(productionWorkspaceReviewPackageSource, /<AppSurfaceItem[\s\S]*?production-workspace-apply-preview-item/)
   assert.doesNotMatch(applyPreviewSource, /rounded bg-background\/70 px-2 py-1\.5/)
-  assert.match(reviewControlsSource, /ReviewProposalWriteImpactPanel/)
-  assert.match(reviewControlsSource, /ReviewProposalFooterActions/)
+  assert.match(reviewControlsSource, /ReviewWorkspaceWriteImpactPanel/)
+  assert.match(reviewControlsSource, /ReviewWorkspaceFooterActions/)
   assert.doesNotMatch(reviewControlsSource, /className=|\bLoader2\b/)
-  assert.match(uiReviewSource, /export function ReviewProposalWriteImpactPanel/)
-  assert.match(uiReviewSource, /export function ReviewProposalFooterActions/)
+  assert.match(uiReviewSource, /export function ReviewWorkspaceWriteImpactPanel/)
+  assert.match(uiReviewSource, /export function ReviewWorkspaceFooterActions/)
   assert.match(uiReviewSource, /<AppPanel/)
   assert.match(uiReviewSource, /iconClassName=\{toneTextClass\("info"\)\}/)
   assert.doesNotMatch(reviewControlsSource, /rounded-lg border border-border bg-background p-3/)
-  assert.match(productionProposalReviewPackageSource, /<AppPanel/)
+  assert.match(productionWorkspaceReviewPackageSource, /<AppPanel/)
   assert.doesNotMatch(reviewResultSource, /\bAppPanel\b/)
-  assert.match(reviewResultSource, /ProductionProposalResultStack/)
-  assert.match(reviewResultSource, /ProductionProposalResultCallout/)
-  assert.match(reviewResultSource, /ProductionProposalResultStatGrid/)
-  assert.match(reviewResultSource, /ProductionProposalResultActions/)
-  assert.match(reviewResultSource, /ProductionProposalBackendPreviewReadyPanel/)
-  assert.match(reviewResultSource, /ProductionProposalContinueReviewPanel/)
+  assert.match(reviewResultSource, /ProductionWorkspaceResultStack/)
+  assert.match(reviewResultSource, /ProductionWorkspaceResultCallout/)
+  assert.match(reviewResultSource, /ProductionWorkspaceResultStatGrid/)
+  assert.match(reviewResultSource, /ProductionWorkspaceResultActions/)
+  assert.match(reviewResultSource, /ProductionWorkspaceBackendPreviewReadyPanel/)
+  assert.match(reviewResultSource, /ProductionWorkspaceContinueReviewPanel/)
   assert.doesNotMatch(reviewResultSource, /className=|\b(?:AppPanel|Badge|Button|toneTextClass|Loader2)\b/)
   assert.match(reviewResultSource, /\boutcome:\s*'created'/)
   assert.match(reviewResultSource, /\boutcome:\s*'accepted'/)
@@ -3885,96 +3885,96 @@ test('production proposal review surfaces use @movscript/ui review contracts', (
   assert.doesNotMatch(reviewResultSource, /flex flex-col gap-3 p-4/)
   assert.doesNotMatch(reviewResultSource, /mt-2 grid grid-cols-3 gap-1\.5/)
   assert.doesNotMatch(reviewResultSource, /cn\(/)
-  assert.match(productionProposalReviewPackageSource, /iconClassName=\{toneTextClass\("success"\)\}/)
-  assert.match(productionProposalReviewPackageSource, /iconClassName=\{toneTextClass\("info"\)\}/)
+  assert.match(productionWorkspaceReviewPackageSource, /iconClassName=\{toneTextClass\("success"\)\}/)
+  assert.match(productionWorkspaceReviewPackageSource, /iconClassName=\{toneTextClass\("info"\)\}/)
   assert.doesNotMatch(reviewResultSource, /\btoneTextClass\b/)
   assert.doesNotMatch(reviewResultSource, /rounded-lg border border-border bg-background p-3/)
   assert.doesNotMatch(reviewResultSource, /rounded bg-muted px-1\.5 py-1 text-foreground/)
-  assert.match(reviewHeaderSource, /ProductionProposalReviewSummary/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalReviewSummary/)
-  assert.match(productionProposalReviewPackageSource, /<AppKeyValue/)
+  assert.match(reviewHeaderSource, /ProductionWorkspaceReviewSummary/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceReviewSummary/)
+  assert.match(productionWorkspaceReviewPackageSource, /<AppKeyValue/)
   assert.doesNotMatch(reviewHeaderSource, /rounded-md border border-border bg-background px-2\.5 py-2/)
   for (const exportName of [
-    'ProjectProposalReviewActionButton',
-    'ProjectProposalReviewBadge',
-    'ProjectProposalReviewCallout',
-    'ProjectProposalReviewDetailText',
-    'ProjectProposalReviewEmptyText',
-    'ProjectProposalReviewEntryCallout',
-    'ProjectProposalReviewLoadingState',
-    'ProjectProposalReviewNoteList',
-    'ProjectProposalReviewStatusBadge',
+    'ProjectWorkspaceReviewActionButton',
+    'ProjectWorkspaceReviewBadge',
+    'ProjectWorkspaceReviewCallout',
+    'ProjectWorkspaceReviewDetailText',
+    'ProjectWorkspaceReviewEmptyText',
+    'ProjectWorkspaceReviewEntryCallout',
+    'ProjectWorkspaceReviewLoadingState',
+    'ProjectWorkspaceReviewNoteList',
+    'ProjectWorkspaceReviewStatusBadge',
   ]) {
-    assert.match(preProductionProposalSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by pre-production proposal review`)
+    assert.match(preProductionWorkspaceSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by pre-production workspace review`)
   }
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewLoadingState[\s\S]*?<AppStateMessage/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewEmptyText[\s\S]*?<AppTextEmptyState/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewCallout[\s\S]*?<ReviewCallout/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewEntryCallout[\s\S]*?<ReviewCallout/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewBadge[\s\S]*?<Badge/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewStatusBadge[\s\S]*?<StatusBadge/)
-  assert.match(projectProposalReviewPackageSource, /function ProjectProposalReviewActionButton[\s\S]*?<Button/)
-  for (const className of ['project-proposal-review-action-button', 'project-proposal-review-badge', 'project-proposal-review-detail-text', 'project-proposal-review-status-badge']) {
-    assert.match(projectProposalReviewPackageCss, new RegExp(`\\.${className}\\b`), `${className} style must be package-owned`)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewLoadingState[\s\S]*?<AppStateMessage/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewEmptyText[\s\S]*?<AppTextEmptyState/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewCallout[\s\S]*?<ReviewCallout/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewEntryCallout[\s\S]*?<ReviewCallout/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewBadge[\s\S]*?<Badge/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewStatusBadge[\s\S]*?<StatusBadge/)
+  assert.match(projectWorkspaceReviewPackageSource, /function ProjectWorkspaceReviewActionButton[\s\S]*?<Button/)
+  for (const className of ['project-workspace-review-action-button', 'project-workspace-review-badge', 'project-workspace-review-detail-text', 'project-workspace-review-status-badge']) {
+    assert.match(projectWorkspaceReviewPackageCss, new RegExp(`\\.${className}\\b`), `${className} style must be package-owned`)
   }
-  for (const exportName of ['ReviewProposalDraftList', 'ReviewProposalDraftPanel', 'ReviewProposalEntryHeader', 'ReviewProposalFieldDiffList', 'ReviewProposalFieldDiffRow', 'ReviewProposalSummaryCallout']) {
-    assert.match(preProductionProposalSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by pre-production proposal review`)
+  for (const exportName of ['ReviewWorkspaceWorkspaceList', 'ReviewWorkspaceWorkspacePanel', 'ReviewWorkspaceEntryHeader', 'ReviewWorkspaceFieldDiffList', 'ReviewWorkspaceFieldDiffRow', 'ReviewWorkspaceSummaryCallout']) {
+    assert.match(preProductionWorkspaceSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by pre-production workspace review`)
   }
-  assert.match(uiReviewSource, /function ReviewProposalDraftList\b/)
-  assert.match(uiReviewSource, /function ReviewProposalDraftPanel[\s\S]*?<AppPanel/)
-  assert.match(uiReviewSource, /function ReviewProposalSummaryCallout[\s\S]*?<ReviewCallout/)
-  assert.match(uiReviewSource, /function ReviewProposalEntryHeader\b/)
-  assert.match(uiReviewSource, /function ReviewProposalFieldDiffList\b/)
-  assert.match(uiReviewSource, /function ReviewProposalFieldDiffRow[\s\S]*?<AppInlineMeta/)
-  assert.doesNotMatch(preProductionProposalSource, /\bAppPanel\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\bAppInlineMeta\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\bAppStateMessage\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\bAppTextEmptyState\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\bReviewCallout\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\b(?:Badge|Button|StatusBadge)\b/)
-  assert.doesNotMatch(preProductionProposalSource, /\btoneTextClass\b/)
-  assert.doesNotMatch(preProductionProposalSource, /className=/)
-  assert.doesNotMatch(preProductionProposalSource, /\bArrowRight\b/)
-  assert.doesNotMatch(preProductionProposalSource, /grid min-w-0 grid-cols-\[auto_minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/)
-  for (const recipeName of ['preProductionProposalDraftStatusRecipe', 'preProductionProposalCountRecipe', 'preProductionProposalDecisionRecipe', 'preProductionProposalEntryChangeRecipe']) {
+  assert.match(uiReviewSource, /function ReviewWorkspaceWorkspaceList\b/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceWorkspacePanel[\s\S]*?<AppPanel/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceSummaryCallout[\s\S]*?<ReviewCallout/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceEntryHeader\b/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceFieldDiffList\b/)
+  assert.match(uiReviewSource, /function ReviewWorkspaceFieldDiffRow[\s\S]*?<AppInlineMeta/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bAppPanel\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bAppInlineMeta\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bAppStateMessage\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bAppTextEmptyState\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bReviewCallout\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\b(?:Badge|Button|StatusBadge)\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\btoneTextClass\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /className=/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /\bArrowRight\b/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /grid min-w-0 grid-cols-\[auto_minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/)
+  for (const recipeName of ['preProductionWorkspaceWorkspaceStatusRecipe', 'preProductionWorkspaceCountRecipe', 'preProductionWorkspaceDecisionRecipe', 'preProductionWorkspaceEntryChangeRecipe']) {
     assert.match(preProductionSemanticUiSource, new RegExp(`export function ${recipeName}\\b`), `${recipeName} must be pre-production semantic UI-owned`)
-    assert.match(preProductionProposalSource, new RegExp(`\\b${recipeName}\\b`), `${recipeName} must be consumed by pre-production proposal review`)
+    assert.match(preProductionWorkspaceSource, new RegExp(`\\b${recipeName}\\b`), `${recipeName} must be consumed by pre-production workspace review`)
   }
-  assert.doesNotMatch(preProductionProposalSource, /<StatusBadge\b[^>]*\btone=/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded-md border border-border bg-background px-3 py-3/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded-md border border-dashed border-border bg-background px-3 py-3/)
-  assert.doesNotMatch(preProductionProposalSource, /min-w-0 rounded-md border border-border bg-background p-3/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded-md border p-2\.5/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded border border-dashed border-border\/60 bg-muted\/20 px-2 py-1/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded bg-muted px-1 py-0\.5/)
-  assert.doesNotMatch(preProductionProposalSource, /rounded-md border border-dashed border-border bg-background px-3 py-4/)
-  assert.doesNotMatch(preProductionProposalSource, /space-y-1 rounded-md border border-border bg-background\/70 p-2/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /<StatusBadge\b[^>]*\btone=/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded-md border border-border bg-background px-3 py-3/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded-md border border-dashed border-border bg-background px-3 py-3/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /min-w-0 rounded-md border border-border bg-background p-3/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded-md border p-2\.5/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded border border-dashed border-border\/60 bg-muted\/20 px-2 py-1/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded bg-muted px-1 py-0\.5/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /rounded-md border border-dashed border-border bg-background px-3 py-4/)
+  assert.doesNotMatch(preProductionWorkspaceSource, /space-y-1 rounded-md border border-border bg-background\/70 p-2/)
   assert.doesNotMatch(semanticDiffSource, /AppPanel/)
   assert.doesNotMatch(semanticDiffSource, /\bAppTextEmptyState\b/)
   assert.match(productionSemanticUiSource, /productionChangeRecipe/)
   assert.doesNotMatch(semanticDiffSource, /productionChangeRecipe/)
-  assert.match(semanticDiffSource, /ProductionProposalSemanticDiffStack/)
-  assert.match(semanticDiffSource, /ProductionProposalSemanticDiffEmptyText/)
-  assert.match(semanticDiffSource, /ProductionProposalSemanticDiffOverview/)
-  assert.match(semanticDiffSource, /ProductionProposalSemanticDiffFilterRow/)
-  assert.match(semanticDiffSource, /ProductionProposalSemanticDiffGroupCard/)
-  assert.match(semanticDiffSource, /PackageProductionProposalSemanticDiffRow/)
-  assert.match(semanticDiffSource, /ProductionProposalContextStack/)
-  assert.match(semanticDiffSource, /ProductionProposalContextGroup/)
-  assert.match(semanticDiffSource, /ProductionProposalContextItemRow/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffStack/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffEmptyText[\s\S]*?<AppTextEmptyState/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffOverview/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffFilterRow/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffGroupCard/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalSemanticDiffRow/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalContextGroup/)
-  assert.match(productionProposalReviewPackageSource, /export function ProductionProposalContextItemRow/)
-  assert.match(productionProposalReviewPackageSource, /<ReviewDecisionBadge/)
-  assert.match(productionProposalReviewPackageSource, /<StatusBadge intent="warning" emphasis="soft"/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceSemanticDiffStack/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceSemanticDiffEmptyText/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceSemanticDiffOverview/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceSemanticDiffFilterRow/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceSemanticDiffGroupCard/)
+  assert.match(semanticDiffSource, /PackageProductionWorkspaceSemanticDiffRow/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceContextStack/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceContextGroup/)
+  assert.match(semanticDiffSource, /ProductionWorkspaceContextItemRow/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffStack/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffEmptyText[\s\S]*?<AppTextEmptyState/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffOverview/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffFilterRow/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffGroupCard/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceSemanticDiffRow/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceContextGroup/)
+  assert.match(productionWorkspaceReviewPackageSource, /export function ProductionWorkspaceContextItemRow/)
+  assert.match(productionWorkspaceReviewPackageSource, /<ReviewDecisionBadge/)
+  assert.match(productionWorkspaceReviewPackageSource, /<StatusBadge intent="warning" emphasis="soft"/)
   assert.doesNotMatch(semanticDiffSource, /总计 \{summary\.total\}[\s\S]*?ReviewStat/)
   assert.doesNotMatch(semanticDiffSource, /groupDecision === 'mixed'[\s\S]*?<ReviewStat tone="neutral">部分处理<\/ReviewStat>/)
-  assert.doesNotMatch(semanticDiffSource, /productionProposalSemanticDiffGroupStats\(group\)\.map[\s\S]*?<ReviewStat key=\{stat\} tone="neutral">/)
+  assert.doesNotMatch(semanticDiffSource, /productionWorkspaceSemanticDiffGroupStats\(group\)\.map[\s\S]*?<ReviewStat key=\{stat\} tone="neutral">/)
   assert.doesNotMatch(semanticDiffSource, /flex items-start gap-2/)
   assert.doesNotMatch(semanticDiffSource, /mt-2 flex gap-1\.5/)
   assert.doesNotMatch(semanticDiffSource, /changeActionRowClass/)
@@ -3987,27 +3987,27 @@ test('production proposal review surfaces use @movscript/ui review contracts', (
   assert.doesNotMatch(semanticDiffSource, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(semanticDiffSource, /<button\b/)
   for (const exportName of [
-    'ProjectProposalReviewEmptyBlock',
-    'ProjectProposalReviewEmptyText',
-    'ProjectProposalReviewLoadingState',
-    'ProjectProposalReviewCallout',
-    'ProjectProposalReviewActionButton',
-    'ProjectProposalReviewBadge',
-    'ProjectProposalReviewNoteList',
-    'ProjectProposalReviewStatusBadge',
-    'ReviewProposalDraftList',
-    'ReviewProposalDraftPanel',
-    'ReviewProposalFieldDiffList',
-    'ReviewProposalFieldDiffRow',
-    'ReviewProposalShell',
-    'ReviewProposalSummaryCallout',
+    'ProjectWorkspaceReviewEmptyBlock',
+    'ProjectWorkspaceReviewEmptyText',
+    'ProjectWorkspaceReviewLoadingState',
+    'ProjectWorkspaceReviewCallout',
+    'ProjectWorkspaceReviewActionButton',
+    'ProjectWorkspaceReviewBadge',
+    'ProjectWorkspaceReviewNoteList',
+    'ProjectWorkspaceReviewStatusBadge',
+    'ReviewWorkspaceWorkspaceList',
+    'ReviewWorkspaceWorkspacePanel',
+    'ReviewWorkspaceFieldDiffList',
+    'ReviewWorkspaceFieldDiffRow',
+    'ReviewWorkspaceShell',
+    'ReviewWorkspaceSummaryCallout',
   ]) {
-    assert.match(projectStandardsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by project standards proposal review`)
+    assert.match(projectStandardsSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by project standards workspace review`)
   }
-  assert.match(projectProposalReviewPackageSource, /ProjectProposalReviewEmptyBlock[\s\S]*?<AppEmptyState/)
-  assert.match(projectProposalReviewPackageSource, /ProjectProposalReviewEmptyText[\s\S]*?<AppTextEmptyState/)
-  assert.match(projectProposalReviewPackageSource, /ProjectProposalReviewLoadingState[\s\S]*?<AppStateMessage/)
-  assert.match(projectProposalReviewPackageSource, /ProjectProposalReviewCallout[\s\S]*?<ReviewCallout/)
+  assert.match(projectWorkspaceReviewPackageSource, /ProjectWorkspaceReviewEmptyBlock[\s\S]*?<AppEmptyState/)
+  assert.match(projectWorkspaceReviewPackageSource, /ProjectWorkspaceReviewEmptyText[\s\S]*?<AppTextEmptyState/)
+  assert.match(projectWorkspaceReviewPackageSource, /ProjectWorkspaceReviewLoadingState[\s\S]*?<AppStateMessage/)
+  assert.match(projectWorkspaceReviewPackageSource, /ProjectWorkspaceReviewCallout[\s\S]*?<ReviewCallout/)
   assert.match(uiReviewSource, /<AppPanel/)
   assert.match(uiReviewSource, /<AppInlineMeta/)
   assert.doesNotMatch(projectStandardsSource, /\bAppEmptyState\b/)
@@ -4020,15 +4020,15 @@ test('production proposal review surfaces use @movscript/ui review contracts', (
   assert.doesNotMatch(projectStandardsSource, /\bArrowRight\b/)
   assert.doesNotMatch(projectStandardsSource, /\bcn\(/)
   assert.doesNotMatch(projectStandardsSource, /grid gap-2 md:grid-cols-2/)
-  assert.match(projectStandardsSource, /projectStandardsDraftStatusRecipe/)
+  assert.match(projectStandardsSource, /projectStandardsWorkspaceStatusRecipe/)
   assert.doesNotMatch(projectStandardsSource, /<StatusBadge\b[^>]*\btone=/)
-  assert.doesNotMatch(projectStandardsSource, /draftStatusTone/)
+  assert.doesNotMatch(projectStandardsSource, /workspaceStatusTone/)
   assert.doesNotMatch(projectStandardsSource, /rounded-lg border border-border bg-background p-3/)
   assert.doesNotMatch(projectStandardsSource, /rounded-md border border-border bg-card px-3 py-2/)
   assert.doesNotMatch(projectStandardsSource, /rounded-md border border-dashed border-border bg-background px-3 py-4/)
   assert.doesNotMatch(projectStandardsSource, /rounded-md border border-border bg-muted\/20 p-3/)
   assert.doesNotMatch(projectStandardsSource, /rounded-md border border-dashed border-border bg-background px-4 py-6/)
-  assert.doesNotMatch(proposalReviewSources, /function SummaryCount/)
+  assert.doesNotMatch(workspaceReviewSources, /function SummaryCount/)
   assert.match(uiReviewSource, /export function ReviewCallout/)
   assert.match(uiReviewSource, /export function ChangeActionBadge/)
   assert.match(reviewCss, /\.ms-review-callout/)
@@ -5419,7 +5419,7 @@ test('canvas workflow surfaces use package tone contracts', () => {
   ]) {
     assert.match(canvasEditorPackageCss, new RegExp(`\\.${className}\\b`), `${className} style must be package-owned`)
   }
-  assert.match(canvasEditorSource, /<CanvasEditorNameInput[\s\S]*?value=\{titleEditor\.draft\}[\s\S]*?onChange=\{\(e\) => titleEditor\.setDraft\(e\.target\.value\)\}/)
+  assert.match(canvasEditorSource, /<CanvasEditorNameInput[\s\S]*?value=\{titleEditor\.workspace\}[\s\S]*?onChange=\{\(e\) => titleEditor\.setWorkspace\(e\.target\.value\)\}/)
   assert.match(canvasEditorSource, /visiblePaletteSections\.map[\s\S]*?<CanvasPaletteItemButton[\s\S]*?draggable[\s\S]*?application\/canvas-node-type/)
   assert.match(canvasEditorSource, /clientPlugins\.map\(\(plugin\)[\s\S]*?<CanvasPaletteItemButton[\s\S]*?draggable[\s\S]*?application\/canvas-plugin/)
   assert.match(canvasEditorSource, /clientPlugins\.length === 0[\s\S]*?<CanvasPaletteEmpty>/)
@@ -6221,13 +6221,13 @@ test('production workspace pages use package semantic and accent contracts', () 
   }
   assert.match(productionOrchestrationSource, /orchestrationStage !== 'idle'[\s\S]*?<ProductionOrchestrationGenerationNotice/)
   assert.match(productionOrchestrationSource, /reviewOpen[\s\S]*?<ProductionOrchestrationReviewDialogContent/)
-  assert.match(productionOrchestrationSource, /proposalRevisionDialogOpen[\s\S]*?<ProductionOrchestrationRevisionDialogContent/)
+  assert.match(productionOrchestrationSource, /workspaceRevisionDialogOpen[\s\S]*?<ProductionOrchestrationRevisionDialogContent/)
   assert.match(productionSemanticUiSource, /import \{ defineFeatureStatusRecipeGroup, type UiStatusRecipe \} from '@\/shared\/presentation\/semanticRecipe'/)
   assert.match(productionSemanticUiSource, /export type ProductionStatusRecipe = UiStatusRecipe/)
   assert.match(productionSemanticUiSource, /defineFeatureStatusRecipeGroup\('production\.workflow\.status'/)
   assert.match(productionSemanticUiSource, /productionStatusRecipe/)
   assert.match(productionSemanticUiSource, /productionUnitStatusRecipe/)
-  assert.match(productionSemanticUiSource, /productionProposalModeRecipe/)
+  assert.match(productionSemanticUiSource, /productionWorkspaceModeRecipe/)
   assert.match(deliverySemanticUiSource, /deliveryWorkbenchStatusRecipe/)
   assert.match(deliverySemanticUiSource, /deliveryGateStatusRecipe/)
   assert.match(deliverySemanticUiSource, /deliveryOverviewMetricRecipe/)
@@ -6678,7 +6678,7 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewButton[\s\S]*?pendingCount=\{reviewQueueSummary\.pending\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchEmptyActionButton[\s\S]*?进入制作编排/)
   assert.match(contentUnitWorkbenchPageSource, /<ContentWorkbenchCandidateUploadInput ref=\{candidateUploadInput\.inputRef\}/)
-  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewPanel[\s\S]*?reviewModel=\{contentDraftReview\}/)
+  assert.match(contentWorkbenchPageSource, /<ContentWorkbenchReviewPanel[\s\S]*?reviewModel=\{contentWorkspaceReview\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchFilterSidebar[\s\S]*?productionOptions=\{productionFilterOptions\}/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchCommandCenter[\s\S]*?sidebar=\{\(/)
   assert.match(contentWorkbenchPageSource, /<ContentWorkbenchInfoSection title=\{title\} suffix=\{suffix\}/)
@@ -6719,7 +6719,7 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(preProductionBoardSource, /ResourcePrepViewTabs/)
   assert.match(preProductionBoardSource, /ResourcePrepViewButton/)
   assert.match(preProductionBoardSource, /function ReferencePrepMedia[\s\S]*?<ResourcePrepThumbnail icon=\{Sparkles\}/)
-  assert.match(preProductionBoardSource, /function DraftReferencePrepItem[\s\S]*?<ResourcePrepThumbnail icon=\{Sparkles\} frame="draft"/)
+  assert.match(preProductionBoardSource, /function WorkspaceReferencePrepItem[\s\S]*?<ResourcePrepThumbnail icon=\{Sparkles\} frame="workspace"/)
   assert.match(resourcePagePackageSource, /function ResourcePrepQueueSection[\s\S]*?<WorkbenchSection/)
   assert.match(resourcePagePackageSource, /function ResourcePrepViewTabs[\s\S]*?<AppControlGroup/)
   assert.match(resourcePagePackageSource, /function ResourcePrepThumbnail[\s\S]*?<WorkbenchThumbnail/)
@@ -6729,7 +6729,7 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.match(preProductionBoardSource, /<ResourcePrepThumbnail>[\s\S]*?<ResourcePrepPreviewGrid>[\s\S]*?previews\.slice\(0, 4\)\.map/)
   assert.match(preProductionBoardSource, /function QueueSectionPanel[\s\S]*?ResourcePrepQueueSection/)
   assert.match(preProductionBoardSource, /function ReferenceClusterButton[\s\S]*?ResourcePrepSummaryCard/)
-  assert.match(preProductionBoardSource, /function DraftReferenceClusterButton[\s\S]*?ResourcePrepSummaryCard/)
+  assert.match(preProductionBoardSource, /function WorkspaceReferenceClusterButton[\s\S]*?ResourcePrepSummaryCard/)
   assert.match(preProductionBoardSource, /\bResourcePrepSummaryPreviewStack\b/)
   assert.doesNotMatch(preProductionBoardSource, /className=|bodyClassName=/)
   assert.doesNotMatch(preProductionBoardSource, /<(?:div|section|aside|p|span|button|label|main|header|footer)\b/)
@@ -7049,7 +7049,7 @@ test('workbench workflow panels use package tone contracts', () => {
   assert.doesNotMatch(`${frontendWorkbenchTypesSource}\n${packageWorkbenchTypesSource}`, /tone\?: ['"]warning['"] \| ['"]success['"]/)
   assert.match(contentWorkbenchModelSource, /\bworkbenchGateState\(/)
   assert.doesNotMatch(contentWorkbenchModelSource, /\btone:\s*['"](?:success|warning)['"]/)
-  assert.doesNotMatch(contentWorkbenchPageSource, /\btone:\s*pendingDraftCount === 0 \? 'success' : 'warning'/)
+  assert.doesNotMatch(contentWorkbenchPageSource, /\btone:\s*pendingWorkspaceCount === 0 \? 'success' : 'warning'/)
   assert.match(contentReviewSource, /export type ContentWorkbenchReviewQueueState = "empty" \| "needs_review" \| "pending_review" \| "processed"/)
   assert.match(contentReviewSource, /ContentWorkbenchReviewQueueSummary[\s\S]*?state: ContentWorkbenchReviewQueueState/)
   assert.match(contentReviewSource, /<StatusBadge[\s\S]*?intent=\{contentWorkbenchReviewQueueIntent\(queueSummary\.state\)\}/)
@@ -7253,14 +7253,14 @@ test('workbench workflow panels use package tone contracts', () => {
   ]) {
     assert.match(contentWorkbenchPackageSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be exported from content workbench package`)
   }
-  for (const exportName of ['AppInlineMeta', 'AppSurfaceItem', 'AppTextEmptyState', 'ReviewProposalShell', 'WorkbenchList', 'WorkbenchListItem']) {
+  for (const exportName of ['AppInlineMeta', 'AppSurfaceItem', 'AppTextEmptyState', 'ReviewWorkspaceShell', 'WorkbenchList', 'WorkbenchListItem']) {
     assert.match(contentReviewSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by content workbench review package`)
   }
   for (const className of [
     'content-workbench-review-panel__layout',
     'content-workbench-review-queue',
     'content-workbench-review-metrics',
-    'content-workbench-review-draft-list-item',
+    'content-workbench-review-workspace-list-item',
     'content-workbench-review-detail',
     'content-workbench-review-diff-card',
     'content-workbench-review-snapshot-value',
@@ -7693,14 +7693,14 @@ test('agent generation and local runtime interactions use package tone contracts
   const agentRunInteractionApprovalCardSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/card/index.tsx')
   const agentSemanticUiSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentSemanticUi.ts')
   const localRuntimeSource = readProjectFile('apps/frontend/src/features/agent/components/localRuntime.tsx')
-  const aiDraftsSource = readProjectFile('apps/frontend/src/features/agent/components/AIDraftsPage.tsx')
-  const agentDraftResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentDraftResultCards.tsx')
+  const aiWorkspacesSource = readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')
+  const agentWorkspaceResultCardsSource = readProjectFile('apps/frontend/src/features/agent/components/AgentWorkspaceResultCards.tsx')
   const sources = [
     generationCardsSource,
     pinnedStatusShelfSource,
     localRuntimeSource,
-    aiDraftsSource,
-    agentDraftResultCardsSource,
+    aiWorkspacesSource,
+    agentWorkspaceResultCardsSource,
   ].join('\n')
   const rawPaletteClassPattern = /\b(?:bg|text|border|from|to|ring|shadow)-(?:sky|cyan|blue|teal|emerald|amber|orange|rose|violet|indigo|zinc|yellow|fuchsia|purple|red|green|gray|slate)-\d/
 
@@ -7764,14 +7764,14 @@ test('agent generation and local runtime interactions use package tone contracts
   assert.doesNotMatch(localRuntimeSource, /\b(?:AgentSurfaceBlock|AppMarkerDot|Badge|Button|Input|StatusBadge)\b/)
   assert.match(localRuntimeSource, /\bAgentRunInteractionMarkerDot\b/)
   assert.match(localRuntimeSource, /\bAgentRunInteractionTextInput\b/)
-  assert.match(aiDraftsSource, /agentDraftStatusRecipe/)
-  assert.match(agentDraftResultCardsSource, /agentDraftStatusRecipe/)
+  assert.match(aiWorkspacesSource, /agentWorkspaceStatusRecipe/)
+  assert.match(agentWorkspaceResultCardsSource, /agentWorkspaceStatusRecipe/)
   assert.match(localRuntimeSource, /<AgentRunInteractionTextInput[\s\S]*?data-testid="agent-run-input-text"/)
   assert.doesNotMatch(localRuntimeSource, /runInteractionActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
   assert.doesNotMatch(localRuntimeSource, /\b(?:accentBadgeClass|accentDotClass|accentSurfaceClass|accentTextClass|toneDotClass|toneSurfaceClass|toneTextClass)\b/)
   assert.doesNotMatch(localRuntimeSource, /function runInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
   assert.doesNotMatch(generationCardsSource, /ms-semantic-(?:icon|badge|surface|dot)--/)
-  assert.doesNotMatch(sources, /function (?:generationJobStatusTone|draftStatusTone|runInteractionActionBadgeTone)\b/)
+  assert.doesNotMatch(sources, /function (?:generationJobStatusTone|workspaceStatusTone|runInteractionActionBadgeTone)\b/)
   assert.doesNotMatch(sources, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(localRuntimeSource, /<input\b/)
   assert.doesNotMatch(localRuntimeSource, /border-destructive\//)
@@ -7822,14 +7822,14 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   const composerSectionSource = readProjectFile('apps/frontend/src/features/agent/components/AgentComposerSection.tsx')
   const dataBlockSources = [
     'apps/frontend/src/features/agent/components/AIAgentDebugPage.tsx',
-    'apps/frontend/src/features/agent/components/AIDraftsPage.tsx',
+    'apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanCard.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
   const sources = [
     'apps/frontend/src/features/agent/components/AIAgentRunPage.tsx',
-    'apps/frontend/src/features/agent/components/AIDraftsPage.tsx',
+    'apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentSettingsPage.tsx',
     'apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx',
@@ -7942,7 +7942,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentSemanticUiSource, /agentRunStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentRunInteractionStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentRunInteractionActionStatusRecipe/)
-  assert.match(agentSemanticUiSource, /agentDraftStatusRecipe/)
+  assert.match(agentSemanticUiSource, /agentWorkspaceStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentGenerationStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentToolCallStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentConfigStatusRecipe/)
@@ -8843,7 +8843,7 @@ test('resources and pre-production inspector use package menu and empty primitiv
     'preProductionQueueDetailRecipe',
     'preProductionCoverageRecipe',
     'preProductionSlotActionRecipe',
-    'preProductionDraftRecipe',
+    'preProductionWorkspaceRecipe',
     'preProductionCountRecipe',
     'preProductionMissingCountRecipe',
     'preProductionCandidateAvailabilityRecipe',
@@ -8993,7 +8993,7 @@ test('resources and pre-production inspector use package menu and empty primitiv
   assert.doesNotMatch(preProductionSource, /ResourcePrepHeaderActionButton/)
   assert.doesNotMatch(preProductionSource, /ResourcePrepEmptyInspectorState/)
   assert.doesNotMatch(preProductionSource, /刷新上下文/)
-  assert.doesNotMatch(preProductionSource, /审阅提案/)
+  assert.doesNotMatch(preProductionSource, /审阅工作区/)
   assert.doesNotMatch(preProductionSource, /梳理设定\+素材/)
   assert.doesNotMatch(preProductionAssetDetailSource, /生成候选/)
   assert.match(preProductionSource, /function PreProductionCardContextMenu[\s\S]*?<ResourcePrepContextMenu/)
@@ -9107,8 +9107,8 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.match(agentDebugPreviewSource, /\bAgentDebugErrorCallout\b/)
   assert.match(agentDebugPreviewSource, /\bAgentDebugFieldCodePanel\b/)
   assert.match(agentDebugPreviewSource, /\bAgentDebugLabeledCodePanel\b/)
-  assert.match(agentDebugPreviewSource, /\bAgentDebugDraftDiffCodeBlock\b/)
-  assert.match(agentDebugPreviewSource, /\bAgentDebugDraftDiffLine\b/)
+  assert.match(agentDebugPreviewSource, /\bAgentDebugWorkspaceDiffCodeBlock\b/)
+  assert.match(agentDebugPreviewSource, /\bAgentDebugWorkspaceDiffLine\b/)
   assert.match(agentDebugPreviewSource, /\bAgentDebugSummaryItem\b/)
   assert.doesNotMatch(agentDebugPreviewSource, /function DebugSummaryItem/)
   assert.match(agentDebugPreviewSource, /function DebugHttpRequestCard[\s\S]*?AgentDebugHttpRequestShell/)
@@ -9118,10 +9118,10 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.match(agentDebugPackageSource, /export function AgentDebugPreviewStatusBadge[\s\S]*?<StatusBadge/)
   assert.match(agentDebugPackageSource, /export function AgentDebugFieldCodePanel/)
   assert.match(agentDebugPackageSource, /export function AgentDebugLabeledCodePanel/)
-  assert.match(agentDebugPreviewSource, /function DraftDiff[\s\S]*?AgentDebugDraftDiffShell/)
-  assert.match(agentDebugPreviewSource, /function DraftDiff[\s\S]*?<AgentDebugDraftDiffCodeBlock side="current"/)
-  assert.match(agentDebugPreviewSource, /function DraftDiff[\s\S]*?<AgentDebugDraftDiffCodeBlock side="proposed"/)
-  assert.match(agentDebugPreviewSource, /rows\.map\(\(row, index\)[\s\S]*?<AgentDebugDraftDiffLine[\s\S]*?change=\{row\.type\}/)
+  assert.match(agentDebugPreviewSource, /function WorkspaceDiff[\s\S]*?AgentDebugWorkspaceDiffShell/)
+  assert.match(agentDebugPreviewSource, /function WorkspaceDiff[\s\S]*?<AgentDebugWorkspaceDiffCodeBlock side="current"/)
+  assert.match(agentDebugPreviewSource, /function WorkspaceDiff[\s\S]*?<AgentDebugWorkspaceDiffCodeBlock side="proposed"/)
+  assert.match(agentDebugPreviewSource, /rows\.map\(\(row, index\)[\s\S]*?<AgentDebugWorkspaceDiffLine[\s\S]*?change=\{row\.type\}/)
   assert.doesNotMatch(agentDebugPreviewSource, /\b(?:AppInlineMeta|Badge|Button|ReviewCallout|StatusBadge|toneTextClass|toneSurfaceClass)\b/)
   assert.doesNotMatch(agentDebugPreviewSource, /\bcn\(/)
   assert.doesNotMatch(agentDebugPreviewSource, /flex h-5 w-5 items-center justify-center rounded bg-background/)
@@ -9152,8 +9152,8 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.match(agentDebugPackageSource, /export function AgentDebugCallout/)
   assert.match(agentDebugPackageSource, /export function AgentDebugWarningCallout/)
   assert.match(agentDebugPackageSource, /export function AgentDebugErrorCallout/)
-  assert.match(agentDebugPackageSource, /export function AgentDebugDraftDiffCodeBlock/)
-  assert.match(agentDebugPackageSource, /export function AgentDebugDraftDiffLine/)
+  assert.match(agentDebugPackageSource, /export function AgentDebugWorkspaceDiffCodeBlock/)
+  assert.match(agentDebugPackageSource, /export function AgentDebugWorkspaceDiffLine/)
   assert.match(agentDebugPackageSource, /export function AgentDebugInlineMeta/)
   assert.match(agentDebugPackageSource, /export function AgentDebugToneText/)
   assert.match(agentDebugPackageSource, /export function AgentDebugStatusIcon/)
@@ -9166,8 +9166,8 @@ test('agent debug console and shared editor surfaces use package tone contracts'
   assert.match(agentDebugPackageSource, /\btoneSurfaceClass\b/)
   assert.match(agentDebugPackageCss, /\.agent-debug-json-panel__code\s*\{/)
   assert.match(agentDebugPackageCss, /\.agent-debug-list-row\s*\{/)
-  assert.match(agentDebugPackageCss, /\.agent-debug-draft-diff-code\s*\{/)
-  assert.match(agentDebugPackageCss, /\.agent-debug-draft-diff-line\s*\{/)
+  assert.match(agentDebugPackageCss, /\.agent-debug-workspace-diff-code\s*\{/)
+  assert.match(agentDebugPackageCss, /\.agent-debug-workspace-diff-line\s*\{/)
   assert.match(agentDebugSource, /\bAgentDebugCodeBlock\b/)
   assert.match(agentDebugPackageSource, /function AgentDebugCodeBlock[\s\S]*?<AppCodeBlock/)
   assert.match(agentDebugSource, /\bAppInlineError\b/)
@@ -9453,7 +9453,7 @@ test('agent full-page surfaces use package page shell layout', () => {
     ['apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentPerformancePage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentRunsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentRunsPage.tsx')],
     ['apps/frontend/src/features/agent/components/AIAgentRunPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIAgentRunPage.tsx')],
-    ['apps/frontend/src/features/agent/components/AIDraftsPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIDraftsPage.tsx')],
+    ['apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AIWorkspacesPage.tsx')],
     ['apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx', readProjectFile('apps/frontend/src/features/agent/components/AgentModeCanvasListPage.tsx')],
   ])
   const joinedSources = Array.from(sourcesByPath.values()).join('\n')
@@ -9473,7 +9473,7 @@ test('agent full-page surfaces use package page shell layout', () => {
       assert.match(source, /<AgentRunPageBody\b/, `${relativePath} must use agent run page body wrapper`)
     } else {
       assert.match(source, /<AgentPageShellHeader\b/, `${relativePath} must use agent page header wrapper`)
-      assert.match(source, /<AgentPageShellBody\b|<AgentDraftsPageBody\b/, `${relativePath} must use agent page body wrapper`)
+      assert.match(source, /<AgentPageShellBody\b|<AgentWorkspacesPageBody\b/, `${relativePath} must use agent page body wrapper`)
     }
   }
   assert.match(agentRunPagePackageSource, /function AgentPageShell[\s\S]*?<AppPageShell\b/, 'agent page shell wrapper must own AppPageShell')
@@ -9524,7 +9524,7 @@ test('page content layouts avoid fixed horizontal page widths', () => {
   const agentConsoleNavSource = readProjectFile('apps/frontend/src/features/agent/components/AgentConsoleNav.tsx')
   const agentConsoleNavPackageSource = readProjectFile('packages/ui/src/components/business/agent/console-nav/index.tsx')
   const canvasResourceShelfSource = readProjectFile('apps/frontend/src/features/canvas/ui/CanvasResourceShelf.tsx')
-  const productionProposalSemanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/proposals/ProductionProposalSemanticDiffPanel.tsx')
+  const productionWorkspaceSemanticDiffSource = readProjectFile('apps/frontend/src/features/production/components/workspaces/ProductionWorkspaceSemanticDiffPanel.tsx')
   assert.match(agentModeSource, /AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY/)
   assert.doesNotMatch(agentBrowserSource, /overflow-x-auto/)
   assert.match(agentConsoleNavSource, /\bAgentConsoleNavShell\b/)
@@ -9542,13 +9542,13 @@ test('page content layouts avoid fixed horizontal page widths', () => {
   assert.doesNotMatch(agentConsoleNavSource, /rounded-md border px-2\.5 py-2/)
   assert.doesNotMatch(agentConsoleNavSource, /rounded border border-border bg-background px-2 py-1/)
   assert.doesNotMatch(canvasResourceShelfSource, /overflow-x-auto/)
-  assert.doesNotMatch(productionProposalSemanticDiffSource, /overflow-x-auto/)
+  assert.doesNotMatch(productionWorkspaceSemanticDiffSource, /overflow-x-auto/)
 })
 
 test('feature status visuals are gated by presentation semantic recipes', () => {
   const featureSources = walkFiles('apps/frontend/src/features', (relativePath) => /\.(ts|tsx)$/.test(relativePath))
   const forbiddenStatusVisuals = []
-  const forbiddenPattern = /<StatusBadge\b[^\n>]*\btone=|<StatusDot\b[^\n>]*\btone=|<WorkbenchStatusBadge\b[^\n>]*\btone=|<ReviewProposalApplyGatePanel\b[^\n>]*\btone=|\bstatusTone=|\bSemanticTone\b|\bReviewTone\b/
+  const forbiddenPattern = /<StatusBadge\b[^\n>]*\btone=|<StatusDot\b[^\n>]*\btone=|<WorkbenchStatusBadge\b[^\n>]*\btone=|<ReviewWorkspaceApplyGatePanel\b[^\n>]*\btone=|\bstatusTone=|\bSemanticTone\b|\bReviewTone\b/
 
   for (const relativePath of featureSources) {
     const source = readProjectFile(relativePath)

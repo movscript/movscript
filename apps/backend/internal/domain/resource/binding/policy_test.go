@@ -34,8 +34,8 @@ func TestNormalizeBindingDefaults(t *testing.T) {
 	if binding.Version != 1 {
 		t.Fatalf("version = %d, want 1", binding.Version)
 	}
-	if binding.Status != StatusDraft {
-		t.Fatalf("status = %q, want draft", binding.Status)
+	if binding.Status != StatusWorkspace {
+		t.Fatalf("status = %q, want workspace", binding.Status)
 	}
 	if binding.SourceType != SourceTypeManual {
 		t.Fatalf("source type = %q, want manual", binding.SourceType)
@@ -53,7 +53,7 @@ func TestNormalizeDomainBindingDefaults(t *testing.T) {
 	if binding.OwnerType != OwnerTypeAssetSlot || binding.Role != RoleAttachment || binding.Slot != "poster" {
 		t.Fatalf("unexpected normalized identity: %+v", binding)
 	}
-	if binding.Version != 1 || binding.Status != StatusDraft || binding.SourceType != SourceTypeManual || binding.MetadataJSON != "{}" {
+	if binding.Version != 1 || binding.Status != StatusWorkspace || binding.SourceType != SourceTypeManual || binding.MetadataJSON != "{}" {
 		t.Fatalf("unexpected normalized defaults: %+v", binding)
 	}
 }
@@ -76,8 +76,8 @@ func TestNormalizeCreateInputDefaults(t *testing.T) {
 	if input.Version != 1 {
 		t.Fatalf("version = %d, want 1", input.Version)
 	}
-	if input.Status != StatusDraft {
-		t.Fatalf("status = %q, want draft", input.Status)
+	if input.Status != StatusWorkspace {
+		t.Fatalf("status = %q, want workspace", input.Status)
 	}
 	if input.SourceType != SourceTypeManual {
 		t.Fatalf("source type = %q, want manual", input.SourceType)
@@ -104,7 +104,7 @@ func TestNewDomainBindingAppliesNormalizedCreateInput(t *testing.T) {
 	if binding.OwnerType != OwnerTypeAssetSlot || binding.Role != RoleOutput || binding.Slot != "result" || binding.Version != 1 {
 		t.Fatalf("unexpected binding identity: %+v", binding)
 	}
-	if binding.SortOrder != sortOrder || binding.Status != StatusDraft || binding.SourceType != SourceTypeCanvas || binding.MetadataJSON != "{}" {
+	if binding.SortOrder != sortOrder || binding.Status != StatusWorkspace || binding.SourceType != SourceTypeCanvas || binding.MetadataJSON != "{}" {
 		t.Fatalf("unexpected binding defaults: %+v", binding)
 	}
 	if binding.SourceID == nil || *binding.SourceID != sourceID || binding.CreatedByID == nil || *binding.CreatedByID != createdBy {
@@ -145,7 +145,7 @@ func TestValidateCreateInputRejectsUnknownOwner(t *testing.T) {
 		OwnerID:    3,
 		Role:       RoleAttachment,
 		Version:    1,
-		Status:     StatusDraft,
+		Status:     StatusWorkspace,
 		SourceType: SourceTypeManual,
 	}
 	if err := ValidateCreateInput(input); err != ErrOwnerInvalidType {

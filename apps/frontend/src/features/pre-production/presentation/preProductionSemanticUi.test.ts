@@ -5,19 +5,19 @@ import {
   preProductionCandidateAvailabilityRecipe,
   preProductionCountRecipe,
   preProductionCoverageRecipe,
-  preProductionDraftRecipe,
+  preProductionWorkspaceRecipe,
   preProductionMissingCountRecipe,
-  preProductionProposalCountRecipe,
-  preProductionProposalDecisionRecipe,
-  preProductionProposalDraftStatusRecipe,
-  preProductionProposalEntryChangeRecipe,
+  preProductionWorkspaceCountRecipe,
+  preProductionWorkspaceDecisionRecipe,
+  preProductionWorkspaceWorkspaceStatusRecipe,
+  preProductionWorkspaceEntryChangeRecipe,
   preProductionQueueDetailRecipe,
   preProductionSlotActionRecipe,
 } from './preProductionSemanticUi'
 
 test('resource preparation states map to UI semantic recipes', () => {
   assert.deepEqual(preProductionQueueDetailRecipe(), { intent: 'neutral', emphasis: 'soft' })
-  assert.deepEqual(preProductionDraftRecipe(), { intent: 'info', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceRecipe(), { intent: 'info', emphasis: 'soft' })
 
   assert.deepEqual(preProductionCoverageRecipe('blocked'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(preProductionCoverageRecipe('pending'), { intent: 'info', emphasis: 'soft' })
@@ -33,11 +33,11 @@ test('resource preparation states map to UI semantic recipes', () => {
   assert.deepEqual(preProductionCandidateAvailabilityRecipe(true), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(preProductionCandidateAvailabilityRecipe(false), { intent: 'warning', emphasis: 'soft' })
 
-  assert.deepEqual(preProductionProposalDraftStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalDraftStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalDraftStatusRecipe('draft'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalEntryChangeRecipe('deleted'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalDecisionRecipe('submitted'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalDecisionRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(preProductionProposalCountRecipe('submitted'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceWorkspaceStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceWorkspaceStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceWorkspaceStatusRecipe('workspace'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceEntryChangeRecipe('deleted'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceDecisionRecipe('submitted'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceDecisionRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(preProductionWorkspaceCountRecipe('submitted'), { intent: 'success', emphasis: 'soft' })
 })

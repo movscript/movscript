@@ -2955,8 +2955,8 @@ func (r *gormRepository) PatchCreativeReference(ctx context.Context, item domain
 
 func creativeReferencePatchColumns(patch domainsemantic.CreativeReferencePatch) map[string]any {
 	updates := make(map[string]any)
-	if strings.TrimSpace(patch.ProposalClientID) != "" {
-		updates["proposal_client_id"] = patch.ProposalClientID
+	if strings.TrimSpace(patch.WorkspaceClientID) != "" {
+		updates["workspace_client_id"] = patch.WorkspaceClientID
 	}
 	if patch.SourceScriptID != nil {
 		updates["source_script_id"] = patch.SourceScriptID

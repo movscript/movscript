@@ -1,6 +1,6 @@
 export * from "./types";
 export * from "./change-action";
 export * from "./callout";
-export * from "./proposal";
+export * from "./workspace";
 
-export const reviewProposalApplyActionLabel = "应用提案到项目";
+export const reviewWorkspaceApplyActionLabel = "应用工作区到项目";

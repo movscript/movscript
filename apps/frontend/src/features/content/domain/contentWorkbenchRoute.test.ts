@@ -11,16 +11,16 @@ test('content workbench route search includes selected unit and review context',
   assert.equal(buildContentWorkbenchRouteSearch({
     sceneMomentId: 402,
     contentUnitId: 801,
-    draftId: 'draft-1',
+    workspaceId: 'workspace-1',
     view: 'review',
-  }), '?scene_moment_id=402&content_unit_id=801&draftId=draft-1&view=review')
+  }), '?scene_moment_id=402&content_unit_id=801&workspaceId=workspace-1&view=review')
 })
 
 test('content workbench route search omits empty values', () => {
   assert.equal(buildContentWorkbenchRouteSearch({
     sceneMomentId: 0,
     contentUnitId: null,
-    draftId: '',
+    workspaceId: '',
   }), '')
 })
 

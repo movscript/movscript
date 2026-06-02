@@ -607,7 +607,7 @@ func (h *ProjectHandler) Progress(c *gin.Context) {
 		"members":     progress.Members,
 		"content_units": gin.H{
 			"total":        progress.ContentUnits["total"],
-			"draft":        progress.ContentUnits["draft"],
+			"workspace":        progress.ContentUnits["workspace"],
 			"prompt_ready": progress.ContentUnits["confirmed"],
 			"generating":   progress.ContentUnits["in_production"],
 			"approved":     progress.ContentUnits["locked"],

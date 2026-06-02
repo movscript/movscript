@@ -3,8 +3,8 @@ import { useAgentChatSendPipeline, type UseAgentChatSendPipelineInput } from '@/
 
 export interface UseAgentChatInteractionControllerInput {
   actionBindings: UseAgentChatActionBindingsInput
-  sendPipeline: Omit<UseAgentChatSendPipelineInput, 'commitDraft' | 'sendActions'> & {
-    commitDraft: Omit<UseAgentChatSendPipelineInput['commitDraft'], 'appendAssistantRunResult'>
+  sendPipeline: Omit<UseAgentChatSendPipelineInput, 'commitWorkspace' | 'sendActions'> & {
+    commitWorkspace: UseAgentChatSendPipelineInput['commitWorkspace']
     sendActions: Omit<UseAgentChatSendPipelineInput['sendActions'], 'answerActiveLocalRunInput'>
   }
 }
@@ -16,10 +16,6 @@ export function useAgentChatInteractionController({
   const actions = useAgentChatActionBindings(actionBindings)
   const send = useAgentChatSendPipeline({
     ...sendPipeline,
-    commitDraft: {
-      ...sendPipeline.commitDraft,
-      appendAssistantRunResult: actions.appendAssistantRunResult,
-    },
     sendActions: {
       ...sendPipeline.sendActions,
       answerActiveLocalRunInput: actions.answerActiveLocalRunInput,

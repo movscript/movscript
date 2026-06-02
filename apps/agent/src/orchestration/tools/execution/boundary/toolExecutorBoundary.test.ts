@@ -8,7 +8,7 @@ const agentGraphSource = readFileSync(new URL('../../../graph/runner/agentGraph.
 const agentGraphPermissionTurnSource = readFileSync(new URL('../../../model/permissions/turn/agentGraphPermissionTurn.ts', import.meta.url), 'utf8')
 const toolExecutionGateSource = readFileSync(new URL('../../gate/toolExecutionGate.ts', import.meta.url), 'utf8')
 const runtimeToolHandlersSource = readFileSync(new URL('../../../../application/shared/tools/runtimeToolHandlers.ts', import.meta.url), 'utf8')
-const runtimeDraftOperationsSource = readFileSync(new URL('../../../../application/draft/operations/runtimeDraftOperations.ts', import.meta.url), 'utf8')
+const runtimeWorkspaceOperationsSource = readFileSync(new URL('../../../../application/workspace/operations/runtimeWorkspaceOperations.ts', import.meta.url), 'utf8')
 const mcpExternalToolGatewaySource = readFileSync(new URL('../../../../adapters/mcp/gateway/mcpExternalToolGatewayAdapter.ts', import.meta.url), 'utf8')
 const projectStandardsHandlerSource = readFileSync(new URL('../../../../tools/handlers/project/projectStandardsToolHandler.ts', import.meta.url), 'utf8')
 const fileHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/files/fileToolHandler.ts', import.meta.url), 'utf8')
@@ -16,8 +16,8 @@ const memoryHandlerSource = readFileSync(new URL('../../../../tools/handlers/cor
 const referenceHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/reference/referenceToolHandler.ts', import.meta.url), 'utf8')
 const videoFrameHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/video/videoFrameToolHandler.ts', import.meta.url), 'utf8')
 const runtimeControlHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/runtime-control/runtimeControlToolHandler.ts', import.meta.url), 'utf8')
-const draftApplyHandlerSource = readFileSync(new URL('../../../../tools/handlers/drafts/apply/draftApplyToolHandler.ts', import.meta.url), 'utf8')
-const draftCreateHandlerSource = readFileSync(new URL('../../../../tools/handlers/drafts/create/draftCreateToolHandler.ts', import.meta.url), 'utf8')
+const workspaceApplyHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.ts', import.meta.url), 'utf8')
+const workspaceCreateHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/create/workspaceCreateToolHandler.ts', import.meta.url), 'utf8')
 
 test('project standards tool is implemented behind a tool handler boundary', () => {
   assert.equal(
@@ -144,105 +144,105 @@ test('core video frame handler extracts frames through a port', () => {
   )
 })
 
-test('draft apply tools are implemented behind the draft tool handler boundary', () => {
-  for (const toolName of ['draft_apply_preview', 'draft_apply']) {
+test('workspace apply tools are implemented behind the workspace tool handler boundary', () => {
+  for (const toolName of ['workspace_validate', 'workspace_apply']) {
     assert.equal(
       toolExecutorSource.includes(`if (toolName === '${toolName}')`),
       false,
       `toolExecutor should not directly branch on ${toolName}`,
     )
     assert.equal(
-      draftApplyHandlerSource.includes(`'${toolName}'`),
+      workspaceApplyHandlerSource.includes(`'${toolName}'`),
       true,
-      `${toolName} should be registered by the draft apply handler`,
+      `${toolName} should be registered by the workspace apply handler`,
     )
   }
 })
 
-test('draft apply handler applies and previews through ports', () => {
+test('workspace apply handler applies and previews through ports', () => {
   assert.equal(
-    draftApplyHandlerSource.includes('BackendApplyClient'),
+    workspaceApplyHandlerSource.includes('BackendApplyClient'),
     false,
-    'draftApplyToolHandler should not depend on the backend apply client type',
+    'workspaceApplyToolHandler should not depend on the backend apply client type',
   )
   assert.equal(
-    draftApplyHandlerSource.includes('BackendApplyHTTPError'),
+    workspaceApplyHandlerSource.includes('BackendApplyHTTPError'),
     false,
-    'draftApplyToolHandler should not handle backend transport errors directly',
+    'workspaceApplyToolHandler should not handle backend transport errors directly',
   )
   assert.equal(
-    draftApplyHandlerSource.includes('backendApplyClient'),
+    workspaceApplyHandlerSource.includes('backendApplyClient'),
     false,
-    'draftApplyToolHandler should not access the backend apply client directly',
+    'workspaceApplyToolHandler should not access the backend apply client directly',
   )
   assert.equal(
-    draftApplyHandlerSource.includes('draftApplyPort.apply'),
+    workspaceApplyHandlerSource.includes('workspaceApplyPort.apply'),
     true,
-    'draftApplyToolHandler should apply drafts through DraftApplyPort',
+    'workspaceApplyToolHandler should apply workspaces through WorkspaceApplyPort',
   )
   assert.equal(
-    draftApplyHandlerSource.includes('draftApplyPreviewPort.previewApplyReview'),
+    workspaceApplyHandlerSource.includes('workspaceApplyPreviewPort.previewApplyReview'),
     true,
-    'draftApplyToolHandler should preview backend apply through DraftApplyPreviewPort',
+    'workspaceApplyToolHandler should preview backend apply through WorkspaceApplyPreviewPort',
   )
 })
 
-test('runtime draft operations apply through backend ports', () => {
+test('runtime workspace operations apply through backend ports', () => {
   assert.equal(
-    runtimeDraftOperationsSource.includes('BackendApplyHTTPError'),
+    runtimeWorkspaceOperationsSource.includes('BackendApplyHTTPError'),
     false,
-    'runtimeDraftOperations should not handle backend transport errors directly',
+    'runtimeWorkspaceOperations should not handle backend transport errors directly',
   )
   assert.equal(
-    runtimeDraftOperationsSource.includes('BackendApplyClient'),
+    runtimeWorkspaceOperationsSource.includes('BackendApplyClient'),
     false,
-    'runtimeDraftOperations should not depend on the backend apply client type',
+    'runtimeWorkspaceOperations should not depend on the backend apply client type',
   )
   assert.equal(
-    runtimeDraftOperationsSource.includes('backendApplyClient'),
+    runtimeWorkspaceOperationsSource.includes('backendApplyClient'),
     false,
-    'runtimeDraftOperations should not access backend apply clients directly',
+    'runtimeWorkspaceOperations should not access backend apply clients directly',
   )
   assert.equal(
-    runtimeDraftOperationsSource.includes('backendApplyPort.previewApplyReview'),
+    runtimeWorkspaceOperationsSource.includes('backendApplyPort.previewApplyReview'),
     true,
-    'runtimeDraftOperations should preview backend apply through RuntimeDraftBackendApplyPort',
+    'runtimeWorkspaceOperations should preview backend apply through RuntimeWorkspaceBackendApplyPort',
   )
   assert.equal(
-    runtimeDraftOperationsSource.includes('backendApplyPort.applyReview'),
+    runtimeWorkspaceOperationsSource.includes('backendApplyPort.applyReview'),
     true,
-    'runtimeDraftOperations should apply backend writes through RuntimeDraftBackendApplyPort',
+    'runtimeWorkspaceOperations should apply backend writes through RuntimeWorkspaceBackendApplyPort',
   )
 })
 
-test('draft create tool is implemented behind the draft tool handler boundary', () => {
+test('workspace open tool is implemented behind the workspace tool handler boundary', () => {
   assert.equal(
-    toolExecutorSource.includes("if (toolName === 'draft_create')"),
+    toolExecutorSource.includes("if (toolName === 'workspace_open')"),
     false,
-    'toolExecutor should not directly branch on draft_create',
+    'toolExecutor should not directly branch on workspace_open',
   )
   assert.equal(
-    draftCreateHandlerSource.includes("'draft_create'"),
+    workspaceCreateHandlerSource.includes("'workspace_open'"),
     true,
-    'draft_create should be registered by the draft create handler',
+    'workspace_open should be registered by the workspace open handler',
   )
 })
 
-test('draft create handler stays a thin runtime adapter', () => {
+test('workspace open handler stays a thin runtime adapter', () => {
   assert.equal(
-    draftCreateHandlerSource.split(/\r?\n/).length <= 80,
+    workspaceCreateHandlerSource.split(/\r?\n/).length <= 80,
     true,
-    'draftCreateToolHandler should delegate proposal creation to domain services',
+    'workspaceCreateToolHandler should delegate workspace creation to domain services',
   )
   assert.equal(
-    draftCreateHandlerSource.includes('DRAFT_CONTENT_SCHEMA_IDS'),
+    workspaceCreateHandlerSource.includes('WORKSPACE_CONTENT_SCHEMA_IDS'),
     false,
-    'draftCreateToolHandler should not own proposal schema validation',
+    'workspaceCreateToolHandler should not own workspace schema validation',
   )
   assert.equal(
-    draftCreateHandlerSource.includes('hydrateProjectLayer'),
+    workspaceCreateHandlerSource.includes('hydrateProjectLayer'),
     false,
-    'draftCreateToolHandler should not own proposal snapshot hydration',
+    'workspaceCreateToolHandler should not own workspace snapshot hydration',
   )
 })
 
@@ -295,26 +295,26 @@ test('toolExecutor calls external tools through a gateway port', () => {
   )
 })
 
-test('agentGraph delegates default draft apply policy', () => {
+test('agentGraph delegates default workspace apply policy', () => {
   assert.equal(
-    agentGraphSource.includes('DEFAULT_DRAFT_APPLY_KIND_ORDER'),
+    agentGraphSource.includes('DEFAULT_WORKSPACE_APPLY_KIND_ORDER'),
     false,
-    'agentGraph should not own domain-specific draft apply ordering',
+    'agentGraph should not own domain-specific workspace apply ordering',
   )
   assert.equal(
-    agentGraphSource.includes('hasExplicitDraftApplyIntent'),
+    agentGraphSource.includes('hasExplicitWorkspaceApplyIntent'),
     false,
-    'agentGraph should not own draft apply intent parsing',
+    'agentGraph should not own workspace apply intent parsing',
   )
   assert.equal(
-    agentGraphSource.includes('buildDefaultDraftApplyCalls'),
+    agentGraphSource.includes('buildDefaultWorkspaceApplyCalls'),
     false,
-    'agentGraph should not directly construct default draft apply calls',
+    'agentGraph should not directly construct default workspace apply calls',
   )
   assert.equal(
     agentGraphSource.includes('runAgentGraphExecuteTurn'),
     true,
-    'agentGraph should delegate default draft apply call construction through execute turn',
+    'agentGraph should delegate default workspace apply call construction through execute turn',
   )
 })
 
@@ -750,9 +750,9 @@ test('agentGraph delegates execute node aggregate trace construction', () => {
     'agentGraph should not own concurrent read trace copy',
   )
   assert.equal(
-    agentGraphSource.includes('Default draft apply queued'),
+    agentGraphSource.includes('Default workspace apply queued'),
     false,
-    'agentGraph should not own default draft apply queued trace copy',
+    'agentGraph should not own default workspace apply queued trace copy',
   )
   assert.equal(
     agentGraphSource.includes('approval.remaining'),
@@ -833,10 +833,10 @@ test('tool handlers depend on runtime ports instead of orchestration internals',
   }
 })
 
-test('draft proposal services do not import MCP transport directly', () => {
-  const proposalFiles = listTypeScriptFiles(new URL('../../../../drafts/proposal/', import.meta.url))
-  assert.ok(proposalFiles.length > 0, 'draft proposal files should be present')
-  for (const fileURL of proposalFiles) {
+test('workspace workspace services do not import MCP transport directly', () => {
+  const workspaceFiles = listTypeScriptFiles(new URL('../../../../workspaces/workspace/', import.meta.url))
+  assert.ok(workspaceFiles.length > 0, 'workspace workspace files should be present')
+  for (const fileURL of workspaceFiles) {
     const source = readFileSync(fileURL, 'utf8')
     assert.equal(
       /from ['"][^'"]*mcpClient/.test(source),

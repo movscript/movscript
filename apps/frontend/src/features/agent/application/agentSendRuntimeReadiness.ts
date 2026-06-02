@@ -1,4 +1,4 @@
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface PrepareSendRuntimeDeps {
@@ -15,7 +15,7 @@ export interface PrepareSendRuntimeDeps {
 }
 
 export interface PrepareSendRuntimeInput {
-  draft: AgentSendDraft
+  workspace: AgentSendWorkspace
   localAgentOnline: boolean
   localAgentBaseURL: string
   mcpEndpoint?: string
@@ -24,7 +24,7 @@ export interface PrepareSendRuntimeInput {
 }
 
 export async function prepareSendRuntime(input: PrepareSendRuntimeInput): Promise<void> {
-  const { draft, localAgentOnline, localAgentBaseURL, mcpEndpoint, signal, deps } = input
+  const { workspace, localAgentOnline, localAgentBaseURL, mcpEndpoint, signal, deps } = input
   if (!localAgentOnline) {
     deps.markPerformancePhase?.('ensure_runtime_start')
     deps.startActivityEvent({
@@ -54,10 +54,10 @@ export async function prepareSendRuntime(input: PrepareSendRuntimeInput): Promis
   deps.completeActivityEvent('local-runtime-mcp-ready')
   deps.setPendingAssistantThinking()
   deps.markPerformancePhase?.('model_config_sync_start', {
-    model: draft.model.runtimeModelId ?? draft.model.name ?? String(draft.model.id),
+    model: workspace.model.runtimeModelId ?? workspace.model.name ?? String(workspace.model.id),
   })
   deps.markActivityEventStarted('http-request-local-save-model-config')
-  await deps.syncRuntimeModelConfig(draft.model.runtimeModelId ?? draft.model.name ?? String(draft.model.id))
+  await deps.syncRuntimeModelConfig(workspace.model.runtimeModelId ?? workspace.model.name ?? String(workspace.model.id))
   deps.markPerformancePhase?.('model_config_sync_done')
   deps.completeActivityEvent('http-request-local-save-model-config')
   throwIfAborted(signal, deps.abortError)

@@ -86,7 +86,7 @@ import {
   type ProjectTaskMetricItem,
 } from '@movscript/ui'
 import { buildCommandFirstClientInput } from '@/features/agent/domain/agentCommandInput'
-import { openAgentPanelDraft, openAgentPanelThread, registerAgentPanelPageTool } from '@/features/agent/application/agentPanelBridge'
+import { openAgentPanelWorkspace, openAgentPanelThread, registerAgentPanelPageTool } from '@/features/agent/application/agentPanelBridge'
 import { usePermissions } from '@/features/project/application/usePermissions'
 import { api } from '@/shared/infrastructure/api'
 import { generatedKeyframeCandidateTargetId, isGeneratedKeyframeCandidateRecord, isUnresolvedCandidateStatus } from '@/features/agent/domain/agentGeneratedResourceBinding'
@@ -234,7 +234,7 @@ interface MemberOption {
   role: string
 }
 
-interface TaskCreateDraft {
+interface TaskCreateWorkspace {
   title: string
   description: string
   taskType: UserTaskType
@@ -247,7 +247,7 @@ interface TaskCreateDraft {
   agentKey?: TaskAgentKey
 }
 
-interface TaskCreateDialogInitialDraft {
+interface TaskCreateDialogInitialWorkspace {
   purpose?: TaskPurpose
   targetType?: WorkTargetType
   targetId?: number
@@ -430,7 +430,7 @@ function positiveSearchParamID(value: string | null) {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined
 }
 
-function taskCreateInitialDraftFromSearch(params: URLSearchParams): TaskCreateDialogInitialDraft | undefined {
+function taskCreateInitialWorkspaceFromSearch(params: URLSearchParams): TaskCreateDialogInitialWorkspace | undefined {
   if (params.get('create') !== '1') return undefined
   const purpose = params.get('purpose')
   const targetType = params.get('target_type')
@@ -797,7 +797,7 @@ function PriorityPill({ priority }: { priority: TaskPriority }) {
 function TaskCreateDialog({
   open,
   onOpenChange,
-  initialDraft,
+  initialWorkspace,
   projectName,
   memberOptions,
   targetOptions,
@@ -808,13 +808,13 @@ function TaskCreateDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  initialDraft?: TaskCreateDialogInitialDraft
+  initialWorkspace?: TaskCreateDialogInitialWorkspace
   projectName: string
   memberOptions: MemberOption[]
   targetOptions: WorkTargetOption[]
   assetSlotCandidates: SemanticEntityRecord[]
   keyframes: SemanticEntityRecord[]
-  onSubmit: (draft: TaskCreateDraft) => void
+  onSubmit: (workspace: TaskCreateWorkspace) => void
   isSubmitting: boolean
 }) {
   const [purpose, setPurpose] = useState<TaskPurpose>('general')
@@ -827,7 +827,7 @@ function TaskCreateDialog({
   const [targetStatus, setTargetStatus] = useState('confirmed')
   const [candidateID, setCandidateID] = useState('')
   const [agentKey, setAgentKey] = useState<TaskAgentKey | ''>('')
-  const initialTargetKey = initialDraft?.targetType && initialDraft.targetId ? `${initialDraft.targetType}:${initialDraft.targetId}` : ''
+  const initialTargetKey = initialWorkspace?.targetType && initialWorkspace.targetId ? `${initialWorkspace.targetType}:${initialWorkspace.targetId}` : ''
 
   const availableTargets = useMemo(() => purposeTargetOptions(purpose, targetOptions), [purpose, targetOptions])
   const selectedTarget = availableTargets.find((target) => target.key === targetKey) ?? availableTargets[0]
@@ -845,21 +845,21 @@ function TaskCreateDialog({
   )
   const matchedAssetCandidate = candidateOptions.find((candidate) => String(candidate.ID) === candidateID)
   const requestedAssetCandidateUnavailable = resultType === 'lock_asset_candidate'
-    && initialDraft?.candidateId !== undefined
+    && initialWorkspace?.candidateId !== undefined
     && selectedTarget?.type === 'asset_slot'
-    && selectedTarget.id === initialDraft.targetId
-    && candidateID === String(initialDraft.candidateId)
-    && !candidateOptions.some((candidate) => candidate.ID === initialDraft.candidateId)
+    && selectedTarget.id === initialWorkspace.targetId
+    && candidateID === String(initialWorkspace.candidateId)
+    && !candidateOptions.some((candidate) => candidate.ID === initialWorkspace.candidateId)
   const selectedCandidate = requestedAssetCandidateUnavailable
     ? undefined
     : matchedAssetCandidate ?? candidateOptions[0]
   const matchedKeyframeCandidate = keyframeCandidateOptions.find((candidate) => String(candidate.ID) === candidateID)
   const requestedKeyframeCandidateUnavailable = resultType === 'accept_keyframe'
-    && initialDraft?.candidateId !== undefined
+    && initialWorkspace?.candidateId !== undefined
     && selectedTarget?.type === 'keyframe'
-    && selectedTarget.id === initialDraft.targetId
-    && candidateID === String(initialDraft.candidateId)
-    && !keyframeCandidateOptions.some((candidate) => candidate.ID === initialDraft.candidateId)
+    && selectedTarget.id === initialWorkspace.targetId
+    && candidateID === String(initialWorkspace.candidateId)
+    && !keyframeCandidateOptions.some((candidate) => candidate.ID === initialWorkspace.candidateId)
   const selectedKeyframeCandidate = requestedKeyframeCandidateUnavailable
     ? undefined
     : matchedKeyframeCandidate ?? keyframeCandidateOptions[0]
@@ -875,7 +875,7 @@ function TaskCreateDialog({
 
   useEffect(() => {
     if (!open) return
-    const nextPurpose = initialDraft?.purpose ?? 'general'
+    const nextPurpose = initialWorkspace?.purpose ?? 'general'
     const nextTargets = purposeTargetOptions(nextPurpose, targetOptions)
     const nextTargetKey = initialTargetKey && nextTargets.some((target) => target.key === initialTargetKey)
       ? initialTargetKey
@@ -888,9 +888,9 @@ function TaskCreateDialog({
     setDue('明天 18:00')
     setPriority('medium')
     setTargetStatus(taskPurposeMeta[nextPurpose].defaultStatus ?? 'confirmed')
-    setCandidateID(initialDraft?.candidateId ? String(initialDraft.candidateId) : '')
+    setCandidateID(initialWorkspace?.candidateId ? String(initialWorkspace.candidateId) : '')
     setAgentKey('')
-  }, [initialDraft?.candidateId, initialDraft?.purpose, initialTargetKey, memberOptions, open, targetOptions])
+  }, [initialWorkspace?.candidateId, initialWorkspace?.purpose, initialTargetKey, memberOptions, open, targetOptions])
 
   useEffect(() => {
     const options = purposeTargetOptions(purpose, targetOptions)
@@ -1289,7 +1289,7 @@ export default function TasksPage() {
   const projectId = project?.ID
   const [searchParams, setSearchParams] = useSearchParams()
   const taskCreateSearch = searchParams.toString()
-  const taskCreateInitialDraft = useMemo(() => taskCreateInitialDraftFromSearch(new URLSearchParams(taskCreateSearch)), [taskCreateSearch])
+  const taskCreateInitialWorkspace = useMemo(() => taskCreateInitialWorkspaceFromSearch(new URLSearchParams(taskCreateSearch)), [taskCreateSearch])
   const [selectedTaskId, setSelectedTaskId] = useState(seededTasks[0]?.id ?? '')
   const [view, setView] = useState<TaskView>('all')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
@@ -1503,10 +1503,10 @@ export default function TasksPage() {
   }, [selectedTask?.workItemID])
 
   useEffect(() => {
-    if (!taskCreateInitialDraft) return
+    if (!taskCreateInitialWorkspace) return
     if (!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0) return
     setTaskDialogOpen(true)
-  }, [canManageWorkItems, memberOptions.length, taskCreateInitialDraft, workTargetOptions.length])
+  }, [canManageWorkItems, memberOptions.length, taskCreateInitialWorkspace, workTargetOptions.length])
 
   function clearTaskCreateSearch() {
     setSearchParams((current) => {
@@ -1522,7 +1522,7 @@ export default function TasksPage() {
 
   function changeTaskDialogOpen(nextOpen: boolean) {
     setTaskDialogOpen(nextOpen)
-    if (!nextOpen && taskCreateInitialDraft) clearTaskCreateSearch()
+    if (!nextOpen && taskCreateInitialWorkspace) clearTaskCreateSearch()
   }
 
   function updateTask(task: ProjectTask, patch: Partial<ProjectTask>, review?: { status: WorkReviewStatus; comment: string }) {
@@ -1612,7 +1612,7 @@ export default function TasksPage() {
       })
 
       const agentMessage = buildAgentTaskMessage(task, project?.name ?? '当前项目')
-      openAgentPanelDraft({
+      openAgentPanelWorkspace({
         requestId,
         taskType: 'work_item',
         title: `${agentOption.name}: ${task.title}`,
@@ -1645,34 +1645,34 @@ export default function TasksPage() {
     }
   }
 
-  function createTask(draft: TaskCreateDraft) {
+  function createTask(workspace: TaskCreateWorkspace) {
     if (!projectId) return
     const metadata: WorkItemMetadata = {
-      task_type: draft.taskType,
-      target_label: draft.target.label,
-      due: draft.due.trim() || '未设置',
+      task_type: workspace.taskType,
+      target_label: workspace.target.label,
+      due: workspace.due.trim() || '未设置',
       reviewer_name: reviewerName,
-      ...(draft.agentKey ? {
-        agent_key: draft.agentKey,
-        agent_name: taskAgentOptionByKey(draft.agentKey).name,
+      ...(workspace.agentKey ? {
+        agent_key: workspace.agentKey,
+        agent_name: taskAgentOptionByKey(workspace.agentKey).name,
       } : {}),
     }
     createWorkItem.mutate({
       payload: {
-        production_id: draft.target.productionId,
-        target_type: draft.target.type,
-        target_id: draft.target.id,
-        kind: taskTypeMeta[draft.taskType].kind,
-        title: draft.title.trim(),
-        description: draft.description.trim(),
-        status: draft.taskType === 'coordination' ? 'blocked' : 'todo',
-        priority: draft.priority === 'high' ? 'high' : draft.priority === 'low' ? 'low' : 'normal',
-        assignee_id: draft.assignee.id,
-        result_type: draft.resultType,
-        result_json: draft.resultType === 'none' ? '' : draft.resultJSON.trim(),
+        production_id: workspace.target.productionId,
+        target_type: workspace.target.type,
+        target_id: workspace.target.id,
+        kind: taskTypeMeta[workspace.taskType].kind,
+        title: workspace.title.trim(),
+        description: workspace.description.trim(),
+        status: workspace.taskType === 'coordination' ? 'blocked' : 'todo',
+        priority: workspace.priority === 'high' ? 'high' : workspace.priority === 'low' ? 'low' : 'normal',
+        assignee_id: workspace.assignee.id,
+        result_type: workspace.resultType,
+        result_json: workspace.resultType === 'none' ? '' : workspace.resultJSON.trim(),
         metadata_json: JSON.stringify(metadata),
       },
-      agentKey: draft.agentKey,
+      agentKey: workspace.agentKey,
     })
   }
 
@@ -1700,7 +1700,7 @@ export default function TasksPage() {
         <TaskCreateDialog
           open={taskDialogOpen}
           onOpenChange={changeTaskDialogOpen}
-          initialDraft={taskDialogOpen ? taskCreateInitialDraft : undefined}
+          initialWorkspace={taskDialogOpen ? taskCreateInitialWorkspace : undefined}
           projectName={project?.name ?? '当前项目'}
           memberOptions={memberOptions}
           targetOptions={workTargetOptions}

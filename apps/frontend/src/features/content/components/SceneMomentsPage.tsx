@@ -105,7 +105,7 @@ const statusLabels: Record<string, string> = {
   locked: '已锁定',
   accepted: '已采纳',
   attached: '已关联',
-  draft: '草稿',
+  workspace: '工作区',
   candidate: '候选',
   generated: '已生成',
   missing: '缺素材需求',
@@ -415,7 +415,7 @@ export default function SceneMomentsPage() {
               projectId={projectId}
               config={sceneMomentConfig}
               record={creatingMoment ? null : selected?.moment}
-              defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, script_block_id: selected?.scriptBlock?.ID ?? selected?.segment?.script_block_id ?? null, order: momentWorkspaces.length + 1, status: 'draft' } : undefined}
+              defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, script_block_id: selected?.scriptBlock?.ID ?? selected?.segment?.script_block_id ?? null, order: momentWorkspaces.length + 1, status: 'workspace' } : undefined}
               queryKey={['semantic-scene-moment-page', projectId]}
               title={creatingMoment ? '新建情景' : '卡片内编辑情景'}
               description="直接维护情景标题、时空、条件、动作和情绪；引用关系不在这里重写。"
@@ -426,14 +426,14 @@ export default function SceneMomentsPage() {
                 subtitle: creatingMoment ? '项目情景' : selected ? `情景 #${selected.moment.ID}` : '项目情景',
                 summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情景就可以承接制作项与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情景描述。',
                 accentTone: 'teal',
-                status: <ContentPageStatusBadge {...contentEntityStatusRecipe(creatingMoment ? 'draft' : selected?.moment.status ?? 'draft')}>{statusLabel(creatingMoment ? 'draft' : selected?.moment.status ?? 'draft')}</ContentPageStatusBadge>,
+                status: <ContentPageStatusBadge {...contentEntityStatusRecipe(creatingMoment ? 'workspace' : selected?.moment.status ?? 'workspace')}>{statusLabel(creatingMoment ? 'workspace' : selected?.moment.status ?? 'workspace')}</ContentPageStatusBadge>,
                 stats: selected && !creatingMoment ? [
                   { label: '时间', value: selected.moment.time_text || '未设定' },
                   { label: '地点', value: selected.moment.location_text || '未设定' },
                   { label: '剧本来源', value: selected.scriptBlock ? `行 ${selected.scriptBlock.start_line || '?'}-${selected.scriptBlock.end_line || '?'}` : '未绑定' },
                   { label: '制作项', value: selected.contentUnits.length },
                 ] : [
-                  { label: '默认状态', value: '草稿' },
+                  { label: '默认状态', value: '工作区' },
                   { label: '所属编排段', value: selected?.segment ? titleOf(selected.segment) : '未绑定' },
                   { label: '剧本来源', value: selected?.scriptBlock ? `行 ${selected.scriptBlock.start_line || '?'}-${selected.scriptBlock.end_line || '?'}` : '继承编排段' },
                   { label: '顺序', value: momentWorkspaces.length + 1 },
@@ -512,7 +512,7 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
     >
       <ContentPageListCardHeader
         aside={(
-          <ContentPageStatusBadge {...contentEntityStatusRecipe(item.moment.status ?? 'draft')}>{statusLabel(item.moment.status ?? 'draft')}</ContentPageStatusBadge>
+          <ContentPageStatusBadge {...contentEntityStatusRecipe(item.moment.status ?? 'workspace')}>{statusLabel(item.moment.status ?? 'workspace')}</ContentPageStatusBadge>
         )}
       >
         <ContentPageListCardTitle>{titleOf(item.moment)}</ContentPageListCardTitle>
@@ -556,7 +556,7 @@ function RelatedList({
         const content = (
           <>
             <ContentPageRelatedHeader
-              aside={<ContentPageStatusBadge {...contentEntityStatusRecipe(record.status ?? 'draft')}>{statusLabel(record.status ?? 'draft')}</ContentPageStatusBadge>}
+              aside={<ContentPageStatusBadge {...contentEntityStatusRecipe(record.status ?? 'workspace')}>{statusLabel(record.status ?? 'workspace')}</ContentPageStatusBadge>}
             >
               <ContentPageRelatedTitle>{titleOf(record)}</ContentPageRelatedTitle>
               <ContentPageRelatedDescription>{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</ContentPageRelatedDescription>
@@ -593,7 +593,7 @@ function matchesStatus(status: StatusFilter, item: MomentWorkspace) {
   const value = String(item.moment.status ?? '')
   if (status === 'all') return true
   if (status === 'ready') return item.readiness >= 70 && item.assetSlots.every((slot) => !isAssetGap(slot))
-  if (status === 'attention') return item.readiness < 70 || item.assetSlots.some(isAssetGap) || ['draft', 'candidate', 'review', 'blocked'].includes(value)
+  if (status === 'attention') return item.readiness < 70 || item.assetSlots.some(isAssetGap) || ['workspace', 'candidate', 'review', 'blocked'].includes(value)
   return value === status
 }
 

@@ -5,7 +5,7 @@ import { pickContentWorkbenchFirstUsableUnit, pickContentWorkbenchFocusAfterIgno
 
 test('content workbench returns to a confirmed unit after ignoring the current candidate', () => {
   assert.equal(pickContentWorkbenchFocusAfterIgnoredCandidate([
-    { id: 1, status: 'draft' },
+    { id: 1, status: 'workspace' },
     { id: 2, status: 'confirmed' },
     { id: 3, status: 'candidate' },
   ], 1), 2)
@@ -13,7 +13,7 @@ test('content workbench returns to a confirmed unit after ignoring the current c
 
 test('content workbench can fall back to another candidate after ignore', () => {
   assert.equal(pickContentWorkbenchFocusAfterIgnoredCandidate([
-    { id: 1, status: 'draft' },
+    { id: 1, status: 'workspace' },
     { id: 2, status: 'ignored' },
     { id: 3, status: 'candidate' },
   ], 1), 3)
@@ -21,7 +21,7 @@ test('content workbench can fall back to another candidate after ignore', () => 
 
 test('content workbench clears unit focus when no useful unit remains', () => {
   assert.equal(pickContentWorkbenchFocusAfterIgnoredCandidate([
-    { id: 1, status: 'draft' },
+    { id: 1, status: 'workspace' },
     { id: 2, status: 'archived' },
     { id: 3, status: 'rejected' },
   ], 1), null)
@@ -31,7 +31,7 @@ test('content workbench first usable unit prefers confirmed production targets',
   assert.equal(pickContentWorkbenchFirstUsableUnit([
     { id: 1, status: 'candidate' },
     { id: 2, status: 'locked' },
-    { id: 3, status: 'draft' },
+    { id: 3, status: 'workspace' },
   ]), 2)
 })
 

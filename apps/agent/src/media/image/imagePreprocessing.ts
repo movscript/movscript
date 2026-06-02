@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BackendApplyAuthContext, BackendApplyClient, BackendResourceFileDownloadResult } from '../../drafts/adapters/backend/backendApplyClient.js'
+import type { BackendApplyAuthContext, BackendApplyClient, BackendResourceFileDownloadResult } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import type {
   CoreImageInspectionResult,
   CoreImageOutputFormat,

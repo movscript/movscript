@@ -1,8 +1,8 @@
 import { api } from '@/shared/infrastructure/api'
 import type { RawResource } from '@/types'
 
-export type DeliveryStatus = 'draft' | 'checking' | 'approved' | 'exported' | 'archived'
-export type DeliveryTimelineItemStatus = 'draft' | 'confirmed' | 'needs_asset' | 'missing' | 'locked' | 'approved'
+export type DeliveryStatus = 'workspace' | 'checking' | 'approved' | 'exported' | 'archived'
+export type DeliveryTimelineItemStatus = 'workspace' | 'confirmed' | 'needs_asset' | 'missing' | 'locked' | 'approved'
 export type ExportRecordStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 
 export interface DeliveryVersion {

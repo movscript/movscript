@@ -97,7 +97,7 @@ func (p ParamDef) hasStep() bool {
 }
 
 // ParamConditionalEnum declares a cross-parameter enum restriction for params_schema.
-// Example: resolution is only ["480p"] when draft=true.
+// Example: resolution is only ["480p"] when workspace=true.
 type ParamConditionalEnum struct {
 	WhenParam string   `json:"when_param"`
 	WhenValue any      `json:"when_value"`
@@ -105,7 +105,7 @@ type ParamConditionalEnum struct {
 }
 
 // ParamConditionalConst declares a cross-parameter const restriction for params_schema.
-// Example: return_last_frame must be false when draft=true.
+// Example: return_last_frame must be false when workspace=true.
 type ParamConditionalConst struct {
 	WhenParam string `json:"when_param"`
 	WhenValue any    `json:"when_value"`
@@ -315,18 +315,18 @@ func volcenVideoParams() []ParamDef {
 			Options: []string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"}, Default: "16:9"},
 		{Key: "resolution", Label: "清晰度", Type: "select",
 			Options: []string{"480p", "720p", "1080p"}, Default: "720p",
-			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"480p"}}}},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
 		{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
 		{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false,
-			ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}},
+			ConditionalConst: []ParamConditionalConst{{WhenParam: "workspace", WhenValue: true, Value: false}}},
 		{Key: "service_tier", Label: "服务等级", Type: "select",
 			Options: []string{"default", "flex"}, Default: "default",
-			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}},
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"default"}}}},
 		{Key: "execution_expires_after", Label: "过期时间(秒)", Type: "number", Min: 1, Step: 1},
-		{Key: "draft", Label: "样片模式", Type: "boolean", Default: false},
+		{Key: "workspace", Label: "样片模式", Type: "boolean", Default: false},
 		{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false},
 	}
 }
@@ -515,7 +515,7 @@ func volcenSeedream5LiteParams() []ParamDef {
 	return params
 }
 
-func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []string, withAudio, withCameraFixed, withServiceTier, withWebSearch, withDraft bool) []ParamDef {
+func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []string, withAudio, withCameraFixed, withServiceTier, withWebSearch, withWorkspace bool) []ParamDef {
 	params := []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select", Options: durationOptions, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
@@ -536,18 +536,18 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	if withWebSearch {
 		params = append(params, ParamDef{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false})
 	}
-	if withDraft {
+	if withWorkspace {
 		for i := range params {
 			switch params[i].Key {
 			case "resolution":
-				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}
+				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"480p"}}}
 			case "return_last_frame":
-				params[i].ConditionalConst = []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}
+				params[i].ConditionalConst = []ParamConditionalConst{{WhenParam: "workspace", WhenValue: true, Value: false}}
 			case "service_tier":
-				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}
+				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"default"}}}
 			}
 		}
-		params = append(params, ParamDef{Key: "draft", Label: "样片模式", Type: "boolean", Default: false})
+		params = append(params, ParamDef{Key: "workspace", Label: "样片模式", Type: "boolean", Default: false})
 	}
 	return params
 }

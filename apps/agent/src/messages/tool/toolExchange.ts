@@ -133,17 +133,17 @@ function normalizeAssistantToolArgs(args: Record<string, unknown>): Record<strin
   if (productionId !== undefined) output.productionId = productionId
   else delete output.productionId
   if (!isValidAgentEntityId(output.production_id)) delete output.production_id
-  if (isProposalDraftKind(output.kind) && projectId === undefined && productionId === undefined) {
+  if (isWorkspaceWorkspaceKind(output.kind) && projectId === undefined && productionId === undefined) {
     output.kind = 'note'
   }
   return output
 }
 
-function isProposalDraftKind(value: JSONValue | undefined): boolean {
-  return value === 'project_standards_proposal'
-    || value === 'production_proposal'
-    || value === 'asset_proposal'
-    || value === 'setting_proposal'
+function isWorkspaceWorkspaceKind(value: JSONValue | undefined): boolean {
+  return value === 'project_standards_workspace'
+    || value === 'production_workspace'
+    || value === 'asset_workspace'
+    || value === 'setting_workspace'
 }
 
 function parseArgumentsObject(value: string): unknown {

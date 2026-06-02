@@ -14,9 +14,9 @@ test('agent build output excludes test files from the desktop runtime bundle', a
 
   const buildScript = await readFile(resolve(repoRoot, 'apps/agent/scripts/build-server-bundle.mjs'), 'utf8')
   assert.match(buildScript, /withBuildLock\('movscript-agent-build'/)
-  assert.match(buildScript, /if \(draftSchemasBuildIsStale\(\)\)/)
-  assert.match(buildScript, /function draftSchemasBuildIsStale\(\)/)
-  assert.match(buildScript, /resolve\(draftSchemasRoot, 'dist\/index\.d\.ts'\)/)
+  assert.match(buildScript, /if \(workspaceSchemasBuildIsStale\(\)\)/)
+  assert.match(buildScript, /function workspaceSchemasBuildIsStale\(\)/)
+  assert.match(buildScript, /resolve\(workspaceSchemasRoot, 'dist\/index\.d\.ts'\)/)
   assert.match(buildScript, /function newestMtime\(paths\)/)
   assert.match(buildScript, /rmSync\(resolve\(appRoot, 'dist'\), \{ recursive: true, force: true \}\)/)
   assert.match(buildScript, /run\('tsc', \['-p', 'tsconfig\.build\.json'\]\)/)

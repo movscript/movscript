@@ -15,8 +15,8 @@ export function resolveRuntimeToolParameters(
   if (tool.name === 'reference_get') return GET_REFERENCE_TOOL_SCHEMA
   if (tool.name === 'core_memory_create') return CREATE_MEMORY_TOOL_SCHEMA
   if (tool.name === 'core_memory_delete') return MEMORY_ID_TOOL_SCHEMA
-  if (tool.name === 'draft_create') return CREATE_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'draft_apply_preview') return PREVIEW_DRAFT_APPLY_TOOL_SCHEMA
+  if (tool.name === 'workspace_open') return CREATE_WORKSPACE_TOOL_SCHEMA
+  if (tool.name === 'workspace_validate') return PREVIEW_WORKSPACE_APPLY_TOOL_SCHEMA
   if (tool.name === 'core_catalog_inspect') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'core_skill_update') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
   if (tool.name === 'core_update_plan') return UPDATE_PLAN_TOOL_SCHEMA
@@ -161,33 +161,33 @@ const UPDATE_PLAN_TOOL_SCHEMA = {
   required: ['tasks'],
 } satisfies Record<string, unknown>
 
-const CREATE_DRAFT_TOOL_SCHEMA = {
+const CREATE_WORKSPACE_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['kind', 'content'],
   properties: {
     kind: {
       type: 'string',
-      enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal', 'asset_proposal'],
+      enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'],
     },
-    title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for proposal drafts.' },
-    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. For setting_proposal / asset_proposal, omitted or initially empty proposal snapshot arrays are prefilled from the hydrated current project data as a no-op baseline. After creation, edit agent://draft/{draftId}/content with standard file tools instead of replacing content through draft tools.' },
+    title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for workspace workspaces.' },
+    content: { type: 'string', description: 'Initial workspace content. Structured workspace workspaces must be valid JSON. For setting_workspace / asset_workspace, omitted or initially empty workspace snapshot arrays are prefilled from the hydrated current project data as a no-op baseline. After creation, edit agent://workspace/{workspaceId}/content with standard file tools instead of replacing content through workspace tools.' },
     projectId: { type: 'number' },
-    productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
+    productionId: { type: 'number', description: 'Optional hint for production_workspace workspaces.' },
     source: { type: 'object', additionalProperties: true },
     target: { type: 'object', additionalProperties: true },
-    seed: { type: 'object', additionalProperties: true, description: 'DraftDomainModel/MCP seed contract or hydrated seed summary to persist under metadata.seed.' },
+    seed: { type: 'object', additionalProperties: true, description: 'WorkspaceDomainModel/MCP seed contract or hydrated seed summary to persist under metadata.seed.' },
     metadata: { type: 'object', additionalProperties: true },
-    proposal: { type: 'boolean', description: 'When true, creates a reviewable proposal draft: adds schema validation, infers target/source, sets default title, and returns {proposalRef, draftId} plus validation/apply results when available.' },
+    workspace: { type: 'boolean', description: 'When true, creates a reviewable workspace workspace: adds schema validation, infers target/source, sets default title, and returns {workspaceRef, workspaceId} plus validation/apply results when available.' },
   },
 } satisfies Record<string, unknown>
 
-const PREVIEW_DRAFT_APPLY_TOOL_SCHEMA = {
+const PREVIEW_WORKSPACE_APPLY_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['draftId'],
+  required: ['workspaceId'],
   properties: {
-    draftId: { type: 'string' },
+    workspaceId: { type: 'string' },
     target: { type: 'object', additionalProperties: true },
     targetEntityType: { type: 'string' },
     targetEntityId: { type: ['string', 'number'] },
@@ -207,7 +207,7 @@ const SEARCH_MEMORIES_TOOL_SCHEMA = {
     },
     kind: {
       type: 'string',
-      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
+      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'workspace', 'decision', 'warning'],
       description: 'Optional memory kind filter.',
     },
     limit: {
@@ -316,7 +316,7 @@ const CREATE_MEMORY_TOOL_SCHEMA = {
     },
     kind: {
       type: 'string',
-      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
+      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'workspace', 'decision', 'warning'],
     },
     content: {
       type: 'string',

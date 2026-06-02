@@ -165,7 +165,7 @@ test('resource file and temporary image previews use shared image primitives', (
   }
 
   assert.match(shotLibrarySource, /import \{ UrlImage \}/)
-  assert.match(shotLibrarySource, /<UrlImage src=\{draft\.thumbnailUrl\} alt="" \/>/)
+  assert.match(shotLibrarySource, /<UrlImage src=\{workspace\.thumbnailUrl\} alt="" \/>/)
   assert.doesNotMatch(shotLibrarySource, /<img/)
 })
 
@@ -398,7 +398,7 @@ test('resource file URL synthesis is limited to data normalization and shared re
   const allowed = new Set([
     'src/features/agent/domain/agentAttachments.ts',
     'src/features/agent/domain/agentGenerationMedia.ts',
-    'src/features/agent/domain/agentMessageViewModel.ts',
+    'src/features/agent/domain/agentResourceLookup.ts',
     'src/features/canvas/runtime/runtimeValues.ts',
     'src/features/shot-library/domain/shotReferenceLibrary.ts',
     'src/shared/ui/ResourceFileImage.tsx',

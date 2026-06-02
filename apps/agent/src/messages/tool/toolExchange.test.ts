@@ -22,17 +22,17 @@ test('extractRequestedToolCallsFromAssistantContent normalizes model JSON conten
   assert.equal(toolCalls[0]?.args?.projectId, 1)
 })
 
-test('extractRequestedToolCallsFromAssistantContent downgrades invalid proposal context', () => {
+test('extractRequestedToolCallsFromAssistantContent downgrades invalid workspace context', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'draft_create',
+        name: 'workspace_open',
         parameters: {
           project_id: '42',
           production_id: 7.5,
           projectId: 0,
           productionId: Number.NaN,
-          kind: 'project_standards_proposal',
+          kind: 'project_standards_workspace',
         },
       },
     ],
@@ -50,12 +50,12 @@ test('extractRequestedToolCallsFromAssistantContent supports single tool call wr
   const wrapped = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
       tool_name: 'core_file_read',
-      parameters: { ref: 'agent://draft/draft_1/content' },
+      parameters: { ref: 'agent://workspace/workspace_1/content' },
     },
   }))
   assert.equal(wrapped.length, 1)
   assert.equal(wrapped[0]?.name, 'core_file_read')
-  assert.equal(wrapped[0]?.args?.ref, 'agent://draft/draft_1/content')
+  assert.equal(wrapped[0]?.args?.ref, 'agent://workspace/workspace_1/content')
 
   const deduped = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [

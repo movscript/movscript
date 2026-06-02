@@ -4,9 +4,9 @@ import { MCPClient } from '../../adapters/mcp/client/mcpClient.js'
 import { AgentRuntimeRouter, loadAgentPluginCatalog } from '../../application/router/runtimeRouter.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath, resolveAgentTracePath } from '../../state/store/file/fileStore.js'
 import { FileAgentToolResultStore, resolveAgentToolResultPath } from '../../state/store/tool-results/toolResultStore.js'
-import { FileAgentDraftStore, resolveAgentDraftPath } from '../../drafts/store/draftStore.js'
-import { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
-import { MCPBackendApplyClient } from '../../drafts/adapters/mcp/mcpBackendApplyClient.js'
+import { FileAgentWorkspaceStore, resolveAgentWorkspacePath } from '../../workspaces/store/workspaceStore.js'
+import { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
+import { MCPBackendApplyClient } from '../../workspaces/adapters/mcp/mcpBackendApplyClient.js'
 import { FileAgentMemoryStore } from '../../memory/store/file/fileMemoryStore.js'
 import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../../catalog/registry/state/catalogState.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../../model/config/modelConfig.js'
@@ -29,7 +29,7 @@ export interface AgentServerContext {
   paths: {
     statePath: string
     memoryPath: string
-    draftPath: string
+    workspacePath: string
     toolResultPath: string
     catalogStatePath: string
     modelConfigPath: string
@@ -131,11 +131,11 @@ export function createAgentServerContext(): AgentServerContext {
   const statePath = resolveAgentStatePath()
   const memoryPath = resolveAgentMemoryPath(statePath)
   const tracePath = resolveAgentTracePath(statePath)
-  const draftPath = resolveAgentDraftPath(statePath)
+  const workspacePath = resolveAgentWorkspacePath(statePath)
   const toolResultPath = resolveAgentToolResultPath(statePath)
   const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} draft=${pathDiagnostic(draftPath)} toolResults=${pathDiagnostic(toolResultPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
+  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} workspace=${pathDiagnostic(workspacePath)} toolResults=${pathDiagnostic(toolResultPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
   const modelConfigStore = timeStartupStep('model-config-store', () => new RuntimeModelConfigStore(modelConfigPath), () => pathDiagnostic(modelConfigPath))
   const pluginCatalog = timeStartupStep('plugin-catalog-load', () => loadAgentPluginCatalog(), (catalog) => [
     `packs=${catalog.packs.length}`,
@@ -184,8 +184,8 @@ export function createAgentServerContext(): AgentServerContext {
     `interactions=${stateStore.listRuntimeInteractions().length}`,
     `continuations=${stateStore.listRuntimeContinuations().length}`,
   ].join(' '))
-  const draftStore = timeStartupStep('draft-store', () => new FileAgentDraftStore(draftPath, telemetry), () => [
-    pathDiagnostic(draftPath),
+  const workspaceStore = timeStartupStep('workspace-store', () => new FileAgentWorkspaceStore(workspacePath, telemetry), () => [
+    pathDiagnostic(workspacePath),
     'load=lazy',
   ].join(' '))
   const memoryStore = timeStartupStep('memory-store', () => new FileAgentMemoryStore(memoryPath, telemetry), () => [
@@ -201,7 +201,7 @@ export function createAgentServerContext(): AgentServerContext {
     mcpClient: client,
     store,
     toolResultStore,
-    draftStore,
+    workspaceStore,
     backendApplyClient,
     memoryStore,
     activeAgentManifest: pluginCatalog.manifest,
@@ -241,7 +241,7 @@ export function createAgentServerContext(): AgentServerContext {
     paths: {
       statePath,
       memoryPath,
-      draftPath,
+      workspacePath,
       toolResultPath,
       catalogStatePath,
       modelConfigPath,
@@ -359,7 +359,7 @@ function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok' | 
         'runtime-capabilities',
         'backend-api-base-url-header',
         'dynamic-update-policy',
-        'drafts',
+        'workspaces',
         'memories',
         'agent-catalog-runtime-tools',
         'run-cancel',
@@ -376,7 +376,7 @@ function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok' | 
         '/runs',
         '/runs/{id}/cancel',
         '/runs/{id}/resume',
-        '/drafts',
+        '/workspaces',
         '/memories',
       ],
     },
@@ -390,7 +390,7 @@ export function logAgentServerStartup(context: AgentServerContext): void {
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
   console.info(`[agent] state path ${paths.statePath}`)
   console.info(`[agent] memory path ${paths.memoryPath}`)
-  console.info(`[agent] draft path ${paths.draftPath}`)
+  console.info(`[agent] workspace path ${paths.workspacePath}`)
   console.info(`[agent] catalog state path ${paths.catalogStatePath}`)
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)

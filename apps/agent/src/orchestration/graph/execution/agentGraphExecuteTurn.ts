@@ -4,13 +4,13 @@ import type { AgentApprovalRequest, AgentInputRequest, AgentRunStatus, ToolCall,
 import type { AgentGraphInput, AgentGraphTraceInput } from '../types/agentGraphTypes.js'
 import { buildCatalogRefreshTrace, isCatalogMutationTool } from '../../model/catalog/agentGraphCatalogRefreshTrace.js'
 import {
-  buildDefaultDraftApplyCalls,
+  buildDefaultWorkspaceApplyCalls,
   remainingPendingApprovalsAfterForcedCalls,
-} from '../../tools/rules/draft-apply/agentGraphDraftApplyRules.js'
+} from '../../tools/rules/workspace-apply/agentGraphWorkspaceApplyRules.js'
 import {
   buildApprovalStillPendingTrace,
   buildConcurrentReadToolsTrace,
-  buildDefaultDraftApplyQueuedTrace,
+  buildDefaultWorkspaceApplyQueuedTrace,
 } from './agentGraphExecuteTrace.js'
 import { canExecuteConcurrently } from '../../tools/rules/execution/agentGraphExecutionRules.js'
 import type { AgentGraphMakeId } from '../input/agentGraphInputRequests.js'
@@ -68,7 +68,7 @@ export async function runAgentGraphExecuteTurn(
       throwIfAborted(input.signal)
       const result = await executeOne(call)
       results.push(result)
-      if (call.name === 'draft_apply' && result.outcome.error) break
+      if (call.name === 'workspace_apply' && result.outcome.error) break
     }
   }
 
@@ -98,7 +98,7 @@ export async function runAgentGraphExecuteTurn(
     { role: 'tool', tool_call_id: toolCall.id ?? options.makeId('call'), content: runtimeModelTextContent(content) },
     ...(supplementalMessages ?? []),
   ]))
-  const defaultApplyCalls = buildDefaultDraftApplyCalls({
+  const defaultApplyCalls = buildDefaultWorkspaceApplyCalls({
     outcomes: results.map((result) => result.outcome),
     registry: input.registry,
     manifest: input.manifest,
@@ -106,7 +106,7 @@ export async function runAgentGraphExecuteTurn(
     makeId: options.makeId,
   })
   if (defaultApplyCalls.length > 0) {
-    input.onTrace(buildDefaultDraftApplyQueuedTrace(defaultApplyCalls, {
+    input.onTrace(buildDefaultWorkspaceApplyQueuedTrace(defaultApplyCalls, {
       ...options.trace,
       roundSource: 'runtime_rule',
     }))

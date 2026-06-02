@@ -44,7 +44,7 @@ export interface AgentComposerSectionProps {
   answeringPendingInput: boolean
   activePendingInputTitle?: string
   addMentionTrigger: () => void
-  buildingSendDraft: boolean
+  buildingSendWorkspace: boolean
   canAnswerPendingInputWithText: boolean
   canSend: boolean
   canStopLocalRun: boolean
@@ -84,7 +84,7 @@ export function AgentComposerSection({
   chrome = 'card',
   answeringPendingInput,
   addMentionTrigger,
-  buildingSendDraft,
+  buildingSendWorkspace,
   canAnswerPendingInputWithText,
   canSend,
   canStopLocalRun,
@@ -120,7 +120,7 @@ export function AgentComposerSection({
   onUploadFiles,
 }: AgentComposerSectionProps) {
   const { t } = useTranslation()
-  const editorDisabled = buildingSendDraft || (answeringPendingInput && !canAnswerPendingInputWithText)
+  const editorDisabled = buildingSendWorkspace || (answeringPendingInput && !canAnswerPendingInputWithText)
   const [mentionMenuPosition, setMentionMenuPosition] = useState<MentionMenuPosition | null>(null)
   const mentionMenuOpen = mentionRangeActive && mentionResults.length > 0
 
@@ -301,7 +301,7 @@ export function AgentComposerSection({
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <AgentComposerAction
               onClick={() => fileRef.current?.click()}
-              disabled={answeringPendingInput || uploading || loading || buildingSendDraft}
+              disabled={answeringPendingInput || uploading || loading || buildingSendWorkspace}
               aria-label={t('agents.chat.uploadAttachment')}
               title={t('agents.chat.uploadAttachment')}
             >
@@ -309,7 +309,7 @@ export function AgentComposerSection({
             </AgentComposerAction>
             <AgentComposerAction
               onClick={addMentionTrigger}
-              disabled={answeringPendingInput || buildingSendDraft}
+              disabled={answeringPendingInput || buildingSendWorkspace}
               aria-label={t('shared.genInput.mention')}
               title={t('shared.genInput.mention')}
             >
@@ -345,13 +345,13 @@ export function AgentComposerSection({
           </div>
           <AgentComposerSubmit
             type="submit"
-            running={loading || buildingSendDraft}
+            running={loading || buildingSendWorkspace}
             disabled={!canSend}
             label={answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
           >
             {stoppingLocalRun
               ? <Loader2 size={14} className="animate-spin" />
-              : buildingSendDraft
+              : buildingSendWorkspace
                 ? <Loader2 size={14} className="animate-spin" />
                 : debugBeforeSend && !loading ? <Eye size={14} /> : <Send size={14} />}
           </AgentComposerSubmit>

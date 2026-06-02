@@ -96,7 +96,7 @@ export function matchSelector(selector: ContextSelector, ctx: RuntimeContext): b
   if (selector.route && !selector.route.some((route) => routeMatches(route, ui.route ?? ''))) return false
   if (selector.selectedKind && (!ui.selectedKind || !selector.selectedKind.includes(ui.selectedKind))) return false
   if (selector.selectedScope && (!ui.selectedScope || !selector.selectedScope.includes(ui.selectedScope))) return false
-  if (selector.draftStatus && (!ui.draftStatus || !selector.draftStatus.includes(ui.draftStatus))) return false
+  if (selector.workspaceStatus && (!ui.workspaceStatus || !selector.workspaceStatus.includes(ui.workspaceStatus))) return false
   if (selector.hasProjectId !== undefined && (ui.projectId !== undefined) !== selector.hasProjectId) return false
   if (selector.hasProductionId !== undefined && (ui.productionId !== undefined) !== selector.hasProductionId) return false
   if (selector.custom) {

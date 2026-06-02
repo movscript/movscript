@@ -27,6 +27,14 @@
   resize: none;
 }
 
+.script-create-form__upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ms-space-2);
+  margin-bottom: var(--ms-space-2);
+}
+
 .script-create-form__actions {
   display: flex;
   gap: var(--ms-space-2);

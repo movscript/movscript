@@ -5,21 +5,21 @@ interface PreProductionRefreshQueryClient {
 interface RefreshPreProductionWorkbenchContextInput {
   projectId?: number
   queryClient: PreProductionRefreshQueryClient
-  refetchSettingDrafts?: () => Promise<unknown>
-  refetchAssetProposalDrafts?: () => Promise<unknown>
+  refetchSettingWorkspaces?: () => Promise<unknown>
+  refetchAssetWorkspaceWorkspaces?: () => Promise<unknown>
 }
 
 export async function refreshPreProductionWorkbenchContext({
   projectId,
   queryClient,
-  refetchSettingDrafts,
-  refetchAssetProposalDrafts,
+  refetchSettingWorkspaces,
+  refetchAssetWorkspaceWorkspaces,
 }: RefreshPreProductionWorkbenchContextInput) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
     queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
-    refetchSettingDrafts?.(),
-    refetchAssetProposalDrafts?.(),
+    refetchSettingWorkspaces?.(),
+    refetchAssetWorkspaceWorkspaces?.(),
   ])
 }

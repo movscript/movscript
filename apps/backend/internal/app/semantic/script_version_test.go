@@ -103,7 +103,7 @@ func TestCreateScriptVersionAcceptsParentFromSameScript(t *testing.T) {
 		ScriptID:        script.ID,
 		ParentVersionID: &version.ID,
 		Title:           "Pilot revised",
-		Content:         "Revised draft",
+		Content:         "Revised workspace",
 		Status:          "active",
 	}, nil)
 	if err != nil {

@@ -1,6 +1,5 @@
 import { dedupeAttachments } from '@/features/agent/domain/agentAttachments'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
-import { hideGeneratedResultTechnicalSummary, outputResourceIdsFromText } from '@/features/agent/domain/agentMessageViewModel'
 import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
 import type { AgentAttachment, ChatMessage } from '@/features/agent/state/agentStore'
@@ -10,7 +9,7 @@ type ChatMessageMeta = NonNullable<ChatMessage['meta']>
 export interface AgentMessagePresentation {
   contextDiagnostic?: ChatMessageMeta['contextDiagnostic']
   contextLabels: string[]
-  draftArtifacts: NonNullable<ChatMessageMeta['draftArtifacts']>
+  workspaceArtifacts: NonNullable<ChatMessageMeta['workspaceArtifacts']>
   isUser: boolean
   generationJobs: NonNullable<ChatMessageMeta['generationJobs']>
   generationParamAudits: NonNullable<ChatMessageMeta['generationParamAudits']>
@@ -27,20 +26,13 @@ export interface AgentMessagePresentation {
   hasResultSection: boolean
   hasProcessSection: boolean
   hasDiagnosticSection: boolean
-  missingTextOutputResourceIds: number[]
 }
 
 export function buildAgentMessagePresentation(
   msg: ChatMessage,
-  historicalGeneratedAttachments: AgentAttachment[] = [],
 ): AgentMessagePresentation {
   const isUser = msg.role === 'user'
-  const textOutputResourceIds = outputResourceIdsFromText(msg.content)
-  const existingResourceIds = new Set((msg.attachments ?? [])
-    .map((attachment) => attachment.resourceId)
-    .filter((id): id is number => id !== undefined))
-  const missingTextOutputResourceIds = textOutputResourceIds.filter((id) => !existingResourceIds.has(id))
-  const messageAttachments = dedupeAttachments([...(msg.attachments ?? []), ...historicalGeneratedAttachments])
+  const messageAttachments = dedupeAttachments(msg.attachments ?? [])
   const mediaAttachments = messageAttachments.filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
   const generatedMediaAttachments = mediaAttachments.filter(isGeneratedResultAttachment)
   const nonGeneratedMediaAttachments = mediaAttachments.filter((attachment) => !isGeneratedResultAttachment(attachment))
@@ -49,7 +41,7 @@ export function buildAgentMessagePresentation(
   const hasUsableGeneratedResource = generatedMediaAttachments.some((attachment) => attachment.resourceId !== undefined)
   const compactAttachments = showLargeMedia ? [...nonGeneratedMediaAttachments, ...otherAttachments] : messageAttachments
   const contextDiagnostic = !isUser ? msg.meta?.contextDiagnostic : undefined
-  const draftArtifacts = !isUser ? msg.meta?.draftArtifacts ?? [] : []
+  const workspaceArtifacts = !isUser ? msg.meta?.workspaceArtifacts ?? [] : []
   const generationJobs = !isUser ? msg.meta?.generationJobs ?? [] : []
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
@@ -57,7 +49,7 @@ export function buildAgentMessagePresentation(
   const runtimeStatus = !isUser ? runtimeStatusMessageFromRunActivity({ runtimeStatus: msg.meta?.runtimeStatus, activity: localRunActivity, generationJobs }) : undefined
   const rawDisplayContent = contextDiagnostic
     ? ''
-    : showLargeMedia && hasUsableGeneratedResource ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+    : !isUser ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
   const displayContent = !isUser && runtimeStatus && isRuntimeEmptyAssistantPlaceholder(visibleContent)
     ? ''
@@ -68,7 +60,7 @@ export function buildAgentMessagePresentation(
   const hasResultSection = !isUser && (
     showLargeMedia
     || compactAttachments.length > 0
-    || draftArtifacts.length > 0
+    || workspaceArtifacts.length > 0
   )
   const hasProcessSection = !isUser && (
     !!localRunActivity
@@ -82,7 +74,7 @@ export function buildAgentMessagePresentation(
   return {
     contextDiagnostic,
     contextLabels: visibleContextLabels(msg.meta?.contextLabels ?? [], isUser),
-    draftArtifacts,
+    workspaceArtifacts,
     isUser,
     generationJobs,
     generationParamAudits,
@@ -99,8 +91,17 @@ export function buildAgentMessagePresentation(
     hasResultSection,
     hasProcessSection,
     hasDiagnosticSection,
-    missingTextOutputResourceIds,
   }
+}
+
+export function hideGeneratedResultTechnicalSummary(text: string): string {
+  const hiddenLine = /^(?:Command:\s*\/(?:image|video)\b.*|Run:\s*\S+|Thread:\s*\S+|Job\s+#\d+|Status:\s*\S+|Output resources?:\s*#?\d+(?:\s*,\s*#?\d+)*)\s*$/i
+  return text
+    .split('\n')
+    .filter((line) => !hiddenLine.test(line.trim()))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function visibleContextLabels(labels: string[], isUser: boolean): string[] {

@@ -415,7 +415,7 @@ func TestCompleteWorkItemAcceptsCurrentKeyframeWithoutCandidate(t *testing.T) {
 		ProjectID:   1,
 		Title:       "Hero frame",
 		Description: "approved composition",
-		Status:      "draft",
+		Status:      "workspace",
 	}
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&target).Error; err != nil {
 		t.Fatalf("create target keyframe: %v", err)

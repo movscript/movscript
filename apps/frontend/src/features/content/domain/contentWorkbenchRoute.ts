@@ -1,13 +1,13 @@
 export function buildContentWorkbenchRouteSearch(input: {
   sceneMomentId?: number | null
   contentUnitId?: number | null
-  draftId?: string | null
+  workspaceId?: string | null
   view?: string | null
 }): string {
   const params = new URLSearchParams()
   if (input.sceneMomentId && input.sceneMomentId > 0) params.set('scene_moment_id', String(input.sceneMomentId))
   if (input.contentUnitId && input.contentUnitId > 0) params.set('content_unit_id', String(input.contentUnitId))
-  if (input.draftId) params.set('draftId', input.draftId)
+  if (input.workspaceId) params.set('workspaceId', input.workspaceId)
   if (input.view) params.set('view', input.view)
   const value = params.toString()
   return value ? `?${value}` : ''

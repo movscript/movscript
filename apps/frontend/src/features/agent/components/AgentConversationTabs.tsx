@@ -35,7 +35,7 @@ export function AgentConversationTabs({
     return {
       id: item.id,
       title: conversationDisplayTitle(item, t),
-      messageCount: item.messages.length,
+      messageCount: item.messages.length > 0 ? item.messages.length : undefined,
       runtimeState: runtimeStatusLight?.state,
       runtimeDetail: runtimeStatusLight?.detail,
     }

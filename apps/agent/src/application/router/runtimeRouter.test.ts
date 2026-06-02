@@ -9,16 +9,17 @@ import { FileAgentStore } from '../../state/store/file/fileStore.js'
 import { InMemoryAgentStore } from '../../state/store/core/store.js'
 import { buildAgentToolResultRecord, FileAgentToolResultStore, InMemoryAgentToolResultStore } from '../../state/store/tool-results/toolResultStore.js'
 import { buildModelToolResultContext } from '../../context/tool-result/toolResultContext.js'
-import { FileAgentDraftStore, InMemoryAgentDraftStore, validateDraft } from '../../drafts/store/draftStore.js'
+import { FileAgentWorkspaceStore, InMemoryAgentWorkspaceStore, validateWorkspace } from '../../workspaces/store/workspaceStore.js'
 import { InMemoryAgentMemoryStore } from '../../memory/store/in-memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from '../../catalog/manifest/agentManifest.js'
-import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from '../../drafts/adapters/backend/backendApplyClient.js'
-import type { ApplyDraftReview } from '../../drafts/apply/draftApply.js'
+import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from '../../workspaces/adapters/backend/backendApplyClient.js'
+import type { ApplyWorkspaceReview } from '../../workspaces/apply/workspaceApply.js'
 import { InMemoryAgentCatalogStateStore } from '../../catalog/registry/state/catalogState.js'
 import { loadAgentPluginCatalog } from '../../catalog/loading/core/loader.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../../tools/registry/core/toolRegistry.js'
 import { normalizeClientInput } from '../../context/input/client/normalizeClientInput.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
+import { InMemoryReferenceStore, ReferenceManager } from '../../reference/index.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -28,6 +29,33 @@ const WRITE_AGENT_MANIFEST = {
     ...DEFAULT_AGENT_MANIFEST.tools,
     { name: 'movscript_project_create', mode: 'allow' as const, approval: 'always' as const },
   ],
+}
+
+const storyboardRhythmContent = '分镜节奏基础正文。短剧内容单元需要明确节拍、转折和信息递进，避免每个镜头只重复同一个动作。每个镜头都要承担叙事推进、情绪变化或空间交代的至少一个任务，并在下一镜头产生可感知的变化。'
+
+function createTestReferenceManager(): ReferenceManager {
+  return new ReferenceManager(new InMemoryReferenceStore({
+    referenceSets: [{
+      id: 'film.reference.storyboard',
+      version: '1.0.0',
+      domain: 'storyboard',
+      name: 'Storyboard Test Reference',
+      tags: ['test'],
+      chunkIds: ['storyboard.rhythm.basic'],
+    }],
+    chunks: [{
+      id: 'storyboard.rhythm.basic',
+      localReferenceSetId: 'film.reference.storyboard',
+      domain: 'storyboard',
+      title: '分镜节奏基础',
+      tags: ['rhythm'],
+      summary: '用于测试分镜节奏参考搜索和读取。',
+      content: storyboardRhythmContent,
+      sourcePath: '/test/reference/storyboard/rhythm.md',
+      contentHash: 'sha256:rhythm',
+      charCount: storyboardRhythmContent.length,
+    }],
+  }))
 }
 
 // Install a default model config so executeRun() can find one
@@ -142,12 +170,12 @@ function installDefaultModelFetch(): void {
         },
       })
     }
-    if (/草稿|draft/i.test(userMsg) && !/应用|apply/i.test(userMsg) && toolNames.has('draft_create')) {
-      const draftContent = JSON.stringify({
-        schema: DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal,
-        scope: 'content_unit_proposal',
+    if (/工作区|workspace/i.test(userMsg) && !/应用|apply/i.test(userMsg) && toolNames.has('workspace_create')) {
+      const workspaceContent = JSON.stringify({
+        schema: WORKSPACE_CONTENT_SCHEMA_IDS.contentUnitWorkspace,
+        scope: 'content_unit_workspace',
         productionId: 4,
-        proposal: {
+        workspace: {
           units: [{
             title: '测试内容单元',
             kind: 'shot',
@@ -157,7 +185,7 @@ function installDefaultModelFetch(): void {
           }],
         },
       })
-      callsToMake.push({ id: 'call_draft_1', name: 'draft_create', args: { kind: 'content_unit_proposal', title: '草稿', content: draftContent, ...(projectId !== undefined ? { projectId } : {}) } })
+      callsToMake.push({ id: 'call_workspace_1', name: 'workspace_create', args: { kind: 'content_unit_workspace', title: '工作区', content: workspaceContent, ...(projectId !== undefined ? { projectId } : {}) } })
     }
     if (/按模型能力|model contract/i.test(userMsg) && toolNames.has('generation_model_list')) {
       callsToMake.push({
@@ -358,8 +386,8 @@ class FakeMCPClient {
 }
 
 class FakeBackendApplyClient extends BackendApplyClient {
-  readonly calls: Array<{ review: ApplyDraftReview; auth?: BackendApplyAuthContext }> = []
-  readonly previewCalls: Array<{ review: ApplyDraftReview; auth?: BackendApplyAuthContext }> = []
+  readonly calls: Array<{ review: ApplyWorkspaceReview; auth?: BackendApplyAuthContext }> = []
+  readonly previewCalls: Array<{ review: ApplyWorkspaceReview; auth?: BackendApplyAuthContext }> = []
   result: BackendApplyResult = {
     performed: true,
     method: 'PATCH',
@@ -371,12 +399,12 @@ class FakeBackendApplyClient extends BackendApplyClient {
     return true
   }
 
-  override async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+  override async applyReview(review: ApplyWorkspaceReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     this.calls.push({ review, auth })
     return this.result
   }
 
-  override async previewApplyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+  override async previewApplyReview(review: ApplyWorkspaceReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     this.previewCalls.push({ review, auth })
     return {
       ...this.result,
@@ -559,17 +587,17 @@ test('interrupted run resume reuses file-backed tool result projection after run
   }
 })
 
-test('proposal-first draft requests create local agent drafts without backend writes', async () => {
+test('workspace-first workspace requests create local agent workspaces without backend writes', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个工作区' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id)
 
   assert.equal(run.status, 'completed')
-  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
-  assert.equal(client.calls.some((call) => call.name === 'draft_create'), false)
+  assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 1)
+  assert.equal(client.calls.some((call) => call.name === 'workspace_create'), false)
 })
 
 test('previews taskGraph and policy without creating a run or executing planned tools', async () => {
@@ -704,9 +732,9 @@ test('preview activates only triggered layered skills instead of loading every c
   const skillIds = preview.skills?.map((skill) => skill.id) ?? []
   assert.ok(skillIds.includes('core.base.default'))
   assert.ok(skillIds.includes('core.rules.runtime'))
-  assert.equal(skillIds.includes('draft.rules.lifecycle'), false)
+  assert.equal(skillIds.includes('workspace.rules.lifecycle'), false)
   assert.equal(skillIds.includes('movscript.rules.workspace'), false)
-  assert.equal(skillIds.includes('movscript.project_standards_proposal'), false)
+  assert.equal(skillIds.includes('movscript.project_standards_workspace'), false)
   assert.equal(skillIds.includes('generation.visual_execution'), false)
   assert.deepEqual(preview.debug?.layerTrace?.skillIds, ['core.base.default', 'core.rules.runtime'])
   assert.equal(preview.debug?.layerTrace?.configFileId, 'movscript.config_file.base')
@@ -720,7 +748,7 @@ test('preview debug explains selected task trigger reasons', async () => {
 
   const preview = await runtime.previewRun({
     clientInput: {
-      message: '请帮我做项目规范提案',
+      message: '请帮我做项目规范工作区',
       uiSnapshot: {
         route: { pathname: '/projects/42' },
         project: { id: 42, name: 'Test Project' },
@@ -729,46 +757,46 @@ test('preview debug explains selected task trigger reasons', async () => {
   })
 
   const triggers = preview.debug?.layerTrace?.triggerTraces ?? []
-  const selected = triggers.find((trigger) => trigger.id === 'movscript.project_standards_proposal')
-  assert.equal(preview.debug?.layerTrace?.skillIds.includes('movscript.project_standards_proposal'), true)
+  const selected = triggers.find((trigger) => trigger.id === 'movscript.project_standards_workspace')
+  assert.equal(preview.debug?.layerTrace?.skillIds.includes('movscript.project_standards_workspace'), true)
   assert.equal(selected?.selected, true)
   assert.equal(selected?.matched, true)
   assert.ok(selected?.reason.startsWith('selected:'))
-  assert.deepEqual(preview.debug?.layerTrace?.intentSignals?.find((signal) => signal.intent === 'project_standards_proposal'), {
-    intent: 'project_standards_proposal',
+  assert.deepEqual(preview.debug?.layerTrace?.intentSignals?.find((signal) => signal.intent === 'project_standards_workspace'), {
+    intent: 'project_standards_workspace',
     source: 'keyword_fallback',
     confidence: 'low',
-    evidence: 'keyword:项目规范提案',
+    evidence: 'keyword:项目规范工作区',
   })
 })
 
-test('normalizeClientInput preserves top-level draft id', () => {
+test('normalizeClientInput preserves top-level workspace id', () => {
   const normalized = normalizeClientInput({
-    message: '请继续使用当前草稿',
+    message: '请继续使用当前工作区',
     uiSnapshot: {
-      draftId: 'draft_123',
+      workspaceId: 'workspace_123',
       pageContext: {
-        draftId: 'draft_123',
+        workspaceId: 'workspace_123',
       },
     },
   })
 
-  assert.equal(normalized?.uiSnapshot?.draftId, 'draft_123')
-  assert.equal(normalized?.uiSnapshot?.pageContext?.draftId, 'draft_123')
+  assert.equal(normalized?.uiSnapshot?.workspaceId, 'workspace_123')
+  assert.equal(normalized?.uiSnapshot?.pageContext?.workspaceId, 'workspace_123')
 })
 
-test('agentic loop does not emit draft tool calls without a page-owned draft shell', async () => {
+test('agentic loop does not emit workspace tool calls without a page-owned workspace shell', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个工作区' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id)
 
   assert.equal(run.status, 'completed')
-  assert.ok(run.steps.some((step) => step.toolName === 'draft_create' && step.status === 'completed'))
+  assert.ok(run.steps.some((step) => step.toolName === 'workspace_create' && step.status === 'completed'))
   assert.equal(run.steps.some((step: any) => step.type === 'planning' || step.type === 'subagent'), false)
-  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
+  assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 1)
 })
 
 test('capabilities distinguish available and blocked tools', async () => {
@@ -787,41 +815,41 @@ test('capabilities distinguish available and blocked tools', async () => {
 
   assert.equal(capabilities.mcp.connected, true)
   assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript_project_create'))
-  assert.equal(capabilities.resolvedTools.byName['draft_create']?.available, false)
+  assert.equal(capabilities.resolvedTools.byName['workspace_create']?.available, false)
   assert.ok(capabilities.pluginCatalog?.metadata?.mcpPacks)
   assert.ok(capabilities.registry.some((tool) => tool.name === 'mcp__default__studio_render' && tool.source === 'mcp'))
 })
 
-test('runtime draft tools are available without MCP tool discovery except removed listing', async () => {
+test('runtime workspace tools are available without MCP tool discovery except removed listing', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
 
   const capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
 
-  assert.equal(capabilities.resolvedTools.byName['draft_apply_preview']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['workspace_apply_preview']?.available, true)
   assert.equal(capabilities.resolvedTools.byName.core_file_edit?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts'], undefined)
-  assert.equal(capabilities.resolvedTools.byName['draft_create']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_list_workspaces'], undefined)
+  assert.equal(capabilities.resolvedTools.byName['workspace_create']?.available, true)
 })
 
-test('runtime validates script split draft content edited through the real file', async () => {
+test('runtime validates script split workspace content edited through the real file', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-drafts-'))
-  const draftStore = new FileAgentDraftStore(join(dir, 'drafts.json'))
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请细化草稿' }] })
-  const draft = draftStore.createDraft({
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-workspaces-'))
+  const workspaceStore = new FileAgentWorkspaceStore(join(dir, 'workspaces.json'))
+  const runtime = createTestRuntime({ mcpClient: client, workspaceStore })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请细化工作区' }] })
+  const workspace = workspaceStore.createWorkspace({
     projectId: 42,
-    kind: 'production_proposal',
-    title: '剧本拆分草稿',
+    kind: 'production_workspace',
+    title: '剧本拆分工作区',
     target: { projectId: 42, entityType: 'production', entityId: 7 },
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
       productionId: 7,
       mode: 'snapshot',
-      proposal: {
+      workspace: {
         segments: [{
           title: '第一段',
           summary: '旧摘要',
@@ -836,32 +864,32 @@ test('runtime validates script split draft content edited through the real file'
   })
 
   try {
-    const edited = JSON.parse(readFileSync(draft.filePath ?? '', 'utf8')) as {
-      proposal?: { segments?: Array<{ summary?: string }> }
+    const edited = JSON.parse(readFileSync(workspace.filePath ?? '', 'utf8')) as {
+      workspace?: { segments?: Array<{ summary?: string }> }
     }
-    if (edited.proposal?.segments?.[0]) edited.proposal.segments[0].summary = '新摘要'
-    writeFileSync(draft.filePath ?? '', JSON.stringify(edited, null, 2), 'utf8')
+    if (edited.workspace?.segments?.[0]) edited.workspace.segments[0].summary = '新摘要'
+    writeFileSync(workspace.filePath ?? '', JSON.stringify(edited, null, 2), 'utf8')
 
     const editRun = runtime.createToolRun({
       threadId: thread.id,
-      title: 'Preview draft',
-      message: 'Preview draft',
+      title: 'Preview workspace',
+      message: 'Preview workspace',
       toolCall: {
-        name: 'draft_apply_preview',
+        name: 'workspace_apply_preview',
         args: {
-          draftId: draft.id,
+          workspaceId: workspace.id,
         },
       },
     })
     const completed = await waitForRun(runtime, editRun.id)
-    const updated = runtime.getDraft(draft.id)
-    const parsed = JSON.parse(updated?.content ?? '{}') as { proposal?: { segments?: Array<{ summary?: string }> } }
-    const validation = updated ? validateDraft(updated) : undefined
+    const updated = runtime.getWorkspace(workspace.id)
+    const parsed = JSON.parse(updated?.content ?? '{}') as { workspace?: { segments?: Array<{ summary?: string }> } }
+    const validation = updated ? validateWorkspace(updated) : undefined
 
     assert.equal(completed.status, 'completed')
-    assert.equal(parsed.proposal?.segments?.[0]?.summary, '新摘要')
+    assert.equal(parsed.workspace?.segments?.[0]?.summary, '新摘要')
     assert.equal(validation?.ok, true)
-    assert.equal(client.calls.some((call) => call.name === 'draft_apply_preview'), false)
+    assert.equal(client.calls.some((call) => call.name === 'workspace_apply_preview'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -922,34 +950,34 @@ test('explicit write agent can create_project without a current project after ap
   assert.ok((toolStep?.durationMs ?? -1) >= 0)
 })
 
-test('worker completion records reversible rollback artifacts for local draft side effects', async () => {
+test('worker completion records reversible rollback artifacts for local workspace side effects', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const agentManifest = {
     ...DEFAULT_AGENT_MANIFEST,
     tools: [
       ...DEFAULT_AGENT_MANIFEST.tools,
-      { name: 'draft_create', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'workspace_create', mode: 'allow' as const, approval: 'never' as const },
     ],
   }
   const runtime = createTestRuntime({
     mcpClient: client,
     activeAgentManifest: agentManifest,
     toolRegistry: new StaticToolRegistry([{
-      name: 'draft_create',
-      description: 'Create a local review draft.',
-      permission: 'draft.write',
-      risk: 'draft',
+      name: 'workspace_create',
+      description: 'Create a local review workspace.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       source: 'runtime',
       projectScoped: false,
       requiresApprovalByDefault: false,
     }]),
   })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个工作区' }] })
   const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
-    title: 'Draft rollback rollout',
-    tasks: [{ id: 'task_draft', title: 'Create draft' }],
+    title: 'Workspace rollback rollout',
+    tasks: [{ id: 'task_workspace', title: 'Create workspace' }],
   })
   const planner = await createAndWaitForRun(runtime, thread.id, {
     role: 'planner',
@@ -962,22 +990,22 @@ test('worker completion records reversible rollback artifacts for local draft si
     role: 'worker',
     parentRunId: planner.id,
     taskGraphId: taskGraph.taskGraph.id,
-    taskId: 'task_draft',
+    taskId: 'task_workspace',
     toolCall: {
-      name: 'draft_create',
+      name: 'workspace_create',
       args: {
-        kind: 'content_unit_proposal',
-        title: '草稿',
+        kind: 'content_unit_workspace',
+        title: '工作区',
         productionId: 4,
         content: JSON.stringify({
-          schema: DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal,
-          scope: 'content_unit_proposal',
+          schema: WORKSPACE_CONTENT_SCHEMA_IDS.contentUnitWorkspace,
+          scope: 'content_unit_workspace',
           productionId: 4,
-          proposal: {
+          workspace: {
             units: [{
               title: '测试内容单元',
               kind: 'shot',
-              description: '用户请求：请创建一个草稿',
+              description: '用户请求：请创建一个工作区',
             }],
           },
         }),
@@ -985,7 +1013,7 @@ test('worker completion records reversible rollback artifacts for local draft si
       },
     },
   })
-  runtime.updateTask('task_draft', {
+  runtime.updateTask('task_workspace', {
     status: 'running',
     ownerRunId: workerRun.id,
   })
@@ -994,25 +1022,25 @@ test('worker completion records reversible rollback artifacts for local draft si
 
   assert.ok(worker.status === 'completed' || worker.status === 'completed_with_warnings')
   assertRunTraceEventTypes(runtime, worker.id, ['rollback_policy'])
-  const task = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((item) => item.id === 'task_draft')
+  const task = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((item) => item.id === 'task_workspace')
   const completionArtifact = task?.artifacts.find((artifact) => artifact.type === 'run' && artifact.uri === `agent-run:${worker.id}`)
-  const rollbackArtifact = task?.artifacts.find((artifact) => artifact.type === 'rollback-policy' && artifact.uri?.startsWith('agent-draft:'))
+  const rollbackArtifact = task?.artifacts.find((artifact) => artifact.type === 'rollback-policy' && artifact.uri?.startsWith('agent-workspace:'))
   assert.equal(completionArtifact?.metadata?.createdFrom, 'worker_completion')
   assert.equal(completionArtifact?.metadata?.sourceRunId, worker.id)
-  assert.equal(completionArtifact?.metadata?.sourceTaskId, 'task_draft')
+  assert.equal(completionArtifact?.metadata?.sourceTaskId, 'task_workspace')
   assert.equal(completionArtifact?.metadata?.sourceRunRole, 'worker')
   assert.equal(rollbackArtifact?.metadata?.createdFrom, 'rollback_policy')
   assert.equal(typeof rollbackArtifact?.metadata?.sourceRunId, 'string')
   assert.ok(runtime.getRun(String(rollbackArtifact?.metadata?.sourceRunId)))
   assert.equal(rollbackArtifact?.metadata?.taskGraphId, taskGraph.taskGraph.id)
-  assert.equal(rollbackArtifact?.metadata?.toolName, 'draft_create')
+  assert.equal(rollbackArtifact?.metadata?.toolName, 'workspace_create')
 })
 
 test('run agentManifest limits tool execution', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个工作区' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: {
@@ -1022,7 +1050,7 @@ test('run agentManifest limits tool execution', async () => {
   })
 
   assert.equal(run.status, 'completed')
-  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
+  assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 0)
   assert.deepEqual(run.agentManifest?.tools, [{ name: 'movscript_script_locate', mode: 'allow', approval: 'never' }])
 })
 
@@ -1046,7 +1074,7 @@ test('run requiring approval pauses before tool execution and resumes after appr
 
   assert.ok(resumed.status === 'completed' || resumed.status === 'completed_with_warnings')
   assert.equal(projectCall?.args.name, '测试项目')
-  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
+  assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 0)
   assert.equal(resumed.pendingApprovals?.[0].status, 'approved')
   assertRunTraceEventTypes(runtime, resumed.id, ['approval.resolved'])
   assert.equal(findTraceEventByEventType(runtime, resumed.id, 'approval.resolved')?.data?.outcome, 'approved')
@@ -1210,45 +1238,45 @@ test('cancelling an already finished run returns the current run', async () => {
   assert.equal(cancelled.status, 'completed')
 })
 
-test('agent does not apply drafts as a model-visible tool', async () => {
+test('agent does not apply workspaces as a model-visible tool', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit_workspace',
     title: 'Content unit update',
     content: 'New content-unit description',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
   })
   const thread = runtime.createThread({
-    messages: [{ role: 'user', content: `请应用草稿 ${draft.id} 到 content_unit #7 字段 description` }],
+    messages: [{ role: 'user', content: `请应用工作区 ${workspace.id} 到 content_unit #7 字段 description` }],
   })
 
   const run = await createAndWaitForRun(runtime, thread.id, { agentManifest: WRITE_AGENT_MANIFEST })
 
   assert.equal(run.status, 'completed')
   assert.equal(run.pendingApprovals?.length ?? 0, 0)
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(runtime.getWorkspace(workspace.id)?.status, 'workspace')
   assert.equal(backendApplyClient.calls.length, 0)
 })
 
-test('UI apply_draft API applies current draft without creating an agent approval run', async () => {
+test('UI apply_workspace API applies current workspace without creating an agent approval run', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit_workspace',
     title: 'Content unit update',
     content: 'New content-unit description',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
   })
 
-  const applied = await runtime.applyDraftFromUI({
-    draftId: draft.id,
+  const applied = await runtime.applyWorkspaceFromUI({
+    workspaceId: workspace.id,
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
     currentValue: 'Old content-unit description',
     proposedValue: 'New content-unit description',
@@ -1256,44 +1284,44 @@ test('UI apply_draft API applies current draft without creating an agent approva
 
   assert.equal(applied.status, 'applied')
   assert.equal(applied.review.currentValue, 'Old content-unit description')
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
-  assert.equal(runtime.getDraft(draft.id)?.metadata?.lastApplyStatus, 'applied')
-  assert.equal((runtime.getDraft(draft.id)?.metadata?.applyReview as any)?.requiresBackendApply, true)
-  assert.equal(runtime.getDraft(draft.id)?.metadata?.backendWritePerformed, true)
-  assert.equal((runtime.getDraft(draft.id)?.metadata?.backendApply as any)?.method, 'PATCH')
+  assert.equal(runtime.getWorkspace(workspace.id)?.status, 'workspace')
+  assert.equal(runtime.getWorkspace(workspace.id)?.metadata?.lastApplyStatus, 'applied')
+  assert.equal((runtime.getWorkspace(workspace.id)?.metadata?.applyReview as any)?.requiresBackendApply, true)
+  assert.equal(runtime.getWorkspace(workspace.id)?.metadata?.backendWritePerformed, true)
+  assert.equal((runtime.getWorkspace(workspace.id)?.metadata?.backendApply as any)?.method, 'PATCH')
   assert.equal(backendApplyClient.calls.length, 1)
   assert.equal(runtime.listRuns().length, 0)
 
-  runtime.updateDraft({
-    draftId: draft.id,
+  runtime.updateWorkspace({
+    workspaceId: workspace.id,
     content: 'Revised content-unit description',
   })
-  const appliedAgain = await runtime.applyDraftFromUI({
-    draftId: draft.id,
+  const appliedAgain = await runtime.applyWorkspaceFromUI({
+    workspaceId: workspace.id,
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
     currentValue: 'New content-unit description',
     proposedValue: 'Revised content-unit description',
   }) as any
 
   assert.equal(appliedAgain.status, 'applied')
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(runtime.getWorkspace(workspace.id)?.status, 'workspace')
   assert.equal(backendApplyClient.calls.length, 2)
 })
 
-test('UI apply_draft API passes explicit user id to backend apply client', async () => {
+test('UI apply_workspace API passes explicit user id to backend apply client', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit_workspace',
     title: 'Content unit update',
     content: 'New content-unit description',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
   })
-  await runtime.applyDraftFromUI({
-    draftId: draft.id,
+  await runtime.applyWorkspaceFromUI({
+    workspaceId: workspace.id,
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
     appliedByUserId: 9,
   })
@@ -1301,17 +1329,17 @@ test('UI apply_draft API passes explicit user id to backend apply client', async
   assert.equal(backendApplyClient.calls[0].auth?.userId, 9)
 })
 
-test('apply_draft preview API returns before and after values', () => {
+test('apply_workspace preview API returns before and after values', () => {
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'project_standards_proposal',
+    kind: 'project_standards_workspace',
     title: 'Script update',
     content: 'Updated script text',
   })
 
-  const preview = runtime.previewApplyDraft({
-    draftId: draft.id,
+  const preview = runtime.previewApplyWorkspace({
+    workspaceId: workspace.id,
     targetEntityType: 'script',
     targetEntityId: 3,
     targetField: 'content',
@@ -1324,19 +1352,19 @@ test('apply_draft preview API returns before and after values', () => {
   assert.equal(preview.review.risk, 'write')
 })
 
-test('simulateApplyDraft dry-runs backend apply without marking draft applied', async () => {
+test('simulateApplyWorkspace dry-runs backend apply without marking workspace applied', async () => {
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient(), backendApplyClient })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'project_standards_proposal',
-    title: 'Project standards proposal',
+    kind: 'project_standards_workspace',
+    title: 'Project standards workspace',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
-      scope: 'project_standards_proposal',
+      schema: WORKSPACE_CONTENT_SCHEMA_IDS.projectStandardsWorkspace,
+      scope: 'project_standards_workspace',
       mode: 'snapshot',
       summary: 'Project-level style standards.',
-      proposal: {
+      workspace: {
         project_style: {
           aspect_ratio: '9:16',
           shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
@@ -1347,30 +1375,30 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
       impact_notes: [],
       createdAt: '2026-05-08T00:00:00.000Z',
     }),
-    target: { projectId: 42, entityType: 'project', entityId: 42, field: 'proposal' },
+    target: { projectId: 42, entityType: 'project', entityId: 42, field: 'workspace' },
   })
 
-  const result = await runtime.simulateApplyDraft({ draftId: draft.id }) as any
+  const result = await runtime.simulateApplyWorkspace({ workspaceId: workspace.id }) as any
 
   assert.equal(result.ok, true)
   assert.equal(result.backendApply.response.dry_run, true)
   assert.equal(backendApplyClient.previewCalls.length, 1)
   assert.equal(backendApplyClient.calls.length, 0)
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(runtime.getWorkspace(workspace.id)?.status, 'workspace')
 })
 
-test('rejectDraft records review rejection without closing local draft', () => {
+test('rejectWorkspace records review rejection without closing local workspace', () => {
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
-  const draft = runtime.createLocalDraft({
+  const workspace = runtime.createLocalWorkspace({
     projectId: 42,
-    kind: 'project_standards_proposal',
+    kind: 'project_standards_workspace',
     title: 'Reject me',
     content: 'Not useful',
   })
 
-  const rejected = runtime.rejectDraft({ draftId: draft.id, reason: 'out of scope' })
+  const rejected = runtime.rejectWorkspace({ workspaceId: workspace.id, reason: 'out of scope' })
 
-  assert.equal(rejected.status, 'draft')
+  assert.equal(rejected.status, 'workspace')
   assert.equal(rejected.rejectedReason, 'out of scope')
   assert.equal(rejected.metadata?.lastReviewStatus, 'rejected')
 })
@@ -1411,7 +1439,7 @@ test('persists threads, messages, runs, and steps across runtime rebuilds', asyn
     const store = new FileAgentStore(statePath)
     const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ title: 'Persistent thread' })
-    runtime.addMessage(thread.id, { role: 'user', content: '帮我写一个镜头草稿' })
+    runtime.addMessage(thread.id, { role: 'user', content: '帮我写一个镜头工作区' })
     const run = await createAndWaitForRun(runtime, thread.id)
     store.flush()
 
@@ -1793,12 +1821,12 @@ test('completed runs persist thread context summaries and reuse refs in later pr
           }],
         }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      return new Response(JSON.stringify({ choices: [{ message: { content: toolMessages.length > 0 ? '已完成分镜缺口审阅。' : '好的，继续。' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify({ choices: [{ message: { content: toolMessages.length > 0 ? '已完成分镜缺口检查。' : '好的，继续。' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as typeof fetch
 
     const client = new FakeMCPClient()
     client.projectId = 42
-    const runtime = createTestRuntime({ mcpClient: client })
+    const runtime = createTestRuntime({ mcpClient: client, referenceManager: createTestReferenceManager() })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '检查分镜缺口' }] })
     const firstRun = await createAndWaitForRun(runtime, thread.id)
     const afterFirst = runtime.getThread(thread.id)
@@ -1837,7 +1865,7 @@ test('completed runs persist thread context summaries and reuse refs in later pr
   }
 })
 
-test('content unit storyboard proposal searches reference and creates a proposal draft', async () => {
+test('content unit storyboard workspace searches reference and creates a workspace workspace', async () => {
   const originalFetch = globalThis.fetch
   try {
     globalThis.fetch = (async (_url, init) => {
@@ -1851,7 +1879,7 @@ test('content unit storyboard proposal searches reference and creates a proposal
       const toolMessages = messages.filter((m) => m.role === 'tool')
       const tools = (body.tools as Array<{ function: { name: string } }>) ?? []
       const toolNames = new Set(tools.map((t) => t.function.name))
-      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 0 && toolNames.has('reference_search')) {
+      if (/内容单元分镜 workspace/.test(userMsg) && toolMessages.length === 0 && toolNames.has('reference_search')) {
         return new Response(JSON.stringify({
           choices: [{
             message: {
@@ -1866,7 +1894,7 @@ test('content unit storyboard proposal searches reference and creates a proposal
           }],
         }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 1 && toolNames.has('reference_get')) {
+      if (/内容单元分镜 workspace/.test(userMsg) && toolMessages.length === 1 && toolNames.has('reference_get')) {
         return new Response(JSON.stringify({
           choices: [{
             message: {
@@ -1881,27 +1909,27 @@ test('content unit storyboard proposal searches reference and creates a proposal
           }],
         }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 2 && toolNames.has('draft_create')) {
+      if (/内容单元分镜 workspace/.test(userMsg) && toolMessages.length === 2 && toolNames.has('workspace_create')) {
         return new Response(JSON.stringify({
           choices: [{
             message: {
               content: null,
               tool_calls: [{
-                id: 'call_create_content_unit_proposal',
+                id: 'call_create_content_unit_workspace',
                 type: 'function',
                 function: {
-                  name: 'draft_create',
+                  name: 'workspace_create',
                   arguments: JSON.stringify({
-                    proposal: true,
-                    kind: 'content_unit_proposal',
-                    title: '内容单元分镜 proposal',
+                    workspace: true,
+                    kind: 'content_unit_workspace',
+                    title: '内容单元分镜 workspace',
                     projectId: 42,
                     productionId: 4,
                     content: JSON.stringify({
-                      schema: 'movscript.content_unit_proposal.v1',
-                      scope: 'content_unit_proposal',
+                      schema: 'movscript.content_unit_workspace.v1',
+                      scope: 'content_unit_workspace',
                       productionId: 4,
-                      proposal: {
+                      workspace: {
                         units: [{
                           title: '雨夜开场推进',
                           kind: 'shot',
@@ -1914,7 +1942,7 @@ test('content unit storyboard proposal searches reference and creates a proposal
                           lighting: '雨棚冷光和店内暖光形成反差。',
                         }],
                       },
-                      summary: '基于 storyboard.rhythm.basic 创建内容单元分镜 proposal。',
+                      summary: '基于 storyboard.rhythm.basic 创建内容单元分镜 workspace。',
                     }),
                   }),
                 },
@@ -1924,26 +1952,26 @@ test('content unit storyboard proposal searches reference and creates a proposal
           }],
         }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      return new Response(JSON.stringify({ choices: [{ message: { content: '已创建内容单元分镜 proposal draft。', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      return new Response(JSON.stringify({ choices: [{ message: { content: '已创建内容单元分镜 workspace workspace。', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as typeof fetch
 
     const client = new FakeMCPClient()
     client.projectId = 42
-    const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建内容单元分镜 proposal 草稿' }] })
+    const runtime = createTestRuntime({ mcpClient: client, referenceManager: createTestReferenceManager() })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建内容单元分镜 workspace 工作区' }] })
     const run = await createAndWaitForRun(runtime, thread.id)
-    const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit_proposal' })[0]
+    const workspace = runtime.listWorkspaces({ projectId: 42, kind: 'content_unit_workspace' })[0]
 
     assert.equal(run.status, 'completed_with_warnings')
     assert.equal(run.pendingApprovals?.length ?? 0, 0)
     assert.equal(run.steps.some((step) => step.toolName === 'reference_search' && step.status === 'completed'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'reference_get' && step.status === 'completed'), true)
-    assert.equal(run.steps.some((step) => step.toolName === 'draft_create' && step.status === 'completed'), true)
-    assert.equal(draft?.kind, 'content_unit_proposal')
-    assert.match(draft?.content ?? '', /movscript\.content_unit_proposal\.v1/)
-    assert.equal((draft?.metadata as any)?.proposal, true)
-    assert.equal((draft?.target as any)?.entityType, 'production')
-    assert.equal((draft?.target as any)?.entityId, 4)
+    assert.equal(run.steps.some((step) => step.toolName === 'workspace_create' && step.status === 'completed'), true)
+    assert.equal(workspace?.kind, 'content_unit_workspace')
+    assert.match(workspace?.content ?? '', /movscript\.content_unit_workspace\.v1/)
+    assert.equal((workspace?.metadata as any)?.workspace, true)
+    assert.equal((workspace?.target as any)?.entityType, 'production')
+    assert.equal((workspace?.target as any)?.entityId, 4)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -2239,7 +2267,7 @@ test('emits structured live trace events from streamed tool call deltas', async 
     const completed = await waitForRun(runtime, run.id)
 
     assert.ok(completed.status === 'completed' || completed.status === 'completed_with_warnings')
-    assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
+    assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 0)
     assert.equal(liveToolEvents.length >= 3, true)
     assert.deepEqual(new Set(liveToolEvents.map((event) => event.id)).size, 1)
     assert.equal(liveToolStreamEvents.every((event) => event.run === undefined), true)
@@ -2344,7 +2372,7 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
 
     assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(callCount >= 2, true)
-    assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
+    assert.equal(runtime.listWorkspaces({ projectId: 42 }).length, 0)
     const ledger = run.metadata?.contextLedger as any
     assert.equal(ledger?.schema, 'movscript.context-ledger.v1')
     const ledgerEvent = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
@@ -3008,7 +3036,7 @@ test('production orchestrate requests include productionId in runtime context', 
     const client = new FakeMCPClient()
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请做 production proposal 制作编排' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请做 production workspace 制作编排' }] })
     await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
@@ -3041,7 +3069,7 @@ test('production orchestrate requests include productionId in runtime context', 
   }
 })
 
-test('agent can search memories before creating a draft', async () => {
+test('agent can search memories before creating a workspace', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const memoryStore = new InMemoryAgentMemoryStore()
@@ -3052,7 +3080,7 @@ test('agent can search memories before creating a draft', async () => {
     kind: 'preference',
     content: '默认镜头风格是手持纪实',
   })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '参考我的默认镜头风格记忆，帮我写一个镜头草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '参考我的默认镜头风格记忆，帮我写一个镜头工作区' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id)
   const memoryStep = run.steps.find((step) => step.toolName === 'core_memory_search')
@@ -3061,11 +3089,11 @@ test('agent can search memories before creating a draft', async () => {
   assert.match(JSON.stringify(memoryStep?.result ?? {}), /默认镜头风格是手持纪实/)
 })
 
-test('create_draft success writes draft memory', async () => {
+test('create_workspace success writes workspace memory', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个工作区' }] })
 
   await createAndWaitForRun(runtime, thread.id, {
     agentManifest: {
@@ -3074,33 +3102,33 @@ test('create_draft success writes draft memory', async () => {
     },
   })
 
-  assert.equal(runtime.listMemories({ kind: 'draft', projectId: 42 }).length, 0)
+  assert.equal(runtime.listMemories({ kind: 'workspace', projectId: 42 }).length, 0)
 })
 
-test('create_proposal creates a local proposal draft from conversation context', async () => {
+test('create_workspace creates a local workspace workspace from conversation context', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我开一个项目规范提案' }] })
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
+  const runtime = createTestRuntime({ mcpClient: client, workspaceStore })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我开一个项目规范工作区' }] })
 
   const run = runtime.createToolRun({
     threadId: thread.id,
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'draft_create', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'workspace_create', mode: 'allow', approval: 'never' }],
     },
     toolCall: {
-      name: 'draft_create',
+      name: 'workspace_create',
       args: {
-        kind: 'project_standards_proposal',
+        kind: 'project_standards_workspace',
         projectId: 42,
-        proposal: true,
+        workspace: true,
         content: JSON.stringify({
-          schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
-          scope: 'project_standards_proposal',
+          schema: WORKSPACE_CONTENT_SCHEMA_IDS.projectStandardsWorkspace,
+          scope: 'project_standards_workspace',
           summary: '整理项目设定和素材需求',
-          proposal: {
+          workspace: {
             creative_references: [],
             asset_slots: [],
           },
@@ -3111,38 +3139,38 @@ test('create_proposal creates a local proposal draft from conversation context',
   })
 
   const finished = await waitForRun(runtime, run.id)
-  const draft = finished.steps.find((step) => step.toolName === 'draft_create')?.result as any
+  const workspace = finished.steps.find((step) => step.toolName === 'workspace_create')?.result as any
 
   assert.equal(finished.status, 'completed')
-  assert.equal(draft?.status, 'created')
-  assert.equal(typeof draft?.draftId, 'string')
-  assert.equal(runtime.listDrafts({ kind: 'project_standards_proposal' }).length, 1)
+  assert.equal(workspace?.status, 'created')
+  assert.equal(typeof workspace?.workspaceId, 'string')
+  assert.equal(runtime.listWorkspaces({ kind: 'project_standards_workspace' }).length, 1)
 })
 
-test('drafts can be scoped by page key', async () => {
+test('workspaces can be scoped by page key', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+  const workspaceStore = new InMemoryAgentWorkspaceStore()
+  const runtime = createTestRuntime({ mcpClient: client, workspaceStore })
   const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
-  draftStore.createDraft({
+  workspaceStore.createWorkspace({
     projectId: 42,
-    kind: 'production_proposal',
-    title: 'Scoped draft',
+    kind: 'production_workspace',
+    title: 'Scoped workspace',
     content: '{}',
     source: { pageKey, pageType: 'production_orchestrate', pageRoute: '/production-orchestrate?productionId=4', pageEntityType: 'production', pageEntityId: 4 },
   })
-  draftStore.createDraft({
+  workspaceStore.createWorkspace({
     projectId: 42,
-    kind: 'production_proposal',
-    title: 'Other page draft',
+    kind: 'production_workspace',
+    title: 'Other page workspace',
     content: '{}',
     source: { pageKey: 'other|page|production|99', pageType: 'other', pageRoute: '/other', pageEntityType: 'production', pageEntityId: 99 },
   })
 
-  const drafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
-  assert.equal(drafts.length, 1)
-  assert.equal(drafts[0]?.title, 'Scoped draft')
+  const workspaces = runtime.listWorkspaces({ projectId: 42, kind: 'production_workspace', status: 'workspace', pageKey })
+  assert.equal(workspaces.length, 1)
+  assert.equal(workspaces[0]?.title, 'Scoped workspace')
 })
 
 test('runtime reloads target-state local catalog tools for later runs', async () => {
@@ -3333,10 +3361,10 @@ test('runtime persists restrictive tool permissions on managed config files', ()
   const configFilesDir = join(dir, 'config-files')
   const catalogStateStore = new InMemoryAgentCatalogStateStore()
   try {
-    writeJSONFile(toolsDir, 'draft.tool.json', {
-      name: 'draft_apply_preview',
-      description: 'Preview draft apply.',
-      permission: 'draft.read',
+    writeJSONFile(toolsDir, 'workspace.tool.json', {
+      name: 'workspace_apply_preview',
+      description: 'Preview workspace apply.',
+      permission: 'workspace.read',
       risk: 'read',
       source: 'plugin',
       inputSchema: {},
@@ -3357,9 +3385,9 @@ test('runtime persists restrictive tool permissions on managed config files', ()
       id: 'movscript.pack.permissions-test',
       name: 'Permissions Test Pack',
       source: 'plugin',
-      resources: { tools: ['draft.tool.json', 'memory.tool.json'] },
+      resources: { tools: ['workspace.tool.json', 'memory.tool.json'] },
       schemas: [],
-      tools: ['draft_apply_preview', 'core_memory_delete'],
+      tools: ['workspace_apply_preview', 'core_memory_delete'],
       skills: [],
     })
     writeJSONFile(configFilesDir, 'base.config-file.json', {
@@ -3370,7 +3398,7 @@ test('runtime persists restrictive tool permissions on managed config files', ()
       enabledPackIds: ['movscript.pack.permissions-test'],
     skillIds: [],
       toolGrants: [
-        { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+        { name: 'workspace_apply_preview', mode: 'allow', approval: 'never' },
         { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
       ],
     })
@@ -3392,7 +3420,7 @@ test('runtime persists restrictive tool permissions on managed config files', ()
     assert.throws(
       () => runtime.saveConfigFileToolPermissions({
         configFileId: 'movscript.config_file.base',
-        toolGrants: [{ name: 'draft_apply_preview', mode: 'deny' }],
+        toolGrants: [{ name: 'workspace_apply_preview', mode: 'deny' }],
       }),
       /config file movscript\.config_file\.base not found/,
     )
@@ -3407,7 +3435,7 @@ test('runtime persists restrictive tool permissions on managed config files', ()
         enabledPackIds: ['movscript.pack.permissions-test'],
         skillIds: [],
         toolGrants: [
-          { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+          { name: 'workspace_apply_preview', mode: 'allow', approval: 'never' },
           { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
         ],
       },
@@ -3416,7 +3444,7 @@ test('runtime persists restrictive tool permissions on managed config files', ()
     const saved = runtime.saveConfigFileToolPermissions({
       configFileId: 'config_file_permissions',
       toolGrants: [
-        { name: 'draft_apply_preview', mode: 'deny' },
+        { name: 'workspace_apply_preview', mode: 'deny' },
         { name: 'core_memory_delete', mode: 'allow', approval: 'always' },
       ],
     })
@@ -3424,7 +3452,7 @@ test('runtime persists restrictive tool permissions on managed config files', ()
     assert.equal(saved.metadata?.toolPermissionOverridesByConfigFile, undefined)
     assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)
     assert.deepEqual(saved.tools, [
-      { name: 'draft_apply_preview', mode: 'deny', approval: 'never' },
+      { name: 'workspace_apply_preview', mode: 'deny', approval: 'never' },
       { name: 'core_memory_delete', mode: 'allow', approval: 'always' },
     ])
 
@@ -3738,25 +3766,25 @@ test('agent run tool catalog does not expose runtime catalog reload tool', async
   }
 })
 
-test('file draft store persists drafts across runtime rebuilds', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+test('file workspace store persists workspaces across runtime rebuilds', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-workspaces-'))
   try {
-    const draftPath = join(dir, 'drafts.json')
-    const store = new FileAgentDraftStore(draftPath)
-    const draft = store.createDraft({
+    const workspacePath = join(dir, 'workspaces.json')
+    const store = new FileAgentWorkspaceStore(workspacePath)
+    const workspace = store.createWorkspace({
       projectId: 42,
-      kind: 'project_standards_proposal',
+      kind: 'project_standards_workspace',
       title: 'Review note',
       content: 'Check storyboard-line gaps.',
       source: { entityType: 'scene_moment', entityId: 12 },
     })
 
-    const rebuilt = new FileAgentDraftStore(draftPath)
-    const restored = rebuilt.getDraft(draft.id)
+    const rebuilt = new FileAgentWorkspaceStore(workspacePath)
+    const restored = rebuilt.getWorkspace(workspace.id)
 
     assert.equal(restored?.title, 'Review note')
     assert.equal(restored?.source?.entityType, 'scene_moment')
-    assert.equal(rebuilt.listDrafts({ projectId: 42 }).length, 1)
+    assert.equal(rebuilt.listWorkspaces({ projectId: 42 }).length, 1)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -4191,7 +4219,7 @@ test('parallel worker dispatch keeps task prompts private to each run input', as
     title: 'Parallel worker rollout',
     tasks: [
       { id: 'task_parallel_a', title: 'Collect references' },
-      { id: 'task_parallel_b', title: 'Draft outline' },
+      { id: 'task_parallel_b', title: 'Workspace outline' },
     ],
   })
   const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
@@ -4207,8 +4235,8 @@ test('parallel worker dispatch keeps task prompts private to each run input', as
   assert.equal(runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length, userMessageCountBeforeDispatch)
   const runByTaskId = new Map(dispatch.spawnedRuns.map((run) => [run.taskId, run]))
   assert.match(runByTaskId.get('task_parallel_a')?.input?.userMessage ?? '', /Task: Collect references/)
-  assert.doesNotMatch(runByTaskId.get('task_parallel_a')?.input?.userMessage ?? '', /Draft outline/)
-  assert.match(runByTaskId.get('task_parallel_b')?.input?.userMessage ?? '', /Task: Draft outline/)
+  assert.doesNotMatch(runByTaskId.get('task_parallel_a')?.input?.userMessage ?? '', /Workspace outline/)
+  assert.match(runByTaskId.get('task_parallel_b')?.input?.userMessage ?? '', /Task: Workspace outline/)
   assert.doesNotMatch(runByTaskId.get('task_parallel_b')?.input?.userMessage ?? '', /Collect references/)
 })
 
@@ -4353,7 +4381,7 @@ test('taskGraph stream replays snapshots and emits task run lifecycle events', a
   assert.equal(planner?.role, 'planner')
   await waitForRun(runtime, planner!.id)
   runtime.updateTask('task_stream', {
-    artifacts: [{ id: 'artifact_stream_seed', type: 'draft', title: 'Stream seed artifact' }],
+    artifacts: [{ id: 'artifact_stream_seed', type: 'workspace', title: 'Stream seed artifact' }],
   })
   const events: string[] = []
   const snapshots: AgentTaskGraphSnapshot[] = []
@@ -4616,7 +4644,7 @@ test('planner capabilities expose runtime work scheduling tools', async () => {
 test('inspect agent catalog returns current snapshot summary and skill details', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, activeAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请帮我做项目规范提案草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请帮我做项目规范工作区工作区' }] })
   const run = await createAndWaitForRun(runtime, thread.id)
 
   const summary = runtime.inspectAgentCatalog(run, { view: 'summary' }) as any

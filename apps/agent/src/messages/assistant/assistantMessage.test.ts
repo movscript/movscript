@@ -19,13 +19,13 @@ test('assistant message surfaces missing project warning', () => {
 })
 
 test('assistant message describes successful and failed tool outcomes', () => {
-  const content = buildAssistantContent('搜索并写草稿', [
+  const content = buildAssistantContent('搜索并写workspace', [
     {
-      call: { name: 'draft_create', args: { kind: 'project_standards_proposal' } },
+      call: { name: 'workspace_open', args: { kind: 'project_standards_workspace' } },
       error: 'create failed',
     },
   ])
-  assert.match(content, /draft_create 未完成：create failed/)
+  assert.match(content, /workspace_open 未完成：create failed/)
 })
 
 test('assistant message describes tool reads', () => {
@@ -60,20 +60,20 @@ test('assistant message ignores invalid model-emitted project and production ids
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'draft_create',
+        name: 'workspace_open',
         parameters: {
           project_id: '42',
           production_id: 7.5,
           projectId: 0,
           productionId: Number.NaN,
-          kind: 'project_standards_proposal',
+          kind: 'project_standards_workspace',
         },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'draft_create')
+  assert.equal(toolCalls[0].name, 'workspace_open')
   assert.equal(toolCalls[0].args?.project_id, undefined)
   assert.equal(toolCalls[0].args?.projectId, undefined)
   assert.equal(toolCalls[0].args?.production_id, undefined)
@@ -130,19 +130,19 @@ test('configured assistant messages ignore non-plain skill metadata records', ()
 
 test('assistant message extracts a single tool call returned as JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
-    name: 'draft_create',
+    name: 'workspace_open',
     args: {
       projectId: 1,
-      kind: 'production_proposal',
-      proposal: true,
-      content: JSON.stringify({ proposal: { segments: [] } }),
+      kind: 'production_workspace',
+      workspace: true,
+      content: JSON.stringify({ workspace: { segments: [] } }),
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'draft_create')
+  assert.equal(toolCalls[0].name, 'workspace_open')
   assert.equal(toolCalls[0].args?.projectId, 1)
-  assert.equal(toolCalls[0].args?.kind, 'production_proposal')
+  assert.equal(toolCalls[0].args?.kind, 'production_workspace')
 })
 
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
@@ -150,14 +150,14 @@ test('assistant message extracts model-emitted single tool_call wrapper', () => 
     tool_call: {
       tool_name: 'core_file_read',
       parameters: {
-        ref: 'agent://draft/draft_1/content',
+        ref: 'agent://workspace/workspace_1/content',
       },
     },
   }))
 
   assert.equal(toolCalls.length, 1)
   assert.equal(toolCalls[0].name, 'core_file_read')
-  assert.equal(toolCalls[0].args?.ref, 'agent://draft/draft_1/content')
+  assert.equal(toolCalls[0].args?.ref, 'agent://workspace/workspace_1/content')
 })
 
 test('isMessageRole accepts only thread-visible message roles', () => {

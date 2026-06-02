@@ -134,7 +134,7 @@ export function DeliveryVersionDetailPanel({
       title="版本详情"
       action={(
         <ProductionDeliveryWorkbenchActionGroup>
-          <ProductionDeliveryWorkbenchStatusBadge {...deliveryWorkbenchStatusRecipe(version.status ?? 'draft')} label={deliveryStatusLabel(version.status ?? 'draft')} />
+          <ProductionDeliveryWorkbenchStatusBadge {...deliveryWorkbenchStatusRecipe(version.status ?? 'workspace')} label={deliveryStatusLabel(version.status ?? 'workspace')} />
           {version.is_primary && <ProductionDeliveryWorkbenchBadge tone="brand">主版本</ProductionDeliveryWorkbenchBadge>}
           {version.production_id && <ProductionDeliveryWorkbenchBadge>制作 #{version.production_id}</ProductionDeliveryWorkbenchBadge>}
           {version.preview_timeline_id && <ProductionDeliveryWorkbenchBadge>预览 #{version.preview_timeline_id}</ProductionDeliveryWorkbenchBadge>}
@@ -267,7 +267,7 @@ export function DeliveryItemEditor({
       </ProductionDeliveryItemEditorGrid>
       <ProductionDeliveryField label="版本记录">
         <ProductionDeliveryNativeSelect disabled={!editing} value={item.status} onChange={(event) => onChange({ status: event.target.value })}>
-          {['draft', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved'].map((status) => <option key={status} value={status}>{deliveryStatusLabel(status)}</option>)}
+          {['workspace', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved'].map((status) => <option key={status} value={status}>{deliveryStatusLabel(status)}</option>)}
         </ProductionDeliveryNativeSelect>
       </ProductionDeliveryField>
       <ProductionDeliveryWorkbenchActionButton variant="outline" tone="danger" onClick={onDelete} loading={deleting} disabled={!editing}>

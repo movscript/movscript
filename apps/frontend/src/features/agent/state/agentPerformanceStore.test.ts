@@ -48,15 +48,15 @@ test('agent performance instrumentation forwards completed operation without sto
   })
 
   const operationId = beginAgentPerformanceOperation({ kind: 'send', meta: { inputLength: 12 } })
-  markAgentPerformancePhase(operationId, 'build_draft_start')
-  markAgentPerformancePhase(operationId, 'build_draft_done', { details: { warningCount: 0 } })
+  markAgentPerformancePhase(operationId, 'build_workspace_start')
+  markAgentPerformancePhase(operationId, 'build_workspace_done', { details: { warningCount: 0 } })
   finishAgentPerformanceOperation(operationId, 'success')
   recordAgentPerformanceMetric({ name: 'frontend_agent_network_request_duration_ms', value: 10, unit: 'ms' })
 
   assert.equal(operations.length, 1)
   assert.equal(operations[0]?.kind, 'send')
   assert.equal(operations[0]?.status, 'success')
-  assert.equal(operations[0]?.phases.some((phase) => phase.name === 'build_draft_done'), true)
+  assert.equal(operations[0]?.phases.some((phase) => phase.name === 'build_workspace_done'), true)
   assert.equal(metrics.some((sample) => sample.name === 'frontend_agent_network_request_duration_ms'), true)
   resetAgentTelemetrySink()
 })
@@ -142,6 +142,8 @@ test('instrumented agent state storage records low-cardinality storage metrics',
 
   assert.equal(isAgentTelemetryReportableMetricName('frontend_storage_operation_duration_ms'), true)
   assert.equal(isAgentTelemetryReportableMetricName('frontend_storage_payload_bytes'), true)
+  assert.equal(isAgentTelemetryReportableMetricName('frontend_agent_send_stage_latency_ms'), true)
+  assert.equal(isAgentTelemetryReportableMetricName('frontend_agent_stream_update_total'), true)
   assert.equal(metrics.some((sample) => sample.name === 'frontend_storage_operation_duration_ms' && sample.labels?.kind === 'agent_store' && sample.labels?.stage === 'set'), true)
   assert.equal(metrics.some((sample) => sample.name === 'frontend_storage_payload_bytes' && sample.unit === 'bytes'), true)
 })

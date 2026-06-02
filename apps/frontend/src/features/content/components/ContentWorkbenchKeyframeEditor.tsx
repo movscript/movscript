@@ -10,7 +10,7 @@ import {
   keyframeOutputResourceId,
   latestKeyframeGenerationJob,
   type ContentWorkbenchEditRecord,
-  type KeyframeEditDraft,
+  type KeyframeEditWorkspace,
 } from '@/features/content/domain/contentWorkbenchEditModel'
 import { firstText } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import { contentKeyframeGenerationRecipe } from '@/features/content/presentation/contentSemanticUi'
@@ -43,7 +43,7 @@ export function ContentWorkbenchKeyframeEditor({
   compact = false,
   keyframes,
   selectedKeyframe,
-  keyframeDraft,
+  keyframeWorkspace,
   jobs,
   unit,
   requiresKeyframe,
@@ -61,14 +61,14 @@ export function ContentWorkbenchKeyframeEditor({
   onMoveKeyframe,
   onDeleteKeyframe,
   onSaveKeyframe,
-  onDraftChange,
+  onWorkspaceChange,
   onModelChange,
   onGenerateKeyframes,
 }: {
   compact?: boolean
   keyframes: ContentWorkbenchEditRecord[]
   selectedKeyframe: ContentWorkbenchEditRecord | null
-  keyframeDraft: KeyframeEditDraft
+  keyframeWorkspace: KeyframeEditWorkspace
   jobs: Job[]
   unit: ContentWorkbenchEditRecord
   requiresKeyframe: boolean
@@ -86,7 +86,7 @@ export function ContentWorkbenchKeyframeEditor({
   onMoveKeyframe: (keyframe: ContentWorkbenchEditRecord, direction: 'up' | 'down') => void
   onDeleteKeyframe: (keyframe: ContentWorkbenchEditRecord) => void
   onSaveKeyframe: () => void
-  onDraftChange: (key: keyof KeyframeEditDraft, value: string) => void
+  onWorkspaceChange: (key: keyof KeyframeEditWorkspace, value: string) => void
   onModelChange: (modelId: string) => void
   onGenerateKeyframes: (targets: ContentWorkbenchEditRecord[]) => void
 }) {
@@ -192,12 +192,12 @@ export function ContentWorkbenchKeyframeEditor({
             />
 
             <ContentWorkbenchEditorFieldGrid variant="keyframe-meta">
-              <ContentWorkbenchEditorSelectField label="分类" value={keyframeDraft.frame_role} options={keyframeFrameRoleOptions} onChange={(value) => onDraftChange('frame_role', value)} />
+              <ContentWorkbenchEditorSelectField label="分类" value={keyframeWorkspace.frame_role} options={keyframeFrameRoleOptions} onChange={(value) => onWorkspaceChange('frame_role', value)} />
               <ContentWorkbenchEditorField label="标题（可选）" htmlFor={`keyframe-title-${selectedKeyframe.ID}`}>
-                <ContentWorkbenchKeyframeInput id={`keyframe-title-${selectedKeyframe.ID}`} value={keyframeDraft.title} placeholder={`${keyframeFrameRoleLabel(keyframeDraft.frame_role)} · ${recordTitle(unit)}`} onChange={(event) => onDraftChange('title', event.target.value)} />
+                <ContentWorkbenchKeyframeInput id={`keyframe-title-${selectedKeyframe.ID}`} value={keyframeWorkspace.title} placeholder={`${keyframeFrameRoleLabel(keyframeWorkspace.frame_role)} · ${recordTitle(unit)}`} onChange={(event) => onWorkspaceChange('title', event.target.value)} />
               </ContentWorkbenchEditorField>
               <ContentWorkbenchEditorField label="顺序" htmlFor={`keyframe-order-${selectedKeyframe.ID}`}>
-                <ContentWorkbenchKeyframeInput id={`keyframe-order-${selectedKeyframe.ID}`} type="number" min="1" value={keyframeDraft.order} onChange={(event) => onDraftChange('order', event.target.value)} />
+                <ContentWorkbenchKeyframeInput id={`keyframe-order-${selectedKeyframe.ID}`} type="number" min="1" value={keyframeWorkspace.order} onChange={(event) => onWorkspaceChange('order', event.target.value)} />
               </ContentWorkbenchEditorField>
             </ContentWorkbenchEditorFieldGrid>
 
@@ -205,17 +205,17 @@ export function ContentWorkbenchKeyframeEditor({
               <ContentWorkbenchEditorField label="画面描述" htmlFor={`keyframe-description-${selectedKeyframe.ID}`}>
                 <ContentWorkbenchKeyframeTextarea
                   id={`keyframe-description-${selectedKeyframe.ID}`}
-                  value={keyframeDraft.description}
+                  value={keyframeWorkspace.description}
                   placeholder="描述这一帧的叙事状态、人物动作、空间关系和画面重点。"
-                  onChange={(event) => onDraftChange('description', event.target.value)}
+                  onChange={(event) => onWorkspaceChange('description', event.target.value)}
                 />
               </ContentWorkbenchEditorField>
               <ContentWorkbenchEditorField label="生成提示词" htmlFor={`keyframe-prompt-${selectedKeyframe.ID}`}>
                 <ContentWorkbenchKeyframeTextarea
                   id={`keyframe-prompt-${selectedKeyframe.ID}`}
-                  value={keyframeDraft.prompt}
+                  value={keyframeWorkspace.prompt}
                   placeholder="写给图像模型的关键帧提示词，包含风格、构图、角色一致性和负向约束。"
-                  onChange={(event) => onDraftChange('prompt', event.target.value)}
+                  onChange={(event) => onWorkspaceChange('prompt', event.target.value)}
                 />
               </ContentWorkbenchEditorField>
             </ContentWorkbenchEditorFieldGrid>

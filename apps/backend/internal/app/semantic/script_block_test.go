@@ -137,12 +137,12 @@ func TestPatchScriptBlockKeepsSourceAnchorImmutable(t *testing.T) {
 		EndLine:   40,
 		StartChar: 10,
 		EndChar:   20,
-		Status:    "draft",
+		Status:    "workspace",
 	})
 	if err != nil {
 		t.Fatalf("patch script block: %v", err)
 	}
-	if patched.Kind != "dialogue" || patched.Speaker != "Ada" || patched.Status != "draft" {
+	if patched.Kind != "dialogue" || patched.Speaker != "Ada" || patched.Status != "workspace" {
 		t.Fatalf("editable annotations were not updated: %+v", patched)
 	}
 	if patched.Content != block.Content || patched.StartLine != block.StartLine || patched.EndLine != block.EndLine || patched.StartChar != block.StartChar || patched.EndChar != block.EndChar {
@@ -205,10 +205,10 @@ func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
 		t.Fatalf("create other script block: %v", err)
 	}
 
-	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Beat", Status: "draft"}
-	otherSegment := model.Segment{ProjectID: 1, ScriptBlockID: &otherBlock.ID, Title: "Other", Status: "draft"}
-	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "draft"}
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Beat", Status: "workspace"}
+	otherSegment := model.Segment{ProjectID: 1, ScriptBlockID: &otherBlock.ID, Title: "Other", Status: "workspace"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "workspace"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
@@ -265,9 +265,9 @@ func TestListScriptBlockUsageMapGroupsByVersionBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create second script block: %v", err)
 	}
-	segment := model.Segment{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Beat", Status: "draft"}
-	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Moment", Status: "draft"}
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Unit", Status: "draft"}
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Beat", Status: "workspace"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Moment", Status: "workspace"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}

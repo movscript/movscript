@@ -14,14 +14,14 @@ import type { AgentTraceQuery } from '@movscript/protocol'
 import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult } from '../../state/store/core/store.js'
 import type { ToolRegistry } from '../../tools/registry/core/toolRegistry.js'
 import {
-  InMemoryAgentDraftStore,
-  type AgentDraft,
-  type AgentDraftStore,
-} from '../../drafts/store/draftStore.js'
-import { type ApplyDraftInput } from '../../drafts/apply/draftApply.js'
-import { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
-import { MCPBackendApplyClient } from '../../drafts/adapters/mcp/mcpBackendApplyClient.js'
-import { createBackendRuntimeDraftApplyPort } from '../../adapters/draft/backend/backendRuntimeDraftApplyAdapter.js'
+  InMemoryAgentWorkspaceStore,
+  type AgentWorkspace,
+  type AgentWorkspaceStore,
+} from '../../workspaces/store/workspaceStore.js'
+import { type ApplyWorkspaceInput } from '../../workspaces/apply/workspaceApply.js'
+import { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
+import { MCPBackendApplyClient } from '../../workspaces/adapters/mcp/mcpBackendApplyClient.js'
+import { createBackendRuntimeWorkspaceApplyPort } from '../../adapters/workspace/backend/backendRuntimeWorkspaceApplyAdapter.js'
 import { generatePlanTasks } from '../../orchestration/model/planning/generation/planGenerator.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
@@ -141,9 +141,9 @@ import {
   type RuntimeStreamSubscriptionBridge,
 } from '../stream/subscription/runtimeStreamSubscriptionBridge.js'
 import {
-  createRuntimeDraftOperationsBridge,
-  type RuntimeDraftOperationsBridge,
-} from '../draft/bridge/runtimeDraftOperationsBridge.js'
+  createRuntimeWorkspaceOperationsBridge,
+  type RuntimeWorkspaceOperationsBridge,
+} from '../workspace/bridge/runtimeWorkspaceOperationsBridge.js'
 import {
   createRuntimeMemoryOperationsBridge,
   type RuntimeMemoryOperationsBridge,
@@ -164,19 +164,19 @@ import {
   type RuntimeWorkCoordinatorBridge,
 } from '../work/coordinator/runtimeWorkCoordinatorBridge.js'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultImageProcessingPort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
 } from '../shared/tools/runtimeToolHandlers.js'
-import type { DraftApplyPort } from '../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../ports/draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../ports/workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../ports/media/videoFrameExtractionPort.js'
@@ -301,11 +301,11 @@ export {
   resolveAgentToolResultPath,
 } from '../../state/store/tool-results/toolResultStore.js'
 export {
-  FileAgentDraftStore,
-  InMemoryAgentDraftStore,
-  normalizeDraftStatus,
-  resolveAgentDraftPath,
-} from '../../drafts/store/draftStore.js'
+  FileAgentWorkspaceStore,
+  InMemoryAgentWorkspaceStore,
+  normalizeWorkspaceStatus,
+  resolveAgentWorkspacePath,
+} from '../../workspaces/store/workspaceStore.js'
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../../tools/registry/core/toolRegistry.js'
 export {
   loadAgentPluginCatalog,
@@ -326,12 +326,12 @@ export class AgentRuntimeRouter {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   private readonly store: AgentStore
   private readonly toolResultStore: AgentToolResultStore
-  private readonly draftStore: AgentDraftStore
+  private readonly workspaceStore: AgentWorkspaceStore
   private readonly backendApplyClient: BackendApplyClient
   private readonly externalToolGatewayPort: ExternalToolGatewayPort
-  private readonly draftApplyPort: DraftApplyPort
-  private readonly draftApplyPreviewPort: DraftApplyPreviewPort
-  private readonly proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  private readonly workspaceApplyPort: WorkspaceApplyPort
+  private readonly workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  private readonly workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   private readonly resourceFilePort: CoreResourceFilePort
   private readonly imageProcessingPort: CoreImageProcessingPort
   private readonly videoFrameExtractionPort: CoreVideoFrameExtractionPort
@@ -364,7 +364,7 @@ export class AgentRuntimeRouter {
   private readonly streams: RuntimeStreamBridge
   private readonly streamSubscriptions: RuntimeStreamSubscriptionBridge
   private readonly threads: RuntimeThreadOperationsBridge
-  private readonly drafts: RuntimeDraftOperationsBridge
+  private readonly workspaces: RuntimeWorkspaceOperationsBridge
   private readonly runSteps: RuntimeRunStepBridge
   private readonly planStatus: RuntimeTaskGraphStatusBridge
   private readonly postRunRecords: RuntimePostRunRecordsBridge
@@ -395,20 +395,20 @@ export class AgentRuntimeRouter {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
     this.toolResultStore = options.toolResultStore ?? new InMemoryAgentToolResultStore()
-    this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
+    this.workspaceStore = options.workspaceStore ?? new InMemoryAgentWorkspaceStore()
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
     this.externalToolGatewayPort = options.externalToolGatewayPort ?? createDefaultExternalToolGatewayPort(this.mcpClient)
-    this.draftApplyPort = options.draftApplyPort ?? createDefaultDraftApplyPort(this.backendApplyClient)
-    this.draftApplyPreviewPort = options.draftApplyPreviewPort ?? createDefaultDraftApplyPreviewPort(this.backendApplyClient)
-    this.proposalSnapshotHydrationPort = options.proposalSnapshotHydrationPort ?? createDefaultProposalSnapshotHydrationPort(this.mcpClient)
+    this.workspaceApplyPort = options.workspaceApplyPort ?? createDefaultWorkspaceApplyPort(this.backendApplyClient)
+    this.workspaceApplyPreviewPort = options.workspaceApplyPreviewPort ?? createDefaultWorkspaceApplyPreviewPort(this.backendApplyClient)
+    this.workspaceSnapshotHydrationPort = options.workspaceSnapshotHydrationPort ?? createDefaultWorkspaceSnapshotHydrationPort(this.mcpClient)
     this.resourceFilePort = options.resourceFilePort ?? createDefaultResourceFilePort(this.mcpClient)
     this.imageProcessingPort = options.imageProcessingPort ?? createDefaultImageProcessingPort(this.backendApplyClient)
     this.videoFrameExtractionPort = options.videoFrameExtractionPort ?? createDefaultVideoFrameExtractionPort(this.backendApplyClient)
     this.projectStandardsPort = options.projectStandardsPort ?? createDefaultProjectStandardsPort(this.backendApplyClient)
     this.runtimeToolHandlers = options.runtimeToolHandlers ?? createDefaultRuntimeToolHandlerRegistry()
-    this.drafts = createRuntimeDraftOperationsBridge({
-      draftStore: this.draftStore,
-      backendApplyPort: createBackendRuntimeDraftApplyPort(this.backendApplyClient),
+    this.workspaces = createRuntimeWorkspaceOperationsBridge({
+      workspaceStore: this.workspaceStore,
+      backendApplyPort: createBackendRuntimeWorkspaceApplyPort(this.backendApplyClient),
     })
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
@@ -416,7 +416,7 @@ export class AgentRuntimeRouter {
       memoryStore: this.memoryStore,
       memoryManager: this.memoryManager,
     })
-    this.referenceManager = new ReferenceManager(loadAgentReferenceStore(), { backendClient: this.backendApplyClient })
+    this.referenceManager = options.referenceManager ?? new ReferenceManager(loadAgentReferenceStore(), { backendClient: this.backendApplyClient })
     const catalogInitialization = resolveRuntimeCatalogInitialization({
       activeAgentManifest: options.activeAgentManifest,
       toolRegistry: options.toolRegistry,
@@ -554,11 +554,11 @@ export class AgentRuntimeRouter {
       runSteps: this.runSteps,
       postRunRecords: this.postRunRecords,
       mcpClient: this.mcpClient,
-      draftStore: this.draftStore,
+      workspaceStore: this.workspaceStore,
       externalToolGatewayPort: this.externalToolGatewayPort,
-      draftApplyPort: this.draftApplyPort,
-      draftApplyPreviewPort: this.draftApplyPreviewPort,
-      proposalSnapshotHydrationPort: this.proposalSnapshotHydrationPort,
+      workspaceApplyPort: this.workspaceApplyPort,
+      workspaceApplyPreviewPort: this.workspaceApplyPreviewPort,
+      workspaceSnapshotHydrationPort: this.workspaceSnapshotHydrationPort,
       resourceFilePort: this.resourceFilePort,
       imageProcessingPort: this.imageProcessingPort,
       videoFrameExtractionPort: this.videoFrameExtractionPort,
@@ -613,7 +613,7 @@ export class AgentRuntimeRouter {
       store: this.store,
       mcpClient: this.mcpClient,
       memoryManager: this.memoryManager,
-      draftStore: this.draftStore,
+      workspaceStore: this.workspaceStore,
       catalogSnapshots: this.catalogSnapshots,
       contractResolver: this.contractResolver,
       updateState: this.updateState,
@@ -971,7 +971,7 @@ export class AgentRuntimeRouter {
     return this.memories.getMemory(projectId, id)
   }
 
-  listDrafts(query: {
+  listWorkspaces(query: {
     projectId?: unknown
     kind?: unknown
     status?: unknown
@@ -985,11 +985,11 @@ export class AgentRuntimeRouter {
     pageEntityType?: unknown
     pageEntityId?: unknown
     limit?: unknown
-  } = {}): AgentDraft[] {
-    return this.drafts.listDrafts(query)
+  } = {}): AgentWorkspace[] {
+    return this.workspaces.listWorkspaces(query)
   }
 
-  createLocalDraft(input: {
+  createLocalWorkspace(input: {
     projectId?: unknown
     kind?: unknown
     title?: unknown
@@ -997,27 +997,27 @@ export class AgentRuntimeRouter {
     source?: unknown
     target?: unknown
     metadata?: unknown
-  }): AgentDraft {
-    return this.drafts.createLocalDraft(input)
+  }): AgentWorkspace {
+    return this.workspaces.createLocalWorkspace(input)
   }
 
-  getDraft(id: string): AgentDraft | undefined {
-    return this.drafts.getDraft(id)
+  getWorkspace(id: string): AgentWorkspace | undefined {
+    return this.workspaces.getWorkspace(id)
   }
 
-  updateDraft(input: {
-    draftId?: unknown
+  updateWorkspace(input: {
+    workspaceId?: unknown
     status?: unknown
     title?: unknown
     content?: unknown
     target?: unknown
     metadata?: unknown
-  }): AgentDraft {
-    return this.drafts.updateDraft(input)
+  }): AgentWorkspace {
+    return this.workspaces.updateWorkspace(input)
   }
 
-  previewApplyDraft(input: {
-    draftId?: unknown
+  previewApplyWorkspace(input: {
+    workspaceId?: unknown
     target?: unknown
     targetEntityType?: unknown
     targetEntityId?: unknown
@@ -1025,11 +1025,11 @@ export class AgentRuntimeRouter {
     currentValue?: unknown
     proposedValue?: unknown
   }): JSONValue {
-    return this.drafts.previewApplyDraft(input)
+    return this.workspaces.previewApplyWorkspace(input)
   }
 
-  async simulateApplyDraft(input: {
-    draftId?: unknown
+  async simulateApplyWorkspace(input: {
+    workspaceId?: unknown
     target?: unknown
     targetEntityType?: unknown
     targetEntityId?: unknown
@@ -1039,15 +1039,15 @@ export class AgentRuntimeRouter {
     backendAuthToken?: unknown
     backendAPIBaseURL?: unknown
   }): Promise<JSONValue> {
-    return await this.drafts.simulateApplyDraft(input)
+    return await this.workspaces.simulateApplyWorkspace(input)
   }
 
-  async applyDraftFromUI(input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
-    return await this.drafts.applyDraftFromUI(input)
+  async applyWorkspaceFromUI(input: ApplyWorkspaceInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
+    return await this.workspaces.applyWorkspaceFromUI(input)
   }
 
-  rejectDraft(input: { draftId?: unknown; reason?: unknown }): AgentDraft {
-    return this.drafts.rejectDraft(input)
+  rejectWorkspace(input: { workspaceId?: unknown; reason?: unknown }): AgentWorkspace {
+    return this.workspaces.rejectWorkspace(input)
   }
 
   createMemory(input: Parameters<AgentMemoryStore['createMemory']>[0]): AgentMemory {

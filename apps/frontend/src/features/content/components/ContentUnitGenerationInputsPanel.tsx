@@ -1,10 +1,10 @@
 import { Clapperboard, Image, PackageCheck, Play, Plus, Route, Upload } from 'lucide-react'
 
 import {
-  type ContentUnitEditDraft,
+  type ContentUnitEditWorkspace,
   type ContentUnitInputDrawerTab,
   type ContentWorkbenchEditRecord,
-  type KeyframeEditDraft,
+  type KeyframeEditWorkspace,
 } from '@/features/content/domain/contentWorkbenchEditModel'
 import { firstText } from '@/features/content/domain/contentWorkbenchRecordUtils'
 import type { Job, PublicModel } from '@/types'
@@ -38,13 +38,13 @@ type ContentUnitGenerationInputRecord = ContentWorkbenchEditRecord & {
 export function ContentUnitGenerationInputsPanel({
   compact = false,
   unit,
-  draft,
+  workspace,
   activeInputDrawer,
   assetSlots,
   missingSlots,
   keyframes,
   selectedKeyframe,
-  keyframeDraft,
+  keyframeWorkspace,
   jobs,
   imageModels,
   keyframeModelId,
@@ -59,29 +59,28 @@ export function ContentUnitGenerationInputsPanel({
   generatePending,
   keyframeUnchanged,
   onInputDrawerChange,
-  onDraftChange,
+  onWorkspaceChange,
   onCreateAssetSlot,
   onCreateKeyframe,
   onUploadMissingAssets,
   onOpenCanvas,
-  onAiVisualTaskGraph,
   onSelectKeyframe,
   onMoveKeyframe,
   onDeleteKeyframe,
   onSaveKeyframe,
-  onKeyframeDraftChange,
+  onKeyframeWorkspaceChange,
   onKeyframeModelChange,
   onGenerateKeyframes,
 }: {
   compact?: boolean
   unit: ContentWorkbenchEditRecord
-  draft: ContentUnitEditDraft
+  workspace: ContentUnitEditWorkspace
   activeInputDrawer: ContentUnitInputDrawerTab
   assetSlots: ContentUnitGenerationInputRecord[]
   missingSlots: ContentUnitGenerationInputRecord[]
   keyframes: ContentWorkbenchEditRecord[]
   selectedKeyframe: ContentWorkbenchEditRecord | null
-  keyframeDraft: KeyframeEditDraft
+  keyframeWorkspace: KeyframeEditWorkspace
   jobs: Job[]
   imageModels: PublicModel[]
   keyframeModelId: string
@@ -96,17 +95,16 @@ export function ContentUnitGenerationInputsPanel({
   generatePending: boolean
   keyframeUnchanged: boolean
   onInputDrawerChange: (tab: ContentUnitInputDrawerTab) => void
-  onDraftChange: (field: ContentUnitPlanningField, value: string) => void
+  onWorkspaceChange: (field: ContentUnitPlanningField, value: string) => void
   onCreateAssetSlot?: () => void
   onCreateKeyframe?: () => void
   onUploadMissingAssets?: () => void
   onOpenCanvas?: () => void
-  onAiVisualTaskGraph?: () => void
   onSelectKeyframe: (keyframeId: number) => void
   onMoveKeyframe: (keyframe: ContentWorkbenchEditRecord, direction: 'up' | 'down') => void
   onDeleteKeyframe: (keyframe: ContentWorkbenchEditRecord) => void
   onSaveKeyframe: () => void
-  onKeyframeDraftChange: (key: keyof KeyframeEditDraft, value: string) => void
+  onKeyframeWorkspaceChange: (key: keyof KeyframeEditWorkspace, value: string) => void
   onKeyframeModelChange: (modelId: string) => void
   onGenerateKeyframes: (targets: ContentWorkbenchEditRecord[]) => void
 }) {
@@ -126,7 +124,7 @@ export function ContentUnitGenerationInputsPanel({
             title="调度图"
             badge={visualPlanReady ? '已填写' : requiresKeyframe ? '建议补齐' : '非视觉项'}
             badgeTone={visualPlanTone}
-            detail={visualPlanReady ? firstText(draft.visual_task_graph_blocking, draft.visual_task_graph_camera_path, draft.visual_task_graph_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
+            detail={visualPlanReady ? firstText(workspace.visual_task_graph_blocking, workspace.visual_task_graph_camera_path, workspace.visual_task_graph_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
             status={visualPlanReady ? '可用于生成' : '待填写'}
             tone={visualPlanTone}
             onOpen={() => onInputDrawerChange('blocking')}
@@ -137,7 +135,7 @@ export function ContentUnitGenerationInputsPanel({
             title="故事板"
             badge={storyboardBriefReady ? '已填写' : '建议补齐'}
             badgeTone={storyboardTone}
-            detail={storyboardBriefReady ? firstText(draft.storyboard_purpose, draft.storyboard_composition, draft.storyboard_action_moment) : '单张叙事确认图，用于先判断画面是否讲对。'}
+            detail={storyboardBriefReady ? firstText(workspace.storyboard_purpose, workspace.storyboard_composition, workspace.storyboard_action_moment) : '单张叙事确认图，用于先判断画面是否讲对。'}
             status={storyboardBriefReady ? '可用于关键帧' : '待填写'}
             tone={storyboardTone}
             onOpen={() => onInputDrawerChange('storyboard')}
@@ -251,7 +249,7 @@ export function ContentUnitGenerationInputsPanel({
               compact={compact}
               keyframes={keyframes}
               selectedKeyframe={selectedKeyframe}
-              keyframeDraft={keyframeDraft}
+              keyframeWorkspace={keyframeWorkspace}
               jobs={jobs}
               unit={unit}
               requiresKeyframe={requiresKeyframe}
@@ -269,7 +267,7 @@ export function ContentUnitGenerationInputsPanel({
               onMoveKeyframe={onMoveKeyframe}
               onDeleteKeyframe={onDeleteKeyframe}
               onSaveKeyframe={onSaveKeyframe}
-              onDraftChange={onKeyframeDraftChange}
+              onWorkspaceChange={onKeyframeWorkspaceChange}
               onModelChange={onKeyframeModelChange}
               onGenerateKeyframes={onGenerateKeyframes}
             />
@@ -279,16 +277,15 @@ export function ContentUnitGenerationInputsPanel({
             <ContentUnitStoryboardBriefEditor
               unitId={unit.ID}
               value={{
-                purpose: draft.storyboard_purpose,
-                subject: draft.storyboard_subject,
-                composition: draft.storyboard_composition,
-                actionMoment: draft.storyboard_action_moment,
-                emotion: draft.storyboard_emotion,
-                keyframeSuggestions: draft.storyboard_keyframe_suggestions,
+                purpose: workspace.storyboard_purpose,
+                subject: workspace.storyboard_subject,
+                composition: workspace.storyboard_composition,
+                actionMoment: workspace.storyboard_action_moment,
+                emotion: workspace.storyboard_emotion,
+                keyframeSuggestions: workspace.storyboard_keyframe_suggestions,
               }}
               ready={storyboardBriefReady}
-              onFieldChange={onDraftChange}
-              onAiVisualTaskGraph={onAiVisualTaskGraph}
+              onFieldChange={onWorkspaceChange}
             />
           ) : null}
 
@@ -296,18 +293,17 @@ export function ContentUnitGenerationInputsPanel({
             <ContentUnitVisualPlanEditor
               unitId={unit.ID}
               value={{
-                space: draft.visual_task_graph_space,
-                blocking: draft.visual_task_graph_blocking,
-                cameraPath: draft.visual_task_graph_camera_path,
-                beats: draft.visual_task_graph_beats,
-                props: draft.visual_task_graph_props,
-                lighting: draft.visual_task_graph_lighting,
-                risks: draft.visual_task_graph_risks,
+                space: workspace.visual_task_graph_space,
+                blocking: workspace.visual_task_graph_blocking,
+                cameraPath: workspace.visual_task_graph_camera_path,
+                beats: workspace.visual_task_graph_beats,
+                props: workspace.visual_task_graph_props,
+                lighting: workspace.visual_task_graph_lighting,
+                risks: workspace.visual_task_graph_risks,
               }}
               ready={visualPlanReady}
               requiresKeyframe={requiresKeyframe}
-              onFieldChange={onDraftChange}
-              onAiVisualTaskGraph={onAiVisualTaskGraph}
+              onFieldChange={onWorkspaceChange}
             />
           ) : null}
         </ContentWorkbenchInputDrawerPanel>

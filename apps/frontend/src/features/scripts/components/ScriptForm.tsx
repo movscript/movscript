@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Script } from '@/types'
-import { GitBranch, Save, Upload } from 'lucide-react'
+import { Save, Upload } from 'lucide-react'
 import {
   ScriptEditorActionButton,
   ScriptEditorBodyGrid,
@@ -13,15 +13,8 @@ import {
   ScriptEditorInlineMeta,
   ScriptEditorInput,
   ScriptEditorMainField,
-  ScriptEditorSidePanel,
-  ScriptEditorSideRail,
-  ScriptEditorStrongText,
-  ScriptEditorSummaryTextarea,
   ScriptEditorToolbar,
   ScriptEditorToolbarGroup,
-  ScriptEditorVersionState,
-  ScriptEditorVersionSubtitle,
-  ScriptEditorVersionTitle,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument } from '@/features/resources/domain/scriptDocuments'
@@ -29,27 +22,17 @@ import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument } from '@/features/resources
 interface ScriptFormProps {
   script: Script
   projectId?: number
-  draft: Partial<Script>
+  workspace: Partial<Script>
   onChange: (d: Partial<Script>) => void
   onSave: (data: Partial<Script>) => void
   isSaving?: boolean
-  onCreateVersion?: () => void
-  isCreatingVersion?: boolean
-  canCreateVersion?: boolean
-  versionStateLabel?: string
-  latestVersionLabel?: string
 }
 
 export function ScriptForm({
-  draft,
+  workspace,
   onChange,
   onSave,
   isSaving,
-  onCreateVersion,
-  isCreatingVersion,
-  canCreateVersion = true,
-  versionStateLabel,
-  latestVersionLabel,
 }: ScriptFormProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -57,7 +40,7 @@ export function ScriptForm({
   const [fileError, setFileError] = useState('')
 
   function updateRawSource(value: string) {
-    onChange({ ...draft, raw_source: value, content: value })
+    onChange({ ...workspace, raw_source: value, content: value })
   }
 
   async function handleFile(file?: File) {
@@ -71,6 +54,8 @@ export function ScriptForm({
       setFileError(error instanceof Error ? error.message : '读取文档失败')
     }
   }
+
+  const bodyText = workspace.raw_source ?? workspace.content ?? ''
 
   return (
     <ScriptEditorFormShell>
@@ -93,7 +78,7 @@ export function ScriptForm({
           {fileError && <ScriptEditorErrorText>{fileError}</ScriptEditorErrorText>}
         </ScriptEditorToolbarGroup>
         <ScriptEditorToolbarGroup>
-          <ScriptEditorActionButton size="sm" onClick={() => onSave(draft)} disabled={isSaving}>
+          <ScriptEditorActionButton size="sm" onClick={() => onSave(workspace)} disabled={isSaving}>
             <Save size={14} />
             {isSaving ? t('common.saving') : t('common.save')}
           </ScriptEditorActionButton>
@@ -105,44 +90,17 @@ export function ScriptForm({
           <ScriptEditorFieldLabel htmlFor="script-title">标题</ScriptEditorFieldLabel>
           <ScriptEditorInput
             id="script-title"
-            value={draft.title ?? ''}
-            onChange={(event) => onChange({ ...draft, title: event.target.value })}
+            value={workspace.title ?? ''}
+            onChange={(event) => onChange({ ...workspace, title: event.target.value })}
           />
           <ScriptEditorFieldLabel>{t('details.scriptBody')}</ScriptEditorFieldLabel>
-          <ScriptEditorHelperText>
-            <ScriptEditorStrongText>工作稿</ScriptEditorStrongText>
-            会用于生成下一份定稿和剧本块拆分。
-          </ScriptEditorHelperText>
+          <ScriptEditorHelperText>可直接编辑正文，也可以导入 txt、md 或 docx 文档。</ScriptEditorHelperText>
           <ScriptEditorBodyTextarea
             placeholder={t('details.scriptBodyPlaceholder')}
-            value={draft.raw_source ?? draft.content ?? ''}
+            value={bodyText}
             onChange={(event) => updateRawSource(event.target.value)}
           />
         </ScriptEditorMainField>
-        <ScriptEditorSideRail>
-          <ScriptEditorSidePanel variant="muted">
-            {versionStateLabel && (
-              <ScriptEditorVersionState>
-                <ScriptEditorVersionTitle>{versionStateLabel}</ScriptEditorVersionTitle>
-                {latestVersionLabel && <ScriptEditorVersionSubtitle>{latestVersionLabel}</ScriptEditorVersionSubtitle>}
-              </ScriptEditorVersionState>
-            )}
-            {onCreateVersion && (
-              <ScriptEditorActionButton size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion || !canCreateVersion}>
-                <GitBranch size={14} />
-                {isCreatingVersion ? '创建中…' : '保存为版本'}
-              </ScriptEditorActionButton>
-            )}
-          </ScriptEditorSidePanel>
-          <ScriptEditorSidePanel>
-            <ScriptEditorFieldLabel htmlFor="script-summary">摘要</ScriptEditorFieldLabel>
-            <ScriptEditorSummaryTextarea
-              id="script-summary"
-              value={draft.summary ?? ''}
-              onChange={(event) => onChange({ ...draft, summary: event.target.value })}
-            />
-          </ScriptEditorSidePanel>
-        </ScriptEditorSideRail>
       </ScriptEditorBodyGrid>
     </ScriptEditorFormShell>
   )

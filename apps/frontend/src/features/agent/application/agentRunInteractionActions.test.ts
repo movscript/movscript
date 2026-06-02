@@ -2,10 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { answerRunInteractionInputAction, approveRunInteractionAction, rejectRunInteractionAction, type AgentRunInteractionActionDeps } from './agentRunInteractionActions'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
-test('approveRunInteractionAction applies optimistic approval, streams follow-up, and appends final result', async () => {
+test('approveRunInteractionAction applies optimistic approval and streams follow-up', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   const run = makeRun({
@@ -29,7 +28,7 @@ test('approveRunInteractionAction applies optimistic approval, streams follow-up
     deps,
   })
 
-  assert.deepEqual(calls, ['runtime:true', 'approve', 'setRun:in_progress', 'stream', 'getThread', 'append:completed', 'runtime:false'])
+  assert.deepEqual(calls, ['runtime:true:none', 'approve', 'setRun:in_progress', 'stream', 'runtime:false:none'])
 })
 
 test('approveRunInteractionAction resolves multiple approval interactions serially before streaming', async () => {
@@ -91,19 +90,17 @@ test('approveRunInteractionAction resolves multiple approval interactions serial
   await action
 
   assert.deepEqual(calls, [
-    'runtime:true',
+    'runtime:true:none',
     'approve:interaction_approval_1',
     'approve:interaction_approval_2',
     'secondAfterFirst:true',
     'setRun:in_progress',
     'stream:run_requires_action',
-    'getThread',
-    'append:completed',
-    'runtime:false',
+    'runtime:false:none',
   ])
 })
 
-test('rejectRunInteractionAction writes a rejection assistant message without streaming follow-up', async () => {
+test('rejectRunInteractionAction completes without streaming follow-up or writing messages', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   const rejectedRun = makeRun({
@@ -122,10 +119,10 @@ test('rejectRunInteractionAction writes a rejection assistant message without st
   })
 
   assert.equal(calls.includes('stream'), false)
-  assert.equal(calls.includes('assistant:run completed_with_warnings'), true)
+  assert.equal(calls.some((call) => call.startsWith('assistant:')), false)
 })
 
-test('answerRunInteractionInputAction reports failures through assistant messages and clears runtime busy state', async () => {
+test('answerRunInteractionInputAction reports failures through runtime error and clears busy state', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -142,15 +139,13 @@ test('answerRunInteractionInputAction reports failures through assistant message
   })
 
   assert.deepEqual(calls, [
-    'addMessage:local_1:pending',
-    'runtime:true',
-    'messageMeta:local_1:failed:undefined',
-    'assistant:补充信息提交失败：backend offline',
-    'runtime:false',
+    'runtime:true:none',
+    'runtime:false:补充信息提交失败：backend offline',
+    'runtime:false:none',
   ])
 })
 
-test('answerRunInteractionInputAction keeps input answers pending until the runtime accepts the local message id', async () => {
+test('answerRunInteractionInputAction streams follow-up after runtime accepts input', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -161,83 +156,41 @@ test('answerRunInteractionInputAction keeps input answers pending until the runt
     requestId: 'input_1',
     answer: { text: 'More context' },
     answerRunInput: async (_runId, input) => {
-      calls.push(`answer:${input.sourceMessageId}`)
+      calls.push(`answer:${input.sourceMessageId ?? 'none'}`)
       return makeRun({ status: 'in_progress' })
     },
     deps,
   })
 
   assert.deepEqual(calls, [
-    'addMessage:local_1:pending',
-    'runtime:true',
-    'answer:local_1',
-    'messageMeta:local_1:accepted:local_1',
+    'runtime:true:none',
+    'answer:none',
     'setRun:in_progress',
     'stream',
-    'getThread',
-    'append:completed',
-    'runtime:false',
+    'runtime:false:none',
   ])
 })
 
 function depsFixture(calls: string[]): AgentRunInteractionActionDeps {
   return {
-    userId: 'user_1',
     conversationId: 'conv_1',
     setSubmittedInteractionRuns: (updater) => {
       updater([])
     },
     setConversationRuntime: (patch) => {
-      calls.push(`runtime:${patch.approving === true}`)
+      calls.push(`runtime:${patch.approving === true}:${patch.error ?? 'none'}`)
     },
     setConversationRun: (run) => {
       calls.push(`setRun:${run.status}`)
-    },
-    messageStore: {
-      addMessage: (_userId, _conversationId, message) => {
-        calls.push(`addMessage:local_1:${message.meta?.runtimeInput?.status}`)
-        return 'local_1'
-      },
-      updateMessageMeta: (_userId, _conversationId, messageId, meta: ChatMessageMeta) => {
-        calls.push(`messageMeta:${messageId}:${meta.runtimeInput?.status}:${meta.runtimeMessage?.messageId}`)
-      },
-    },
-    addAssistantMessage: (content, meta) => {
-      calls.push(`assistant:${meta?.contextLabels?.[0] ?? content}`)
-    },
-    getThread: async () => {
-      calls.push('getThread')
-      return makeThread()
     },
     streamFollowUpRun: async () => {
       calls.push('stream')
       return makeRun({ status: 'completed' })
     },
-    appendAssistantRunResult: async (run) => {
-      calls.push(`append:${run.status}`)
-    },
-    liveEvents: () => [] satisfies ChatRunActivityEvent[],
     runTouchesAgentCatalog: () => false,
     refreshAgentCatalogContext: () => {
       calls.push('refreshCatalog')
     },
-  }
-}
-
-function makeThread(): AgentThread {
-  return {
-    id: 'thread_1',
-    status: 'completed',
-    createdAt: '2026-05-19T00:00:00.000Z',
-    updatedAt: '2026-05-19T00:00:01.000Z',
-    messages: [{
-      id: 'msg_assistant',
-      threadId: 'thread_1',
-      role: 'assistant',
-      runId: 'run_requires_action',
-      content: 'Rejected',
-      createdAt: '2026-05-19T00:00:01.000Z',
-    }],
   }
 }
 

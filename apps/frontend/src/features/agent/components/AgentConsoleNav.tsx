@@ -37,8 +37,8 @@ const agentConsoleSections = [
     icon: ListTree,
   },
   {
-    to: ROUTES.agentDrafts,
-    label: '草稿索引',
+    to: ROUTES.agentWorkspaces,
+    label: '工作区索引',
     description: 'Agent 产物查询与业务审阅跳转',
     icon: FileSearch,
   },

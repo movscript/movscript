@@ -203,8 +203,8 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
       itemCount={row.items.length}
       status={(
         <ProductionDeliveryCenterStatusBadge
-          {...deliveryWorkbenchStatusRecipe(latestVersion?.status ?? 'draft')}
-          label={deliveryStatusLabel(latestVersion?.status ?? 'draft')}
+          {...deliveryWorkbenchStatusRecipe(latestVersion?.status ?? 'workspace')}
+          label={deliveryStatusLabel(latestVersion?.status ?? 'workspace')}
         />
       )}
       exportStatus={latestExport ? exportStatusLabel(latestExport.status) : '未导出'}
@@ -221,7 +221,7 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
 
 function deliveryStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    draft: '草稿',
+    workspace: '工作区',
     checking: '检查中',
     approved: '已批准',
     exported: '已导出',

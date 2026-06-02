@@ -198,15 +198,15 @@ test('updateRuntimeActiveSkills stores run skill state and reports missing ids',
   assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [skillB.id])
 })
 
-test('updateRuntimeActiveSkills corrects proposal skill choice for plain script reading requests', () => {
+test('updateRuntimeActiveSkills corrects workspace skill choice for plain script reading requests', () => {
   const scriptReading = makeSkill('movscript.script_reading')
-  const assetProposal = makeSkill('movscript.asset_proposal')
-  const settingProposal = makeSkill('movscript.setting_proposal')
+  const assetWorkspace = makeSkill('movscript.asset_workspace')
+  const settingWorkspace = makeSkill('movscript.setting_workspace')
   const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
     id: 'catalog_1',
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: new StaticToolRegistry([]),
-    layeredRegistry: makeRegistry({ skills: [scriptReading, assetProposal, settingProposal] }),
+    layeredRegistry: makeRegistry({ skills: [scriptReading, assetWorkspace, settingWorkspace] }),
   }))
   snapshots.captureRun('run_1')
   const run: AgentRun = {
@@ -235,7 +235,7 @@ test('updateRuntimeActiveSkills corrects proposal skill choice for plain script 
     catalogSnapshots: snapshots,
     run,
     request: {
-      load: [assetProposal.id, settingProposal.id],
+      load: [assetWorkspace.id, settingWorkspace.id],
       reason: 'read script context',
     },
     now: () => '2026-01-01T00:00:01.000Z',
@@ -243,19 +243,19 @@ test('updateRuntimeActiveSkills corrects proposal skill choice for plain script 
 
   assert.equal(result.status, 'updated')
   assert.deepEqual(result.loadedSkillIds, [scriptReading.id])
-  assert.deepEqual(result.correctedSkillActivation.suppressedLoad, [assetProposal.id, settingProposal.id])
+  assert.deepEqual(result.correctedSkillActivation.suppressedLoad, [assetWorkspace.id, settingWorkspace.id])
   assert.deepEqual(result.correctedSkillActivation.addedLoad, [scriptReading.id])
   assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [scriptReading.id])
 })
 
-test('updateRuntimeActiveSkills preserves proposal skills when script request asks for proposal work', () => {
+test('updateRuntimeActiveSkills preserves workspace skills when script request asks for workspace work', () => {
   const scriptReading = makeSkill('movscript.script_reading')
-  const assetProposal = makeSkill('movscript.asset_proposal')
+  const assetWorkspace = makeSkill('movscript.asset_workspace')
   const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
     id: 'catalog_1',
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: new StaticToolRegistry([]),
-    layeredRegistry: makeRegistry({ skills: [scriptReading, assetProposal] }),
+    layeredRegistry: makeRegistry({ skills: [scriptReading, assetWorkspace] }),
   }))
   snapshots.captureRun('run_1')
   const run: AgentRun = {
@@ -264,7 +264,7 @@ test('updateRuntimeActiveSkills preserves proposal skills when script request as
     status: 'in_progress' as const,
     input: {
       schema: 'movscript.agent.run-input.v1',
-      userMessage: '根据总剧本创建素材提案',
+      userMessage: '根据总剧本创建素材工作区',
       executionMode: 'chat',
       createdAt: '2026-01-01T00:00:00.000Z',
     },
@@ -283,12 +283,12 @@ test('updateRuntimeActiveSkills preserves proposal skills when script request as
   const result = updateRuntimeActiveSkills({
     catalogSnapshots: snapshots,
     run,
-    request: { load: [assetProposal.id], reason: 'create asset proposal' },
+    request: { load: [assetWorkspace.id], reason: 'create asset workspace' },
     now: () => '2026-01-01T00:00:01.000Z',
   }) as Record<string, unknown>
 
   assert.equal(result.status, 'updated')
-  assert.deepEqual(result.loadedSkillIds, [assetProposal.id])
+  assert.deepEqual(result.loadedSkillIds, [assetWorkspace.id])
   assert.equal(result.correctedSkillActivation, undefined)
 })
 

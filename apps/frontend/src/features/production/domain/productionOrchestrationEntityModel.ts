@@ -47,11 +47,11 @@ export function createProductionOrchestrationDefaultsForType(
   sceneMomentId?: number,
 ): ProductionOrchestrationCreateDefaults {
   if (type === 'assetSlots') return { status: 'missing', production_id: productionId || 0, owner_type: segmentId ? 'segment' : '', owner_id: segmentId ?? null }
-  if (type === 'contentUnits') return { status: 'draft', production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
-  if (type === 'segments') return { status: 'draft', kind: 'emotional_function', production_id: productionId || 0 }
-  if (type === 'sceneMoments') return { status: 'draft', segment_id: segmentId ?? null }
+  if (type === 'contentUnits') return { status: 'workspace', production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
+  if (type === 'segments') return { status: 'workspace', kind: 'emotional_function', production_id: productionId || 0 }
+  if (type === 'sceneMoments') return { status: 'workspace', segment_id: segmentId ?? null }
   if (type === 'writingExpressions') return { scene_moment_id: sceneMomentId ?? null, kind: 'dialogue', order: 1 }
-  if (type === 'creativeReferences') return { status: 'draft', importance: 'main' }
+  if (type === 'creativeReferences') return { status: 'workspace', importance: 'main' }
   return {}
 }
 

@@ -371,8 +371,8 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
       ?? stringLengthField(payload, 'content')
       ?? 0
   }
-  if (ref.type === 'draft') {
-    if (call.name === 'draft_create' || call.name === 'draft_apply_preview') return 0
+  if (ref.type === 'workspace') {
+    if (call.name === 'workspace_open' || call.name === 'workspace_validate') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(item, 'body')
@@ -388,11 +388,11 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
 function findRefPayload(ref: ContextRef, value: unknown): Record<string, unknown> | undefined {
   if (isRecord(value) && refMatchesRecord(ref, value)) return value
   if (isRecord(value)) {
-    for (const key of ['draft', 'memory', 'reference', 'project', 'production', 'taskGraph', 'job']) {
+    for (const key of ['workspace', 'memory', 'reference', 'project', 'production', 'taskGraph', 'job']) {
       const nested = value[key]
       if (isRecord(nested) && refMatchesRecord(ref, nested)) return nested
     }
-    for (const key of ['results', 'memories', 'drafts', 'items']) {
+    for (const key of ['results', 'memories', 'workspaces', 'items']) {
       const nested = value[key]
       if (!Array.isArray(nested)) continue
       const found = nested.find((item) => isRecord(item) && refMatchesRecord(ref, item))
@@ -405,9 +405,9 @@ function findRefPayload(ref: ContextRef, value: unknown): Record<string, unknown
 function refMatchesRecord(ref: ContextRef, value: Record<string, unknown>): boolean {
   const id = stringField(value.id)
     ?? stringField(value.memoryId)
-    ?? stringField(value.draftId)
-    ?? stringField(value.draftRef)
-    ?? stringField(value.proposalRef)
+    ?? stringField(value.workspaceId)
+    ?? stringField(value.workspaceRef)
+    ?? stringField(value.workspaceRef)
   return id === ref.id
 }
 
@@ -427,7 +427,7 @@ function extractContextRefs(call: ToolCall, result: JSONValue | undefined): Cont
   const refs: ContextRef[] = []
   const payload = unwrapResult(result)
   if (isRecord(payload)) {
-    refs.push(...extractDraftRefs(payload))
+    refs.push(...extractWorkspaceRefs(payload))
     refs.push(...extractMemoryRefs(payload))
     refs.push(...extractReferenceRefs(payload))
     refs.push(...extractPlanRefs(payload))
@@ -441,20 +441,20 @@ function extractContextRefs(call: ToolCall, result: JSONValue | undefined): Cont
   return mergeRefs([], refs)
 }
 
-function extractDraftRefs(payload: Record<string, unknown>): ContextRef[] {
-  const draft = isRecord(payload.draft) ? payload.draft : undefined
-  const id = stringField(payload.draftId)
-    ?? stringField(payload.draftRef)
-    ?? stringField(payload.proposalRef)
-    ?? stringField(draft?.id)
+function extractWorkspaceRefs(payload: Record<string, unknown>): ContextRef[] {
+  const workspace = isRecord(payload.workspace) ? payload.workspace : undefined
+  const id = stringField(payload.workspaceId)
+    ?? stringField(payload.workspaceRef)
+    ?? stringField(payload.workspaceRef)
+    ?? stringField(workspace?.id)
     ?? (typeof payload.kind === 'string' && typeof payload.id === 'string' ? payload.id : undefined)
   if (!id) return []
   return [{
-    type: 'draft',
+    type: 'workspace',
     id,
-    title: stringField(draft?.title) ?? stringField(payload.title) ?? id,
-    ...(stringField(draft?.updatedAt) ? { version: stringField(draft?.updatedAt) } : {}),
-    source: 'draft',
+    title: stringField(workspace?.title) ?? stringField(payload.title) ?? id,
+    ...(stringField(workspace?.updatedAt) ? { version: stringField(workspace?.updatedAt) } : {}),
+    source: 'workspace',
   }]
 }
 
@@ -581,8 +581,8 @@ function extractProductionRefs(call: ToolCall, payload: Record<string, unknown>)
 
 function extractRefsFromArgs(call: ToolCall): ContextRef[] {
   const refs: ContextRef[] = []
-  const draftId = stringField(call.args?.draftId) ?? stringField(call.args?.draft_id) ?? stringField(call.args?.draftRef)
-  if (draftId) refs.push({ type: 'draft', id: draftId, title: draftId, source: call.name })
+  const workspaceId = stringField(call.args?.workspaceId) ?? stringField(call.args?.workspace_id) ?? stringField(call.args?.workspaceRef)
+  if (workspaceId) refs.push({ type: 'workspace', id: workspaceId, title: workspaceId, source: call.name })
   const memoryId = stringField(call.args?.memoryId) ?? stringField(call.args?.id)
   if (memoryId && call.name.includes('memory')) refs.push({ type: 'memory', id: memoryId, title: memoryId, source: call.name })
   return refs
@@ -713,7 +713,7 @@ function normalizeContextRef(value: unknown): ContextRef[] {
 function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
   return value === 'reference'
     || value === 'memory'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'tool_result'
     || value === 'project'
     || value === 'production'

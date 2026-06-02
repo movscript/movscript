@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { performanceNow, recordAgentPerformanceMetric } from '@/features/agent/state/agentPerformanceStore'
 
 export interface StreamingAssistantTurnInput {
   currentMessageId?: string | null
@@ -33,19 +34,25 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
   const messageIdRef = useRef<string | null>(null)
   const textRef = useRef('')
+  const displayedTextRef = useRef('')
   const turnsRef = useRef<Map<number, string>>(new Map())
   const settledRunIdsRef = useRef<Set<string>>(new Set())
   const flushTimerRef = useRef<number | null>(null)
+  const statsRef = useRef<StreamingAssistantBufferStats>(emptyStreamingAssistantBufferStats())
 
   const resetStreamingAssistant = useCallback((settledRunId?: string) => {
     if (flushTimerRef.current !== null) {
       window.clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
     }
+    flushStreamingAssistantText(textRef.current, displayedTextRef)
+    recordStreamingAssistantBufferStats(statsRef.current)
     if (settledRunId) settledRunIdsRef.current.add(settledRunId)
     messageIdRef.current = null
     textRef.current = ''
+    displayedTextRef.current = ''
     turnsRef.current = new Map()
+    statsRef.current = emptyStreamingAssistantBufferStats()
     setStreamingAssistantMessageId(null)
     setStreamingAssistantText('')
   }, [])
@@ -63,19 +70,23 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
     messageIdRef.current = projection.messageId
     textRef.current = projection.text
     turnsRef.current = projection.turns
+    recordStreamingAssistantUpdate(statsRef.current, projection.text)
     setStreamingAssistantMessageId((current) => current ?? projection.messageId)
-    setStreamingAssistantText((current) => (current === projection.text ? current : projection.text))
+    if (!displayedTextRef.current) {
+      flushStreamingAssistantText(projection.text, displayedTextRef, setStreamingAssistantText)
+      return
+    }
     if (flushTimerRef.current !== null) return
     flushTimerRef.current = window.setTimeout(() => {
       flushTimerRef.current = null
-      setStreamingAssistantText(textRef.current)
+      flushStreamingAssistantText(textRef.current, displayedTextRef, setStreamingAssistantText)
+      statsRef.current.flushCount += 1
     }, input.flushMs)
   }, [input.flushMs])
 
-  const getStreamingAssistantMessageId = useCallback(() => messageIdRef.current, [])
-
   useEffect(() => () => {
     if (flushTimerRef.current !== null) window.clearTimeout(flushTimerRef.current)
+    recordStreamingAssistantBufferStats(statsRef.current)
   }, [])
 
   return {
@@ -83,6 +94,69 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
     streamingAssistantText,
     resetStreamingAssistant,
     updateStreamingAssistantText,
-    getStreamingAssistantMessageId,
   }
+}
+
+interface StreamingAssistantBufferStats {
+  startedMs?: number
+  updateCount: number
+  maxChars: number
+  flushCount: number
+}
+
+function emptyStreamingAssistantBufferStats(): StreamingAssistantBufferStats {
+  return {
+    updateCount: 0,
+    maxChars: 0,
+    flushCount: 0,
+  }
+}
+
+function recordStreamingAssistantUpdate(stats: StreamingAssistantBufferStats, text: string): void {
+  stats.startedMs ??= performanceNow()
+  stats.updateCount += 1
+  stats.maxChars = Math.max(stats.maxChars, text.length)
+}
+
+function flushStreamingAssistantText(
+  text: string,
+  displayedTextRef: { current: string },
+  setStreamingAssistantText?: (value: string) => void,
+): void {
+  if (displayedTextRef.current === text) return
+  displayedTextRef.current = text
+  setStreamingAssistantText?.(text)
+}
+
+function recordStreamingAssistantBufferStats(stats: StreamingAssistantBufferStats): void {
+  if (!stats.startedMs || stats.updateCount === 0) return
+  const labels = {
+    area: 'agent_frontend',
+    component: 'agent_chat',
+    kind: 'assistant_stream',
+  }
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_stream_buffer_lifetime_ms',
+    value: Math.max(0, performanceNow() - stats.startedMs),
+    unit: 'ms',
+    labels,
+  })
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_stream_update_total',
+    value: stats.updateCount,
+    unit: 'count',
+    labels,
+  })
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_stream_flush_total',
+    value: stats.flushCount,
+    unit: 'count',
+    labels,
+  })
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_stream_text_chars',
+    value: stats.maxChars,
+    unit: 'count',
+    labels,
+  })
 }

@@ -1,6 +1,6 @@
 import type { NormalizedClientInput } from '../../../../../context/input/client/normalizeClientInput.js'
 import type { AgentRuntimeContractResolver } from '../../../../../contracts/runtime/runtimeContract.js'
-import type { AgentDraftStore } from '../../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../../workspaces/store/workspaceStore.js'
 import type { ReferenceManager } from '../../../../../reference/manager/referenceManager.js'
 import type { MemoryManager } from '../../../../../memory/manager/memoryManager.js'
 import type { MCPClient } from '../../../../../adapters/mcp/client/mcpClient.js'
@@ -28,9 +28,9 @@ import {
   type RuntimeAgentGraphInvocationTraceInput,
 } from '../../../../graph/invocation/runtimeAgentGraphInvocation.js'
 import type { resolveRuntimeChatModelConfig } from '../../../../../model/config/modelConfig.js'
-import type { DraftApplyPort } from '../../../../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../../../../ports/draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../../../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../../../../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../../ports/media/videoFrameExtractionPort.js'
@@ -57,11 +57,11 @@ export async function invokeRuntimeRunAgentGraph(input: {
   catalogSnapshot: AgentRuntimeCatalogSnapshot
   auth: RuntimeModelAuthContext
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  draftApplyPort: DraftApplyPort
-  draftApplyPreviewPort: DraftApplyPreviewPort
-  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  workspaceApplyPort: WorkspaceApplyPort
+  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
@@ -115,11 +115,11 @@ export async function invokeRuntimeRunAgentGraph(input: {
     auth: input.auth,
     runtimeLimits: input.run.runtimeLimits,
     mcpClient: input.mcpClient,
-    draftStore: input.draftStore,
+    workspaceStore: input.workspaceStore,
     externalToolGatewayPort: input.externalToolGatewayPort,
-    draftApplyPort: input.draftApplyPort,
-    draftApplyPreviewPort: input.draftApplyPreviewPort,
-    proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+    workspaceApplyPort: input.workspaceApplyPort,
+    workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
     resourceFilePort: input.resourceFilePort,
     imageProcessingPort: input.imageProcessingPort,
     videoFrameExtractionPort: input.videoFrameExtractionPort,

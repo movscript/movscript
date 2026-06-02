@@ -7,7 +7,7 @@ export interface SourceBoundary {
 }
 
 export function sourceBoundaryForContextRef(ref: ContextRef, toolSource: ToolSource): SourceBoundary {
-  if (ref.type === 'draft') return { source: 'draft', evidence: 'draft' }
+  if (ref.type === 'workspace') return { source: 'workspace', evidence: 'workspace' }
   if (ref.type === 'memory') return { source: 'memory', evidence: 'summary' }
   if (ref.type === 'reference') return { source: 'reference', evidence: 'advisory' }
   if (ref.type === 'project' || ref.type === 'production' || ref.type === 'asset_slot') {
@@ -25,7 +25,7 @@ export function normalizeContextSource(value: unknown): ContextSource | undefine
     || value === 'tool_result'
     || value === 'mcp'
     || value === 'backend'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'memory'
     || value === 'reference'
     || value === 'user_input'
@@ -39,7 +39,7 @@ export function normalizeEvidenceLevel(value: unknown): EvidenceLevel | undefine
   return value === 'verified'
     || value === 'runtime_state'
     || value === 'user_claimed'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'advisory'
     || value === 'summary'
     || value === 'unknown'

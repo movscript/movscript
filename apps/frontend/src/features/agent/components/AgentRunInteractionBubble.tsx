@@ -20,8 +20,8 @@ import {
   AgentRunInteractionApprovalTitle,
 } from '@movscript/ui'
 import {
-  DraftDiff,
-  isDraftApplyPreview,
+  WorkspaceDiff,
+  isWorkspaceApplyPreview,
   safeJSONStringify,
 } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
@@ -88,13 +88,13 @@ export function localAgentApprovalDetails(approval: LocalAgentApprovalRequest) {
         </AgentRunInteractionApprovalCodeBlock>
       )}
       {(() => {
-        const applyPreview = isDraftApplyPreview(approval.preview) ? approval.preview : null
+        const applyPreview = isWorkspaceApplyPreview(approval.preview) ? approval.preview : null
         return applyPreview ? (
           <AgentRunInteractionApprovalPreviewStack>
             <AgentRunInteractionApprovalSideEffect>
               {applyPreview.review.sideEffect}
             </AgentRunInteractionApprovalSideEffect>
-            <DraftDiff preview={applyPreview} />
+            <WorkspaceDiff preview={applyPreview} />
           </AgentRunInteractionApprovalPreviewStack>
         ) : null
       })()}

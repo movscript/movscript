@@ -267,14 +267,14 @@ func TestCompactUpdatesSkipsEmptyValues(t *testing.T) {
 	id := uint(9)
 	updates := CompactUpdates(map[string]any{
 		"name":   "",
-		"status": "draft",
+		"status": "workspace",
 		"id":     &id,
 		"none":   nil,
 	})
 	if _, ok := updates["name"]; ok {
 		t.Fatalf("empty string should be omitted: %#v", updates)
 	}
-	if updates["status"] != "draft" || updates["id"] != &id {
+	if updates["status"] != "workspace" || updates["id"] != &id {
 		t.Fatalf("unexpected updates: %#v", updates)
 	}
 }

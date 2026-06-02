@@ -10,7 +10,7 @@ test('createRuntimeRunPreviewBridge wires preview dependencies and identity fact
     store: { label: 'store' } as never,
     mcpClient: { label: 'mcp' } as never,
     memoryManager: { label: 'memory' } as never,
-    draftStore: { label: 'draft' } as never,
+    workspaceStore: { label: 'workspace' } as never,
     catalogSnapshots: { current: { label: 'catalog' } } as never,
     contractResolver: { label: 'contracts' } as never,
     updateState: { checkedAt: 'now' } as never,

@@ -7,12 +7,11 @@ import {
   Database,
   Pencil,
   Plus,
-  Sparkles,
   X,
 } from "lucide-react";
 
 import { AppInlineMeta, AppSurfaceItem, AppTextEmptyState } from "../../../app";
-import { ReviewCallout, ReviewProposalShell } from "../../../review";
+import { ReviewCallout, ReviewWorkspaceShell } from "../../../review";
 import { WorkbenchList, WorkbenchListItem } from "../../../workbench";
 import { Badge, Button, StatusBadge } from "../../../../primitives";
 
@@ -20,7 +19,7 @@ export type ContentWorkbenchReviewQueueState = "empty" | "needs_review" | "pendi
 export type ContentWorkbenchReviewDiffState = "added" | "changed" | "unchanged" | "planned";
 export type ContentWorkbenchReviewDiffKind = "content_unit" | "keyframe";
 
-export interface ContentWorkbenchReviewDraft {
+export interface ContentWorkbenchReviewWorkspace {
   id: string;
   title: string;
   status?: string;
@@ -56,7 +55,7 @@ export interface ContentWorkbenchReviewDiff {
   after?: string;
   fields: ContentWorkbenchReviewFieldDiff[];
   currentUnitId?: number;
-  proposal?: Record<string, unknown>;
+  workspace?: Record<string, unknown>;
 }
 
 export interface ContentWorkbenchReviewModel {
@@ -67,44 +66,42 @@ export interface ContentWorkbenchReviewModel {
   stats: Array<{ label: string; value: number }>;
 }
 
-export interface ContentWorkbenchReviewPanelProps<Draft extends ContentWorkbenchReviewDraft = ContentWorkbenchReviewDraft> {
+export interface ContentWorkbenchReviewPanelProps<Workspace extends ContentWorkbenchReviewWorkspace = ContentWorkbenchReviewWorkspace> {
   reviewMode: boolean;
-  drafts: Draft[];
-  selectedDraft: Draft | null;
+  workspaces: Workspace[];
+  selectedWorkspace: Workspace | null;
   reviewModel: ContentWorkbenchReviewModel | null;
   queueSummary: ContentWorkbenchReviewQueueSummary;
-  rejectingDraft: boolean;
-  markingDraftReviewed: boolean;
-  onOpenAiSuggest: () => void;
-  onSelectDraft: (draftId: string) => void;
-  onCreateUnitFromProposal: (proposal: Record<string, unknown>) => void;
+  rejectingWorkspace: boolean;
+  markingWorkspaceReviewed: boolean;
+  onSelectWorkspace: (workspaceId: string) => void;
+  onCreateUnitFromWorkspace: (workspace: Record<string, unknown>) => void;
   onEditCurrentUnit: (unitId: number) => void;
-  onApplyUnitProposal: (unitId: number, proposal: Record<string, unknown>) => void;
-  onMarkDraftReviewed: (draft: Draft) => void;
-  onRejectDraft: (draft: Draft) => void;
+  onApplyUnitWorkspace: (unitId: number, workspace: Record<string, unknown>) => void;
+  onMarkWorkspaceReviewed: (workspace: Workspace) => void;
+  onRejectWorkspace: (workspace: Workspace) => void;
   onCloseReview: () => void;
 }
 
-export function ContentWorkbenchReviewPanel<Draft extends ContentWorkbenchReviewDraft>({
+export function ContentWorkbenchReviewPanel<Workspace extends ContentWorkbenchReviewWorkspace>({
   reviewMode,
-  drafts,
-  selectedDraft,
+  workspaces,
+  selectedWorkspace,
   reviewModel,
   queueSummary,
-  rejectingDraft,
-  markingDraftReviewed,
-  onOpenAiSuggest,
-  onSelectDraft,
-  onCreateUnitFromProposal,
+  rejectingWorkspace,
+  markingWorkspaceReviewed,
+  onSelectWorkspace,
+  onCreateUnitFromWorkspace,
   onEditCurrentUnit,
-  onApplyUnitProposal,
-  onMarkDraftReviewed,
-  onRejectDraft,
+  onApplyUnitWorkspace,
+  onMarkWorkspaceReviewed,
+  onRejectWorkspace,
   onCloseReview,
-}: ContentWorkbenchReviewPanelProps<Draft>) {
+}: ContentWorkbenchReviewPanelProps<Workspace>) {
   return (
-    <ReviewProposalShell
-      kind="content_unit_proposal"
+    <ReviewWorkspaceShell
+      kind="content_unit_workspace"
       title="AI 审稿队列"
       icon={ClipboardCheck}
       description="审阅内容编排草案，对制作项和关键帧快照执行创建、编辑、确认或退回。"
@@ -122,55 +119,52 @@ export function ContentWorkbenchReviewPanel<Draft extends ContentWorkbenchReview
     >
       <ContentWorkbenchReviewQueueCard
         queueSummary={queueSummary}
-        onOpenAiSuggest={onOpenAiSuggest}
       />
 
-      {drafts.length === 0 ? (
+      {workspaces.length === 0 ? (
         <AppTextEmptyState>
-          还没有制作项草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
+          暂无待审制作项草案。
         </AppTextEmptyState>
       ) : (
         <div className="content-workbench-review-panel__layout">
           <WorkbenchList>
-            {drafts.map((draft) => (
-              <ContentWorkbenchReviewDraftListItem
-                key={draft.id}
-                draft={draft}
-                active={selectedDraft?.id === draft.id}
-                onSelectDraft={onSelectDraft}
+            {workspaces.map((workspace) => (
+              <ContentWorkbenchReviewWorkspaceListItem
+                key={workspace.id}
+                workspace={workspace}
+                active={selectedWorkspace?.id === workspace.id}
+                onSelectWorkspace={onSelectWorkspace}
               />
             ))}
           </WorkbenchList>
 
           <AppSurfaceItem density="compact" className="content-workbench-review-panel__detail">
-            {!selectedDraft || !reviewModel ? (
+            {!selectedWorkspace || !reviewModel ? (
               <AppTextEmptyState>选择一个草案后查看快照对比。</AppTextEmptyState>
             ) : (
-              <ContentWorkbenchReviewDraftDetail
-                draft={selectedDraft}
+              <ContentWorkbenchReviewWorkspaceDetail
+                workspace={selectedWorkspace}
                 reviewModel={reviewModel}
-                rejectingDraft={rejectingDraft}
-                markingDraftReviewed={markingDraftReviewed}
-                onCreateUnitFromProposal={onCreateUnitFromProposal}
+                rejectingWorkspace={rejectingWorkspace}
+                markingWorkspaceReviewed={markingWorkspaceReviewed}
+                onCreateUnitFromWorkspace={onCreateUnitFromWorkspace}
                 onEditCurrentUnit={onEditCurrentUnit}
-                onApplyUnitProposal={onApplyUnitProposal}
-                onMarkDraftReviewed={onMarkDraftReviewed}
-                onRejectDraft={onRejectDraft}
+                onApplyUnitWorkspace={onApplyUnitWorkspace}
+                onMarkWorkspaceReviewed={onMarkWorkspaceReviewed}
+                onRejectWorkspace={onRejectWorkspace}
               />
             )}
           </AppSurfaceItem>
         </div>
       )}
-    </ReviewProposalShell>
+    </ReviewWorkspaceShell>
   );
 }
 
 function ContentWorkbenchReviewQueueCard({
   queueSummary,
-  onOpenAiSuggest,
 }: {
   queueSummary: ContentWorkbenchReviewQueueSummary;
-  onOpenAiSuggest: () => void;
 }) {
   return (
     <AppSurfaceItem
@@ -187,16 +181,6 @@ function ContentWorkbenchReviewQueueCard({
           </div>
           <p className="content-workbench-review-queue__detail">{queueSummary.detail}</p>
         </div>
-        <Button
-          size="sm"
-          variant={queueSummary.total === 0 ? "solid" : "outline"}
-          className="content-workbench-review-panel__icon-button"
-          onClick={queueSummary.total === 0 ? onOpenAiSuggest : undefined}
-          disabled={queueSummary.total > 0}
-        >
-          <Sparkles size={14} />
-          {queueSummary.actionLabel}
-        </Button>
       </div>
       {queueSummary.total > 0 ? (
         <ContentWorkbenchReviewMetrics queueSummary={queueSummary} />
@@ -243,28 +227,28 @@ function ContentWorkbenchReviewMetricItem({
   );
 }
 
-function ContentWorkbenchReviewDraftListItem<Draft extends ContentWorkbenchReviewDraft>({
-  draft,
+function ContentWorkbenchReviewWorkspaceListItem<Workspace extends ContentWorkbenchReviewWorkspace>({
+  workspace,
   active,
-  onSelectDraft,
+  onSelectWorkspace,
 }: {
-  draft: Draft;
+  workspace: Workspace;
   active: boolean;
-  onSelectDraft: (draftId: string) => void;
+  onSelectWorkspace: (workspaceId: string) => void;
 }) {
   return (
     <WorkbenchListItem
       active={active}
       density="compact"
-      onClick={() => onSelectDraft(draft.id)}
-      className="content-workbench-review-draft-list-item"
+      onClick={() => onSelectWorkspace(workspace.id)}
+      className="content-workbench-review-workspace-list-item"
     >
-      <div className="content-workbench-review-draft-list-item__body">
-        <div className="content-workbench-review-draft-list-item__copy">
-          <p className="content-workbench-review-draft-list-item__title">{draft.title}</p>
-          <p className="content-workbench-review-draft-list-item__detail">制作项草案</p>
+      <div className="content-workbench-review-workspace-list-item__body">
+        <div className="content-workbench-review-workspace-list-item__copy">
+          <p className="content-workbench-review-workspace-list-item__title">{workspace.title}</p>
+          <p className="content-workbench-review-workspace-list-item__detail">制作项草案</p>
         </div>
-        <Badge variant={active ? "soft" : "outline"} className="content-workbench-review-draft-list-item__badge">
+        <Badge variant={active ? "soft" : "outline"} className="content-workbench-review-workspace-list-item__badge">
           结构
         </Badge>
       </div>
@@ -272,33 +256,33 @@ function ContentWorkbenchReviewDraftListItem<Draft extends ContentWorkbenchRevie
   );
 }
 
-function ContentWorkbenchReviewDraftDetail<Draft extends ContentWorkbenchReviewDraft>({
-  draft,
+function ContentWorkbenchReviewWorkspaceDetail<Workspace extends ContentWorkbenchReviewWorkspace>({
+  workspace,
   reviewModel,
-  rejectingDraft,
-  markingDraftReviewed,
-  onCreateUnitFromProposal,
+  rejectingWorkspace,
+  markingWorkspaceReviewed,
+  onCreateUnitFromWorkspace,
   onEditCurrentUnit,
-  onApplyUnitProposal,
-  onMarkDraftReviewed,
-  onRejectDraft,
+  onApplyUnitWorkspace,
+  onMarkWorkspaceReviewed,
+  onRejectWorkspace,
 }: {
-  draft: Draft;
+  workspace: Workspace;
   reviewModel: ContentWorkbenchReviewModel;
-  rejectingDraft: boolean;
-  markingDraftReviewed: boolean;
-  onCreateUnitFromProposal: (proposal: Record<string, unknown>) => void;
+  rejectingWorkspace: boolean;
+  markingWorkspaceReviewed: boolean;
+  onCreateUnitFromWorkspace: (workspace: Record<string, unknown>) => void;
   onEditCurrentUnit: (unitId: number) => void;
-  onApplyUnitProposal: (unitId: number, proposal: Record<string, unknown>) => void;
-  onMarkDraftReviewed: (draft: Draft) => void;
-  onRejectDraft: (draft: Draft) => void;
+  onApplyUnitWorkspace: (unitId: number, workspace: Record<string, unknown>) => void;
+  onMarkWorkspaceReviewed: (workspace: Workspace) => void;
+  onRejectWorkspace: (workspace: Workspace) => void;
 }) {
   return (
     <div className="content-workbench-review-detail">
       <div className="content-workbench-review-detail__header">
         <div className="content-workbench-review-detail__copy">
           <div className="content-workbench-review-detail__title-row">
-            <h3 className="content-workbench-review-detail__title">{draft.title}</h3>
+            <h3 className="content-workbench-review-detail__title">{workspace.title}</h3>
             <Badge className="content-workbench-review-detail__badge">制作项快照</Badge>
           </div>
           <p className="content-workbench-review-detail__summary">
@@ -321,21 +305,21 @@ function ContentWorkbenchReviewDraftDetail<Draft extends ContentWorkbenchReviewD
           <Button
             size="sm"
             className="content-workbench-review-panel__icon-button"
-            data-testid="content-workbench-mark-draft-reviewed"
-            onClick={() => onMarkDraftReviewed(draft)}
-            loading={markingDraftReviewed}
-            disabled={markingDraftReviewed || draft.status === "applied"}
+            data-testid="content-workbench-mark-workspace-reviewed"
+            onClick={() => onMarkWorkspaceReviewed(workspace)}
+            loading={markingWorkspaceReviewed}
+            disabled={markingWorkspaceReviewed || workspace.status === "applied"}
           >
             <CheckCircle2 size={14} />
-            {draft.status === "applied" ? "已处理" : "标记人工已处理"}
+            {workspace.status === "applied" ? "已处理" : "标记人工已处理"}
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="content-workbench-review-panel__icon-button"
-            onClick={() => onRejectDraft(draft)}
-            loading={rejectingDraft}
-            disabled={rejectingDraft || draft.status === "rejected"}
+            onClick={() => onRejectWorkspace(workspace)}
+            loading={rejectingWorkspace}
+            disabled={rejectingWorkspace || workspace.status === "rejected"}
           >
             <X size={14} />
             退回草案
@@ -356,9 +340,9 @@ function ContentWorkbenchReviewDraftDetail<Draft extends ContentWorkbenchReviewD
           <ContentWorkbenchReviewDiffCard
             key={change.key}
             change={change}
-            onCreateUnitFromProposal={onCreateUnitFromProposal}
+            onCreateUnitFromWorkspace={onCreateUnitFromWorkspace}
             onEditCurrentUnit={onEditCurrentUnit}
-            onApplyUnitProposal={onApplyUnitProposal}
+            onApplyUnitWorkspace={onApplyUnitWorkspace}
           />
         ))}
       </div>
@@ -368,14 +352,14 @@ function ContentWorkbenchReviewDraftDetail<Draft extends ContentWorkbenchReviewD
 
 function ContentWorkbenchReviewDiffCard({
   change,
-  onCreateUnitFromProposal,
+  onCreateUnitFromWorkspace,
   onEditCurrentUnit,
-  onApplyUnitProposal,
+  onApplyUnitWorkspace,
 }: {
   change: ContentWorkbenchReviewDiff;
-  onCreateUnitFromProposal: (proposal: Record<string, unknown>) => void;
+  onCreateUnitFromWorkspace: (workspace: Record<string, unknown>) => void;
   onEditCurrentUnit: (unitId: number) => void;
-  onApplyUnitProposal: (unitId: number, proposal: Record<string, unknown>) => void;
+  onApplyUnitWorkspace: (unitId: number, workspace: Record<string, unknown>) => void;
 }) {
   return (
     <AppSurfaceItem density="compact" variant="muted" className="content-workbench-review-diff-card">
@@ -395,13 +379,13 @@ function ContentWorkbenchReviewDiffCard({
         <p className="content-workbench-review-diff-card__impact">{change.impact}</p>
       </div>
       {change.detail ? <p className="content-workbench-review-diff-card__detail">{change.detail}</p> : null}
-      {change.state === "added" && change.proposal ? (
+      {change.state === "added" && change.workspace ? (
         <Button
           size="sm"
           variant="outline"
           className="content-workbench-review-diff-card__action"
-          data-testid="content-workbench-create-proposal-unit"
-          onClick={() => onCreateUnitFromProposal(change.proposal!)}
+          data-testid="content-workbench-create-workspace-unit"
+          onClick={() => onCreateUnitFromWorkspace(change.workspace!)}
         >
           <Plus size={14} />
           带入新建制作项
@@ -409,13 +393,13 @@ function ContentWorkbenchReviewDiffCard({
       ) : null}
       {change.state === "changed" && change.currentUnitId ? (
         <div className="content-workbench-review-diff-card__actions">
-          {change.proposal ? (
+          {change.workspace ? (
             <Button
               size="sm"
               variant="outline"
               className="content-workbench-review-panel__icon-button"
-              data-testid="content-workbench-apply-proposal-unit"
-              onClick={() => onApplyUnitProposal(change.currentUnitId!, change.proposal!)}
+              data-testid="content-workbench-apply-workspace-unit"
+              onClick={() => onApplyUnitWorkspace(change.currentUnitId!, change.workspace!)}
             >
               <CheckCircle2 size={14} />
               采纳草案字段

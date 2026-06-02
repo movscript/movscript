@@ -1,14 +1,10 @@
-import { formatLocalAgentAssistantContent } from '@/features/agent/domain/localAgentResult'
 import {
-  formatInputAnswerForChat,
   optimisticApprovalRun,
   optimisticInputAnswerRun,
   upsertInteractionRunSnapshot,
   type AgentInputAnswer,
 } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentConversationMessageStore, AssistantConversationMessageAppender } from '@movscript/conversation'
-import type { AgentRun, AgentThread, RuntimeInteraction } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentRun, RuntimeInteraction } from '@/shared/infrastructure/localAgentClient'
 import {
   beginAgentPerformanceOperation,
   finishAgentPerformanceOperation,
@@ -22,17 +18,11 @@ export type RunInteractionConversationRuntimePatch = {
 }
 
 export interface AgentRunInteractionActionDeps {
-  userId: string
   conversationId: string
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
   setConversationRuntime: (patch: RunInteractionConversationRuntimePatch) => void
   setConversationRun: (run: AgentRun, patch: RunInteractionConversationRuntimePatch) => void
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage' | 'updateMessageMeta'>
-  addAssistantMessage: AssistantConversationMessageAppender<ChatMessage['meta']>
-  getThread: (threadId: string) => Promise<AgentThread>
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
-  appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
-  liveEvents: () => ChatRunActivityEvent[]
   runTouchesAgentCatalog: (run: AgentRun) => boolean
   refreshAgentCatalogContext: () => void
 }
@@ -71,19 +61,11 @@ export async function approveRunInteractionAction(input: {
       details: { runId: finalRun.id, status: finalRun.status },
     })
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, finalRun))
-    const thread = await deps.getThread(finalRun.threadId)
-    markAgentPerformancePhase(operationId, 'final_thread_loaded', {
-      details: { threadId: thread.id, messageCount: thread.messages.length },
-    })
-    if (finalRun.status !== 'requires_action') {
-      await deps.appendAssistantRunResult(finalRun, thread, deps.liveEvents())
-      markAgentPerformancePhase(operationId, 'assistant_result_appended')
-    }
     if (deps.runTouchesAgentCatalog(finalRun)) deps.refreshAgentCatalogContext()
     finishAgentPerformanceOperation(operationId, 'success', { runId: finalRun.id, status: finalRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-    deps.addAssistantMessage(`工具确认失败：${error instanceof Error ? error.message : String(error)}`)
+    deps.setConversationRuntime({ approving: false, loading: false, error: `工具确认失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }
@@ -117,17 +99,11 @@ export async function rejectRunInteractionAction(input: {
     })
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, rejectedRun))
     deps.setConversationRun(rejectedRun, { approving: true, loading: true })
-    const thread = await deps.getThread(rejectedRun.threadId)
-    markAgentPerformancePhase(operationId, 'final_thread_loaded', {
-      details: { threadId: thread.id, messageCount: thread.messages.length },
-    })
-    deps.addAssistantMessage(formatLocalAgentAssistantContent(rejectedRun, thread), { contextLabels: [`run ${rejectedRun.status}`] })
-    markAgentPerformancePhase(operationId, 'assistant_result_appended')
     if (deps.runTouchesAgentCatalog(rejectedRun)) deps.refreshAgentCatalogContext()
     finishAgentPerformanceOperation(operationId, 'success', { runId: rejectedRun.id, status: rejectedRun.status })
   } catch (error) {
     finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-    deps.addAssistantMessage(`工具拒绝失败：${error instanceof Error ? error.message : String(error)}`)
+    deps.setConversationRuntime({ approving: false, loading: false, error: `工具拒绝失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }
@@ -182,64 +158,20 @@ export async function answerRunInteractionInputAction(input: {
   deps: AgentRunInteractionActionDeps
 }): Promise<void> {
   const { run, requestId, answer, answerRunInput, deps } = input
-  const pendingRequest = (run.pendingInputRequests ?? []).find((request) => request.id === requestId && request.status === 'pending')
-  const localMessageId = pendingRequest
-    ? deps.messageStore.addMessage(deps.userId, deps.conversationId, {
-      role: 'user',
-      content: formatInputAnswerForChat(pendingRequest, answer),
-      meta: {
-        runtimeInput: {
-          threadId: run.threadId,
-          runId: run.id,
-          status: 'pending',
-        },
-      },
-    })
-    : undefined
   deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, optimisticInputAnswerRun(run, requestId, answer)))
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
     const answeredRun = await answerRunInput(run.id, {
       requestId,
       ...answer,
-      ...(localMessageId ? { sourceMessageId: localMessageId } : {}),
     })
-    if (localMessageId) {
-      deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
-        runtimeInput: {
-          threadId: run.threadId,
-          runId: answeredRun.id,
-          messageId: localMessageId,
-          status: 'accepted',
-        },
-        runtimeMessage: {
-          threadId: run.threadId,
-          runId: answeredRun.id,
-          messageId: localMessageId,
-        },
-      })
-    }
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, answeredRun))
     deps.setConversationRun(answeredRun, { approving: true, loading: true })
     const finalRun = await deps.streamFollowUpRun(answeredRun.id)
     deps.setSubmittedInteractionRuns((current) => upsertInteractionRunSnapshot(current, finalRun))
-    const thread = await deps.getThread(finalRun.threadId)
-    if (finalRun.status !== 'requires_action') {
-      await deps.appendAssistantRunResult(finalRun, thread, deps.liveEvents())
-    }
     if (deps.runTouchesAgentCatalog(finalRun)) deps.refreshAgentCatalogContext()
   } catch (error) {
-    if (localMessageId) {
-      deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
-        runtimeInput: {
-          threadId: run.threadId,
-          runId: run.id,
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-        },
-      })
-    }
-    deps.addAssistantMessage(`补充信息提交失败：${error instanceof Error ? error.message : String(error)}`)
+    deps.setConversationRuntime({ approving: false, loading: false, error: `补充信息提交失败：${error instanceof Error ? error.message : String(error)}` })
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }

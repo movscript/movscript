@@ -7,7 +7,7 @@ import "gorm.io/gorm"
 type CreativeReference struct {
 	gorm.Model
 	ProjectID        uint   `gorm:"not null;index" json:"project_id"`
-	ProposalClientID string `gorm:"index" json:"proposal_client_id"`
+	WorkspaceClientID string `gorm:"index" json:"workspace_client_id"`
 	SourceScriptID   *uint  `gorm:"index" json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint  `gorm:"index" json:"source_analysis_id,omitempty"`
 	Kind             string `gorm:"not null;index" json:"kind"` // person|animal|place|prop|product|brand|style|world_rule|time_period|restriction
@@ -16,7 +16,7 @@ type CreativeReference struct {
 	Description      string `gorm:"type:text" json:"description"`
 	Content          string `gorm:"type:text" json:"content"`
 	Importance       string `gorm:"not null;default:'supporting';index" json:"importance"` // main|supporting|background
-	Status           string `gorm:"not null;default:'draft';index" json:"status"`          // draft|confirmed|merged|ignored|locked
+	Status           string `gorm:"not null;default:'workspace';index" json:"status"`          // workspace|confirmed|merged|ignored|locked
 	ProfileJSON      string `gorm:"type:text" json:"profile_json"`
 	TagsJSON         string `gorm:"type:text" json:"tags_json"`
 }
@@ -36,7 +36,7 @@ type CreativeReferenceState struct {
 	Emotion             string `json:"emotion"`
 	Costume             string `json:"costume"`
 	Props               string `gorm:"type:text" json:"props"`
-	Status              string `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|locked|ignored
+	Status              string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|confirmed|locked|ignored
 	TagsJSON            string `gorm:"type:text" json:"tags_json"`
 	MetadataJSON        string `gorm:"type:text" json:"metadata_json"`
 }
@@ -54,7 +54,7 @@ type CreativeReferenceUsage struct {
 	Order                    int    `json:"order"`
 	Evidence                 string `gorm:"type:text" json:"evidence"`
 	Source                   string `gorm:"not null;default:'manual';index" json:"source"` // ai|manual|import
-	Status                   string `gorm:"not null;default:'draft';index" json:"status"`  // draft|confirmed|corrected|ignored
+	Status                   string `gorm:"not null;default:'workspace';index" json:"status"`  // workspace|confirmed|corrected|ignored
 	MetadataJSON             string `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -70,7 +70,7 @@ type CreativeRelationship struct {
 	Label                     string `json:"label"`
 	Description               string `gorm:"type:text" json:"description"`
 	Source                    string `gorm:"default:'manual'" json:"source"`               // ai|manual|import
-	Status                    string `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|corrected|ignored
+	Status                    string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|confirmed|corrected|ignored
 	Evidence                  string `gorm:"type:text" json:"evidence"`
 	MetadataJSON              string `gorm:"type:text" json:"metadata_json"`
 }

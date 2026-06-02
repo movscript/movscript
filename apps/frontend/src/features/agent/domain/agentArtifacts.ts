@@ -1,11 +1,11 @@
-import type { AgentDraftKind, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentWorkspaceKind, AgentRun } from '@/shared/infrastructure/localAgentClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 
 export interface AgentTaskArtifactRef {
-  type: 'draft'
-  draftId: string
+  type: 'workspace'
+  workspaceId: string
   projectId?: number
-  draftKind?: AgentDraftKind
+  workspaceKind?: AgentWorkspaceKind
   title?: string
   schema?: string
   source?: Record<string, unknown>
@@ -30,34 +30,34 @@ function numberValue(value: unknown): number | undefined {
   return undefined
 }
 
-function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
+function normalizeWorkspaceKind(value: unknown): AgentWorkspaceKind | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
   if (!normalized) return undefined
-  const allowed: AgentDraftKind[] = [
-    'setting_proposal',
-    'asset_proposal',
-    'project_standards_proposal',
-    'production_proposal',
-    'content_unit_proposal',
+  const allowed: AgentWorkspaceKind[] = [
+    'setting_workspace',
+    'asset_workspace',
+    'project_standards_workspace',
+    'production_workspace',
+    'content_unit_workspace',
   ]
-  return allowed.includes(normalized as AgentDraftKind) ? normalized as AgentDraftKind : undefined
+  return allowed.includes(normalized as AgentWorkspaceKind) ? normalized as AgentWorkspaceKind : undefined
 }
 
-function readDraftCandidate(value: unknown): Record<string, unknown> | undefined {
+function readWorkspaceCandidate(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) return undefined
-  if (isRecord(value.draft)) return value.draft
+  if (isRecord(value.workspace)) return value.workspace
   return value
 }
 
-function artifactFromDraftCandidate(
+function artifactFromWorkspaceCandidate(
   candidate: Record<string, unknown> | undefined,
   fallback: { runId?: string; threadId?: string; completedAt?: string },
 ): AgentTaskArtifactRef | undefined {
   if (!candidate) return undefined
-  const draftId = stringValue(candidate.id ?? candidate.draftId ?? candidate.draft_id ?? candidate.proposalRef ?? candidate.proposal_ref ?? candidate.draftRef ?? candidate.draft_ref)
-  if (!draftId) return undefined
-  const draftKind = normalizeDraftKind(candidate.kind ?? candidate.draftKind ?? candidate.draft_kind)
+  const workspaceId = stringValue(candidate.id ?? candidate.workspaceId ?? candidate.workspace_id ?? candidate.workspaceRef ?? candidate.workspace_ref ?? candidate.workspaceRef ?? candidate.workspace_ref)
+  if (!workspaceId) return undefined
+  const workspaceKind = normalizeWorkspaceKind(candidate.kind ?? candidate.workspaceKind ?? candidate.workspace_kind)
   const updatedAt = stringValue(candidate.updatedAt ?? candidate.updated_at ?? candidate.createdAt ?? candidate.created_at ?? fallback.completedAt)
   const schema = stringValue(candidate.schema)
   const title = stringValue(candidate.title)
@@ -69,10 +69,10 @@ function artifactFromDraftCandidate(
   const sourceRunId = stringValue(candidate.createdByRunId ?? candidate.created_by_run_id ?? source?.runId ?? source?.run_id ?? fallback.runId)
   const sourceThreadId = stringValue(candidate.createdByThreadId ?? candidate.created_by_thread_id ?? source?.threadId ?? source?.thread_id ?? fallback.threadId)
   return {
-    type: 'draft',
-    draftId,
+    type: 'workspace',
+    workspaceId,
     ...(projectId !== undefined ? { projectId } : {}),
-    ...(draftKind ? { draftKind } : {}),
+    ...(workspaceKind ? { workspaceKind } : {}),
     ...(title ? { title } : {}),
     ...(schema ? { schema } : {}),
     ...(source ? { source } : {}),
@@ -91,23 +91,23 @@ export function extractAgentTaskArtifacts(run?: AgentRun): AgentTaskArtifactRef[
   const artifacts = new Map<string, AgentTaskArtifactRef>()
   for (const step of run.steps) {
     if (step.type !== 'tool_call') continue
-    const candidate = readDraftCandidate(step.result)
-    const artifact = artifactFromDraftCandidate(candidate, {
+    const candidate = readWorkspaceCandidate(step.result)
+    const artifact = artifactFromWorkspaceCandidate(candidate, {
       runId: run.id,
       threadId: run.threadId,
       completedAt: step.completedAt,
     })
     if (!artifact) continue
-    artifacts.set(artifact.draftId, artifact)
+    artifacts.set(artifact.workspaceId, artifact)
   }
   return Array.from(artifacts.values())
 }
 
-export function selectLatestDraftArtifact(
+export function selectLatestWorkspaceArtifact(
   artifacts: AgentTaskArtifactRef[] | undefined,
-  kind?: AgentDraftKind,
+  kind?: AgentWorkspaceKind,
 ): AgentTaskArtifactRef | undefined {
   if (!artifacts?.length) return undefined
-  const filtered = kind ? artifacts.filter((artifact) => artifact.draftKind === kind) : artifacts
+  const filtered = kind ? artifacts.filter((artifact) => artifact.workspaceKind === kind) : artifacts
   return filtered.at(-1)
 }

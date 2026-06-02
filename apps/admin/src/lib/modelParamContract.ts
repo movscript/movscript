@@ -70,7 +70,7 @@ export const PARAM_TEMPLATES: Record<string, ParamDef> = {
   frames: { key: 'frames', label: 'Frames', type: 'number', min: 29, max: 289, step: 4 },
   execution_expires_after: { key: 'execution_expires_after', label: 'Expiration (seconds)', type: 'number', min: 1, step: 1 },
   preset: { key: 'preset', label: 'Preset', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
-  draft: { key: 'draft', label: 'Draft Mode', type: 'boolean', default: false },
+  workspace: { key: 'workspace', label: 'Workspace Mode', type: 'boolean', default: false },
   max_tokens: { key: 'max_tokens', label: 'Max Tokens', type: 'number', min: 1, max: 1000000, step: 1 },
   temperature: { key: 'temperature', label: 'Temperature', type: 'number', default: -1, min: -1, max: 2, step: 0.1 },
   json_mode: { key: 'json_mode', label: 'JSON Mode', type: 'boolean', default: false },

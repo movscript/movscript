@@ -14,7 +14,7 @@ function version(input: Partial<DeliveryVersion> & Pick<DeliveryVersion, 'ID'>):
   return {
     project_id: 1,
     name: `Delivery ${input.ID}`,
-    status: 'draft',
+    status: 'workspace',
     is_primary: false,
     duration_sec: 0,
     ...input,
@@ -47,7 +47,7 @@ function production(input: Partial<Production> & Pick<Production, 'ID'>): Produc
   return {
     project_id: 1,
     name: `制作 ${input.ID}`,
-    status: 'draft',
+    status: 'workspace',
     ...input,
   } as Production
 }
@@ -56,7 +56,7 @@ test('delivery workbench overview model builds stable metric view models', () =>
   const metrics = buildDeliveryOverviewMetrics({
     versions: [
       version({ ID: 1, status: 'approved' }),
-      version({ ID: 2, status: 'draft' }),
+      version({ ID: 2, status: 'workspace' }),
     ],
     timelineItems: [
       item({ ID: 1, duration_sec: 6, status: 'locked', resource_id: 1 }),
@@ -89,7 +89,7 @@ test('delivery workbench overview model summarizes selected version state', () =
     version: version({ ID: 3, name: '正式交付', description: '', status: 'checking', is_primary: true }),
     items: [
       item({ ID: 1, duration_sec: 5, status: 'locked' }),
-      item({ ID: 2, duration_sec: 7, status: 'draft' }),
+      item({ ID: 2, duration_sec: 7, status: 'workspace' }),
     ],
     readiness: {
       missingCount: 0,

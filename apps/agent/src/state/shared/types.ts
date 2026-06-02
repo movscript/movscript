@@ -63,8 +63,8 @@ import type { JSONValue, MCPResource, MCPTool } from '../../shared/protocol/type
 import type { AgentManifest } from '../../catalog/manifest/agentManifest.js'
 import type { RegisteredTool } from '../../tools/registry/core/toolRegistry.js'
 import type { AgentCatalogStateStore } from '../../catalog/registry/state/catalogState.js'
-import type { AgentDraftStore } from '../../drafts/store/draftStore.js'
-import type { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
+import type { AgentWorkspaceStore } from '../../workspaces/store/workspaceStore.js'
+import type { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import type { AgentRuntimeContractResolver } from '../../contracts/runtime/runtimeContract.js'
 import type { AgentUpdateState } from '../../updates/policy/updatePolicy.js'
 
@@ -246,7 +246,7 @@ export interface AgentClientUISnapshot {
     pageRoute?: string
     pageEntityType?: string
     pageEntityId?: number | string
-    draftId?: string
+    workspaceId?: string
   }
   project?: {
     id?: number
@@ -258,7 +258,7 @@ export interface AgentClientUISnapshot {
     project_style?: string
   }
   productionId?: number
-  draftId?: string
+  workspaceId?: string
   selection?: {
     entityType?: string
     entityId?: number | string
@@ -295,17 +295,18 @@ export interface AgentRuntimeRouterOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('../store/core/store.js').AgentStore
   toolResultStore?: import('../store/tool-results/toolResultStore.js').AgentToolResultStore
-  draftStore?: AgentDraftStore
+  workspaceStore?: AgentWorkspaceStore
   backendApplyClient?: BackendApplyClient
   externalToolGatewayPort?: import('../../ports/tools/externalToolGatewayPort.js').ExternalToolGatewayPort
-  draftApplyPort?: import('../../ports/draft/apply/draftApplyPort.js').DraftApplyPort
-  draftApplyPreviewPort?: import('../../ports/draft/preview/draftApplyPreviewPort.js').DraftApplyPreviewPort
-  proposalSnapshotHydrationPort?: import('../../ports/draft/hydration/proposalSnapshotHydrationPort.js').DraftProposalSnapshotHydrationPort
+  workspaceApplyPort?: import('../../ports/workspace/apply/workspaceApplyPort.js').WorkspaceApplyPort
+  workspaceApplyPreviewPort?: import('../../ports/workspace/preview/workspaceApplyPreviewPort.js').WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort?: import('../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js').WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort?: import('../../ports/files/resourceFilePort.js').CoreResourceFilePort
   imageProcessingPort?: import('../../ports/media/imageProcessingPort.js').CoreImageProcessingPort
   videoFrameExtractionPort?: import('../../ports/media/videoFrameExtractionPort.js').CoreVideoFrameExtractionPort
   projectStandardsPort?: import('../../ports/project/projectStandardsPort.js').ProjectStandardsPort
   runtimeToolHandlers?: import('../../ports/runtime/runtimeToolHandlerPort.js').RuntimeToolHandlerRegistry
+  referenceManager?: import('../../reference/manager/referenceManager.js').ReferenceManager
   memoryStore?: import('../../memory/store/in-memory/memoryStore.js').AgentMemoryStore
   activeAgentManifest?: AgentManifest
   toolRegistry?: import('../../tools/registry/core/toolRegistry.js').ToolRegistry

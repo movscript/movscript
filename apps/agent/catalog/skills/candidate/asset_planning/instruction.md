@@ -1,26 +1,29 @@
 目标：
-为选中的 asset slot 生成可审阅的图片或视频候选；如果缺少生成参数，先补齐参数，再交接 visual_generation 创建任务。
+为选中的 asset slot 执行已明确的图片或视频候选生成：消费 asset_edit workspace 中的 candidate plan 或用户本轮给出的完整生成指令，创建并监控生成任务，并把成功输出加入目标 asset slot 候选集。
 
 输入：
 - Focus，以及已选 asset slot 或 asset need。
-- 可用时的已有设定材料、已有素材资源、引用、draft notes 和用户约束。
+- asset_edit workspace 中已写好的 `workspace.candidate_plans[]`，或用户本轮直接给出的完整生成指令。
+- 可用时的已有设定材料、已有素材资源、引用、workspace notes 和用户约束。
 - 目标输出类型、prompt 方向、引用 id、画幅比例、时长、模型能力需求、风险和验收标准。
 
 边界：
-- 此 Skill 负责真实候选生成的目标定位、生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集；不产出 asset_proposal 文字草稿作为最终结果。
+- 此 Skill 负责真实候选生成的执行、监控，以及把成功输出加入目标 asset slot 候选集；不编写、不修改、不补齐 asset_edit workspace 文本。
+- 候选方案编写、prompt 方案、参考资源清单、模型能力需求、风险和验收标准的整理，都属于 asset_workspace。
 - 保留已选 asset slot 作为审阅目标。
 - 可以把成功生成的输出资源加入候选集；不要把生成媒体标记为 accepted、selected、bound 或 locked。
+- 如果缺少生成所需参数，不在此 Skill 中现场补齐；先回到 asset_workspace 写入或修正 candidate plan。
 
 上下文缺失回退：
-- 缺 asset slot、素材归属、用途、复用边界或验收标准时，先交接 asset_proposal。
-- 目标是派生形象、服装/情绪/动作/年龄状态、场景细节、关键帧或视频参考，但缺少已采纳/已锁定 canonical/base resource 时，先回到 asset_proposal 或生成 canonical 候选；不要直接生成派生候选。
-- 缺人物、地点、道具或世界规则等可复用设定时，先交接 setting_proposal 或 setting_prep。
-- 缺 production 或 content unit 使用场景时，先交接 production_proposal 或 content_unit_proposal。
-- 缺模型能力、输出类型、参考输入数量或参数可行性时，进入 visual_generation 的模型发现和 preflight；不要按 provider 经验推断。
+- 缺 asset slot、素材归属、用途、复用边界、prompt、引用资源、输出类型、模型能力需求或验收标准时，先进入 asset_workspace / asset_edit workspace。
+- 目标是派生形象、服装/情绪/动作/年龄状态、场景细节、关键帧或视频参考，但缺少已采纳/已锁定 canonical/base resource 时，先回到 asset_edit workspace 或生成 canonical 候选；不要直接生成派生候选。
+- 缺人物、地点、道具或世界规则等可复用设定时，先进入 setting_edit workspace 或 setting_prep。
+- 缺 production 或 content unit 使用场景时，先进入 production_edit 或 content_unit_edit workspace。
+- 缺模型能力、输出类型、参考输入数量或参数可行性时，只能用模型发现和 preflight 判定阻塞；需要改写方案时回到 asset_workspace，不要按 provider 经验推断并现场改方案。
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- Draft 模型或 seed：{{tool:draft_model_get}}
+- Workspace 模型或 seed：{{tool:get_workspace_model}}
 - 查询设定资料、素材需求和制作上下文：{{tool:movscript_creative_reference_query}} {{tool:movscript_asset_slot_query}} {{tool:movscript_production_context_query}}
 - 模型发现：{{tool:generation_model_list}}
 - 提交异步生成 work：{{tool:core_work_start}}，`kind: "generation_job"`；该工具只返回 work handle，不等待完成。
@@ -34,9 +37,9 @@
 3. 判断设定材料的状态和全局定位：角色是主角、核心反派、重要常驻、配角还是路人；场景是主场景、一次性场景还是风格参考。定位越重要，候选越应避免随机改脸、改年龄、改时代、改空间气质。
 4. 判断当前目标是 canonical/base 候选还是派生候选。canonical 候选可以在没有参考资源时作为基本形象探索；派生候选必须引用同一 creative reference 下已采纳、已锁定或明确可用的 canonical resource。若只查到未采纳候选、没有 resource_id、或只有文字设定，应报告阻塞并先推进基本素材。
 5. 处理剧情描述与视觉定位冲突时，以可长期复用的角色资产为准。主角或重要角色即使文本说“丑”“狼狈”“不起眼”，也不要把候选写成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境误读、衣着状态差等可控特征，除非用户明确要求丑化。
-6. 将期望候选总结为具体 prompt intent、引用、输出类型、模型能力和验收标准；派生候选的 prompt 必须把 canonical resource 作为一致性参考，而不是重新描述一套可能漂移的基本形象。
-7. 检查可行性时，使用模型发现 contracts，而不是 provider 假设。记录缺失引用、不支持的时长/画幅比例、不支持的模型专用参数、输入数量限制或归属不清等阻塞项。
-8. 用户要求生成候选时，必须提交并监控异步生成 work；`core_work_start` 只返回 work handle，不等待完成、不代表成功。一个 backend job 只产出一个可提交候选，需要多个候选时创建多个独立 work 并用同一个 `workIds` 列表等待。每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach` 把该资源加入选中 asset slot 的候选集。即使 wait 结果里有多个独立 job 聚合出的 `output_resource_ids` 列表，也必须按资源逐项调用 attach；不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入。不要只返回更详细的文字提案。
+6. 读取已完成的 candidate plan，并核对其中的 prompt intent、引用、输出类型、模型能力和验收标准是否足以直接生成；派生候选的 prompt 必须把 canonical resource 作为一致性参考，而不是重新描述一套可能漂移的基本形象。
+7. 检查可行性时，使用模型发现 contracts，而不是 provider 假设。记录缺失引用、不支持的时长/画幅比例、不支持的模型专用参数、输入数量限制或归属不清等阻塞项；需要改写 plan 时交回 asset_workspace。
+8. 用户要求生成候选且 plan 已完整时，必须提交并监控异步生成 work；`core_work_start` 只返回 work handle，不等待完成、不代表成功。一个 backend job 只产出一个可提交候选，需要多个候选时创建多个独立 work 并用同一个 `workIds` 列表等待。每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach` 把该资源加入选中 asset slot 的候选集。即使 wait 结果里有多个独立 job 聚合出的 `output_resource_ids` 列表，也必须按资源逐项调用 attach；不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入。不要只返回更详细的文字 workspace。
 
 校验：
 - 候选必须命名 asset target，并说明准备方向为什么适合它。

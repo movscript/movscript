@@ -1,4 +1,4 @@
-import type { DraftKind, DraftScope, DraftSchemaDefinition, JSONSchema7 } from '@movscript/drafts'
+import type { WorkspaceKind, WorkspaceScope, WorkspaceSchemaDefinition, JSONSchema7 } from '@movscript/workspaces'
 import type { JSONValue } from '../../../shared/protocol/types.js'
 import type { ToolExecutionMetadata, ToolRiskLevel } from '../../../tools/registry/core/toolRegistry.js'
 export type SkillLoadMode = 'core' | 'on_demand' | 'manual'
@@ -49,9 +49,9 @@ export type SkillTrigger =
 
 export interface ContextSelector {
   route?: string[]
-  selectedKind?: DraftKind[]
-  selectedScope?: DraftScope[]
-  draftStatus?: ('proposed' | 'confirmed' | 'superseded')[]
+  selectedKind?: WorkspaceKind[]
+  selectedScope?: WorkspaceScope[]
+  workspaceStatus?: ('proposed' | 'confirmed' | 'superseded')[]
   hasProductionId?: boolean
   hasProjectId?: boolean
   custom?: Record<string, string | string[] | boolean>
@@ -173,10 +173,10 @@ export interface ConfigFileResolutionTrace {
 
 export interface UIContext {
   route?: string
-  selectedKind?: DraftKind
-  selectedScope?: DraftScope
+  selectedKind?: WorkspaceKind
+  selectedScope?: WorkspaceScope
   selectedId?: string | number
-  draftStatus?: 'proposed' | 'confirmed' | 'superseded'
+  workspaceStatus?: 'proposed' | 'confirmed' | 'superseded'
   projectId?: number
   productionId?: number
   [k: string]: unknown
@@ -197,7 +197,7 @@ export interface RuntimeContext {
 
 export interface CatalogRegistry {
   version: string
-  schemas: Map<string, DraftSchemaDefinition>
+  schemas: Map<string, WorkspaceSchemaDefinition>
   tools: Map<string, ToolDefinition>
   skills: Map<string, SkillDefinition>
   packs: Map<string, CapabilityPack>

@@ -77,7 +77,7 @@ import {
 } from '@movscript/ui'
 import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
-import { buildConfigFileExportText, buildSettingsSnapshot, parseConfigFileExport, parseSettingsSnapshot, validateSettingsSnapshotReferences, type AgentSettingsSnapshot, type ConfigFileToolPermissionOverrides, type RuntimeModelAPIKind, type SkillConfigDraft, type ToolGrantDraft } from '@/features/agent/domain/agentSettingsSnapshot'
+import { buildConfigFileExportText, buildSettingsSnapshot, parseConfigFileExport, parseSettingsSnapshot, validateSettingsSnapshotReferences, type AgentSettingsSnapshot, type ConfigFileToolPermissionOverrides, type RuntimeModelAPIKind, type SkillConfigWorkspace, type ToolGrantWorkspace } from '@/features/agent/domain/agentSettingsSnapshot'
 import { hasSensitiveTextSecret, hasSensitiveURLSecret, redactAgentTraceDebugText, stripSensitiveURLSecrets } from '@/features/agent/domain/agentTraceDebugData'
 import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
 import { localAgentClient, type AgentCapabilitiesResponse, type AgentCatalogConfigFile, type AgentCatalogSkill, type AgentDebugTool, type AgentInspectResponse, type RuntimeModelConfigPublic, type RuntimeModelTestResult } from '@/shared/infrastructure/localAgentClient'
@@ -157,13 +157,13 @@ const CONFIG_FILE_LIMIT_KEYS = [
   'maxReferenceCharsPerRun',
   'maxReferenceChunksPerRun',
 ] as const
-const CONFIG_FILE_APPROVAL_DEFAULT_KEYS = ['default', 'read', 'draft', 'write', 'generate', 'destructive', 'ui'] as const
+const CONFIG_FILE_APPROVAL_DEFAULT_KEYS = ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'] as const
 const CONFIG_FILE_APPROVAL_DEFAULT_OPTIONS = ['inherit', 'never', 'on_write', 'always'] as const
 
 type SkillConfigIssue = { type: 'dependency' | 'conflict'; skillId: string; relatedSkillId: string }
 type ConfigFileLimitKey = (typeof CONFIG_FILE_LIMIT_KEYS)[number]
 type ConfigFileApprovalDefaultKey = (typeof CONFIG_FILE_APPROVAL_DEFAULT_KEYS)[number]
-type ConfigFileApprovalDefaultDraftValue = (typeof CONFIG_FILE_APPROVAL_DEFAULT_OPTIONS)[number]
+type ConfigFileApprovalDefaultWorkspaceValue = (typeof CONFIG_FILE_APPROVAL_DEFAULT_OPTIONS)[number]
 type ConfigFileDiffSection = { added: string[]; removed: string[]; changed?: string[] }
 type ConfigFileDiff = {
   packs: ConfigFileDiffSection
@@ -195,7 +195,7 @@ type SettingsActionReason = {
   labelKey: string
   values?: Record<string, string | number>
 }
-type ToolPermissionsDraftIssue = {
+type ToolPermissionsWorkspaceIssue = {
   toolName: string
   reasonKey: string
   values?: Record<string, string | number>
@@ -203,10 +203,10 @@ type ToolPermissionsDraftIssue = {
 type ToolPermissionsDiffItem = {
   name: string
   change: 'added' | 'removed' | 'changed'
-  beforeMode?: ToolGrantDraft['mode']
-  afterMode?: ToolGrantDraft['mode']
-  beforeApproval?: ToolGrantDraft['approval']
-  afterApproval?: ToolGrantDraft['approval']
+  beforeMode?: ToolGrantWorkspace['mode']
+  afterMode?: ToolGrantWorkspace['mode']
+  beforeApproval?: ToolGrantWorkspace['approval']
+  afterApproval?: ToolGrantWorkspace['approval']
 }
 type SkillSourceKind = 'core' | 'plugin' | 'local' | 'team' | 'mcp' | 'catalog'
 type ToolPermissionsFilter = AgentToolPermissionsFilterPreset['filter']
@@ -251,18 +251,18 @@ const SETTINGS_SNAPSHOT_IMPORT_SCOPE_LABEL_KEYS: Record<SettingsSnapshotImportSc
   tools: 'agents.settings.settingsSnapshotImpact.tools',
 }
 type SettingsActionQuickFix =
-  | 'reset-model-draft'
+  | 'reset-model-workspace'
   | 'confirm-clear-model-config'
   | 'enable-chat-route'
   | 'switch-openai-responses'
   | 'strip-sensitive-base-url-query'
-  | 'reset-config-file-draft'
-  | 'reset-skill-config-draft'
-  | 'fix-tool-permissions-draft-issues'
-  | 'reset-tool-permissions-draft'
+  | 'reset-config-file-workspace'
+  | 'reset-skill-config-workspace'
+  | 'fix-tool-permissions-workspace-issues'
+  | 'reset-tool-permissions-workspace'
 type SettingsQuickFixAuditKind =
-  | 'draft_reset'
-  | 'draft_repair'
+  | 'workspace_reset'
+  | 'workspace_repair'
   | 'sensitive_cleanup'
   | 'mode_migration'
   | 'route_enable'
@@ -291,21 +291,21 @@ export default function AIAgentSettingsPage() {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<RuntimeModelTestResult | null>(null)
   const [testError, setTestError] = useState<string | null>(null)
-  const [skillDrafts, setSkillDrafts] = useState<SkillConfigDraft[]>([])
+  const [skillWorkspaces, setSkillWorkspaces] = useState<SkillConfigWorkspace[]>([])
   const [skillConfigSaving, setSkillConfigSaving] = useState(false)
   const [skillConfigSaveError, setSkillConfigSaveError] = useState<string | null>(null)
   const [skillSearch, setSkillSearch] = useState('')
   const [skillSourceFilter, setSkillSourceFilter] = useState<SkillSourceFilter>('all')
   const [selectedConfigFileId, setSelectedConfigFileId] = useState('')
-  const [configFileNameDraft, setConfigFileNameDraft] = useState('')
-  const [configFileDescriptionDraft, setConfigFileDescriptionDraft] = useState('')
-  const [configFileLimitDrafts, setConfigFileLimitDrafts] = useState<Record<ConfigFileLimitKey, string>>(() => emptyConfigFileLimitDrafts())
-  const [configFileApprovalDefaultDrafts, setConfigFileApprovalDefaultDrafts] = useState<Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultDraftValue>>(() => emptyConfigFileApprovalDefaultDrafts())
+  const [configFileNameWorkspace, setConfigFileNameWorkspace] = useState('')
+  const [configFileDescriptionWorkspace, setConfigFileDescriptionWorkspace] = useState('')
+  const [configFileLimitWorkspaces, setConfigFileLimitWorkspaces] = useState<Record<ConfigFileLimitKey, string>>(() => emptyConfigFileLimitWorkspaces())
+  const [configFileApprovalDefaultWorkspaces, setConfigFileApprovalDefaultWorkspaces] = useState<Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultWorkspaceValue>>(() => emptyConfigFileApprovalDefaultWorkspaces())
   const [configFileSaving, setConfigFileSaving] = useState(false)
   const [configFileManaging, setConfigFileManaging] = useState(false)
   const [configFileSaveError, setConfigFileSaveError] = useState<string | null>(null)
   const [configFileMessage, setConfigFileMessage] = useState<string | null>(null)
-  const [toolGrantDrafts, setToolGrantDrafts] = useState<ToolGrantDraft[]>([])
+  const [toolGrantWorkspaces, setToolGrantWorkspaces] = useState<ToolGrantWorkspace[]>([])
   const [toolPermissionsSaving, setToolPermissionsSaving] = useState(false)
   const [toolPermissionsSaveError, setToolPermissionsSaveError] = useState<string | null>(null)
   const [toolPermissionsSearch, setToolPermissionsSearch] = useState('')
@@ -360,9 +360,9 @@ export default function AIAgentSettingsPage() {
   }, [selectedModelId, textModels])
   const directModelIdValue = directModelId.trim()
   const directModelIdHasSecret = usesManualModelId && hasSensitiveTextSecret(directModelIdValue)
-  const draftModelValue = usesModelCatalog ? (selectedModel ? publicModelId(selectedModel) : '') : directModelIdValue
-  const modelValueMissing = !draftModelValue
-  const canSaveModelConfig = Boolean(draftModelValue) && !directModelIdHasSecret
+  const workspaceModelValue = usesModelCatalog ? (selectedModel ? publicModelId(selectedModel) : '') : directModelIdValue
+  const modelValueMissing = !workspaceModelValue
+  const canSaveModelConfig = Boolean(workspaceModelValue) && !directModelIdHasSecret
   const effectiveConfig = savedConfig ?? runtimeQuery.data ?? null
   const configStatusRecipe = agentConfigStatusRecipe(Boolean(effectiveConfig?.configured))
   const modelRoutes = effectiveConfig?.capabilities ?? []
@@ -400,25 +400,25 @@ export default function AIAgentSettingsPage() {
   }, [catalogQuery.data?.configFiles, currentConfigFile, selectedConfigFileId])
   const selectedConfigFileEditable = isManagedConfigFile(selectedConfigFile)
   const selectedConfigFileReadonly = Boolean(selectedConfigFile && !selectedConfigFileEditable)
-  const skillConfigBaseline = useMemo(() => buildSkillConfigDrafts(catalogQuery.data?.skills ?? [], selectedConfigFile), [catalogQuery.data?.skills, selectedConfigFile])
-  const skillDraftById = useMemo(() => new Map(skillDrafts.map((draft) => [draft.id, draft])), [skillDrafts])
+  const skillConfigBaseline = useMemo(() => buildSkillConfigWorkspaces(catalogQuery.data?.skills ?? [], selectedConfigFile), [catalogQuery.data?.skills, selectedConfigFile])
+  const skillWorkspaceById = useMemo(() => new Map(skillWorkspaces.map((workspace) => [workspace.id, workspace])), [skillWorkspaces])
   const selectedConfigFileDiff = useMemo(
     () => currentConfigFile && selectedConfigFile && currentConfigFile.id !== selectedConfigFile.id
       ? buildConfigFileDiff(currentConfigFile, selectedConfigFile, t)
       : null,
     [currentConfigFile, selectedConfigFile, t],
   )
-  const configFileNameDraftValue = configFileNameDraft.trim()
-  const configFileDescriptionDraftValue = configFileDescriptionDraft.trim()
-  const normalizedConfigFileLimitDrafts = useMemo(() => normalizeConfigFileLimitDrafts(configFileLimitDrafts), [configFileLimitDrafts])
-  const normalizedConfigFileApprovalDefaultDrafts = useMemo(() => normalizeConfigFileApprovalDefaultDrafts(configFileApprovalDefaultDrafts), [configFileApprovalDefaultDrafts])
+  const configFileNameWorkspaceValue = configFileNameWorkspace.trim()
+  const configFileDescriptionWorkspaceValue = configFileDescriptionWorkspace.trim()
+  const normalizedConfigFileLimitWorkspaces = useMemo(() => normalizeConfigFileLimitWorkspaces(configFileLimitWorkspaces), [configFileLimitWorkspaces])
+  const normalizedConfigFileApprovalDefaultWorkspaces = useMemo(() => normalizeConfigFileApprovalDefaultWorkspaces(configFileApprovalDefaultWorkspaces), [configFileApprovalDefaultWorkspaces])
   const hasConfigFileDetailsChange = Boolean(
     selectedConfigFile
     && (
-      configFileNameDraftValue !== selectedConfigFile.name
-      || configFileDescriptionDraftValue !== (selectedConfigFile.description ?? '')
-      || configFileLimitSignature(normalizedConfigFileLimitDrafts) !== configFileLimitSignature(selectedConfigFile.limits)
-      || configFileApprovalDefaultSignature(normalizedConfigFileApprovalDefaultDrafts) !== configFileApprovalDefaultSignature(selectedConfigFile.approvalDefaults)
+      configFileNameWorkspaceValue !== selectedConfigFile.name
+      || configFileDescriptionWorkspaceValue !== (selectedConfigFile.description ?? '')
+      || configFileLimitSignature(normalizedConfigFileLimitWorkspaces) !== configFileLimitSignature(selectedConfigFile.limits)
+      || configFileApprovalDefaultSignature(normalizedConfigFileApprovalDefaultWorkspaces) !== configFileApprovalDefaultSignature(selectedConfigFile.approvalDefaults)
     ),
   )
   const settingsSnapshotValidation = useMemo<{ snapshot: AgentSettingsSnapshot | null; error: string | null }>(() => {
@@ -463,11 +463,11 @@ export default function AIAgentSettingsPage() {
   )
   const currentToolGrants = useMemo(() => new Set((selectedConfigFile?.toolGrants ?? []).map((grant) => grant.name)), [selectedConfigFile])
   const toolGrantBaseline = useMemo(
-    () => buildToolGrantDrafts(selectedConfigFile),
+    () => buildToolGrantWorkspaces(selectedConfigFile),
     [selectedConfigFile],
   )
-  const toolGrantDraftByName = useMemo(() => new Map(toolGrantDrafts.map((grant) => [grant.name, grant])), [toolGrantDrafts])
-  const toolPermissionsDiffItems = useMemo(() => buildToolPermissionsDiffItems(toolGrantBaseline, toolGrantDrafts), [toolGrantBaseline, toolGrantDrafts])
+  const toolGrantWorkspaceByName = useMemo(() => new Map(toolGrantWorkspaces.map((grant) => [grant.name, grant])), [toolGrantWorkspaces])
+  const toolPermissionsDiffItems = useMemo(() => buildToolPermissionsDiffItems(toolGrantBaseline, toolGrantWorkspaces), [toolGrantBaseline, toolGrantWorkspaces])
   const toolPermissionsFilteredTools = useMemo(() => {
     const tools = capabilitiesQuery.data?.resolvedTools.discovered ?? []
     const query = toolPermissionsSearch.trim().toLowerCase()
@@ -488,7 +488,7 @@ export default function AIAgentSettingsPage() {
       .slice(0, 80)
   }, [capabilitiesQuery.data?.resolvedTools.discovered, currentToolGrants, toolPermissionsFilter, toolPermissionsSearch])
   const hasUnsavedChanges = effectiveConfig?.configured
-    ? draftModelValue !== effectiveModelValue ||
+    ? workspaceModelValue !== effectiveModelValue ||
       selectedApiKind !== (effectiveConfig.apiKind ?? DEFAULT_API_KIND) ||
       baseURLValue !== (effectiveConfig.baseURL ?? '') ||
       Boolean(modelApiKey.trim()) ||
@@ -500,7 +500,7 @@ export default function AIAgentSettingsPage() {
   const modelRouteIssues = useMemo(() => buildModelRouteIssues({ useForChat, useForPlanner }), [useForChat, useForPlanner])
   const modelCompatibilityProbes = useMemo(() => buildModelCompatibilityProbes({
     selectedApiKind,
-    modelValue: draftModelValue,
+    modelValue: workspaceModelValue,
     baseURL: baseURLValue,
     apiKeyProvided: modelApiKeyProvided,
     usesBackendCompatibleBaseURL,
@@ -509,27 +509,27 @@ export default function AIAgentSettingsPage() {
     useForChat,
     useForPlanner,
     effectiveConfig,
-  }), [baseURLValue, directModelIdHasSecret, draftModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
+  }), [baseURLValue, directModelIdHasSecret, workspaceModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
   const apiModeSwitchTaskGraph = useMemo(() => buildApiModeSwitchTaskGraph({
     selectedApiKind,
     probes: modelCompatibilityProbes,
     hasUnsavedChanges,
   }), [hasUnsavedChanges, modelCompatibilityProbes, selectedApiKind])
   const hasConfigFileChange = Boolean(selectedConfigFileId && currentConfigFile && selectedConfigFileId !== currentConfigFile.id)
-  const skillConfigChanges = useMemo(() => buildSkillConfigChanges(skillDrafts, skillConfigBaseline), [skillDrafts, skillConfigBaseline])
-  const draftSkillIds = useMemo(() => buildConfigFileSkillIds(skillDrafts), [skillDrafts])
-  const hasSkillConfigSelectionChange = Boolean(selectedConfigFile && stringListSignature(draftSkillIds) !== stringListSignature(selectedConfigFile.skillIds))
+  const skillConfigChanges = useMemo(() => buildSkillConfigChanges(skillWorkspaces, skillConfigBaseline), [skillWorkspaces, skillConfigBaseline])
+  const workspaceSkillIds = useMemo(() => buildConfigFileSkillIds(skillWorkspaces), [skillWorkspaces])
+  const hasSkillConfigSelectionChange = Boolean(selectedConfigFile && stringListSignature(workspaceSkillIds) !== stringListSignature(selectedConfigFile.skillIds))
   const hasSkillConfigChange = skillConfigChanges.length > 0
   const skillConfigIssues = useMemo(
-    () => buildSkillConfigIssues(catalogQuery.data?.skills ?? [], skillDrafts, skillConfigBaseline),
-    [catalogQuery.data?.skills, skillDrafts, skillConfigBaseline],
+    () => buildSkillConfigIssues(catalogQuery.data?.skills ?? [], skillWorkspaces, skillConfigBaseline),
+    [catalogQuery.data?.skills, skillWorkspaces, skillConfigBaseline],
   )
-  const hasToolPermissionsChange = toolGrantSignature(toolGrantDrafts) !== toolGrantSignature(toolGrantBaseline)
-  const toolPermissionsDraftIssues = useMemo(() => buildToolPermissionsDraftIssues({
-    drafts: toolGrantDrafts,
+  const hasToolPermissionsChange = toolGrantSignature(toolGrantWorkspaces) !== toolGrantSignature(toolGrantBaseline)
+  const toolPermissionsWorkspaceIssues = useMemo(() => buildToolPermissionsWorkspaceIssues({
+    workspaces: toolGrantWorkspaces,
     currentConfigFile: selectedConfigFile,
     tools: capabilitiesQuery.data?.resolvedTools,
-  }), [capabilitiesQuery.data?.resolvedTools, selectedConfigFile, toolGrantDrafts])
+  }), [capabilitiesQuery.data?.resolvedTools, selectedConfigFile, toolGrantWorkspaces])
   const readinessItems = useMemo(() => buildSettingsReadinessItems({
     effectiveConfig,
     selectedApiKind,
@@ -538,7 +538,7 @@ export default function AIAgentSettingsPage() {
     modelRouteIssues,
     currentConfigFile,
     skillConfigIssues,
-    toolPermissionsDraftIssues,
+    toolPermissionsWorkspaceIssues,
     skillStats,
     toolStats,
     hasUnsavedChanges,
@@ -557,20 +557,20 @@ export default function AIAgentSettingsPage() {
     modelRouteIssues,
     modelRoutes,
     skillConfigIssues,
-    toolPermissionsDraftIssues,
+    toolPermissionsWorkspaceIssues,
     skillStats,
     toolStats,
   ])
   const settingsActionItems = useMemo(() => buildSettingsActionItems({
     effectiveConfig,
     selectedApiKind,
-    draftBaseURL: baseURL,
+    workspaceBaseURL: baseURL,
     savedDirectModelIdHasSecret,
     modelRoutes,
     modelRouteIssues,
     currentConfigFile,
     skillConfigIssues,
-    toolPermissionsDraftIssues,
+    toolPermissionsWorkspaceIssues,
     toolStats,
     tools: capabilitiesQuery.data?.resolvedTools,
     hasUnsavedChanges,
@@ -590,7 +590,7 @@ export default function AIAgentSettingsPage() {
     modelRouteIssues,
     modelRoutes,
     skillConfigIssues,
-    toolPermissionsDraftIssues,
+    toolPermissionsWorkspaceIssues,
     capabilitiesQuery.data?.resolvedTools,
     toolStats,
   ])
@@ -657,23 +657,23 @@ export default function AIAgentSettingsPage() {
   }, [currentConfigFile?.id])
 
   useEffect(() => {
-    setConfigFileNameDraft(selectedConfigFile?.name ?? '')
-    setConfigFileDescriptionDraft(selectedConfigFile?.description ?? '')
-    setConfigFileLimitDrafts(configFileLimitDraftsFromConfigFile(selectedConfigFile))
-    setConfigFileApprovalDefaultDrafts(configFileApprovalDefaultDraftsFromConfigFile(selectedConfigFile))
+    setConfigFileNameWorkspace(selectedConfigFile?.name ?? '')
+    setConfigFileDescriptionWorkspace(selectedConfigFile?.description ?? '')
+    setConfigFileLimitWorkspaces(configFileLimitWorkspacesFromConfigFile(selectedConfigFile))
+    setConfigFileApprovalDefaultWorkspaces(configFileApprovalDefaultWorkspacesFromConfigFile(selectedConfigFile))
   }, [selectedConfigFile?.approvalDefaults, selectedConfigFile?.description, selectedConfigFile?.id, selectedConfigFile?.name, selectedConfigFile?.limits])
 
   useEffect(() => {
-    setSkillDrafts(skillConfigBaseline)
+    setSkillWorkspaces(skillConfigBaseline)
   }, [skillConfigBaseline])
 
   useEffect(() => {
-    setToolGrantDrafts(toolGrantBaseline)
+    setToolGrantWorkspaces(toolGrantBaseline)
   }, [toolGrantBaseline])
 
   useEffect(() => {
     setModelConfigClearConfirming(false)
-  }, [baseURL, draftModelValue, modelApiKey, selectedApiKind, useForChat, useForPlanner])
+  }, [baseURL, workspaceModelValue, modelApiKey, selectedApiKind, useForChat, useForPlanner])
 
   function recordSettingsOperationFailure(target: AgentSettingsAuditEntry['target'], operation: string, error: string) {
     recordSettingsAudit({
@@ -700,7 +700,7 @@ export default function AIAgentSettingsPage() {
   }
 
   async function saveSettings() {
-    if (!draftModelValue) return
+    if (!workspaceModelValue) return
     if (directModelIdHasSecret) {
       const message = t('agents.settings.modelIdSecretsBlocked')
       setSaveError(message)
@@ -723,7 +723,7 @@ export default function AIAgentSettingsPage() {
       await localAgentClient.ensureRunning()
       const nextConfig = await localAgentClient.saveModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
-        model: draftModelValue,
+        model: workspaceModelValue,
         apiKind: selectedApiKind,
         ...(baseURLValue ? { baseURL: baseURLValue } : {}),
         ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
@@ -749,7 +749,7 @@ export default function AIAgentSettingsPage() {
   }
 
   async function testSettings() {
-    if (!draftModelValue) return
+    if (!workspaceModelValue) return
     if (directModelIdHasSecret) {
       const message = t('agents.settings.modelIdSecretsBlocked')
       setTestError(message)
@@ -774,7 +774,7 @@ export default function AIAgentSettingsPage() {
       await localAgentClient.ensureRunning()
       await localAgentClient.saveModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
-        model: draftModelValue,
+        model: workspaceModelValue,
         apiKind: selectedApiKind,
         ...(baseURLValue ? { baseURL: baseURLValue } : {}),
         ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
@@ -785,7 +785,7 @@ export default function AIAgentSettingsPage() {
       const result = await localAgentClient.testModelConfig({
         message: testMessage.trim() || t('agents.settings.testMessageDefault'),
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
-        model: draftModelValue,
+        model: workspaceModelValue,
         apiKind: selectedApiKind,
         ...(baseURLValue ? { baseURL: baseURLValue } : {}),
         ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
@@ -865,7 +865,7 @@ export default function AIAgentSettingsPage() {
         await localAgentClient.saveAgentConfigFile({
           configFile: {
             ...selectedConfigFile,
-            skillIds: draftSkillIds,
+            skillIds: workspaceSkillIds,
             metadata: { ...(selectedConfigFile.metadata ?? {}), managed: true },
           },
           activate: selectedConfigFile.id === currentConfigFile?.id,
@@ -881,7 +881,7 @@ export default function AIAgentSettingsPage() {
       recordSettingsAudit({
         action: 'skill_config_saved',
         target: 'skills',
-        summary: t('agents.settings.auditSummaries.skillConfigSaved', { count: draftSkillIds.length }),
+        summary: t('agents.settings.auditSummaries.skillConfigSaved', { count: workspaceSkillIds.length }),
       })
     } catch (error) {
       const message = settingsErrorMessage(error)
@@ -892,8 +892,8 @@ export default function AIAgentSettingsPage() {
     }
   }
 
-  function updateSkillDraft(id: string, enabled: boolean) {
-    setSkillDrafts((drafts) => drafts.map((draft) => draft.id === id ? { ...draft, enabled } : draft))
+  function updateSkillWorkspace(id: string, enabled: boolean) {
+    setSkillWorkspaces((workspaces) => workspaces.map((workspace) => workspace.id === id ? { ...workspace, enabled } : workspace))
   }
 
   async function saveActiveConfigFile() {
@@ -1067,7 +1067,7 @@ export default function AIAgentSettingsPage() {
       setConfigFileSaveError(t('agents.settings.configFileReadonlyHelp'))
       return
     }
-    if (!configFileNameDraftValue) {
+    if (!configFileNameWorkspaceValue) {
       setConfigFileSaveError(t('agents.settings.configFileNameRequired'))
       return
     }
@@ -1078,21 +1078,21 @@ export default function AIAgentSettingsPage() {
     try {
       const nextConfigFile: AgentCatalogConfigFile = {
         ...selectedConfigFile,
-        name: configFileNameDraftValue,
+        name: configFileNameWorkspaceValue,
         metadata: { ...(selectedConfigFile.metadata ?? {}), managed: true },
       }
-      if (configFileDescriptionDraftValue) {
-        nextConfigFile.description = configFileDescriptionDraftValue
+      if (configFileDescriptionWorkspaceValue) {
+        nextConfigFile.description = configFileDescriptionWorkspaceValue
       } else {
         delete nextConfigFile.description
       }
-      if (Object.keys(normalizedConfigFileLimitDrafts).length > 0) {
-        nextConfigFile.limits = normalizedConfigFileLimitDrafts
+      if (Object.keys(normalizedConfigFileLimitWorkspaces).length > 0) {
+        nextConfigFile.limits = normalizedConfigFileLimitWorkspaces
       } else {
         delete nextConfigFile.limits
       }
-      if (Object.keys(normalizedConfigFileApprovalDefaultDrafts).length > 0) {
-        nextConfigFile.approvalDefaults = normalizedConfigFileApprovalDefaultDrafts
+      if (Object.keys(normalizedConfigFileApprovalDefaultWorkspaces).length > 0) {
+        nextConfigFile.approvalDefaults = normalizedConfigFileApprovalDefaultWorkspaces
       } else {
         delete nextConfigFile.approvalDefaults
       }
@@ -1205,8 +1205,8 @@ export default function AIAgentSettingsPage() {
       setToolPermissionsSaveError(t('agents.settings.configFileReadonlyHelp'))
       return
     }
-    if (toolPermissionsDraftIssues.length > 0) {
-      setToolPermissionsSaveError(t('agents.settings.toolPermissionsDraftInvalid', { count: toolPermissionsDraftIssues.length }))
+    if (toolPermissionsWorkspaceIssues.length > 0) {
+      setToolPermissionsSaveError(t('agents.settings.toolPermissionsWorkspaceInvalid', { count: toolPermissionsWorkspaceIssues.length }))
       return
     }
     setToolPermissionsSaving(true)
@@ -1217,7 +1217,7 @@ export default function AIAgentSettingsPage() {
       await localAgentClient.saveAgentConfigFile({
         configFile: {
           ...selectedConfigFile,
-          toolGrants: toolGrantDrafts.map((grant) => ({
+          toolGrants: toolGrantWorkspaces.map((grant) => ({
             name: grant.name,
             mode: grant.mode,
             ...(grant.approval ? { approval: grant.approval } : {}),
@@ -1236,7 +1236,7 @@ export default function AIAgentSettingsPage() {
       recordSettingsAudit({
         action: 'tool_permissions_saved',
         target: 'tools',
-        summary: t('agents.settings.auditSummaries.toolPermissionsSaved', toolPermissionsAuditSummaryValues(toolGrantDrafts)),
+        summary: t('agents.settings.auditSummaries.toolPermissionsSaved', toolPermissionsAuditSummaryValues(toolGrantWorkspaces)),
       })
     } catch (error) {
       const message = settingsErrorMessage(error)
@@ -1247,20 +1247,20 @@ export default function AIAgentSettingsPage() {
     }
   }
 
-  function fixToolPermissionsDraftIssues(options?: { audit?: boolean }) {
-    const issueByTool = new Map(toolPermissionsDraftIssues.map((issue) => [issue.toolName, issue]))
-    setToolGrantDrafts((drafts) => drafts.flatMap((grant) => {
+  function fixToolPermissionsWorkspaceIssues(options?: { audit?: boolean }) {
+    const issueByTool = new Map(toolPermissionsWorkspaceIssues.map((issue) => [issue.toolName, issue]))
+    setToolGrantWorkspaces((workspaces) => workspaces.flatMap((grant) => {
       const issue = issueByTool.get(grant.name)
       if (!issue) return [grant]
-      if (issue.reasonKey === 'agents.settings.toolPermissionsDraftIssueDetails.notConfigFileGranted') return []
-      if (issue.reasonKey === 'agents.settings.toolPermissionsDraftIssueDetails.unavailableAllow') return [{ ...grant, mode: 'deny' as const }]
+      if (issue.reasonKey === 'agents.settings.toolPermissionsWorkspaceIssueDetails.notConfigFileGranted') return []
+      if (issue.reasonKey === 'agents.settings.toolPermissionsWorkspaceIssueDetails.unavailableAllow') return [{ ...grant, mode: 'deny' as const }]
       return [grant]
     }))
     setToolPermissionsSaveError(null)
-    if (options?.audit) recordSettingsQuickFix('tools', 'agents.settings.fixToolPermissionsDraftIssues', 'draft_repair')
+    if (options?.audit) recordSettingsQuickFix('tools', 'agents.settings.fixToolPermissionsWorkspaceIssues', 'workspace_repair')
   }
 
-  function toolPermissionsAuditSummaryValues(grants: ToolGrantDraft[]) {
+  function toolPermissionsAuditSummaryValues(grants: ToolGrantWorkspace[]) {
     return {
       count: grants.length,
       allow: grants.filter((grant) => grant.mode === 'allow').length,
@@ -1269,9 +1269,9 @@ export default function AIAgentSettingsPage() {
     }
   }
 
-  function updateToolGrantDraft(name: string, patch: Partial<ToolGrantDraft>) {
+  function updateToolGrantWorkspace(name: string, patch: Partial<ToolGrantWorkspace>) {
     if (!selectedConfigFileEditable) return
-    setToolGrantDrafts((drafts) => drafts.map((grant) => (
+    setToolGrantWorkspaces((workspaces) => workspaces.map((grant) => (
       grant.name === name
         ? { ...grant, ...patch }
         : grant
@@ -1281,7 +1281,7 @@ export default function AIAgentSettingsPage() {
   function applyToolPermissionsBulkEdit(action: ToolPermissionsBulkAction) {
     if (!selectedConfigFileEditable) return
     const visibleToolByName = new Map(toolPermissionsFilteredTools.map((tool) => [tool.name, tool]))
-    setToolGrantDrafts((drafts) => drafts.map((grant) => {
+    setToolGrantWorkspaces((workspaces) => workspaces.map((grant) => {
       const tool = visibleToolByName.get(grant.name)
       if (!tool) return grant
       if (action === 'allow_available') {
@@ -1347,7 +1347,7 @@ export default function AIAgentSettingsPage() {
   }
 
   function applySettingsActionQuickFix(quickFix: SettingsActionQuickFix) {
-    if (quickFix === 'reset-model-draft') {
+    if (quickFix === 'reset-model-workspace') {
       if (!effectiveConfig?.configured) return
       const apiKind = effectiveConfig.apiKind ?? DEFAULT_API_KIND
       setSelectedModelId(runtimeConfigUsesModelCatalog(effectiveConfig) ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE)
@@ -1359,7 +1359,7 @@ export default function AIAgentSettingsPage() {
       setSaveError(null)
       setTestError(null)
       setSettingsActionFeedback(t('agents.settings.quickFixes.applied'))
-      recordSettingsQuickFix('model', 'agents.settings.quickFixes.resetDraft', 'draft_reset')
+      recordSettingsQuickFix('model', 'agents.settings.quickFixes.resetWorkspace', 'workspace_reset')
       return
     }
     if (quickFix === 'confirm-clear-model-config') {
@@ -1391,28 +1391,28 @@ export default function AIAgentSettingsPage() {
       recordSettingsQuickFix('model', 'agents.settings.quickFixes.stripSensitiveBaseURLQuery', 'sensitive_cleanup')
       return
     }
-    if (quickFix === 'reset-config-file-draft') {
+    if (quickFix === 'reset-config-file-workspace') {
       if (currentConfigFile?.id) setSelectedConfigFileId(currentConfigFile.id)
       setSettingsActionFeedback(t('agents.settings.quickFixes.applied'))
-      recordSettingsQuickFix('config_file', 'agents.settings.quickFixes.resetDraft', 'draft_reset')
+      recordSettingsQuickFix('config_file', 'agents.settings.quickFixes.resetWorkspace', 'workspace_reset')
       return
     }
-    if (quickFix === 'reset-skill-config-draft') {
-      setSkillDrafts(skillConfigBaseline)
+    if (quickFix === 'reset-skill-config-workspace') {
+      setSkillWorkspaces(skillConfigBaseline)
       setSettingsActionFeedback(t('agents.settings.quickFixes.applied'))
-      recordSettingsQuickFix('skills', 'agents.settings.quickFixes.resetDraft', 'draft_reset')
+      recordSettingsQuickFix('skills', 'agents.settings.quickFixes.resetWorkspace', 'workspace_reset')
       return
     }
-    if (quickFix === 'fix-tool-permissions-draft-issues') {
-      fixToolPermissionsDraftIssues()
+    if (quickFix === 'fix-tool-permissions-workspace-issues') {
+      fixToolPermissionsWorkspaceIssues()
       setSettingsActionFeedback(t('agents.settings.quickFixes.applied'))
-      recordSettingsQuickFix('tools', 'agents.settings.fixToolPermissionsDraftIssues', 'draft_repair')
+      recordSettingsQuickFix('tools', 'agents.settings.fixToolPermissionsWorkspaceIssues', 'workspace_repair')
       return
     }
-    if (quickFix === 'reset-tool-permissions-draft') {
-      setToolGrantDrafts(toolGrantBaseline)
+    if (quickFix === 'reset-tool-permissions-workspace') {
+      setToolGrantWorkspaces(toolGrantBaseline)
       setSettingsActionFeedback(t('agents.settings.quickFixes.applied'))
-      recordSettingsQuickFix('tools', 'agents.settings.quickFixes.resetDraft', 'draft_reset')
+      recordSettingsQuickFix('tools', 'agents.settings.quickFixes.resetWorkspace', 'workspace_reset')
     }
   }
 
@@ -1440,10 +1440,10 @@ export default function AIAgentSettingsPage() {
       config: effectiveConfig,
       configFileId: currentConfigFileId,
       configFiles: catalogQuery.data?.configFiles ?? [],
-      skillConfig: skillDrafts,
+      skillConfig: skillWorkspaces,
       toolPermissionOverrides: buildSettingsSnapshotToolPermissionOverrides({
         currentConfigFileId: selectedConfigFile?.id ?? currentConfigFileId,
-        currentToolGrantDrafts: toolGrantDrafts,
+        currentToolGrantWorkspaces: toolGrantWorkspaces,
       }),
     }), null, 2)
   }
@@ -1631,8 +1631,8 @@ export default function AIAgentSettingsPage() {
       : []
     if (referenceIssues.length > 0) return referenceIssues.map((issue) => issue.message).join('; ')
     const snapshotToolPermissionsIssues = (snapshot.toolPermissionOverrides ?? []).flatMap((overrides) => (
-      buildToolPermissionsDraftIssues({
-        drafts: overrides.toolGrants,
+      buildToolPermissionsWorkspaceIssues({
+        workspaces: overrides.toolGrants,
         currentConfigFile: snapshotConfigFileById(snapshot, overrides.configFileId, catalogQuery.data, currentConfigFile),
         tools: capabilitiesQuery.data?.resolvedTools,
       })
@@ -1871,7 +1871,7 @@ export default function AIAgentSettingsPage() {
                         {selectedConfigFile ? (
                           <>
                             <AgentSettingsConfigFileEditorHeader
-                              title={configFileNameDraft || selectedConfigFile.name}
+                              title={configFileNameWorkspace || selectedConfigFile.name}
                               description={selectedConfigFile.id}
                               badges={(
                                 <>
@@ -2094,10 +2094,10 @@ export default function AIAgentSettingsPage() {
                                 <AgentSettingsFormField>
                                   <AgentSettingsFieldLabel>{t('agents.settings.configFileNameLabel')}</AgentSettingsFieldLabel>
                                   <AgentSettingsInput
-                                    value={configFileNameDraft}
+                                    value={configFileNameWorkspace}
                                     disabled={!selectedConfigFileEditable}
                                     onChange={(event) => {
-                                      setConfigFileNameDraft(event.target.value)
+                                      setConfigFileNameWorkspace(event.target.value)
                                       setConfigFileSaveError(null)
                                     }}
                                     data-testid="agent-settings-config-file-name"
@@ -2106,10 +2106,10 @@ export default function AIAgentSettingsPage() {
                                 <AgentSettingsFormField>
                                   <AgentSettingsFieldLabel>{t('agents.settings.configFileDescriptionLabel')}</AgentSettingsFieldLabel>
                                   <AgentSettingsInput
-                                    value={configFileDescriptionDraft}
+                                    value={configFileDescriptionWorkspace}
                                     disabled={!selectedConfigFileEditable}
                                     onChange={(event) => {
-                                      setConfigFileDescriptionDraft(event.target.value)
+                                      setConfigFileDescriptionWorkspace(event.target.value)
                                       setConfigFileSaveError(null)
                                     }}
                                     data-testid="agent-settings-config-file-description"
@@ -2142,10 +2142,10 @@ export default function AIAgentSettingsPage() {
                                     <AgentSettingsInput
                                       type="number"
                                       min="0"
-                                      value={configFileLimitDrafts[key]}
+                                      value={configFileLimitWorkspaces[key]}
                                       disabled={!selectedConfigFileEditable}
                                       onChange={(event) => {
-                                        setConfigFileLimitDrafts((drafts) => ({ ...drafts, [key]: event.target.value }))
+                                        setConfigFileLimitWorkspaces((workspaces) => ({ ...workspaces, [key]: event.target.value }))
                                         setConfigFileSaveError(null)
                                       }}
                                       data-testid={`agent-settings-config-file-limit-${key}`}
@@ -2163,10 +2163,10 @@ export default function AIAgentSettingsPage() {
                                   <AgentSettingsFormField key={key}>
                                     <AgentSettingsFieldLabel>{t(`agents.settings.configFileApprovalDefaultFields.${key}`)}</AgentSettingsFieldLabel>
                                     <Select
-                                      value={configFileApprovalDefaultDrafts[key]}
+                                      value={configFileApprovalDefaultWorkspaces[key]}
                                       disabled={!selectedConfigFileEditable}
                                       onValueChange={(value) => {
-                                        setConfigFileApprovalDefaultDrafts((drafts) => ({ ...drafts, [key]: value as ConfigFileApprovalDefaultDraftValue }))
+                                        setConfigFileApprovalDefaultWorkspaces((workspaces) => ({ ...workspaces, [key]: value as ConfigFileApprovalDefaultWorkspaceValue }))
                                         setConfigFileSaveError(null)
                                       }}
                                     >
@@ -2191,8 +2191,8 @@ export default function AIAgentSettingsPage() {
                               id="agent-settings-skills"
                             >
                               <AgentSettingsFormGrid columns="three">
-                                <AgentSettingsKeyValue label={t('agents.settings.configFileFields.skills')} value={draftSkillIds.length} />
-                                <AgentSettingsKeyValue label={t('agents.settings.skillConfigSelected')} value={draftSkillIds.length} />
+                                <AgentSettingsKeyValue label={t('agents.settings.configFileFields.skills')} value={workspaceSkillIds.length} />
+                                <AgentSettingsKeyValue label={t('agents.settings.skillConfigSelected')} value={workspaceSkillIds.length} />
                                 <AgentSettingsKeyValue label={t('agents.settings.configFileFields.current')} value={selectedConfigFile.name} />
                               </AgentSettingsFormGrid>
                               <AgentSettingsFormGrid columns="two" data-testid="agent-settings-skill-filters">
@@ -2242,7 +2242,7 @@ export default function AIAgentSettingsPage() {
                                   {skillConfigSaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
                                   {hasSkillConfigSelectionChange ? t('agents.settings.saveSkillConfig') : t('agents.settings.skillConfigSaved')}
                                 </AgentSettingsActionButton>
-                                <AgentSettingsActionButton variant="outline" onClick={() => setSkillDrafts(skillConfigBaseline)} disabled={!selectedConfigFileEditable || !hasSkillConfigChange || skillConfigSaving}>
+                                <AgentSettingsActionButton variant="outline" onClick={() => setSkillWorkspaces(skillConfigBaseline)} disabled={!selectedConfigFileEditable || !hasSkillConfigChange || skillConfigSaving}>
                                   {t('agents.settings.resetSkillConfig')}
                                 </AgentSettingsActionButton>
                               </AgentSettingsActionRow>
@@ -2255,9 +2255,9 @@ export default function AIAgentSettingsPage() {
                                     <SkillRow
                                       key={skill.id}
                                       skill={skill}
-                                      draft={skillDraftById.get(skill.id)}
+                                      workspace={skillWorkspaceById.get(skill.id)}
                                       readOnly={!selectedConfigFileEditable}
-                                      onDraftChange={updateSkillDraft}
+                                      onWorkspaceChange={updateSkillWorkspace}
                                     />
                                   ))}
                                 </AgentSettingsStack>
@@ -2276,9 +2276,9 @@ export default function AIAgentSettingsPage() {
                                 <AgentSettingsStack>
                                   <AgentSettingsFormGrid columns="four">
                                     <AgentSettingsKeyValue label={t('agents.settings.configFileFields.toolGrants')} value={selectedConfigFile.toolGrants.length} />
-                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsModes.allow')} value={toolGrantDrafts.filter((grant) => grant.mode === 'allow').length} />
-                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsModes.deny')} value={toolGrantDrafts.filter((grant) => grant.mode === 'deny').length} />
-                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsDraftIssues')} value={toolPermissionsDraftIssues.length} />
+                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsModes.allow')} value={toolGrantWorkspaces.filter((grant) => grant.mode === 'allow').length} />
+                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsModes.deny')} value={toolGrantWorkspaces.filter((grant) => grant.mode === 'deny').length} />
+                                    <AgentSettingsKeyValue label={t('agents.settings.toolPermissionsWorkspaceIssues')} value={toolPermissionsWorkspaceIssues.length} />
                                   </AgentSettingsFormGrid>
                                   <AgentSettingsToolPermissionsFilterPanel
                                     searchValue={toolPermissionsSearch}
@@ -2322,15 +2322,15 @@ export default function AIAgentSettingsPage() {
                                     deleteLabel={t('agents.settings.deleteToolPermissionsFilterPreset')}
                                     onSave={saveToolPermissionsFilterPreset}
                                   />
-                                  {toolPermissionsDraftIssues.length > 0 && (
-                                    <AgentSettingsCallout tone="warning" compact data-testid="agent-settings-tool-permissions-draft-issues">
+                                  {toolPermissionsWorkspaceIssues.length > 0 && (
+                                    <AgentSettingsCallout tone="warning" compact data-testid="agent-settings-tool-permissions-workspace-issues">
                                       <AgentSettingsIssueList
-                                        items={toolPermissionsDraftIssues.map((issue) => (
+                                        items={toolPermissionsWorkspaceIssues.map((issue) => (
                                           `${issue.toolName}: ${t(issue.reasonKey, issue.values)}`
                                         ))}
                                       />
-                                      <AgentSettingsActionButton size="sm" variant="outline" onClick={() => fixToolPermissionsDraftIssues({ audit: true })}>
-                                        {t('agents.settings.fixToolPermissionsDraftIssues')}
+                                      <AgentSettingsActionButton size="sm" variant="outline" onClick={() => fixToolPermissionsWorkspaceIssues({ audit: true })}>
+                                        {t('agents.settings.fixToolPermissionsWorkspaceIssues')}
                                       </AgentSettingsActionButton>
                                     </AgentSettingsCallout>
                                   )}
@@ -2338,13 +2338,13 @@ export default function AIAgentSettingsPage() {
                                   <AgentSettingsActionRow>
                                     <AgentSettingsActionButton
                                       onClick={saveConfigFileToolPermissions}
-                                      disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving || toolPermissionsDraftIssues.length > 0}
+                                      disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving || toolPermissionsWorkspaceIssues.length > 0}
                                       data-testid="agent-settings-save-tool-permissions"
                                     >
                                       {toolPermissionsSaving ? <AgentSettingsIcon icon={Loader2} size={14} spinning /> : <Save size={14} />}
                                       {hasToolPermissionsChange ? t('agents.settings.saveToolPermissions') : t('agents.settings.toolPermissionsSaved')}
                                     </AgentSettingsActionButton>
-                                    <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving}>
+                                    <AgentSettingsActionButton variant="outline" onClick={() => setToolGrantWorkspaces(toolGrantBaseline)} disabled={!selectedConfigFileEditable || !hasToolPermissionsChange || toolPermissionsSaving}>
                                       {t('agents.settings.resetToolPermissions')}
                                     </AgentSettingsActionButton>
                                   </AgentSettingsActionRow>
@@ -2357,10 +2357,10 @@ export default function AIAgentSettingsPage() {
                                         <ToolPermissionsRow
                                           key={tool.name}
                                           tool={tool}
-                                          draft={toolGrantDraftByName.get(tool.name)}
+                                          workspace={toolGrantWorkspaceByName.get(tool.name)}
                                           configFileGranted={currentToolGrants.has(tool.name)}
                                           readOnly={!selectedConfigFileEditable}
-                                          onDraftChange={updateToolGrantDraft}
+                                          onWorkspaceChange={updateToolGrantWorkspace}
                                         />
                                       ))}
                                     </AgentSettingsStack>
@@ -2627,7 +2627,7 @@ function buildSettingsReadinessItems(input: {
   modelRouteIssues: string[]
   currentConfigFile: AgentCatalogConfigFile | null
   skillConfigIssues: SkillConfigIssue[]
-  toolPermissionsDraftIssues: ToolPermissionsDraftIssue[]
+  toolPermissionsWorkspaceIssues: ToolPermissionsWorkspaceIssue[]
   skillStats: ReturnType<typeof buildSkillStats>
   toolStats: ReturnType<typeof buildToolStats>
   hasUnsavedChanges: boolean
@@ -2639,7 +2639,7 @@ function buildSettingsReadinessItems(input: {
   const pendingChanges = [input.hasUnsavedChanges, input.hasConfigFileChange, input.hasSkillConfigChange, input.hasToolPermissionsChange].filter(Boolean).length
   const credentialStatus = input.effectiveConfig?.credentialStatus
   const skillConfigHasIssues = input.skillConfigIssues.length > 0
-  const toolPermissionsHasDraftIssues = input.toolPermissionsDraftIssues.length > 0
+  const toolPermissionsHasWorkspaceIssues = input.toolPermissionsWorkspaceIssues.length > 0
   return [
     {
       id: 'model',
@@ -2702,14 +2702,14 @@ function buildSettingsReadinessItems(input: {
     },
     {
       id: 'tools',
-      status: toolPermissionsHasDraftIssues ? 'action' : input.toolStats.available > 0 ? 'ready' : 'warning',
+      status: toolPermissionsHasWorkspaceIssues ? 'action' : input.toolStats.available > 0 ? 'ready' : 'warning',
       labelKey: 'agents.settings.readiness.tools',
-      detailKey: toolPermissionsHasDraftIssues
+      detailKey: toolPermissionsHasWorkspaceIssues
         ? 'agents.settings.readinessDetails.toolsInvalid'
         : input.toolStats.available > 0
           ? 'agents.settings.readinessDetails.toolsReady'
           : 'agents.settings.readinessDetails.toolsMissing',
-      detailValues: { available: input.toolStats.available, discovered: input.toolStats.discovered, count: input.toolPermissionsDraftIssues.length },
+      detailValues: { available: input.toolStats.available, discovered: input.toolStats.discovered, count: input.toolPermissionsWorkspaceIssues.length },
     },
     {
       id: 'pending',
@@ -2724,13 +2724,13 @@ function buildSettingsReadinessItems(input: {
 function buildSettingsActionItems(input: {
   effectiveConfig: RuntimeModelConfigPublic | null
   selectedApiKind: RuntimeModelAPIKind
-  draftBaseURL: string
+  workspaceBaseURL: string
   savedDirectModelIdHasSecret: boolean
   modelRoutes: NonNullable<RuntimeModelConfigPublic['capabilities']>
   modelRouteIssues: string[]
   currentConfigFile: AgentCatalogConfigFile | null
   skillConfigIssues: SkillConfigIssue[]
-  toolPermissionsDraftIssues: ToolPermissionsDraftIssue[]
+  toolPermissionsWorkspaceIssues: ToolPermissionsWorkspaceIssue[]
   toolStats: ReturnType<typeof buildToolStats>
   tools?: AgentCapabilitiesResponse['resolvedTools']
   hasUnsavedChanges: boolean
@@ -2756,8 +2756,8 @@ function buildSettingsActionItems(input: {
       targetSection: 'agent-settings-model',
       labelKey: 'agents.settings.actionItems.modelUnsaved',
       detailKey: 'agents.settings.actionItemDetails.modelUnsaved',
-      quickFix: 'reset-model-draft',
-      quickFixLabelKey: 'agents.settings.quickFixes.resetDraft',
+      quickFix: 'reset-model-workspace',
+      quickFixLabelKey: 'agents.settings.quickFixes.resetWorkspace',
       persistHintKey: 'agents.settings.actionItemPersistHints.saveOrReset',
     })
   }
@@ -2821,7 +2821,7 @@ function buildSettingsActionItems(input: {
     })
   }
 
-  if (hasSensitiveURLSecret(input.draftBaseURL)) {
+  if (hasSensitiveURLSecret(input.workspaceBaseURL)) {
     items.push({
       id: 'model-base-url-sensitive',
       status: 'warning',
@@ -2849,8 +2849,8 @@ function buildSettingsActionItems(input: {
       targetSection: 'agent-settings-config-files',
       labelKey: 'agents.settings.actionItems.configFileUnsaved',
       detailKey: 'agents.settings.actionItemDetails.configFileUnsaved',
-      quickFix: 'reset-config-file-draft',
-      quickFixLabelKey: 'agents.settings.quickFixes.resetDraft',
+      quickFix: 'reset-config-file-workspace',
+      quickFixLabelKey: 'agents.settings.quickFixes.resetWorkspace',
       persistHintKey: 'agents.settings.actionItemPersistHints.saveOrReset',
     })
   }
@@ -2864,8 +2864,8 @@ function buildSettingsActionItems(input: {
       detailKey: 'agents.settings.actionItemDetails.skillConfigInvalid',
       detailValues: { count: input.skillConfigIssues.length },
       reasons: compactActionReasons(input.skillConfigIssues.map(formatSettingsSkillConfigIssue)),
-      quickFix: 'reset-skill-config-draft',
-      quickFixLabelKey: 'agents.settings.quickFixes.resetDraft',
+      quickFix: 'reset-skill-config-workspace',
+      quickFixLabelKey: 'agents.settings.quickFixes.resetWorkspace',
     })
   } else if (input.hasSkillConfigChange) {
     items.push({
@@ -2874,23 +2874,23 @@ function buildSettingsActionItems(input: {
       targetSection: 'agent-settings-skills',
       labelKey: 'agents.settings.actionItems.skillConfigUnsaved',
       detailKey: 'agents.settings.actionItemDetails.skillConfigUnsaved',
-      quickFix: 'reset-skill-config-draft',
-      quickFixLabelKey: 'agents.settings.quickFixes.resetDraft',
+      quickFix: 'reset-skill-config-workspace',
+      quickFixLabelKey: 'agents.settings.quickFixes.resetWorkspace',
       persistHintKey: 'agents.settings.actionItemPersistHints.saveOrReset',
     })
   }
 
-  if (input.toolPermissionsDraftIssues.length > 0) {
+  if (input.toolPermissionsWorkspaceIssues.length > 0) {
     items.push({
       id: 'tool-permissions-invalid',
       status: 'action',
       targetSection: 'agent-settings-tools',
       labelKey: 'agents.settings.actionItems.toolPermissionsInvalid',
       detailKey: 'agents.settings.actionItemDetails.toolPermissionsInvalid',
-      detailValues: { count: input.toolPermissionsDraftIssues.length },
-      reasons: compactActionReasons(input.toolPermissionsDraftIssues.map(formatSettingsToolPermissionsIssue)),
-      quickFix: 'fix-tool-permissions-draft-issues',
-      quickFixLabelKey: 'agents.settings.fixToolPermissionsDraftIssues',
+      detailValues: { count: input.toolPermissionsWorkspaceIssues.length },
+      reasons: compactActionReasons(input.toolPermissionsWorkspaceIssues.map(formatSettingsToolPermissionsIssue)),
+      quickFix: 'fix-tool-permissions-workspace-issues',
+      quickFixLabelKey: 'agents.settings.fixToolPermissionsWorkspaceIssues',
       persistHintKey: 'agents.settings.actionItemPersistHints.saveAfterQuickFix',
     })
   } else if (input.hasToolPermissionsChange) {
@@ -2900,8 +2900,8 @@ function buildSettingsActionItems(input: {
       targetSection: 'agent-settings-tools',
       labelKey: 'agents.settings.actionItems.toolPermissionsUnsaved',
       detailKey: 'agents.settings.actionItemDetails.toolPermissionsUnsaved',
-      quickFix: 'reset-tool-permissions-draft',
-      quickFixLabelKey: 'agents.settings.quickFixes.resetDraft',
+      quickFix: 'reset-tool-permissions-workspace',
+      quickFixLabelKey: 'agents.settings.quickFixes.resetWorkspace',
       persistHintKey: 'agents.settings.actionItemPersistHints.saveOrReset',
     })
   } else if (input.toolStats.discovered > 0 && input.toolStats.available === 0) {
@@ -2941,14 +2941,14 @@ function formatSettingsSkillConfigIssue(issue: SkillConfigIssue): SettingsAction
   }
 }
 
-function formatSettingsToolPermissionsIssue(issue: ToolPermissionsDraftIssue): SettingsActionReason {
-  if (issue.reasonKey === 'agents.settings.toolPermissionsDraftIssueDetails.notConfigFileGranted') {
+function formatSettingsToolPermissionsIssue(issue: ToolPermissionsWorkspaceIssue): SettingsActionReason {
+  if (issue.reasonKey === 'agents.settings.toolPermissionsWorkspaceIssueDetails.notConfigFileGranted') {
     return {
       labelKey: 'agents.settings.actionItemReasons.toolNotConfigFileGranted',
       values: { toolName: issue.toolName },
     }
   }
-  if (issue.reasonKey === 'agents.settings.toolPermissionsDraftIssueDetails.unavailableAllow') {
+  if (issue.reasonKey === 'agents.settings.toolPermissionsWorkspaceIssueDetails.unavailableAllow') {
     return {
       labelKey: 'agents.settings.actionItemReasons.toolUnavailableAllow',
       values: { toolName: issue.toolName, ...(issue.values ?? {}) },
@@ -2985,7 +2985,7 @@ function compactActionReasons(reasons: SettingsActionReason[], limit = 3): Setti
   ]
 }
 
-function buildSkillConfigDrafts(skills: AgentCatalogSkill[], configFile: AgentCatalogConfigFile | null): SkillConfigDraft[] {
+function buildSkillConfigWorkspaces(skills: AgentCatalogSkill[], configFile: AgentCatalogConfigFile | null): SkillConfigWorkspace[] {
   const configSkillIds = new Set(configFile?.skillIds ?? [])
   return skills.map((skill) => ({
     id: skill.id,
@@ -2993,37 +2993,37 @@ function buildSkillConfigDrafts(skills: AgentCatalogSkill[], configFile: AgentCa
   }))
 }
 
-function buildSkillConfigChanges(drafts: SkillConfigDraft[], baseline: SkillConfigDraft[]): SkillConfigDraft[] {
-  const baselineById = new Map(baseline.map((draft) => [draft.id, draft]))
-  return drafts.flatMap((draft) => {
-    const before = baselineById.get(draft.id)
-    if (!before) return [draft]
-    const change: SkillConfigDraft = { id: draft.id, enabled: draft.enabled }
+function buildSkillConfigChanges(workspaces: SkillConfigWorkspace[], baseline: SkillConfigWorkspace[]): SkillConfigWorkspace[] {
+  const baselineById = new Map(baseline.map((workspace) => [workspace.id, workspace]))
+  return workspaces.flatMap((workspace) => {
+    const before = baselineById.get(workspace.id)
+    if (!before) return [workspace]
+    const change: SkillConfigWorkspace = { id: workspace.id, enabled: workspace.enabled }
     let changed = false
-    if (before.enabled !== draft.enabled) {
-      change.enabled = draft.enabled
+    if (before.enabled !== workspace.enabled) {
+      change.enabled = workspace.enabled
       changed = true
     }
     return changed ? [change] : []
   })
 }
 
-function buildConfigFileSkillIds(drafts: SkillConfigDraft[]): string[] {
-  return drafts.flatMap((draft) => draft.enabled ? [draft.id] : [])
+function buildConfigFileSkillIds(workspaces: SkillConfigWorkspace[]): string[] {
+  return workspaces.flatMap((workspace) => workspace.enabled ? [workspace.id] : [])
 }
 
 function buildSkillConfigIssues(
   skills: AgentCatalogSkill[],
-  drafts: SkillConfigDraft[],
-  baseline: SkillConfigDraft[],
+  workspaces: SkillConfigWorkspace[],
+  baseline: SkillConfigWorkspace[],
 ): SkillConfigIssue[] {
   const skillById = new Map(skills.map((skill) => [skill.id, skill]))
-  const enabledById = new Map(baseline.map((draft) => [draft.id, draft.enabled]))
-  for (const draft of drafts) enabledById.set(draft.id, draft.enabled)
-  const baselineById = new Map(baseline.map((draft) => [draft.id, draft.enabled]))
-  const changedIds = drafts
-    .filter((draft) => baselineById.get(draft.id) !== draft.enabled)
-    .map((draft) => draft.id)
+  const enabledById = new Map(baseline.map((workspace) => [workspace.id, workspace.enabled]))
+  for (const workspace of workspaces) enabledById.set(workspace.id, workspace.enabled)
+  const baselineById = new Map(baseline.map((workspace) => [workspace.id, workspace.enabled]))
+  const changedIds = workspaces
+    .filter((workspace) => baselineById.get(workspace.id) !== workspace.enabled)
+    .map((workspace) => workspace.id)
   const issues = new Map<string, SkillConfigIssue>()
 
   for (const id of changedIds) {
@@ -3073,8 +3073,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function skillConfigSignature(drafts: SkillConfigDraft[]): string {
-  return JSON.stringify([...drafts].sort((a, b) => a.id.localeCompare(b.id)))
+function skillConfigSignature(workspaces: SkillConfigWorkspace[]): string {
+  return JSON.stringify([...workspaces].sort((a, b) => a.id.localeCompare(b.id)))
 }
 
 function stringListSignature(values: string[]): string {
@@ -3105,7 +3105,7 @@ function buildToolStats(tools?: AgentCapabilitiesResponse['resolvedTools']) {
   }
 }
 
-function buildToolGrantDrafts(configFile: AgentCatalogConfigFile | null): ToolGrantDraft[] {
+function buildToolGrantWorkspaces(configFile: AgentCatalogConfigFile | null): ToolGrantWorkspace[] {
   const grants = configFile?.toolGrants ?? []
   return grants.map((grant) => ({
     name: grant.name,
@@ -3116,11 +3116,11 @@ function buildToolGrantDrafts(configFile: AgentCatalogConfigFile | null): ToolGr
 
 function buildSettingsSnapshotToolPermissionOverrides(input: {
   currentConfigFileId: string
-  currentToolGrantDrafts: ToolGrantDraft[]
+  currentToolGrantWorkspaces: ToolGrantWorkspace[]
 }): ConfigFileToolPermissionOverrides[] {
-  const overridesByConfigFile = new Map<string, ToolGrantDraft[]>()
+  const overridesByConfigFile = new Map<string, ToolGrantWorkspace[]>()
   if (input.currentConfigFileId) {
-    overridesByConfigFile.set(input.currentConfigFileId, input.currentToolGrantDrafts)
+    overridesByConfigFile.set(input.currentConfigFileId, input.currentToolGrantWorkspaces)
   }
   return [...overridesByConfigFile.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -3146,25 +3146,25 @@ function buildConfigFileRollbackBackup(input: {
   }
 }
 
-function buildToolPermissionsDraftIssues(input: {
-  drafts: ToolGrantDraft[]
+function buildToolPermissionsWorkspaceIssues(input: {
+  workspaces: ToolGrantWorkspace[]
   currentConfigFile: AgentCatalogConfigFile | null
   tools?: AgentCapabilitiesResponse['resolvedTools']
-}): ToolPermissionsDraftIssue[] {
+}): ToolPermissionsWorkspaceIssue[] {
   const configFileGranted = new Set((input.currentConfigFile?.toolGrants ?? []).map((grant) => grant.name))
   const discoveredByName = new Map((input.tools?.discovered ?? []).map((tool) => [tool.name, tool]))
-  return input.drafts.flatMap((draft) => {
-    if (!configFileGranted.has(draft.name)) {
+  return input.workspaces.flatMap((workspace) => {
+    if (!configFileGranted.has(workspace.name)) {
       return [{
-        toolName: draft.name,
-        reasonKey: 'agents.settings.toolPermissionsDraftIssueDetails.notConfigFileGranted',
+        toolName: workspace.name,
+        reasonKey: 'agents.settings.toolPermissionsWorkspaceIssueDetails.notConfigFileGranted',
       }]
     }
-    const discovered = discoveredByName.get(draft.name)
-    if (discovered && !discovered.available && draft.mode === 'allow') {
+    const discovered = discoveredByName.get(workspace.name)
+    if (discovered && !discovered.available && workspace.mode === 'allow') {
       return [{
-        toolName: draft.name,
-        reasonKey: 'agents.settings.toolPermissionsDraftIssueDetails.unavailableAllow',
+        toolName: workspace.name,
+        reasonKey: 'agents.settings.toolPermissionsWorkspaceIssueDetails.unavailableAllow',
         values: { reason: discovered.unavailableReason?.trim() || 'blocked' },
       }]
     }
@@ -3300,27 +3300,27 @@ function safeConfigFileExportName(configFile: AgentCatalogConfigFile): string {
     || 'config-file'
 }
 
-function emptyConfigFileLimitDrafts(): Record<ConfigFileLimitKey, string> {
+function emptyConfigFileLimitWorkspaces(): Record<ConfigFileLimitKey, string> {
   return Object.fromEntries(CONFIG_FILE_LIMIT_KEYS.map((key) => [key, ''])) as Record<ConfigFileLimitKey, string>
 }
 
-function emptyConfigFileApprovalDefaultDrafts(): Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultDraftValue> {
-  return Object.fromEntries(CONFIG_FILE_APPROVAL_DEFAULT_KEYS.map((key) => [key, 'inherit'])) as Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultDraftValue>
+function emptyConfigFileApprovalDefaultWorkspaces(): Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultWorkspaceValue> {
+  return Object.fromEntries(CONFIG_FILE_APPROVAL_DEFAULT_KEYS.map((key) => [key, 'inherit'])) as Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultWorkspaceValue>
 }
 
-function configFileLimitDraftsFromConfigFile(configFile: AgentCatalogConfigFile | null): Record<ConfigFileLimitKey, string> {
-  const drafts = emptyConfigFileLimitDrafts()
+function configFileLimitWorkspacesFromConfigFile(configFile: AgentCatalogConfigFile | null): Record<ConfigFileLimitKey, string> {
+  const workspaces = emptyConfigFileLimitWorkspaces()
   for (const key of CONFIG_FILE_LIMIT_KEYS) {
     const value = configFile?.limits?.[key]
-    drafts[key] = typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
+    workspaces[key] = typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
   }
-  return drafts
+  return workspaces
 }
 
-function normalizeConfigFileLimitDrafts(drafts: Record<ConfigFileLimitKey, string>): NonNullable<AgentCatalogConfigFile['limits']> {
+function normalizeConfigFileLimitWorkspaces(workspaces: Record<ConfigFileLimitKey, string>): NonNullable<AgentCatalogConfigFile['limits']> {
   const limits: NonNullable<AgentCatalogConfigFile['limits']> = {}
   for (const key of CONFIG_FILE_LIMIT_KEYS) {
-    const raw = drafts[key].trim()
+    const raw = workspaces[key].trim()
     if (!raw) continue
     const value = Number(raw)
     if (Number.isFinite(value) && value >= 0) limits[key] = Math.floor(value)
@@ -3334,21 +3334,21 @@ function configFileLimitSignature(limits: AgentCatalogConfigFile['limits']): str
   ))))
 }
 
-function configFileApprovalDefaultDraftsFromConfigFile(configFile: AgentCatalogConfigFile | null): Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultDraftValue> {
-  const drafts = emptyConfigFileApprovalDefaultDrafts()
+function configFileApprovalDefaultWorkspacesFromConfigFile(configFile: AgentCatalogConfigFile | null): Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultWorkspaceValue> {
+  const workspaces = emptyConfigFileApprovalDefaultWorkspaces()
   for (const key of CONFIG_FILE_APPROVAL_DEFAULT_KEYS) {
     const value = configFile?.approvalDefaults?.[key]
-    drafts[key] = value === 'never' || value === 'on_write' || value === 'always' ? value : 'inherit'
+    workspaces[key] = value === 'never' || value === 'on_write' || value === 'always' ? value : 'inherit'
   }
-  return drafts
+  return workspaces
 }
 
-function normalizeConfigFileApprovalDefaultDrafts(
-  drafts: Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultDraftValue>,
+function normalizeConfigFileApprovalDefaultWorkspaces(
+  workspaces: Record<ConfigFileApprovalDefaultKey, ConfigFileApprovalDefaultWorkspaceValue>,
 ): NonNullable<AgentCatalogConfigFile['approvalDefaults']> {
   const config: NonNullable<AgentCatalogConfigFile['approvalDefaults']> = {}
   for (const key of CONFIG_FILE_APPROVAL_DEFAULT_KEYS) {
-    const approval = drafts[key]
+    const approval = workspaces[key]
     if (approval !== 'inherit') config[key] = approval
   }
   return config
@@ -3512,13 +3512,13 @@ function configFileLimitFieldLabel(key: ConfigFileLimitKey, t: ReturnType<typeof
   return t(`agents.settings.configFileLimitFields.${key}`)
 }
 
-function toolGrantSignature(grants: ToolGrantDraft[]): string {
+function toolGrantSignature(grants: ToolGrantWorkspace[]): string {
   return JSON.stringify([...grants]
     .map((grant) => ({ name: grant.name, mode: grant.mode, approval: grant.approval ?? 'never' }))
     .sort((a, b) => a.name.localeCompare(b.name)))
 }
 
-function buildToolPermissionsDiffItems(before: ToolGrantDraft[], after: ToolGrantDraft[]): ToolPermissionsDiffItem[] {
+function buildToolPermissionsDiffItems(before: ToolGrantWorkspace[], after: ToolGrantWorkspace[]): ToolPermissionsDiffItem[] {
   const beforeByName = new Map(before.map((grant) => [grant.name, grant]))
   const afterByName = new Map(after.map((grant) => [grant.name, grant]))
   const names = [...new Set([...beforeByName.keys(), ...afterByName.keys()])].sort((a, b) => a.localeCompare(b))
@@ -3648,8 +3648,8 @@ function settingsErrorMessage(error: unknown): string {
 }
 
 function settingsQuickFixAuditAction(kind: SettingsQuickFixAuditKind): string {
-  if (kind === 'draft_reset') return 'settings_quick_fix_draft_reset'
-  if (kind === 'draft_repair') return 'settings_quick_fix_draft_repair'
+  if (kind === 'workspace_reset') return 'settings_quick_fix_workspace_reset'
+  if (kind === 'workspace_repair') return 'settings_quick_fix_workspace_repair'
   if (kind === 'sensitive_cleanup') return 'settings_quick_fix_sensitive_cleanup'
   if (kind === 'mode_migration') return 'settings_quick_fix_mode_migration'
   if (kind === 'route_enable') return 'settings_quick_fix_route_enable'
@@ -3897,14 +3897,14 @@ function settingsSectionLabelKey(sectionId: SettingsActionItem['targetSection'])
 
 function SkillRow({
   skill,
-  draft,
+  workspace,
   readOnly = false,
-  onDraftChange,
+  onWorkspaceChange,
 }: {
   skill: AgentCatalogSkill
-  draft?: SkillConfigDraft
+  workspace?: SkillConfigWorkspace
   readOnly?: boolean
-  onDraftChange: (id: string, enabled: boolean) => void
+  onWorkspaceChange: (id: string, enabled: boolean) => void
 }) {
   const { t } = useTranslation()
   const dependencyCount = skill.dependencies?.length ?? 0
@@ -3921,12 +3921,12 @@ function SkillRow({
       versionLabel={skill.version ? `v${skill.version}` : undefined}
       sourceLabel={skillSourceLabel(skill, t)}
       priorityLabel={typeof skill.priority === 'number' ? `p${skill.priority}` : undefined}
-      draftEnabled={draft?.enabled}
-      draftDisabled={readOnly || isCore}
-      draftLocked={readOnly || isCore}
-      draftTitle={draft ? (draft.enabled ? t('agents.settings.skillStatus.enabled') : t('agents.settings.skillStatus.disabled')) : undefined}
-      draftHelp={draft ? (readOnly ? t('agents.settings.configFileReadonlyHelp') : isCore ? t('agents.settings.skillConfigCoreLocked') : t('agents.settings.skillConfigToggleHelp')) : undefined}
-      onDraftChange={draft ? (checked) => onDraftChange(skill.id, checked) : undefined}
+      workspaceEnabled={workspace?.enabled}
+      workspaceDisabled={readOnly || isCore}
+      workspaceLocked={readOnly || isCore}
+      workspaceTitle={workspace ? (workspace.enabled ? t('agents.settings.skillStatus.enabled') : t('agents.settings.skillStatus.disabled')) : undefined}
+      workspaceHelp={workspace ? (readOnly ? t('agents.settings.configFileReadonlyHelp') : isCore ? t('agents.settings.skillConfigCoreLocked') : t('agents.settings.skillConfigToggleHelp')) : undefined}
+      onWorkspaceChange={workspace ? (checked) => onWorkspaceChange(skill.id, checked) : undefined}
       metaItems={skillMetaItems(skill, dependencyCount, conflictCount, t)}
     />
   )
@@ -4082,8 +4082,8 @@ function ToolPermissionsDiffPreview({ items }: { items: ToolPermissionsDiffItem[
 
 function formatToolPermissionsDiffValue(
   t: ReturnType<typeof useTranslation>['t'],
-  mode?: ToolGrantDraft['mode'],
-  approval?: ToolGrantDraft['approval'],
+  mode?: ToolGrantWorkspace['mode'],
+  approval?: ToolGrantWorkspace['approval'],
 ): string {
   if (!mode) return t('agents.settings.toolPermissionsDiffValues.none')
   const approvalKey = approval ?? 'never'
@@ -4095,16 +4095,16 @@ function formatToolPermissionsDiffValue(
 
 function ToolPermissionsRow({
   tool,
-  draft,
+  workspace,
   configFileGranted,
   readOnly = false,
-  onDraftChange,
+  onWorkspaceChange,
 }: {
   tool: AgentDebugTool
-  draft?: ToolGrantDraft
+  workspace?: ToolGrantWorkspace
   configFileGranted: boolean
   readOnly?: boolean
-  onDraftChange: (name: string, patch: Partial<ToolGrantDraft>) => void
+  onWorkspaceChange: (name: string, patch: Partial<ToolGrantWorkspace>) => void
 }) {
   const { t } = useTranslation()
   const canAllow = !readOnly && tool.available && configFileGranted
@@ -4122,7 +4122,7 @@ function ToolPermissionsRow({
       configFileGrantedLabel={t('agents.settings.toolPermissionsStatus.configFileGranted')}
       requiresApproval={tool.requiresApproval}
       description={tool.description}
-      draft={draft && !readOnly ? { mode: draft.mode, approval: draft.approval ?? 'never', canAllow } : undefined}
+      workspace={workspace && !readOnly ? { mode: workspace.mode, approval: workspace.approval ?? 'never', canAllow } : undefined}
       modeLabel={t('agents.settings.toolPermissionsFields.mode')}
       approvalLabel={t('agents.settings.toolPermissionsFields.approval')}
       allowLabel={t('agents.settings.toolPermissionsModes.allow')}
@@ -4131,8 +4131,8 @@ function ToolPermissionsRow({
       approvalOnWriteLabel={t('agents.settings.toolPermissionsApprovals.onWrite')}
       approvalAlwaysLabel={t('agents.settings.toolPermissionsApprovals.always')}
       allowDisabledHelp={t('agents.settings.toolPermissionsAllowDisabled')}
-      onModeChange={(mode) => onDraftChange(tool.name, { mode })}
-      onApprovalChange={(approval) => onDraftChange(tool.name, { approval })}
+      onModeChange={(mode) => onWorkspaceChange(tool.name, { mode })}
+      onApprovalChange={(approval) => onWorkspaceChange(tool.name, { approval })}
       metaItems={toolPermissionsMetaItems(tool, t)}
     />
   )

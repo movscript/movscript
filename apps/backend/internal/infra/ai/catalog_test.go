@@ -608,7 +608,7 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","min":29,"max":289,"default":"33"}]`); err == nil {
 		t.Fatal("expected number default with string type to be rejected")
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"draft","type":"boolean","default":"false"}]`); err == nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"workspace","type":"boolean","default":"false"}]`); err == nil {
 		t.Fatal("expected boolean default with string type to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","type":"string","default":123}]`); err == nil {
@@ -627,80 +627,80 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 		t.Fatal("expected default outside json_schema enum to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":"true","options":["480p"]}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":"true","options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional when_value with wrong type to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":{"when_param":"draft","when_value":true,"options":["480p"]}}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":{"when_param":"workspace","when_value":true,"options":["480p"]}}
 	]`); err == nil {
 		t.Fatal("expected non-array conditional_enum to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":["draft"]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":["workspace"]}
 	]`); err == nil {
 		t.Fatal("expected non-object conditional_enum item to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"whenParam":"draft","when_value":true,"options":["480p"]}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"whenParam":"workspace","when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected unknown conditional_enum field to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
+		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":1,"when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_enum when_param to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
+		{"key":"workspace","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":null,"when_value":true,"options":["480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected null conditional_enum when_param to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":"480p"}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":"480p"}]}
 	]`); err == nil {
 		t.Fatal("expected non-array conditional_enum options to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":[480]}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":[480]}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_enum option to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":["720p"]}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["720p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional enum option outside target options to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"draft","when_value":true,"vale":false}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"workspace","when_value":true,"vale":false}]}
 	]`); err == nil {
 		t.Fatal("expected unknown conditional_const field to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
+		{"key":"workspace","type":"boolean"},
 		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":1,"when_value":true,"value":false}]}
 	]`); err == nil {
 		t.Fatal("expected non-string conditional_const when_param to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"draft","when_value":true,"value":null}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"workspace","when_value":true,"value":null}]}
 	]`); err == nil {
 		t.Fatal("expected null conditional_const value to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
-		{"key":"draft","type":"boolean"},
-		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":["480p","480p"]}]}
+		{"key":"workspace","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p","480p"]}]}
 	]`); err == nil {
 		t.Fatal("expected duplicate conditional enum options to be rejected")
 	}
@@ -1001,15 +1001,15 @@ func TestParamsSchemaExposesResolvedParamDefs(t *testing.T) {
 		{Key: "duration", Label: "时长", Type: "select", Options: []string{"5", "10"}, Default: "5", ConflictsWith: []string{"frames"}},
 		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4, JSONSchema: framesJSONSchema()},
 		{Key: "resolution", Label: "分辨率", Type: "select", Options: []string{"480p", "720p"}, Default: "720p",
-			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"480p"}}}},
 		{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false,
-			ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}},
+			ConditionalConst: []ParamConditionalConst{{WhenParam: "workspace", WhenValue: true, Value: false}}},
 		{Key: "image_count", Label: "生成张数", Type: "number", Min: 1, Max: 15, Step: 1,
 			RequiresValue: []ParamRequiresValue{{Param: "sequential_image_generation", Value: "auto"}}},
 		{Key: "sequential_image_generation", Label: "组图", Type: "select", Options: []string{"disabled", "auto"}, Default: "disabled"},
 		{Key: "seed", Label: "种子", Type: "number", Min: -1, Max: 100, Step: 1},
 		{Key: "audio", Label: "音频", Type: "boolean", Default: true},
-		{Key: "draft", Label: "样片", Type: "boolean", Default: false},
+		{Key: "workspace", Label: "样片", Type: "boolean", Default: false},
 	})
 	if schema["type"] != "object" {
 		t.Fatalf("expected object schema, got %#v", schema)
@@ -1060,11 +1060,11 @@ func TestParamsSchemaExposesResolvedParamDefs(t *testing.T) {
 	if !schemaHasConflictRule(allOf, "duration", "frames") {
 		t.Fatalf("expected duration/frames conflict rule in allOf, got %#v", allOf)
 	}
-	if !schemaHasConditionalPropertyRule(allOf, "draft", true, "resolution", "enum", []any{"480p"}, false) {
-		t.Fatalf("expected draft=true to restrict resolution enum, got %#v", allOf)
+	if !schemaHasConditionalPropertyRule(allOf, "workspace", true, "resolution", "enum", []any{"480p"}, false) {
+		t.Fatalf("expected workspace=true to restrict resolution enum, got %#v", allOf)
 	}
-	if !schemaHasConditionalPropertyRule(allOf, "draft", true, "return_last_frame", "const", false, false) {
-		t.Fatalf("expected draft=true to force return_last_frame=false, got %#v", allOf)
+	if !schemaHasConditionalPropertyRule(allOf, "workspace", true, "return_last_frame", "const", false, false) {
+		t.Fatalf("expected workspace=true to force return_last_frame=false, got %#v", allOf)
 	}
 	if !schemaHasConditionalPropertyRule(allOf, "", nil, "sequential_image_generation", "const", "auto", true) {
 		t.Fatalf("expected image_count to require sequential_image_generation=auto, got %#v", allOf)
@@ -1117,9 +1117,9 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 		SupportedParams: []ParamDef{
 			{Key: "duration", Type: "select", Options: []string{"5", "10"}, ConflictsWith: []string{"frames"}},
 			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
-			{Key: "draft", Type: "boolean"},
-			{Key: "resolution", Type: "select", Options: []string{"480p", "720p"}, ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
-			{Key: "return_last_frame", Type: "boolean", ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}},
+			{Key: "workspace", Type: "boolean"},
+			{Key: "resolution", Type: "select", Options: []string{"480p", "720p"}, ConditionalEnum: []ParamConditionalEnum{{WhenParam: "workspace", WhenValue: true, Options: []string{"480p"}}}},
+			{Key: "return_last_frame", Type: "boolean", ConditionalConst: []ParamConditionalConst{{WhenParam: "workspace", WhenValue: true, Value: false}}},
 			{Key: "sequential_image_generation", Type: "select", Options: []string{"disabled", "auto"}},
 			{Key: "image_count", Type: "number", Min: 1, Max: 15, Step: 1, RequiresValue: []ParamRequiresValue{{Param: "sequential_image_generation", Value: "auto"}}},
 		},
@@ -1133,14 +1133,14 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 	} else if value, ok := validationErr.SuggestedFix["frames"]; !ok || value != nil {
 		t.Fatalf("expected conflict suggested fix to remove frames, got %#v", validationErr.SuggestedFix)
 	}
-	err := ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"resolution":"720p"}`, "", 0)
+	err := ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"resolution":"720p"}`, "", 0)
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
 	}
 	if validationErr.SuggestedFix["resolution"] != "480p" {
 		t.Fatalf("expected resolution suggested fix, got %#v", validationErr.SuggestedFix)
 	}
-	err = ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"return_last_frame":true}`, "", 0)
+	err = ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"return_last_frame":true}`, "", 0)
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError for conditional const, got %T %[1]v", err)
 	}
@@ -1164,7 +1164,7 @@ func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) 
 		SupportedParams: []ParamDef{
 			{Key: "duration", Type: "select", Options: []string{"5", "10"}},
 			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
-			{Key: "draft", Type: "boolean"},
+			{Key: "workspace", Type: "boolean"},
 			{Key: "resolution", Type: "select", Options: []string{"480p", "720p"}},
 			{Key: "return_last_frame", Type: "boolean"},
 			{Key: "sequential_image_generation", Type: "select", Options: []string{"disabled", "auto"}},
@@ -1175,8 +1175,8 @@ func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) 
 	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err != nil {
 		t.Fatalf("expected explicit params without conflicts_with to allow duration + frames: %v", err)
 	}
-	if err := ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"resolution":"720p","return_last_frame":true}`, "", 0); err != nil {
-		t.Fatalf("expected explicit params without conditional rules to allow draft combination: %v", err)
+	if err := ValidateGenerationParams(def, CapabilityVideo, `{"workspace":true,"resolution":"720p","return_last_frame":true}`, "", 0); err != nil {
+		t.Fatalf("expected explicit params without conditional rules to allow workspace combination: %v", err)
 	}
 	if err := ValidateGenerationParams(def, CapabilityVideo, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0); err != nil {
 		t.Fatalf("expected explicit params without requires_value to allow image_count combination: %v", err)

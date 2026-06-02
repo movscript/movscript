@@ -63,10 +63,10 @@ test('buildRunActivitySnapshot merges live events into a historical activity wit
 test('buildRunActivitySnapshot normalizes event order and replaces volatile duplicates', () => {
   const snapshot = buildRunActivitySnapshot({
     events: [
-      toolDelta('trace_live_model-tool-call-stream:1:0', 'draft_', '2026-05-22T01:00:03.000Z'),
+      toolDelta('trace_live_model-tool-call-stream:1:0', 'workspace_', '2026-05-22T01:00:03.000Z'),
       modelEvent('res_1', 'Model HTTP response received', 1, 'completed', '2026-05-22T01:00:02.000Z'),
       modelEvent('req_1', 'Model HTTP request sent', 1, 'started', '2026-05-22T01:00:01.000Z'),
-      toolDelta('trace_live_model-tool-call-stream:1:0', 'draft_create', '2026-05-22T01:00:04.000Z'),
+      toolDelta('trace_live_model-tool-call-stream:1:0', 'workspace_create', '2026-05-22T01:00:04.000Z'),
     ],
   })
 

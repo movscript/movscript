@@ -6,7 +6,6 @@ import {
   Check,
   FolderOpen,
   LayoutDashboard,
-  MessageCircle,
   Palette,
   PanelRightClose,
   PanelRightOpen,
@@ -38,6 +37,7 @@ import {
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
+import { openAgentPanelNewConversation } from '@/features/agent/application/agentPanelBridge'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
@@ -76,7 +76,7 @@ export function AppTopControls({
   const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
-  const conversationCount = useAgentSessionStore((s) => s.activeConversationIdsByUser[userId] ? 1 : 0)
+  const conversationCount = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ? 1 : 0)
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
@@ -116,21 +116,25 @@ export function AppTopControls({
   }
 
   function handleAssistantShortcut() {
-    if (conversationCount === 0) {
-      setAgentPanelOpen(true)
-      return
-    }
+    if (conversationCount === 0) return
     setAgentPanelOpen(!agentPanelOpen)
+  }
+
+  function handleNewConversationShortcut() {
+    setAgentPanelOpen(true)
+    window.setTimeout(() => {
+      openAgentPanelNewConversation({
+        ...(current?.ID ? { projectId: current.ID } : {}),
+      })
+    }, 0)
   }
 
   const density = compact ? 'compact' : 'default'
   const iconSize = compact ? 11 : 16
   const showAssistantShortcut = routeSurface === 'detail' && showAssistantShortcutProp
   const showAgentContentPanelShortcut = routeSurface === 'agent' && showAgentContentPanelShortcutProp
-  const AssistantShortcutIcon = conversationCount === 0 ? Plus : MessageCircle
-  const assistantShortcutTitle = conversationCount === 0
-    ? t('agents.chat.newConversation')
-    : agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
+  const AssistantShortcutIcon = agentPanelOpen ? PanelRightClose : PanelRightOpen
+  const assistantShortcutTitle = agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
   const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
   const agentContentPanelTitle = agentModeContentPanelCollapsed
     ? t('agents.chat.expandAgentContentPanel')
@@ -171,6 +175,17 @@ export function AppTopControls({
           aria-label={assistantShortcutTitle}
         >
           <AssistantShortcutIcon size={iconSize} />
+        </AppTopControlButton>
+      )}
+      {showAssistantShortcut && conversationCount === 0 && (
+        <AppTopControlButton
+          variant="ghost"
+          density={density}
+          onClick={handleNewConversationShortcut}
+          title={t('agents.chat.newConversation')}
+          aria-label={t('agents.chat.newConversation')}
+        >
+          <Plus size={iconSize} />
         </AppTopControlButton>
       )}
       {showAgentContentPanelShortcut && (

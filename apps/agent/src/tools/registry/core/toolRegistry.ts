@@ -2,7 +2,7 @@ import type { JSONValue } from '../../../shared/protocol/types.js'
 import type { AgentRunRole } from '../../../state/shared/types.js'
 import { isJSONValue, isRecord } from '../../../shared/json/jsonValue.js'
 
-export type ToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
+export type ToolRiskLevel = 'read' | 'workspace' | 'write' | 'generate' | 'destructive' | 'ui'
 
 export interface ToolDefaults {
   grant: 'allow' | 'deny'
@@ -175,7 +175,7 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
 
 function normalizeRisk(value: unknown): ToolRiskLevel | undefined {
   return value === 'read'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'write'
     || value === 'generate'
     || value === 'destructive'

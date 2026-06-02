@@ -4,7 +4,7 @@
   "updatedAt": "2026-05-18T10:00:00.000Z",
   "userGoal": "检查分镜节奏并生成可审阅方案",
   "stablePreferences": [
-    "默认使用可审阅 draft，不直接写正式项目数据"
+    "默认使用可审阅 workspace，不直接写正式项目数据"
   ],
   "acceptedFacts": [
     {
@@ -24,9 +24,9 @@
   ],
   "artifactRefs": [
     {
-      "type": "draft",
-      "id": "draft_storyboard_gap_1",
-      "title": "分镜缺口审阅"
+      "type": "workspace",
+      "id": "workspace_storyboard_gap_1",
+      "title": "分镜缺口检查"
     }
   ],
   "retrievedRefs": [
@@ -46,9 +46,9 @@
       "summary": "已生成分镜节奏审阅摘要。",
       "artifactRefs": [
         {
-          "type": "draft",
-          "id": "draft_storyboard_gap_1",
-          "title": "分镜缺口审阅"
+          "type": "workspace",
+          "id": "workspace_storyboard_gap_1",
+          "title": "分镜缺口检查"
         }
       ],
       "retrievedRefs": [

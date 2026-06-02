@@ -1,10 +1,10 @@
 import { createMCPResourceFilePort } from '../../../adapters/files/mcpResourceFileAdapter.js'
 import { createMCPExternalToolGatewayPort } from '../../../adapters/mcp/gateway/mcpExternalToolGatewayAdapter.js'
 import { createBackendVideoFrameExtractionPort, type BackendVideoFrameExtractor } from '../../../adapters/media/backendVideoFrameExtractionAdapter.js'
-import { createApplicationDraftApplyPort } from '../../../adapters/draft/apply/applicationDraftApplyAdapter.js'
-import { createBackendDraftApplyPreviewPort } from '../../../adapters/draft/preview/backendDraftApplyPreviewAdapter.js'
-import { createBackendRuntimeDraftApplyWriterPort } from '../../../adapters/draft/backend/backendRuntimeDraftApplyAdapter.js'
-import { createMCPProposalSnapshotHydrationPort } from '../../../adapters/draft/hydration/mcpProposalSnapshotHydrationAdapter.js'
+import { createApplicationWorkspaceApplyPort } from '../../../adapters/workspace/apply/applicationWorkspaceApplyAdapter.js'
+import { createBackendWorkspaceApplyPreviewPort } from '../../../adapters/workspace/preview/backendWorkspaceApplyPreviewAdapter.js'
+import { createBackendRuntimeWorkspaceApplyWriterPort } from '../../../adapters/workspace/backend/backendRuntimeWorkspaceApplyAdapter.js'
+import { createMCPWorkspaceSnapshotHydrationPort } from '../../../adapters/workspace/hydration/mcpWorkspaceSnapshotHydrationAdapter.js'
 import { createBackendProjectStandardsPort } from '../../../adapters/project/backendProjectStandardsAdapter.js'
 import { createCoreFileToolHandler } from '../../../tools/handlers/core/files/fileToolHandler.js'
 import { createCoreReferenceToolHandler } from '../../../tools/handlers/core/reference/referenceToolHandler.js'
@@ -12,14 +12,14 @@ import { createCoreImageToolHandler } from '../../../tools/handlers/core/images/
 import { createCoreVideoFrameToolHandler } from '../../../tools/handlers/core/video/videoFrameToolHandler.js'
 import { createCoreMemoryToolHandler } from '../../../tools/handlers/core/memory/memoryToolHandler.js'
 import { createCoreRuntimeControlToolHandler } from '../../../tools/handlers/core/runtime-control/runtimeControlToolHandler.js'
-import { createDraftApplyToolHandler } from '../../../tools/handlers/drafts/apply/draftApplyToolHandler.js'
-import { createDraftCreateToolHandler } from '../../../tools/handlers/drafts/create/draftCreateToolHandler.js'
+import { createWorkspaceOpenToolHandler } from '../../../tools/handlers/workspaces/open/workspaceOpenToolHandler.js'
+import { createWorkspaceApplyToolHandler } from '../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.js'
 import { createProjectStandardsToolHandler } from '../../../tools/handlers/project/projectStandardsToolHandler.js'
-import type { DraftApplyPort } from '../../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../../ports/draft/preview/draftApplyPreviewPort.js'
+import type { WorkspaceApplyPort } from '../../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
 import type { MCPClient } from '../../../adapters/mcp/client/mcpClient.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
-import type { BackendApplyClient } from '../../../drafts/adapters/backend/backendApplyClient.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
+import type { BackendApplyClient } from '../../../workspaces/adapters/backend/backendApplyClient.js'
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
@@ -39,8 +39,8 @@ export function createDefaultRuntimeToolHandlerRegistry(): RuntimeToolHandlerReg
     createCoreVideoFrameToolHandler(),
     createCoreMemoryToolHandler(),
     createCoreRuntimeControlToolHandler(),
-    createDraftApplyToolHandler(),
-    createDraftCreateToolHandler(),
+    createWorkspaceApplyToolHandler(),
+    createWorkspaceOpenToolHandler(),
     createProjectStandardsToolHandler(),
   ])
 }
@@ -51,22 +51,22 @@ export function createDefaultExternalToolGatewayPort(
   return createMCPExternalToolGatewayPort(mcpClient)
 }
 
-export function createDefaultDraftApplyPort(
+export function createDefaultWorkspaceApplyPort(
   backendApplyClient: Pick<BackendApplyClient, 'applyReview'>,
-): DraftApplyPort {
-  return createApplicationDraftApplyPort(createBackendRuntimeDraftApplyWriterPort(backendApplyClient))
+): WorkspaceApplyPort {
+  return createApplicationWorkspaceApplyPort(createBackendRuntimeWorkspaceApplyWriterPort(backendApplyClient))
 }
 
-export function createDefaultDraftApplyPreviewPort(
+export function createDefaultWorkspaceApplyPreviewPort(
   backendApplyClient: Pick<BackendApplyClient, 'previewApplyReview'>,
-): DraftApplyPreviewPort {
-  return createBackendDraftApplyPreviewPort(backendApplyClient)
+): WorkspaceApplyPreviewPort {
+  return createBackendWorkspaceApplyPreviewPort(backendApplyClient)
 }
 
-export function createDefaultProposalSnapshotHydrationPort(
+export function createDefaultWorkspaceSnapshotHydrationPort(
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>,
-): DraftProposalSnapshotHydrationPort {
-  return createMCPProposalSnapshotHydrationPort(mcpClient)
+): WorkspaceWorkspaceSnapshotHydrationPort {
+  return createMCPWorkspaceSnapshotHydrationPort(mcpClient)
 }
 
 export function createDefaultResourceFilePort(

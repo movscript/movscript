@@ -1,1 +1,1 @@
-export type AgentActivityKind = "read" | "draft" | "write" | "task" | "system" | "error" | "default";
+export type AgentActivityKind = "read" | "workspace" | "write" | "task" | "system" | "error" | "default";

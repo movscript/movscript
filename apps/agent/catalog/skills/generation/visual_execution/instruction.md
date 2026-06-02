@@ -12,18 +12,18 @@
 - 不得把生成媒体绑定、接受、锁定或正式写入 production 实体。
 
 上下文缺失回退：
-- 缺项目级画幅、风格、镜头语言或负面约束时，先交接 project_standards_proposal。
-- 缺角色、场景、道具、世界规则或 creative reference 时，先交接 setting_proposal 或 setting_prep。
-- 缺 asset slot、素材用途、复用边界、候选 prompt intent 或验收标准时，先交接 asset_proposal。
-- 目标是派生形象、服装/情绪/动作/年龄状态、场景细节、关键帧或视频参考，但缺少同一设定下已采纳/已锁定 canonical/base resource 时，先交接 asset_proposal 或生成 canonical 候选；不要直接生成派生候选。
-- 缺 content unit、制作项职责、表达节拍或 prompt intent 时，先交接 content_unit_proposal。
+- 缺项目级画幅、风格、镜头语言或负面约束时，先进入 project_standards_edit workspace。
+- 缺角色、场景、道具、世界规则或 creative reference 时，先进入 setting_edit workspace 或 setting_prep。
+- 缺 asset slot、素材用途、复用边界、候选 prompt intent 或验收标准时，先进入 asset_edit workspace。
+- 目标是派生形象、服装/情绪/动作/年龄状态、场景细节、关键帧或视频参考，但缺少同一设定下已采纳/已锁定 canonical/base resource 时，先进入 asset_edit workspace 或生成 canonical 候选；不要直接生成派生候选。
+- 缺 content unit、制作项职责、表达节拍或 prompt intent 时，先进入 content_unit_edit workspace。
 - 目标、参考资源、输出类型和审批边界明确时，关键帧、图片或视频输出直接在本 Skill 创建 generation job。
 - 只有生成目标、参考资源、输出类型、模型能力和审批边界足够明确时，才创建 generation job。
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
 - 设定/素材/制作上下文：{{tool:movscript_creative_reference_query}} {{tool:movscript_asset_slot_query}} {{tool:movscript_production_context_query}}
-- 设定/素材 seed：{{tool:draft_model_get}}
+- 设定/素材 seed：{{tool:get_workspace_model}}
 - 模型发现：{{tool:generation_model_list}}
 - 用户明确要求使用自己的 ComfyUI/WebUI，或需要检查本地/组织/平台生成服务时，可用本地连接器：{{tool:tool_comfyui}} {{tool:tool_webui}}。这两个工具直接调用控制台配置的用户本地服务器，或通过后端代理调用组织共享、Admin 平台全局服务器；提交 workflow/txt2img/img2img 前必须获得用户确认。WebUI 的 txt2img/img2img 若需要进入 MovScript 资源库，必须传 `import_outputs: true`，工具会返回 `output_resource_ids`；ComfyUI 提交 `queue_prompt` 后，需要用 `history`/`import_history_outputs` 根据 `prompt_id` 导入输出。若同时传 `projectId` 和 `asset_slot_id`/`keyframe_id`，会尝试写入候选集。未导入的直接返回媒体不得声称已经进入资源库或候选集。
 - 提交异步生成 work：{{tool:core_work_start}}，`kind: "generation_job"`，`request` 使用生成参数，并传入 `continuationPolicy: { "mode": "any_completed", "groupId": "<同一批候选共享的稳定组 ID>" }`；该工具只返回 work handle，不等待完成，runtime 会在 work 完成且没有待处理用户动作时自动继续下一轮。
@@ -36,7 +36,7 @@
 
 流程：
 1. 创建任务前先补齐缺失的生成字段。
-2. 在确定 prompt 和参考资源前，确认当前设定材料是否已有素材：读取 focus；如果目标关联 creative reference、asset slot、content unit 或 keyframe，优先使用查询工具检查 creative references、asset slots、production context（需要画面锚点目标时 include keyframes）和 content unit generation context；必要时再使用 runtime draft model seed 检查补充快照。已有角色/场景素材必须优先作为一致性约束。
+2. 在确定 prompt 和参考资源前，确认当前设定材料是否已有素材：读取 focus；如果目标关联 creative reference、asset slot、content unit 或 keyframe，优先使用查询工具检查 creative references、asset slots、production context（需要画面锚点目标时 include keyframes）和 content unit generation context；必要时再使用 runtime workspace model seed 检查补充快照。已有角色/场景素材必须优先作为一致性约束。
 3. 判断当前目标是 canonical/base 候选还是派生候选。canonical 候选可以作为基本形象、空间、物件或风格探索；派生候选必须引用同一 creative reference 下已采纳、已锁定或明确可用的 canonical resource。若只查到未采纳候选、没有 resource_id、或只有文字设定，应报告阻塞并先推进基本素材。
 4. 根据设定材料状态和全局定位修正 prompt：主角、核心反派、重要常驻角色要保持可长期复用的美术价值；剧情里的“丑”“狼狈”“不起眼”应转译为朴素、疲惫、妆发凌乱、衣着压低、被环境误读等可控特征，不要生成真实低质或不可用的丑化形象，除非用户明确要求丑化。
 5. 对场景素材，延续已有空间结构、年代地域、色彩/光线气质、关键道具和可复用识别点；没有参考时说明缺失，而不是凭空假定已有素材。派生 prompt 必须把 canonical resource 作为一致性参考，而不是重新描述一套可能漂移的基本形象。

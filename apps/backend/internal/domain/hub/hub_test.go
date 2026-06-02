@@ -40,8 +40,8 @@ func TestToPackageFormatsFields(t *testing.T) {
 	}
 }
 
-func TestNewDraftPackageDefaults(t *testing.T) {
-	row := NewDraftPackage("my-package", CreateDraftInput{
+func TestNewWorkspacePackageDefaults(t *testing.T) {
+	row := NewWorkspacePackage("my-package", CreateWorkspaceInput{
 		Title:           " My Package ",
 		Tags:            []string{"ai", "ai"},
 		FileName:        "../unsafe.movpkg",
@@ -49,7 +49,7 @@ func TestNewDraftPackageDefaults(t *testing.T) {
 		StagingKey:      "hub/staging/key",
 	})
 	if row.Title != "My Package" || row.Kind != KindPlugin || row.Status != StatusPending {
-		t.Fatalf("unexpected draft row: %+v", row)
+		t.Fatalf("unexpected workspace row: %+v", row)
 	}
 	if row.FileName != "unsafe.movpkg" || row.ContentType != "application/octet-stream" {
 		t.Fatalf("unexpected file defaults: %+v", row)
@@ -58,7 +58,7 @@ func TestNewDraftPackageDefaults(t *testing.T) {
 	modelRow.ID = 30
 	roundTrip := HubPackageFromModel(modelRow)
 	if roundTrip.ID != 30 || roundTrip.PackageID != "my-package" || roundTrip.Status != StatusPending {
-		t.Fatalf("unexpected draft round-trip: %+v", roundTrip)
+		t.Fatalf("unexpected workspace round-trip: %+v", roundTrip)
 	}
 }
 

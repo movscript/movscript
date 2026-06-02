@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MCPError } from '../../../../adapters/mcp/client/mcpClient.js'
-import { InMemoryAgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { AgentRun, JSONValue } from '../../../../state/shared/types.js'
 import { StaticToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import {
@@ -9,10 +9,10 @@ import {
   normalizeRuntimeLocalGenerationToolError,
 } from './runtimeLocalGenerationToolExecution.js'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
@@ -20,7 +20,7 @@ import {
 } from '../../../shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultDraftApplyBackend = {
+const defaultWorkspaceApplyBackend = {
   async applyReview(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
@@ -28,8 +28,8 @@ const defaultDraftApplyBackend = {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
 }
-const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
-const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
+const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 const defaultProjectStandardsBackend = {
   async getProject(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
@@ -51,10 +51,10 @@ test('executeRuntimeLocalGenerationTool delegates generation calls through the t
     call,
     run: makeRun(),
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    draftStore: new InMemoryAgentDraftStore(),
-    draftApplyPort: defaultDraftApplyPort,
-    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
+    workspaceApplyPort: defaultWorkspaceApplyPort,
+    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
@@ -90,10 +90,10 @@ test('executeRuntimeLocalGenerationTool normalizes backend generation errors', a
     call,
     run: makeRun(),
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    draftStore: new InMemoryAgentDraftStore(),
-    draftApplyPort: defaultDraftApplyPort,
-    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
+    workspaceApplyPort: defaultWorkspaceApplyPort,
+    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),

@@ -1,0 +1,71 @@
+{
+  "name": "workspace_open",
+  "description": "打开当前可编辑 workspace，并写出 workspace JSON 文件。创建成功后，正文编辑的权威 ref 是 agent://workspace/{workspaceId}/content；后续正文修改必须使用 core_file_read/core_file_search/core_file_edit 处理该 ref，再调用 workspace_validate 校验。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "workspaceKind",
+      "content"
+    ],
+    "properties": {
+      "workspaceKind": {
+        "type": "string",
+        "enum": [
+          "project_standards_edit",
+          "setting_edit",
+          "asset_edit",
+          "production_edit",
+          "content_unit_edit",
+          "script",
+          "asset_slot",
+          "content_unit",
+          "prompt",
+          "note",
+          "pipeline",
+          "segment",
+          "scene_moment"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string",
+        "description": "Workspace 初始正文。编辑类 workspace 继续使用现有后端 JSON schema 作为存储形态；顶层必须包含 schema 字段。打开成功后不要再通过工具参数替换正文，改用 agent://workspace/{workspaceId}/content 的真实文件编辑。"
+      },
+      "projectId": {
+        "type": "number"
+      },
+      "productionId": {
+        "type": "number"
+      },
+      "source": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "seed": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "来自当前 workspace seed/source state 的摘要。"
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "permission": "workspace.edit",
+  "risk": "workspace",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "为当前 MovScript 工作打开可编辑 workspace；内部使用现有后端 JSON 存储。"
+}

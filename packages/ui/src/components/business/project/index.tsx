@@ -23,19 +23,19 @@ export {
   ProjectPageLocalAdminPrompt,
 } from "./page";
 export {
-  ProjectProposalReviewActionButton,
-  ProjectProposalReviewBadge,
-  ProjectProposalReviewCallout,
-  ProjectProposalReviewDetailText,
-  ProjectProposalReviewEmptyBlock,
-  ProjectProposalReviewEmptyText,
-  ProjectProposalReviewEntryCallout,
-  ProjectProposalReviewLoadingState,
-  ProjectProposalReviewNoteList,
-  ProjectProposalReviewStatusBadge,
-  type ProjectProposalReviewEntryChange,
-  type ProjectProposalReviewInlineSize,
-} from "./proposal-review";
+  ProjectWorkspaceReviewActionButton,
+  ProjectWorkspaceReviewBadge,
+  ProjectWorkspaceReviewCallout,
+  ProjectWorkspaceReviewDetailText,
+  ProjectWorkspaceReviewEmptyBlock,
+  ProjectWorkspaceReviewEmptyText,
+  ProjectWorkspaceReviewEntryCallout,
+  ProjectWorkspaceReviewLoadingState,
+  ProjectWorkspaceReviewNoteList,
+  ProjectWorkspaceReviewStatusBadge,
+  type ProjectWorkspaceReviewEntryChange,
+  type ProjectWorkspaceReviewInlineSize,
+} from "./workspace-review";
 export {
   ProjectTaskActionButton,
   ProjectTaskActionStack,

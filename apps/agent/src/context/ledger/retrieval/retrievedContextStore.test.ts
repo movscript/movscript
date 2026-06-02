@@ -44,10 +44,10 @@ test('retrieved context store selects records by source, ref type, prefix, and b
       referenceRecord('storyboard.rhythm.basic', 30, '2026-01-02T00:00:00.000Z'),
       referenceRecord('storyboard.hook.short_drama', 40, '2026-01-01T00:00:00.000Z'),
       {
-        ref: { type: 'draft', id: 'draft_1' },
-        source: 'draft',
-        evidence: 'draft',
-        title: 'Draft',
+        ref: { type: 'workspace', id: 'workspace_1' },
+        source: 'workspace',
+        evidence: 'workspace',
+        title: 'Workspace',
         summary: 'core_file_read result reference (runtime)',
         charCount: 50,
         retrievedAt: '2026-01-01T00:00:00.000Z',
@@ -69,7 +69,7 @@ test('retrieved context store selects records by source, ref type, prefix, and b
   assert.deepEqual(uniqueRetrievedContextRefs(store.records).map((ref) => `${ref.type}:${ref.id}`), [
     'reference:storyboard.rhythm.basic',
     'reference:storyboard.hook.short_drama',
-    'draft:draft_1',
+    'workspace:workspace_1',
   ])
 })
 

@@ -1,5 +1,5 @@
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import type { AgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { memoryStorePath, type AgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
@@ -20,9 +20,9 @@ import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core
 import { applyRuntimeLocalCommandDispatch, type RuntimeLocalCommandTraceInput } from '../../../local-command/dispatch/runtimeLocalCommandDispatch.js'
 import { executeRuntimeLocalGenerationTool } from '../../../local-command/generation/tool/runtimeLocalGenerationToolExecution.js'
 import type { RuntimeRunSetupResolution } from '../setup/resolution/runtimeRunSetupResolution.js'
-import type { DraftApplyPort } from '../../../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../../../ports/draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../../../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
@@ -54,11 +54,11 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
   memoryStore: AgentMemoryStore
   contractResolver: AgentRuntimeContractResolver
   catalogSnapshot: AgentRuntimeCatalogSnapshot
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  draftApplyPort: DraftApplyPort
-  draftApplyPreviewPort: DraftApplyPreviewPort
-  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  workspaceApplyPort: WorkspaceApplyPort
+  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
@@ -98,11 +98,11 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
     executeGenerationTool: (call) => executeRuntimeLocalGenerationTool({
       call,
       run: input.run,
-      draftStore: input.draftStore,
+      workspaceStore: input.workspaceStore,
       externalToolGatewayPort: input.externalToolGatewayPort,
-      draftApplyPort: input.draftApplyPort,
-      draftApplyPreviewPort: input.draftApplyPreviewPort,
-      proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+      workspaceApplyPort: input.workspaceApplyPort,
+      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
+      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,

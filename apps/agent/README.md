@@ -2,7 +2,7 @@
 
 `movscript-agent` is the local MovScript agent service. It is intentionally separate from the Electron frontend and the Go backend.
 
-The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, active config file manifests, approval gates, sandbox interception, local candidate/draft state, and optional model calls.
+The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, active config file manifests, approval gates, sandbox interception, local candidate/workspace state, and optional model calls.
 
 ## Development
 
@@ -71,11 +71,11 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 | `GET` | `/tools` | Registered tool metadata. |
 | `GET` | `/skills` | Loaded skill catalog. |
 | `GET` | `/agent-manifest/active` | Current active config file manifest. |
-| `POST` | `/draft` | Create a local draft/candidate artifact. |
-| `GET` | `/drafts` | List local draft/candidate artifacts. |
-| `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
-| `POST` | `/drafts/:id/apply-preview` | Build before/after review metadata for applying the draft's current content. |
-| `POST` | `/drafts/:id/reject` | Record a local draft review rejection without closing the draft. |
+| `POST` | `/workspace` | Create a local workspace/candidate artifact. |
+| `GET` | `/workspaces` | List local workspace/candidate artifacts. |
+| `GET` | `/workspaces/:id` | Read one local workspace/candidate artifact. |
+| `POST` | `/workspaces/:id/apply-preview` | Build before/after review metadata for applying the workspace's current content. |
+| `POST` | `/workspaces/:id/reject` | Record a local workspace review rejection without closing the workspace. |
 | `POST` | `/threads` | Agent thread creation. |
 | `GET` | `/threads` | Agent thread summaries. |
 | `DELETE` | `/threads` | Physically delete all thread history, related runs, plans, runtime records, and trace files. Queued or in-progress runs must be cancelled first; waiting `requires_action` history is deletable. |

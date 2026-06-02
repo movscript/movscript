@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { appendSettingsAuditEntry, normalizeAgentSettings, useAgentStore } from './agentStore'
 
-test('agent store persistence excludes conversations and drafts', () => {
+test('agent store persistence excludes conversations and workspaces', () => {
   const partialized = useAgentStore.persist.getOptions().partialize?.(useAgentStore.getState()) as Record<string, unknown>
 
   assert.equal('convsByUser' in partialized, false)

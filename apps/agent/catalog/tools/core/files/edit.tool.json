@@ -2,7 +2,7 @@
   "name": "core_file_edit",
   "description": "编辑 agent 文件系统中的文本对象。调用前应先 core_file_read 获取 revision，并把该 revision 作为 baseRevision 传入以避免覆盖并发修改。返回 changeSet 记录本次 edit。只读 MCP resource（例如 movscript:// 剧本 ref）不可编辑。",
   "permission": "agent.file.write",
-  "risk": "draft",
+  "risk": "workspace",
   "source": "runtime",
   "category": "files",
   "inputSchema": {
@@ -16,7 +16,7 @@
     "properties": {
       "ref": {
         "type": "string",
-        "description": "canonical 文件引用，例如 agent://draft/{draftId}/content。"
+        "description": "canonical 文件引用，例如 agent://workspace/{workspaceId}/content。"
       },
       "baseRevision": {
         "type": "string",

@@ -11,7 +11,7 @@
     "baseUrl": ".",
     "paths": {
       "@movscript/protocol": ["../../packages/protocol/src/index.ts"],
-      "@movscript/drafts": ["../../packages/drafts/src/index.ts"]
+      "@movscript/workspaces": ["../../packages/workspaces/src/index.ts"]
     },
     "types": [
       "node"

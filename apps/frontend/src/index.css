@@ -807,7 +807,7 @@
     font-size: var(--ms-text-label);
   }
 
-  .shot-import-dialog__draft-layout {
+  .shot-import-dialog__workspace-layout {
     display: grid;
     min-height: 0;
     flex: 1;
@@ -815,24 +815,24 @@
     gap: 12px;
   }
 
-  .shot-import-dialog__draft-browser,
+  .shot-import-dialog__workspace-browser,
   .shot-import-dialog__editor {
     min-height: 0;
     overflow: auto;
   }
 
-  .shot-import-dialog__draft-browser {
+  .shot-import-dialog__workspace-browser {
     display: flex;
     flex-direction: column;
     gap: 10px;
     overflow: hidden;
   }
 
-  .shot-import-dialog__draft-grid {
+  .shot-import-dialog__workspace-grid {
     display: grid;
     min-height: 0;
     flex: 1;
-    grid-template-columns: repeat(var(--shot-import-draft-columns, 2), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--shot-import-workspace-columns, 2), minmax(0, 1fr));
     grid-auto-rows: max-content;
     align-content: start;
     gap: 10px;
@@ -840,7 +840,7 @@
     padding-right: 2px;
   }
 
-  .shot-import-dialog__draft-card {
+  .shot-import-dialog__workspace-card {
     position: relative;
     display: flex;
     min-width: 0;
@@ -852,36 +852,36 @@
     color: inherit;
     text-align: left;
     cursor: pointer;
-    animation: shot-draft-card-in 180ms ease-out both;
+    animation: shot-workspace-card-in 180ms ease-out both;
   }
 
-  .shot-import-dialog__draft-card--active {
+  .shot-import-dialog__workspace-card--active {
     border-color: color-mix(in srgb, var(--ms-color-info) 55%, var(--ms-color-border));
     background: color-mix(in srgb, var(--ms-color-info) 8%, var(--ms-color-panel));
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--ms-color-info) 22%, transparent);
   }
 
-  .shot-import-dialog__draft-thumb {
+  .shot-import-dialog__workspace-thumb {
     position: relative;
     display: grid;
-    aspect-ratio: var(--shot-import-draft-aspect-ratio, 16 / 9);
+    aspect-ratio: var(--shot-import-workspace-aspect-ratio, 16 / 9);
     width: 100%;
     place-items: center;
     overflow: hidden;
     background: var(--ms-color-muted);
   }
 
-  .shot-import-dialog__draft-thumb img {
+  .shot-import-dialog__workspace-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
-  .shot-import-dialog__draft-thumb > svg {
+  .shot-import-dialog__workspace-thumb > svg {
     color: var(--ms-color-muted-foreground);
   }
 
-  .shot-import-dialog__draft-thumb > span {
+  .shot-import-dialog__workspace-thumb > span {
     position: absolute;
     right: 6px;
     bottom: 6px;
@@ -893,7 +893,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .shot-import-dialog__draft-card-body {
+  .shot-import-dialog__workspace-card-body {
     display: flex;
     min-width: 0;
     flex-direction: column;
@@ -901,7 +901,7 @@
     padding: 8px;
   }
 
-  .shot-import-dialog__draft-card-topline {
+  .shot-import-dialog__workspace-card-topline {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -911,11 +911,11 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .shot-import-dialog__draft-card-topline svg {
+  .shot-import-dialog__workspace-card-topline svg {
     color: var(--ms-color-success);
   }
 
-  .shot-import-dialog__draft-card-body strong {
+  .shot-import-dialog__workspace-card-body strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -923,7 +923,7 @@
     font-weight: 650;
   }
 
-  .shot-import-dialog__draft-include {
+  .shot-import-dialog__workspace-include {
     position: absolute;
     top: 6px;
     left: 6px;
@@ -935,11 +935,11 @@
     background: rgb(0 0 0 / 58%);
   }
 
-  .shot-import-dialog__draft-include input {
+  .shot-import-dialog__workspace-include input {
     accent-color: var(--ms-color-info);
   }
 
-  .shot-import-dialog__draft-pager {
+  .shot-import-dialog__workspace-pager {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -949,7 +949,7 @@
     font-size: var(--ms-text-label);
   }
 
-  .shot-import-dialog__draft-pager > div {
+  .shot-import-dialog__workspace-pager > div {
     display: flex;
     gap: 6px;
   }
@@ -1146,7 +1146,7 @@
     }
   }
 
-  @keyframes shot-draft-card-in {
+  @keyframes shot-workspace-card-in {
     from {
       opacity: 0;
       transform: translateY(6px);
@@ -1239,7 +1239,7 @@
     }
 
     .shot-import-dialog__body,
-    .shot-import-dialog__draft-layout {
+    .shot-import-dialog__workspace-layout {
       grid-template-columns: 1fr;
     }
 

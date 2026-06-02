@@ -1,0 +1,13 @@
+{
+  "id": "workspace.rules.lifecycle",
+  "version": "1.0.0",
+  "name": "Workspace Lifecycle Rules",
+  "description": "定义本地 workspace 编辑、校验和保存边界，以及 workspace 变更的汇报要求。",
+  "priority": 900,
+  "enabled": true,
+  "outputContract": "明确说明 workspace 是本地编辑状态，还是已成功保存到后端。",
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "workspace_validate"
+  ]
+}

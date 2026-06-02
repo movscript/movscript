@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManife
 import { createEmptyCatalogRegistry } from '../../../../catalog/registry/core/registry.js'
 import { parseAgentCommand } from '../../../../context/command/commandRouter.js'
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import { InMemoryAgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
 import { EMPTY_REFERENCE_STORE } from '../../../../reference/store/referenceStore.js'
 import { MemoryManager } from '../../../../memory/manager/memoryManager.js'
@@ -24,10 +24,10 @@ import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core
 import { applyRuntimeRunLocalCommandHandling } from './runtimeRunLocalCommandHandling.js'
 import type { RuntimeRunSetupResolution } from '../setup/resolution/runtimeRunSetupResolution.js'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
@@ -35,7 +35,7 @@ import {
 } from '../../../shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultDraftApplyBackend = {
+const defaultWorkspaceApplyBackend = {
   async applyReview(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
@@ -43,8 +43,8 @@ const defaultDraftApplyBackend = {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
 }
-const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
-const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
+const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 const defaultProjectStandardsBackend = {
   async getProject(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
@@ -123,11 +123,11 @@ function baseInput(
     memoryStore,
     contractResolver: emptyContractResolver(),
     catalogSnapshot: catalogSnapshot(),
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    draftApplyPort: defaultDraftApplyPort,
-    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    workspaceApplyPort: defaultWorkspaceApplyPort,
+    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),

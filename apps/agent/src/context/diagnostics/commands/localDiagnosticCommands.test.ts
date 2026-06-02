@@ -131,7 +131,7 @@ test('renderLocalDiagnosticCommand reports runtime status and context budget wit
         retrievedAt: '2026-05-06T00:00:00.000Z',
         usedInPrompt: true,
       }],
-      artifactRefs: [{ type: 'draft', id: 'draft_1' }],
+      artifactRefs: [{ type: 'workspace', id: 'workspace_1' }],
     },
   }
 
@@ -211,7 +211,7 @@ test('context diagnostic metadata preserves tool resolution chain', () => {
           visible: true,
           grantSource: 'manifest',
           approval: 'never',
-          activeSkillIds: ['movscript.project_progress'],
+          activeSkillIds: ['movscript.content_unit_workspace'],
         },
       }],
       blocked: [{
@@ -246,7 +246,7 @@ test('context diagnostic metadata preserves tool resolution chain', () => {
   assert.equal(diagnostic.schema, 'movscript.local_context_diagnostic.v1')
   assert.equal(diagnostic.tools.available[0].resolution.authorized, true)
   assert.equal(diagnostic.tools.available[0].resolution.grantSource, 'manifest')
-  assert.deepEqual(diagnostic.tools.available[0].resolution.activeSkillIds, ['movscript.project_progress'])
+  assert.deepEqual(diagnostic.tools.available[0].resolution.activeSkillIds, ['movscript.content_unit_workspace'])
   assert.equal(diagnostic.tools.blocked[0].resolution.visible, false)
   assert.equal(diagnostic.tools.blocked[0].resolution.reason, 'skill_scope')
 })

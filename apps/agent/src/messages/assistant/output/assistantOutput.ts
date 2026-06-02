@@ -40,7 +40,7 @@ export function buildAssistantContent(
       memoryLine,
       memoryBlock,
       `收到的请求：${userMessage.trim()}`,
-      '请先在 MovScript 中选中项目，再让我查找项目内容或创建项目草稿。',
+      '请先在 MovScript 中选中项目，再让我查找项目内容或创建项目workspace。',
     ].filter(Boolean).join('\n')
   }
 
@@ -50,7 +50,7 @@ export function buildAssistantContent(
       memoryLine,
       memoryBlock,
       `收到的请求：${userMessage.trim()}`,
-      '第一阶段 runtime 目前只会自动读取上下文，并在你要求查项目内容或生成草稿时调用对应 MCP 工具。',
+      '第一阶段 runtime 目前只会自动读取上下文，并在你要求查项目内容或生成workspace时调用对应 MCP 工具。',
     ].filter(Boolean).join('\n')
   }
 
@@ -163,14 +163,14 @@ function describeToolOutcome(outcome: ToolCallOutcome): string {
 function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
   const toolName = publicToolName(call.name)
-  if (call.name === 'draft_create') {
-    const draftId = isRecord(parsed) && (typeof parsed.draftId === 'string' ? parsed.draftId : typeof parsed.id === 'string' ? parsed.id : '')
-    const label = typeof draftId === 'string' && draftId.length > 0 ? ` ${draftId}` : ''
-    const isProposal = isRecord(parsed) && typeof parsed.proposalRef === 'string'
-    return isProposal ? `创建对话提案草稿${label}。` : `创建本地草稿${label}。`
+  if (call.name === 'workspace_open') {
+    const workspaceId = isRecord(parsed) && (typeof parsed.workspaceId === 'string' ? parsed.workspaceId : typeof parsed.id === 'string' ? parsed.id : '')
+    const label = typeof workspaceId === 'string' && workspaceId.length > 0 ? ` ${workspaceId}` : ''
+    const isWorkspace = isRecord(parsed) && typeof parsed.workspaceRef === 'string'
+    return isWorkspace ? `创建对话工作区workspace${label}。` : `创建本地workspace${label}。`
   }
-  if (call.name === 'draft_apply_preview') {
-    return `草稿 apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
+  if (call.name === 'workspace_validate') {
+    return `workspace apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
   }
   if (call.name === 'core_work_start') {
     const work = isRecord(parsed) && isRecord(parsed.work) ? parsed.work : {}

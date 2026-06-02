@@ -64,7 +64,7 @@ test('runtime output helpers prefer explicit output nodes and preview text', () 
     { id: 'final', type: 'output', position: { x: 0, y: 0 }, data: { paramName: 'script', outputPorts: [{ id: 'value', type: 'text' }] } },
   ] as Node[]
   const outputCache: CanvasRuntimeOutputCache = {
-    'text-gen': { result: { type: 'text', text: 'draft' } },
+    'text-gen': { result: { type: 'text', text: 'workspace' } },
     final: { value: { type: 'text', text: 'final script' } },
   }
   const outputs = buildRuntimeWorkflowOutputs(nodes, outputCache)

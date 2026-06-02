@@ -331,7 +331,7 @@ export default function DeliveryWorkbenchPage() {
             label: '状态',
             value: filter,
             onChange: (value) => setFilter(value as DeliveryVersionFilter),
-            options: (['all', 'draft', 'checking', 'approved', 'exported'] as const).map((item) => ({
+            options: (['all', 'workspace', 'checking', 'approved', 'exported'] as const).map((item) => ({
               value: item,
               label: deliveryVersionFilterLabel(item),
               count: item === 'all' ? versions.length : versions.filter((version) => version.status === item).length,

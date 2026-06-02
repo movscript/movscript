@@ -40,7 +40,7 @@ func TestSegmentPatchExpiresPreviousStructureRelationIdentity(t *testing.T) {
 	segment, err := service.CreateSegment(ctx, 1, CreateSegmentInput{
 		ScriptBlockID: &firstBlock.ID,
 		Title:         "Segment",
-		Status:        "draft",
+		Status:        "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create segment: %v", err)
@@ -48,7 +48,7 @@ func TestSegmentPatchExpiresPreviousStructureRelationIdentity(t *testing.T) {
 	if _, err := service.PatchSegment(ctx, 1, fmt.Sprint(segment.ID), PatchSegmentInput{
 		ScriptBlockID: &secondBlock.ID,
 		Title:         "Segment",
-		Status:        "draft",
+		Status:        "workspace",
 	}); err != nil {
 		t.Fatalf("patch segment: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestProductionPatchExpiresPreviousStructureRelationIdentity(t *testing.T) {
 	production, err := service.CreateProduction(ctx, 1, ProductionInput{
 		ScriptVersionID: &firstVersion.ID,
 		Name:            "Production",
-		Status:          "draft",
+		Status:          "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create production: %v", err)
@@ -102,7 +102,7 @@ func TestProductionPatchExpiresPreviousStructureRelationIdentity(t *testing.T) {
 	if _, err := service.PatchProduction(ctx, 1, fmt.Sprint(production.ID), ProductionInput{
 		ScriptVersionID: &secondVersion.ID,
 		Name:            "Production",
-		Status:          "draft",
+		Status:          "workspace",
 	}); err != nil {
 		t.Fatalf("patch production: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestContentUnitPatchExpiresPreviousStructureRelationIdentity(t *testing.T) 
 	unit, err := service.CreateContentUnit(ctx, 1, ContentUnitInput{
 		ScriptBlockID: &firstBlock.ID,
 		Title:         "Unit",
-		Status:        "draft",
+		Status:        "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create content unit: %v", err)
@@ -156,7 +156,7 @@ func TestContentUnitPatchExpiresPreviousStructureRelationIdentity(t *testing.T) 
 	if _, err := service.PatchContentUnit(ctx, 1, fmt.Sprint(unit.ID), ContentUnitInput{
 		ScriptBlockID: &secondBlock.ID,
 		Title:         "Unit",
-		Status:        "draft",
+		Status:        "workspace",
 	}); err != nil {
 		t.Fatalf("patch content unit: %v", err)
 	}
@@ -189,8 +189,8 @@ func TestKeyframePatchExpiresPreviousStructureAndAssetRelationIdentities(t *test
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	firstUnit := persistencemodel.ContentUnit{ProjectID: 1, Title: "First", Status: "draft"}
-	secondUnit := persistencemodel.ContentUnit{ProjectID: 1, Title: "Second", Status: "draft"}
+	firstUnit := persistencemodel.ContentUnit{ProjectID: 1, Title: "First", Status: "workspace"}
+	secondUnit := persistencemodel.ContentUnit{ProjectID: 1, Title: "Second", Status: "workspace"}
 	if err := db.Create(&firstUnit).Error; err != nil {
 		t.Fatalf("seed first content unit: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestKeyframePatchExpiresPreviousStructureAndAssetRelationIdentities(t *test
 		ContentUnitID: &firstUnit.ID,
 		ResourceID:    &firstResourceID,
 		Title:         "Keyframe",
-		Status:        "draft",
+		Status:        "workspace",
 	}
 	if err := db.Create(&keyframeModel).Error; err != nil {
 		t.Fatalf("create keyframe: %v", err)
@@ -219,13 +219,13 @@ func TestKeyframePatchExpiresPreviousStructureAndAssetRelationIdentities(t *test
 	if _, err := service.PatchKeyframe(ctx, 1, fmt.Sprint(keyframe.ID), KeyframeInput{
 		ContentUnitID: &secondUnit.ID,
 		Title:         "Keyframe",
-		Status:        "draft",
+		Status:        "workspace",
 	}); err != nil {
 		t.Fatalf("patch keyframe: %v", err)
 	}
 	if _, err := service.PatchKeyframe(ctx, 1, fmt.Sprint(keyframe.ID), KeyframeInput{
 		ResourceID: &secondResourceID,
-		Status:     "draft",
+		Status:     "workspace",
 	}); err == nil || err.Error() != "关键帧资源采纳必须通过候选采纳流程" {
 		t.Fatalf("patch direct keyframe resource error = %v, want candidate-accept error", err)
 	}
@@ -271,7 +271,7 @@ func TestGeneratedKeyframeCandidateDoesNotCreateOfficialStructureRelations(t *te
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	unit := persistencemodel.ContentUnit{ProjectID: 1, Title: "Unit", Status: "draft"}
+	unit := persistencemodel.ContentUnit{ProjectID: 1, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("seed content unit: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestGeneratedKeyframeCandidateDoesNotCreateOfficialStructureRelations(t *te
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		ContentUnitID: &unit.ID,
 		Title:         "Official keyframe",
-		Status:        "draft",
+		Status:        "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create official keyframe: %v", err)
@@ -388,8 +388,8 @@ func TestPreviewTimelinePatchExpiresPreviousStructureRelationIdentity(t *testing
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	firstProduction := persistencemodel.Production{ProjectID: 1, Name: "First", Status: "draft"}
-	secondProduction := persistencemodel.Production{ProjectID: 1, Name: "Second", Status: "draft"}
+	firstProduction := persistencemodel.Production{ProjectID: 1, Name: "First", Status: "workspace"}
+	secondProduction := persistencemodel.Production{ProjectID: 1, Name: "Second", Status: "workspace"}
 	if err := db.Create(&firstProduction).Error; err != nil {
 		t.Fatalf("seed first production: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestPreviewTimelinePatchExpiresPreviousStructureRelationIdentity(t *testing
 	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{
 		ProductionID: &firstProduction.ID,
 		Name:         "Preview",
-		Status:       "draft",
+		Status:       "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create preview timeline: %v", err)
@@ -410,7 +410,7 @@ func TestPreviewTimelinePatchExpiresPreviousStructureRelationIdentity(t *testing
 	if _, err := service.PatchPreviewTimeline(ctx, 1, fmt.Sprint(timeline.ID), PreviewTimelineInput{
 		ProductionID: &secondProduction.ID,
 		Name:         "Preview",
-		Status:       "draft",
+		Status:       "workspace",
 	}); err != nil {
 		t.Fatalf("patch preview timeline: %v", err)
 	}
@@ -443,8 +443,8 @@ func TestPreviewTimelineItemPatchExpiresPreviousStructureRelationIdentity(t *tes
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	firstKeyframe := persistencemodel.Keyframe{ProjectID: 1, Title: "First", Status: "draft"}
-	secondKeyframe := persistencemodel.Keyframe{ProjectID: 1, Title: "Second", Status: "draft"}
+	firstKeyframe := persistencemodel.Keyframe{ProjectID: 1, Title: "First", Status: "workspace"}
+	secondKeyframe := persistencemodel.Keyframe{ProjectID: 1, Title: "Second", Status: "workspace"}
 	if err := db.Create(&firstKeyframe).Error; err != nil {
 		t.Fatalf("seed first keyframe: %v", err)
 	}
@@ -454,14 +454,14 @@ func TestPreviewTimelineItemPatchExpiresPreviousStructureRelationIdentity(t *tes
 
 	service := NewService(db)
 	ctx := context.Background()
-	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{Name: "Preview", Status: "draft"})
+	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{Name: "Preview", Status: "workspace"})
 	if err != nil {
 		t.Fatalf("create preview timeline: %v", err)
 	}
 	item, err := service.CreatePreviewTimelineItem(ctx, 1, timeline.ID, PreviewTimelineItemInput{
 		KeyframeID: &firstKeyframe.ID,
 		Kind:       "keyframe",
-		Status:     "draft",
+		Status:     "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create preview timeline item: %v", err)
@@ -469,7 +469,7 @@ func TestPreviewTimelineItemPatchExpiresPreviousStructureRelationIdentity(t *tes
 	if _, err := service.PatchPreviewTimelineItem(ctx, 1, fmt.Sprint(item.ID), timeline.ID, PreviewTimelineItemInput{
 		KeyframeID: &secondKeyframe.ID,
 		Kind:       "keyframe",
-		Status:     "draft",
+		Status:     "workspace",
 	}); err != nil {
 		t.Fatalf("patch preview timeline item: %v", err)
 	}
@@ -504,7 +504,7 @@ func TestPreviewTimelineItemFlatPatchPreservesTimelineAndDuration(t *testing.T) 
 
 	service := NewService(db)
 	ctx := context.Background()
-	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{Name: "Preview", Status: "draft"})
+	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{Name: "Preview", Status: "workspace"})
 	if err != nil {
 		t.Fatalf("create preview timeline: %v", err)
 	}
@@ -513,7 +513,7 @@ func TestPreviewTimelineItemFlatPatchPreservesTimelineAndDuration(t *testing.T) 
 		Order:       7,
 		StartSec:    1,
 		DurationSec: 4,
-		Status:      "draft",
+		Status:      "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create preview timeline item: %v", err)
@@ -566,7 +566,7 @@ func TestStoryboardScriptPatchExpiresPreviousStructureRelationIdentity(t *testin
 	storyboard, err := service.CreateStoryboardScript(ctx, 1, StoryboardScriptInput{
 		ScriptVersionID: &firstVersion.ID,
 		Name:            "Storyboard",
-		Status:          "draft",
+		Status:          "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create storyboard script: %v", err)
@@ -574,7 +574,7 @@ func TestStoryboardScriptPatchExpiresPreviousStructureRelationIdentity(t *testin
 	if _, err := service.PatchStoryboardScript(ctx, 1, fmt.Sprint(storyboard.ID), StoryboardScriptInput{
 		ScriptVersionID: &secondVersion.ID,
 		Name:            "Storyboard",
-		Status:          "draft",
+		Status:          "workspace",
 	}); err != nil {
 		t.Fatalf("patch storyboard script: %v", err)
 	}
@@ -609,14 +609,14 @@ func TestStoryboardVersionCreateWritesStructureRelations(t *testing.T) {
 
 	service := NewService(db)
 	ctx := context.Background()
-	storyboard, err := service.CreateStoryboardScript(ctx, 1, StoryboardScriptInput{Name: "Storyboard", Status: "draft"})
+	storyboard, err := service.CreateStoryboardScript(ctx, 1, StoryboardScriptInput{Name: "Storyboard", Status: "workspace"})
 	if err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
 	firstVersion, err := service.CreateStoryboardVersion(ctx, 1, StoryboardVersionInput{
 		StoryboardScriptID: storyboard.ID,
 		Title:              "First",
-		Status:             "draft",
+		Status:             "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create first storyboard version: %v", err)
@@ -625,7 +625,7 @@ func TestStoryboardVersionCreateWritesStructureRelations(t *testing.T) {
 		StoryboardScriptID: storyboard.ID,
 		ParentVersionID:    &firstVersion.ID,
 		Title:              "Second",
-		Status:             "draft",
+		Status:             "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create second storyboard version: %v", err)

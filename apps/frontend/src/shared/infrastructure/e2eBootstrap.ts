@@ -1,7 +1,7 @@
 import type { AppSettings } from '@/shared/infrastructure/config'
 import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
-import type { AgentSettings, Conversation, ConversationDraft } from '@/features/agent/state/agentStore'
+import type { AgentSettings, Conversation, ConversationWorkspace } from '@/features/agent/state/agentStore'
 import { useAgentStore } from '@/features/agent/state/agentStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -42,7 +42,7 @@ export interface E2EBootstrapSeed {
     settings?: Partial<AgentSettings>
     conversations: Array<{
       conversation: Conversation
-      draft?: ConversationDraft
+      workspace?: ConversationWorkspace
     }>
   }
   session?: {
@@ -95,9 +95,9 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
     const userId = seed.agent.userId
       ?? String(useUserStore.getState().currentUser?.ID ?? '')
     if (userId) {
-      const draftsByConversation: Record<string, ConversationDraft> = {}
+      const workspacesByConversation: Record<string, ConversationWorkspace> = {}
       for (const entry of seed.agent.conversations) {
-        if (entry.draft) draftsByConversation[entry.conversation.id] = entry.draft
+        if (entry.workspace) workspacesByConversation[entry.conversation.id] = entry.workspace
       }
       useAgentStore.setState((state) => ({
         settings: {
@@ -110,11 +110,11 @@ export function applyE2EBootstrapSeed(seed: E2EBootstrapSeed): void {
           ...state.activeConversationIdsByUser,
           [userId]: seed.agent?.conversations[0]?.conversation.id ?? null,
         },
-        draftsByUser: {
-          ...state.draftsByUser,
+        workspacesByUser: {
+          ...state.workspacesByUser,
           [userId]: {
-            ...(state.draftsByUser[userId] ?? {}),
-            ...draftsByConversation,
+            ...(state.workspacesByUser[userId] ?? {}),
+            ...workspacesByConversation,
           },
         },
       }))

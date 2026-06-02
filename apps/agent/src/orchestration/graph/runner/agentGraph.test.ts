@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST, type AgentManifest } from '../../../catalog/manifest/agentManifest.js'
-import { InMemoryAgentDraftStore } from '../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
 import type { RuntimeModelRouter } from '../../../model/router/modelRouter.js'
 import { runtimeModelContentText, runtimeModelTextContent } from '../../../model/config/modelConfig.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../../../tools/registry/core/toolRegistry.js'
 import type { AgentDebugTool, AgentRun, AgentRuntimeLimits, JSONValue, ResolvedToolCatalog } from '../../../state/shared/types.js'
 import { runAgentGraph } from './agentGraph.js'
 import type { AgentGraphInput } from '../types/agentGraphTypes.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
@@ -21,7 +21,7 @@ import {
 } from '../../../application/shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultDraftApplyBackend = {
+const defaultWorkspaceApplyBackend = {
   async applyReview(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
@@ -29,8 +29,8 @@ const defaultDraftApplyBackend = {
     return { performed: false, skippedReason: 'backend disabled in test' }
   },
 }
-const defaultDraftApplyPort = createDefaultDraftApplyPort(defaultDraftApplyBackend)
-const defaultDraftApplyPreviewPort = createDefaultDraftApplyPreviewPort(defaultDraftApplyBackend)
+const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
+const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 const defaultProjectStandardsBackend = {
   async getProject(): Promise<any> {
     return { performed: false, skippedReason: 'backend disabled in test' }
@@ -97,7 +97,7 @@ function emptyContext() {
   }
 }
 
-function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'draftApplyPort' | 'draftApplyPreviewPort' | 'proposalSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'projectStandardsPort' | 'runtimeToolHandlers'> & {
+function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'workspaceApplyPort' | 'workspaceApplyPreviewPort' | 'workspaceSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'projectStandardsPort' | 'runtimeToolHandlers'> & {
   mcpClient: {
     initialize(): Promise<JSONValue>
     callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue>
@@ -107,9 +107,9 @@ function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGat
   return runAgentGraph({
     ...graphInput,
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    draftApplyPort: defaultDraftApplyPort,
-    draftApplyPreviewPort: defaultDraftApplyPreviewPort,
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort(mcpClient),
+    workspaceApplyPort: defaultWorkspaceApplyPort,
+    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
@@ -194,7 +194,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
         return { ok: true }
       },
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),
@@ -247,7 +247,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   assert.equal(typeof (completedTrace?.data as any)?.resultHash, 'string')
 })
 
-test('runAgentGraph queues draft apply approvals in proposal layer order when explicitly requested', async () => {
+test('runAgentGraph queues workspace apply approvals in workspace layer order when explicitly requested', async () => {
   const run: AgentRun = {
     id: 'run_default_apply',
     threadId: 'thread_1',
@@ -258,7 +258,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     steps: [],
     input: {
       schema: 'movscript.agent.run-input.v1',
-      userMessage: '生成 setting 和 asset 草稿并应用',
+      userMessage: '生成 setting 和 asset workspace并应用',
       sourceMessageId: 'msg_1',
       executionMode: 'chat',
       createdAt: '2026-05-16T00:00:00.000Z',
@@ -285,15 +285,15 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
           id: 'call_asset',
           type: 'function',
           function: {
-            name: 'draft_create',
+            name: 'workspace_open',
             arguments: JSON.stringify({
-              kind: 'asset_proposal',
-              proposal: true,
+              kind: 'asset_workspace',
+              workspace: true,
               projectId: 42,
               content: JSON.stringify({
-                schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
-                scope: 'asset_proposal',
-                proposal: { creative_references: [], asset_slots: [], candidate_plans: [] },
+                schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
+                scope: 'asset_workspace',
+                workspace: { creative_references: [], asset_slots: [], candidate_plans: [] },
               }),
             }),
           },
@@ -302,15 +302,15 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
           id: 'call_setting',
           type: 'function',
           function: {
-            name: 'draft_create',
+            name: 'workspace_open',
             arguments: JSON.stringify({
-              kind: 'setting_proposal',
-              proposal: true,
+              kind: 'setting_workspace',
+              workspace: true,
               projectId: 42,
               content: JSON.stringify({
-                schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
-                scope: 'setting_proposal',
-                proposal: { creative_references: [] },
+                schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
+                scope: 'setting_workspace',
+                workspace: { creative_references: [] },
               }),
             }),
           },
@@ -323,18 +323,18 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
   }
   const registry = new StaticToolRegistry([
     {
-      name: 'draft_create',
-      description: 'Create draft.',
-      permission: 'draft.write',
-      risk: 'draft',
+      name: 'workspace_open',
+      description: 'Create workspace.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       source: 'runtime',
       projectScoped: false,
       requiresApprovalByDefault: false,
     },
     {
-      name: 'draft_apply',
-      description: 'Apply draft.',
-      permission: 'draft.apply',
+      name: 'workspace_apply',
+      description: 'Apply workspace.',
+      permission: 'workspace.apply',
       risk: 'write',
       source: 'runtime',
       projectScoped: false,
@@ -351,8 +351,8 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     registered: true,
     granted: true,
     available: true,
-    approval: tool.name === 'draft_apply' ? 'on_write' : 'never',
-    requiresApproval: tool.name === 'draft_apply',
+    approval: tool.name === 'workspace_apply' ? 'on_write' : 'never',
+    requiresApproval: tool.name === 'workspace_apply',
   }))
   const capabilities: ResolvedToolCatalog = {
     discovered: available,
@@ -364,13 +364,13 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
   const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
-      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset 草稿并应用', createdAt: '2026-05-16T00:00:00.000Z' },
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset workspace并应用', createdAt: '2026-05-16T00:00:00.000Z' },
     ],
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
-        { name: 'draft_create', mode: 'allow', approval: 'never' },
-        { name: 'draft_apply', mode: 'allow', approval: 'on_write' },
+        { name: 'workspace_open', mode: 'allow', approval: 'never' },
+        { name: 'workspace_apply', mode: 'allow', approval: 'on_write' },
       ],
     },
     capabilities,
@@ -395,7 +395,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     mcpClient: {
       initialize: async () => null,
       callTool: async (name): Promise<JSONValue> => {
-        if (name === 'draft_model_get') {
+        if (name === 'get_workspace_model') {
           return {
             data: {
               seed: {
@@ -410,7 +410,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
         return {}
       },
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -420,12 +420,12 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
   assert.equal(result.status, 'requires_action')
   if (result.status === 'requires_action') {
     assert.deepEqual(result.pendingApprovals.map((approval) => approval.toolName), [
-      'draft_apply',
-      'draft_apply',
+      'workspace_apply',
+      'workspace_apply',
     ])
-    assert.deepEqual(result.pendingApprovals.map((approval) => approval.args?.draftKind), [
-      'setting_proposal',
-      'asset_proposal',
+    assert.deepEqual(result.pendingApprovals.map((approval) => approval.args?.workspaceKind), [
+      'setting_workspace',
+      'asset_workspace',
     ])
   }
 })
@@ -504,7 +504,7 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -579,7 +579,7 @@ test('runAgentGraph records explicit model round duration trace', async () => {
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => {
       if (trace.kind === 'model_call') traces.push({ title: trace.title, status: trace.status, durationMs: trace.durationMs, data: trace.data })
@@ -656,7 +656,7 @@ test('runAgentGraph pauses for retry when the model call fails', async () => {
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, summary: trace.summary }),
     onStepCreate: () => 'step_1',
@@ -754,7 +754,7 @@ test('runAgentGraph retries prompt-too-long model errors with collapsed history 
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, data: trace.data }),
     onStepCreate: () => 'step_1',
@@ -869,7 +869,7 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -973,7 +973,7 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -1100,7 +1100,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -1110,7 +1110,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
         counts: { packs: 2, enabledPackIds: 1, skills: 12, tools: 8, reference: 0, configFiles: 1 },
         enabledPackIds: ['core.pack.base'],
         activeSkillIds: ['core.rules.runtime', 'movscript.script_reading'],
-        availableSkillIds: ['movscript.script_reading', 'movscript.asset_proposal'],
+        availableSkillIds: ['movscript.script_reading', 'movscript.asset_workspace'],
       }),
       updateActiveSkills: () => ({}),
       updatePlan: () => ({}),
@@ -1130,7 +1130,7 @@ waitWork: () => ({}),
   assert.equal(result.status, 'completed')
   assert.match(traceSummaries.join('\n'), /catalog summary/)
   assert.match(traceSummaries.join('\n'), /active=core\.rules\.runtime, movscript.script_reading/)
-  assert.match(traceSummaries.join('\n'), /available=movscript.script_reading, movscript.asset_proposal/)
+  assert.match(traceSummaries.join('\n'), /available=movscript.script_reading, movscript.asset_workspace/)
   assert.match(traceSummaries.join('\n'), /packs=core\.pack\.base/)
   assert.match(traceSummaries.join('\n'), /tools=8, skills=12/)
 })
@@ -1301,7 +1301,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),

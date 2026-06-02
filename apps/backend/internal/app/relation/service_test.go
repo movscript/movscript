@@ -20,7 +20,7 @@ func TestUpsertEdgeCreatesZipperRevisions(t *testing.T) {
 		Target:    domainrelation.NewEntityRef("content_unit", 20),
 		Category:  domainrelation.CategoryStructure,
 		Type:      domainrelation.TypeContains,
-		Label:     "draft",
+		Label:     "workspace",
 		Order:     1,
 	}
 	first, err := service.UpsertEdge(ctx, input)

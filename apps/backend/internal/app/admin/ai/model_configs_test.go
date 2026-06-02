@@ -375,18 +375,18 @@ func TestPresetSupportedParamsRoundTripThroughSavePreviewAndRuntime(t *testing.T
 	if err != nil {
 		t.Fatalf("preview seedance preset-backed contract: %v", err)
 	}
-	for _, key := range []string{"duration", "resolution", "draft", "return_last_frame", "service_tier"} {
+	for _, key := range []string{"duration", "resolution", "workspace", "return_last_frame", "service_tier"} {
 		if agentContractParam(preview.AgentContract, key) == nil {
 			t.Fatalf("expected agent contract to include %s, got %#v", key, preview.AgentContract.SupportedParamKeys)
 		}
 	}
 	resolution := agentContractParam(preview.AgentContract, "resolution")
-	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "draft" {
-		t.Fatalf("expected draft resolution rule after round trip, got %#v", resolution)
+	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "workspace" {
+		t.Fatalf("expected workspace resolution rule after round trip, got %#v", resolution)
 	}
 	returnLastFrame := agentContractParam(preview.AgentContract, "return_last_frame")
 	if returnLastFrame == nil || len(returnLastFrame.ConditionalConst) != 1 || returnLastFrame.ConditionalConst[0].Value != false {
-		t.Fatalf("expected return_last_frame draft rule after round trip, got %#v", returnLastFrame)
+		t.Fatalf("expected return_last_frame workspace rule after round trip, got %#v", returnLastFrame)
 	}
 }
 
@@ -444,10 +444,10 @@ func TestPreviewModelConfigContractReturnsAgentCompactRules(t *testing.T) {
 		CustomAcceptsImage:   true,
 		CustomMaxInputImages: 4,
 		CustomSupportedParams: `[
-			{"key":"draft","label":"Draft","type":"boolean"},
-			{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","json_schema":{"enum":["360p","480p"]},"conditional_enum":[{"when_param":"draft","when_value":true,"options":["480p"]}]},
+			{"key":"workspace","label":"Workspace","type":"boolean"},
+			{"key":"resolution","label":"Resolution","type":"select","options":["480p","720p"],"default":"480p","json_schema":{"enum":["360p","480p"]},"conditional_enum":[{"when_param":"workspace","when_value":true,"options":["480p"]}]},
 			{"key":"frames","label":"Frames","type":"number","min":0,"max":0,"step":4,"json_schema":{"description":"Frame count must match 25 + 4n.","enum":[29,33,37]},"conflicts_with":["resolution"]},
-			{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"draft","when_value":true,"value":false}]},
+			{"key":"return_last_frame","label":"Return Last Frame","type":"boolean","default":false,"conditional_const":[{"when_param":"workspace","when_value":true,"value":false}]},
 			{"key":"sequential_image_generation","label":"Sequential","type":"select","options":["disabled","auto"]},
 			{"key":"image_count","label":"Image Count","type":"number","default":1,"min":1,"max":15,"requires_value":[{"param":"sequential_image_generation","value":"auto"}]}
 		]`,
@@ -482,7 +482,7 @@ func TestPreviewModelConfigContractReturnsAgentCompactRules(t *testing.T) {
 	if imageCount := agentContractParam(preview.AgentContract, "image_count"); imageCount == nil || imageCount.Default != float64(1) {
 		t.Fatalf("expected compact default value, got %#v", imageCount)
 	}
-	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "draft" || len(resolution.ConditionalEnum[0].Options) != 1 || resolution.ConditionalEnum[0].Options[0] != "480p" {
+	if resolution == nil || len(resolution.ConditionalEnum) != 1 || resolution.ConditionalEnum[0].WhenParam != "workspace" || len(resolution.ConditionalEnum[0].Options) != 1 || resolution.ConditionalEnum[0].Options[0] != "480p" {
 		t.Fatalf("expected compact conditional enum rule, got %#v", resolution)
 	}
 	if len(resolution.Options) != 2 || resolution.Options[0] != "360p" || resolution.Options[1] != "480p" {

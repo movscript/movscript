@@ -27,7 +27,7 @@
       "id": 2,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1)", "legendFormat": "client {{kind}} {{status}} avg", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1e-9)", "legendFormat": "client {{kind}} {{status}} avg", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_operation_duration_milliseconds_max) by (kind, status)", "legendFormat": "client {{kind}} {{status}} max", "refId": "B" },
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "runtime {{kind}} {{status}} p95", "refId": "C" }
       ],
@@ -40,7 +40,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 3,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1)", "legendFormat": "{{kind}} {{phase}}", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1e-9)", "legendFormat": "{{kind}} {{phase}}", "refId": "A" }],
       "title": "Frontend Agent Phase Latency",
       "type": "timeseries"
     },
@@ -52,7 +52,7 @@
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_trace_span_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped {{kind}} {{status}} {{tool_name}}", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name), 1)", "legendFormat": "forwarded {{kind}} {{status}} {{tool_name}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"movscript_agent_trace_span_duration_ms\"}[$window])) by (kind, status, tool_name), 1e-9)", "legendFormat": "forwarded {{kind}} {{status}} {{tool_name}}", "refId": "B" }
       ],
       "title": "Runtime Trace Span Latency",
       "type": "timeseries"
@@ -63,7 +63,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "id": 5,
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sort_desc(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1)))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "topk(20, sort_desc(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[$window])) by (kind, phase) / clamp_min(sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[$window])) by (kind, phase), 1e-9)))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "A" }],
       "title": "Slowest Agent Phases",
       "type": "table"
     },

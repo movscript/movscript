@@ -75,7 +75,7 @@ test('content workbench keeps core production controls visible on mobile width',
   await expect(page.getByText('生产链路仍有阻塞', { exact: true })).toHaveCount(0)
 })
 
-test('content workbench can reject an AI draft and clear the review queue', async ({ page }, testInfo) => {
+test('content workbench can reject an AI workspace and clear the review queue', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
@@ -93,26 +93,26 @@ test('content workbench review action opens the AI review queue', async ({ page 
 
   const reviewAction = page.getByTestId('content-workbench-review-action')
   await expect(reviewAction).toContainText('待审草案')
-  await reviewAction.locator('[data-action-key="review_ai_drafts"]').click()
+  await reviewAction.locator('[data-action-key="review_ai_workspaces"]').click()
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
   await expect(page.getByRole('button', { name: /旧伞纸条滑落 AI 制作项草案/ })).toBeVisible()
 })
 
-test('content workbench opens the review queue from a draft deep link', async ({ page }, testInfo) => {
+test('content workbench opens the review queue from a workspace deep link', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
-  await page.goto('/project/content-units/workbench?view=review&scene_moment_id=402&draftId=content-draft-e2e')
+  await page.goto('/project/content-units/workbench?view=review&scene_moment_id=402&workspaceId=content-workspace-e2e')
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
   await expect(page.getByRole('button', { name: /旧伞纸条滑落 AI 制作项草案/ })).toBeVisible()
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
 })
 
-test('content workbench applies a production filter from a production draft deep link', async ({ page }, testInfo) => {
+test('content workbench applies a production filter from a production workspace deep link', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
-  await page.goto('/project/content-units/workbench?view=review&productionId=301&draftId=content-draft-e2e')
+  await page.goto('/project/content-units/workbench?view=review&productionId=301&workspaceId=content-workspace-e2e')
 
   await expect(page.getByTestId('content-workbench-production-filter')).toContainText('雨夜重逢制作')
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
@@ -129,21 +129,21 @@ test('content workbench can deep link to a unit without an explicit scene moment
 })
 
 test('content workbench AI planning task carries selected scene context', async ({ page }, testInfo) => {
-  await openContentWorkbenchPage(page, testInfo, { hideReviewDraft: true })
+  await openContentWorkbenchPage(page, testInfo, { hideReviewWorkspace: true })
   await page.goto('/project/content-units/workbench?scene_moment_id=404')
   await page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentDraft?: unknown }
-    target.__contentWorkbenchAgentDraft = null
-    window.addEventListener('movscript:agent-panel-draft', (event) => {
-      target.__contentWorkbenchAgentDraft = (event as CustomEvent).detail
+    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: unknown }
+    target.__contentWorkbenchAgentWorkspace = null
+    window.addEventListener('movscript:agent-panel-workspace', (event) => {
+      target.__contentWorkbenchAgentWorkspace = (event as CustomEvent).detail
     }, { once: true })
   })
 
   await page.getByRole('button', { name: /让 AI 规划制作项/ }).click()
 
-  const draft = await expect.poll(() => page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentDraft?: unknown }
-    return target.__contentWorkbenchAgentDraft
+  const workspace = await expect.poll(() => page.evaluate(() => {
+    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: unknown }
+    return target.__contentWorkbenchAgentWorkspace
   })).toMatchObject({
     taskType: 'content_unit_suggest',
     clientInput: {
@@ -156,23 +156,23 @@ test('content workbench AI planning task carries selected scene context', async 
       },
     },
   })
-  void draft
+  void workspace
 
   const message = await page.evaluate(() => {
-    const target = window as typeof window & { __contentWorkbenchAgentDraft?: { message?: string } }
-    return target.__contentWorkbenchAgentDraft?.message ?? ''
+    const target = window as typeof window & { __contentWorkbenchAgentWorkspace?: { message?: string } }
+    return target.__contentWorkbenchAgentWorkspace?.message ?? ''
   })
   expect(message).toContain('当前情节：窗边迟疑')
   expect(message).toContain('情节 ID：404')
-  expect(message).toContain('movscript.content_unit_proposal.v1')
+  expect(message).toContain('movscript.content_unit_workspace.v1')
   expect(message).toContain('"scene_moment_id": 404')
   expect(message).toContain('还没有制作项')
 })
 
-test('content workbench can carry AI proposal units into create and edit flows', async ({ page }, testInfo) => {
+test('content workbench can carry AI workspace units into create and edit flows', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
-  await page.getByTestId('content-workbench-create-proposal-unit').click()
+  await page.getByTestId('content-workbench-create-workspace-unit').click()
   await expect(page.getByRole('dialog')).toContainText('添加制作项')
   await expect(page.locator('#semantic-inline-content-workbench-create-unit-title')).toHaveValue('林夏反应')
   await expect(page.locator('#semantic-inline-content-workbench-create-unit-prompt')).toHaveValue('中近景林夏停步，眼神克制地看向地面纸条。')
@@ -241,11 +241,11 @@ test('content workbench can reorder production items without dragging', async ({
   ]))
 })
 
-test('content workbench can mark an AI draft reviewed after manual review', async ({ page }, testInfo) => {
+test('content workbench can mark an AI workspace reviewed after manual review', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
-  await page.getByTestId('content-workbench-mark-draft-reviewed').click()
+  await page.getByTestId('content-workbench-mark-workspace-reviewed').click()
 
   await expect(page.getByText('AI 审稿队列', { exact: true })).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
@@ -257,7 +257,7 @@ test('content workbench does not expose generation canvas from the header', asyn
   await expect(page.getByRole('button', { name: /打开生成画布|创建生成画布/ })).toHaveCount(0)
 })
 
-async function openContentWorkbenchPage(page: Page, testInfo: TestInfo, options: { previewMountReady?: boolean; hideReviewDraft?: boolean } = {}) {
+async function openContentWorkbenchPage(page: Page, testInfo: TestInfo, options: { previewMountReady?: boolean; hideReviewWorkspace?: boolean } = {}) {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('content workbench E2E requires a baseURL')
 
@@ -281,10 +281,10 @@ async function openContentWorkbenchPage(page: Page, testInfo: TestInfo, options:
   return controls
 }
 
-async function mockContentWorkbenchData(page: Page, options: { previewMountReady?: boolean; hideReviewDraft?: boolean } = {}) {
+async function mockContentWorkbenchData(page: Page, options: { previewMountReady?: boolean; hideReviewWorkspace?: boolean } = {}) {
   const previewMountReady = Boolean(options.previewMountReady)
-  let draftRejected = false
-  let draftReviewed = Boolean(options.hideReviewDraft)
+  let workspaceRejected = false
+  let workspaceReviewed = Boolean(options.hideReviewWorkspace)
   let canvasCreateRequests = 0
   let uploadedResourceCount = 0
   const confirmedUnitIds: number[] = []
@@ -330,7 +330,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     kind: 'shot',
     duration_sec: 5,
     description: '林夏克制地停住脚步。',
-    status: 'draft',
+    status: 'workspace',
     order: 2,
   }, {
     ID: 804,
@@ -369,7 +369,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     production_id: 301,
     scene_moment_id: 402,
     content_unit_id: 801,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit_workspace',
     title: '纸条特写预览项',
     start_sec: 1,
     duration_sec: 4,
@@ -381,11 +381,11 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     production_id: 301,
     scene_moment_id: 402,
     content_unit_id: 802,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit_workspace',
     title: '林夏反应预览项',
     start_sec: 5,
     duration_sec: 4,
-    status: 'draft',
+    status: 'workspace',
     order: 2,
   }]
   const keyframes: Record<string, unknown>[] = [{
@@ -395,7 +395,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     content_unit_id: 801,
     title: '纸条落下首帧',
     prompt: '纸条刚离开伞骨。',
-    status: 'draft',
+    status: 'workspace',
     order: 1,
   }]
   const assetSlots: Record<string, unknown>[] = [{
@@ -660,20 +660,20 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     }] : [])
   })
 
-  await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
+  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/drafts' || url.pathname === '/drafts/') {
+    if (url.pathname === '/workspaces' || url.pathname === '/workspaces/') {
       const requestedStatuses = url.searchParams.getAll('status')
-      const includeDraft = requestedStatuses.length === 0 || requestedStatuses.includes('draft')
+      const includeWorkspace = requestedStatuses.length === 0 || requestedStatuses.includes('workspace')
       await fulfillJSON(route, {
-        drafts: previewMountReady || draftRejected || draftReviewed || !includeDraft ? [] : [{
-          id: 'content-draft-e2e',
+        workspaces: previewMountReady || workspaceRejected || workspaceReviewed || !includeWorkspace ? [] : [{
+          id: 'content-workspace-e2e',
           projectId: PROJECT_ID,
-          kind: 'content_unit_proposal',
+          kind: 'content_unit_workspace',
           title: '旧伞纸条滑落 AI 制作项草案',
           content: JSON.stringify({
             scene_moment_id: 402,
-            proposal: {
+            workspace: {
               units: [{
                 title: '纸条特写',
                 kind: 'shot',
@@ -705,7 +705,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
               }],
             },
           }),
-          status: 'draft',
+          status: 'workspace',
           target: { entityType: 'scene_moment', entityId: 402 },
           createdAt: '2026-05-11T12:00:00.000Z',
           updatedAt: '2026-05-11T12:00:00.000Z',
@@ -713,16 +713,16 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
       })
       return
     }
-    if (url.pathname === '/drafts/content-draft-e2e' && route.request().method() === 'PATCH') {
-      draftReviewed = true
+    if (url.pathname === '/workspaces/content-workspace-e2e' && route.request().method() === 'PATCH') {
+      workspaceReviewed = true
       await fulfillJSON(route, {
-        id: 'content-draft-e2e',
+        id: 'content-workspace-e2e',
         projectId: PROJECT_ID,
-        kind: 'content_unit_proposal',
+        kind: 'content_unit_workspace',
         title: '旧伞纸条滑落 AI 制作项草案',
         content: '{}',
         status: 'applied',
-        target: { entityType: 'scene_moment', entityId: 402, field: 'content_unit_proposal_review' },
+        target: { entityType: 'scene_moment', entityId: 402, field: 'content_unit_workspace_review' },
         metadata: {
           reviewedFrom: 'content-workbench',
           backendWritePerformed: false,
@@ -733,12 +733,12 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
       })
       return
     }
-    if (url.pathname === '/drafts/content-draft-e2e/reject') {
-      draftRejected = true
+    if (url.pathname === '/workspaces/content-workspace-e2e/reject') {
+      workspaceRejected = true
       await fulfillJSON(route, {
-        id: 'content-draft-e2e',
+        id: 'content-workspace-e2e',
         projectId: PROJECT_ID,
-        kind: 'content_unit_proposal',
+        kind: 'content_unit_workspace',
         title: '旧伞纸条滑落 AI 制作项草案',
         content: '{}',
         status: 'rejected',

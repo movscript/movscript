@@ -178,7 +178,7 @@
     "workMode": {
       "title": "先选择工作模式",
       "description": "你可以先选一个更适合自己的入口。之后需要切换时，使用右上角的模式图标。",
-      "agentDescription": "从目标出发，让 Agent 读取项目上下文、提出计划并推进草稿、提案和生成任务。",
+      "agentDescription": "从目标出发，让 Agent 读取项目上下文、提出计划并推进工作区、工作区和生成任务。",
       "detailDescription": "使用完整侧栏、项目对象页和专业工作台，适合手动检查、精修和批量管理。",
       "agentAction": "先用 Agent 模式",
       "detailAction": "先用详细模式",
@@ -278,10 +278,10 @@
       "character": "角色",
       "scene": "场景",
       "prop": "道具",
-      "draft": "底稿"
+      "workspace": "底稿"
     },
     "episodeStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "scripted": "已编剧",
       "storyboarded": "已分镜",
       "generating": "生成中",
@@ -289,7 +289,7 @@
       "done": "完成"
     },
     "reviewStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "under_review": "提审中",
       "approved": "审核定稿",
       "revision": "重改中"
@@ -301,7 +301,7 @@
       "scene": "分场剧本"
     },
     "shotStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "prompt_ready": "就绪",
       "generating": "生成中",
       "generated": "已生成",
@@ -393,7 +393,7 @@
     "submit": "提交审核",
     "approve": "审核通过",
     "requestRevision": "打回重改",
-    "resetDraft": "重置草稿"
+    "resetWorkspace": "重置工作区"
   },
   "details": {
     "aiAnalyze": "AI 分析",
@@ -424,10 +424,10 @@
     "rawSourceVideo": "底稿视频",
     "uploadKeyframe": "上传画面锚点",
     "generateKeyframe": "AI 生成画面锚点",
-    "draftVideo": "底稿视频",
+    "workspaceVideo": "底稿视频",
     "cameraReference": "镜头控制参考",
-    "noDraftVideo": "暂无底稿视频",
-    "generateDraft": "AI 生成底稿",
+    "noWorkspaceVideo": "暂无底稿视频",
+    "generateWorkspace": "AI 生成底稿",
     "contentManagement": "内容管理",
     "scriptBody": "剧本正文",
     "scriptSummary": "剧本提纲",
@@ -857,17 +857,17 @@
         "title": "制作管理状态",
         "ready": "已确认",
         "pending": "待确认",
-        "missing": "未找到草稿",
+        "missing": "未找到工作区",
         "readySummary": "制作管理已经确认，可以继续任务分配与审核。",
-        "pendingSummary": "当前项目已有制作管理草稿，但还没有完成确认。",
-        "missingSummary": "当前项目还没有可用的制作管理草稿，先完成制作管理确认。",
+        "pendingSummary": "当前项目已有制作管理工作区，但还没有完成确认。",
+        "missingSummary": "当前项目还没有可用的制作管理工作区，先完成制作管理确认。",
         "readyTitle": "制作管理已确认",
         "notReadyTitle": "制作管理待确认",
         "savedAt": "保存时间：{{value}}",
         "confirmedAt": "确认时间：{{value}}",
         "unknown": "暂无",
-        "foundDraft": "最近制作管理草稿",
-        "noDraft": "进入制作管理后会显示最近保存的草稿状态。",
+        "foundWorkspace": "最近制作管理工作区",
+        "noWorkspace": "进入制作管理后会显示最近保存的工作区状态。",
         "enterProduction": "继续制作",
         "goPreview": "前往制作管理",
         "viewPreview": "查看制作管理"
@@ -1083,7 +1083,7 @@
       "totalReferences": "镜头参考",
       "totalDuration": "总时长",
       "analysisMode": "分析方式",
-      "localAnalysis": "后端分析草稿",
+      "localAnalysis": "后端分析工作区",
       "librarySources": "镜头库来源",
       "defaultSourceName": "Movscript",
       "sourceFilter": "镜头库来源筛选",
@@ -1160,17 +1160,17 @@
     "description": "管理 Agent 运行配置文件、已安装能力、Skills、工具和运行记录。",
     "tools": {
       "names": {
-        "draft_apply": "应用草稿",
+        "workspace_apply": "应用工作区",
         "candidate_asset_slot_attach": "加入素材槽候选",
         "candidate_keyframe_attach": "加入关键帧候选",
         "generation_job_cancel": "取消生成任务",
         "core_work_cancel": "取消运行工作",
-        "draft_create": "创建草稿",
+        "workspace_create": "创建工作区",
         "generation_job_create": "创建生成任务",
         "core_memory_create": "创建记忆",
         "movscript_project_create": "创建项目",
         "core_memory_delete": "删除记忆",
-        "draft_model_get": "读取草稿模型",
+        "get_workspace_model": "读取工作区模型",
         "movscript_focus_get": "读取当前焦点",
         "generation_job_get": "查看生成任务",
         "reference_get": "读取参考",
@@ -1190,7 +1190,7 @@
         "core_memory_search": "搜索记忆",
         "core_work_start": "启动运行工作",
         "core_skill_update": "更新启用技能",
-        "draft_apply_preview": "预览应用草稿",
+        "workspace_apply_preview": "预览应用工作区",
         "read_file": "读取文件",
         "search_file": "搜索文件",
         "edit_file": "编辑文件",
@@ -1221,9 +1221,9 @@
         "agent_work_read": "读取异步任务",
         "agent_work_write": "管理异步任务",
         "asset_candidate_write": "写入素材候选",
-        "draft_apply": "应用草稿变更",
-        "draft_read": "读取草稿",
-        "draft_write": "写入草稿",
+        "workspace_apply": "应用工作区变更",
+        "workspace_read": "读取工作区",
+        "workspace_write": "写入工作区",
         "generation_create": "创建生成任务",
         "generation_read": "读取生成任务",
         "generation_cancel": "取消生成任务",
@@ -1279,7 +1279,7 @@
         "skills": "技能",
         "tools": "工具",
         "toolConsole": "MCP 调用",
-        "draftRuntime": "Draft Runtime",
+        "workspaceRuntime": "Workspace Runtime",
         "prompt": "Prompt",
         "context": "上下文",
         "runs": "运行",
@@ -1330,10 +1330,10 @@
         "toolSchema": "工具入参 Schema",
         "toolConsoleOutput": "工具输出摘要",
         "toolConsoleResult": "调用结果",
-        "draftRuntime": "Draft Runtime 调试",
-        "draftRuntimeSchema": "Draft 工具入参 Schema",
-        "draftRuntimeOutput": "Draft 工具输出摘要",
-        "draftRuntimeResult": "Draft 调用结果",
+        "workspaceRuntime": "Workspace Runtime 调试",
+        "workspaceRuntimeSchema": "Workspace 工具入参 Schema",
+        "workspaceRuntimeOutput": "Workspace 工具输出摘要",
+        "workspaceRuntimeResult": "Workspace 调用结果",
         "activatedSkills": "已激活技能",
         "skillCatalog": "技能目录",
         "promptParts": "Prompt 片段",
@@ -1396,21 +1396,21 @@
         "status": "状态"
       },
       "toolConsole": {
-        "warning": "这里仅列出 source=mcp 的外部 MCP 工具。调用仍由 Agent Runtime 转发执行，但不会显示 Runtime 本地 draft / memory / taskGraph 工具。",
-        "runtimeBoundary": "Draft 相关能力目前属于 Agent Runtime 本地工具，例如 draft_model_get、draft_create、draft_apply_preview；它们不属于外部 MCP 调用，应放在单独的 Draft Runtime 调试入口里验证。",
+        "warning": "这里仅列出 source=mcp 的外部 MCP 工具。调用仍由 Agent Runtime 转发执行，但不会显示 Runtime 本地 workspace / memory / taskGraph 工具。",
+        "runtimeBoundary": "Workspace 相关能力目前属于 Agent Runtime 本地工具，例如 get_workspace_model、workspace_open、workspace_validate；它们不属于外部 MCP 调用，应放在单独的 Workspace Runtime 调试入口里验证。",
         "tool": "MCP 工具",
         "args": "JSON 参数",
         "run": "执行工具",
         "refreshTrace": "刷新 Trace"
       },
-      "draftRuntime": {
-        "boundary": "这里专门调用 Agent Runtime 本地 draft 工具，用来验证 draft model seed、创建草稿以及 preview apply。它不是外部 MCP。",
-        "tool": "Draft Runtime 工具",
+      "workspaceRuntime": {
+        "boundary": "这里专门调用 Agent Runtime 本地 workspace 工具，用来验证 workspace model seed、打开工作区以及 validate/apply。它不是外部 MCP。",
+        "tool": "Workspace Runtime 工具",
         "args": "JSON 参数",
-        "run": "执行 Draft 工具",
-        "assetModelPreset": "Asset proposal 模型",
-        "createAssetDraftPreset": "创建 asset draft 壳",
-        "createProductionDraftPreset": "创建 production proposal 壳",
+        "run": "执行 Workspace 工具",
+        "assetModelPreset": "Asset workspace 模型",
+        "createAssetWorkspacePreset": "创建 asset workspace 壳",
+        "createProductionWorkspacePreset": "创建 production workspace 壳",
         "previewApplyPreset": "Preview apply",
         "refreshTrace": "刷新 Trace"
       },
@@ -1571,9 +1571,9 @@
         "noToolSelected": "未选择工具。",
         "noMcpTools": "当前没有可用的外部 MCP 工具。",
         "noToolConsoleResult": "执行工具后会显示 run 和 trace。",
-        "noDraftRuntimeTools": "当前没有可用的 Draft Runtime 工具。",
-        "noDraftRuntimeToolSelected": "未选择 Draft Runtime 工具。",
-        "noDraftRuntimeResult": "执行 Draft Runtime 工具后会显示 run 和 trace。",
+        "noWorkspaceRuntimeTools": "当前没有可用的 Workspace Runtime 工具。",
+        "noWorkspaceRuntimeToolSelected": "未选择 Workspace Runtime 工具。",
+        "noWorkspaceRuntimeResult": "执行 Workspace Runtime 工具后会显示 run 和 trace。",
         "modelConfigReadFailed": "模型配置读取失败：{{reason}}"
       },
       "values": {
@@ -1762,14 +1762,14 @@
         "futureTools": "为后续接入 Provider 侧内置工具保留空间，同时不改变设置页边界。",
         "preserveCompatibility": "迁移期只为旧 message/choice 集成保留 Chat Completions。",
         "verifyModel": "确认直连 Provider 模型 ID 和 Base URL 适用于 Responses API。",
-        "switchResponses": "将草稿调用模式切到 Responses，保存后执行连通性测试。",
+        "switchResponses": "将工作区调用模式切到 Responses，保存后执行连通性测试。",
         "providerNative": "评估 Claude 模型族 Provider 原生行为时使用 Anthropic Messages。",
         "compare": "通过运行结果和只读调试观测对比 OpenAI 模式差异。",
         "keepSeparate": "不要把 Anthropic Provider 设置混入 OpenAI 迁移路径。"
       },
       "apiModeSwitchPlanTitle": "调用模式切换计划",
       "apiModeSwitchPlanHelp": "保存前先核对具体阻断项；当前有 {{actions}} 个需处理项、{{warnings}} 个复核项。",
-      "apiModeSwitchPlanCopyContext": "草稿调用模式：{{apiKind}}",
+      "apiModeSwitchPlanCopyContext": "工作区调用模式：{{apiKind}}",
       "copyApiModeSwitchTaskGraph": "复制切换计划",
       "apiModeSwitchPlanCopied": "切换计划已复制",
       "apiModeSwitchTaskGraph": {
@@ -1785,7 +1785,7 @@
         "targetModeMigration": "{{apiKind}} 的新增 Agent 工作应迁移到 {{targetApiKind}}。",
         "probeMissing": "兼容性探测数据尚不可用。",
         "saveTestBlocked": "请先处理需处理项，再保存并执行模型连通性测试。",
-        "saveTestPending": "草稿变更已可复核，之后执行保存并测试。",
+        "saveTestPending": "工作区变更已可复核，之后执行保存并测试。",
         "saveTestReady": "已保存配置可执行模型连通性测试。"
       },
       "selectModel": "选择模型",
@@ -1819,7 +1819,7 @@
       "installPackHelp": "粘贴包含 pluginId 和 files 的 Pack JSON；安装后会自动重载 Agent 目录。",
       "loadPackFile": "载入 JSON 文件",
       "packFileLoaded": "已载入 {{fileName}}，请检查内容后安装。",
-      "packDraftSummary": "待安装：{{pluginId}}，{{count}} 个文件，{{size}}。",
+      "packWorkspaceSummary": "待安装：{{pluginId}}，{{count}} 个文件，{{size}}。",
       "installPackAction": "安装",
       "installPackPlaceholder": "{\n  \"pluginId\": \"my-agent-skills\",\n  \"files\": [\n    { \"path\": \"SKILL.md\", \"content\": \"---\\nname: ...\\ndescription: ...\\n---\\n...\" }\n  ]\n}",
       "installPackDone": "已为 {{pluginId}} 安装 {{count}} 个文件。",
@@ -1905,7 +1905,7 @@
       "configFileApprovalDefaultFields": {
         "default": "默认",
         "read": "只读",
-        "draft": "草稿",
+        "workspace": "工作区",
         "write": "写入",
         "generate": "生成",
         "destructive": "破坏性",
@@ -1977,10 +1977,10 @@
       "toolPermissionsFilterPresetsHelp": "保存写入风险、当前不可用工具等常用工具审查视图。",
       "toolPermissionsFilterPresetsEmpty": "暂无已保存筛选。",
       "toolPermissionsAllowDisabled": "只有当前配置文件授权且 Runtime 可用的工具才能保存为允许。",
-      "toolPermissionsDraftIssues": "工具权限草稿存在不可保存项",
-      "toolPermissionsDraftInvalid": "工具权限草稿有 {{count}} 个不可保存项。",
-      "fixToolPermissionsDraftIssues": "修复草稿",
-      "toolPermissionsDraftIssueDetails": {
+      "toolPermissionsWorkspaceIssues": "工具权限工作区存在不可保存项",
+      "toolPermissionsWorkspaceInvalid": "工具权限工作区有 {{count}} 个不可保存项。",
+      "fixToolPermissionsWorkspaceIssues": "修复工作区",
+      "toolPermissionsWorkspaceIssueDetails": {
         "notConfigFileGranted": "不在当前配置文件授权范围内。",
         "unavailableAllow": "当前不可用（{{reason}}），不能保存为允许。"
       },
@@ -2041,8 +2041,8 @@
         "settings_snapshot_restored": "恢复",
         "settings_backup_cleared": "清理备份",
         "settings_quick_fix_applied": "快速修复",
-        "settings_quick_fix_draft_reset": "重置草稿",
-        "settings_quick_fix_draft_repair": "修复草稿",
+        "settings_quick_fix_workspace_reset": "重置工作区",
+        "settings_quick_fix_workspace_repair": "修复工作区",
         "settings_quick_fix_sensitive_cleanup": "清理敏感字段",
         "settings_quick_fix_risk_downgrade": "风险降级",
         "settings_quick_fix_mode_migration": "模式迁移",
@@ -2089,12 +2089,12 @@
       },
       "quickFixes": {
         "jumpToSection": "定位",
-        "resetDraft": "重置草稿",
+        "resetWorkspace": "重置工作区",
         "confirmClearModelConfig": "准备清除模型配置",
         "enableChatRoute": "启用对话路由",
         "switchOpenAIResponses": "切到 Responses",
         "stripSensitiveBaseURLQuery": "移除敏感参数",
-        "switchedToResponses": "已将本地草稿切到 OpenAI Responses；保存后才会影响后续新 Run。",
+        "switchedToResponses": "已将本地工作区切到 OpenAI Responses；保存后才会影响后续新 Run。",
         "applied": "本地修复已应用，请检查后保存需要持久化的配置。"
       },
       "actionItems": {
@@ -2110,7 +2110,7 @@
         "configFileUnsaved": "激活配置文件有未保存变更",
         "skillConfigInvalid": "当前配置文件的 Skill 选择存在冲突",
         "skillConfigUnsaved": "Skill 配置有未保存变更",
-        "toolPermissionsInvalid": "工具权限草稿不可保存",
+        "toolPermissionsInvalid": "工具权限工作区不可保存",
         "toolPermissionsUnsaved": "工具权限有未保存变更",
         "toolsBlocked": "工具全部不可用"
       },
@@ -2127,13 +2127,13 @@
         "configFileUnsaved": "保存配置文件后，后续新 Run 才会使用新的能力配置。",
         "skillConfigInvalid": "有 {{count}} 个依赖或冲突问题，修复后才能保存当前配置文件的 Skill 选择。",
         "skillConfigUnsaved": "保存 Skill 配置后，后续新 Run 才会使用新的 Skill 激活选择。",
-        "toolPermissionsInvalid": "工具权限草稿有 {{count}} 个不可保存项，修复后才能保存工具权限。",
+        "toolPermissionsInvalid": "工具权限工作区有 {{count}} 个不可保存项，修复后才能保存工具权限。",
         "toolPermissionsUnsaved": "保存工具权限后，后续新 Run 才会使用新的权限收紧结果。",
         "toolsBlocked": "已发现 {{count}} 个工具，但当前权限下没有可用工具。"
       },
       "actionItemPersistHints": {
-        "saveOrReset": "这是设置页草稿：保存后影响后续新 Run，重置则放弃本地变更。",
-        "saveAfterQuickFix": "快速修复只改本地草稿；保存后才会影响后续新 Run。",
+        "saveOrReset": "这是设置页工作区：保存后影响后续新 Run，重置则放弃本地变更。",
+        "saveAfterQuickFix": "快速修复只改本地工作区；保存后才会影响后续新 Run。",
         "useRuntimeEnvForSecrets": "不要把密钥写入 URL；请改用 API key 字段后再保存。"
       },
       "actionItemReasons": {
@@ -2182,7 +2182,7 @@
         "skillsInvalid": "当前配置文件的 Skill 选择存在 {{count}} 个依赖或冲突问题。",
         "skillsMissing": "目录中没有可用 Skills。",
         "toolsReady": "{{available}} / {{discovered}} 个工具可用。",
-        "toolsInvalid": "工具权限草稿有 {{count}} 个不可保存项。",
+        "toolsInvalid": "工具权限工作区有 {{count}} 个不可保存项。",
         "toolsMissing": "当前没有可用工具。",
         "pendingChanges": "{{count}} 组配置有未保存变更。",
         "noPendingChanges": "当前配置已保存。"
@@ -2429,25 +2429,25 @@
         "configId": "配置 ID"
       }
     },
-    "draftHistory": {
-      "title": "AI 草稿索引",
-      "description": "这里用于追踪 Agent 产物来源，并跳转到业务页面的对比审阅视图；它不是普通用户处理草稿的主工作台。",
+    "workspaceHistory": {
+      "title": "AI 工作区索引",
+      "description": "这里用于追踪 Agent 产物来源，并跳转到业务页面的对比审阅视图；它不是普通用户处理工作区的主工作台。",
       "searchPlaceholder": "搜索标题、内容、thread 或 run",
       "allProjects": "全部项目",
       "currentProject": "当前项目",
-      "emptySelection": "选择一个草稿查看详情。",
+      "emptySelection": "选择一个工作区查看详情。",
       "copyId": "复制 ID",
       "sourceThread": "来源 thread",
       "sourceRun": "来源 run",
       "filePath": "文件路径",
       "createdAt": "创建时间",
       "updatedAt": "更新时间",
-      "content": "草稿内容",
+      "content": "工作区内容",
       "source": "来源",
       "target": "目标",
       "kindFilters": {
         "all": "全部",
-        "proposal": "提案",
+        "workspace": "工作区",
         "script": "剧本",
         "note": "备注/提示词",
         "other": "其他"
@@ -2534,7 +2534,7 @@
       "projectContext": "项目信息",
       "currentProject": "当前项目：{{name}}",
       "projectRequiredTitle": "先选择一个项目",
-      "projectRequiredHint": "Agent 会围绕当前项目信息读取内容、创建草稿和执行工具。",
+      "projectRequiredHint": "Agent 会围绕当前项目信息读取内容、创建工作区和执行工具。",
       "projectRequiredMessage": "请先选择一个项目，或者在输入框上方创建新项目后再继续。",
       "selectProject": "选择项目",
       "createProjectInline": "创建",
@@ -2570,25 +2570,25 @@
         "collapse": "折叠当前状态",
         "expand": "展开当前状态"
       },
-      "drafts": {
+      "workspaces": {
         "title": "待确认建议",
         "filters": {
           "allStatuses": "全部状态",
           "allKinds": "全部类型"
         },
         "status": {
-          "draft": "待确认",
+          "workspace": "待确认",
           "accepted": "已采纳",
           "rejected": "已删除",
           "applied": "已写入",
           "superseded": "已替换"
         },
         "kinds": {
-          "setting_proposal": "设定资料提案",
-          "asset_proposal": "素材候选提案",
-          "project_standards_proposal": "项目规范提案",
-          "production_proposal": "制作提案",
-          "content_unit_proposal": "制作项提案"
+          "setting_workspace": "设定资料工作区",
+          "asset_workspace": "素材候选工作区",
+          "project_standards_workspace": "项目规范工作区",
+          "production_workspace": "制作工作区",
+          "content_unit_workspace": "制作项工作区"
         }
       },
       "modes": {
@@ -2643,8 +2643,8 @@
           "capabilities": "能力",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "草稿",
-          "drafts": "草稿"
+          "artifacts": "工作区",
+          "workspaces": "工作区"
         },
         "status": {
           "localRuntimeOnline": "本地 Runtime 已上线",
@@ -2678,7 +2678,7 @@
           "pageContext": "页面上下文",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "草稿"
+          "artifacts": "工作区"
         },
         "pageContext": {
           "page": "页面",
@@ -2686,13 +2686,13 @@
           "route": "路由",
           "entity": "实体",
           "selection": "选择",
-          "currentDraft": "当前草稿",
+          "currentWorkspace": "当前工作区",
           "unknown": "未知页面",
           "none": "无实体",
-          "noDraft": "未绑定",
+          "noWorkspace": "未绑定",
           "empty": "当前对话没有页面上下文。",
-          "draftHint": "Agent 应在这个页面绑定的草稿里填充、修改或校验内容；应用草稿仍由对应页面处理。",
-          "noDraftHint": "当前上下文没有绑定可写草稿。需要写入类任务时，应先由页面创建草稿壳再交给 Agent。"
+          "workspaceHint": "Agent 应在这个页面绑定的工作区里填充、修改或校验内容；应用工作区仍由对应页面处理。",
+          "noWorkspaceHint": "当前上下文没有绑定可写工作区。需要写入类任务时，应先由页面创建工作区壳再交给 Agent。"
         },
         "capabilities": {
           "title": "能力",
@@ -2765,21 +2765,21 @@
             "fact": "事实",
             "decision": "决策",
             "entity_ref": "实体引用",
-            "draft": "草稿",
+            "workspace": "工作区",
             "warning": "警告"
           }
         },
-        "drafts": {
-          "currentThreadTitle": "当前 thread 草稿",
-          "history": "历史草稿",
+        "workspaces": {
+          "currentThreadTitle": "当前 thread 工作区",
+          "history": "历史工作区",
           "refresh": "刷新",
-          "noOnline": "先启动本地 Runtime，才能查看 Agent 草稿。",
-          "noThread": "当前对话还没有绑定 runtime thread，发送一次消息后这里会显示本 thread 的草稿。",
-          "emptyFilter": "没有草稿符合当前筛选条件。",
+          "noOnline": "先启动本地 Runtime，才能查看 Agent 工作区。",
+          "noThread": "当前对话还没有绑定 runtime thread，发送一次消息后这里会显示本 thread 的工作区。",
+          "emptyFilter": "没有工作区符合当前筛选条件。",
           "projectBadge": "项目 #{{id}}",
           "openPage": "进入页面",
-          "pageOnlyHint": "这里只负责查看草稿，应用请到对应页面里按需处理。",
-          "noPage": "当前草稿还没有可进入的页面。",
+          "pageOnlyHint": "这里只负责查看工作区，应用请到对应页面里按需处理。",
+          "noPage": "当前工作区还没有可进入的页面。",
           "current": "当前值",
           "proposed": "建议值",
           "entityTypePlaceholder": "实体类型",
@@ -2791,7 +2791,7 @@
           "diff": "差异",
           "apply": "应用",
           "reject": "拒绝",
-          "emptyDraft": "空草稿",
+          "emptyWorkspace": "空工作区",
           "previewSideEffect": "{{sideEffect}}。该写入在执行前需要审批。"
         },
         "debugPreview": {
@@ -2900,8 +2900,8 @@
             "projectCreate": "通过后会创建正式项目记录，并在 MovScript 中可见。",
             "projectWrite": "通过后 Agent 可以写入项目数据，例如创建或更新记录。",
             "scriptCreate": "通过后会把剧本保存为当前项目的正式剧本记录。",
-            "draftApply": "通过后会把已审核的草稿变更应用到当前项目。",
-            "draftWrite": "通过后 Agent 可以更新用于审核的本地草稿数据。",
+            "workspaceApply": "通过后会把已审核的工作区变更应用到当前项目。",
+            "workspaceWrite": "通过后 Agent 可以更新用于审核的本地工作区数据。",
             "memoryWrite": "通过后会修改本地 Agent 记忆，可能影响之后的建议。",
             "memoryDelete": "通过后会删除选中的本地 Agent 记忆。",
             "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
@@ -2985,8 +2985,8 @@
           "projectCreate": "通过后会创建正式项目记录，并在 MovScript 中可见。",
           "projectWrite": "通过后 Agent 可以写入项目数据，例如创建或更新记录。",
           "scriptCreate": "通过后会把剧本保存为当前项目的正式剧本记录。",
-          "draftApply": "通过后会把已审核的草稿变更应用到当前项目。",
-          "draftWrite": "通过后 Agent 可以更新用于审核的本地草稿数据。",
+          "workspaceApply": "通过后会把已审核的工作区变更应用到当前项目。",
+          "workspaceWrite": "通过后 Agent 可以更新用于审核的本地工作区数据。",
           "memoryWrite": "通过后会修改本地 Agent 记忆，可能影响之后的建议。",
           "memoryDelete": "通过后会删除选中的本地 Agent 记忆。",
           "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和配置文件。",
@@ -3683,7 +3683,7 @@
         "frames": "帧数",
         "execution_expires_after": "过期时间(秒)",
         "preset": "预设",
-        "draft": "样片模式",
+        "workspace": "样片模式",
         "size": "尺寸",
         "sequential_image_generation": "组图",
         "optimize_prompt_mode": "提示词优化",
@@ -3988,7 +3988,7 @@
       "projectHome": "首页",
       "projectWorkspace": "项目规范",
       "settingWorkbench": "设定工作台",
-      "assetProposalWorkbench": "素材工作台",
+      "assetWorkspaceWorkbench": "素材工作台",
       "preProduction": "前期准备",
       "projectTaskGraph": "筹备总览",
       "creation": "首页",
@@ -4083,7 +4083,7 @@
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
-      "aiDrafts": "AI 草稿",
+      "aiWorkspaces": "AI 工作区",
       "myAgents": "我的 Agent",
       "agentConsole": "控制台",
       "agentSettings": "Agent 设置",
@@ -4095,7 +4095,7 @@
       "projectHome": "首页",
       "projectWorkspace": "项目规范",
       "settingWorkbench": "设定工作台",
-      "assetProposalWorkbench": "素材工作台",
+      "assetWorkspaceWorkbench": "素材工作台",
       "preProduction": "前期准备",
       "creativeWorkbench": "头脑风暴",
       "projectProduction": "制作",

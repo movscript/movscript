@@ -49,7 +49,7 @@
     "movscript_creative_reference_query",
     "movscript_asset_slot_query",
     "movscript_production_context_query",
-    "draft_model_get",
+    "get_workspace_model",
     "core_user_input_request",
     "generation_model_list",
     "tool_comfyui",

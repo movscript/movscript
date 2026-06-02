@@ -11,7 +11,6 @@ import {
   Save,
   Trash2,
   Upload,
-  Wand2,
   X,
 } from 'lucide-react'
 import {
@@ -68,16 +67,11 @@ import {
   WorkbenchProjectShell,
 } from '@movscript/ui'
 
-import { applyProjectStandardsProposal, getProject } from '@/shared/infrastructure/api/semanticEntities'
+import { applyProjectStandardsWorkspace, getProject } from '@/shared/infrastructure/api/semanticEntities'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
-import { ProjectStandardsProposalReviewPanel } from '@/features/project-standards/components/proposals/ProjectStandardsProposalReviewPanel'
+import { ProjectStandardsWorkspaceReviewPanel } from '@/features/project-standards/components/workspaces/ProjectStandardsWorkspaceReviewPanel'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
 import { buildPageKey } from '@/features/agent/domain/agentCommandInput'
-import {
-  buildProjectStandardsReviewSearchParams,
-  createProjectStandardsProposalDraft,
-  launchProjectStandardsProposalAgent,
-} from '@/features/project-standards/application/projectStandardsAgentLaunch'
 import {
   CORE_STANDARD_DEFS,
   PROMPT_ROLE_LABELS,
@@ -88,12 +82,12 @@ import {
   emptyData,
   emptyRuleForm,
   extractResourceIds,
-  isProjectStandardsProposalHelperDraft,
+  isProjectStandardsWorkspaceHelperWorkspace,
   isRecord,
   loadProjectStandardsWorkspaceData,
   normalizeRuleForm,
-  parseProjectStandardsProposalDraft,
-  parseProjectStyleDraftRows,
+  parseProjectStandardsWorkspaceWorkspace,
+  parseProjectStyleWorkspaceRows,
   projectPromptRulePayload,
   projectPromptRules,
   projectStandardFilledCount,
@@ -113,12 +107,11 @@ import {
   projectStandardsReadyRecipe,
   projectStandardsRequiredRuleRecipe,
 } from '@/features/project-standards/presentation/projectStandardsSemanticUi'
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { toast } from '@/shared/ui/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { RawResource } from '@/types'
-const PROJECT_STANDARDS_AI_PROMPT = '请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。如果需要用图片固定画风，请新增 prompt_role="style" 的 custom_rules，在 value 中记录参考图 resource#ID 或 reference_resource_ids，并说明后续图片/视频生成要把这些 ID 作为 reference_resource_ids 用于画风参考。不要创建设定资料或素材需求。'
 
 type StandardWorkbenchCard =
   | { type: 'core'; def: CoreStandardDef }
@@ -187,16 +180,13 @@ export default function ProjectStandardsPage() {
 export function ProjectStandardsContent() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
-  const orchestrationToolCleanupRef = useRef<(() => void) | null>(null)
   const styleReferenceInputRef = useRef<HTMLInputElement>(null)
   const [searchParams, setSearchParams] = useSearchParams()
-  const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
-  const [launching, setLaunching] = useState(false)
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
-  const [applyingDraftId, setApplyingDraftId] = useState<string | null>(null)
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
+  const [applyingWorkspaceId, setApplyingWorkspaceId] = useState<string | null>(null)
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
   const [editingCoreKey, setEditingCoreKey] = useState<string | null>(null)
-  const [coreDraftValue, setCoreDraftValue] = useState('')
+  const [coreWorkspaceValue, setCoreWorkspaceValue] = useState('')
   const [savingCoreKey, setSavingCoreKey] = useState<string | null>(null)
   const [ruleForm, setRuleForm] = useState<ProjectPromptRuleForm | null>(null)
   const [savingRule, setSavingRule] = useState(false)
@@ -204,7 +194,7 @@ export function ProjectStandardsContent() {
   const [uploadingStyleReferences, setUploadingStyleReferences] = useState(false)
   const [deletingStyleReferenceId, setDeletingStyleReferenceId] = useState<number | null>(null)
   const [lastUploadedStyleReferences, setLastUploadedStyleReferences] = useState<RawResource[]>([])
-  const openedDraftId = searchParams.get('draftId')?.trim() || ''
+  const openedWorkspaceId = searchParams.get('workspaceId')?.trim() || ''
 
   const queryKey = ['project-workspace', projectId] as const
 
@@ -225,121 +215,67 @@ export function ProjectStandardsContent() {
   }, [project?.name, projectId])
 
   useEffect(() => {
-    setActiveDraftId(openedDraftId || null)
-    if (openedDraftId) setReviewDialogOpen(true)
-  }, [openedDraftId])
+    setActiveWorkspaceId(openedWorkspaceId || null)
+    if (openedWorkspaceId) setReviewDialogOpen(true)
+  }, [openedWorkspaceId])
 
-  useEffect(() => {
-    return () => orchestrationToolCleanupRef.current?.()
-  }, [])
-
-  const draftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['project-workspace-drafts', projectId, pageKey, activeDraftId, openedDraftId],
+  const workspacesQuery = useQuery<AgentWorkspace[]>({
+    queryKey: ['project-workspace-workspaces', projectId, pageKey, activeWorkspaceId, openedWorkspaceId],
     queryFn: async () => {
       if (!projectId || !pageKey) return []
-      const scopedDraftId = openedDraftId || activeDraftId
-      if (scopedDraftId) {
-        const draft = await localAgentClient.getDraft(scopedDraftId)
-        return draft.kind === 'project_standards_proposal' ? [draft] : []
+      const scopedWorkspaceId = openedWorkspaceId || activeWorkspaceId
+      if (scopedWorkspaceId) {
+        const workspace = await localAgentClient.getWorkspace(scopedWorkspaceId)
+        return workspace.kind === 'project_standards_workspace' ? [workspace] : []
       }
-      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'project_standards_proposal', pageKey, limit: 20 })
-      return drafts
+      const { workspaces } = await localAgentClient.listWorkspaces({ projectId, kind: 'project_standards_workspace', pageKey, limit: 20 })
+      return workspaces
     },
     enabled: !!projectId && !!pageKey,
-    refetchInterval: (openedDraftId || activeDraftId) ? 1500 : false,
+    refetchInterval: (openedWorkspaceId || activeWorkspaceId) ? 1500 : false,
     refetchIntervalInBackground: false,
   })
 
-  const draftCounts = useMemo(() => {
-    const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectStandardsProposalHelperDraft(draft))
+  const workspaceCounts = useMemo(() => {
+    const workspaces = (workspacesQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
     return {
-      draft: drafts.filter((item) => item.status === 'draft').length,
-      applied: drafts.filter((item) => item.status === 'applied').length,
+      workspace: workspaces.filter((item) => item.status === 'workspace').length,
+      applied: workspaces.filter((item) => item.status === 'applied').length,
     }
-  }, [draftsQuery.data])
-
-  async function startProjectOrchestration(promptOverride?: string) {
-    if (!projectId || !pageKey) return
-    const requestedPrompt = typeof promptOverride === 'string' ? promptOverride : orchestrationPrompt
-    setLaunching(true)
-    try {
-      const draftShell = await createProjectStandardsProposalDraft({
-        projectId,
-        projectName: project?.name,
-        pageKey,
-      })
-      setActiveDraftId(draftShell.id)
-      setReviewDialogOpen(true)
-      setSearchParams((current) => buildProjectStandardsReviewSearchParams(current, { fallbackDraftId: draftShell.id }), { replace: true })
-
-      const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-
-      orchestrationToolCleanupRef.current?.()
-      orchestrationToolCleanupRef.current = launchProjectStandardsProposalAgent({
-        requestId,
-        projectId,
-        projectName: project?.name,
-        draftId: draftShell.id,
-        promptOverride: requestedPrompt,
-        onSettled: async (payload) => {
-          if (payload.run?.status === 'failed' || payload.run?.status === 'cancelled') {
-            await draftsQuery.refetch()
-            return
-          }
-          const nextSearch = buildProjectStandardsReviewSearchParams(new URLSearchParams(searchParams), {
-            artifacts: payload.artifacts,
-            fallbackDraftId: draftShell.id,
-          })
-          setActiveDraftId(nextSearch.get('draftId') || draftShell.id)
-          setReviewDialogOpen(true)
-          setSearchParams((current) => buildProjectStandardsReviewSearchParams(current, {
-            artifacts: payload.artifacts,
-            fallbackDraftId: draftShell.id,
-          }), { replace: true })
-          await draftsQuery.refetch()
-        },
-      })
-      toast.info('已打开项目规范提案会话；AI 生成的草稿会回到审阅区')
-      await draftsQuery.refetch()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '项目规范提案启动失败')
-    } finally {
-      setLaunching(false)
-    }
-  }
+  }, [workspacesQuery.data])
 
   function handleReviewDialogOpenChange(open: boolean) {
     setReviewDialogOpen(open)
     if (open) return
-    setActiveDraftId(null)
-    if (!openedDraftId) return
+    setActiveWorkspaceId(null)
+    if (!openedWorkspaceId) return
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
-      next.delete('draftId')
+      next.delete('workspaceId')
       return next
     }, { replace: true })
   }
 
-  async function applyDraft(draft: AgentDraft) {
+  async function applyWorkspace(workspace: AgentWorkspace) {
     if (!projectId) return
-    if (draft.kind === 'project_standards_proposal') {
-      setApplyingDraftId(draft.id)
+    if (workspace.kind === 'project_standards_workspace') {
+      setApplyingWorkspaceId(workspace.id)
       try {
-        const proposedValue = buildProjectStyleApplyPayload(draft)
-        await localAgentClient.updateDraft(draft.id, {
+        const proposedValue = buildProjectStyleApplyPayload(workspace)
+        await localAgentClient.updateWorkspace(workspace.id, {
           metadata: {
-            ...(isRecord(draft.metadata) ? draft.metadata : {}),
+            ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
             reviewedFrom: 'project-standards-workbench',
             reviewedAt: new Date().toISOString(),
           },
         })
         try {
-          await localAgentClient.applyDraft(draft.id, {
+          await localAgentClient.applyWorkspace(workspace.id, {
             target: {
               projectId,
               entityType: 'project',
               entityId: projectId,
-              field: 'proposal',
+              field: 'workspace',
             },
             currentValue: {
               aspect_ratio: data.project?.aspect_ratio ?? '',
@@ -349,17 +285,17 @@ export function ProjectStandardsContent() {
             proposedValue,
           })
         } catch (error) {
-          await applyProjectStandardsProposal(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
-          await localAgentClient.updateDraft(draft.id, {
+          await applyProjectStandardsWorkspace(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
+          await localAgentClient.updateWorkspace(workspace.id, {
             status: 'applied',
             target: {
               projectId,
               entityType: 'project',
               entityId: projectId,
-              field: 'proposal',
+              field: 'workspace',
             },
             metadata: {
-              ...(isRecord(draft.metadata) ? draft.metadata : {}),
+              ...(isRecord(workspace.metadata) ? workspace.metadata : {}),
               reviewedFrom: 'project-standards-workbench',
               reviewedAt: new Date().toISOString(),
               backendWritePerformed: true,
@@ -371,11 +307,11 @@ export function ProjectStandardsContent() {
         useProjectStore.getState().setCurrent(nextProject)
         toast.success('项目规范已写入后端')
         await refetch()
-        await draftsQuery.refetch()
+        await workspacesQuery.refetch()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : '应用项目规范提案失败')
+        toast.error(error instanceof Error ? error.message : '应用项目规范工作区失败')
       } finally {
-        setApplyingDraftId(null)
+        setApplyingWorkspaceId(null)
       }
       return
     }
@@ -383,15 +319,15 @@ export function ProjectStandardsContent() {
 
   function refreshAll() {
     void refetch()
-    void draftsQuery.refetch()
+    void workspacesQuery.refetch()
   }
 
-  const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectStandardsProposalHelperDraft(draft))
-  const reviewDrafts = useMemo(() => drafts.map((draft) => ({
-    draft,
-    proposalView: parseProjectStandardsProposalDraft(draft, pageKey),
-    styleRows: parseProjectStyleDraftRows(draft, data.project),
-  })), [data.project, drafts, pageKey])
+  const workspaces = (workspacesQuery.data ?? []).filter((workspace) => !isProjectStandardsWorkspaceHelperWorkspace(workspace))
+  const reviewWorkspaces = useMemo(() => workspaces.map((workspace) => ({
+    workspace,
+    workspaceView: parseProjectStandardsWorkspaceWorkspace(workspace, pageKey),
+    styleRows: parseProjectStyleWorkspaceRows(workspace, data.project),
+  })), [data.project, workspaces, pageKey])
 
   const filledStandardCount = projectStandardFilledCount(data.project)
   const missingStandardLabels = projectStandardMissingLabels(data.project)
@@ -420,14 +356,14 @@ export function ProjectStandardsContent() {
     }
     return groups
   }, [visibleCustomRules])
-  const statusSummary = `${filledStandardCount}/8 项核心 · ${visibleCustomRules.length} 条自定义 · ${styleReferenceIds.length} 张风格图 · ${draftCounts.draft} 个待审阅草稿`
+  const statusSummary = `${filledStandardCount}/8 项核心 · ${visibleCustomRules.length} 条自定义 · ${styleReferenceIds.length} 张风格图 · ${workspaceCounts.workspace} 个待审阅工作区`
 
   async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
     if (!projectId) return
-    await applyProjectStandardsProposal(projectId, {
-      scope: 'project_standards_proposal',
+    await applyProjectStandardsWorkspace(projectId, {
+      scope: 'project_standards_workspace',
       mode: 'patch',
-      proposal: {
+      workspace: {
         project_style: projectStyle,
       },
     })
@@ -439,17 +375,17 @@ export function ProjectStandardsContent() {
 
   function openCoreEditor(key: string) {
     setEditingCoreKey(key)
-    setCoreDraftValue(coreStandardText(data.project, key))
+    setCoreWorkspaceValue(coreStandardText(data.project, key))
   }
 
   async function saveCoreStandard(def: CoreStandardDef) {
     if (!projectId) return
     setSavingCoreKey(def.key)
     try {
-      const value = def.list ? splitListText(coreDraftValue) : coreDraftValue.trim()
+      const value = def.list ? splitListText(coreWorkspaceValue) : coreWorkspaceValue.trim()
       await saveProjectStylePatch({ [def.key]: value }, '核心规范已保存')
       setEditingCoreKey(null)
-      setCoreDraftValue('')
+      setCoreWorkspaceValue('')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '保存核心规范失败')
     } finally {
@@ -582,7 +518,7 @@ export function ProjectStandardsContent() {
                 <ProjectStandardsMetric label="核心规范" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `待补充 ${missingStandardLabels.length} 项` : '已覆盖'} tone={missingStandardLabels.length > 0 ? 'warning' : 'success'} compact />
                 <ProjectStandardsMetric label="自定义规则" value={visibleCustomRules.length} detail={`${enabledCustomRules.length} 条启用`} compact />
                 <ProjectStandardsMetric label="风格参考" value={styleReferenceIds.length} detail="参考图" tone={styleReferenceIds.length > 0 ? 'success' : 'neutral'} compact />
-                <ProjectStandardsMetric label="待审草稿" value={draftCounts.draft} detail="Agent draft" tone={draftCounts.draft > 0 ? 'warning' : 'neutral'} compact />
+                <ProjectStandardsMetric label="待审工作区" value={workspaceCounts.workspace} detail="Agent workspace" tone={workspaceCounts.workspace > 0 ? 'warning' : 'neutral'} compact />
               </ProjectStandardsMetricGrid>
               <ProjectStandardsAppSurface className="project-standards-status-strip">
                 <ProjectStandardsTinyText className="text-foreground">{statusSummary}</ProjectStandardsTinyText>
@@ -603,16 +539,12 @@ export function ProjectStandardsContent() {
                           <ProjectStandardsDescription>按创作语境查看规范；点击卡片右上角即可编辑，启用的内容会进入右侧预览。</ProjectStandardsDescription>
                         </div>
                         <div className="project-standards-board-actions">
-                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={refreshAll} loading={isFetching || draftsQuery.isFetching}>
+                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={refreshAll} loading={isFetching || workspacesQuery.isFetching}>
                             刷新
                           </ProjectStandardsActionButton>
                           <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setReviewDialogOpen(true)} disabled={!projectId}>
                             <GitBranch size={12} />
-                            草稿{draftCounts.draft > 0 ? ` ${draftCounts.draft}` : ''}
-                          </ProjectStandardsActionButton>
-                          <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => startProjectOrchestration(PROJECT_STANDARDS_AI_PROMPT)} loading={launching} disabled={!projectId}>
-                            <Wand2 size={12} />
-                            AI 制定
+                            工作区{workspaceCounts.workspace > 0 ? ` ${workspaceCounts.workspace}` : ''}
                           </ProjectStandardsActionButton>
                           <ProjectStandardsActionButton size="sm" className="type-label" onClick={openNewRuleForm}>
                             <Plus size={12} />
@@ -725,9 +657,9 @@ export function ProjectStandardsContent() {
                                   {editing ? (
                                     <div className="mt-2 space-y-2">
                                       {def.multiline ? (
-                                        <ProjectStandardsTextarea value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="min-h-24 type-label" placeholder={def.helper} />
+                                        <ProjectStandardsTextarea value={coreWorkspaceValue} onChange={(event) => setCoreWorkspaceValue(event.target.value)} className="min-h-24 type-label" placeholder={def.helper} />
                                       ) : (
-                                        <ProjectStandardsInput value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="h-8 type-label" placeholder={def.helper} />
+                                        <ProjectStandardsInput value={coreWorkspaceValue} onChange={(event) => setCoreWorkspaceValue(event.target.value)} className="h-8 type-label" placeholder={def.helper} />
                                       )}
                                       <div className="flex justify-end gap-1.5">
                                         <ProjectStandardsActionButton size="sm" variant="outline" className="type-label" onClick={() => setEditingCoreKey(null)}>取消</ProjectStandardsActionButton>
@@ -868,12 +800,12 @@ export function ProjectStandardsContent() {
         <ProjectStandardsDialogContent>
           <ProjectStandardsDialogTitle className="sr-only">项目规范审阅</ProjectStandardsDialogTitle>
           <ProjectStandardsDialogBody>
-            <ProjectStandardsProposalReviewPanel
-              loading={draftsQuery.isLoading}
-              draftCount={draftCounts.draft}
-              drafts={reviewDrafts}
-              applyingDraftId={applyingDraftId}
-              onApplyDraft={(draft) => { void applyDraft(draft) }}
+            <ProjectStandardsWorkspaceReviewPanel
+              loading={workspacesQuery.isLoading}
+              workspaceCount={workspaceCounts.workspace}
+              workspaces={reviewWorkspaces}
+              applyingWorkspaceId={applyingWorkspaceId}
+              onApplyWorkspace={(workspace) => { void applyWorkspace(workspace) }}
             />
           </ProjectStandardsDialogBody>
         </ProjectStandardsDialogContent>

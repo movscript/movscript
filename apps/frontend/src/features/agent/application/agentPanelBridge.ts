@@ -2,9 +2,10 @@ import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentCl
 import { useAgentSessionStore, type AgentPageTaskPayload } from '@/features/agent/state/agentSessionStore'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 
-export const AGENT_PANEL_DRAFT_EVENT = 'movscript:agent-panel-draft'
+export const AGENT_PANEL_WORKSPACE_EVENT = 'movscript:agent-panel-workspace'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
 export const AGENT_PANEL_THREAD_EVENT = 'movscript:agent-panel-thread'
+export const AGENT_PANEL_NEW_CONVERSATION_EVENT = 'movscript:agent-panel-new-conversation'
 
 export interface AgentPanelRunSettledPayload {
   requestId?: string
@@ -18,16 +19,27 @@ export interface AgentPanelRunSettledPayload {
 export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void | Promise<void>
 
 const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
+const pendingNewConversationPayloads: AgentPanelNewConversationPayload[] = []
 
-export type AgentPanelDraftPayload = AgentPageTaskPayload
+export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
 export interface AgentPanelThreadPayload {
   threadId: string
 }
 
-export function openAgentPanelDraft(payload: AgentPanelDraftPayload) {
+export interface AgentPanelNewConversationPayload {
+  projectId?: number
+  title?: string
+}
+
+export function openAgentPanelWorkspace(payload: AgentPanelWorkspacePayload) {
   const normalized = useAgentSessionStore.getState().enqueuePageTask(payload)
-  window.dispatchEvent(new CustomEvent<AgentPanelDraftPayload>(AGENT_PANEL_DRAFT_EVENT, { detail: normalized }))
+  window.dispatchEvent(new CustomEvent<AgentPanelWorkspacePayload>(AGENT_PANEL_WORKSPACE_EVENT, { detail: normalized }))
+}
+
+export function openAgentPanelNewConversation(payload: AgentPanelNewConversationPayload = {}) {
+  pendingNewConversationPayloads.push(payload)
+  window.dispatchEvent(new CustomEvent<AgentPanelNewConversationPayload>(AGENT_PANEL_NEW_CONVERSATION_EVENT, { detail: payload }))
 }
 
 export function openAgentPanelThread(threadId: string) {
@@ -35,8 +47,12 @@ export function openAgentPanelThread(threadId: string) {
   window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, { detail: { threadId } }))
 }
 
-export function consumeAgentPanelDraft() {
+export function consumeAgentPanelWorkspace() {
   return useAgentSessionStore.getState().claimNextQueuedPageTask()
+}
+
+export function consumeAgentPanelNewConversation() {
+  return pendingNewConversationPayloads.shift()
 }
 
 export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPageTool) {

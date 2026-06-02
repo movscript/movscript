@@ -10,7 +10,7 @@ import {
 
 export type KeyframeFrameRole = 'first' | 'middle' | 'last'
 
-export type ContentUnitEditDraft = {
+export type ContentUnitEditWorkspace = {
   title: string
   duration_sec: string
   description: string
@@ -34,7 +34,7 @@ export type ContentUnitEditDraft = {
   storyboard_keyframe_suggestions: string
 }
 
-export type KeyframeEditDraft = {
+export type KeyframeEditWorkspace = {
   frame_role: string
   title: string
   order: string
@@ -167,7 +167,7 @@ export function keyframeDisplayTitle(keyframe: ContentWorkbenchEditRecord) {
   return title.startsWith(roleLabel) ? title : `${roleLabel} · ${title}`
 }
 
-export function contentUnitEditDraftFromRecord(unit?: ContentWorkbenchEditRecord | null): ContentUnitEditDraft {
+export function contentUnitEditWorkspaceFromRecord(unit?: ContentWorkbenchEditRecord | null): ContentUnitEditWorkspace {
   const metadata = parseMetadataJSON(unit?.metadata_json)
   const visualTaskGraph = metadataObject(metadata.visual_taskGraph)
   const storyboardBrief = metadataObject(metadata.storyboard_brief)
@@ -196,49 +196,49 @@ export function contentUnitEditDraftFromRecord(unit?: ContentWorkbenchEditRecord
   }
 }
 
-export function contentUnitEditDraftEqualsRecord(draft: ContentUnitEditDraft, unit: ContentWorkbenchEditRecord) {
-  const original = contentUnitEditDraftFromRecord(unit)
+export function contentUnitEditWorkspaceEqualsRecord(workspace: ContentUnitEditWorkspace, unit: ContentWorkbenchEditRecord) {
+  const original = contentUnitEditWorkspaceFromRecord(unit)
   return Object.keys(original).every((key) => {
-    const field = key as keyof ContentUnitEditDraft
-    return firstText(original[field]) === firstText(draft[field])
+    const field = key as keyof ContentUnitEditWorkspace
+    return firstText(original[field]) === firstText(workspace[field])
   })
 }
 
-export function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEntityPayload {
-  const duration = Number(draft.duration_sec)
+export function contentUnitEditPayload(workspace: ContentUnitEditWorkspace): SemanticEntityPayload {
+  const duration = Number(workspace.duration_sec)
   const visualTaskGraph = {
-    space: draft.visual_task_graph_space.trim(),
-    blocking: draft.visual_task_graph_blocking.trim(),
-    camera_path: draft.visual_task_graph_camera_path.trim(),
-    beats: metadataListFromText(draft.visual_task_graph_beats),
-    props: metadataListFromText(draft.visual_task_graph_props),
-    lighting: draft.visual_task_graph_lighting.trim(),
-    risks: metadataListFromText(draft.visual_task_graph_risks),
+    space: workspace.visual_task_graph_space.trim(),
+    blocking: workspace.visual_task_graph_blocking.trim(),
+    camera_path: workspace.visual_task_graph_camera_path.trim(),
+    beats: metadataListFromText(workspace.visual_task_graph_beats),
+    props: metadataListFromText(workspace.visual_task_graph_props),
+    lighting: workspace.visual_task_graph_lighting.trim(),
+    risks: metadataListFromText(workspace.visual_task_graph_risks),
   }
   const storyboardBrief = {
-    purpose: draft.storyboard_purpose.trim(),
-    subject: draft.storyboard_subject.trim(),
-    composition: draft.storyboard_composition.trim(),
-    action_moment: draft.storyboard_action_moment.trim(),
-    emotion: draft.storyboard_emotion.trim(),
-    keyframe_suggestions: metadataListFromText(draft.storyboard_keyframe_suggestions),
+    purpose: workspace.storyboard_purpose.trim(),
+    subject: workspace.storyboard_subject.trim(),
+    composition: workspace.storyboard_composition.trim(),
+    action_moment: workspace.storyboard_action_moment.trim(),
+    emotion: workspace.storyboard_emotion.trim(),
+    keyframe_suggestions: metadataListFromText(workspace.storyboard_keyframe_suggestions),
   }
   return {
-    title: firstText(draft.title, '未命名制作项'),
+    title: firstText(workspace.title, '未命名制作项'),
     duration_sec: Number.isFinite(duration) && duration > 0 ? duration : null,
-    description: draft.description,
-    prompt: draft.prompt,
-    shot_size: draft.shot_size,
-    camera_angle: draft.camera_angle,
-    camera_motion: draft.camera_motion,
-    metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
+    description: workspace.description,
+    prompt: workspace.prompt,
+    shot_size: workspace.shot_size,
+    camera_angle: workspace.camera_angle,
+    camera_motion: workspace.camera_motion,
+    metadata_json: JSON.stringify(mergeMetadataJSON(workspace.metadata_json, {
       visual_taskGraph: visualTaskGraph,
       storyboard_brief: storyboardBrief,
     })),
   }
 }
 
-export function keyframeEditDraftFromRecord(keyframe?: ContentWorkbenchEditRecord | null): KeyframeEditDraft {
+export function keyframeEditWorkspaceFromRecord(keyframe?: ContentWorkbenchEditRecord | null): KeyframeEditWorkspace {
   return {
     frame_role: keyframeFrameRoleFromRecord(keyframe),
     title: firstText(keyframe?.title),
@@ -249,23 +249,23 @@ export function keyframeEditDraftFromRecord(keyframe?: ContentWorkbenchEditRecor
   }
 }
 
-export function keyframeEditDraftEqualsRecord(draft: KeyframeEditDraft, keyframe: ContentWorkbenchEditRecord) {
-  const original = keyframeEditDraftFromRecord(keyframe)
+export function keyframeEditWorkspaceEqualsRecord(workspace: KeyframeEditWorkspace, keyframe: ContentWorkbenchEditRecord) {
+  const original = keyframeEditWorkspaceFromRecord(keyframe)
   return Object.keys(original).every((key) => {
-    const field = key as keyof KeyframeEditDraft
-    return firstText(original[field]) === firstText(draft[field])
+    const field = key as keyof KeyframeEditWorkspace
+    return firstText(original[field]) === firstText(workspace[field])
   })
 }
 
-export function keyframeEditPayload(draft: KeyframeEditDraft): SemanticEntityPayload {
-  const order = Number(draft.order)
-  const role = normalizeKeyframeFrameRole(draft.frame_role, 'middle')
+export function keyframeEditPayload(workspace: KeyframeEditWorkspace): SemanticEntityPayload {
+  const order = Number(workspace.order)
+  const role = normalizeKeyframeFrameRole(workspace.frame_role, 'middle')
   return {
-    title: firstText(draft.title, keyframeFrameRoleLabel(role)),
+    title: firstText(workspace.title, keyframeFrameRoleLabel(role)),
     order: Number.isFinite(order) && order > 0 ? order : null,
-    description: draft.description,
-    prompt: draft.prompt,
-    metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
+    description: workspace.description,
+    prompt: workspace.prompt,
+    metadata_json: JSON.stringify(mergeMetadataJSON(workspace.metadata_json, {
       frame_role: role,
       frame_role_label: keyframeFrameRoleLabel(role),
     })),

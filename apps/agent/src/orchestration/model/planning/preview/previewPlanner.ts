@@ -1,6 +1,6 @@
 import type { AgentManifest } from '../../../../catalog/manifest/agentManifest.js'
 import type { AgentCommandRuntime } from '../../../../context/command/commandRouter.js'
-import type { AgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { ToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
 import type { SkillDiscoverySummary } from '../../../../context/prompt/builder/modelContextBuilder.js'
@@ -36,7 +36,7 @@ export interface PreviewToolPlanInput {
   command: AgentCommandRuntime
   currentProjectId?: number
   registry: ToolRegistry
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   contractResolver: AgentRuntimeContractResolver
   makeApprovalId: () => string
   now: () => string

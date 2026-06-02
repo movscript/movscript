@@ -11,9 +11,9 @@ export type AgentConversationBlock =
 export interface AgentConversationPresentationInput {
   streamingAssistantMessageId?: string | null
   streamingAssistantText: string
-  pendingSendDraft?: unknown
+  pendingSendWorkspace?: unknown
   loading?: boolean
-  buildingSendDraft?: boolean
+  buildingSendWorkspace?: boolean
   hasPendingAssistantState?: boolean
   activeRun: AgentRun | null
   visibleActivityEvents: ChatRunActivityEvent[]
@@ -35,10 +35,10 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
     blocks.push({ id: 'assistant-stream', type: 'assistant_stream', content: input.streamingAssistantText })
   }
 
-  const blockedByDraft = !!input.pendingSendDraft
+  const blockedByWorkspace = !!input.pendingSendWorkspace
   const runIsNonTerminal = !!input.activeRun && !isTerminalAgentRunStatus(input.activeRun.status)
-  const busy = !!input.loading || !!input.buildingSendDraft
-  const showLiveRunActivity = !blockedByDraft
+  const busy = !!input.loading || !!input.buildingSendWorkspace
+  const showLiveRunActivity = !blockedByWorkspace
     && (busy || runIsNonTerminal)
     && (input.visibleActivityEvents.length > 0 || !!input.activeRun)
   if (showLiveRunActivity) {
@@ -53,7 +53,7 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
 
   const showThinking = blocks.length === 0
     && (busy || !!input.hasPendingAssistantState)
-    && !blockedByDraft
+    && !blockedByWorkspace
   if (showThinking) {
     const block: AgentConversationBlock = { id: 'thinking', type: 'thinking' }
     blocks.push(block)

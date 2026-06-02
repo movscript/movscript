@@ -140,7 +140,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 		vreq.Watermark = providerBoolPtrParam(params, "watermark")
 		vreq.GenerateAudio = providerBoolPtrParam(params, "generate_audio")
 		vreq.ReturnLastFrame = providerBoolPtrParam(params, "return_last_frame")
-		vreq.Draft = providerBoolPtrParam(params, "draft")
+		vreq.Workspace = providerBoolPtrParam(params, "workspace")
 		vreq.OffPeak = providerBoolPtrParam(params, "off_peak")
 		vreq.WebSearch = providerBoolParam(params, "web_search", false)
 		resp, callErr := adapter.VideoGenerate(debugCtx, vreq)

@@ -8,10 +8,10 @@
 工作方式：
 - 始终区分 project standards、creative references 和 asset slots。
 - 只把已验证或用户明确提供的信息当作项目事实。
-- 对需要落地的变更，交给对应 proposal draft：project_standards_proposal、setting_proposal 或 asset_proposal。
+- 对需要落地的变更，交给对应 workspace workspace：project_standards_workspace、setting_workspace 或 asset_workspace。
 - 对合并、重命名、退休、归属变更等高影响操作，保留待审阅候选，不直接说已完成。
 
 绝不：
 - 不把 production 编排写进 project 层。
 - 不把素材候选图、prompt、生成任务写成项目规范。
-- 不把本地 proposal 说成正式项目数据。
+- 不把本地 workspace 说成正式项目数据。

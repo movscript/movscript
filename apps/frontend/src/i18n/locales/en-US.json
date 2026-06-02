@@ -178,7 +178,7 @@
     "workMode": {
       "title": "Choose a Work Mode First",
       "description": "Pick the entry point that fits how you work. You can switch later with the mode icon in the top right.",
-      "agentDescription": "Start from a goal. Let Agent read project context, propose plans, and move drafts, proposals, and generation work forward.",
+      "agentDescription": "Start from a goal. Let Agent read project context, propose plans, and move workspaces, workspaces, and generation work forward.",
       "detailDescription": "Use the full sidebar, project object pages, and focused workbenches for manual review, refinement, and batch management.",
       "agentAction": "Start with Agent mode",
       "detailAction": "Start with Detail mode",
@@ -278,10 +278,10 @@
       "character": "Character",
       "scene": "Scene",
       "prop": "Prop",
-      "draft": "Draft"
+      "workspace": "Workspace"
     },
     "episodeStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "scripted": "Scripted",
       "storyboarded": "Storyboarded",
       "generating": "Generating",
@@ -289,7 +289,7 @@
       "done": "Done"
     },
     "reviewStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "under_review": "In Review",
       "approved": "Approved",
       "revision": "Needs Revision"
@@ -301,7 +301,7 @@
       "scene": "Scene Script"
     },
     "shotStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "prompt_ready": "Ready",
       "generating": "Generating",
       "generated": "Generated",
@@ -393,7 +393,7 @@
     "submit": "Submit for Review",
     "approve": "Approve",
     "requestRevision": "Request Revision",
-    "resetDraft": "Reset to Draft"
+    "resetWorkspace": "Reset to Workspace"
   },
   "details": {
     "aiAnalyze": "AI Analyze",
@@ -424,10 +424,10 @@
     "rawSourceVideo": "Raw Source Video",
     "uploadKeyframe": "Upload Visual Anchor",
     "generateKeyframe": "AI Generate Visual Anchor",
-    "draftVideo": "Draft Video",
+    "workspaceVideo": "Workspace Video",
     "cameraReference": "Camera control reference",
-    "noDraftVideo": "No draft video",
-    "generateDraft": "AI Generate Draft",
+    "noWorkspaceVideo": "No workspace video",
+    "generateWorkspace": "AI Generate Workspace",
     "contentManagement": "Content Management",
     "scriptBody": "Script Body",
     "scriptSummary": "Script Outline",
@@ -857,17 +857,17 @@
         "title": "Production Management Status",
         "ready": "Confirmed",
         "pending": "Pending",
-        "missing": "No draft found",
+        "missing": "No workspace found",
         "readySummary": "Production management is confirmed and can move on to task assignment and review.",
-        "pendingSummary": "This project has a production management draft, but it is not ready for production yet.",
-        "missingSummary": "There is no usable production management draft yet. Confirm one in Production Management first.",
+        "pendingSummary": "This project has a production management workspace, but it is not ready for production yet.",
+        "missingSummary": "There is no usable production management workspace yet. Confirm one in Production Management first.",
         "readyTitle": "Ready for production",
         "notReadyTitle": "Not in a production-ready state yet",
         "savedAt": "Saved at: {{value}}",
         "confirmedAt": "Confirmed at: {{value}}",
         "unknown": "N/A",
-        "foundDraft": "Latest production management draft",
-        "noDraft": "The latest saved draft will appear here after Production Management is used.",
+        "foundWorkspace": "Latest production management workspace",
+        "noWorkspace": "The latest saved workspace will appear here after Production Management is used.",
         "enterProduction": "Enter Production",
         "goPreview": "Go to Production Management",
         "viewPreview": "View Production Management"
@@ -1083,7 +1083,7 @@
       "totalReferences": "Shot references",
       "totalDuration": "Total duration",
       "analysisMode": "Analysis mode",
-      "localAnalysis": "Backend analysis draft",
+      "localAnalysis": "Backend analysis workspace",
       "librarySources": "Library sources",
       "defaultSourceName": "Movscript",
       "sourceFilter": "Shot library source filter",
@@ -1105,7 +1105,7 @@
         "production": "Production"
       },
       "emptyTitle": "No shot references yet",
-      "emptyDescription": "Upload a shot video. The system will read video metadata and create a first structured analysis draft.",
+      "emptyDescription": "Upload a shot video. The system will read video metadata and create a first structured analysis workspace.",
       "noMatches": "No matching shot references",
       "detailTitle": "Shot breakdown",
       "selectHint": "Select a shot reference to inspect its breakdown",
@@ -1160,17 +1160,17 @@
     "description": "Manage Agent runtime config files, installed capabilities, Skills, tools, and run history.",
     "tools": {
       "names": {
-        "draft_apply": "Apply draft",
+        "workspace_apply": "Apply workspace",
         "candidate_asset_slot_attach": "Add asset-slot candidate",
         "candidate_keyframe_attach": "Add keyframe candidate",
         "generation_job_cancel": "Cancel generation job",
         "core_work_cancel": "Cancel runtime work",
-        "draft_create": "Create draft",
+        "workspace_create": "Create workspace",
         "generation_job_create": "Create generation job",
         "core_memory_create": "Create memory",
         "movscript_project_create": "Create project",
         "core_memory_delete": "Delete memory",
-        "draft_model_get": "Read draft model",
+        "get_workspace_model": "Read workspace model",
         "movscript_focus_get": "Read current focus",
         "generation_job_get": "Inspect generation job",
         "reference_get": "Read reference",
@@ -1190,7 +1190,7 @@
         "core_memory_search": "Search memories",
         "core_work_start": "Start runtime work",
         "core_skill_update": "Update active skills",
-        "draft_apply_preview": "Preview draft apply",
+        "workspace_apply_preview": "Preview workspace apply",
         "read_file": "Read file",
         "search_file": "Search file",
         "edit_file": "Edit file",
@@ -1221,9 +1221,9 @@
         "agent_work_read": "Read async work",
         "agent_work_write": "Manage async work",
         "asset_candidate_write": "Write asset candidates",
-        "draft_apply": "Apply draft changes",
-        "draft_read": "Read draft",
-        "draft_write": "Write draft",
+        "workspace_apply": "Apply workspace changes",
+        "workspace_read": "Read workspace",
+        "workspace_write": "Write workspace",
         "generation_create": "Create generation job",
         "generation_read": "Read generation job",
         "generation_cancel": "Cancel generation job",
@@ -1279,7 +1279,7 @@
         "skills": "Skills",
         "tools": "Tools",
         "toolConsole": "MCP Calls",
-        "draftRuntime": "Draft Runtime",
+        "workspaceRuntime": "Workspace Runtime",
         "prompt": "Prompt",
         "context": "Context",
         "runs": "Runs",
@@ -1330,10 +1330,10 @@
         "toolSchema": "Tool Input Schema",
         "toolConsoleOutput": "Tool Output Summary",
         "toolConsoleResult": "Call Result",
-        "draftRuntime": "Draft Runtime Debug",
-        "draftRuntimeSchema": "Draft Tool Input Schema",
-        "draftRuntimeOutput": "Draft Tool Output Summary",
-        "draftRuntimeResult": "Draft Call Result",
+        "workspaceRuntime": "Workspace Runtime Debug",
+        "workspaceRuntimeSchema": "Workspace Tool Input Schema",
+        "workspaceRuntimeOutput": "Workspace Tool Output Summary",
+        "workspaceRuntimeResult": "Workspace Call Result",
         "activatedSkills": "Activated Skills",
         "skillCatalog": "Skill Catalog",
         "promptParts": "Prompt Parts",
@@ -1396,21 +1396,21 @@
         "status": "Status"
       },
       "toolConsole": {
-        "warning": "Only external MCP tools with source=mcp are listed here. Calls are still forwarded by Agent Runtime, but local Runtime draft / memory / taskGraph tools are hidden.",
-        "runtimeBoundary": "Draft capabilities currently live in Agent Runtime local tools, such as draft_model_get, draft_create, and draft_apply_preview. They are not external MCP calls and should be verified in a separate Draft Runtime debug entry.",
+        "warning": "Only external MCP tools with source=mcp are listed here. Calls are still forwarded by Agent Runtime, but local Runtime workspace / memory / taskGraph tools are hidden.",
+        "runtimeBoundary": "Workspace capabilities currently live in Agent Runtime local tools, such as get_workspace_model, workspace_open, and workspace_validate. They are not external MCP calls and should be verified in a separate Workspace Runtime debug entry.",
         "tool": "MCP tool",
         "args": "JSON args",
         "run": "Run Tool",
         "refreshTrace": "Refresh Trace"
       },
-      "draftRuntime": {
-        "boundary": "This panel calls Agent Runtime local draft tools to verify draft model seed, draft creation, validation, and preview apply. It is not external MCP.",
-        "tool": "Draft Runtime tool",
+      "workspaceRuntime": {
+        "boundary": "This panel calls Agent Runtime local workspace tools to verify workspace model seed, open workspaces, validate, and save. It is not external MCP.",
+        "tool": "Workspace Runtime tool",
         "args": "JSON args",
-        "run": "Run Draft Tool",
-        "assetModelPreset": "Asset proposal model",
-        "createAssetDraftPreset": "Create asset draft shell",
-        "createProductionDraftPreset": "Create production proposal shell",
+        "run": "Run Workspace Tool",
+        "assetModelPreset": "Asset workspace model",
+        "createAssetWorkspacePreset": "Create asset workspace shell",
+        "createProductionWorkspacePreset": "Create production workspace shell",
         "previewApplyPreset": "Preview apply",
         "refreshTrace": "Refresh Trace"
       },
@@ -1571,9 +1571,9 @@
         "noToolSelected": "No tool selected.",
         "noMcpTools": "No external MCP tools are available.",
         "noToolConsoleResult": "Run a tool to show the run and trace.",
-        "noDraftRuntimeTools": "No Draft Runtime tools are available.",
-        "noDraftRuntimeToolSelected": "No Draft Runtime tool selected.",
-        "noDraftRuntimeResult": "Run a Draft Runtime tool to show the run and trace.",
+        "noWorkspaceRuntimeTools": "No Workspace Runtime tools are available.",
+        "noWorkspaceRuntimeToolSelected": "No Workspace Runtime tool selected.",
+        "noWorkspaceRuntimeResult": "Run a Workspace Runtime tool to show the run and trace.",
         "modelConfigReadFailed": "Model config could not be read: {{reason}}"
       },
       "values": {
@@ -1762,14 +1762,14 @@
         "futureTools": "Leave room for provider-side built-in tools without changing the settings boundary.",
         "preserveCompatibility": "Keep Chat Completions only for older message/choice integrations during migration.",
         "verifyModel": "Confirm the direct provider model id and Base URL are valid for the Responses API.",
-        "switchResponses": "Switch the draft call mode to Responses, save, then run the connectivity test.",
+        "switchResponses": "Switch the workspace call mode to Responses, save, then run the connectivity test.",
         "providerNative": "Use Anthropic Messages when evaluating Claude-family provider-native behavior.",
         "compare": "Compare behavior against OpenAI modes through run outputs and read-only Debug observations.",
         "keepSeparate": "Do not mix Anthropic provider settings into the OpenAI migration path."
       },
       "apiModeSwitchPlanTitle": "Call Mode Switch TaskGraph",
       "apiModeSwitchPlanHelp": "Review the concrete blockers before saving. {{actions}} actions and {{warnings}} review items are currently visible.",
-      "apiModeSwitchPlanCopyContext": "Draft call mode: {{apiKind}}",
+      "apiModeSwitchPlanCopyContext": "Workspace call mode: {{apiKind}}",
       "copyApiModeSwitchTaskGraph": "Copy switch taskGraph",
       "apiModeSwitchPlanCopied": "Switch taskGraph copied",
       "apiModeSwitchTaskGraph": {
@@ -1785,7 +1785,7 @@
         "targetModeMigration": "{{apiKind}} should migrate toward {{targetApiKind}} for new Agent work.",
         "probeMissing": "Compatibility probe data is not available yet.",
         "saveTestBlocked": "Resolve action items before saving and running the model connectivity test.",
-        "saveTestPending": "Draft changes are ready for Save and Test after review.",
+        "saveTestPending": "Workspace changes are ready for Save and Test after review.",
         "saveTestReady": "Saved configuration is ready for the model connectivity test."
       },
       "selectModel": "Select model",
@@ -1819,7 +1819,7 @@
       "installPackHelp": "Paste Pack JSON with pluginId and files. The Agent catalog reloads automatically after install.",
       "loadPackFile": "Load JSON File",
       "packFileLoaded": "Loaded {{fileName}}. Review the content before installing.",
-      "packDraftSummary": "Ready to install: {{pluginId}}, {{count}} files, {{size}}.",
+      "packWorkspaceSummary": "Ready to install: {{pluginId}}, {{count}} files, {{size}}.",
       "installPackAction": "Install",
       "installPackPlaceholder": "{\n  \"pluginId\": \"my-agent-skills\",\n  \"files\": [\n    { \"path\": \"SKILL.md\", \"content\": \"---\\nname: ...\\ndescription: ...\\n---\\n...\" }\n  ]\n}",
       "installPackDone": "Installed {{count}} files for {{pluginId}}.",
@@ -1905,7 +1905,7 @@
       "configFileApprovalDefaultFields": {
         "default": "Default",
         "read": "Read-only",
-        "draft": "Draft",
+        "workspace": "Workspace",
         "write": "Write",
         "generate": "Generate",
         "destructive": "Destructive",
@@ -1977,10 +1977,10 @@
       "toolPermissionsFilterPresetsHelp": "Save recurring tool reviews such as write-risk or currently unavailable tools.",
       "toolPermissionsFilterPresetsEmpty": "No saved filters yet.",
       "toolPermissionsAllowDisabled": "Only tools granted by the current config file and available in Runtime can be saved as allowed.",
-      "toolPermissionsDraftIssues": "Tool permission draft has unsavable items",
-      "toolPermissionsDraftInvalid": "Tool permission draft has {{count}} unsavable items.",
-      "fixToolPermissionsDraftIssues": "Fix Draft",
-      "toolPermissionsDraftIssueDetails": {
+      "toolPermissionsWorkspaceIssues": "Tool permission workspace has unsavable items",
+      "toolPermissionsWorkspaceInvalid": "Tool permission workspace has {{count}} unsavable items.",
+      "fixToolPermissionsWorkspaceIssues": "Fix Workspace",
+      "toolPermissionsWorkspaceIssueDetails": {
         "notConfigFileGranted": "Not granted by the current config file.",
         "unavailableAllow": "Currently unavailable ({{reason}}), so it cannot be saved as allowed."
       },
@@ -2041,8 +2041,8 @@
         "settings_snapshot_restored": "Restored",
         "settings_backup_cleared": "Backup cleared",
         "settings_quick_fix_applied": "Quick fix",
-        "settings_quick_fix_draft_reset": "Draft reset",
-        "settings_quick_fix_draft_repair": "Draft repair",
+        "settings_quick_fix_workspace_reset": "Workspace reset",
+        "settings_quick_fix_workspace_repair": "Workspace repair",
         "settings_quick_fix_sensitive_cleanup": "Sensitive cleanup",
         "settings_quick_fix_risk_downgrade": "Risk downgrade",
         "settings_quick_fix_mode_migration": "Mode migration",
@@ -2089,12 +2089,12 @@
       },
       "quickFixes": {
         "jumpToSection": "Locate",
-        "resetDraft": "Reset Draft",
+        "resetWorkspace": "Reset Workspace",
         "confirmClearModelConfig": "Prepare Clear Model Config",
         "enableChatRoute": "Enable Chat Route",
         "switchOpenAIResponses": "Switch to Responses",
         "stripSensitiveBaseURLQuery": "Remove Sensitive Params",
-        "switchedToResponses": "Local draft switched to OpenAI Responses. Save before future new runs use it.",
+        "switchedToResponses": "Local workspace switched to OpenAI Responses. Save before future new runs use it.",
         "applied": "Local fix applied. Review and save any configuration that should persist."
       },
       "actionItems": {
@@ -2110,7 +2110,7 @@
         "configFileUnsaved": "Active config file has unsaved changes",
         "skillConfigInvalid": "The current config file's Skill selection has conflicts",
         "skillConfigUnsaved": "Skill config has unsaved changes",
-        "toolPermissionsInvalid": "Tool permission draft cannot be saved",
+        "toolPermissionsInvalid": "Tool permission workspace cannot be saved",
         "toolPermissionsUnsaved": "Tool permission has unsaved changes",
         "toolsBlocked": "All tools are unavailable"
       },
@@ -2127,13 +2127,13 @@
         "configFileUnsaved": "Save the config file before future new runs use the new capability config.",
         "skillConfigInvalid": "There are {{count}} dependency or conflict issues. Fix them before saving the current config file's Skill selection.",
         "skillConfigUnsaved": "Save Skill config before future new runs use the new Skill activation choices.",
-        "toolPermissionsInvalid": "Tool permission draft has {{count}} unsavable items. Fix them before saving tool permissions.",
+        "toolPermissionsInvalid": "Tool permission workspace has {{count}} unsavable items. Fix them before saving tool permissions.",
         "toolPermissionsUnsaved": "Save tool permissions before future new runs use the new tightened permissions.",
         "toolsBlocked": "{{count}} tools were discovered, but none are available under the current permissions."
       },
       "actionItemPersistHints": {
-        "saveOrReset": "This is a Settings draft: save to affect future new runs, or reset to discard local changes.",
-        "saveAfterQuickFix": "Quick fix only changes the local draft; save before it affects future new runs.",
+        "saveOrReset": "This is a Settings workspace: save to affect future new runs, or reset to discard local changes.",
+        "saveAfterQuickFix": "Quick fix only changes the local workspace; save before it affects future new runs.",
         "useRuntimeEnvForSecrets": "Do not store secrets in URLs; switch to the API key field before saving."
       },
       "actionItemReasons": {
@@ -2182,7 +2182,7 @@
         "skillsInvalid": "The current config file's Skill selection has {{count}} dependency or conflict issues.",
         "skillsMissing": "No Skills are available in the catalog.",
         "toolsReady": "{{available}} / {{discovered}} tools available.",
-        "toolsInvalid": "Tool permission draft has {{count}} unsavable items.",
+        "toolsInvalid": "Tool permission workspace has {{count}} unsavable items.",
         "toolsMissing": "No tools are available.",
         "pendingChanges": "{{count}} configuration groups have unsaved changes.",
         "noPendingChanges": "Current configuration is saved."
@@ -2429,25 +2429,25 @@
         "configId": "Config ID"
       }
     },
-    "draftHistory": {
-      "title": "AI Draft Index",
-      "description": "Use this index to trace Agent output provenance and jump into business review pages. It is not the primary draft workspace for ordinary users.",
+    "workspaceHistory": {
+      "title": "AI Workspace Index",
+      "description": "Use this index to trace Agent output provenance and jump into business review pages. It is not the primary workspace workspace for ordinary users.",
       "searchPlaceholder": "Search title, content, thread, or run",
       "allProjects": "All projects",
       "currentProject": "Current project",
-      "emptySelection": "Select a draft to inspect it.",
+      "emptySelection": "Select a workspace to inspect it.",
       "copyId": "Copy ID",
       "sourceThread": "Source thread",
       "sourceRun": "Source run",
       "filePath": "File path",
       "createdAt": "Created",
       "updatedAt": "Updated",
-      "content": "Draft content",
+      "content": "Workspace content",
       "source": "Source",
       "target": "Target",
       "kindFilters": {
         "all": "All",
-        "proposal": "Proposals",
+        "workspace": "Workspaces",
         "script": "Scripts",
         "note": "Notes/prompts",
         "other": "Other"
@@ -2534,7 +2534,7 @@
       "projectContext": "Project info",
       "currentProject": "Current project: {{name}}",
       "projectRequiredTitle": "Select a project first",
-      "projectRequiredHint": "The Agent uses the current project info for drafts and tool actions.",
+      "projectRequiredHint": "The Agent uses the current project info for workspaces and tool actions.",
       "projectRequiredMessage": "Please select a project, or create a new one above the input box before continuing.",
       "selectProject": "Select project",
       "createProjectInline": "Create",
@@ -2570,25 +2570,25 @@
         "collapse": "Collapse current status",
         "expand": "Expand current status"
       },
-      "drafts": {
+      "workspaces": {
         "title": "Review Items",
         "filters": {
           "allStatuses": "All statuses",
           "allKinds": "All types"
         },
         "status": {
-          "draft": "Pending review",
+          "workspace": "Pending review",
           "accepted": "Accepted",
           "rejected": "Deleted",
           "applied": "Written",
           "superseded": "Replaced"
         },
         "kinds": {
-          "setting_proposal": "Setting proposal",
-          "asset_proposal": "Asset candidate proposal",
-          "project_standards_proposal": "Project standards proposal",
-          "production_proposal": "Production proposal",
-          "content_unit_proposal": "Production item proposal"
+          "setting_workspace": "Setting workspace",
+          "asset_workspace": "Asset candidate workspace",
+          "project_standards_workspace": "Project standards workspace",
+          "production_workspace": "Production workspace",
+          "content_unit_workspace": "Production item workspace"
         }
       },
       "modes": {
@@ -2716,12 +2716,12 @@
       "kindFact": "Fact",
       "kindDecision": "Decision",
       "kindEntityRef": "Entity reference",
-      "kindDraft": "Draft",
+      "kindWorkspace": "Workspace",
       "kindWarning": "Warning",
-      "draftsTitle": "Review Items",
+      "workspacesTitle": "Review Items",
       "allStatuses": "All statuses",
       "allKinds": "All types",
-      "statusDraft": "Pending review",
+      "statusWorkspace": "Pending review",
       "statusAccepted": "Accepted",
       "statusRejected": "Rejected",
       "statusApplied": "Written",
@@ -2759,8 +2759,8 @@
           "capabilities": "Capabilities",
           "prompt": "Prompt",
           "execution": "Execution",
-          "artifacts": "Drafts",
-          "drafts": "Drafts"
+          "artifacts": "Workspaces",
+          "workspaces": "Workspaces"
         },
         "status": {
           "localRuntimeOnline": "Local runtime online",
@@ -2794,7 +2794,7 @@
           "pageContext": "Page Context",
           "prompt": "Prompt",
           "execution": "Execution",
-          "artifacts": "Drafts"
+          "artifacts": "Workspaces"
         },
         "pageContext": {
           "page": "Page",
@@ -2802,13 +2802,13 @@
           "route": "Route",
           "entity": "Entity",
           "selection": "Selection",
-          "currentDraft": "Current draft",
+          "currentWorkspace": "Current workspace",
           "unknown": "Unknown page",
           "none": "No entity",
-          "noDraft": "Not bound",
+          "noWorkspace": "Not bound",
           "empty": "This conversation has no page context.",
-          "draftHint": "The agent should fill, modify, or validate this page-bound draft. Applying the draft still belongs to the corresponding page.",
-          "noDraftHint": "No writable draft is bound to this context. Write flows should create a page-owned draft shell before handing work to the agent."
+          "workspaceHint": "The agent should fill, modify, or validate this page-bound workspace. Applying the workspace still belongs to the corresponding page.",
+          "noWorkspaceHint": "No writable workspace is bound to this context. Write flows should create a page-owned workspace shell before handing work to the agent."
         },
         "capabilities": {
           "title": "Capabilities",
@@ -2881,21 +2881,21 @@
             "fact": "Fact",
             "decision": "Decision",
             "entity_ref": "Entity reference",
-            "draft": "Draft",
+            "workspace": "Workspace",
             "warning": "Warning"
           }
         },
-        "drafts": {
-          "currentThreadTitle": "Current thread drafts",
-          "history": "Draft history",
+        "workspaces": {
+          "currentThreadTitle": "Current thread workspaces",
+          "history": "Workspace history",
           "refresh": "Refresh",
-          "noOnline": "Start the local runtime to inspect Agent drafts.",
-          "noThread": "This conversation is not bound to a runtime thread yet. Send a message to show drafts from this thread.",
-          "emptyFilter": "No drafts match this filter.",
+          "noOnline": "Start the local runtime to inspect Agent workspaces.",
+          "noThread": "This conversation is not bound to a runtime thread yet. Send a message to show workspaces from this thread.",
+          "emptyFilter": "No workspaces match this filter.",
           "projectBadge": "project #{{id}}",
           "openPage": "Open page",
-          "pageOnlyHint": "This view only inspects the draft. Apply it from the target page as needed.",
-          "noPage": "This draft does not have an available page entry yet.",
+          "pageOnlyHint": "This view only inspects the workspace. Apply it from the target page as needed.",
+          "noPage": "This workspace does not have an available page entry yet.",
           "current": "Current",
           "proposed": "Proposed",
           "entityTypePlaceholder": "entity type",
@@ -2907,7 +2907,7 @@
           "diff": "Diff",
           "apply": "Apply",
           "reject": "Reject",
-          "emptyDraft": "Empty draft",
+          "emptyWorkspace": "Empty workspace",
           "previewSideEffect": "{{sideEffect}} Approval is required before this write can run."
         },
         "debugPreview": {
@@ -3016,8 +3016,8 @@
             "projectCreate": "Approving will create a formal project record visible in MovScript.",
             "projectWrite": "Approving will let the agent write project data, such as creating or updating records.",
             "scriptCreate": "Approving will save the script as a formal project script record.",
-            "draftApply": "Approving will apply the reviewed draft changes to the current project.",
-            "draftWrite": "Approving will let the agent update local draft data used for review.",
+            "workspaceApply": "Approving will apply the reviewed workspace changes to the current project.",
+            "workspaceWrite": "Approving will let the agent update local workspace data used for review.",
             "memoryWrite": "Approving will change local agent memory and may affect future suggestions.",
             "memoryDelete": "Approving will delete the selected local agent memory.",
             "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
@@ -3101,8 +3101,8 @@
           "projectCreate": "Approving will create a formal project record visible in MovScript.",
           "projectWrite": "Approving will let the agent write project data, such as creating or updating records.",
           "scriptCreate": "Approving will save the script as a formal project script record.",
-          "draftApply": "Approving will apply the reviewed draft changes to the current project.",
-          "draftWrite": "Approving will let the agent update local draft data used for review.",
+          "workspaceApply": "Approving will apply the reviewed workspace changes to the current project.",
+          "workspaceWrite": "Approving will let the agent update local workspace data used for review.",
           "memoryWrite": "Approving will change local agent memory and may affect future suggestions.",
           "memoryDelete": "Approving will delete the selected local agent memory.",
           "catalogReload": "Approving will reload local skills, tools, packs, and config files from disk.",
@@ -3799,7 +3799,7 @@
         "frames": "Frames",
         "execution_expires_after": "Expiration (seconds)",
         "preset": "Preset",
-        "draft": "Draft Mode",
+        "workspace": "Workspace Mode",
         "size": "Size",
         "sequential_image_generation": "Sequential Images",
         "optimize_prompt_mode": "Prompt Optimization",
@@ -4104,7 +4104,7 @@
       "projectHome": "Home",
       "projectWorkspace": "Project Standards",
       "settingWorkbench": "Setting Workbench",
-      "assetProposalWorkbench": "Asset Workbench",
+      "assetWorkspaceWorkbench": "Asset Workbench",
       "preProduction": "Pre-production",
       "projectTaskGraph": "Prep Overview",
       "creation": "Home",
@@ -4199,7 +4199,7 @@
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",
-      "aiDrafts": "AI Drafts",
+      "aiWorkspaces": "AI Workspaces",
       "myAgents": "My Agents",
       "agentConsole": "Console",
       "agentSettings": "Agent Settings",
@@ -4211,7 +4211,7 @@
       "projectHome": "Home",
       "projectWorkspace": "Project Standards",
       "settingWorkbench": "Setting Workbench",
-      "assetProposalWorkbench": "Asset Workbench",
+      "assetWorkspaceWorkbench": "Asset Workbench",
       "preProduction": "Pre-production",
       "creativeWorkbench": "Creative Workbench",
       "projectProduction": "Production Overview",

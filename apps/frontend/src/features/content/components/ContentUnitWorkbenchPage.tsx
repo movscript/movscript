@@ -4,12 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 import { RESOURCE_UPLOAD_ACCEPT } from '@/shared/domain/mediaTypes'
-import {
-  buildContentWorkbenchAiSuggestLaunchInput,
-  buildContentWorkbenchVisualPlanLaunchInput,
-  launchContentWorkbenchAiSuggestAgent,
-  launchContentWorkbenchVisualPlanAgent,
-} from '@/features/content/application/contentWorkbenchAgentLaunch'
 import { contentWorkbenchCanvasRoute, openContentWorkbenchUnitCanvas } from '@/features/content/application/contentWorkbenchCanvasLaunch'
 import { useContentWorkbenchPageController } from '@/features/content/application/contentWorkbenchPageController'
 import {
@@ -250,7 +244,7 @@ export function ContentUnitWorkbenchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const candidateUploadInput = useContentWorkbenchCandidateUploadInput()
   const [creatingUnit, setCreatingUnit] = useState(false)
-  const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
+  const [unitWorkspaceDefaults, setUnitWorkspaceDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
   const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
   const [editingUnit, setEditingUnit] = useState(false)
@@ -424,7 +418,7 @@ export function ContentUnitWorkbenchPage() {
 
   function openCreateUnit() {
     if (!selected) return
-    setUnitDraftDefaults(null)
+    setUnitWorkspaceDefaults(null)
     setCreatingUnit(true)
   }
 
@@ -452,35 +446,6 @@ export function ContentUnitWorkbenchPage() {
       disabled: uploadCandidate.isPending,
       onUpload: (input) => uploadCandidate.mutate(input),
     })
-  }
-
-  function openAiSuggest(rowOverride?: ContentGenerationMomentRow) {
-    const launchInput = buildContentWorkbenchAiSuggestLaunchInput({
-      projectId,
-      row: rowOverride ?? selected,
-      productions: data?.productions ?? [],
-    })
-    if (!launchInput) {
-      toast.info('请先选择情节')
-      return
-    }
-    launchContentWorkbenchAiSuggestAgent(launchInput)
-    toast.success('已打开 AI 助手，可在输入框补充需求后发送')
-  }
-
-  function openAiVisualTaskGraph(unitOverride?: WorkbenchRecord | null) {
-    const launchInput = buildContentWorkbenchVisualPlanLaunchInput({
-      projectId,
-      row: selected,
-      unit: unitOverride ?? selectedUnit,
-      productions: data?.productions ?? [],
-    })
-    if (!launchInput) {
-      toast.info('请先选择情节和制作项')
-      return
-    }
-    launchContentWorkbenchVisualPlanAgent(launchInput)
-    toast.success('已打开 AI 助手，可起草当前制作项的视觉计划')
   }
 
   const shellProps = useProjectWorkbenchShellProps({
@@ -550,8 +515,6 @@ export function ContentUnitWorkbenchPage() {
                   unit={selectedUnit}
                   onSelectUnit={selectContentUnit}
                   onCreateUnit={openCreateUnit}
-                  onAiSuggest={() => openAiSuggest(selected ?? undefined)}
-                  onAiVisualTaskGraph={() => openAiVisualTaskGraph(selectedUnit)}
                   onCreateAssetSlot={openCreateAssetSlot}
                   onCreateKeyframe={openCreateKeyframe}
                   onOpenCanvas={openSelectedUnitCanvas}
@@ -575,7 +538,7 @@ export function ContentUnitWorkbenchPage() {
         assetSlotConfig={assetSlotConfig}
         keyframeConfig={keyframeConfig}
         creatingUnit={creatingUnit}
-        unitDraftDefaults={unitDraftDefaults}
+        unitWorkspaceDefaults={unitWorkspaceDefaults}
         editingUnit={editingUnit}
         creatingAssetSlot={creatingAssetSlot}
         assetSlotDefaults={assetSlotDefaults}
@@ -584,14 +547,14 @@ export function ContentUnitWorkbenchPage() {
         onCreatingUnitChange={(open) => {
           if (!open) {
             setCreatingUnit(false)
-            setUnitDraftDefaults(null)
+            setUnitWorkspaceDefaults(null)
           }
         }}
         onUnitSaved={(record) => {
           selectContentUnit(record.ID)
           setOptimisticSelectedUnit(record)
           setCreatingUnit(false)
-          setUnitDraftDefaults(null)
+          setUnitWorkspaceDefaults(null)
           setEditingUnit(false)
         }}
         onEditingUnitChange={(open) => { if (!open) setEditingUnit(false) }}

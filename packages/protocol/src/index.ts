@@ -34,6 +34,11 @@ export const AGENT_TELEMETRY_REPORTABLE_METRICS = [
   'frontend_agent_network_request_duration_ms',
   'frontend_agent_composer_input_latency_ms',
   'frontend_agent_composer_serialize_ms',
+  'frontend_agent_send_stage_latency_ms',
+  'frontend_agent_stream_buffer_lifetime_ms',
+  'frontend_agent_stream_flush_total',
+  'frontend_agent_stream_text_chars',
+  'frontend_agent_stream_update_total',
   'frontend_storage_operation_duration_ms',
   'frontend_storage_payload_bytes',
   'frontend_web_vital_fcp_ms',
@@ -270,14 +275,14 @@ export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunExecutionMode = 'standard' | 'compact' | 'deep'
-export type AgentDraftKind =
-  | 'setting_proposal'
-  | 'asset_proposal'
-  | 'project_standards_proposal'
-  | 'production_proposal'
-  | 'content_unit_proposal'
+export type AgentWorkspaceKind =
+  | 'setting_workspace'
+  | 'asset_workspace'
+  | 'project_standards_workspace'
+  | 'production_workspace'
+  | 'content_unit_workspace'
 
-export type AgentToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
+export type AgentToolRiskLevel = 'read' | 'workspace' | 'write' | 'generate' | 'destructive' | 'ui'
 export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
 export type AgentToolGrantMode = 'allow' | 'deny'
 export type AgentToolApprovalDefaults = Partial<Record<AgentToolRiskLevel | 'default', AgentToolApprovalMode>>
@@ -1136,7 +1141,7 @@ export interface AgentClientInput {
       pageRoute?: string
       pageEntityType?: string
       pageEntityId?: number | string
-      draftId?: string
+      workspaceId?: string
     }
     project?: {
       id?: number
@@ -1145,7 +1150,7 @@ export interface AgentClientInput {
       description?: string
     }
     productionId?: number
-    draftId?: string
+    workspaceId?: string
     agent?: {
       key?: string
       name?: string
@@ -1397,6 +1402,51 @@ export interface AgentRuntimeEventV2 {
   causality?: AgentRuntimeEventCausalityV2
   entity?: AgentRuntimeEventEntityV2
   assistantProgress?: AgentRuntimeAssistantProgressV2
+}
+
+export type AgentFeedMessageRole = 'user' | 'assistant' | 'system' | 'tool'
+export type AgentFeedMessageKind = 'text' | 'status' | 'tool_call' | 'tool_result' | 'approval'
+export type AgentFeedMessageStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'cancelled' | 'requires_action'
+
+export interface AgentFeedMessageRuntimeRefs {
+  sessionId?: string
+  threadId: string
+  messageId?: string
+  runId?: string
+  traceId?: string
+}
+
+export interface AgentFeedMessage {
+  id: string
+  sessionId?: string
+  threadId: string
+  role: AgentFeedMessageRole
+  kind: AgentFeedMessageKind
+  content: string
+  attachments?: AgentAttachment[]
+  activity?: AgentRunActivity
+  status?: AgentFeedMessageStatus
+  createdAt: string
+  updatedAt: string
+  revision: number
+  cursor: string
+  runtimeRefs: AgentFeedMessageRuntimeRefs
+}
+
+export interface AgentFeedMessagePage {
+  messages: AgentFeedMessage[]
+  nextBefore?: string
+  hasMoreBefore: boolean
+  snapshotRevision: number
+}
+
+export type AgentFeedMessageStreamEventType = 'message.created' | 'message.updated' | 'messages.reset_required'
+
+export interface AgentFeedMessageStreamEvent {
+  type: AgentFeedMessageStreamEventType
+  revision: number
+  message?: AgentFeedMessage
+  reason?: string
 }
 
 export type EventStateDropReason =
@@ -1771,10 +1821,10 @@ export interface AgentAttachment {
 }
 
 export interface AgentTaskArtifactRef {
-  type: 'draft'
-  draftId: string
+  type: 'workspace'
+  workspaceId: string
   projectId?: number
-  draftKind?: AgentDraftKind
+  workspaceKind?: AgentWorkspaceKind
   title?: string
   schema?: string
   source?: Record<string, unknown>
@@ -1806,7 +1856,7 @@ export interface AgentConversation {
   updatedAt: number
 }
 
-export interface AgentConversationDraft {
+export interface AgentConversationWorkspace {
   input: string
   attachments: AgentAttachment[]
 }
@@ -1845,7 +1895,7 @@ export interface AgentChatMessageMeta {
   generationJobs?: AgentGenerationJob[]
   generationParamAudits?: AgentGenerationParamAudit[]
   generationValidationErrors?: AgentGenerationValidationError[]
-  draftArtifacts?: AgentTaskArtifactRef[]
+  workspaceArtifacts?: AgentTaskArtifactRef[]
   localRunActivity?: AgentRunActivity
   planRevision?: AgentPlanRevision
 }

@@ -6,14 +6,14 @@ test('summarizeRollbackRecordsTrace keeps rollback identity without args or meta
   const summary = summarizeRollbackRecordsTrace([{
     call: {
       id: 'call_1',
-      name: 'draft_apply',
+      name: 'workspace_apply',
       args: { content: 'x'.repeat(2000) },
     },
     rollback: {
       policy: 'manual_compensation',
       reason: 'Backend write completed',
-      artifactType: 'draft',
-      artifactUri: 'agent-draft:draft_1',
+      artifactType: 'workspace',
+      artifactUri: 'agent-workspace:workspace_1',
       metadata: {
         result: { payload: 'r'.repeat(2000) },
       },
@@ -24,9 +24,9 @@ test('summarizeRollbackRecordsTrace keeps rollback identity without args or meta
   assert.equal(summary.total, 1)
   assert.equal(summary.manualCompensationCount, 1)
   assert.equal(summary.records[0]?.callId, 'call_1')
-  assert.equal(summary.records[0]?.toolName, 'draft_apply')
+  assert.equal(summary.records[0]?.toolName, 'workspace_apply')
   assert.equal(summary.records[0]?.policy, 'manual_compensation')
-  assert.equal(summary.records[0]?.artifactUri, 'agent-draft:draft_1')
+  assert.equal(summary.records[0]?.artifactUri, 'agent-workspace:workspace_1')
   assert.match(summary.records[0]?.argsHash, /^sha256:/)
   assert.equal(summary.records[0]?.argsMode, 'summary')
   assert.equal(summary.records[0]?.args, undefined)

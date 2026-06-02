@@ -481,7 +481,7 @@ test('runtime model config normalizes explicit backend /api/v1 base URL to OpenA
   }
 })
 
-test('runtime model config test honors apiKind draft override instead of stale saved mode', async () => {
+test('runtime model config test honors apiKind workspace override instead of stale saved mode', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   const originalFetch = globalThis.fetch
   try {

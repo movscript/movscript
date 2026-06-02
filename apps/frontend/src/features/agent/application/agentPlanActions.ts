@@ -1,7 +1,5 @@
 import { plannerRunIdForPlanAction } from '@/features/agent/domain/agentPlanUi'
-import type { AssistantConversationMessageAppender } from '@movscript/conversation'
 import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export type PlanDispatchSettings = {
   maxWorkers: number
@@ -17,7 +15,7 @@ export type PlanConversationRuntimePatch = {
 export interface AgentPlanActionDeps {
   setBusy: (busy: boolean) => void
   setConversationRun: (run: AgentRun, patch: PlanConversationRuntimePatch) => void
-  addAssistantMessage: AssistantConversationMessageAppender<ChatMessage['meta']>
+  reportError: (message: string) => void
   dispatchTaskGraph: (taskGraphId: string, input: {
     plannerRunId?: string
     maxWorkers?: number
@@ -65,7 +63,7 @@ export async function dispatchTaskGraphAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`计划调度失败：${errorMessage(error)}`)
+    deps.reportError(`计划调度失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)
@@ -99,7 +97,7 @@ export async function replanPlanAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`计划重规划失败：${errorMessage(error)}`)
+    deps.reportError(`计划重规划失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)
@@ -126,7 +124,7 @@ export async function acceptPlanTaskReviewAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`验收任务失败：${errorMessage(error)}`)
+    deps.reportError(`验收任务失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)
@@ -153,7 +151,7 @@ export async function rejectPlanTaskReviewAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`拒绝任务失败：${errorMessage(error)}`)
+    deps.reportError(`拒绝任务失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)
@@ -185,7 +183,7 @@ export async function reworkPlanTaskReviewAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`返工任务失败：${errorMessage(error)}`)
+    deps.reportError(`返工任务失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)
@@ -209,7 +207,7 @@ export async function cancelPlanTreeAction(input: {
     await deps.refetchPlanSnapshot()
     return true
   } catch (error) {
-    deps.addAssistantMessage(`取消计划树失败：${errorMessage(error)}`)
+    deps.reportError(`取消计划树失败：${errorMessage(error)}`)
     return false
   } finally {
     deps.setBusy(false)

@@ -6,11 +6,9 @@ import {
   stopLocalRunAction,
   type StopLocalRunActionDeps,
 } from '@/features/agent/domain/agentRunControl'
-import { localAgentClient, type AgentRun, type AgentThread } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
-import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
-import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export async function cancelGenerationJobIfActive(state: GenerationProgressState | null): Promise<void> {
   if (!state || state.terminal || state.jobId === undefined) return
@@ -24,7 +22,6 @@ export async function cancelGenerationJobIfActive(state: GenerationProgressState
 
 export interface UseAgentRunStopActionInput {
   conversationId: string
-  userId: string
   run: AgentRun | null
   loading: boolean
   building: boolean
@@ -36,14 +33,10 @@ export interface UseAgentRunStopActionInput {
   resetStreamingAssistant: () => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<StopLocalRunActionDeps['setConversationRun']>[1]) => void
   setConversationRuntime: (conversationId: string, patch: Parameters<StopLocalRunActionDeps['setConversationRuntime']>[0]) => void
-  appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
-  liveEvents: () => ChatRunActivityEvent[]
-  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage'>
 }
 
 export function useAgentRunStopAction({
   conversationId,
-  userId,
   run,
   loading,
   building,
@@ -55,9 +48,6 @@ export function useAgentRunStopAction({
   resetStreamingAssistant,
   setConversationRun,
   setConversationRuntime,
-  appendAssistantRunResult,
-  liveEvents,
-  messageStore,
 }: UseAgentRunStopActionInput) {
   const deps = useMemo<StopLocalRunActionDeps>(() => ({
     abortActiveSend: () => {
@@ -75,26 +65,14 @@ export function useAgentRunStopAction({
     },
     cancelRun: (runId, input) => localAgentClient.cancelRun(runId, input),
     getRun: (runId) => localAgentClient.getRun(runId),
-    getThread: (threadId) => localAgentClient.getThread(threadId),
-    appendAssistantRunResult,
-    liveEvents,
-    addAssistantMessage: (content, meta) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
-      content,
-      ...(meta ? { meta } : {}),
-      deps: { userId, conversationId, messageStore },
-    }),
   }), [
     activeSendAbortControllerRef,
-    appendAssistantRunResult,
     conversationId,
     generationProgressState,
-    liveEvents,
-    messageStore,
     resetStreamingAssistant,
     setConversationRun,
     setConversationRuntime,
     setPendingAssistantState,
-    userId,
   ])
 
   return useCallback(() => {

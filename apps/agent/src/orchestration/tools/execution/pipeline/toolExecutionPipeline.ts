@@ -1,5 +1,5 @@
 import { AgentFileSystem } from '../../../../files/core/system/agentFileSystem.js'
-import { DraftFileProvider } from '../../../../files/providers/draftFileProvider.js'
+import { WorkspaceFileProvider } from '../../../../files/providers/workspaceFileProvider.js'
 import { isRecord } from '../../../../shared/json/jsonValue.js'
 import type { RuntimeModelChatMessage } from '../../../../model/config/modelConfig.js'
 import type { ToolSource } from '../../../../ports/tools/toolExecutionSource.js'
@@ -452,15 +452,17 @@ async function executeRuntimeHandler(
 ): Promise<{ handled: true; result: JSONValue; supplementalMessages?: RuntimeModelChatMessage[] } | { handled: false }> {
   const runtimeToolHandler = options.runtimeToolHandlers.get(call.name)
   if (!runtimeToolHandler) return { handled: false }
-  const fileSystem = options.fileSystem ?? new AgentFileSystem([new DraftFileProvider(options.draftStore)])
+  const fileSystem = options.fileSystem ?? new AgentFileSystem([
+    new WorkspaceFileProvider(options.workspaceStore),
+  ])
   const handlerResult = await runtimeToolHandler.execute({
     call,
     args,
     run: options.run,
-    draftStore: options.draftStore,
-    draftApplyPort: options.draftApplyPort,
-    draftApplyPreviewPort: options.draftApplyPreviewPort,
-    proposalSnapshotHydrationPort: options.proposalSnapshotHydrationPort,
+    workspaceStore: options.workspaceStore,
+    workspaceApplyPort: options.workspaceApplyPort,
+    workspaceApplyPreviewPort: options.workspaceApplyPreviewPort,
+    workspaceSnapshotHydrationPort: options.workspaceSnapshotHydrationPort,
     resourceFilePort: options.resourceFilePort,
     imageProcessingPort: options.imageProcessingPort,
     videoFrameExtractionPort: options.videoFrameExtractionPort,

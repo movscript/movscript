@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AGENT_PANEL_DRAFT_EVENT, AGENT_PANEL_THREAD_EVENT, type AgentPanelThreadPayload } from '@/features/agent/application/agentPanelBridge'
+import { AGENT_PANEL_WORKSPACE_EVENT, AGENT_PANEL_NEW_CONVERSATION_EVENT, AGENT_PANEL_THREAD_EVENT, type AgentPanelThreadPayload } from '@/features/agent/application/agentPanelBridge'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useResizablePanel } from '@movscript/ui'
 
@@ -70,7 +70,10 @@ export function useAIAgentPanelDockController() {
   }, [panelWidth, setDetailAgentPanelWidth])
 
   useEffect(() => {
-    function handleDraft() {
+    function handleWorkspace() {
+      setOpen(true)
+    }
+    function handleNewConversation() {
       setOpen(true)
     }
     function handleThreadOpen(event: Event) {
@@ -80,10 +83,12 @@ export function useAIAgentPanelDockController() {
       setOpen(true)
     }
 
-    window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+    window.addEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+    window.addEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
     window.addEventListener(AGENT_PANEL_THREAD_EVENT, handleThreadOpen)
     return () => {
-      window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
+      window.removeEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+      window.removeEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
       window.removeEventListener(AGENT_PANEL_THREAD_EVENT, handleThreadOpen)
     }
   }, [])

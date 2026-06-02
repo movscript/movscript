@@ -18,7 +18,7 @@ export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { 
   active: { label: "进行中", intent: "info" },
   approved: { label: "已批准", intent: "success" },
   review: { label: "待确认", intent: "warning" },
-  draft: { label: "草稿", intent: "warning" },
+  workspace: { label: "工作区", intent: "warning" },
   missing: { label: "待补设定", intent: "danger" },
   ignored: { label: "已忽略", intent: "neutral" },
   merged: { label: "已合并", intent: "neutral" },
@@ -38,7 +38,7 @@ export function normalizeCreativeReferenceKind(kind?: string): CreativeReference
 export function normalizeCreativeReferenceStatus(status?: string): CreativeReferenceCardStatus {
   const normalized = String(status ?? "").toLowerCase();
   if (normalized in creativeReferenceStatusMeta) return normalized as CreativeReferenceCardStatus;
-  return "draft";
+  return "workspace";
 }
 
 export function accentForCreativeReferenceKind(kind: CreativeReferenceCardKind) {

@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { externalTaskDraftOptions, processExternalAgentTask, type ProcessExternalAgentTaskDeps } from './agentExternalTaskProcessor'
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import { externalTaskWorkspaceOptions, processExternalAgentTask, type ProcessExternalAgentTaskDeps } from './agentExternalTaskProcessor'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 
-test('processExternalAgentTask drafts non-auto-send payloads and marks the request processed', async () => {
+test('processExternalAgentTask workspaces non-auto-send payloads and marks the request processed', async () => {
   const calls: string[] = []
   const result = await processExternalAgentTask({
     task: task({ payload: { message: 'Run this', displayMessage: 'Show this', requestId: 'req_1', autoSend: false } }),
     processedRequestId: null,
   }, depsFixture(calls))
 
-  assert.deepEqual(result, { status: 'drafted', processedRequestId: 'req_1' })
-  assert.deepEqual(calls, ['draft:Show this', 'focus', 'consumed'])
+  assert.deepEqual(result, { status: 'workspaceed', processedRequestId: 'req_1' })
+  assert.deepEqual(calls, ['workspace:Show this', 'focus', 'consumed'])
 })
 
 test('processExternalAgentTask rejects auto-send payloads while the panel is busy', async () => {
@@ -25,15 +25,15 @@ test('processExternalAgentTask rejects auto-send payloads while the panel is bus
 
   assert.equal(result.status, 'busy')
   assert.deepEqual(calls, [
-    'draft:Run this',
+    'workspace:Run this',
     'focus',
     'consumed',
-    'assistant:Busy',
+    'building:false:false:Busy',
     'settled:req_1:error:Busy',
   ])
 })
 
-test('processExternalAgentTask builds and commits auto-send drafts', async () => {
+test('processExternalAgentTask builds and commits auto-send workspaces', async () => {
   const calls: string[] = []
   const result = await processExternalAgentTask({
     task: task({ payload: { message: 'Run this', title: 'Title', requestId: 'req_1', autoSend: true } }),
@@ -42,23 +42,23 @@ test('processExternalAgentTask builds and commits auto-send drafts', async () =>
 
   assert.equal(result.status, 'sent')
   assert.deepEqual(calls, [
-    'draft:Run this',
+    'workspace:Run this',
     'focus',
     'consumed',
     'building:true:false:',
     'build:Run this:Title:req_1:true',
-    'commit:draft_1',
+    'commit:workspace_1',
     'building:false:undefined:',
   ])
 })
 
-test('processExternalAgentTask reports build failures through chat and page task notifications', async () => {
+test('processExternalAgentTask reports build failures through runtime state and page task notifications', async () => {
   const calls: string[] = []
   const result = await processExternalAgentTask({
     task: task({ payload: { message: 'Run this', requestId: 'req_1', autoSend: true } }),
     processedRequestId: null,
   }, depsFixture(calls, {
-    buildSendDraft: async () => {
+    buildSendWorkspace: async () => {
       calls.push('build:error')
       throw new Error('bad payload')
     },
@@ -66,20 +66,19 @@ test('processExternalAgentTask reports build failures through chat and page task
 
   assert.equal(result.status, 'error')
   assert.deepEqual(calls, [
-    'draft:Run this',
+    'workspace:Run this',
     'focus',
     'consumed',
     'building:true:false:',
     'build:error',
-    'assistant:发送前调试构建失败：bad payload',
-    'building:false:undefined:bad payload',
+    'building:false:undefined:发送前调试构建失败：bad payload',
     'settled:req_1:error:bad payload',
     'building:false:undefined:',
   ])
 })
 
-test('externalTaskDraftOptions maps page task payload fields into send draft options', () => {
-  assert.deepEqual(externalTaskDraftOptions(task({ payload: {
+test('externalTaskWorkspaceOptions maps page task payload fields into send workspace options', () => {
+  assert.deepEqual(externalTaskWorkspaceOptions(task({ payload: {
     message: 'Run',
     displayMessage: 'Show',
     title: 'Title',
@@ -101,34 +100,31 @@ function depsFixture(
   calls: string[],
   options: {
     busy?: boolean
-    buildSendDraft?: ProcessExternalAgentTaskDeps['buildSendDraft']
+    buildSendWorkspace?: ProcessExternalAgentTaskDeps['buildSendWorkspace']
   } = {},
 ): ProcessExternalAgentTaskDeps {
   return {
     busy: options.busy ?? false,
     busyError: 'Busy',
     buildFailurePrefix: '发送前调试构建失败：',
-    updateDraft: (patch) => {
-      calls.push(`draft:${patch.input}`)
+    updateWorkspace: (patch) => {
+      calls.push(`workspace:${patch.input}`)
     },
     focusInput: () => {
       calls.push('focus')
     },
-    onExternalDraftConsumed: () => {
+    onExternalWorkspaceConsumed: () => {
       calls.push('consumed')
-    },
-    addAssistantMessage: (content) => {
-      calls.push(`assistant:${content}`)
     },
     setConversationBuilding: (patch) => {
       calls.push(`building:${patch.building}:${patch.loading}:${patch.error ?? ''}`)
     },
-    buildSendDraft: options.buildSendDraft ?? (async (options) => {
+    buildSendWorkspace: options.buildSendWorkspace ?? (async (options) => {
       calls.push(`build:${options.message}:${options.title}:${options.requestId}:${options.omitDebugArtifacts}`)
-      return draft()
+      return workspace()
     }),
-    commitSendDraft: async (draft) => {
-      calls.push(`commit:${draft.id}`)
+    commitSendWorkspace: async (workspace) => {
+      calls.push(`commit:${workspace.id}`)
     },
     notifyRunSettled: (payload) => {
       calls.push(`settled:${payload.requestId}:${payload.status}:${payload.error}`)
@@ -154,9 +150,9 @@ function task(overrides: Omit<Partial<AgentPageTaskState>, 'payload'> & { payloa
   }
 }
 
-function draft(): AgentSendDraft {
+function workspace(): AgentSendWorkspace {
   return {
-    id: 'draft_1',
+    id: 'workspace_1',
     createdAt: 1,
     route: 'local-runtime',
     visibleUserContent: 'Hello',

@@ -8,10 +8,10 @@ interface InlineTitleEditorOptions {
 export function useInlineTitleEditor({ value, onCommit }: InlineTitleEditorOptions) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
+  const [workspace, setWorkspace] = useState(value)
 
   useEffect(() => {
-    if (!editing) setDraft(value)
+    if (!editing) setWorkspace(value)
   }, [editing, value])
 
   useEffect(() => {
@@ -24,25 +24,25 @@ export function useInlineTitleEditor({ value, onCommit }: InlineTitleEditorOptio
   }, [editing])
 
   const startEditing = useCallback(() => {
-    setDraft(value)
+    setWorkspace(value)
     setEditing(true)
   }, [value])
 
   const cancelEditing = useCallback(() => {
-    setDraft(value)
+    setWorkspace(value)
     setEditing(false)
   }, [value])
 
   const commitEditing = useCallback(() => {
-    const nextValue = draft.trim()
+    const nextValue = workspace.trim()
     setEditing(false)
     if (!nextValue) {
-      setDraft(value)
+      setWorkspace(value)
       return
     }
-    setDraft(nextValue)
+    setWorkspace(nextValue)
     if (nextValue !== value) onCommit(nextValue)
-  }, [draft, onCommit, value])
+  }, [workspace, onCommit, value])
 
   const handleInputKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
     event.stopPropagation()
@@ -66,9 +66,9 @@ export function useInlineTitleEditor({ value, onCommit }: InlineTitleEditorOptio
 
   return {
     editing,
-    draft,
+    workspace,
     inputRef,
-    setDraft,
+    setWorkspace,
     startEditing,
     cancelEditing,
     commitEditing,

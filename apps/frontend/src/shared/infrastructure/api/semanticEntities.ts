@@ -261,7 +261,7 @@ export async function getProject(projectId: number) {
   return data
 }
 
-export interface ApplyWorkbenchProposalResponse {
+export interface ApplyWorkbenchWorkspaceResponse {
   project_id: number
   counts: Partial<{
     creative_references_created: number
@@ -278,40 +278,40 @@ export interface ApplyWorkbenchProposalResponse {
   }>
 }
 
-export async function applyProjectStandardsProposal(
+export async function applyProjectStandardsWorkspace(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchProposalResponse> {
-  const { data } = await api.post<ApplyWorkbenchProposalResponse>(
-    `/projects/${projectId}/entities/project-standards-proposals/apply`,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
+    `/projects/${projectId}/entities/project-standards-workspaces/apply`,
     payload,
   )
   return data
 }
 
-export async function applySettingProposal(
+export async function applySettingWorkspace(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchProposalResponse> {
-  const { data } = await api.post<ApplyWorkbenchProposalResponse>(
-    `/projects/${projectId}/entities/setting-proposals/apply`,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
+    `/projects/${projectId}/entities/setting-workspaces/apply`,
     payload,
   )
   return data
 }
 
-export async function applyAssetProposal(
+export async function applyAssetWorkspace(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<ApplyWorkbenchProposalResponse> {
-  const { data } = await api.post<ApplyWorkbenchProposalResponse>(
-    `/projects/${projectId}/entities/asset-proposals/apply`,
+): Promise<ApplyWorkbenchWorkspaceResponse> {
+  const { data } = await api.post<ApplyWorkbenchWorkspaceResponse>(
+    `/projects/${projectId}/entities/asset-workspaces/apply`,
     payload,
   )
   return data
 }
 
-export interface ApplyProductionProposalResponse {
+export interface ApplyProductionWorkspaceResponse {
   production_id: number
   counts: {
     segments_created: number
@@ -331,26 +331,26 @@ export interface ApplyProductionProposalResponse {
   writing_expressions: SemanticEntityRecord[]
 }
 
-export async function applyProductionProposal(
+export async function applyProductionWorkspace(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<ApplyProductionProposalResponse> {
-  const { data } = await api.post<ApplyProductionProposalResponse>(
-    `/projects/${projectId}/entities/production-proposals/apply`,
+): Promise<ApplyProductionWorkspaceResponse> {
+  const { data } = await api.post<ApplyProductionWorkspaceResponse>(
+    `/projects/${projectId}/entities/production-workspaces/apply`,
     payload,
   )
   return data
 }
 
-export interface PreviewProductionProposalApplyResponse {
+export interface PreviewProductionWorkspaceApplyResponse {
   status: string
   dry_run: boolean
-  would_apply: ApplyProductionProposalResponse
-  semantic_changes?: ProductionProposalPreviewSemanticChange[]
-  warnings?: ProductionProposalPreviewWarning[]
+  would_apply: ApplyProductionWorkspaceResponse
+  semantic_changes?: ProductionWorkspacePreviewSemanticChange[]
+  warnings?: ProductionWorkspacePreviewWarning[]
 }
 
-export interface ProductionProposalPreviewSemanticChange {
+export interface ProductionWorkspacePreviewSemanticChange {
   kind: string
   action: 'create' | 'update'
   title: string
@@ -359,17 +359,17 @@ export interface ProductionProposalPreviewSemanticChange {
   id?: number
 }
 
-export interface ProductionProposalPreviewWarning {
+export interface ProductionWorkspacePreviewWarning {
   code: string
   message: string
 }
 
-export async function previewProductionProposalApply(
+export async function previewProductionWorkspaceApply(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<PreviewProductionProposalApplyResponse> {
-  const { data } = await api.post<PreviewProductionProposalApplyResponse>(
-    `/projects/${projectId}/entities/production-proposals/apply-preview`,
+): Promise<PreviewProductionWorkspaceApplyResponse> {
+  const { data } = await api.post<PreviewProductionWorkspaceApplyResponse>(
+    `/projects/${projectId}/entities/production-workspaces/apply-preview`,
     payload,
   )
   return data
@@ -384,7 +384,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       areaCreateOnly('content', '正文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
       areaCreateOnly('raw_source', '原文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
       areaCreateOnly('summary', '摘要', '创建后不可修改；如需调整请创建新版本'),
-      selectCreateOnly('status', '状态', ['draft', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
+      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
     ], '需要先在旧版剧本页创建 Script，创建版本即形成稳定快照；后续修改请创建新版本。'),
     cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到某个剧本版本的可引用文本块，用于让情节和制作项稳定引用具体行。', entityIconTone('sky'), ['kind', 'speaker', 'start_line', 'end_line', 'content'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
@@ -405,7 +405,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('end_line', '结束行', false, true, '创建后不可修改，保证引用到稳定剧本版本行号'),
       num('start_char', '起始字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
       num('end_char', '结束字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
-      select('status', '状态', ['active', 'draft', 'archived']),
+      select('status', '状态', ['active', 'workspace', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 script_id 和 script_version_id；建议从剧本版本正文中拉选文本自动创建。'),
     cfg('segments', 'segments', '编排段', '本集内部的情绪、节奏和戏剧功能段，可选绑定制作文本块作为来源。', entityIconTone('cyan'), ['title', 'kind', 'status', 'summary'], [
@@ -426,7 +426,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('order', '顺序'),
       area('summary', '情绪/节奏/戏剧功能'),
       area('content', '来源文本或补充说明'),
-      select('status', '状态', ['draft', 'confirmed', 'ignored']),
+      select('status', '状态', ['workspace', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '来源字段用于稳定追溯；已有下游情景或制作项后，后端会锁定来源引用。'),
     cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，编排段可以绑定到这里而不是直接绑定剧本。', entityIconTone('amber'), ['title', 'kind', 'status', 'summary'], [
@@ -445,7 +445,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('content', '文本内容'),
       area('summary', '摘要'),
       select('source_type', '来源类型', ['manual', 'script', 'brief', 'ai', 'import']),
-      select('status', '状态', ['draft', 'active', 'archived']),
+      select('status', '状态', ['workspace', 'active', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 production_id。'),
     cfg('sceneMoments', 'scene-moments', '情景', 'AI 生成的核心上下文：何时、绑定哪些设定、承担什么情节任务。', entityIconTone('teal'), ['scene_code', 'title', 'time_text', 'status'], [
@@ -460,7 +460,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('condition_text', '条件'),
       text('mood', '导演备注 / 节奏目标'),
       selectOptions('status', '状态', [
-        { value: 'draft', label: '草稿' },
+        { value: 'workspace', label: '工作区' },
         { value: 'confirmed', label: '已确认' },
         { value: 'ignored', label: '已忽略' },
       ]),
@@ -499,7 +499,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('name', '名称', true),
       area('description', '描述'),
       bool('is_primary', '主分镜脚本'),
-      select('status', '状态', ['draft', 'active', 'locked', 'archived']),
+      select('status', '状态', ['workspace', 'active', 'locked', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时绑定稳定剧本版本；分镜版本创建后，来源剧本版本会被锁定。'),
     cfg('storyboardVersions', 'storyboard-versions', '分镜版本', '结构化分镜脚本的稳定版本快照，用于比较 AI 候选和人工修改。', entityIconTone('blue'), ['title', 'version_number', 'source', 'status'], [
@@ -507,7 +507,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('parent_version_id', 'ParentVersion ID', false, true, '创建后不可修改；如需调整请创建新版本'),
       textCreateOnly('title', '标题', false, '创建后不可修改；如需调整请创建新版本'),
       selectCreateOnly('source', '来源', ['manual', 'ai', 'import'], false, '创建后不可修改；版本保留为历史快照'),
-      selectCreateOnly('status', '状态', ['draft', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
+      selectCreateOnly('status', '状态', ['workspace', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
       areaCreateOnly('snapshot_json', '快照 JSON', '创建后不可修改；内容生产应引用稳定版本'),
       areaCreateOnly('metadata_json', '元数据 JSON', '创建后不可修改；如需调整请创建新版本'),
     ], '创建时需要填写 storyboard_script_id；创建后不可修改或删除。'),
@@ -605,7 +605,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('camera_notes', '运镜备注'),
       area('camera_params_json', '相机参数 JSON'),
       selectOptions('status', '状态', [
-        { value: 'draft', label: '草稿' },
+        { value: 'workspace', label: '工作区' },
         { value: 'candidate', label: '候选' },
         { value: 'confirmed', label: '已确认' },
         { value: 'in_production', label: '生产中' },
@@ -631,7 +631,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('name', '名称', true),
       num('duration_sec', '总时长秒'),
       bool('is_primary', '主时间线'),
-      select('status', '状态', ['draft', 'playable', 'confirmed', 'archived']),
+      select('status', '状态', ['workspace', 'playable', 'confirmed', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线上的预览画面、制作项、缺口或备注项。', entityIconTone('emerald'), ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
@@ -656,7 +656,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
         { value: 'supporting', label: '辅助' },
         { value: 'background', label: '背景' },
       ]),
-      select('status', '状态', ['draft', 'confirmed', 'merged', 'ignored', 'locked']),
+      select('status', '状态', ['workspace', 'confirmed', 'merged', 'ignored', 'locked']),
       area('profile_json', '档案 JSON'),
       area('tags_json', '标签 JSON'),
     ]),
@@ -670,7 +670,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('emotion', '情绪'),
       text('costume', '服装'),
       area('props', '道具'),
-      select('status', '状态', ['draft', 'confirmed', 'locked', 'ignored']),
+      select('status', '状态', ['workspace', 'confirmed', 'locked', 'ignored']),
       area('tags_json', '标签 JSON'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 creative_reference_id。'),
@@ -683,7 +683,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('order', '顺序'),
       area('evidence', '证据'),
       select('source', '来源', ['manual', 'ai', 'import']),
-      select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
+      select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 owner_type、owner_id 和 creative_reference_id。'),
     cfg('creativeRelationships', 'creative-relationships', '设定资料关系', '设定资料之间的关系、约束、引用和冲突。', entityIconTone('violet'), ['label', 'category', 'type', 'status'], [
@@ -696,7 +696,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('label', '标签'),
       area('description', '描述'),
       select('source', '来源', ['manual', 'ai', 'import']),
-      select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
+      select('status', '状态', ['workspace', 'confirmed', 'corrected', 'ignored']),
       area('evidence', '证据'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
@@ -751,7 +751,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('decided_by_id', 'DecidedBy ID'),
       text('applied_at', 'Applied At'),
       area('metadata_json', '元数据 JSON'),
-    ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录草稿或 runtime 候选。'),
+    ], '可用 candidate_id 关联已落库候选，也可用 candidate_client_id 记录工作区或 runtime 候选。'),
     cfg('reviewEvents', 'review-events', '评审事件', '记录语义对象、候选和输出的评审事件流。', entityIconTone('orange'), ['subject_type', 'event_type', 'from_status', 'to_status'], [
       select('subject_type', '对象类型', ['segment', 'scene_moment', 'content_unit', 'keyframe', 'asset_slot', 'asset_slot_candidate', 'candidate_decision', 'work_item', 'delivery_version', 'canvas_output'], true),
       num('subject_id', 'Subject ID'),
@@ -764,7 +764,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('source', '来源', ['manual', 'ai', 'runtime', 'import']),
       num('actor_id', 'Actor ID'),
       area('metadata_json', '元数据 JSON'),
-    ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录草稿或 runtime 对象。'),
+    ], '可用 subject_id 关联已落库对象，也可用 subject_client_id 记录工作区或 runtime 对象。'),
     cfg('workItems', 'work-items', '制作任务', '执行、分配、审核和返工状态，不作为内容事实源。', entityIconTone('orange'), ['title', 'target_type', 'kind', 'status'], [
       num('production_id', 'Production ID'),
       select('target_type', '目标类型', ['segment', 'scene_moment', 'content_unit', 'creative_reference', 'creative_reference_state', 'asset_slot', 'keyframe', 'delivery_version'], true),
@@ -798,7 +798,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('description', '描述'),
       num('duration_sec', '总时长秒'),
       bool('is_primary', '主版本'),
-      select('status', '状态', ['draft', 'checking', 'approved', 'exported', 'archived']),
+      select('status', '状态', ['workspace', 'checking', 'approved', 'exported', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('deliveryTimelineItems', 'delivery-timeline-items', '交付时间线项', '交付版本中的视频、图片、音频、字幕或缺口项。', entityIconTone('lime'), ['label', 'kind', 'order', 'status'], timelineFields('delivery_version_id', 'DeliveryVersion ID'), '创建时需要填写 delivery_version_id。'),
@@ -891,7 +891,7 @@ function timelineFields(ownerKey: string, ownerLabel: string): SemanticEntityFie
     num('start_sec', '开始秒'),
     num('duration_sec', '时长秒'),
     text('label', '标签'),
-    select('status', '状态', ['draft', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
+    select('status', '状态', ['workspace', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved']),
     area('metadata_json', '元数据 JSON'),
   ]
 }

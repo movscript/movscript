@@ -182,7 +182,7 @@ test('SubagentRunWorkProvider starts, observes, and cancels child agent runs as 
     threadId: 'thread_1',
     runId: 'planner_1',
     kind: 'subagent_run',
-    request: { name: 'Researcher', instructions: 'Inspect the draft.' },
+    request: { name: 'Researcher', instructions: 'Inspect the workspace.' },
     continuationPolicy: { mode: 'any_completed' },
   })
 

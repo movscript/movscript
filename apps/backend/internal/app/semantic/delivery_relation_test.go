@@ -24,8 +24,8 @@ func TestDeliveryVersionPatchExpiresPreviousRelationIdentity(t *testing.T) {
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	firstProduction := persistencemodel.Production{ProjectID: 1, Name: "First", Status: "draft"}
-	secondProduction := persistencemodel.Production{ProjectID: 1, Name: "Second", Status: "draft"}
+	firstProduction := persistencemodel.Production{ProjectID: 1, Name: "First", Status: "workspace"}
+	secondProduction := persistencemodel.Production{ProjectID: 1, Name: "Second", Status: "workspace"}
 	if err := db.Create(&firstProduction).Error; err != nil {
 		t.Fatalf("seed first production: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestDeliveryVersionPatchExpiresPreviousRelationIdentity(t *testing.T) {
 	version, err := service.CreateDeliveryVersion(ctx, 1, DeliveryVersionInput{
 		ProductionID: &firstProduction.ID,
 		Name:         "Delivery",
-		Status:       "draft",
+		Status:       "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create delivery version: %v", err)
@@ -46,7 +46,7 @@ func TestDeliveryVersionPatchExpiresPreviousRelationIdentity(t *testing.T) {
 	if _, err := service.PatchDeliveryVersion(ctx, 1, fmt.Sprint(version.ID), DeliveryVersionInput{
 		ProductionID: &secondProduction.ID,
 		Name:         "Delivery",
-		Status:       "draft",
+		Status:       "workspace",
 	}); err != nil {
 		t.Fatalf("patch delivery version: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestDeliveryTimelineItemPatchExpiresPreviousRelationIdentity(t *testing.T) 
 
 	service := NewService(db)
 	ctx := context.Background()
-	version, err := service.CreateDeliveryVersion(ctx, 1, DeliveryVersionInput{Name: "Delivery", Status: "draft"})
+	version, err := service.CreateDeliveryVersion(ctx, 1, DeliveryVersionInput{Name: "Delivery", Status: "workspace"})
 	if err != nil {
 		t.Fatalf("create delivery version: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestDeliveryTimelineItemPatchExpiresPreviousRelationIdentity(t *testing.T) 
 		DeliveryVersionID: version.ID,
 		ResourceID:        &firstResource.ID,
 		Kind:              "image",
-		Status:            "draft",
+		Status:            "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create delivery timeline item: %v", err)
@@ -107,7 +107,7 @@ func TestDeliveryTimelineItemPatchExpiresPreviousRelationIdentity(t *testing.T) 
 		DeliveryVersionID: version.ID,
 		ResourceID:        &secondResource.ID,
 		Kind:              "image",
-		Status:            "draft",
+		Status:            "workspace",
 	}); err != nil {
 		t.Fatalf("patch delivery timeline item: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestExportRecordPatchExpiresPreviousRelationIdentity(t *testing.T) {
 
 	service := NewService(db)
 	ctx := context.Background()
-	version, err := service.CreateDeliveryVersion(ctx, 1, DeliveryVersionInput{Name: "Delivery", Status: "draft"})
+	version, err := service.CreateDeliveryVersion(ctx, 1, DeliveryVersionInput{Name: "Delivery", Status: "workspace"})
 	if err != nil {
 		t.Fatalf("create delivery version: %v", err)
 	}

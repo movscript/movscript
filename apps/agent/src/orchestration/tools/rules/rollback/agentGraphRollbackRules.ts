@@ -9,19 +9,19 @@ export function buildRollbackRecord(call: ToolCall, result: JSONValue | undefine
     }
   }
   const metadata = isJSONRecord(result) ? result : undefined
-  const draftId = metadata
-    ? stringField(metadata.draftId)
-      ?? stringField(metadata.draftRef)
-      ?? stringField(metadata.proposalRef)
-      ?? (call.name === 'draft_create' ? stringField(metadata.id) : undefined)
+  const workspaceId = metadata
+    ? stringField(metadata.workspaceId)
+      ?? stringField(metadata.workspaceRef)
+      ?? stringField(metadata.workspaceRef)
+      ?? (call.name === 'workspace_open' ? stringField(metadata.id) : undefined)
     : undefined
-  if (draftId) {
+  if (workspaceId) {
     return {
       policy: 'reversible',
-      reason: 'Local draft side effect can be superseded, rejected, or edited before apply.',
-      artifactType: 'draft',
-      artifactUri: `agent-draft:${draftId}`,
-      metadata: { draftId },
+      reason: 'Local workspace side effect can be superseded, rejected, or edited before apply.',
+      artifactType: 'workspace',
+      artifactUri: `agent-workspace:${workspaceId}`,
+      metadata: { workspaceId },
     }
   }
   if (isRuntimeStateTool(call.name)) {
@@ -53,7 +53,7 @@ export function buildRollbackRecord(call: ToolCall, result: JSONValue | undefine
 }
 
 function isBackendWriteTool(name: string): boolean {
-  return name === 'draft_apply'
+  return name === 'workspace_apply'
     || name.includes('_create_')
     || name.includes('_update_')
     || name.includes('_delete_')

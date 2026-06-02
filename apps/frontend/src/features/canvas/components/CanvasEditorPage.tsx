@@ -1402,8 +1402,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               {titleEditor.editing ? (
                 <CanvasEditorNameInput
                   ref={titleEditor.inputRef}
-                  value={titleEditor.draft}
-                  onChange={(e) => titleEditor.setDraft(e.target.value)}
+                  value={titleEditor.workspace}
+                  onChange={(e) => titleEditor.setWorkspace(e.target.value)}
                   onBlur={titleEditor.commitEditing}
                   onKeyDown={titleEditor.handleInputKeyDown}
                   placeholder={t('canvas.editor.untitled')}

@@ -323,7 +323,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
   }])
 })
 
-test('buildAgentConversationThreadItems filters pending local run interaction input answer drafts', () => {
+test('buildAgentConversationThreadItems filters pending local run interaction input answer workspaces', () => {
   const items = buildAgentConversationThreadItems({
     messages: [
       message({

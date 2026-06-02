@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 import { Button, Input, Label, Textarea } from "../../../primitives";
 
@@ -17,6 +17,13 @@ export interface ScriptCreateFormShellProps {
   descriptionLabel: string;
   description: string;
   onDescriptionChange: (value: string) => void;
+  bodyLabel?: string;
+  bodyPlaceholder?: string;
+  body?: string;
+  onBodyChange?: (value: string) => void;
+  uploadAction?: ReactNode;
+  uploadMeta?: ReactNode;
+  uploadError?: ReactNode;
   createLabel: string;
   creatingLabel: string;
   cancelLabel: string;
@@ -39,6 +46,13 @@ export function ScriptCreateFormShell({
   descriptionLabel,
   description,
   onDescriptionChange,
+  bodyLabel,
+  bodyPlaceholder,
+  body,
+  onBodyChange,
+  uploadAction,
+  uploadMeta,
+  uploadError,
   createLabel,
   creatingLabel,
   cancelLabel,
@@ -84,6 +98,25 @@ export function ScriptCreateFormShell({
           onChange={(event) => onDescriptionChange(event.target.value)}
         />
       </div>
+      {bodyLabel && onBodyChange ? (
+        <div className="script-create-form__field">
+          <Label className="script-create-form__label">{bodyLabel}</Label>
+          {uploadAction || uploadMeta || uploadError ? (
+            <div className="script-create-form__upload-row">
+              {uploadAction}
+              {uploadMeta}
+              {uploadError}
+            </div>
+          ) : null}
+          <Textarea
+            className="script-create-form__textarea"
+            rows={8}
+            placeholder={bodyPlaceholder}
+            value={body ?? ""}
+            onChange={(event) => onBodyChange(event.target.value)}
+          />
+        </div>
+      ) : null}
       <div className="script-create-form__actions">
         <Button
           className="script-create-form__submit"

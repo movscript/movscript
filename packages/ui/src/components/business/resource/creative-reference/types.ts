@@ -7,7 +7,7 @@ export type CreativeReferenceCardStatus =
   | "missing"
   | "confirmed"
   | "corrected"
-  | "draft"
+  | "workspace"
   | "ignored"
   | "merged"
   | "active"

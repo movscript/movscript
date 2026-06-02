@@ -44,7 +44,7 @@ test('media pipeline capability names are shared across contracts and runtime de
     pluginSdk: await readFile(path.join(repoRoot, 'packages', 'plugin-sdk', 'src', 'types.ts'), 'utf8'),
     backendAI: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'infra', 'ai', 'feature.go'), 'utf8'),
     backendJob: await readFile(path.join(repoRoot, 'apps', 'backend', 'internal', 'domain', 'job', 'helpers.go'), 'utf8'),
-    draftRegistry: await readFile(path.join(repoRoot, 'packages', 'drafts', 'src', 'registry.ts'), 'utf8'),
+    workspaceRegistry: await readFile(path.join(repoRoot, 'packages', 'workspaces', 'src', 'registry.ts'), 'utf8'),
     frontendTypes: await readFile(path.join(repoRoot, 'apps', 'frontend', 'src', 'types', 'index.ts'), 'utf8'),
     adminTypes: await readFile(path.join(repoRoot, 'apps', 'admin', 'src', 'types', 'index.ts'), 'utf8'),
     modelAliases: await readFile(path.join(repoRoot, 'apps', 'frontend', 'electron', 'mcp', 'modelContracts', 'capability.ts'), 'utf8'),

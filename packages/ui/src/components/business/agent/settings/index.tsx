@@ -1069,12 +1069,12 @@ export function AgentSettingsSkillCard({
   versionLabel,
   sourceLabel,
   priorityLabel,
-  draftEnabled,
-  draftDisabled,
-  draftTitle,
-  draftHelp,
-  draftLocked = false,
-  onDraftChange,
+  workspaceEnabled,
+  workspaceDisabled,
+  workspaceTitle,
+  workspaceHelp,
+  workspaceLocked = false,
+  onWorkspaceChange,
   instructionLabel,
   instructionHelp,
   instructionValue,
@@ -1095,12 +1095,12 @@ export function AgentSettingsSkillCard({
   versionLabel?: ReactNode;
   sourceLabel: ReactNode;
   priorityLabel?: ReactNode;
-  draftEnabled?: boolean;
-  draftDisabled?: boolean;
-  draftTitle?: ReactNode;
-  draftHelp?: ReactNode;
-  draftLocked?: boolean;
-  onDraftChange?: (enabled: boolean) => void;
+  workspaceEnabled?: boolean;
+  workspaceDisabled?: boolean;
+  workspaceTitle?: ReactNode;
+  workspaceHelp?: ReactNode;
+  workspaceLocked?: boolean;
+  onWorkspaceChange?: (enabled: boolean) => void;
   instructionLabel?: ReactNode;
   instructionHelp?: ReactNode;
   instructionValue?: string;
@@ -1140,26 +1140,26 @@ export function AgentSettingsSkillCard({
         {priorityLabel ? <span className="agent-settings-skill-card__priority">{priorityLabel}</span> : null}
       </div>
       {!compact && description ? <p className="agent-settings-skill-card__description">{description}</p> : null}
-      {!compact && typeof draftEnabled === "boolean" && onDraftChange ? (
-        <AgentSurfaceBlock variant="card" className="agent-settings-skill-card__draft">
+      {!compact && typeof workspaceEnabled === "boolean" && onWorkspaceChange ? (
+        <AgentSurfaceBlock variant="card" className="agent-settings-skill-card__workspace">
           <CheckboxField
-            checked={draftEnabled}
-            disabled={draftDisabled}
-            onCheckedChange={onDraftChange}
+            checked={workspaceEnabled}
+            disabled={workspaceDisabled}
+            onCheckedChange={onWorkspaceChange}
             controlSize="sm"
-            className={cn("agent-settings-skill-card__toggle", draftLocked ? "agent-settings-skill-card__toggle--locked" : undefined)}
+            className={cn("agent-settings-skill-card__toggle", workspaceLocked ? "agent-settings-skill-card__toggle--locked" : undefined)}
           >
-            <span className="agent-settings-skill-card__draft-copy">
-              {draftTitle ? <span className="agent-settings-skill-card__draft-title">{draftTitle}</span> : null}
-              {draftHelp ? <span className="agent-settings-skill-card__draft-help">{draftHelp}</span> : null}
+            <span className="agent-settings-skill-card__workspace-copy">
+              {workspaceTitle ? <span className="agent-settings-skill-card__workspace-title">{workspaceTitle}</span> : null}
+              {workspaceHelp ? <span className="agent-settings-skill-card__workspace-help">{workspaceHelp}</span> : null}
             </span>
           </CheckboxField>
         </AgentSurfaceBlock>
       ) : null}
       {!compact && instructionValue !== undefined && onInstructionChange ? (
         <label className="agent-settings-skill-card__instruction">
-          {instructionLabel ? <span className="agent-settings-skill-card__draft-title">{instructionLabel}</span> : null}
-          {instructionHelp ? <span className="agent-settings-skill-card__draft-help">{instructionHelp}</span> : null}
+          {instructionLabel ? <span className="agent-settings-skill-card__workspace-title">{instructionLabel}</span> : null}
+          {instructionHelp ? <span className="agent-settings-skill-card__workspace-help">{instructionHelp}</span> : null}
           <Textarea
             value={instructionValue}
             disabled={instructionDisabled}
@@ -1243,7 +1243,7 @@ export function AgentSettingsToolPermissionsRow({
   configFileGrantedLabel,
   requiresApproval,
   description,
-  draft,
+  workspace,
   modeLabel,
   approvalLabel,
   allowLabel,
@@ -1271,7 +1271,7 @@ export function AgentSettingsToolPermissionsRow({
   configFileGrantedLabel?: ReactNode;
   requiresApproval?: boolean;
   description?: ReactNode;
-  draft?: {
+  workspace?: {
     mode: AgentSettingsToolPermissionsMode;
     approval: AgentSettingsToolPermissionsApproval;
     canAllow: boolean;
@@ -1321,26 +1321,26 @@ export function AgentSettingsToolPermissionsRow({
         <StatusBadge {...agentSettingsApprovalStatusRecipe(Boolean(requiresApproval))}>{approvalStatusLabel}</StatusBadge>
       </div>
       {!compact && description ? <p className="agent-settings-tool-permissions-row__description">{description}</p> : null}
-      {!compact && draft ? (
+      {!compact && workspace ? (
         <div className="agent-settings-tool-permissions-row__controls">
           <div>
             <label className="agent-settings-tool-permissions-row__field-label">{modeLabel}</label>
-            <Select value={draft.mode} onValueChange={(value) => onModeChange?.(value as AgentSettingsToolPermissionsMode)}>
+            <Select value={workspace.mode} onValueChange={(value) => onModeChange?.(value as AgentSettingsToolPermissionsMode)}>
               <SelectTrigger className="agent-settings-tool-permissions-row__select">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="allow" disabled={!draft.canAllow}>{allowLabel}</SelectItem>
+                <SelectItem value="allow" disabled={!workspace.canAllow}>{allowLabel}</SelectItem>
                 <SelectItem value="deny">{denyLabel}</SelectItem>
               </SelectContent>
             </Select>
-            {!draft.canAllow && allowDisabledHelp ? (
+            {!workspace.canAllow && allowDisabledHelp ? (
               <p className="agent-settings-tool-permissions-row__help">{allowDisabledHelp}</p>
             ) : null}
           </div>
           <div>
             <label className="agent-settings-tool-permissions-row__field-label">{approvalLabel}</label>
-            <Select value={draft.approval} onValueChange={(value) => onApprovalChange?.(value as AgentSettingsToolPermissionsApproval)}>
+            <Select value={workspace.approval} onValueChange={(value) => onApprovalChange?.(value as AgentSettingsToolPermissionsApproval)}>
               <SelectTrigger className="agent-settings-tool-permissions-row__select">
                 <SelectValue />
               </SelectTrigger>
@@ -1504,8 +1504,8 @@ export function AgentSettingsPackPanel({
   textValue,
   onTextChange,
   placeholder,
-  draftSummary,
-  draftError,
+  workspaceSummary,
+  workspaceError,
   installError,
   installResult,
   installedTitle,
@@ -1537,8 +1537,8 @@ export function AgentSettingsPackPanel({
   textValue: string;
   onTextChange: (value: string) => void;
   placeholder?: string;
-  draftSummary?: ReactNode;
-  draftError?: ReactNode;
+  workspaceSummary?: ReactNode;
+  workspaceError?: ReactNode;
   installError?: ReactNode;
   installResult?: ReactNode;
   installedTitle: ReactNode;
@@ -1591,14 +1591,14 @@ export function AgentSettingsPackPanel({
         placeholder={placeholder}
         className="agent-settings-pack__textarea"
       />
-      {draftSummary ? (
-        <p data-testid="agent-settings-pack-draft-summary" className="agent-settings-pack__message">
-          {draftSummary}
+      {workspaceSummary ? (
+        <p data-testid="agent-settings-pack-workspace-summary" className="agent-settings-pack__message">
+          {workspaceSummary}
         </p>
       ) : null}
-      {!installError && draftError ? (
-        <div className="agent-settings-pack__feedback" data-testid="agent-settings-pack-draft-error">
-          <AppInlineError>{draftError}</AppInlineError>
+      {!installError && workspaceError ? (
+        <div className="agent-settings-pack__feedback" data-testid="agent-settings-pack-workspace-error">
+          <AppInlineError>{workspaceError}</AppInlineError>
         </div>
       ) : null}
       {installError ? (

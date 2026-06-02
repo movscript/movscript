@@ -4,7 +4,7 @@ export type ScriptsStatusRecipe = UiStatusRecipe
 
 export function scriptLibraryStatusRecipe(hasVersions: boolean, bodyLength: number): ScriptsStatusRecipe {
   if (hasVersions) return scriptsLibraryStatus.recipe('versioned')
-  if (bodyLength > 0) return scriptsLibraryStatus.recipe('drafted')
+  if (bodyLength > 0) return scriptsLibraryStatus.recipe('workspaceed')
   return scriptsLibraryStatus.recipe('default')
 }
 
@@ -26,7 +26,7 @@ export function scriptReadinessItemRecipe(done: boolean): ScriptsStatusRecipe {
 
 const scriptsLibraryStatus = defineFeatureStatusRecipeGroup('scripts.library.status', {
   versioned: 'success',
-  drafted: 'warning',
+  workspaceed: 'warning',
   default: 'neutral',
 })
 

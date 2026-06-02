@@ -5,7 +5,7 @@ import type {
 
 export function buildAgentChatActionBindingsInput({
   activeLocalRun,
-  buildingSendDraft,
+  buildingSendWorkspace,
   context,
   conv,
   loading,
@@ -13,55 +13,41 @@ export function buildAgentChatActionBindingsInput({
   presentation,
   runtime,
   store,
-  userId,
 }: BuildAgentChatInteractionControllerInputOptions): AgentChatActionBindingsInput {
   return {
     runResultActions: {
       conversationId: conv.id,
-      userId,
       setConversationRun: store.setConversationRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       recordLiveTraceEvent: runtime.recordLiveTraceEvent,
       updateStreamingAssistantText: runtime.updateStreamingAssistantText,
-      getStreamingAssistantMessageId: runtime.getStreamingAssistantMessageId,
-      resetStreamingAssistant: runtime.resetStreamingAssistant,
     },
     runInteractionActions: {
       conversationId: conv.id,
-      userId,
       actionableRun: presentation.actionableLocalRun,
       interactionRuns: presentation.interactionRuns,
       approving: presentation.approvingLocalRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       setConversationRuntime: store.setConversationRuntime,
       setConversationRun: store.setConversationRun,
-      messageStore: {
-        addMessage: store.messageStore.addMessage,
-        updateMessageMeta: store.messageStore.updateMessageMeta,
-      },
-      liveEvents: () => runtime.liveTraceEventsRef.current,
       refreshAgentCatalogContext: context.refreshAgentCatalogContext,
     },
     planActions: {
       conversationId: conv.id,
-      userId,
       run: activeLocalRun,
       snapshot: presentation.activePlanSnapshot,
       busy: runtime.planActionBusy,
       dispatchSettings: taskGraph.planDispatchSettings,
       setBusy: runtime.setPlanActionBusy,
       setConversationRun: store.setConversationRun,
-      messageStore: {
-        addMessage: store.messageStore.addMessage,
-      },
+      setConversationRuntime: store.setConversationRuntime,
       refetchPlanSnapshot: () => presentation.refetchActivePlanSnapshot(),
     },
     stopAction: {
       conversationId: conv.id,
-      userId,
       run: activeLocalRun,
       loading,
-      building: buildingSendDraft,
+      building: buildingSendWorkspace,
       stopping: presentation.stoppingLocalRun,
       stopRequestedBeforeRun: presentation.stopRequestedBeforeRun,
       generationProgressState: presentation.generationProgressState,
@@ -70,10 +56,6 @@ export function buildAgentChatActionBindingsInput({
       resetStreamingAssistant: runtime.resetStreamingAssistant,
       setConversationRun: store.setConversationRun,
       setConversationRuntime: store.setConversationRuntime,
-      liveEvents: () => runtime.liveTraceEventsRef.current,
-      messageStore: {
-        addMessage: store.messageStore.addMessage,
-      },
     },
   }
 }

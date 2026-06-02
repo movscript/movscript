@@ -1,29 +1,29 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 
 type SearchParamsSetter = (
   nextInit: URLSearchParams | ((current: URLSearchParams) => URLSearchParams),
   navigateOptions?: { replace?: boolean },
 ) => void
 
-type PreProductionReviewDraftKind = Extract<AgentDraft['kind'], 'setting_proposal' | 'asset_proposal'>
+type PreProductionReviewWorkspaceKind = Extract<AgentWorkspace['kind'], 'setting_workspace' | 'asset_workspace'>
 
-export async function loadPreProductionReviewDrafts(
+export async function loadPreProductionReviewWorkspaces(
   projectId: number,
-  kind: PreProductionReviewDraftKind,
-  draftIds: string[],
-): Promise<AgentDraft[]> {
-  const ids = Array.from(new Set(draftIds.map((id) => id.trim()).filter(Boolean)))
+  kind: PreProductionReviewWorkspaceKind,
+  workspaceIds: string[],
+): Promise<AgentWorkspace[]> {
+  const ids = Array.from(new Set(workspaceIds.map((id) => id.trim()).filter(Boolean)))
   if (ids.length === 0) return []
-  const drafts = await Promise.all(ids.map(async (draftId) => {
+  const workspaces = await Promise.all(ids.map(async (workspaceId) => {
     try {
-      return await localAgentClient.getDraft(draftId)
+      return await localAgentClient.getWorkspace(workspaceId)
     } catch {
       return null
     }
   }))
-  return drafts.filter((draft): draft is AgentDraft => Boolean(draft && draft.projectId === projectId && draft.kind === kind))
+  return workspaces.filter((workspace): workspace is AgentWorkspace => Boolean(workspace && workspace.projectId === projectId && workspace.kind === kind))
 }
 
 export function usePreProductionReviewController({
@@ -36,20 +36,20 @@ export function usePreProductionReviewController({
   setSearchParams: SearchParamsSetter
 }) {
   const workspaceView = searchParams.get('view') === 'review' ? 'review' : 'main'
-  const openedDraftId = searchParams.get('draftId')?.trim() || ''
-  const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
-  const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
+  const openedWorkspaceId = searchParams.get('workspaceId')?.trim() || ''
+  const openedSettingWorkspaceId = searchParams.get('settingWorkspaceId')?.trim() || ''
+  const openedAssetWorkspaceWorkspaceId = searchParams.get('assetWorkspaceWorkspaceId')?.trim() || ''
 
-  const assetProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['asset-proposal-drafts', projectId, openedAssetProposalDraftId, openedDraftId],
-    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'asset_proposal', [openedAssetProposalDraftId, openedDraftId]),
-    enabled: !!projectId && workspaceView === 'review' && Boolean(openedAssetProposalDraftId || openedDraftId),
+  const assetWorkspaceWorkspacesQuery = useQuery<AgentWorkspace[]>({
+    queryKey: ['asset-workspace-workspaces', projectId, openedAssetWorkspaceWorkspaceId, openedWorkspaceId],
+    queryFn: () => loadPreProductionReviewWorkspaces(projectId!, 'asset_workspace', [openedAssetWorkspaceWorkspaceId, openedWorkspaceId]),
+    enabled: !!projectId && workspaceView === 'review' && Boolean(openedAssetWorkspaceWorkspaceId || openedWorkspaceId),
     refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
-  const settingProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['setting-proposal-drafts', projectId, openedSettingDraftId, openedDraftId],
-    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'setting_proposal', [openedSettingDraftId, openedDraftId]),
-    enabled: !!projectId && workspaceView === 'review' && Boolean(openedSettingDraftId || openedDraftId),
+  const settingWorkspaceWorkspacesQuery = useQuery<AgentWorkspace[]>({
+    queryKey: ['setting-workspace-workspaces', projectId, openedSettingWorkspaceId, openedWorkspaceId],
+    queryFn: () => loadPreProductionReviewWorkspaces(projectId!, 'setting_workspace', [openedSettingWorkspaceId, openedWorkspaceId]),
+    enabled: !!projectId && workspaceView === 'review' && Boolean(openedSettingWorkspaceId || openedWorkspaceId),
     refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
 
@@ -62,11 +62,11 @@ export function usePreProductionReviewController({
 
   return {
     workspaceView,
-    openedDraftId,
-    openedSettingDraftId,
-    openedAssetProposalDraftId,
-    assetProposalDraftsQuery,
-    settingProposalDraftsQuery,
+    openedWorkspaceId,
+    openedSettingWorkspaceId,
+    openedAssetWorkspaceWorkspaceId,
+    assetWorkspaceWorkspacesQuery,
+    settingWorkspaceWorkspacesQuery,
     setWorkspaceView,
     openReviewWorkspace: () => setWorkspaceView('review'),
     openMainWorkspace: () => setWorkspaceView('main'),

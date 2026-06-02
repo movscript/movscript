@@ -4,7 +4,7 @@ import { parseAgentCommand } from '../../../../context/command/commandRouter.js'
 import { buildPromptMemoryIndex } from '../../../../context/prompt/hygiene/promptHygiene.js'
 import { extractAgentContext, isValidAgentProjectId } from '../../../../context/runtime/runtimeContext.js'
 import { modelTurnContext } from '../../../../context/prompt/turn/modelTurnContext.js'
-import type { AgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { planPreviewToolRequests } from '../../../../orchestration/model/planning/preview/previewPlanner.js'
 import { resolveRuntimeLayers } from '../../../../skills/resolution/layers/runtimeLayerResolver.js'
@@ -30,7 +30,7 @@ export async function buildRuntimeRunPreview(input: {
   store: Pick<AgentStore, 'getThread'>
   mcpClient: Pick<import('../../../../adapters/mcp/client/mcpClient.js').MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   memoryManager: MemoryManager
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   catalogSnapshot: AgentRuntimeCatalogSnapshot
   contractResolver: AgentRuntimeContractResolver
   updateState?: AgentCapabilitiesResponse['updates']
@@ -122,7 +122,7 @@ export async function buildRuntimeRunPreview(input: {
       command,
       currentProjectId,
       registry: input.catalogSnapshot.toolRegistry,
-      draftStore: input.draftStore,
+      workspaceStore: input.workspaceStore,
       contractResolver: input.contractResolver,
       makeApprovalId: input.makeApprovalId,
       now: input.now,

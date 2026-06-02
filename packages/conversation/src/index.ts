@@ -3,8 +3,7 @@ import type {
   AgentChatMessage,
   AgentChatMessageMeta,
   AgentConversation,
-  AgentConversationDraft,
-  AgentMessage,
+  AgentConversationWorkspace,
   AgentPlanRevision,
   AgentRun,
   AgentRunActivity,
@@ -21,9 +20,8 @@ export type {
   AgentChatMessage,
   AgentChatMessageMeta,
   AgentConversation,
-  AgentConversationDraft,
+  AgentConversationWorkspace,
   AgentGenerationJob,
-  AgentMessage,
   AgentPlan,
   AgentPlanRevision,
   AgentRun,
@@ -48,7 +46,7 @@ export interface AgentConversationMessageMetaShape {
   generationJobs?: unknown[]
   generationParamAudits?: unknown[]
   generationValidationErrors?: unknown[]
-  draftArtifacts?: unknown[]
+  workspaceArtifacts?: unknown[]
   localRunActivity?: unknown
   planRevision?: AgentPlanRevision
 }
@@ -73,60 +71,9 @@ export interface AgentConversationShape<Message extends AgentConversationMessage
   updatedAt: number
 }
 
-export interface AgentConversationDraftShape<Attachment extends AgentAttachment = AgentAttachment> {
+export interface AgentConversationWorkspaceShape<Attachment extends AgentAttachment = AgentAttachment> {
   input: string
   attachments: Attachment[]
-}
-
-type RuntimeConversationMessage = AgentConversationMessageShape<AgentConversationMessageMetaShape>
-
-export interface AgentConversationMessageStore<Message extends AgentConversationMessageShape = AgentChatMessage, Meta = NonNullable<Message['meta']>> {
-  addMessage(userId: string, conversationId: string, msg: Omit<Message, 'id' | 'timestamp'> & { timestamp?: number }): string
-  upsertMessage(userId: string, conversationId: string, messageId: string, msg: Omit<Message, 'id' | 'timestamp'> & { timestamp?: number }): void
-  removeMessage(userId: string, conversationId: string, messageId: string): void
-  updateMessageMeta(userId: string, conversationId: string, messageId: string, meta: Meta): void
-  setConversationMessages(userId: string, conversationId: string, messages: Message[]): void
-  clearConversationDraft(userId: string, conversationId: string): void
-}
-
-export interface AgentMessageViewModelPayload {
-  attachments?: AgentAttachment[]
-  meta: AgentConversationMessageMetaShape
-}
-
-export interface AgentConversationProjectionDeps<PayloadDeps = unknown> {
-  assistantResultPayloadForRun?: (
-    run: AgentRun,
-    liveEvents: AgentRunActivityEvent[],
-    assistantContent: string,
-    deps: PayloadDeps,
-  ) => Promise<AgentMessageViewModelPayload>
-  assistantResultPayloadDeps?: PayloadDeps
-  formatAssistantContent?: (run: AgentRun, thread: Pick<AgentThread, 'messages'>) => string
-  localUserEchoContentKey?: (text: string) => string
-}
-
-export interface RuntimeThreadProjectionInput<Message extends AgentConversationMessageShape = AgentChatMessage, PayloadDeps = unknown> {
-  thread: AgentThread
-  runs?: AgentRun[]
-  existingMessages?: Message[]
-  liveEventsByRunId?: Record<string, AgentRunActivityEvent[]>
-  deps?: AgentConversationProjectionDeps<PayloadDeps>
-}
-
-export interface RuntimeConversationProjection<Message extends AgentConversationMessageShape = AgentChatMessage> {
-  thread: {
-    id: string
-  }
-  messages: Message[]
-}
-
-export interface RuntimeThreadProjectionSinkInput<Message extends AgentConversationMessageShape = AgentChatMessage> {
-  userId: string
-  conversationId: string
-  threadId: string
-  sessionId?: string
-  messages: Message[]
 }
 
 export interface RuntimeThreadRunState<Run extends AgentRun = AgentRun> {
@@ -144,33 +91,6 @@ export interface ResolveRuntimeThreadRunStateInput<Run extends AgentRun = AgentR
     waitingRunIds?: string[]
   }
   thread?: Pick<AgentThread, 'activeRunId' | 'lastRunId'>
-}
-
-export interface RuntimeThreadConversationProjection<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Run extends AgentRun = AgentRun,
-  Thread extends Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'> = Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'>,
-> extends RuntimeThreadRunState<Run>, RuntimeConversationProjection<Message> {
-  thread: Thread
-}
-
-export interface BuildRuntimeThreadConversationProjectionInput<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Run extends AgentRun = AgentRun,
-  Thread extends Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'> = Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'>,
-  PayloadDeps = unknown,
-> {
-  thread: Thread
-  runs?: Run[]
-  ensureRuns?: Run[]
-  interactions?: RuntimeInteraction[]
-  current?: {
-    activeRunIds?: string[]
-    waitingRunIds?: string[]
-  }
-  existingMessages?: Message[]
-  liveEventsByRunId?: Record<string, AgentRunActivityEvent[]>
-  deps?: AgentConversationProjectionDeps<PayloadDeps>
 }
 
 export interface AgentRunTimeline {
@@ -225,11 +145,11 @@ export interface AgentRunTimelineToolExecution {
 
 export interface AgentUserConversationState<
   Conversation extends AgentConversationShape = AgentConversation,
-  Draft extends AgentConversationDraftShape = AgentConversationDraft,
+  Workspace extends AgentConversationWorkspaceShape = AgentConversationWorkspace,
 > {
   conversations: Conversation[]
   activeConversationId: string | null
-  draftsByConversation: Record<string, Draft>
+  workspacesByConversation: Record<string, Workspace>
 }
 
 export interface AgentConversationMutationOptions {
@@ -240,50 +160,6 @@ export interface AgentConversationMutationOptions {
 export type AgentConversationMessageInput<Message extends AgentConversationMessageShape> =
   Omit<Message, 'id' | 'timestamp'> & { timestamp?: number }
 
-export type AssistantConversationMessageAppender<Meta = AgentChatMessageMeta> =
-  (content: string, meta?: Meta) => string | void
-
-export interface AppendConversationMessageDeps<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
-> {
-  userId: string
-  conversationId: string
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'addMessage'>
-}
-
-export function appendAssistantConversationMessage<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
->(input: {
-  content: string
-  meta?: Meta
-  deps: AppendConversationMessageDeps<Message, Meta>
-}): string {
-  return input.deps.messageStore.addMessage(input.deps.userId, input.deps.conversationId, {
-    role: 'assistant',
-    content: input.content,
-    ...(input.meta ? { meta: input.meta } : {}),
-  } as Omit<Message, 'id' | 'timestamp'>)
-}
-
-export function appendUserConversationMessage<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
->(input: {
-  content: string
-  attachments?: Message['attachments']
-  meta?: Meta
-  deps: AppendConversationMessageDeps<Message, Meta>
-}): string {
-  return input.deps.messageStore.addMessage(input.deps.userId, input.deps.conversationId, {
-    role: 'user',
-    content: input.content,
-    ...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
-    ...(input.meta ? { meta: input.meta } : {}),
-  } as Omit<Message, 'id' | 'timestamp'>)
-}
-
 export interface AgentConversationNormalizeOptions {
   createId?: () => string
   defaultTitle?: string
@@ -292,11 +168,11 @@ export interface AgentConversationNormalizeOptions {
 
 export function normalizeConvsByUser<
   Conversation extends AgentConversationShape = AgentConversation,
-  Draft extends AgentConversationDraftShape = AgentConversationDraft,
+  Workspace extends AgentConversationWorkspaceShape = AgentConversationWorkspace,
 >(
   value: unknown,
   options: AgentConversationNormalizeOptions = {},
-): Record<string, AgentUserConversationState<Conversation, Draft>> {
+): Record<string, AgentUserConversationState<Conversation, Workspace>> {
   if (!isRecord(value)) return {}
   return Object.fromEntries(
     Object.entries(value).map(([userId, state]) => {
@@ -309,7 +185,7 @@ export function normalizeConvsByUser<
       return [userId, {
         conversations,
         activeConversationId,
-        draftsByConversation: normalizeDraftsByConversation<Draft>(record.draftsByConversation, options),
+        workspacesByConversation: normalizeWorkspacesByConversation<Workspace>(record.workspacesByConversation, options),
       }]
     }),
   )
@@ -359,19 +235,19 @@ export function normalizeMessages<Message extends AgentConversationMessageShape 
     })
 }
 
-export function normalizeDraftsByConversation<Draft extends AgentConversationDraftShape = AgentConversationDraft>(
+export function normalizeWorkspacesByConversation<Workspace extends AgentConversationWorkspaceShape = AgentConversationWorkspace>(
   value: unknown,
   options: AgentConversationNormalizeOptions = {},
-): Record<string, Draft> {
+): Record<string, Workspace> {
   if (!isRecord(value)) return {}
   return Object.fromEntries(
     Object.entries(value)
-      .flatMap(([conversationId, draft]) => {
-        if (!isRecord(draft)) return []
+      .flatMap(([conversationId, workspace]) => {
+        if (!isRecord(workspace)) return []
         return [[conversationId, {
-          input: typeof draft.input === 'string' ? draft.input : '',
-          attachments: normalizeAttachments(draft.attachments, options),
-        } as Draft]]
+          input: typeof workspace.input === 'string' ? workspace.input : '',
+          attachments: normalizeAttachments(workspace.attachments, options),
+        } as Workspace]]
       }),
   )
 }
@@ -496,93 +372,6 @@ export function removeConversationMessage<
   }
 }
 
-export async function projectRuntimeThreadMessages<Message extends AgentConversationMessageShape = AgentChatMessage, PayloadDeps = unknown>(input: RuntimeThreadProjectionInput<Message, PayloadDeps>): Promise<Message[]> {
-  const runs = [...(input.runs ?? [])].filter(isTopLevelUserFacingRun)
-  const localUserEchoContentKey = input.deps?.localUserEchoContentKey ?? defaultLocalUserEchoContentKey
-  const existingByRuntimeMessageId = existingRuntimeMessageMap(input.existingMessages ?? [], input.thread.id)
-  const existingLocalUserEchoesByKey = existingLocalUserEchoMap(input.existingMessages ?? [], localUserEchoContentKey)
-  const existingAssistantByRuntimeRunId = existingAssistantRuntimeRunMap(input.existingMessages ?? [], input.thread.id)
-  const runsBySourceMessageId = new Map<string, AgentRun>()
-  const runsByAssistantMessageId = new Map<string, AgentRun>()
-  const runsById = new Map<string, AgentRun>()
-  for (const run of runs) {
-    runsById.set(run.id, run)
-    if (run.input?.sourceMessageId) runsBySourceMessageId.set(run.input.sourceMessageId, run)
-    if (run.assistantMessageId) runsByAssistantMessageId.set(run.assistantMessageId, run)
-  }
-
-  const projectedAssistantRunIds = new Set<string>()
-  const messages: RuntimeConversationMessage[] = []
-  for (const message of [...input.thread.messages].sort(compareRuntimeMessages)) {
-    if (message.role !== 'user' && message.role !== 'assistant') continue
-    const run = message.role === 'user'
-      ? runsBySourceMessageId.get(message.id) ?? (message.runId ? runsById.get(message.runId) : undefined)
-      : runsByAssistantMessageId.get(message.id) ?? (message.runId ? runsById.get(message.runId) : undefined)
-    if (message.role === 'assistant' && run) projectedAssistantRunIds.add(run.id)
-    messages.push(await projectRuntimeMessage({
-      message,
-      run,
-      existing: existingByRuntimeMessageId.get(message.id) ?? (message.role === 'user' ? consumeExistingLocalUserEcho(existingLocalUserEchoesByKey, message, localUserEchoContentKey) : undefined),
-      liveEvents: run ? input.liveEventsByRunId?.[run.id] : undefined,
-      deps: input.deps,
-    }))
-  }
-
-  for (const run of runs.sort(compareRuns)) {
-    if (projectedAssistantRunIds.has(run.id)) continue
-    const content = formatAssistantContent(run, input.thread, input.deps)
-    const existing = existingAssistantByRuntimeRunId.get(run.id)
-    const payload = await assistantResultPayloadForRun(run, input.liveEventsByRunId?.[run.id] ?? [], content, input.deps)
-    const sourceMessage = run.input?.sourceMessageId
-      ? input.thread.messages.find((message) => message.id === run.input?.sourceMessageId)
-      : undefined
-    messages.push({
-      id: existing?.id ?? `runtime-run:${run.id}:assistant`,
-      role: 'assistant',
-      content,
-      attachments: payload.attachments ?? existing?.attachments,
-      meta: {
-        ...existing?.meta,
-        ...payload.meta,
-      },
-      timestamp: syntheticAssistantRunTimestamp(run, sourceMessage),
-    })
-  }
-
-  return messages.sort(compareProjectedRuntimeMessagesByRunOrder(runs, input.thread)) as Message[]
-}
-
-export async function buildRuntimeThreadConversationProjection<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Run extends AgentRun = AgentRun,
-  Thread extends Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'> = Pick<AgentThread, 'id' | 'messages' | 'activeRunId' | 'lastRunId'>,
-  PayloadDeps = unknown,
->(
-  input: BuildRuntimeThreadConversationProjectionInput<Message, Run, Thread, PayloadDeps>,
-): Promise<RuntimeThreadConversationProjection<Message, Run, Thread>> {
-  const runState = resolveRuntimeThreadRunState<Run>({
-    runs: input.runs,
-    ensureRuns: input.ensureRuns,
-    interactions: input.interactions,
-    current: input.current,
-    thread: input.thread,
-  })
-  const messages = await projectRuntimeThreadMessages<Message, PayloadDeps>({
-    thread: input.thread as unknown as AgentThread,
-    runs: runState.runs,
-    existingMessages: input.existingMessages,
-    liveEventsByRunId: input.liveEventsByRunId,
-    deps: input.deps,
-  })
-  return {
-    thread: input.thread,
-    runs: runState.runs,
-    actionableRuns: runState.actionableRuns,
-    ...(runState.currentRun ? { currentRun: runState.currentRun } : {}),
-    messages,
-  }
-}
-
 export function buildAgentRunTimeline(activity: AgentRunActivity): AgentRunTimeline {
   const decisions = timelineDecisions(activity.events ?? [])
   const toolExecutions = timelineToolExecutions(activity, decisions)
@@ -703,47 +492,6 @@ export function resolveCurrentRuntimeRun<Run extends AgentRun = AgentRun>(input:
     ?? [...input.runs].sort(compareRunsByUpdatedAtDesc)[0]
 }
 
-export function mergeProjectedRuntimeMessages<Message extends AgentConversationMessageShape = AgentChatMessage>(input: {
-  existingMessages: Message[]
-  projectedMessages: Message[]
-  threadId: string
-}): Message[] {
-  const projected = dedupeProjectedRuntimeMessages(input.projectedMessages)
-  const projectedIds = new Set(projected.map((message) => message.id))
-  const projectedRuntimeContentKeys = new Set(projected
-    .filter(isRuntimeProjectedMessage)
-    .map(runtimeContentKey))
-  return [
-    ...input.existingMessages.filter((message) => !isReplacedByRuntimeProjection(message, input.threadId, projectedIds, projectedRuntimeContentKeys)),
-    ...projected,
-  ].sort(compareMergedRuntimeMessages(projected)) as Message[]
-}
-
-export function mergeRuntimeThreadProjectionMessages<Message extends AgentConversationMessageShape = AgentChatMessage>(existingMessages: Message[], projection: RuntimeConversationProjection<Message>): Message[] {
-  return mergeProjectedRuntimeMessages({
-    existingMessages,
-    projectedMessages: projection.messages,
-    threadId: projection.thread.id,
-  })
-}
-
-export function runtimeThreadHydrationKey(conversationId: string, threadId: string): string {
-  return `${conversationId}:${threadId}`
-}
-
-export function markRuntimeMessagesRestored<Message extends AgentConversationMessageShape = AgentChatMessage>(messages: Message[], restoredLabel: string): Message[] {
-  return messages.map((message) => ({
-    ...message,
-    meta: {
-      ...message.meta,
-      contextLabels: [
-        restoredLabel,
-        ...(message.meta?.contextLabels ?? []),
-      ],
-    },
-  })) as Message[]
-}
-
 export interface RuntimeThreadConversationSessionState {
   localThreadIdsByConversation: Record<string, string>
   sessionIdsByConversation?: Record<string, string>
@@ -755,30 +503,6 @@ export interface RestoreRuntimeThreadConversationResult {
   threadId: string
   reusedExistingConversation: boolean
   restoredMessageCount: number
-}
-
-export interface RestoreRuntimeThreadConversationDeps<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta = NonNullable<Message['meta']>,
-  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'>,
-  Thread extends Pick<AgentThread, 'id' | 'sessionId' | 'title'> = Pick<AgentThread, 'id' | 'sessionId' | 'title'>,
-> {
-  userId: string
-  conversations: Conversation[]
-  getConversations?: () => Conversation[]
-  sessionState: RuntimeThreadConversationSessionState
-  restoredLabel: string
-  titleForThread: (thread: Thread) => string
-  loadProjection: (threadId: string) => Promise<RuntimeConversationProjection<Message> & { thread: Thread }>
-  createRuntimeConversation: (userId: string, input: { threadId: string; sessionId?: string; title?: string }) => string
-  setActiveConversation: (userId: string, conversationId: string) => void
-  unarchiveConversation?: (userId: string, conversationId: string) => void
-  updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  setRuntimeThreadProjection: (input: RuntimeThreadProjectionSinkInput<Message>) => void
-  setLocalThreadId: (conversationId: string, threadId: string) => void
-  setConversationSessionId?: (conversationId: string, sessionId: string) => void
-  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
 }
 
 export function conversationIdForRuntimeThread(input: RuntimeThreadConversationSessionState & { threadId: string }): string | undefined {
@@ -832,711 +556,6 @@ export function existingConversationIdForRuntimeSession<Conversation extends Pic
   return conversations.some((conversation) => conversation.id === mappedConversationId) ? mappedConversationId : undefined
 }
 
-export async function restoreRuntimeThreadConversation<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta = NonNullable<Message['meta']>,
-  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'>,
-  Thread extends Pick<AgentThread, 'id' | 'sessionId' | 'title'> = Pick<AgentThread, 'id' | 'sessionId' | 'title'>,
->(
-  threadId: string,
-  deps: RestoreRuntimeThreadConversationDeps<Message, Meta, Conversation, Thread>,
-): Promise<RestoreRuntimeThreadConversationResult> {
-  const currentConversations = () => deps.getConversations?.() ?? deps.conversations
-  const activateConversation = (conversationId: string) => {
-    deps.unarchiveConversation?.(deps.userId, conversationId)
-    deps.setActiveConversation(deps.userId, conversationId)
-  }
-  const existingConversationId = existingConversationIdForRuntimeThread(threadId, currentConversations(), deps.sessionState)
-  if (existingConversationId) {
-    activateConversation(existingConversationId)
-    return {
-      conversationId: existingConversationId,
-      threadId,
-      reusedExistingConversation: true,
-      restoredMessageCount: 0,
-    }
-  }
-
-  const projection = await deps.loadProjection(threadId)
-  const sessionId = projection.thread.sessionId?.trim()
-  if (sessionId) {
-    const existingSessionConversationId = existingConversationIdForRuntimeSession(sessionId, currentConversations(), deps.sessionState)
-    if (existingSessionConversationId) {
-      activateConversation(existingSessionConversationId)
-      return {
-        conversationId: existingSessionConversationId,
-        threadId: projection.thread.id,
-        reusedExistingConversation: true,
-        restoredMessageCount: 0,
-      }
-    }
-  }
-  const existingProjectedThreadConversationId = existingConversationIdForRuntimeThread(projection.thread.id, currentConversations(), deps.sessionState)
-  if (existingProjectedThreadConversationId) {
-    activateConversation(existingProjectedThreadConversationId)
-    return {
-      conversationId: existingProjectedThreadConversationId,
-      threadId: projection.thread.id,
-      reusedExistingConversation: true,
-      restoredMessageCount: 0,
-    }
-  }
-  const title = deps.titleForThread(projection.thread)
-  const conversationId = deps.createRuntimeConversation(deps.userId, {
-    threadId: projection.thread.id,
-    ...(sessionId ? { sessionId } : {}),
-    title,
-  })
-  deps.updateConversationTitle(deps.userId, conversationId, title)
-  const restoredMessages = markRuntimeMessagesRestored(projection.messages, deps.restoredLabel)
-  deps.setRuntimeThreadProjection({
-    userId: deps.userId,
-    conversationId,
-    threadId: projection.thread.id,
-    ...(sessionId ? { sessionId } : {}),
-    messages: restoredMessages,
-  })
-  deps.setLocalThreadId(conversationId, projection.thread.id)
-  if (sessionId) {
-    deps.setConversationSessionId?.(conversationId, sessionId)
-    deps.setConversationRuntimeSessionId?.(deps.userId, conversationId, sessionId)
-  }
-  deps.setConversationRuntimeThreadId(deps.userId, conversationId, projection.thread.id)
-  deps.setActiveConversation(deps.userId, conversationId)
-  return {
-    conversationId,
-    threadId: projection.thread.id,
-    reusedExistingConversation: false,
-    restoredMessageCount: restoredMessages.length,
-  }
-}
-
-export interface SendRuntimeInputMessageResult<Run extends { id: string }> {
-  run: Run
-  message: AgentMessage
-  runtimeInput?: {
-    accepted?: boolean
-    runId?: string
-    messageId?: string
-  }
-}
-
-export type RuntimeSendSettledStatus = 'completed' | 'error' | 'cancelled'
-
-export interface CompleteRuntimeSendDraft {
-  localRuntime?: {
-    diagnosticCommand?: boolean
-    requestId?: string
-  }
-}
-
-export interface CompleteRuntimeSendRunResult<
-  Run extends AgentRun = AgentRun,
-  Thread extends AgentThread = AgentThread,
-  ThreadResolution = unknown,
-> {
-  run: Run
-  thread: Thread
-  threadResolution?: ThreadResolution
-  sourceMessage?: AgentMessage
-}
-
-export interface CompleteRuntimeSendResult<
-  Run extends AgentRun,
-  Thread extends AgentThread,
-  Artifact,
-  ActivityEvent extends AgentRunActivityEvent,
-> {
-  run: Run
-  thread: Thread
-  artifacts: Artifact[]
-  liveEvents: ActivityEvent[]
-}
-
-export interface CompleteRuntimeSendDeps<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
-  Run extends AgentRun = AgentRun,
-  Thread extends AgentThread = AgentThread,
-  Artifact = unknown,
-  ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
-  ThreadResolution = unknown,
-  PendingAssistantState = unknown,
-> {
-  userId: string
-  conversationId: string
-  localUserMessageId: string
-  liveEvents: () => ActivityEvent[]
-  setLiveEventsRef: (events: ActivityEvent[]) => void
-  getRun: (runId: string) => Promise<Run>
-  extractArtifacts: (run: Run) => Artifact[]
-  setLocalThreadId: (conversationId: string, threadId: string) => void
-  setConversationSessionId?: (conversationId: string, sessionId: string) => void
-  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
-  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'updateMessageMeta'>
-  updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: Run; thread?: Thread; threadId?: string; artifacts?: Artifact[] }) => void
-  setConversationRun: (conversationId: string, run: Run, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
-  setPendingHttpEvents: (events: ActivityEvent[]) => void
-  setPendingAssistantState: (state: PendingAssistantState | null) => void
-  appendAssistantRunResult: (run: Run, thread: Thread, liveEvents: ActivityEvent[]) => Promise<unknown>
-  getExistingMessages: () => Message[]
-  setRuntimeThreadProjection: (input: RuntimeThreadProjectionSinkInput<Message>) => void
-  setLiveTraceEvents: (events: ActivityEvent[]) => void
-  threadResolutionActivityEvent?: (resolution: ThreadResolution | undefined) => ActivityEvent | null | undefined
-  upsertActivityEvent?: (events: ActivityEvent[], event: ActivityEvent) => ActivityEvent[]
-  loadRuntimeThreadProjection: (input: {
-    threadId: string
-    sessionId?: string
-    thread?: Thread
-    ensureRuns: Run[]
-    existingMessages: Message[]
-    liveEventsByRunId: Record<string, ActivityEvent[]>
-  }) => Promise<RuntimeConversationProjection<Message>>
-  runTouchesAgentCatalog: (run: Run) => boolean
-  refreshAgentCatalogContext: () => void
-  notifyRunSettled: (input: {
-    requestId?: string
-    status: RuntimeSendSettledStatus
-    run: Run
-    thread: Thread
-    artifacts: Artifact[]
-  }) => void
-}
-
-export interface AppendAssistantRunResultMessageDeps<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Run extends AgentRun = AgentRun,
-  Thread extends Pick<AgentThread, 'messages'> = Pick<AgentThread, 'messages'>,
-  ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
-  PayloadDeps = unknown,
-> {
-  userId: string
-  conversationId: string
-  getStreamingAssistantMessageId?: () => string | null | undefined
-  resetStreamingAssistant?: (settledRunId?: string) => void
-  formatAssistantContent?: (run: Run, thread: Thread) => string
-  assistantResultPayloadForRun?: (
-    run: Run,
-    liveEvents: ActivityEvent[],
-    assistantContent: string,
-    deps: PayloadDeps,
-  ) => Promise<AgentMessageViewModelPayload>
-  assistantResultPayloadDeps?: PayloadDeps
-}
-
-export interface AppendAssistantRunResultMessageResult<Artifact = unknown> {
-  messageId: string
-  content: string
-  artifacts: Artifact[]
-}
-
-export async function appendAssistantRunResultMessage<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Run extends AgentRun = AgentRun,
-  Thread extends Pick<AgentThread, 'messages'> = Pick<AgentThread, 'messages'>,
-  ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
-  Artifact = unknown,
-  PayloadDeps = unknown,
->(input: {
-  run: Run
-  thread: Thread
-  liveEvents?: ActivityEvent[]
-  deps: AppendAssistantRunResultMessageDeps<Message, Run, Thread, ActivityEvent, PayloadDeps>
-}): Promise<AppendAssistantRunResultMessageResult<Artifact>> {
-  const { run, thread, deps } = input
-  const liveEvents = input.liveEvents ?? []
-  const content = deps.formatAssistantContent
-    ? deps.formatAssistantContent(run, thread)
-    : formatAssistantContent(run, thread, undefined)
-  const payload: AgentMessageViewModelPayload = deps.assistantResultPayloadForRun
-    ? await deps.assistantResultPayloadForRun(run, liveEvents, content, deps.assistantResultPayloadDeps as PayloadDeps)
-    : {
-      meta: {
-        runtimeMessage: {
-          threadId: run.threadId,
-          runId: run.id,
-          ...(run.assistantMessageId ? { messageId: run.assistantMessageId } : {}),
-        },
-      },
-    }
-  const messageId = deps.getStreamingAssistantMessageId?.() ?? `runtime-run:${run.id}:assistant`
-  deps.resetStreamingAssistant?.(run.id)
-  return {
-    messageId,
-    content,
-    artifacts: (payload.meta.draftArtifacts ?? []) as Artifact[],
-  }
-}
-
-export async function completeRuntimeSendRunResult<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
-  Run extends AgentRun = AgentRun,
-  Thread extends AgentThread = AgentThread,
-  Artifact = unknown,
-  ActivityEvent extends AgentRunActivityEvent = AgentRunActivityEvent,
-  ThreadResolution = unknown,
-  PendingAssistantState = unknown,
->(input: {
-  draft: CompleteRuntimeSendDraft
-  runResult: CompleteRuntimeSendRunResult<Run, Thread, ThreadResolution>
-  deps: CompleteRuntimeSendDeps<Message, Meta, Run, Thread, Artifact, ActivityEvent, ThreadResolution, PendingAssistantState>
-}): Promise<CompleteRuntimeSendResult<Run, Thread, Artifact, ActivityEvent>> {
-  const { draft, runResult, deps } = input
-  const { thread } = runResult
-  const run = runResult.run.streamPartial
-    ? await deps.getRun(runResult.run.id).catch(() => runResult.run)
-    : runResult.run
-  const artifacts = deps.extractArtifacts(run)
-  if (!draft.localRuntime?.diagnosticCommand) {
-    const sessionId = thread.sessionId ?? run.sessionId
-    if (sessionId) {
-      deps.setConversationSessionId?.(deps.conversationId, sessionId)
-      deps.setConversationRuntimeSessionId?.(deps.userId, deps.conversationId, sessionId)
-    }
-    deps.setLocalThreadId(deps.conversationId, thread.id)
-    deps.setConversationRuntimeThreadId(deps.userId, deps.conversationId, thread.id)
-  }
-  if (runResult.sourceMessage) {
-    deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, deps.localUserMessageId, {
-      runtimeMessage: runtimeMessageRef(runResult.sourceMessage, run),
-      runtimeInput: {
-        threadId: runResult.sourceMessage.threadId,
-        runId: run.id,
-        messageId: runResult.sourceMessage.id,
-        status: 'accepted',
-      },
-    } as Meta)
-  }
-  if (!draft.localRuntime?.diagnosticCommand && thread.title?.trim()) {
-    deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
-  }
-  if (draft.localRuntime?.requestId) {
-    deps.setPageTaskRunning(draft.localRuntime.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
-  }
-  deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
-  deps.setPendingHttpEvents([])
-  deps.setPendingAssistantState(null)
-  const resolutionEvent = deps.threadResolutionActivityEvent?.(runResult.threadResolution)
-  const liveEvents = resolutionEvent && deps.upsertActivityEvent
-    ? deps.upsertActivityEvent(deps.liveEvents(), resolutionEvent)
-    : deps.liveEvents()
-  deps.setLiveEventsRef(liveEvents)
-  if (run.status !== 'requires_action') {
-    await deps.appendAssistantRunResult(run, thread, liveEvents)
-  }
-  if (!draft.localRuntime?.diagnosticCommand) {
-    const existingMessages = deps.getExistingMessages()
-    const sessionId = thread.sessionId ?? run.sessionId
-    const projection = await deps.loadRuntimeThreadProjection({
-      threadId: thread.id,
-      ...(sessionId ? { sessionId } : {}),
-      thread,
-      ensureRuns: [run],
-      existingMessages,
-      liveEventsByRunId: { [run.id]: liveEvents },
-    })
-    deps.setRuntimeThreadProjection({
-      userId: deps.userId,
-      conversationId: deps.conversationId,
-      threadId: projection.thread.id,
-      ...(sessionId ? { sessionId } : {}),
-      messages: mergeRuntimeThreadProjectionMessages(existingMessages, projection),
-    })
-  }
-  deps.setLiveEventsRef([])
-  deps.setLiveTraceEvents([])
-  if (deps.runTouchesAgentCatalog(run)) deps.refreshAgentCatalogContext()
-  deps.notifyRunSettled({
-    ...(draft.localRuntime?.requestId ? { requestId: draft.localRuntime.requestId } : {}),
-    status: runtimeSendSettledStatusFromRun(run),
-    run,
-    thread,
-    artifacts,
-  })
-  return { run, thread, artifacts, liveEvents }
-}
-
-export function runtimeSendSettledStatusFromRun(run: Pick<AgentRun, 'status'>): RuntimeSendSettledStatus {
-  if (run.status === 'failed') return 'error'
-  if (run.status === 'cancelled') return 'cancelled'
-  return 'completed'
-}
-
-export interface SendRuntimeInputMessageDeps<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
-  Run extends { id: string } = AgentRun,
-  ClientInput = unknown,
-> {
-  userId: string
-  conversationId: string
-  threadId: string
-  run: Run
-  messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'addMessage' | 'updateMessageMeta'>
-  createMessageRun: (threadId: string, input: {
-    message: string
-    sourceMessageId?: string
-    activeRunPolicy: 'runtime_input'
-    runtimeInputMode: 'soft'
-    clientInput?: ClientInput
-  }) => Promise<SendRuntimeInputMessageResult<Run>>
-  setConversationRun: (conversationId: string, run: Run, patch?: { loading?: boolean; building?: boolean; error?: string }) => void
-  setConversationRuntime: (conversationId: string, patch: { loading?: boolean; building?: boolean; error?: string }) => void
-}
-
-export async function sendRuntimeInputMessage<
-  Message extends AgentConversationMessageShape = AgentChatMessage,
-  Meta extends AgentConversationMessageMetaShape = NonNullable<Message['meta']> & AgentConversationMessageMetaShape,
-  Run extends { id: string } = AgentRun,
-  ClientInput = unknown,
->(input: {
-  content: string
-  attachments?: Message['attachments']
-  clientInput?: ClientInput
-  deps: SendRuntimeInputMessageDeps<Message, Meta, Run, ClientInput>
-}): Promise<void> {
-  const content = input.content.trim()
-  if (!content && !(input.attachments && input.attachments.length > 0)) return
-  const { deps } = input
-  const localMessageId = deps.messageStore.addMessage(deps.userId, deps.conversationId, {
-    role: 'user',
-    content,
-    ...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
-    meta: {
-      runtimeInput: {
-        threadId: deps.threadId,
-        runId: deps.run.id,
-        status: 'pending',
-      },
-    },
-  } as Omit<Message, 'id' | 'timestamp'>)
-  try {
-    const result = await deps.createMessageRun(deps.threadId, {
-      message: content,
-      sourceMessageId: localMessageId,
-      activeRunPolicy: 'runtime_input',
-      runtimeInputMode: 'soft',
-      ...(input.clientInput !== undefined ? { clientInput: input.clientInput } : {}),
-    })
-    const runtimeInput = result.runtimeInput
-    deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
-      runtimeInput: {
-        threadId: deps.threadId,
-        runId: runtimeInput?.runId ?? result.run.id,
-        messageId: runtimeInput?.messageId ?? result.message.id,
-        status: runtimeInput && !runtimeInput.accepted ? 'pending' : 'accepted',
-      },
-      runtimeMessage: {
-        threadId: deps.threadId,
-        messageId: result.message.id,
-        runId: result.run.id,
-      },
-    } as Meta)
-    deps.setConversationRun(deps.conversationId, result.run, { loading: true, building: false })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
-      runtimeInput: {
-        threadId: deps.threadId,
-        runId: deps.run.id,
-        status: 'failed',
-        error: message,
-      },
-    } as Meta)
-    deps.setConversationRuntime(deps.conversationId, { loading: true, building: false, error: message })
-    throw error
-  }
-}
-
-function runtimeMessageRef(sourceMessage: AgentMessage, run: Pick<AgentRun, 'id'>): AgentChatMessageMeta['runtimeMessage'] {
-  return {
-    threadId: sourceMessage.threadId,
-    messageId: sourceMessage.id,
-    runId: run.id,
-  }
-}
-
-function isReplacedByRuntimeProjection(
-  message: RuntimeConversationMessage,
-  threadId: string,
-  projectedIds: Set<string>,
-  projectedRuntimeContentKeys: Set<string>,
-): boolean {
-  if (message.meta?.runtimeMessage?.threadId === threadId) return true
-  if (projectedIds.has(message.id)) return true
-  if (!isRuntimeGeneratedLocalMessage(message)) return false
-  return projectedRuntimeContentKeys.has(runtimeContentKey(message))
-}
-
-function isRuntimeProjectedMessage(message: RuntimeConversationMessage): boolean {
-  return message.id.startsWith('runtime:')
-    || message.id.startsWith('runtime-run:')
-    || !!message.meta?.runtimeMessage
-}
-
-function isRuntimeGeneratedLocalMessage(message: RuntimeConversationMessage): boolean {
-  if (isRuntimeProjectedMessage(message)) return true
-  const meta = message.meta
-  return !!meta?.localRunActivity
-    || !!meta?.generationJobs?.length
-    || !!meta?.draftArtifacts?.length
-    || !!meta?.contextLabels?.some((label) => /^run\s+\S+/i.test(label))
-}
-
-function runtimeContentKey(message: RuntimeConversationMessage): string {
-  return `${message.role}:${message.content.trim()}`
-}
-
-function dedupeProjectedRuntimeMessages<Message extends AgentConversationMessageShape>(messages: Message[]): Message[] {
-  const byKey = new Map<string, Message>()
-  const indexByKey = new Map<string, number>()
-  const result: Message[] = []
-  for (const message of messages) {
-    const key = runtimeAssistantResultKey(message)
-    if (!key) {
-      result.push(message)
-      continue
-    }
-    const existing = byKey.get(key)
-    const next = existing ? richerRuntimeMessage(existing, message) : message
-    byKey.set(key, next)
-    const existingIndex = indexByKey.get(key)
-    if (existingIndex !== undefined) {
-      result[existingIndex] = next
-      continue
-    }
-    indexByKey.set(key, result.length)
-    result.push(next)
-  }
-  return result
-}
-
-function compareMergedRuntimeMessages<Message extends AgentConversationMessageShape>(
-  projectedMessages: Message[],
-): (a: Message, b: Message) => number {
-  const projectedOrder = new Map<string, number>()
-  projectedMessages.forEach((message, index) => {
-    projectedOrder.set(message.id, index)
-    const runtime = message.meta?.runtimeMessage
-    if (runtime?.threadId && runtime.runId) projectedOrder.set(`runtime-run:${runtime.threadId}:${runtime.runId}`, index)
-    if (runtime?.threadId && runtime.messageId) projectedOrder.set(`runtime-message:${runtime.threadId}:${runtime.messageId}`, index)
-  })
-  return (a, b) => {
-    const leftOrder = mergedRuntimeMessageOrder(a, projectedOrder)
-    const rightOrder = mergedRuntimeMessageOrder(b, projectedOrder)
-    if (leftOrder !== undefined && rightOrder !== undefined) {
-      return leftOrder - rightOrder || a.timestamp - b.timestamp || a.id.localeCompare(b.id)
-    }
-    return a.timestamp - b.timestamp || a.id.localeCompare(b.id)
-  }
-}
-
-function mergedRuntimeMessageOrder(
-  message: AgentConversationMessageShape,
-  projectedOrder: Map<string, number>,
-): number | undefined {
-  const direct = projectedOrder.get(message.id)
-  if (direct !== undefined) return direct
-  const runtime = message.meta?.runtimeMessage
-  if (!runtime?.threadId) return undefined
-  if (runtime.messageId) {
-    const messageOrder = projectedOrder.get(`runtime-message:${runtime.threadId}:${runtime.messageId}`)
-    if (messageOrder !== undefined) return messageOrder
-  }
-  return runtime.runId ? projectedOrder.get(`runtime-run:${runtime.threadId}:${runtime.runId}`) : undefined
-}
-
-function runtimeAssistantResultKey(message: RuntimeConversationMessage): string | undefined {
-  const runtime = message.meta?.runtimeMessage
-  if (message.meta?.planRevision) return undefined
-  if (message.role !== 'assistant' || !runtime?.threadId || !runtime.runId) return undefined
-  return `${runtime.threadId}:${runtime.runId}`
-}
-
-function richerRuntimeMessage<Message extends AgentConversationMessageShape>(left: Message, right: Message): Message {
-  const leftHasMessageId = !!left.meta?.runtimeMessage?.messageId
-  const rightHasMessageId = !!right.meta?.runtimeMessage?.messageId
-  const preferred = leftHasMessageId !== rightHasMessageId
-    ? leftHasMessageId ? left : right
-    : runtimeMessageScore(right) >= runtimeMessageScore(left) ? right : left
-  const fallback = preferred === right ? left : right
-  const runtimeMessage = preferred.meta?.runtimeMessage ?? fallback.meta?.runtimeMessage
-  return {
-    ...preferred,
-    content: preferred.content || fallback.content,
-    attachments: preferred.attachments ?? fallback.attachments,
-    meta: {
-      ...fallback.meta,
-      ...preferred.meta,
-      ...(runtimeMessage ? { runtimeMessage } : {}),
-    },
-  }
-}
-
-function runtimeMessageScore(message: RuntimeConversationMessage): number {
-  const meta = message.meta
-  let score = 0
-  if (meta?.runtimeMessage?.messageId) score += 3
-  if (meta?.localRunActivity) score += 2
-  if (meta?.runtimeStatus) score += 1
-  if (meta?.generationJobs?.length) score += 1
-  if (meta?.draftArtifacts?.length) score += 1
-  if (message.attachments?.length) score += 1
-  return score
-}
-
-async function projectRuntimeMessage<PayloadDeps>(input: {
-  message: AgentMessage
-  run?: AgentRun
-  existing?: RuntimeConversationMessage
-  liveEvents?: AgentRunActivityEvent[]
-  deps?: AgentConversationProjectionDeps<PayloadDeps>
-}): Promise<RuntimeConversationMessage> {
-  const timestamp = runtimeTimestamp(input.message.createdAt)
-  const baseMeta: AgentConversationMessageMetaShape = {
-    ...input.existing?.meta,
-    ...planRevisionMeta(input.message.metadata),
-    ...runtimeInputMeta(input.message),
-    ...runtimeStatusMeta(input.message.metadata),
-    runtimeMessage: {
-      threadId: input.message.threadId,
-      messageId: input.message.id,
-      ...(input.run ? { runId: input.run.id } : input.existing?.meta?.runtimeMessage?.runId ? { runId: input.existing.meta.runtimeMessage.runId } : {}),
-    },
-  }
-  if (input.message.role === 'assistant' && input.run) {
-    if (baseMeta.planRevision) {
-      return {
-        id: input.existing?.id ?? `runtime:${input.message.id}`,
-        role: 'assistant',
-        content: input.message.content,
-        attachments: input.existing?.attachments,
-        meta: baseMeta,
-        timestamp,
-      }
-    }
-    const payload = await assistantResultPayloadForRun(input.run, input.liveEvents ?? [], input.message.content, input.deps)
-    return {
-      id: input.existing?.id ?? `runtime:${input.message.id}`,
-      role: 'assistant',
-      content: input.message.content,
-      attachments: payload.attachments ?? input.existing?.attachments,
-      meta: {
-        ...baseMeta,
-        ...payload.meta,
-        ...(baseMeta.runtimeStatus ? { runtimeStatus: baseMeta.runtimeStatus } : {}),
-        runtimeMessage: baseMeta.runtimeMessage,
-      },
-      timestamp,
-    }
-  }
-  return {
-    id: input.existing?.id ?? `runtime:${input.message.id}`,
-    role: input.message.role === 'assistant' ? 'assistant' : 'user',
-    content: input.message.content,
-    attachments: input.existing?.attachments ?? attachmentsFromClientInput(input.message.clientInput),
-    meta: baseMeta,
-    timestamp,
-  }
-}
-
-function planRevisionMeta(metadata: AgentMessage['metadata']): Partial<Pick<AgentChatMessageMeta, 'planRevision'>> {
-  if (!isRecord(metadata) || metadata.kind !== 'plan_revision') return {}
-  const revision = metadata.planRevision
-  if (!isPlanRevision(revision)) return {}
-  return { planRevision: revision }
-}
-
-function runtimeInputMeta(message: AgentMessage): Partial<Pick<AgentChatMessageMeta, 'runtimeInput'>> {
-  const metadata = message.metadata
-  if (message.role !== 'user' || !isRecord(metadata) || metadata.kind !== 'runtime_input') return {}
-  const targetRunId = typeof metadata.targetRunId === 'string' && metadata.targetRunId.trim()
-    ? metadata.targetRunId.trim()
-    : typeof message.runId === 'string' && message.runId.trim()
-      ? message.runId.trim()
-      : undefined
-  if (!targetRunId) return {}
-  const status = metadata.status === 'pending'
-    || metadata.status === 'consumed'
-    || metadata.status === 'failed'
-    || metadata.status === 'accepted'
-    ? metadata.status
-    : 'accepted'
-  return {
-    runtimeInput: {
-      threadId: message.threadId,
-      runId: targetRunId,
-      messageId: message.id,
-      status,
-    },
-  }
-}
-
-function runtimeStatusMeta(metadata: AgentMessage['metadata']): Partial<Pick<AgentChatMessageMeta, 'runtimeStatus'>> {
-  if (!isRecord(metadata) || metadata.kind !== 'runtime_status') return {}
-  const status = metadata.runtimeStatus
-  if (!isRuntimeStatusMessage(status)) return {}
-  return { runtimeStatus: status }
-}
-
-function isRuntimeStatusMessage(value: unknown): value is AgentChatMessageMeta['runtimeStatus'] {
-  if (!isRecord(value) || value.kind !== 'async_work_handoff') return false
-  if (typeof value.title !== 'string' || typeof value.detail !== 'string') return false
-  if ('workId' in value && value.workId !== undefined && typeof value.workId !== 'string') return false
-  if ('workKind' in value && value.workKind !== undefined && typeof value.workKind !== 'string') return false
-  if ('workStatus' in value && value.workStatus !== undefined && typeof value.workStatus !== 'string') return false
-  return true
-}
-
-function isPlanRevision(value: unknown): value is AgentPlanRevision {
-  if (!isRecord(value) || value.schema !== 'movscript.agent.plan-revision.v1') return false
-  if (typeof value.id !== 'string' || typeof value.planId !== 'string' || typeof value.threadId !== 'string') return false
-  if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
-  const snapshot = value.snapshot
-  if (snapshot.schema !== 'movscript.agent.plan.v1') return false
-  if (typeof snapshot.id !== 'string' || typeof snapshot.threadId !== 'string') return false
-  if (!Array.isArray(snapshot.items)) return false
-  return snapshot.items.every((item) => (
-    isRecord(item)
-    && typeof item.step === 'string'
-    && (item.status === 'pending' || item.status === 'in_progress' || item.status === 'completed')
-  ))
-}
-
-function attachmentsFromClientInput(clientInput: unknown): AgentAttachment[] | undefined {
-  if (!isRecord(clientInput) || !Array.isArray(clientInput.attachments)) return undefined
-  const attachments = clientInput.attachments
-    .filter(isRecord)
-    .map((attachment, index): AgentAttachment => {
-      const name = typeof attachment.name === 'string' && attachment.name.trim() ? attachment.name.trim() : `attachment-${index + 1}`
-      const mimeType = typeof attachment.mimeType === 'string' && attachment.mimeType.trim() ? attachment.mimeType.trim() : 'application/octet-stream'
-      const resourceId = typeof attachment.resourceId === 'number' && Number.isFinite(attachment.resourceId) ? attachment.resourceId : undefined
-      return {
-        id: typeof attachment.id === 'string' && attachment.id.trim()
-          ? attachment.id.trim()
-          : resourceId !== undefined ? `resource-${resourceId}` : `runtime-attachment-${index + 1}`,
-        name,
-        type: attachmentKind(mimeType, name),
-        mimeType,
-        size: typeof attachment.size === 'number' && Number.isFinite(attachment.size) ? attachment.size : 0,
-        ...(resourceId !== undefined ? { resourceId } : {}),
-      }
-    })
-  return attachments.length > 0 ? attachments : undefined
-}
-
-function attachmentKind(mimeType: string, fallbackName = ''): AgentAttachment['type'] {
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType.startsWith('video/')) return 'video'
-  if (mimeType.startsWith('audio/')) return 'audio'
-  if (/\.(heic|heif)$/i.test(fallbackName)) return 'image'
-  if (mimeType.startsWith('text/') || /\.(txt|md|json|csv|srt)$/i.test(fallbackName)) return 'text'
-  return 'file'
-}
-
 function normalizeAttachmentUrl(url: string | undefined, resourceId: number | undefined): string | undefined {
   if (resourceId !== undefined && (!url || url.startsWith('blob:') || url.startsWith('data:'))) {
     return `/api/v1/resources/${resourceId}/file`
@@ -1563,69 +582,6 @@ function numberOrFallback(value: unknown, fallback: number): number {
 function numberOrUndefined(value: unknown): number | undefined {
   const numeric = Number(value)
   return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
-}
-
-function existingRuntimeMessageMap<Message extends AgentConversationMessageShape>(messages: Message[], threadId: string): Map<string, Message> {
-  const byRuntimeId = new Map<string, Message>()
-  for (const message of messages) {
-    const runtime = message.meta?.runtimeMessage
-    if (runtime?.threadId !== threadId || !runtime.messageId) continue
-    byRuntimeId.set(runtime.messageId, message)
-  }
-  return byRuntimeId
-}
-
-function existingLocalUserEchoMap<Message extends AgentConversationMessageShape>(messages: Message[], contentKey: (text: string) => string): Map<string, Message[]> {
-  const byKey = new Map<string, Message[]>()
-  for (const message of messages) {
-    if (!isLocalRuntimeUserEcho(message)) continue
-    const key = contentKey(message.content)
-    if (!key) continue
-    const list = byKey.get(key) ?? []
-    list.push(message)
-    byKey.set(key, list)
-  }
-  for (const list of byKey.values()) {
-    list.sort((a, b) => a.timestamp - b.timestamp)
-  }
-  return byKey
-}
-
-function consumeExistingLocalUserEcho<Message extends AgentConversationMessageShape>(byKey: Map<string, Message[]>, message: AgentMessage, contentKey: (text: string) => string): Message | undefined {
-  const key = runtimeUserEchoKey(message, contentKey)
-  if (!key) return undefined
-  return byKey.get(key)?.shift()
-}
-
-function isLocalRuntimeUserEcho(message: RuntimeConversationMessage): boolean {
-  const meta = message.meta
-  return message.role === 'user'
-    && !meta?.runtimeMessage
-    && (!!meta?.agentName || meta?.modelId !== undefined || !!meta?.permissionMode)
-}
-
-function runtimeUserEchoKey(message: AgentMessage, contentKey: (text: string) => string): string {
-  const clientInput = isRecord(message.clientInput) ? message.clientInput : undefined
-  const visibleMessage = typeof clientInput?.visibleMessage === 'string' && clientInput.visibleMessage.trim()
-    ? clientInput.visibleMessage
-    : typeof clientInput?.message === 'string'
-      ? clientInput.message
-      : message.content
-  return contentKey(visibleMessage)
-}
-
-function defaultLocalUserEchoContentKey(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-function existingAssistantRuntimeRunMap<Message extends AgentConversationMessageShape>(messages: Message[], threadId: string): Map<string, Message> {
-  const byRunId = new Map<string, Message>()
-  for (const message of messages) {
-    const runtime = message.meta?.runtimeMessage
-    if (message.role !== 'assistant' || runtime?.threadId !== threadId || !runtime.runId) continue
-    byRunId.set(runtime.runId, message)
-  }
-  return byRunId
 }
 
 function runNeedsRuntimeUserAction(run: AgentRun): boolean {
@@ -1978,102 +934,9 @@ function compareRunsByUpdatedAtDesc(a: AgentRun, b: AgentRun): number {
   return runtimeTimestamp(b.updatedAt ?? b.createdAt) - runtimeTimestamp(a.updatedAt ?? a.createdAt)
 }
 
-function isTopLevelUserFacingRun(run: AgentRun): boolean {
-  return run.role !== 'worker' && !run.parentRunId
-}
-
-function compareRuntimeMessages(a: AgentMessage, b: AgentMessage): number {
-  return runtimeTimestamp(a.createdAt) - runtimeTimestamp(b.createdAt)
-}
-
-function compareRuns(a: AgentRun, b: AgentRun): number {
-  return runtimeTimestamp(a.createdAt) - runtimeTimestamp(b.createdAt)
-}
-
-function compareProjectedRuntimeMessagesByRunOrder(
-  runs: AgentRun[],
-  thread: Pick<AgentThread, 'messages'>,
-): (a: RuntimeConversationMessage, b: RuntimeConversationMessage) => number {
-  const order = runtimeRunOrder(runs, thread)
-  return (a, b) => {
-    const leftRunId = a.meta?.runtimeMessage?.runId
-    const rightRunId = b.meta?.runtimeMessage?.runId
-    const leftOrder = leftRunId ? order.get(leftRunId) : undefined
-    const rightOrder = rightRunId ? order.get(rightRunId) : undefined
-    if (leftOrder !== undefined && rightOrder !== undefined) {
-      return leftOrder - rightOrder
-        || a.timestamp - b.timestamp
-        || runtimeMessageRoleOrder(a) - runtimeMessageRoleOrder(b)
-        || a.id.localeCompare(b.id)
-    }
-    return a.timestamp - b.timestamp || a.id.localeCompare(b.id)
-  }
-}
-
-function runtimeRunOrder(runs: AgentRun[], thread: Pick<AgentThread, 'messages'>): Map<string, number> {
-  const messagesById = new Map(thread.messages.map((message) => [message.id, message]))
-  const ordered = [...runs].sort((left, right) => (
-    runtimeRunTriggerTimestamp(left, messagesById) - runtimeRunTriggerTimestamp(right, messagesById)
-      || runtimeTimestamp(left.createdAt) - runtimeTimestamp(right.createdAt)
-      || left.id.localeCompare(right.id)
-  ))
-  return new Map(ordered.map((run, index) => [run.id, index]))
-}
-
-function runtimeRunTriggerTimestamp(run: AgentRun, messagesById: Map<string, AgentMessage>): number {
-  const sourceMessage = run.input?.sourceMessageId ? messagesById.get(run.input.sourceMessageId) : undefined
-  return runtimeTimestamp(sourceMessage?.createdAt ?? run.createdAt)
-}
-
-function runtimeMessageRoleOrder(message: RuntimeConversationMessage): number {
-  if (message.role === 'user') return 0
-  return 1
-}
-
-function syntheticAssistantRunTimestamp(run: AgentRun, sourceMessage: AgentMessage | undefined): number {
-  const runCreatedAt = runtimeTimestamp(run.createdAt)
-  const sourceCreatedAt = runtimeTimestamp(sourceMessage?.createdAt)
-  return sourceMessage ? Math.max(runCreatedAt, sourceCreatedAt + 1) : runCreatedAt
-}
-
 function runtimeTimestamp(value: string | undefined): number {
   const parsed = value ? Date.parse(value) : NaN
   return Number.isFinite(parsed) ? parsed : 0
-}
-
-async function assistantResultPayloadForRun<PayloadDeps>(
-  run: AgentRun,
-  liveEvents: AgentRunActivityEvent[],
-  assistantContent: string,
-  deps: AgentConversationProjectionDeps<PayloadDeps> | undefined,
-): Promise<AgentMessageViewModelPayload> {
-  if (deps?.assistantResultPayloadForRun) {
-    return deps.assistantResultPayloadForRun(run, liveEvents, assistantContent, deps.assistantResultPayloadDeps as PayloadDeps)
-  }
-  return {
-    meta: {
-      runtimeMessage: {
-        threadId: run.threadId,
-        runId: run.id,
-        ...(run.assistantMessageId ? { messageId: run.assistantMessageId } : {}),
-      },
-    },
-  }
-}
-
-function formatAssistantContent<PayloadDeps>(
-  run: AgentRun,
-  thread: Pick<AgentThread, 'messages'>,
-  deps: AgentConversationProjectionDeps<PayloadDeps> | undefined,
-): string {
-  if (deps?.formatAssistantContent) return deps.formatAssistantContent(run, thread)
-  const assistant = thread.messages.find((item) => item.id === run.assistantMessageId)
-    ?? [...thread.messages].reverse().find((item) => item.role === 'assistant' && item.runId === run.id)
-  if (assistant?.content) return assistant.content
-  if (run.status === 'failed') return run.error ?? 'Run failed.'
-  if (run.status === 'cancelled') return 'Run cancelled.'
-  if (run.status === 'requires_action') return 'Run requires action.'
-  return ''
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

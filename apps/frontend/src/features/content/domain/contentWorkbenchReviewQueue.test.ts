@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildContentWorkbenchReviewQueueSummary } from '@/features/content/domain/contentWorkbenchReviewQueue'
 
-test('content workbench review queue prompts AI draft generation when empty', () => {
-  assert.deepEqual(buildContentWorkbenchReviewQueueSummary({ drafts: [] }), {
+test('content workbench review queue prompts AI workspace generation when empty', () => {
+  assert.deepEqual(buildContentWorkbenchReviewQueueSummary({ workspaces: [] }), {
     total: 0,
     pending: 0,
     applied: 0,
@@ -19,9 +19,9 @@ test('content workbench review queue prompts AI draft generation when empty', ()
   })
 })
 
-test('content workbench review queue prioritizes warnings on selected draft', () => {
+test('content workbench review queue prioritizes warnings on selected workspace', () => {
   const summary = buildContentWorkbenchReviewQueueSummary({
-    drafts: [{ status: 'draft' }, { status: 'applied' }],
+    workspaces: [{ status: 'workspace' }, { status: 'applied' }],
     selectedReview: {
       warningCount: 2,
       diffCount: 4,
@@ -37,9 +37,9 @@ test('content workbench review queue prioritizes warnings on selected draft', ()
   assert.match(summary.detail, /2 个审稿风险/)
 })
 
-test('content workbench review queue reports processed state when no draft is pending', () => {
+test('content workbench review queue reports processed state when no workspace is pending', () => {
   const summary = buildContentWorkbenchReviewQueueSummary({
-    drafts: [{ status: 'applied' }, { status: 'rejected' }],
+    workspaces: [{ status: 'applied' }, { status: 'rejected' }],
   })
 
   assert.equal(summary.state, 'processed')
@@ -49,10 +49,10 @@ test('content workbench review queue reports processed state when no draft is pe
   assert.equal(summary.actionLabel, '查看审稿记录')
 })
 
-test('content workbench review queue only counts draft and accepted items as pending', () => {
+test('content workbench review queue only counts workspace and accepted items as pending', () => {
   const summary = buildContentWorkbenchReviewQueueSummary({
-    drafts: [
-      { status: 'draft' },
+    workspaces: [
+      { status: 'workspace' },
       { status: 'accepted' },
       { status: 'applied' },
       { status: 'rejected' },

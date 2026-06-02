@@ -101,7 +101,7 @@ test('production orchestration workspace model appends scene moment into empty s
 test('production orchestration workspace model builds selected writing view', () => {
   const segments = [
     record({ ID: 1, title: '开场', summary: '建立气氛', status: 'active', kind: 'setup', order: 1 }),
-    record({ ID: 2, title: '反转', summary: '制造冲突', status: 'draft', kind: 'reversal', order: 2 }),
+    record({ ID: 2, title: '反转', summary: '制造冲突', status: 'workspace', kind: 'reversal', order: 2 }),
   ]
   const sceneMoments = [
     record({ ID: 10, segment_id: 1, scene_code: 'A01', title: '敲门', description: '主角听见敲门', action_text: '主角走向门口', script_block_id: 100 }),

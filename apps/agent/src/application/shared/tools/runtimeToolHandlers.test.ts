@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultImageProcessingPort,
   createDefaultProjectStandardsPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultRuntimeToolHandlerRegistry,
   createDefaultVideoFrameExtractionPort,
@@ -25,8 +25,9 @@ test('createDefaultRuntimeToolHandlerRegistry registers core and domain runtime 
     'core_image_crop',
     'core_image_tile',
     'core_video_extract_frames',
-    'draft_create',
-    'draft_apply',
+    'workspace_open',
+    'workspace_validate',
+    'workspace_apply',
     'movscript_project_standards_get',
   ]) {
     assert.ok(registry.get(toolName), `expected runtime handler for ${toolName}`)
@@ -47,9 +48,9 @@ test('default runtime ports create transport adapters behind port interfaces', (
   } as never
 
   assert.equal(typeof createDefaultExternalToolGatewayPort(mcpClient).executeTool, 'function')
-  assert.equal(typeof createDefaultDraftApplyPort(backendApplyClient).apply, 'function')
-  assert.equal(typeof createDefaultDraftApplyPreviewPort(backendApplyClient).previewApplyReview, 'function')
-  assert.equal(typeof createDefaultProposalSnapshotHydrationPort(mcpClient).hydrateProjectLayerSnapshotBase, 'function')
+  assert.equal(typeof createDefaultWorkspaceApplyPort(backendApplyClient).apply, 'function')
+  assert.equal(typeof createDefaultWorkspaceApplyPreviewPort(backendApplyClient).previewApplyReview, 'function')
+  assert.equal(typeof createDefaultWorkspaceSnapshotHydrationPort(mcpClient).hydrateProjectLayerSnapshotBase, 'function')
   assert.equal(typeof createDefaultResourceFilePort(mcpClient).readFile, 'function')
   assert.equal(typeof createDefaultImageProcessingPort(backendApplyClient).process, 'function')
   assert.equal(typeof createDefaultVideoFrameExtractionPort(backendApplyClient).extract, 'function')

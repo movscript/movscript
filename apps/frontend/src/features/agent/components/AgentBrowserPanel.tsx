@@ -207,8 +207,8 @@ export function AgentBrowserPanel() {
   const [activeTabId, setActiveTabId] = useState('project_home')
   const [webStates, setWebStates] = useState<Record<string, WebTabState>>({})
   const [launcherOpen, setLauncherOpen] = useState(false)
-  const [addressDraft, setAddressDraft] = useState('')
-  const [toolbarAddressDraft, setToolbarAddressDraft] = useState('')
+  const [addressWorkspace, setAddressWorkspace] = useState('')
+  const [toolbarAddressWorkspace, setToolbarAddressWorkspace] = useState('')
   const [error, setError] = useState<string | null>(null)
   const available = typeof window !== 'undefined' && typeof window.api?.agentBrowserNavigate === 'function'
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0]
@@ -275,7 +275,7 @@ export function AgentBrowserPanel() {
   }, [])
 
   useEffect(() => {
-    setToolbarAddressDraft(activeWebURL)
+    setToolbarAddressWorkspace(activeWebURL)
   }, [activeTabId, activeWebURL])
 
   async function navigateWebTab(tabId: string, rawURL: string) {
@@ -324,7 +324,7 @@ export function AgentBrowserPanel() {
     setTabs((current) => [...current, { id, kind: 'web', title: '空白页', createdAt: Date.now() }])
     setActiveTabId(id)
     setLauncherOpen(false)
-    setAddressDraft('')
+    setAddressWorkspace('')
     void window.api?.agentBrowserHide?.()
   }
 
@@ -387,7 +387,7 @@ export function AgentBrowserPanel() {
 
   async function openWebFromLauncher(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const url = addressDraft.trim()
+    const url = addressWorkspace.trim()
     if (!url) return
     const existingBlank = activeTab?.kind === 'web' && !activeTab.url && !activeWebState?.url ? activeTab : null
     const id = existingBlank?.id ?? createTabId('web')
@@ -398,14 +398,14 @@ export function AgentBrowserPanel() {
       setTabs((current) => current.map((tab) => tab.id === id && tab.kind === 'web' ? { ...tab, title: url, url } : tab))
     }
     setLauncherOpen(false)
-    setAddressDraft('')
+    setAddressWorkspace('')
     await navigateWebTab(id, url)
   }
 
   async function submitToolbarAddress(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (activeTab?.kind !== 'web') return
-    const url = toolbarAddressDraft.trim()
+    const url = toolbarAddressWorkspace.trim()
     if (!url) return
     setTabs((current) => current.map((tab) => (
       tab.id === activeTab.id && tab.kind === 'web'
@@ -587,13 +587,13 @@ export function AgentBrowserPanel() {
             <AgentBrowserUrlMeta asChild>
               <AgentBrowserAddressForm onSubmit={submitToolbarAddress}>
                 <AgentBrowserInput
-                  value={toolbarAddressDraft}
-                  onChange={(event) => setToolbarAddressDraft(event.target.value)}
+                  value={toolbarAddressWorkspace}
+                  onChange={(event) => setToolbarAddressWorkspace(event.target.value)}
                   placeholder="网址或搜索"
                   aria-label="网页地址"
                   disabled={!available}
                 />
-                <AgentBrowserLauncherSubmitButton disabled={!available || !toolbarAddressDraft.trim()}>
+                <AgentBrowserLauncherSubmitButton disabled={!available || !toolbarAddressWorkspace.trim()}>
                   打开
                 </AgentBrowserLauncherSubmitButton>
               </AgentBrowserAddressForm>
@@ -606,12 +606,12 @@ export function AgentBrowserPanel() {
               <Search size={13} />
             </AgentBrowserLauncherIcon>
             <AgentBrowserInput
-              value={addressDraft}
-              onChange={(event) => setAddressDraft(event.target.value)}
+              value={addressWorkspace}
+              onChange={(event) => setAddressWorkspace(event.target.value)}
               placeholder="输入网址或搜索"
               autoFocus
             />
-            <AgentBrowserLauncherSubmitButton disabled={!addressDraft.trim()}>
+            <AgentBrowserLauncherSubmitButton disabled={!addressWorkspace.trim()}>
               打开
             </AgentBrowserLauncherSubmitButton>
           </AgentBrowserLauncherForm>
@@ -652,7 +652,7 @@ export function AgentBrowserPanel() {
             onOpenExternalResourceLibrary={openExternalResourceLibraryInCurrentTab}
             onOpenCanvasList={openCanvasListInCurrentTab}
             onSubmit={(url) => {
-              setAddressDraft(url)
+              setAddressWorkspace(url)
               void navigateWebTab(activeTab.id, url)
             }}
           />

@@ -50,7 +50,7 @@ import AgentModeCanvasListPage from './pages/agent-mode/AgentModeCanvasListPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import DeliveryPage from './pages/project/delivery/DeliveryPage'
 import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPage'
-import AIDraftsPage from './pages/agent/AIDraftsPage'
+import AIWorkspacesPage from './pages/agent/AIWorkspacesPage'
 import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
@@ -458,7 +458,7 @@ function CanvasHeaderTitle() {
         className="app-window-no-drag absolute left-1/2 top-1/2 h-7 w-[min(360px,38vw)] -translate-x-1/2 -translate-y-1/2 border-none bg-transparent px-2 text-center type-label font-semibold text-foreground outline-none"
         value={canvasName}
         onChange={(event) => {
-          titleEditor.setDraft(event.target.value)
+          titleEditor.setWorkspace(event.target.value)
           onNameChange?.(event.target.value)
         }}
         onBlur={titleEditor.commitEditing}
@@ -592,7 +592,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const agentMode = routeSurface === 'agent'
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser[userId]))
+  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser?.[userId]))
   const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'hidden'>('expanded')
   const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
@@ -612,7 +612,6 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
     setAgentModeContentPanelWidth(clampAgentModeContentPanelWidth(width))
   }, [])
   const detailRightPaneOpen = detailAgentPanelOpen && hasOpenConversations
-  const assistantShortcutInHeader = !detailRightPaneOpen
   const detailCenterContent = detailRouteHeaderTitle(pathname)
   React.useEffect(() => {
     if (detailSidebarHidden) return
@@ -665,7 +664,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       showFallbackBrand={false}
       leftControls={detailCenterLeftControls}
       centerContent={detailCenterContent}
-      showAssistantShortcut={assistantShortcutInHeader}
+      showAssistantShortcut
     />
   )
   const detailRightHeader = detailRightPaneOpen ? (
@@ -759,7 +758,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           rightHeader={detailRightHeader}
           leftSlotStyle={detailLeftSlotStyle}
           rightSlotStyle={detailRightSlotStyle}
-          assistantPanel={hasOpenConversations ? <AIAgentPanel /> : undefined}
+          assistantPanel={detailAgentPanelOpen || hasOpenConversations ? <AIAgentPanel /> : undefined}
           leftPaneHidden={detailSidebarHidden}
           rightPaneCollapsed={!detailRightPaneOpen}
         >
@@ -920,7 +919,7 @@ export default function App() {
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
-              <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
+              <Route path={ROUTES.agentWorkspaces} element={<AIWorkspacesPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />

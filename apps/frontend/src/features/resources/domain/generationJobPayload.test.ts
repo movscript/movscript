@@ -5,7 +5,7 @@ import { buildGenerationJobPayload } from '@/features/resources/domain/generatio
 
 test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () => {
   assert.deepEqual(buildGenerationJobPayload({
-    modelId: 'video.draft',
+    modelId: 'video.workspace',
     jobType: 'video',
     title: 'Video job',
     prompt: ' make a shot ',
@@ -13,7 +13,7 @@ test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () 
     inputResourceIds: [7],
     sourceKey: 'tool.video',
   }), {
-    model_id: 'video.draft',
+    model_id: 'video.workspace',
     job_type: 'video',
     title: 'Video job',
     prompt: 'make a shot',
@@ -27,7 +27,7 @@ test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () 
 
 test('buildGenerationJobPayload keeps non numeric duration in extra params', () => {
   assert.deepEqual(buildGenerationJobPayload({
-    modelId: 'video.draft',
+    modelId: 'video.workspace',
     jobType: 'video',
     title: 'Video job',
     prompt: 'make a shot',
@@ -35,7 +35,7 @@ test('buildGenerationJobPayload keeps non numeric duration in extra params', () 
     inputResourceIds: [],
     sourceKey: 'tool.video',
   }), {
-    model_id: 'video.draft',
+    model_id: 'video.workspace',
     job_type: 'video',
     title: 'Video job',
     prompt: 'make a shot',

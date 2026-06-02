@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { refreshPreProductionWorkbenchContext } from './preProductionRefreshController'
 
-test('pre-production refresh covers references, asset slots, candidates, and opened drafts', async () => {
+test('pre-production refresh covers references, asset slots, candidates, and opened workspaces', async () => {
   const invalidated: unknown[][] = []
   let settingRefetches = 0
   let assetRefetches = 0
@@ -15,10 +15,10 @@ test('pre-production refresh covers references, asset slots, candidates, and ope
         invalidated.push(queryKey)
       },
     },
-    refetchSettingDrafts: async () => {
+    refetchSettingWorkspaces: async () => {
       settingRefetches += 1
     },
-    refetchAssetProposalDrafts: async () => {
+    refetchAssetWorkspaceWorkspaces: async () => {
       assetRefetches += 1
     },
   })

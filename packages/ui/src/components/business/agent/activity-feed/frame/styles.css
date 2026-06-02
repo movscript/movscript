@@ -12,7 +12,7 @@
   border-left-color: var(--ms-color-info);
 }
 
-.ms-agent-activity-frame[data-kind="draft"] {
+.ms-agent-activity-frame[data-kind="workspace"] {
   border-left-color: var(--ms-color-warning);
 }
 

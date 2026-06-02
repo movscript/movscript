@@ -43,10 +43,10 @@ function sanitizeFocusRoute(route: MCPContextSnapshot['route']): MCPContextSnaps
 }
 
 function sanitizeFocusSearch(search: string): string {
-  if (!search || !search.includes('draftId')) return search
+  if (!search || !search.includes('workspaceId')) return search
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  if (!params.has('draftId')) return search
-  params.delete('draftId')
+  if (!params.has('workspaceId')) return search
+  params.delete('workspaceId')
   const next = params.toString()
   return next ? `?${next}` : ''
 }

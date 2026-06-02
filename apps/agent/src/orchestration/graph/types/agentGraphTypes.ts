@@ -2,7 +2,7 @@ import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
 import type { AgentCommandRuntime } from '../../../context/command/commandRouter.js'
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
 import type { RuntimeHistoricalVisionContext, SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
-import type { AgentDraftStore } from '../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
 import type { GenerationEvent } from '../../../generation/events/generationEvents.js'
 import type { ReferenceManager } from '../../../reference/manager/referenceManager.js'
 import type { AgentMemory } from '../../../memory/shared/types.js'
@@ -17,9 +17,9 @@ import type { AgentToolResultStore } from '../../../state/store/tool-results/too
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
-import type { DraftApplyPort } from '../../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../../ports/draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { ProjectStandardsPort } from '../../../ports/project/projectStandardsPort.js'
 import type {
   AgentCatalogToolManager,
@@ -75,11 +75,11 @@ export interface AgentGraphInput {
   modelRouter?: RuntimeModelRouter
   auth: RuntimeModelAuthContext
   runtimeLimits: AgentRuntimeLimits
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  draftApplyPort: DraftApplyPort
-  draftApplyPreviewPort: DraftApplyPreviewPort
-  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  workspaceApplyPort: WorkspaceApplyPort
+  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort

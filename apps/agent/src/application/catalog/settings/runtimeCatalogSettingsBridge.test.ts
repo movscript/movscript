@@ -10,9 +10,9 @@ test('createRuntimeCatalogSettingsBridge persists active config file tool permis
   const catalogStateStore = new InMemoryAgentCatalogStateStore()
   const writerConfigFile: AgentConfigFile = {
     ...configFile('config_file_writer', 'Writer Config File', '2.0.0', [
-      { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+      { name: 'workspace_validate', mode: 'allow', approval: 'never' },
     ]),
-    approvalDefaults: { draft: 'on_write' },
+    approvalDefaults: { workspace: 'on_write' },
   }
   catalogStateStore.save({
     version: 1,
@@ -25,7 +25,7 @@ test('createRuntimeCatalogSettingsBridge persists active config file tool permis
     version: '1.0.0',
     name: 'Base Config File',
     tools: [
-      { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+      { name: 'workspace_validate', mode: 'allow', approval: 'never' },
       { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
     ],
     metadata: { configFileId: 'movscript.config_file.base' },
@@ -35,7 +35,7 @@ test('createRuntimeCatalogSettingsBridge persists active config file tool permis
       configFile('movscript.config_file.base', 'Base Config File', '1.0.0', activeAgentManifest.tools),
       writerConfigFile,
     ],
-    tools: [tool('draft_apply_preview', 'draft')],
+    tools: [tool('workspace_validate', 'workspace')],
   })
   const bridge = createRuntimeCatalogSettingsBridge({
     getState: () => ({ activeAgentManifest, layeredRegistry }),
@@ -63,29 +63,29 @@ test('createRuntimeCatalogSettingsBridge persists active config file tool permis
   const configFileManifest = bridge.setActiveAgentConfigFile({ configFileId: 'config_file_writer' })
   assert.equal(configFileManifest.id, 'config_file_writer')
   assert.equal(configFileManifest.metadata?.configFileId, 'config_file_writer')
-  assert.deepEqual(configFileManifest.tools, [{ name: 'draft_apply_preview', mode: 'allow', approval: 'on_write' }])
+  assert.deepEqual(configFileManifest.tools, [{ name: 'workspace_validate', mode: 'allow', approval: 'on_write' }])
   assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)
 
   const permissionsManifest = bridge.saveConfigFileToolPermissions({
     configFileId: 'config_file_writer',
-    toolGrants: [{ name: 'draft_apply_preview', mode: 'deny' }],
+    toolGrants: [{ name: 'workspace_validate', mode: 'deny' }],
   })
   assert.equal(permissionsManifest.metadata?.toolPermissionOverridesByConfigFile, undefined)
-  assert.deepEqual(permissionsManifest.tools, [{ name: 'draft_apply_preview', mode: 'deny', approval: 'on_write' }])
+  assert.deepEqual(permissionsManifest.tools, [{ name: 'workspace_validate', mode: 'deny', approval: 'on_write' }])
   assert.deepEqual(catalogStateStore.load().metadata?.managedConfigFiles, [{
     ...writerConfigFile,
-    toolGrants: [{ name: 'draft_apply_preview', mode: 'deny', approval: 'on_write' }],
+    toolGrants: [{ name: 'workspace_validate', mode: 'deny', approval: 'on_write' }],
   }])
   assert.throws(
     () => bridge.saveConfigFileToolPermissions({
       configFileId: 'config_file_writer',
-      toolGrants: [{ name: 'draft_apply_preview', mode: 'allow', approval: 'never' }],
+      toolGrants: [{ name: 'workspace_validate', mode: 'allow', approval: 'never' }],
     }),
-    /tool draft_apply_preview approval cannot be weaker than config file config_file_writer/,
+    /tool workspace_validate approval cannot be weaker than config file config_file_writer/,
   )
   const activeManifest = bridge.setActiveAgentConfigFile({ configFileId: 'movscript.config_file.base' })
   assert.deepEqual(activeManifest.tools, [
-    { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
+    { name: 'workspace_validate', mode: 'allow', approval: 'never' },
     { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
   ])
   assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)
@@ -185,7 +185,7 @@ test('createRuntimeCatalogSettingsBridge manages user-created config files in ca
   }
   let layeredRegistry = registry({
     configFiles: [configFile('movscript.config_file.base', 'Base Config File', '1.0.0', [])],
-    tools: [tool('draft_apply_preview', 'draft')],
+    tools: [tool('workspace_validate', 'workspace')],
   })
   const bridge = createRuntimeCatalogSettingsBridge({
     getState: () => ({ activeAgentManifest, layeredRegistry }),
@@ -231,7 +231,7 @@ test('createRuntimeCatalogSettingsBridge manages user-created config files in ca
       enabledPackIds: [],
       skillIds: [],
       approvalDefaults: { destructive: 'always' },
-      toolGrants: [{ name: 'draft_apply_preview', mode: 'allow', approval: 'on_write' }],
+      toolGrants: [{ name: 'workspace_validate', mode: 'allow', approval: 'on_write' }],
     },
   })
   assert.equal(savedInactive.activeAgentManifest.metadata?.configFileId, 'config_file_storyboard')
@@ -242,13 +242,13 @@ test('createRuntimeCatalogSettingsBridge manages user-created config files in ca
 
   const inactivePermissionsManifest = bridge.saveConfigFileToolPermissions({
     configFileId: 'config_file_review',
-    toolGrants: [{ name: 'draft_apply_preview', mode: 'deny', approval: 'on_write' }],
+    toolGrants: [{ name: 'workspace_validate', mode: 'deny', approval: 'on_write' }],
   })
   assert.equal(inactivePermissionsManifest.metadata?.configFileId, 'config_file_storyboard')
   assert.deepEqual(inactivePermissionsManifest.tools, [])
   const savedInactiveWithPermissions = {
     ...savedInactive.configFile,
-    toolGrants: [{ name: 'draft_apply_preview', mode: 'deny', approval: 'on_write' }],
+    toolGrants: [{ name: 'workspace_validate', mode: 'deny', approval: 'on_write' }],
   }
   assert.deepEqual(catalogStateStore.load().metadata?.managedConfigFiles, [saved.configFile, savedInactiveWithPermissions])
   assert.equal(catalogStateStore.load().metadata?.toolPermissionOverridesByConfigFile, undefined)

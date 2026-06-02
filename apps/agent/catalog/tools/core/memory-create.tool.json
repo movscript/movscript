@@ -20,7 +20,7 @@
           "fact",
           "item_ref",
           "entity_ref",
-          "draft",
+          "workspace",
           "decision",
           "warning"
         ]
@@ -34,7 +34,7 @@
     }
   },
   "permission": "memory.write",
-  "risk": "draft",
+  "risk": "workspace",
   "projectScoped": true,
   "defaults": {
     "grant": "allow",

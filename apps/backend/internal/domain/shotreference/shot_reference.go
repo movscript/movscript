@@ -295,7 +295,7 @@ func Analyze(input AnalysisInput) ShotReference {
 		Title:              title,
 		Summary:            summary,
 		AnalysisStatus:     "ready",
-		AnalysisSource:     "manual_draft",
+		AnalysisSource:     "manual_workspace",
 		Intent:             intent,
 		Pattern:            pattern,
 		ShotFunction:       shotFunction,

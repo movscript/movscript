@@ -43,7 +43,7 @@ test('applyRuntimeTaskGraphStatusRecomputeRequest records completion trace when 
     id: 'task_1',
     status: 'done',
     progress: 1,
-    artifacts: [{ id: 'draft_1', type: 'draft', createdAt: '2026-01-01T00:00:00.000Z' }],
+    artifacts: [{ id: 'workspace_1', type: 'workspace', createdAt: '2026-01-01T00:00:00.000Z' }],
   }))
   const traces: string[] = []
 

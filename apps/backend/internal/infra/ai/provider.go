@@ -150,7 +150,7 @@ type VideoRequest struct {
 	ReturnLastFrame       *bool  // nil = provider default
 	ServiceTier           string // "default" | "flex"
 	ExecutionExpiresAfter int    // seconds; 0 = provider default
-	Draft                 *bool  // nil = provider default
+	Workspace                 *bool  // nil = provider default
 	WebSearch             bool   // provider tool toggle
 	MovementAmplitude     string // Vidu movement amplitude: auto | small | medium | large
 	OffPeak               *bool  // Vidu off-peak mode

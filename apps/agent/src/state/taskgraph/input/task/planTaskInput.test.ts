@@ -141,7 +141,7 @@ test('normalizeTaskArtifacts trims valid artifacts and drops invalid metadata', 
 test('normalizeTaskArtifacts stores independent artifact metadata snapshots', () => {
   const metadata = {
     source: { taskId: 'task_1' },
-    tags: ['draft'],
+    tags: ['workspace'],
   }
   const artifacts = normalizeTaskArtifacts([{
     id: 'artifact_1',
@@ -154,7 +154,7 @@ test('normalizeTaskArtifacts stores independent artifact metadata snapshots', ()
 
   assert.deepEqual(artifacts[0]?.metadata, {
     source: { taskId: 'task_1' },
-    tags: ['draft'],
+    tags: ['workspace'],
   })
 })
 

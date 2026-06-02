@@ -1,0 +1,132 @@
+import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
+import { isRecord } from '@/shared/domain/jsonValue'
+import type { AgentWorkspace, AgentWorkspaceKind } from '@/shared/infrastructure/localAgentClient'
+import { buildProjectWorkbenchReviewPath, getProjectWorkbenchDefinitionForWorkspaceKind, type ProjectWorkbenchDefinition } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+
+export { WORKSPACE_DOMAIN_MODELS, getWorkspaceDomainModel } from '@/shared/domain/workspaceDomainModel'
+export type { WorkspaceDomainModel, WorkspaceSeedMode } from '@/shared/domain/workspaceDomainModel'
+
+const productionRelatedKinds: AgentWorkspaceKind[] = [
+  'production_workspace',
+]
+
+const contentUnitRelatedKinds: AgentWorkspaceKind[] = [
+  'content_unit_workspace',
+]
+
+export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | null {
+  const source = isRecord(workspace.source) ? workspace.source : undefined
+  const target = isRecord(workspace.target) ? workspace.target : undefined
+  const sourceEntityType = stringValue(source?.entityType)
+  const targetEntityType = stringValue(target?.entityType)
+  const sourceEntityId = numberValue(source?.entityId)
+  const targetEntityId = numberValue(target?.entityId)
+
+  const workbenchReviewPath = buildWorkbenchWorkspaceReviewPath({
+    kind: workspace.kind,
+    workspaceId: workspace.id,
+    sourceEntityType,
+    sourceEntityId,
+    targetEntityType,
+    targetEntityId,
+  })
+  if (workbenchReviewPath) return workbenchReviewPath
+
+  if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
+    const assetSlotId = sourceEntityId ?? targetEntityId
+    return withRouteParams(ROUTES.project.preProduction, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
+  }
+
+  if (sourceEntityType === 'project' || targetEntityType === 'project') {
+    return withRouteParams(ROUTES.project.standards, { workspaceId: workspace.id })
+  }
+
+  if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
+    const contentUnitId = sourceEntityId ?? targetEntityId
+    return withRouteParams(ROUTES.project.productionOrchestration, { workspaceId: workspace.id, content_unit_id: contentUnitId })
+  }
+
+  const productionId = sourceEntityId ?? targetEntityId
+  if (
+    productionId !== undefined
+    && (
+      workspace.kind === 'production_workspace'
+      || sourceEntityType === 'production'
+      || targetEntityType === 'production'
+      || productionRelatedKinds.includes(workspace.kind)
+      || contentUnitRelatedKinds.includes(workspace.kind)
+    )
+  ) {
+    return withRouteParams(ROUTES.project.productionOrchestration, { productionId, workspaceId: workspace.id })
+  }
+
+  return null
+}
+
+function buildWorkbenchWorkspaceReviewPath(input: {
+  kind: AgentWorkspaceKind
+  workspaceId: string
+  sourceEntityType?: string
+  sourceEntityId?: number
+  targetEntityType?: string
+  targetEntityId?: number
+}) {
+  const definition = getProjectWorkbenchDefinitionForWorkspaceKind(input.kind)
+  if (!definition) return null
+  const entity = pickWorkbenchReviewEntity(definition, input)
+  return buildProjectWorkbenchReviewPath(definition, {
+    workspaceId: input.workspaceId,
+    entityType: entity?.entityType,
+    entityId: entity?.entityId,
+  })
+}
+
+function pickWorkbenchReviewEntity(
+  definition: ProjectWorkbenchDefinition,
+  input: {
+    sourceEntityType?: string
+    sourceEntityId?: number
+    targetEntityType?: string
+    targetEntityId?: number
+  },
+) {
+  const entityParams = definition.reviewQuery.entityParams ?? {}
+  if (input.sourceEntityType && input.sourceEntityId !== undefined && entityParams[input.sourceEntityType]) {
+    return { entityType: input.sourceEntityType, entityId: input.sourceEntityId }
+  }
+  if (input.targetEntityType && input.targetEntityId !== undefined && entityParams[input.targetEntityType]) {
+    return { entityType: input.targetEntityType, entityId: input.targetEntityId }
+  }
+  return null
+}
+
+export function buildWorkspaceArtifactReviewPath(artifact: AgentTaskArtifactRef): string | null {
+  if (!artifact.workspaceKind) return null
+  return buildWorkspaceReviewPath({
+    id: artifact.workspaceId,
+    ...(artifact.projectId !== undefined ? { projectId: artifact.projectId } : {}),
+    kind: artifact.workspaceKind,
+    title: artifact.title ?? artifact.workspaceId,
+    content: '',
+    status: 'workspace',
+    ...(artifact.source ? { source: artifact.source } : {}),
+    ...(artifact.target ? { target: artifact.target } : {}),
+    ...(artifact.metadata ? { metadata: artifact.metadata } : {}),
+    createdAt: artifact.updatedAt ?? '',
+    updatedAt: artifact.updatedAt ?? '',
+  })
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}

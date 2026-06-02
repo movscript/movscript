@@ -1,0 +1,26 @@
+.review-workspace-footer-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: grid;
+  flex-shrink: 0;
+  gap: 8px;
+  border-top: 1px solid var(--ms-color-border);
+  background: color-mix(in srgb, var(--ms-color-surface-raised) 95%, transparent);
+  padding: 12px;
+  backdrop-filter: blur(12px);
+}
+
+.review-workspace-footer-actions--preview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.review-workspace-footer-actions--apply {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.review-workspace-footer-actions__button {
+  gap: 6px;
+  font-size: var(--ms-text-label);
+  line-height: var(--ms-leading-label);
+}

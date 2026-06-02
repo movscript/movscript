@@ -85,7 +85,7 @@ type HubPackage struct {
 	UpdatedAt       time.Time
 }
 
-type CreateDraftInput struct {
+type CreateWorkspaceInput struct {
 	Title           string
 	Kind            string
 	Category        string
@@ -156,7 +156,7 @@ func ToPackage(row HubPackage) Package {
 	}
 }
 
-func NewDraftPackage(id string, in CreateDraftInput) HubPackage {
+func NewWorkspacePackage(id string, in CreateWorkspaceInput) HubPackage {
 	contentType := DefaultString(in.ContentType, "application/octet-stream")
 	return HubPackage{
 		PackageID:       id,

@@ -114,7 +114,7 @@ function explicitReadProjectId(tool: RegisteredTool, call: ToolCall): number | u
 
 function isAutoApprovedByRuntimeLimits(risk: RegisteredTool['risk'], approvalMode?: AgentRuntimeLimits['approvalMode']): boolean {
   if (approvalMode === 'auto') return risk !== 'destructive'
-  if (approvalMode === 'auto_readonly') return risk === 'read' || risk === 'draft' || risk === 'ui'
+  if (approvalMode === 'auto_readonly') return risk === 'read' || risk === 'workspace' || risk === 'ui'
   return false
 }
 

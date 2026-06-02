@@ -2,7 +2,7 @@ import type { MCPTool } from '../../../shared/protocol/types.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import { normalizeToolExecutionMetadata } from '../../../tools/registry/core/toolRegistry.js'
 import type { CapabilityPack, ToolDefinition } from '../../registry/shared/types.js'
-import type { JSONSchema7 } from '@movscript/drafts'
+import type { JSONSchema7 } from '@movscript/workspaces'
 
 export interface MCPVirtualPack {
   pack: CapabilityPack

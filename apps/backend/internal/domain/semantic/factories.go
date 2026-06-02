@@ -66,7 +66,7 @@ func NewSegment(spec SegmentSpec) Segment {
 		Title:           spec.Title,
 		Summary:         spec.Summary,
 		Content:         spec.Content,
-		Status:          SemanticDraftStatus(spec.Status),
+		Status:          SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:    spec.MetadataJSON,
 	}
 }
@@ -126,7 +126,7 @@ func NewProductionTextBlock(spec ProductionTextBlockSpec) ProductionTextBlock {
 		Content:       spec.Content,
 		Summary:       spec.Summary,
 		SourceType:    FallbackString(spec.SourceType, "manual"),
-		Status:        SemanticDraftStatus(spec.Status),
+		Status:        SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:  spec.MetadataJSON,
 	}
 }
@@ -202,7 +202,7 @@ func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
 		ConditionText: spec.ConditionText,
 		ActionText:    spec.ActionText,
 		Mood:          spec.Mood,
-		Status:        SemanticDraftStatus(spec.Status),
+		Status:        SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:  spec.MetadataJSON,
 	}
 }
@@ -386,7 +386,7 @@ func NewContentUnit(spec ContentUnitSpec) ContentUnit {
 		Stabilization:    spec.Stabilization,
 		CameraParamsJSON: spec.CameraParamsJSON,
 		CameraNotes:      spec.CameraNotes,
-		Status:           SemanticDraftStatus(spec.Status),
+		Status:           SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:     spec.MetadataJSON,
 	}
 }
@@ -454,7 +454,7 @@ func NewPreviewTimelineItem(spec PreviewTimelineItemSpec) PreviewTimelineItem {
 		StartSec:          spec.StartSec,
 		DurationSec:       spec.DurationSec,
 		Label:             spec.Label,
-		Status:            SemanticDraftStatus(spec.Status),
+		Status:            SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:      spec.MetadataJSON,
 	}
 }
@@ -921,7 +921,7 @@ func NewStoryboardScript(spec StoryboardScriptSpec) StoryboardScript {
 		ScriptVersionID: spec.ScriptVersionID,
 		Name:            FallbackString(spec.Name, "Storyboard Script"),
 		Description:     spec.Description,
-		Status:          SemanticDraftStatus(spec.Status),
+		Status:          SemanticWorkspaceStatus(spec.Status),
 		IsPrimary:       spec.IsPrimary,
 		MetadataJSON:    spec.MetadataJSON,
 	}
@@ -962,7 +962,7 @@ func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
 		VersionNumber:      spec.VersionNumber,
 		Title:              FallbackString(spec.Title, "Storyboard v"+strconv.Itoa(spec.VersionNumber)),
 		Source:             FallbackString(spec.Source, CandidateDecisionSourceManual),
-		Status:             SemanticDraftStatus(spec.Status),
+		Status:             SemanticWorkspaceStatus(spec.Status),
 		SnapshotJSON:       spec.SnapshotJSON,
 		MetadataJSON:       spec.MetadataJSON,
 	}
@@ -970,7 +970,7 @@ func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
 
 type CreativeReferenceSpec struct {
 	ProjectID        uint
-	ProposalClientID string
+	WorkspaceClientID string
 	SourceScriptID   *uint
 	SourceAnalysisID *uint
 	Kind             string
@@ -987,7 +987,7 @@ type CreativeReferenceSpec struct {
 type CreativeReference struct {
 	ID               uint      `json:"ID"`
 	ProjectID        uint      `json:"project_id"`
-	ProposalClientID string    `json:"proposal_client_id"`
+	WorkspaceClientID string    `json:"workspace_client_id"`
 	SourceScriptID   *uint     `json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint     `json:"source_analysis_id,omitempty"`
 	Kind             string    `json:"kind"`
@@ -1004,7 +1004,7 @@ type CreativeReference struct {
 }
 
 type CreativeReferencePatch struct {
-	ProposalClientID string
+	WorkspaceClientID string
 	SourceScriptID   *uint
 	SourceAnalysisID *uint
 	Kind             string
@@ -1021,7 +1021,7 @@ type CreativeReferencePatch struct {
 func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
 	return CreativeReference{
 		ProjectID:        spec.ProjectID,
-		ProposalClientID: spec.ProposalClientID,
+		WorkspaceClientID: spec.WorkspaceClientID,
 		SourceScriptID:   spec.SourceScriptID,
 		SourceAnalysisID: spec.SourceAnalysisID,
 		Kind:             FallbackString(spec.Kind, "character"),
@@ -1030,7 +1030,7 @@ func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
 		Description:      spec.Description,
 		Content:          spec.Content,
 		Importance:       FallbackString(spec.Importance, "supporting"),
-		Status:           SemanticDraftStatus(spec.Status),
+		Status:           SemanticWorkspaceStatus(spec.Status),
 		ProfileJSON:      spec.ProfileJSON,
 		TagsJSON:         spec.TagsJSON,
 	}
@@ -1098,7 +1098,7 @@ func NewCreativeReferenceState(spec CreativeReferenceStateSpec) CreativeReferenc
 		Emotion:             spec.Emotion,
 		Costume:             spec.Costume,
 		Props:               spec.Props,
-		Status:              SemanticDraftStatus(spec.Status),
+		Status:              SemanticWorkspaceStatus(spec.Status),
 		TagsJSON:            spec.TagsJSON,
 		MetadataJSON:        spec.MetadataJSON,
 	}
@@ -1159,7 +1159,7 @@ func NewCreativeReferenceUsage(spec CreativeReferenceUsageSpec) CreativeReferenc
 		Order:                    spec.Order,
 		Evidence:                 spec.Evidence,
 		Source:                   FallbackString(spec.Source, CandidateDecisionSourceManual),
-		Status:                   SemanticDraftStatus(spec.Status),
+		Status:                   SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:             spec.MetadataJSON,
 	}
 }
@@ -1226,7 +1226,7 @@ func NewCreativeRelationship(spec CreativeRelationshipSpec) CreativeRelationship
 		Label:                     spec.Label,
 		Description:               spec.Description,
 		Source:                    FallbackString(spec.Source, CandidateDecisionSourceManual),
-		Status:                    SemanticDraftStatus(spec.Status),
+		Status:                    SemanticWorkspaceStatus(spec.Status),
 		Evidence:                  spec.Evidence,
 		MetadataJSON:              spec.MetadataJSON,
 	}
@@ -1394,7 +1394,7 @@ func NewPreviewTimeline(spec PreviewTimelineSpec) PreviewTimeline {
 		ProductionID:    spec.ProductionID,
 		ScriptVersionID: spec.ScriptVersionID,
 		Name:            FallbackString(spec.Name, "Preview"),
-		Status:          SemanticDraftStatus(spec.Status),
+		Status:          SemanticWorkspaceStatus(spec.Status),
 		DurationSec:     spec.DurationSec,
 		IsPrimary:       spec.IsPrimary,
 		MetadataJSON:    spec.MetadataJSON,
@@ -1446,7 +1446,7 @@ func NewDeliveryVersion(spec DeliveryVersionSpec) DeliveryVersion {
 		PreviewTimelineID: spec.PreviewTimelineID,
 		Name:              FallbackString(spec.Name, "Delivery"),
 		Description:       spec.Description,
-		Status:            SemanticDraftStatus(spec.Status),
+		Status:            SemanticWorkspaceStatus(spec.Status),
 		IsPrimary:         spec.IsPrimary,
 		DurationSec:       spec.DurationSec,
 		MetadataJSON:      spec.MetadataJSON,
@@ -1512,7 +1512,7 @@ func NewDeliveryTimelineItem(spec DeliveryTimelineItemSpec) DeliveryTimelineItem
 		StartSec:          spec.StartSec,
 		DurationSec:       spec.DurationSec,
 		Label:             spec.Label,
-		Status:            SemanticDraftStatus(spec.Status),
+		Status:            SemanticWorkspaceStatus(spec.Status),
 		MetadataJSON:      spec.MetadataJSON,
 	}
 }
@@ -1664,7 +1664,7 @@ func NewScriptVersion(spec ScriptVersionSpec) ScriptVersion {
 		Content:         FallbackString(spec.Content, spec.FallbackContent),
 		RawSource:       FallbackString(spec.RawSource, spec.FallbackRawSource),
 		Summary:         spec.Summary,
-		Status:          SemanticDraftStatus(spec.Status),
+		Status:          SemanticWorkspaceStatus(spec.Status),
 		CreatedByID:     spec.CreatedByID,
 	}
 }

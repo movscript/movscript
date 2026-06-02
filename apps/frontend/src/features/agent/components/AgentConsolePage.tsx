@@ -135,9 +135,9 @@ export default function AgentConsolePage() {
     queryFn: () => localAgentClient.listThreads().then((result) => result.threads),
     retry: false,
   })
-  const draftsQuery = useQuery({
-    queryKey: ['agent-console-draft-index', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.listDrafts({ status: 'draft', limit: 20 }).then((result) => result.drafts),
+  const workspacesQuery = useQuery({
+    queryKey: ['agent-console-workspace-index', localAgentClient.baseURL],
+    queryFn: () => localAgentClient.listWorkspaces({ status: 'workspace', limit: 20 }).then((result) => result.workspaces),
     retry: false,
   })
   const [clearConfirming, setClearConfirming] = useState(false)
@@ -147,7 +147,7 @@ export default function AgentConsolePage() {
 
   const runs = useMemo(() => sortRuns(runsQuery.data ?? []), [runsQuery.data])
   const threads = threadsQuery.data ?? []
-  const drafts = draftsQuery.data ?? []
+  const workspaces = workspacesQuery.data ?? []
   const runSummary = useMemo(() => summarizeRuns(runs), [runs])
   const executingHistoryRunCount = runSummary.active
   const toolSummary = useMemo(() => {
@@ -175,10 +175,10 @@ export default function AgentConsolePage() {
     failedRuns: runSummary.failed,
     blockedTools: toolSummary.blocked,
     capabilityWarnings: toolSummary.warningCount,
-    draftCount: drafts.length,
-  }), [drafts.length, healthQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
+    workspaceCount: workspaces.length,
+  }), [workspaces.length, healthQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
   const attentionIssues = issues.filter((item) => item.tone !== 'ready')
-  const loading = healthQuery.isLoading || modelQuery.isLoading || inspectQuery.isLoading || capabilitiesQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || draftsQuery.isLoading
+  const loading = healthQuery.isLoading || modelQuery.isLoading || inspectQuery.isLoading || capabilitiesQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || workspacesQuery.isLoading
   const consoleStatusRecipe = agentReadinessStatusRecipe(attentionIssues.length === 0)
 
   function refreshAll() {
@@ -188,7 +188,7 @@ export default function AgentConsolePage() {
     void capabilitiesQuery.refetch()
     void runsQuery.refetch()
     void threadsQuery.refetch()
-    void draftsQuery.refetch()
+    void workspacesQuery.refetch()
   }
 
   async function clearThreadHistory() {
@@ -208,7 +208,7 @@ export default function AgentConsolePage() {
       await Promise.all([
         runsQuery.refetch(),
         threadsQuery.refetch(),
-        draftsQuery.refetch(),
+        workspacesQuery.refetch(),
       ])
     } catch (error) {
       setClearHistoryError(errorMessage(error))
@@ -231,7 +231,7 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 Agent 的配置文件、已安装能力、可执行工具、运行记录和草稿索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
+              管理 Agent 的配置文件、已安装能力、可执行工具、运行记录和工作区索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
@@ -300,8 +300,8 @@ export default function AgentConsolePage() {
             <ConsolePanel title="控制台边界" icon={<ClipboardList size={14} />}>
               <AgentConsoleGrid columns="three">
                 <BoundaryCard title="业务前台" detail="Agent 面板发起任务，业务页面负责对比、审阅和应用建议。" />
-                <BoundaryCard title="控制台" detail="集中处理配置、插件、运行记录和草稿索引，不替代业务审阅。" />
-                <BoundaryCard title="Trace 详情" detail="从运行记录、聊天过程或草稿来源进入，用于定位模型、工具和上下文问题。" />
+                <BoundaryCard title="控制台" detail="集中处理配置、插件、运行记录和工作区索引，不替代业务审阅。" />
+                <BoundaryCard title="Trace 详情" detail="从运行记录、聊天过程或工作区来源进入，用于定位模型、工具和上下文问题。" />
               </AgentConsoleGrid>
             </ConsolePanel>
 
@@ -338,13 +338,13 @@ export default function AgentConsolePage() {
                 <ManagementLink to={agentSettingsSectionPath('agent-settings-model')} icon={<Settings size={14} />} title="模型与运行限制" detail="配置模型、API 模式、预算和默认审批行为。" />
                 <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Pack / 插件市场" detail="Pack 是安装和发布单元；插件市场是未来的 Pack 来源之一，也承载应用插件、画布节点和工具页。" />
                 <ManagementLink to={ROUTES.agentRuns} icon={<ListTree size={14} />} title="运行记录" detail="统一查看 Run 状态，并进入 trace 详情。" />
-                <ManagementLink to={ROUTES.agentDrafts} icon={<FileSearch size={14} />} title="草稿索引" detail={`${drafts.length} 个待业务审阅草稿，可追踪来源。`} />
+                <ManagementLink to={ROUTES.agentWorkspaces} icon={<FileSearch size={14} />} title="工作区索引" detail={`${workspaces.length} 个待业务审阅工作区，可追踪来源。`} />
               </AgentConsoleGrid>
               <AgentConsoleDivider>
                 <HistoryClearControl
                   threadCount={threads.length}
                   runCount={runSummary.total}
-                  draftCount={drafts.length}
+                  workspaceCount={workspaces.length}
                   executingRunCount={executingHistoryRunCount}
                   confirming={clearConfirming}
                   clearing={clearingHistory}
@@ -405,7 +405,7 @@ function LocalGenerationToolsPanel() {
   function patchServer(id: string, patch: Partial<GenerationToolServer>) {
     setForm((current) => ({
       ...current,
-      servers: current.servers.map((server) => server.id === id ? normalizeServerDraft({ ...server, ...patch }) : server),
+      servers: current.servers.map((server) => server.id === id ? normalizeServerWorkspace({ ...server, ...patch }) : server),
       defaultServerId: patch.enabled === false && current.defaultServerId === id ? undefined : current.defaultServerId,
       defaultServerIds: patch.enabled === false ? clearDefaultGenerationToolServerID(current.defaultServerIds, id) : current.defaultServerIds,
     }))
@@ -656,7 +656,7 @@ function serverIsValid(server: GenerationToolServer): boolean {
   return isHTTPBaseURL(server.baseURL)
 }
 
-function normalizeServerDraft(server: GenerationToolServer): GenerationToolServer {
+function normalizeServerWorkspace(server: GenerationToolServer): GenerationToolServer {
   return {
     ...server,
     name: server.name,
@@ -736,7 +736,7 @@ function ManagementLink({ to, icon, title, detail }: { to: string; icon: React.R
 function HistoryClearControl({
   threadCount,
   runCount,
-  draftCount,
+  workspaceCount,
   executingRunCount,
   confirming,
   clearing,
@@ -747,7 +747,7 @@ function HistoryClearControl({
 }: {
   threadCount: number
   runCount: number
-  draftCount: number
+  workspaceCount: number
   executingRunCount: number
   confirming: boolean
   clearing: boolean
@@ -765,7 +765,7 @@ function HistoryClearControl({
         <AgentConsoleHistoryClearBody>
           <AgentConsoleHistoryClearTitle>历史会话记录</AgentConsoleHistoryClearTitle>
           <AgentConsoleHistoryClearDetail>
-            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除会话、Run、计划、运行态记录和 trace 文件；{draftCount} 个草稿不会删除。
+            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除会话、Run、计划、运行态记录和 trace 文件；{workspaceCount} 个工作区不会删除。
           </AgentConsoleHistoryClearDetail>
           {blocked && (
             <AgentConsoleCallout tone="warning" compact>
@@ -826,7 +826,7 @@ function buildConsoleIssues(input: {
   failedRuns: number
   blockedTools: number
   capabilityWarnings: number
-  draftCount: number
+  workspaceCount: number
 }): ConsoleIssue[] {
   const issues: ConsoleIssue[] = []
   if (input.healthError) {
@@ -874,13 +874,13 @@ function buildConsoleIssues(input: {
       to: ROUTES.agentSettings,
     })
   }
-  if (input.draftCount > 0) {
+  if (input.workspaceCount > 0) {
     issues.push({
-      id: 'draft-index',
+      id: 'workspace-index',
       tone: 'warning',
-      title: '存在可追踪的 Agent 草稿',
-      detail: `${input.draftCount} 个 draft 可从草稿索引进入业务审阅页。`,
-      to: ROUTES.agentDrafts,
+      title: '存在可追踪的 Agent 工作区',
+      detail: `${input.workspaceCount} 个 workspace 可从工作区索引进入业务审阅页。`,
+      to: ROUTES.agentWorkspaces,
     })
   }
   return issues

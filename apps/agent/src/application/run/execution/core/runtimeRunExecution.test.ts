@@ -55,7 +55,7 @@ function makeExecutionDependencies(calls: string[], run?: AgentRun): RuntimeRunE
     runSteps: failOnUse('runSteps'),
     postRunRecords: failOnUse('postRunRecords'),
     mcpClient: failOnUse('mcpClient'),
-    draftStore: failOnUse('draftStore'),
+    workspaceStore: failOnUse('workspaceStore'),
     externalToolGatewayPort: failOnUse('externalToolGatewayPort'),
     memoryStore: failOnUse('memoryStore'),
     memoryManager: failOnUse('memoryManager'),

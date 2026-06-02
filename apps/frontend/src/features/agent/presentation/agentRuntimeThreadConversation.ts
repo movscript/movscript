@@ -7,9 +7,11 @@ type TranslationFn = (key: string, options?: Record<string, unknown>) => string
 export function conversationFromRuntimeThreadSummary(thread: AgentThreadSummary, t: TranslationFn): Conversation {
   const createdAt = Date.parse(thread.createdAt)
   const updatedAt = Date.parse(thread.updatedAt)
+  const runtimeTitle = thread.metadata?.frontendTitle
+  const title = typeof runtimeTitle === 'string' && runtimeTitle.trim() ? runtimeTitle.trim() : localThreadTitle(thread, t)
   return {
     id: thread.id,
-    title: localThreadTitle(thread, t),
+    title,
     messages: [],
     ...(thread.sessionId ? { runtimeSessionId: thread.sessionId } : {}),
     runtimeThreadId: thread.id,

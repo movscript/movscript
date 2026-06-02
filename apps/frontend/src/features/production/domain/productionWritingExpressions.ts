@@ -212,8 +212,8 @@ export function buildWritingExpressionLines(
   return lines
 }
 
-export function writingExpressionPayload(draft: ProductionWritingExpressionSavePayload): SemanticEntityPayload {
-  const normalized = normalizeWritingExpressionDraft(draft)
+export function writingExpressionPayload(workspace: ProductionWritingExpressionSavePayload): SemanticEntityPayload {
+  const normalized = normalizeWritingExpressionWorkspace(workspace)
   return {
     scene_moment_id: normalized.scene_moment_id ?? null,
     script_block_id: normalized.script_block_id ?? null,
@@ -340,8 +340,8 @@ export function textPlaceholderForWritingType(type: ProductionWritingExpressionT
   return '写动作或事件推进'
 }
 
-export function writingExpressionLineDraft(line: ProductionWritingExpressionLine): ProductionWritingExpressionSavePayload {
-  return normalizeWritingExpressionDraft({
+export function writingExpressionLineWorkspace(line: ProductionWritingExpressionLine): ProductionWritingExpressionSavePayload {
+  return normalizeWritingExpressionWorkspace({
     kind: line.type,
     speaker: line.speaker,
     text: line.text,
@@ -350,20 +350,20 @@ export function writingExpressionLineDraft(line: ProductionWritingExpressionLine
   })
 }
 
-export function normalizeWritingExpressionDraft(draft: ProductionWritingExpressionSavePayload): ProductionWritingExpressionSavePayload {
+export function normalizeWritingExpressionWorkspace(workspace: ProductionWritingExpressionSavePayload): ProductionWritingExpressionSavePayload {
   return {
-    scene_moment_id: draft.scene_moment_id,
-    script_block_id: draft.script_block_id ?? null,
-    order: draft.order,
-    kind: normalizeWritingExpressionType(draft.kind),
-    speaker: draft.speaker.trim(),
-    text: draft.text.trim(),
-    note: draft.note.trim(),
-    intent: draft.intent.trim(),
+    scene_moment_id: workspace.scene_moment_id,
+    script_block_id: workspace.script_block_id ?? null,
+    order: workspace.order,
+    kind: normalizeWritingExpressionType(workspace.kind),
+    speaker: workspace.speaker.trim(),
+    text: workspace.text.trim(),
+    note: workspace.note.trim(),
+    intent: workspace.intent.trim(),
   }
 }
 
-export function writingExpressionDraftEquals(a: ProductionWritingExpressionSavePayload, b: ProductionWritingExpressionSavePayload) {
+export function writingExpressionWorkspaceEquals(a: ProductionWritingExpressionSavePayload, b: ProductionWritingExpressionSavePayload) {
   return normalizeWritingExpressionType(a.kind) === normalizeWritingExpressionType(b.kind)
     && a.speaker.trim() === b.speaker.trim()
     && a.text.trim() === b.text.trim()
@@ -375,7 +375,7 @@ export function speakerOptionValue(option: ProductionSpeakerOption) {
   return `reference:${option.id}`
 }
 
-export function speakerOptionValueForDraft(speaker: string, options: ProductionSpeakerOption[]) {
+export function speakerOptionValueForWorkspace(speaker: string, options: ProductionSpeakerOption[]) {
   const text = speaker.trim()
   const option = options.find((item) => item.name === text)
   return option ? speakerOptionValue(option) : '__custom__'

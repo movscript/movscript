@@ -20,7 +20,7 @@
       "@movscript/conversation": ["../../packages/conversation/src/index.ts"],
       "@movscript/event-state": ["../../packages/event-state/src/index.ts"],
       "@movscript/protocol": ["../../packages/protocol/src/index.ts"],
-      "@movscript/drafts": ["../../packages/drafts/src/index.ts"],
+      "@movscript/workspaces": ["../../packages/workspaces/src/index.ts"],
       "@movscript/theme": ["../../packages/theme/src/index.ts"],
       "@movscript/ui/style-system": ["../../packages/ui/src/style-system.ts"],
       "@movscript/ui": ["../../packages/ui/src/index.ts"],

@@ -42,7 +42,7 @@ test('context ledger audit reports duplicate retrieved refs while preserving fir
 })
 
 test('context ledger preview exposes the same tool result refs that recording materializes', () => {
-  const call = { id: 'call_1', name: 'core_file_read', args: { ref: 'agent://draft/draft_1/content' } }
+  const call = { id: 'call_1', name: 'core_file_read', args: { ref: 'agent://workspace/workspace_1/content' } }
   const result = { content: 'file body' }
   const previewRefs = previewToolResultContextRefs(call, result)
   const audit = recordToolResultInContextLedgerWithAudit({

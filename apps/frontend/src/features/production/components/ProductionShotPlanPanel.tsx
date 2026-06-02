@@ -25,7 +25,6 @@ export function ProductionShotPlanPanel({
   isReordering,
   onSelectUnit,
   onCreateUnit,
-  onAiSuggest,
   onOpenUnitEditor,
   onSelectFirstMoment,
   onReorderUnit,
@@ -39,7 +38,6 @@ export function ProductionShotPlanPanel({
   isReordering?: boolean
   onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
-  onAiSuggest: () => void
   onOpenUnitEditor: (unitId: number) => void
   onSelectFirstMoment: () => void
   onReorderUnit: (draggedUnitId: number, targetUnitId: number, position: ContentWorkbenchDropPosition) => void
@@ -100,7 +98,6 @@ export function ProductionShotPlanPanel({
             onSelectUnit={onSelectUnit}
             onOpenUnitEditor={onOpenUnitEditor}
             onCreateUnit={onCreateUnit}
-            onAiSuggest={onAiSuggest}
             onSelectFirstMoment={onSelectFirstMoment}
             onReorderUnit={onReorderUnit}
             onMoveUnitOnTimeline={onMoveUnitOnTimeline}

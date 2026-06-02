@@ -169,7 +169,7 @@ function buildMemoryTitle(kind: AgentMemoryKind, content: string): string {
     fact: '事实',
     item_ref: '引用',
     entity_ref: '引用',
-    draft: '草稿',
+    workspace: '工作区',
     decision: '决策',
     warning: '警告',
   }

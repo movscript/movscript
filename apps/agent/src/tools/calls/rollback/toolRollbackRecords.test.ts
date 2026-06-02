@@ -15,10 +15,10 @@ test('buildToolRollbackRecords extracts only outcomes with rollback policies', (
 
 test('buildRollbackMetadata omits empty metadata and serializes rollback records', () => {
   assert.deepEqual(buildRollbackMetadata([outcome('tool.read')]), {})
-  assert.deepEqual(buildRollbackMetadata([outcome('tool.write', { policy: 'reversible', reason: 'Local draft write' })]), {
+  assert.deepEqual(buildRollbackMetadata([outcome('tool.write', { policy: 'reversible', reason: 'Local workspace write' })]), {
     rollbackRecords: [{
       call: { id: 'call_tool.write', name: 'tool.write', args: {} },
-      rollback: { policy: 'reversible', reason: 'Local draft write' },
+      rollback: { policy: 'reversible', reason: 'Local workspace write' },
     }],
   })
 })

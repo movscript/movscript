@@ -1,0 +1,57 @@
+{
+  "id": "movscript.content_unit_workspace",
+  "version": "1.0.0",
+  "name": "Content Unit Workspace",
+  "description": "以本地 workspace 形式编辑内容单元结构、剧情推进、情绪推进、钩子和节拍内容。",
+  "priority": 830,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "content_unit_workspace"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "内容单元",
+        "分镜",
+        "镜头参数",
+        "视觉计划",
+        "视觉调度",
+        "调度图",
+        "blocking",
+        "storyboard brief",
+        "导演分镜",
+        "普通导演",
+        "content unit",
+        "content_unit_edit"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.content_unit_workspace.v1"
+  ],
+  "outputContract": "返回 workspaceId、productionId、content unit 数量、validation/apply 状态、结构缺口和下一步媒体或素材工作建议。",
+  "metadata": {
+    "skillRefs": [
+      "film.storyboard.director"
+    ]
+  },
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "movscript_focus_get",
+    "movscript_production_context_query",
+    "movscript_creative_reference_query",
+    "movscript_asset_slot_query",
+    "workspace_open",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
+    "workspace_validate",
+    "workspace_apply",
+    "reference_search",
+    "reference_get",
+    "core_user_input_request"
+  ]
+}

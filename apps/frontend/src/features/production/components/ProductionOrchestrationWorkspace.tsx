@@ -71,7 +71,6 @@ export function ProductionOrchestrationWorkspace({
   onReorderSceneMoment,
   onSelectContentUnit,
   onCreateContentUnit,
-  onAiSuggestShotPlan,
   onOpenContentUnitEditor,
   onSelectFirstSceneMomentForShotPlan,
   onReorderContentUnit,
@@ -121,7 +120,6 @@ export function ProductionOrchestrationWorkspace({
   onReorderSceneMoment: (draggedMomentId: number, targetSegmentId: number, targetMomentId: number | null, position: ProductionOrchestrationDropPosition) => void
   onSelectContentUnit: (unitId: number | null) => void
   onCreateContentUnit: () => void
-  onAiSuggestShotPlan: () => void
   onOpenContentUnitEditor: (unitId: number) => void
   onSelectFirstSceneMomentForShotPlan: () => void
   onReorderContentUnit: (draggedUnitId: number, targetUnitId: number, position: ContentWorkbenchDropPosition) => void
@@ -275,7 +273,6 @@ export function ProductionOrchestrationWorkspace({
                 isReordering={isReorderingShotPlan}
                 onSelectUnit={onSelectContentUnit}
                 onCreateUnit={onCreateContentUnit}
-                onAiSuggest={onAiSuggestShotPlan}
                 onOpenUnitEditor={onOpenContentUnitEditor}
                 onSelectFirstMoment={onSelectFirstSceneMomentForShotPlan}
                 onReorderUnit={onReorderContentUnit}

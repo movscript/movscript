@@ -31,7 +31,7 @@ test('canvasTextNodeEditState only allows manual non-resource text editing', () 
     mime_type: 'text/plain',
   }
 
-  assert.deepEqual(canvasTextNodeEditState({ source: 'manual', textContent: 'draft' }), {
+  assert.deepEqual(canvasTextNodeEditState({ source: 'manual', textContent: 'workspace' }), {
     editable: true,
     resourceBacked: false,
   })

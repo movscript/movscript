@@ -28,7 +28,7 @@ export function AgentChatPanelLayout({
   thread,
 }: AgentChatViewLayoutProps & { host?: AgentChatHost }) {
   const { t, i18n } = useTranslation()
-  const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.draft
+  const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
   const emptyConversation = !conversationStarted
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
@@ -201,7 +201,7 @@ export function AgentChatPanelLayout({
                 title={localThreadTitle(runtimeThread, t)}
                 description={[
                   t('agents.chat.messagesCount', { count: runtimeThread.messageCount }),
-                  runtimeThread.projectId ? t('agents.chat.panel.drafts.projectBadge', { id: runtimeThread.projectId }) : null,
+                  runtimeThread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: runtimeThread.projectId }) : null,
                 ].filter(Boolean).join(' · ')}
                 meta={restoringThreadId === runtimeThread.id ? t('agents.chat.restoring') : formatAgentDate(runtimeThread.updatedAt, locale)}
                 className="ai-agent-panel-empty-history-item"

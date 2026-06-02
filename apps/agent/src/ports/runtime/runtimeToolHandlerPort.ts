@@ -1,13 +1,13 @@
-import type { AgentDraftStore } from '../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../workspaces/store/workspaceStore.js'
 import type { AgentFileSystem } from '../../files/core/system/agentFileSystem.js'
 import type { MemoryManager } from '../../memory/manager/memoryManager.js'
 import type { ReferenceManager } from '../../reference/manager/referenceManager.js'
 import type { AgentRun, JSONValue, ToolCall } from '../../state/shared/types.js'
 import type { ToolRegistry } from '../../tools/registry/core/toolRegistry.js'
 import type { RuntimeModelChatMessage } from '../../model/config/modelConfig.js'
-import type { DraftApplyPort } from '../draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreImageProcessingPort } from '../media/imageProcessingPort.js'
 import type { CoreResourceFilePort } from '../files/resourceFilePort.js'
 import type { CoreVideoFrameExtractionPort } from '../media/videoFrameExtractionPort.js'
@@ -22,10 +22,10 @@ export interface RuntimeToolHandlerContext {
   call: ToolCall
   args: Record<string, JSONValue>
   run: AgentRun
-  draftStore: AgentDraftStore
-  draftApplyPort: DraftApplyPort
-  draftApplyPreviewPort: DraftApplyPreviewPort
-  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  workspaceStore: AgentWorkspaceStore
+  workspaceApplyPort: WorkspaceApplyPort
+  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort

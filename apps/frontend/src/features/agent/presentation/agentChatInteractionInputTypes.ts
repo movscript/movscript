@@ -11,13 +11,13 @@ import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStor
 
 export interface BuildAgentChatInteractionControllerInputOptions {
   activeLocalRun: AgentRun | null
-  buildingSendDraft: boolean
+  buildingSendWorkspace: boolean
   composer: ReturnType<typeof useAgentChatComposerState>
   context: ReturnType<typeof useAgentChatContextState>
   conv: Conversation
   externalTask?: AgentPageTaskState | null
   loading: boolean
-  onExternalDraftConsumed?: () => void
+  onExternalWorkspaceConsumed?: () => void
   pageToolRequestId?: string
   taskGraph: ReturnType<typeof useAgentPlanDispatchSettings>
   presentation: ReturnType<typeof useAgentChatPresentationState>

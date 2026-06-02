@@ -15,12 +15,12 @@ type ResourceBinding struct {
 	OwnerType string `gorm:"not null;index:idx_resource_binding_project_owner" json:"owner_type"` // script|asset_slot|semantic entities|canvas
 	OwnerID   uint   `gorm:"not null;index:idx_resource_binding_project_owner" json:"owner_id"`
 
-	Role         string `gorm:"not null;default:'attachment';index" json:"role"` // reference|input|output|draft|final|thumbnail|attachment|source
+	Role         string `gorm:"not null;default:'attachment';index" json:"role"` // reference|input|output|workspace|final|thumbnail|attachment|source
 	Slot         string `gorm:"default:''" json:"slot"`
 	SortOrder    int    `json:"sort_order"`
 	Version      int    `gorm:"not null;default:1" json:"version"`
 	IsPrimary    bool   `gorm:"default:false" json:"is_primary"`
-	Status       string `gorm:"not null;default:'draft';index" json:"status"` // draft|selected|rejected|approved|archived
+	Status       string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|selected|rejected|approved|archived
 	SourceType   string `gorm:"not null;default:'manual'" json:"source_type"` // upload|job|canvas|import|manual|legacy
 	SourceID     *uint  `json:"source_id,omitempty"`
 	MetadataJSON string `gorm:"type:text" json:"metadata_json"`

@@ -7,15 +7,15 @@ import { build } from 'esbuild'
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repoRoot = resolve(appRoot, '../..')
-const draftSchemasRoot = resolve(repoRoot, 'packages/drafts')
+const workspaceSchemasRoot = resolve(repoRoot, 'packages/workspaces')
 const protocolRoot = resolve(repoRoot, 'packages/protocol')
 
 await withBuildLock('movscript-agent-build', async () => {
   if (packageBuildIsStale(protocolRoot)) {
     run('pnpm', ['--filter', '@movscript/protocol', 'build'])
   }
-  if (packageBuildIsStale(draftSchemasRoot)) {
-    run('pnpm', ['--filter', '@movscript/drafts', 'build'])
+  if (packageBuildIsStale(workspaceSchemasRoot)) {
+    run('pnpm', ['--filter', '@movscript/workspaces', 'build'])
   }
   rmSync(resolve(appRoot, 'dist'), { recursive: true, force: true })
   run('tsc', ['-p', 'tsconfig.build.json'])

@@ -1,7 +1,6 @@
-import { Clapperboard, Route, Sparkles } from 'lucide-react'
+import { Clapperboard, Route } from 'lucide-react'
 
 import {
-  ContentWorkbenchPlanningActionButton,
   ContentWorkbenchPlanningEditor,
   ContentWorkbenchPlanningFieldGrid,
   ContentWorkbenchPlanningHeader,
@@ -49,13 +48,11 @@ export function ContentUnitStoryboardBriefEditor({
   value,
   ready,
   onFieldChange,
-  onAiVisualTaskGraph,
 }: {
   unitId: number
   value: ContentUnitStoryboardBriefEditorValue
   ready: boolean
   onFieldChange: (field: ContentUnitPlanningField, value: string) => void
-  onAiVisualTaskGraph?: () => void
 }) {
   return (
     <ContentWorkbenchPlanningEditor data-testid="content-workbench-storyboard-brief-editor">
@@ -64,15 +61,6 @@ export function ContentUnitStoryboardBriefEditor({
         title="故事板简述"
         description="先用结构化说明确认画面要讲什么，再推进关键帧或单张故事板图。"
         status={<StatusBadge {...contentReadinessRecipe(ready)}>{ready ? '已填写' : '待填写'}</StatusBadge>}
-        action={onAiVisualTaskGraph ? (
-            <ContentWorkbenchPlanningActionButton
-              onClick={onAiVisualTaskGraph}
-              data-testid="content-workbench-ai-visual-taskGraph"
-            >
-              <Sparkles size={14} />
-              AI 起草
-            </ContentWorkbenchPlanningActionButton>
-          ) : undefined}
       />
       <ContentWorkbenchPlanningFieldGrid>
           <ContentWorkbenchPlanningTextareaField
@@ -143,14 +131,12 @@ export function ContentUnitVisualPlanEditor({
   ready,
   requiresKeyframe,
   onFieldChange,
-  onAiVisualTaskGraph,
 }: {
   unitId: number
   value: ContentUnitVisualPlanEditorValue
   ready: boolean
   requiresKeyframe: boolean
   onFieldChange: (field: ContentUnitPlanningField, value: string) => void
-  onAiVisualTaskGraph?: () => void
 }) {
   return (
     <ContentWorkbenchPlanningEditor data-testid="content-workbench-visual-taskGraph-editor">
@@ -159,15 +145,6 @@ export function ContentUnitVisualPlanEditor({
         title="视觉调度计划"
         description="调度图回答空间关系、相机路径和人物怎么走；关键帧回答最终画面长什么样。"
         status={<StatusBadge {...contentOptionalReadinessRecipe(ready, requiresKeyframe)}>{ready ? '已填写' : requiresKeyframe ? '建议补齐' : '可选'}</StatusBadge>}
-        action={onAiVisualTaskGraph ? (
-            <ContentWorkbenchPlanningActionButton
-              onClick={onAiVisualTaskGraph}
-              data-testid="content-workbench-ai-visual-taskGraph"
-            >
-              <Sparkles size={14} />
-              AI 起草
-            </ContentWorkbenchPlanningActionButton>
-          ) : undefined}
       />
       <ContentWorkbenchPlanningFieldGrid>
           <ContentWorkbenchPlanningTextareaField

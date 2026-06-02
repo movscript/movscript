@@ -2,65 +2,47 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { completeSendRunResult, type CompleteSendRunResultDeps } from '@/features/agent/application/agentSendCompletion'
-import { buildAgentConversationMessageItems } from '@/features/agent/domain/agentConversationThreadItems'
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentMessage, AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-test('completeSendRunResult binds runtime thread, source message, assistant result, projection, and settled notification', async () => {
+test('completeSendRunResult binds runtime thread, run state, and settled notification', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  let localUserMessage = chatMessage({ id: 'local_user', role: 'user', content: 'Hello' })
-  deps.messageStore.updateMessageMeta = (_userId, _conversationId, messageId, meta) => {
-    calls.push(`messageMeta:${messageId}:${meta.runtimeMessage?.messageId}:${meta.runtimeMessage?.runId}`)
-    localUserMessage = {
-      ...localUserMessage,
-      meta: {
-        ...localUserMessage.meta,
-        ...meta,
-      },
-    }
-  }
-  deps.getExistingMessages = () => [localUserMessage]
 
   await completeSendRunResult({
-    draft: draft({ requestId: 'request_1' }),
+    workspace: workspace({ requestId: 'request_1' }),
     runResult: runResult(),
     deps,
   })
 
   assert.equal(calls.includes('setLocalThread:thread_1'), true)
   assert.equal(calls.includes('runtimeThread:thread_1'), true)
-  assert.equal(calls.includes('messageMeta:local_user:msg_user:run_1'), true)
   assert.equal(calls.includes('title:Thread title'), true)
   assert.equal(calls.includes('task:request_1:run_1:thread_1:0'), true)
   assert.equal(calls.includes('setRun:run_1:completed:false'), true)
   assert.equal(calls.includes('pendingHttp:0'), true)
   assert.equal(calls.includes('pending:null'), true)
-  assert.equal(calls.includes('append:run_1:2'), true)
-  assert.equal(calls.includes('projectionSink:thread_1:none:2'), true)
   assert.equal(calls.includes('liveRef:0'), true)
   assert.equal(calls.includes('liveState:0'), true)
   assert.equal(calls.includes('settled:request_1:completed:run_1:thread_1:0'), true)
 })
 
-test('completeSendRunResult skips thread binding and projection for diagnostic commands', async () => {
+test('completeSendRunResult skips thread binding for diagnostic commands', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
   await completeSendRunResult({
-    draft: draft({ diagnosticCommand: true }),
+    workspace: workspace({ diagnosticCommand: true }),
     runResult: runResult(),
     deps,
   })
 
   assert.equal(calls.some((call) => call.startsWith('setLocalThread')), false)
   assert.equal(calls.some((call) => call.startsWith('runtimeThread')), false)
-  assert.equal(calls.some((call) => call.startsWith('projectionSink:')), false)
-  assert.equal(calls.includes('append:run_1:2'), true)
 })
 
-test('completeSendRunResult resolves stream partial runs before projecting', async () => {
+test('completeSendRunResult resolves stream partial runs before completing state', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.getRun = async () => {
@@ -69,7 +51,7 @@ test('completeSendRunResult resolves stream partial runs before projecting', asy
   }
 
   await completeSendRunResult({
-    draft: draft(),
+    workspace: workspace(),
     runResult: runResult({ run: makeRun({ id: 'run_partial', streamPartial: true, status: 'in_progress' }) }),
     deps,
   })
@@ -79,26 +61,9 @@ test('completeSendRunResult resolves stream partial runs before projecting', asy
   assert.equal(calls.includes('settled:undefined:completed:run_final:thread_1:0'), true)
 })
 
-test('completeSendRunResult does not append a plain assistant summary for requires_action runs', async () => {
+test('completeSendRunResult leaves requires_action messages to the message feed', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  let localUserMessage = chatMessage({ id: 'local_user', role: 'user', content: 'Create video' })
-  let projectedMessages: ChatMessage[] = []
-  deps.messageStore.updateMessageMeta = (_userId, _conversationId, messageId, meta) => {
-    calls.push(`messageMeta:${messageId}:${meta.runtimeMessage?.messageId}:${meta.runtimeMessage?.runId}`)
-    localUserMessage = {
-      ...localUserMessage,
-      meta: {
-        ...localUserMessage.meta,
-        ...meta,
-      },
-    }
-  }
-  deps.setRuntimeThreadProjection = (input) => {
-    calls.push(`projectionSink:${input.threadId}:${input.sessionId ?? 'none'}:${input.messages.length}`)
-    projectedMessages = input.messages
-  }
-  deps.getExistingMessages = () => [localUserMessage]
 
   const approvalRun = makeRun({
     status: 'requires_action',
@@ -123,7 +88,7 @@ test('completeSendRunResult does not append a plain assistant summary for requir
   })
 
   await completeSendRunResult({
-    draft: draft({ requestId: 'request_1' }),
+    workspace: workspace({ requestId: 'request_1' }),
     runResult: runResult({
       run: approvalRun,
       thread: makeThread({
@@ -135,29 +100,14 @@ test('completeSendRunResult does not append a plain assistant summary for requir
   })
 
   assert.equal(calls.some((call) => call.startsWith('append:')), false)
-  assert.equal(calls.includes('projectionSink:thread_1:none:2'), true)
-
-  const approvalResultMessage = projectedMessages.find((message) => (
-    message.role === 'assistant'
-    && message.meta?.runtimeMessage?.runId === 'run_1'
-  ))
-  assert.ok(approvalResultMessage)
-
-  const items = buildAgentConversationMessageItems({
-    messages: projectedMessages,
-    runInteractionAnswerEchoes: new Set(),
-    interactionRunsByResultMessageId: new Map([[approvalResultMessage.id, [approvalRun]]]),
-  })
-  const approvalMessage = items.find((item) => item.beforeMessageInteractionRuns.some((run) => run.id === 'run_1'))
-  assert.ok(approvalMessage)
-  assert.equal(approvalMessage?.beforeMessageInteractionRuns[0]?.pendingApprovals?.[0]?.toolName, 'generation_job_create')
+  assert.equal(calls.some((call) => call.startsWith('projectionSink:')), false)
+  assert.equal(calls.includes('setRun:run_1:requires_action:false'), true)
 })
 
 function depsFixture(calls: string[]): CompleteSendRunResultDeps {
   return {
     userId: 'user_1',
     conversationId: 'conv_1',
-    localUserMessageId: 'local_user',
     liveEvents: () => [activityEvent({ id: 'http-request-local-create-thread' })],
     setLiveEventsRef: (events) => {
       calls.push(`liveRef:${events.length}`)
@@ -171,11 +121,6 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     },
     setConversationRuntimeThreadId: (_userId, _conversationId, threadId) => {
       calls.push(`runtimeThread:${threadId}`)
-    },
-    messageStore: {
-      updateMessageMeta: (_userId, _conversationId, messageId, meta) => {
-        calls.push(`messageMeta:${messageId}:${meta.runtimeMessage?.messageId}:${meta.runtimeMessage?.runId}`)
-      },
     },
     updateConversationTitle: (_userId, _conversationId, title) => {
       calls.push(`title:${title}`)
@@ -192,17 +137,9 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     setPendingAssistantState: (state) => {
       calls.push(`pending:${state?.status ?? 'null'}`)
     },
-    appendAssistantRunResult: async (run, _thread, liveEvents) => {
-      calls.push(`append:${run.id}:${liveEvents.length}`)
-    },
-    getExistingMessages: () => [chatMessage({ id: 'local_user', role: 'user', content: 'Hello' })],
-    setRuntimeThreadProjection: (input) => {
-      calls.push(`projectionSink:${input.threadId}:${input.sessionId ?? 'none'}:${input.messages.length}`)
-    },
     setLiveTraceEvents: (events) => {
       calls.push(`liveState:${events.length}`)
     },
-    fetchResourceById: async () => undefined,
     runTouchesAgentCatalog: () => false,
     refreshAgentCatalogContext: () => {
       calls.push('refreshCatalog')
@@ -213,9 +150,9 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
   }
 }
 
-function draft(localRuntime: NonNullable<AgentSendDraft['localRuntime']> = {}): AgentSendDraft {
+function workspace(localRuntime: NonNullable<AgentSendWorkspace['localRuntime']> = {}): AgentSendWorkspace {
   return {
-    id: 'draft_1',
+    id: 'workspace_1',
     createdAt: 1,
     route: 'local-runtime',
     visibleUserContent: 'Hello',
@@ -296,16 +233,6 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     createdAt: '2026-05-19T00:00:00.000Z',
     updatedAt: '2026-05-19T00:00:00.000Z',
     steps: [],
-    ...overrides,
-  }
-}
-
-function chatMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
-  return {
-    id: 'chat_1',
-    role: 'assistant',
-    content: 'Message',
-    timestamp: 1,
     ...overrides,
   }
 }

@@ -10,11 +10,11 @@ import {
   isPersonReference,
   isPlaceReference,
   isVisibleOrchestrationRecord,
-  normalizeWritingExpressionDraft,
+  normalizeWritingExpressionWorkspace,
   referencesForOwner,
   speakerLabelForWritingType,
   speakerOptionValue,
-  speakerOptionValueForDraft,
+  speakerOptionValueForWorkspace,
   speakerPlaceholderForWritingType,
   textPlaceholderForWritingType,
   type ProductionAssetSlotRecord,
@@ -27,8 +27,8 @@ import {
   type ProductionWritingExpressionSavePayload,
   type ProductionWritingExpressionType,
   type ProductionWritingLookup,
-  writingExpressionDraftEquals,
-  writingExpressionLineDraft,
+  writingExpressionWorkspaceEquals,
+  writingExpressionLineWorkspace,
   writingExpressionTypeOptions,
   writingTypeLabel,
 } from '@/features/production/domain/productionWritingExpressions'
@@ -299,7 +299,7 @@ export function InlineSceneMomentEditor({
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
-  const [draft, setDraft] = useState({
+  const [workspace, setWorkspace] = useState({
     title: '',
     description: '',
     mood: '',
@@ -307,7 +307,7 @@ export function InlineSceneMomentEditor({
   })
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    setDraft({
+    setWorkspace({
       title: firstText(moment?.title),
       description: firstText(moment?.description),
       mood: firstText(moment?.mood),
@@ -327,7 +327,7 @@ export function InlineSceneMomentEditor({
     mood: firstText(moment.mood),
     time_text: firstText(moment.time_text),
   }
-  const changed = Object.keys(draft).some((key) => draft[key as keyof typeof draft].trim() !== original[key as keyof typeof original].trim())
+  const changed = Object.keys(workspace).some((key) => workspace[key as keyof typeof workspace].trim() !== original[key as keyof typeof original].trim())
 
   return (
     <ProductionSceneWritingSection>
@@ -363,15 +363,15 @@ export function InlineSceneMomentEditor({
             <ProductionSceneWritingFieldGrid>
               <ProductionSceneWritingField label="标题（可选）">
                 <ProductionSceneWritingTextarea
-                  value={draft.title}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+                  value={workspace.title}
+                  onChange={(event) => setWorkspace((prev) => ({ ...prev, title: event.target.value }))}
                   placeholder="这场戏发生了什么"
                 />
               </ProductionSceneWritingField>
               <ProductionSceneWritingField label="时间（可选）">
                 <ProductionSceneWritingTextarea
-                  value={draft.time_text}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, time_text: event.target.value }))}
+                  value={workspace.time_text}
+                  onChange={(event) => setWorkspace((prev) => ({ ...prev, time_text: event.target.value }))}
                   placeholder="清晨、夜里、发布会前..."
                 />
               </ProductionSceneWritingField>
@@ -379,16 +379,16 @@ export function InlineSceneMomentEditor({
             <ProductionSceneWritingField label="情节说明" spaced>
               <ProductionSceneWritingTextarea
                 kind="body"
-                value={draft.description}
-                onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
+                value={workspace.description}
+                onChange={(event) => setWorkspace((prev) => ({ ...prev, description: event.target.value }))}
                 placeholder="这段情节承担的推进作用"
               />
             </ProductionSceneWritingField>
             <ProductionSceneWritingField label="导演备注 / 节奏目标（可选）" spaced>
               <ProductionSceneWritingTextarea
                 kind="note"
-                value={draft.mood}
-                onChange={(event) => setDraft((prev) => ({ ...prev, mood: event.target.value }))}
+                value={workspace.mood}
+                onChange={(event) => setWorkspace((prev) => ({ ...prev, mood: event.target.value }))}
                 placeholder="情绪目标、节奏停顿或表演提醒；具体动作请写到表达条目"
               />
             </ProductionSceneWritingField>
@@ -412,7 +412,7 @@ export function InlineSceneMomentEditor({
               ) : null}
             >
               {changed && (
-                <ProductionSceneWritingActionButton size="sm" variant="ghost" disabled={isSaving || isDeleting} onClick={() => setDraft(original)}>
+                <ProductionSceneWritingActionButton size="sm" variant="ghost" disabled={isSaving || isDeleting} onClick={() => setWorkspace(original)}>
                   取消
                 </ProductionSceneWritingActionButton>
               )}
@@ -421,10 +421,10 @@ export function InlineSceneMomentEditor({
                 disabled={!changed || isSaving || isDeleting}
                 onClick={() => {
                   onSave(moment.ID, {
-                    title: draft.title.trim(),
-                    description: draft.description.trim(),
-                    mood: draft.mood.trim(),
-                    time_text: draft.time_text.trim(),
+                    title: workspace.title.trim(),
+                    description: workspace.description.trim(),
+                    mood: workspace.mood.trim(),
+                    time_text: workspace.time_text.trim(),
                   })
                   setOpen(false)
                 }}
@@ -668,21 +668,21 @@ function WritingExpressionEditorForm({
   onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDelete: (target: ProductionWritingExpressionEditTarget) => void
 }) {
-  const [draft, setDraft] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineDraft(line))
+  const [workspace, setWorkspace] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineWorkspace(line))
   useEffect(() => {
-    setDraft(writingExpressionLineDraft(line))
+    setWorkspace(writingExpressionLineWorkspace(line))
   }, [line.intent, line.note, line.speaker, line.text, line.type, resetKey])
-  const original = writingExpressionLineDraft(line)
-  const changed = !writingExpressionDraftEquals(draft, original)
-  const typeLabel = writingTypeLabel(draft.kind)
-  const selectedSpeakerValue = speakerOptionValueForDraft(draft.speaker, speakerOptions)
+  const original = writingExpressionLineWorkspace(line)
+  const changed = !writingExpressionWorkspaceEquals(workspace, original)
+  const typeLabel = writingTypeLabel(workspace.kind)
+  const selectedSpeakerValue = speakerOptionValueForWorkspace(workspace.speaker, speakerOptions)
   const canDeleteLine = line.persisted && line.editTarget.kind === 'writingExpressions'
     || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
 
   return (
     <ProductionExpressionEditorGrid>
       <ProductionExpressionEditorColumn>
-        <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>
+        <Select value={workspace.kind} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>
           <ProductionSceneWritingSelectTrigger kind="expression-kind">
             <SelectValue />
           </ProductionSceneWritingSelectTrigger>
@@ -692,16 +692,16 @@ function WritingExpressionEditorForm({
             ))}
           </SelectContent>
         </Select>
-        <ProductionExpressionField label={speakerLabelForWritingType(draft.kind)}>
+        <ProductionExpressionField label={speakerLabelForWritingType(workspace.kind)}>
           <Select
             value={selectedSpeakerValue}
             onValueChange={(value) => {
               if (value === '__custom__') {
-                setDraft((prev) => ({ ...prev, speaker: speakerOptions.some((option) => option.name === prev.speaker.trim()) ? '' : prev.speaker }))
+                setWorkspace((prev) => ({ ...prev, speaker: speakerOptions.some((option) => option.name === prev.speaker.trim()) ? '' : prev.speaker }))
                 return
               }
               const option = speakerOptions.find((item) => speakerOptionValue(item) === value)
-              if (option) setDraft((prev) => ({ ...prev, speaker: option.name }))
+              if (option) setWorkspace((prev) => ({ ...prev, speaker: option.name }))
             }}
           >
             <ProductionSceneWritingSelectTrigger kind="expression-speaker">
@@ -718,30 +718,30 @@ function WritingExpressionEditorForm({
           </Select>
           <ProductionSceneWritingTextarea
             kind="speaker"
-            value={draft.speaker}
-            onChange={(event) => setDraft((prev) => ({ ...prev, speaker: event.target.value }))}
-            placeholder={speakerPlaceholderForWritingType(draft.kind)}
+            value={workspace.speaker}
+            onChange={(event) => setWorkspace((prev) => ({ ...prev, speaker: event.target.value }))}
+            placeholder={speakerPlaceholderForWritingType(workspace.kind)}
           />
         </ProductionExpressionField>
       </ProductionExpressionEditorColumn>
       <ProductionExpressionEditorColumn>
         <ProductionSceneWritingTextarea
           kind="expression"
-          value={draft.text}
-          onChange={(event) => setDraft((prev) => ({ ...prev, text: event.target.value }))}
-          placeholder={textPlaceholderForWritingType(draft.kind)}
+          value={workspace.text}
+          onChange={(event) => setWorkspace((prev) => ({ ...prev, text: event.target.value }))}
+          placeholder={textPlaceholderForWritingType(workspace.kind)}
         />
         <ProductionExpressionAuxFieldGrid>
           <ProductionSceneWritingTextarea
             kind="expression-note"
-            value={draft.intent}
-            onChange={(event) => setDraft((prev) => ({ ...prev, intent: event.target.value }))}
+            value={workspace.intent}
+            onChange={(event) => setWorkspace((prev) => ({ ...prev, intent: event.target.value }))}
             placeholder={`${typeLabel}的目的`}
           />
           <ProductionSceneWritingTextarea
             kind="expression-note"
-            value={draft.note}
-            onChange={(event) => setDraft((prev) => ({ ...prev, note: event.target.value }))}
+            value={workspace.note}
+            onChange={(event) => setWorkspace((prev) => ({ ...prev, note: event.target.value }))}
             placeholder="潜台词 / 表演说明"
           />
         </ProductionExpressionAuxFieldGrid>
@@ -766,15 +766,15 @@ function WritingExpressionEditorForm({
             size="sm"
             variant="ghost"
             disabled={isSaving}
-            onClick={() => setDraft(original)}
+            onClick={() => setWorkspace(original)}
           >
             取消
           </ProductionSceneWritingActionButton>
         )}
         <ProductionSceneWritingActionButton
           size="sm"
-          disabled={!changed || !draft.text.trim() || isSaving}
-          onClick={() => onSave(line.editTarget, normalizeWritingExpressionDraft(draft))}
+          disabled={!changed || !workspace.text.trim() || isSaving}
+          onClick={() => onSave(line.editTarget, normalizeWritingExpressionWorkspace(workspace))}
         >
           {isSaving ? <ProductionSceneWritingSpinner icon={Loader2} /> : <Check size={12} />}
           {actionLabel}

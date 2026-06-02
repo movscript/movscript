@@ -16,7 +16,7 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
     writePluginFile(skillsDir, 'writer.skill.json', {
       id: 'studio.writer',
       name: 'Writer',
-      description: 'Writes scene drafts',
+      description: 'Writes scene workspaces',
       enabled: true,
       triggers: [{ kind: 'always' }],
       toolGrants: ['studio.script_outline'],
@@ -25,9 +25,9 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
     })
     writePluginFile(toolsDir, 'outline.tool.json', {
       name: 'studio.script_outline',
-      description: 'Create a script outline draft.',
-      permission: 'draft.write',
-      risk: 'draft',
+      description: 'Create a script outline workspace.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       source: 'plugin',
       pluginId: 'test.writer',
       inputSchema: {
@@ -115,7 +115,7 @@ test('enabled pack registration activates file-loaded skills and tools without c
     writePluginFile(skillsDir, 'writer.skill.json', {
       id: 'studio.writer',
       name: 'Writer',
-      description: 'Writes scene drafts',
+      description: 'Writes scene workspaces',
       enabled: true,
       triggers: [{ kind: 'always' }],
       toolGrants: ['studio.script_outline'],
@@ -123,9 +123,9 @@ test('enabled pack registration activates file-loaded skills and tools without c
     })
     writePluginFile(toolsDir, 'outline.tool.json', {
       name: 'studio.script_outline',
-      description: 'Create a script outline draft.',
-      permission: 'draft.write',
-      risk: 'draft',
+      description: 'Create a script outline workspace.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       source: 'plugin',
       pluginId: 'test.writer',
       inputSchema: { type: 'object', properties: {} },
@@ -151,7 +151,7 @@ test('enabled pack registration activates file-loaded skills and tools without c
       name: 'Base',
       enabledPackIds: ['studio.pack.writer'],
       skillIds: [],
-      approvalDefaults: { draft: 'on_write' },
+      approvalDefaults: { workspace: 'on_write' },
       toolGrants: [],
     })
 
@@ -170,7 +170,7 @@ test('enabled pack registration activates file-loaded skills and tools without c
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'studio.writer'))
     assert.ok(catalog.registry.get('studio.script_outline'))
     assert.deepEqual(configFile?.skillIds, ['studio.writer'])
-    assert.deepEqual(configFile?.approvalDefaults, { draft: 'on_write' })
+    assert.deepEqual(configFile?.approvalDefaults, { workspace: 'on_write' })
     assert.deepEqual(configFile?.toolGrants, [{ name: 'studio.script_outline', mode: 'allow', approval: 'on_write' }])
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
     assert.deepEqual(catalog.catalogIssues, [])
@@ -190,24 +190,24 @@ test('loads built-in MovScript platform catalog by default', () => {
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.rules.workspace'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'draft.rules.lifecycle'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'kernel.proposal_first'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.project_standards_proposal'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'workspace.rules.lifecycle'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'kernel.workspace_first'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.project_standards_workspace'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'core.pack.agent'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'draft.pack.lifecycle'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'workspace.pack.lifecycle'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.workspace'))
     assert.ok(catalog.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_focus_get'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_project_create'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'generation_model_list'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_create'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_focus_get'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'generation_model_list'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_project_create' && grant.approval === 'always'))
-    assert.ok(catalog.registry.get('draft_create'))
-    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'draft_create'), true)
+    assert.ok(catalog.registry.get('workspace_open'))
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'workspace_open'), true)
     assert.equal(catalog.registry.get('movscript_project_create')?.projectScoped, false)
     assert.deepEqual(catalog.warnings, [])
   } finally {
@@ -215,21 +215,21 @@ test('loads built-in MovScript platform catalog by default', () => {
   }
 })
 
-test('loads built-in content unit proposal catalogs by default', () => {
+test('loads built-in content unit workspace catalogs by default', () => {
   const catalog = loadAgentPluginCatalog()
 
   const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.workspace')
-  const draftPack = catalog.packs.find((pack) => pack.id === 'draft.pack.lifecycle')
+  const workspacePack = catalog.packs.find((pack) => pack.id === 'workspace.pack.lifecycle')
 
   assert.ok(movscriptPack)
-  assert.ok(draftPack?.schemas.includes('movscript.content_unit_proposal.v1'))
-  assert.equal(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'), false)
-  assert.ok(movscriptPack?.skills.includes('movscript.content_unit_proposal'))
-  assert.equal(movscriptPack?.skills.includes('movscript.content-unit-media-proposal'), false)
-  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_create'))
-  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_apply_preview'))
-  assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
-  assert.equal(catalog.registry.get('movscript_update_proposal_node'), undefined)
+  assert.ok(workspacePack?.schemas.includes('movscript.content_unit_workspace.v1'))
+  assert.equal(workspacePack?.schemas.includes('movscript.content_unit_media_workspace.v1'), false)
+  assert.ok(movscriptPack?.skills.includes('movscript.content_unit_workspace'))
+  assert.equal(movscriptPack?.skills.includes('movscript.content-unit-media-workspace'), false)
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'))
+  assert.equal(catalog.registry.get('movscript_upsert_workspace_node'), undefined)
+  assert.equal(catalog.registry.get('movscript_update_workspace_node'), undefined)
   assert.deepEqual(catalog.warnings, [])
 })
 
@@ -239,17 +239,17 @@ test('pack loading ignores unreferenced local catalog files', () => {
   const toolsDir = join(dir, 'tools')
 
   try {
-    writePluginFile(join(skillsDir, 'production'), 'proposal.json', {
+    writePluginFile(join(skillsDir, 'production'), 'workspace.json', {
       skills: [{
-        id: 'studio.production_proposal',
-        name: 'Production Proposal',
-        description: 'Draft production proposals',
-        category: 'production_proposal',
+        id: 'studio.production_workspace',
+        name: 'Production Workspace',
+        description: 'Workspace production workspaces',
+        category: 'production_workspace',
         enabled: true,
-        instruction: 'Draft production proposal nodes.',
+        instruction: 'Workspace production workspace nodes.',
       }],
     })
-    writePluginFile(join(toolsDir, 'production'), 'proposal.tool.json', {
+    writePluginFile(join(toolsDir, 'production'), 'workspace.tool.json', {
       name: 'studio.read_production',
       description: 'Read production context.',
       permission: 'project.read',
@@ -266,7 +266,7 @@ test('pack loading ignores unreferenced local catalog files', () => {
       builtinSkillsDir: skillsDir,
       builtinToolsDir: toolsDir,
     })
-    const skill = catalog.layeredSkills.find((item) => item.id === 'studio.production_proposal')
+    const skill = catalog.layeredSkills.find((item) => item.id === 'studio.production_workspace')
     const tool = catalog.layeredTools.find((item) => item.name === 'studio.read_production')
 
     assert.equal(skill, undefined)

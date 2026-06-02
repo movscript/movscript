@@ -38,7 +38,7 @@ import {
   AgentMessageSection,
 } from '@/features/agent/components/AgentMessageContent'
 import { ContextDiagnosticCard } from '@/features/agent/components/ContextDiagnosticCard'
-import { AgentDraftResultCards } from '@/features/agent/components/AgentDraftResultCards'
+import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWorkspaceResultCards'
 import { AgentPlanRevisionCard } from '@/features/agent/components/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
@@ -151,7 +151,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   const {
     contextDiagnostic,
     contextLabels,
-    draftArtifacts,
+    workspaceArtifacts,
     generationJobs,
     generationParamAudits,
     generationValidationErrors,
@@ -283,7 +283,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       {hasResultSection && (
         <AgentChatResultStack>
           {showLargeMedia && <GeneratedResultCard attachments={generatedMediaAttachments} projectId={projectId} />}
-          <AgentDraftResultCards artifacts={draftArtifacts} />
+          <AgentWorkspaceResultCards artifacts={workspaceArtifacts} />
           {compactAttachments.length > 0 && (
             <AgentChatAttachmentGrid columns={compactAttachments.length > 1 ? 2 : 1}>
               {compactAttachments.map((attachment) => (

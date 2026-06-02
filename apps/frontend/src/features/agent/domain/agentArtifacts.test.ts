@@ -3,10 +3,10 @@ import test from 'node:test'
 import { extractAgentTaskArtifacts } from '@/features/agent/domain/agentArtifacts'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
-test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
-  class RuntimeDraftResult {
-    id = 'draft_runtime'
-    kind = 'project_standards_proposal'
+test('extractAgentTaskArtifacts ignores non-plain workspace result objects', () => {
+  class RuntimeWorkspaceResult {
+    id = 'workspace_runtime'
+    kind = 'project_standards_workspace'
   }
 
   const run = {
@@ -21,7 +21,7 @@ test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
       runId: 'run_1',
       type: 'tool_call',
       status: 'completed',
-      result: new RuntimeDraftResult(),
+      result: new RuntimeWorkspaceResult(),
       createdAt: '2026-05-17T00:00:00.000Z',
     }],
   } as unknown as AgentRun

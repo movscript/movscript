@@ -1,6 +1,6 @@
 import { isValidAgentProjectId } from '../../context/runtime/runtimeContext.js'
 
-export type AgentMemoryKind = 'preference' | 'fact' | 'item_ref' | 'entity_ref' | 'draft' | 'decision' | 'warning'
+export type AgentMemoryKind = 'preference' | 'fact' | 'item_ref' | 'entity_ref' | 'workspace' | 'decision' | 'warning'
 
 export interface AgentMemory {
   id: string

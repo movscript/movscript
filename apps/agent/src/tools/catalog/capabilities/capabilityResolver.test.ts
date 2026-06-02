@@ -31,9 +31,9 @@ test('resolveToolCatalog exposes registered tool execution metadata', () => {
   const registry = new StaticToolRegistry([
     {
       name: 'studio.preview',
-      description: 'Preview draft changes.',
-      permission: 'draft.preview',
-      risk: 'draft',
+      description: 'Preview workspace changes.',
+      permission: 'workspace.preview',
+      risk: 'workspace',
       source: 'runtime',
       projectScoped: false,
       requiresApprovalByDefault: false,
@@ -116,7 +116,7 @@ test('resolveToolCatalog scopes business tools to active task hints', () => {
       permission: 'project.read',
       risk: 'read',
       source: 'runtime',
-      category: 'production_proposal',
+      category: 'production_workspace',
       projectScoped: true,
       requiresApprovalByDefault: false,
     },
@@ -249,10 +249,10 @@ test('resolveToolCatalog treats active skill tool refs as first-class grants', (
 test('resolveToolCatalog preserves union task scope', () => {
   const registry = new StaticToolRegistry([
     {
-      name: 'studio.write_draft',
-      description: 'Write draft.',
-      permission: 'draft.write',
-      risk: 'draft',
+      name: 'studio.write_workspace',
+      description: 'Write workspace.',
+      permission: 'workspace.write',
+      risk: 'workspace',
       source: 'runtime',
       projectScoped: true,
       requiresApprovalByDefault: false,
@@ -260,7 +260,7 @@ test('resolveToolCatalog preserves union task scope', () => {
   ])
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    tools: [{ name: 'studio.write_draft', mode: 'allow' as const, approval: 'never' as const }],
+    tools: [{ name: 'studio.write_workspace', mode: 'allow' as const, approval: 'never' as const }],
   }
 
   const catalog = resolveToolCatalog({
@@ -282,7 +282,7 @@ test('resolveToolCatalog preserves union task scope', () => {
     }],
   })
 
-  assert.equal(catalog.byName['studio.write_draft'].available, true)
+  assert.equal(catalog.byName['studio.write_workspace'].available, true)
 })
 
 test('resolveToolCatalog treats invalid project ids as missing project scope', () => {

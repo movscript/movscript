@@ -1,4 +1,4 @@
-import type { AgentDraftKind } from '@/shared/contracts/agentDraft'
+import type { AgentWorkspaceKind } from '@/shared/contracts/agentWorkspace'
 import type {
   AgentApprovalRequest,
   AgentCapabilitiesResponse,
@@ -8,6 +8,9 @@ import type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
+  AgentFeedMessage,
+  AgentFeedMessagePage,
+  AgentFeedMessageStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -77,6 +80,9 @@ export type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
+  AgentFeedMessage,
+  AgentFeedMessagePage,
+  AgentFeedMessageStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -146,6 +152,21 @@ export interface AgentThreadListQuery {
   includeProvisional?: boolean
 }
 
+export interface AgentMessageFeedQuery {
+  before?: string
+  limit?: number
+}
+
+export interface AgentSessionMessageFeedQuery extends AgentMessageFeedQuery {
+  threadId?: string
+}
+
+export interface AgentMessageFeedStreamOptions {
+  threadId?: string
+  onMessageEvent?: (event: AgentFeedMessageStreamEvent) => void
+  signal?: AbortSignal
+}
+
 export interface AgentHealth {
   ok: boolean
   service: string
@@ -159,7 +180,7 @@ export interface AgentHealth {
   paths?: {
     statePath: string
     memoryPath: string
-    draftPath: string
+    workspacePath: string
     modelConfigPath: string
   }
   modelConfigPath?: string
@@ -254,9 +275,9 @@ export interface AgentRuntimeTelemetrySnapshot {
 }
 
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
-export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
-export type { AgentDraftKind }
-export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
+export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'workspace' | 'decision' | 'warning'
+export type { AgentWorkspaceKind }
+export type AgentWorkspaceStatus = 'workspace' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {
   id: string
@@ -271,14 +292,14 @@ export interface AgentMemory {
   updatedAt: string
 }
 
-export interface AgentDraft {
+export interface AgentWorkspace {
   id: string
   filePath?: string
   projectId?: number
-  kind: AgentDraftKind
+  kind: AgentWorkspaceKind
   title: string
   content: string
-  status: AgentDraftStatus
+  status: AgentWorkspaceStatus
   source?: Record<string, unknown>
   target?: Record<string, unknown>
   createdByRunId?: string
@@ -291,10 +312,10 @@ export interface AgentDraft {
   updatedAt: string
 }
 
-export interface AgentDraftApplyReview {
-  draftId: string
-  draftTitle: string
-  draftKind: AgentDraftKind
+export interface AgentWorkspaceApplyReview {
+  workspaceId: string
+  workspaceTitle: string
+  workspaceKind: AgentWorkspaceKind
   target: Record<string, unknown>
   currentValue: unknown
   proposedValue: unknown
@@ -303,10 +324,10 @@ export interface AgentDraftApplyReview {
   requiresBackendApply: boolean
 }
 
-export interface AgentDraftApplyPreview {
+export interface AgentWorkspaceApplyPreview {
   status: 'preview' | 'applied'
-  review: AgentDraftApplyReview
-  draft: AgentDraft
+  review: AgentWorkspaceApplyReview
+  workspace: AgentWorkspace
   message: string
   backendApply?: Record<string, unknown>
 }

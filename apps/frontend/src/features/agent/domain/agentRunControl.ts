@@ -1,6 +1,4 @@
-import type { AssistantConversationMessageAppender } from '@movscript/conversation'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 export const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 export const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
@@ -10,6 +8,7 @@ export type RunControlRuntimePatch = {
   loading?: boolean
   building?: boolean
   stopRequested?: boolean
+  error?: string
 }
 
 export interface StopLocalRunActionDeps {
@@ -21,10 +20,6 @@ export interface StopLocalRunActionDeps {
   cancelGenerationJobIfActive: () => void
   cancelRun: (runId: string, input: { reason?: string }) => Promise<AgentRun>
   getRun: (runId: string) => Promise<AgentRun>
-  getThread: (threadId: string) => Promise<AgentThread>
-  appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
-  liveEvents: () => ChatRunActivityEvent[]
-  addAssistantMessage: AssistantConversationMessageAppender<ChatMessage['meta']>
   now?: () => Date
 }
 
@@ -92,8 +87,6 @@ export function stopLocalRunAction(input: {
           loading: false,
           stopRequested: false,
         })
-        const thread = await deps.getThread(nextRun.threadId)
-        await deps.appendAssistantRunResult(nextRun, thread, deps.liveEvents())
       })
       .catch(async (error) => {
         const message = error instanceof Error ? error.message : String(error)
@@ -104,7 +97,7 @@ export function stopLocalRunAction(input: {
           }
           return
         }
-        deps.addAssistantMessage(`停止当前会话失败：${message}`)
+        deps.setConversationRuntime({ stopping: false, loading: false, stopRequested: false, error: message })
       })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -113,7 +106,7 @@ export function stopLocalRunAction(input: {
         deps.setConversationRun(latestRun, { stopRequested: false, stopping: false, loading: false })
       }).catch(() => undefined)
     } else {
-      deps.addAssistantMessage(`停止当前会话失败：${message}`)
+      deps.setConversationRuntime({ stopping: false, loading: false, stopRequested: false, error: message })
     }
   } finally {
     deps.setConversationRuntime({ stopRequested: false, stopping: false, loading: false, building: false })

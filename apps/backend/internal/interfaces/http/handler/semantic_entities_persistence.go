@@ -69,28 +69,28 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	var invalidInput semanticapp.ErrInvalidInput
 	var forbidden semanticapp.ErrForbidden
 	var generationContextErr semanticapp.GenerationContextError
-	var productionProposalApplyLinkErr *semanticapp.ProductionProposalApplyLinkError
-	var projectLayerProposalAssetSlotLinkErr *semanticapp.ProjectLayerProposalAssetSlotLinkError
-	var projectLayerProposalApplyLinkErr *semanticapp.ProjectLayerProposalApplyLinkError
+	var productionWorkspaceApplyLinkErr *semanticapp.ProductionWorkspaceApplyLinkError
+	var projectLayerWorkspaceAssetSlotLinkErr *semanticapp.ProjectLayerWorkspaceAssetSlotLinkError
+	var projectLayerWorkspaceApplyLinkErr *semanticapp.ProjectLayerWorkspaceApplyLinkError
 	switch {
-	case errors.As(err, &productionProposalApplyLinkErr):
+	case errors.As(err, &productionWorkspaceApplyLinkErr):
 		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
-			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(productionProposalApplyLinkErr.Message, productionProposalApplyLinkErr))
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(productionWorkspaceApplyLinkErr.Message, productionWorkspaceApplyLinkErr))
 			return
 		}
-		c.JSON(http.StatusNotFound, api.NotFoundDebug(productionProposalApplyLinkErr.Message, productionProposalApplyLinkErr))
-	case errors.As(err, &projectLayerProposalAssetSlotLinkErr):
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(productionWorkspaceApplyLinkErr.Message, productionWorkspaceApplyLinkErr))
+	case errors.As(err, &projectLayerWorkspaceAssetSlotLinkErr):
 		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
-			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerProposalAssetSlotLinkErr.Message, projectLayerProposalAssetSlotLinkErr))
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerWorkspaceAssetSlotLinkErr.Message, projectLayerWorkspaceAssetSlotLinkErr))
 			return
 		}
-		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerProposalAssetSlotLinkErr.Message, projectLayerProposalAssetSlotLinkErr))
-	case errors.As(err, &projectLayerProposalApplyLinkErr):
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerWorkspaceAssetSlotLinkErr.Message, projectLayerWorkspaceAssetSlotLinkErr))
+	case errors.As(err, &projectLayerWorkspaceApplyLinkErr):
 		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
-			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerProposalApplyLinkErr.Message, projectLayerProposalApplyLinkErr))
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerWorkspaceApplyLinkErr.Message, projectLayerWorkspaceApplyLinkErr))
 			return
 		}
-		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerProposalApplyLinkErr.Message, projectLayerProposalApplyLinkErr))
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerWorkspaceApplyLinkErr.Message, projectLayerWorkspaceApplyLinkErr))
 	case errors.As(err, &generationContextErr):
 		if generationContextErr.Code == "GENERATION_CONTEXT_UNSUPPORTED_TARGET" || generationContextErr.Code == "GENERATION_CONTEXT_TARGET_REQUIRED" {
 			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(generationContextErr.Message, generationContextErr))

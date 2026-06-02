@@ -108,7 +108,7 @@ test('content workbench opens generation canvas only when all gates are ready', 
   }])
 })
 
-test('content workbench reviews pending AI drafts before opening generation canvas', () => {
+test('content workbench reviews pending AI workspaces before opening generation canvas', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,
@@ -116,16 +116,16 @@ test('content workbench reviews pending AI drafts before opening generation canv
     hasUnitPrompt: true,
     missingSlotCount: 0,
     keyframeCount: 2,
-    pendingReviewDraftCount: 2,
+    pendingReviewWorkspaceCount: 2,
   }), [{
-    key: 'review_ai_drafts',
+    key: 'review_ai_workspaces',
     title: '审阅 AI 草案',
     detail: '2 个制作项草案还没有处理，建议先确认或忽略再进入生成计划。',
     state: 'required',
   }])
 })
 
-test('content workbench does not block generation after AI drafts are reviewed', () => {
+test('content workbench does not block generation after AI workspaces are reviewed', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,
@@ -133,7 +133,7 @@ test('content workbench does not block generation after AI drafts are reviewed',
     hasUnitPrompt: true,
     missingSlotCount: 0,
     keyframeCount: 2,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
   }).map((action) => action.key), ['open_generation_canvas'])
 })
 
@@ -145,7 +145,7 @@ test('content workbench moves completed generation into preview before delivery'
     hasUnitPrompt: true,
     missingSlotCount: 0,
     keyframeCount: 2,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     completedJobCount: 1,
     previewItemCount: 0,
     deliveryVersionCount: 0,
@@ -165,7 +165,7 @@ test('content workbench moves previewed output into delivery workspace', () => {
     hasUnitPrompt: true,
     missingSlotCount: 0,
     keyframeCount: 2,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     completedJobCount: 1,
     previewItemCount: 2,
     deliveryVersionCount: 0,

@@ -1,6 +1,6 @@
 import { ChevronRight, Database, GitBranch, PackageCheck, type LucideIcon } from 'lucide-react'
 
-import { PreProductionProposalReviewPanel } from '@/features/pre-production/components/proposals/PreProductionProposalReviewPanel'
+import { PreProductionWorkspaceReviewPanel } from '@/features/pre-production/components/workspaces/PreProductionWorkspaceReviewPanel'
 import {
   ResourcePrepReviewBackButton,
   ResourcePrepReviewBreadcrumb,
@@ -13,14 +13,14 @@ import {
   ResourcePrepReviewWorkspaceRoot,
   WorkbenchKeyValue,
 } from '@movscript/ui'
-import type { AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 import type { AssetSlotRecord, CreativeReferenceRecord } from '@/features/pre-production/domain/preProductionAssetRows'
 
 export function PreProductionReviewWorkspace({
   projectId,
-  settingDrafts,
-  settingDraftsLoading,
-  drafts,
+  settingWorkspaces,
+  settingWorkspacesLoading,
+  workspaces,
   loading,
   creativeReferences,
   assetSlots,
@@ -28,9 +28,9 @@ export function PreProductionReviewWorkspace({
   setWorkspaceView,
 }: {
   projectId?: number
-  settingDrafts: AgentDraft[]
-  settingDraftsLoading: boolean
-  drafts: AgentDraft[]
+  settingWorkspaces: AgentWorkspace[]
+  settingWorkspacesLoading: boolean
+  workspaces: AgentWorkspace[]
   loading: boolean
   creativeReferences: CreativeReferenceRecord[]
   assetSlots: AssetSlotRecord[]
@@ -45,7 +45,7 @@ export function PreProductionReviewWorkspace({
             <GitBranch size={14} />
             <ResourcePrepReviewBreadcrumbText>前期准备</ResourcePrepReviewBreadcrumbText>
             <ChevronRight size={14} />
-            <ResourcePrepReviewBreadcrumbText>提案审阅</ResourcePrepReviewBreadcrumbText>
+            <ResourcePrepReviewBreadcrumbText>工作区审阅</ResourcePrepReviewBreadcrumbText>
           </ResourcePrepReviewBreadcrumb>
         )}
         title="前期准备审阅"
@@ -59,24 +59,24 @@ export function PreProductionReviewWorkspace({
       />
       <ResourcePrepReviewGrid>
         <ResourcePrepReviewMain>
-          <PreProductionProposalReviewPanel
+          <PreProductionWorkspaceReviewPanel
             projectId={projectId}
-            kind="setting_proposal"
-            title="设定提案"
-            description="只确认人物、地点、道具、产品、风格和世界规则；素材需求不在此提案内写入。"
-            emptyMessage="暂无待审阅设定提案。"
-            drafts={settingDrafts}
-            loading={settingDraftsLoading}
+            kind="setting_workspace"
+            title="设定工作区"
+            description="只确认人物、地点、道具、产品、风格和世界规则；素材需求不在此工作区内写入。"
+            emptyMessage="暂无待审阅设定工作区。"
+            workspaces={settingWorkspaces}
+            loading={settingWorkspacesLoading}
             data={{ creativeReferences, assetSlots }}
             onApplied={onApplied}
           />
-          <PreProductionProposalReviewPanel
+          <PreProductionWorkspaceReviewPanel
             projectId={projectId}
-            kind="asset_proposal"
-            title="素材需求提案"
+            kind="asset_workspace"
+            title="素材需求工作区"
             description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和下一步。"
-            emptyMessage="暂无待审阅素材需求提案。"
-            drafts={drafts}
+            emptyMessage="暂无待审阅素材需求工作区。"
+            workspaces={workspaces}
             loading={loading}
             data={{ creativeReferences, assetSlots }}
             onApplied={onApplied}

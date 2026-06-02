@@ -12,7 +12,7 @@ test('content workbench delivery brief waits for a selected unit', () => {
     generationContextReady: false,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
   })
 
   assert.equal(brief.state, 'empty')
@@ -31,7 +31,7 @@ test('content workbench delivery brief lists production blockers', () => {
     generationContextReady: false,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 2,
+    pendingReviewWorkspaceCount: 2,
   })
 
   assert.equal(brief.state, 'blocked')
@@ -51,7 +51,7 @@ test('content workbench delivery brief allows generation when core inputs are re
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
   })
 
   assert.equal(brief.state, 'ready')
@@ -72,7 +72,7 @@ test('content workbench delivery brief reports checking while context is loading
     generationContextReady: false,
     generationContextLoading: true,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
   })
 
   assert.equal(brief.state, 'checking')
@@ -91,7 +91,7 @@ test('content workbench delivery brief does not block non-visual units on keyfra
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
   })
 
   assert.equal(brief.state, 'ready')
@@ -109,7 +109,7 @@ test('content workbench delivery brief moves completed generation into preview',
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     completedJobCount: 1,
   })
 
@@ -130,7 +130,7 @@ test('content workbench delivery brief reports closed delivery loop', () => {
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     completedJobCount: 1,
     previewItemCount: 1,
     deliveryVersionCount: 1,

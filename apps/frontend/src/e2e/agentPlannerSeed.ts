@@ -427,7 +427,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
         charCount: 1024,
         messageCount: 3,
         systemMessageCount: 1,
-        skillIds: ['movscript.asset_review', 'draft.rules.lifecycle'],
+        skillIds: ['movscript.asset_review', 'workspace.rules.lifecycle'],
         availableToolNames: ['movscript_review_assets', 'movscript_focus_get'],
         blockedToolCount: 1,
         promptStats: {

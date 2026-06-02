@@ -41,7 +41,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: [],
         systemContract: [
           'This is a runtime context diagnostic command.',
-          'Return only the text context that would be sent to the model gateway. Do not create drafts, search, navigate, write data, or call the model gateway.',
+          'Return only the text context that would be sent to the model gateway. Do not create workspaces, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
     case '/status':
@@ -54,7 +54,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: [],
         systemContract: [
           'This is a runtime status diagnostic command.',
-          'Return only local run, skill, tool, and context budget status. Do not create drafts, search, navigate, write data, or call the model gateway.',
+          'Return only local run, skill, tool, and context budget status. Do not create workspaces, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
     case '/compact':
@@ -67,7 +67,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: [],
         systemContract: [
           'This is a deterministic runtime compact command.',
-          'Compact thread history into local continuity metadata and return the compaction result. Do not create drafts, search, navigate, write project data, or call the model gateway.',
+          'Compact thread history into local continuity metadata and return the compaction result. Do not create workspaces, search, navigate, write project data, or call the model gateway.',
         ].join('\n'),
       }
     case '/memory':
@@ -80,7 +80,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: [],
         systemContract: [
           'This is a runtime memory diagnostic command.',
-          'Return only the memory files opened for this run. Do not include memory content, create drafts, search, navigate, write data, or call the model gateway.',
+          'Return only the memory files opened for this run. Do not include memory content, create workspaces, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
     case '/image':
@@ -93,7 +93,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: ['core_work_start'],
         systemContract: [
           'This is a deterministic image generation debug command.',
-          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write drafts, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
+          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write workspaces, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
         ].join('\n'),
       }
     case '/video':
@@ -106,7 +106,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         requiredTools: ['core_work_start'],
         systemContract: [
           'This is a deterministic video generation debug command.',
-          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write drafts, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
+          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write workspaces, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
         ].join('\n'),
       }
     default:

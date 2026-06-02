@@ -44,7 +44,7 @@ function contentUnit(overrides: Partial<ContentUnit>): ContentUnit {
     kind: 'video',
     order: 1,
     duration_sec: 3,
-    status: 'draft',
+    status: 'workspace',
     ...overrides,
   }
 }
@@ -68,7 +68,7 @@ function version(overrides: Partial<DeliveryVersion>): DeliveryVersion {
     ID: 1,
     project_id: 10,
     name: 'Delivery',
-    status: 'draft',
+    status: 'workspace',
     is_primary: false,
     duration_sec: 3,
     ...overrides,
@@ -94,7 +94,7 @@ test('delivery workbench model sorts and filters versions and timeline sources',
 
   assert.deepEqual(filterDeliveryVersions([
     version({ ID: 1, name: 'Main cut', status: 'approved' }),
-    version({ ID: 2, name: 'Scratch', status: 'draft' }),
+    version({ ID: 2, name: 'Scratch', status: 'workspace' }),
   ], 'approved', 'main').map((item) => item.ID), [1])
 })
 
@@ -123,14 +123,14 @@ test('delivery workbench model maps source timeline items to delivery semantics'
   assert.equal(deliveryKindFromContentUnit('voice_over'), 'audio')
   assert.equal(deliveryKindFromContentUnit('keyframe still'), 'image')
   assert.equal(deliveryKindFromContentUnit('transition'), 'gap')
-  assert.equal(deliveryStatusFromPreviewItem(previewItem({ kind: 'caption', status: 'draft' })), 'confirmed')
-  assert.equal(deliveryStatusFromPreviewItem(previewItem({ kind: 'video', status: 'draft' })), 'needs_asset')
+  assert.equal(deliveryStatusFromPreviewItem(previewItem({ kind: 'caption', status: 'workspace' })), 'confirmed')
+  assert.equal(deliveryStatusFromPreviewItem(previewItem({ kind: 'video', status: 'workspace' })), 'needs_asset')
   assert.equal(deliveryResourceTypeForTimelineKind('caption'), 'text')
 })
 
 test('delivery workbench model chooses source timelines and fallback resources', () => {
   assert.equal(pickBestDeliveryPreviewTimeline([
-    { ID: 2, status: 'draft' },
+    { ID: 2, status: 'workspace' },
     { ID: 1, status: 'playable' },
     { ID: 3, is_primary: true },
   ])?.ID, 3)

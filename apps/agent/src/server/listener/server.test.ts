@@ -118,7 +118,7 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
     paths: {
       statePath: '/tmp/agent-state.json',
       memoryPath: '/tmp/agent-memory.json',
-      draftPath: '/tmp/agent-drafts.json',
+      workspacePath: '/tmp/agent-workspaces.json',
       toolResultPath: '/tmp/agent-tool-results.json',
       catalogStatePath: '/tmp/agent-catalog.json',
       modelConfigPath: '/tmp/agent-model-config.json',
@@ -168,7 +168,7 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
   assert.equal(legacyHealth.statusCode, 200)
   const healthBody = JSON.parse(legacyHealth.body)
   assert.equal(healthBody.ok, true)
-  assert.equal(healthBody.draftPath, '/tmp/agent-drafts.json')
+  assert.equal(healthBody.workspacePath, '/tmp/agent-workspaces.json')
   assert.equal(healthBody.modelConfigPath, '/tmp/agent-model-config.json')
   assert.equal(healthBody.modelConfig, undefined)
   assert.equal(healthBody.modelCapabilities, undefined)
@@ -178,7 +178,7 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
   const capabilitiesBody = JSON.parse(capabilities.body)
   assert.equal(capabilitiesBody.pluginCatalog.skillCount, 1)
   assert.equal(capabilitiesBody.pluginCatalog.toolCount, 1)
-  assert.equal(capabilitiesBody.paths.draftPath, '/tmp/agent-drafts.json')
+  assert.equal(capabilitiesBody.paths.workspacePath, '/tmp/agent-workspaces.json')
 })
 
 test('trace read endpoints return 404 for missing runs instead of surfacing facade errors', async () => {
@@ -308,7 +308,7 @@ test('JSON request bodies report client errors instead of internal errors', asyn
   const invalid = await dispatch(handler, 'POST', '/model-config', '{not-json')
   const oversized = await dispatch(handler, 'POST', '/model-config', 'x'.repeat(DEFAULT_MAX_JSON_BODY_BYTES + 1))
   const nonObjectModelConfig = await dispatch(handler, 'POST', '/model-config', '[]')
-  const nonObjectDraft = await dispatch(handler, 'POST', '/draft', '[]')
+  const nonObjectWorkspace = await dispatch(handler, 'POST', '/workspace', '[]')
 
   assert.equal(invalid.statusCode, 400)
   assert.equal(JSON.parse(invalid.body).error, 'invalid JSON request body')
@@ -316,8 +316,8 @@ test('JSON request bodies report client errors instead of internal errors', asyn
   assert.equal(JSON.parse(oversized.body).error, 'request body too large')
   assert.equal(nonObjectModelConfig.statusCode, 400)
   assert.equal(JSON.parse(nonObjectModelConfig.body).error, 'model config body must be an object')
-  assert.equal(nonObjectDraft.statusCode, 400)
-  assert.equal(JSON.parse(nonObjectDraft.body).error, 'draft body must be an object')
+  assert.equal(nonObjectWorkspace.statusCode, 400)
+  assert.equal(JSON.parse(nonObjectWorkspace.body).error, 'workspace body must be an object')
 })
 
 test('model config endpoint reports invalid config input as client errors', async () => {
@@ -370,11 +370,11 @@ test('model config endpoint can clear saved config', async () => {
 test('write endpoints reject non-object request bodies before touching runtime dependencies', async () => {
   const handler = createAgentRequestListener({} as unknown as AgentServerContext)
   const cases: Array<{ method: string; path: string; label: string }> = [
-    { method: 'PATCH', path: '/drafts/draft_1', label: 'draft update body' },
-    { method: 'POST', path: '/drafts/draft_1/apply-preview', label: 'apply preview body' },
-    { method: 'POST', path: '/drafts/draft_1/apply-simulate', label: 'apply simulate body' },
-    { method: 'POST', path: '/drafts/draft_1/apply', label: 'draft apply body' },
-    { method: 'POST', path: '/drafts/draft_1/reject', label: 'draft rejection body' },
+    { method: 'PATCH', path: '/workspaces/workspace_1', label: 'workspace update body' },
+    { method: 'POST', path: '/workspaces/workspace_1/apply-preview', label: 'apply preview body' },
+    { method: 'POST', path: '/workspaces/workspace_1/apply-simulate', label: 'apply simulate body' },
+    { method: 'POST', path: '/workspaces/workspace_1/apply', label: 'workspace apply body' },
+    { method: 'POST', path: '/workspaces/workspace_1/reject', label: 'workspace rejection body' },
     { method: 'POST', path: '/threads', label: 'thread body' },
     { method: 'PATCH', path: '/threads/thread_1', label: 'thread update body' },
     { method: 'POST', path: '/threads/thread_1/messages', label: 'message body' },
@@ -1062,6 +1062,145 @@ test('thread runtime endpoint returns not found for missing threads', async () =
   assert.equal(JSON.parse(response.body).error, 'thread not found')
 })
 
+test('thread message feed returns the latest page and paginates backward', async () => {
+  const thread = {
+    id: 'thread_1',
+    sessionId: 'session_1',
+    messages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'One', createdAt: '2026-05-19T00:00:01.000Z' },
+      { id: 'msg_2', threadId: 'thread_1', role: 'user', content: 'Two', createdAt: '2026-05-19T00:00:02.000Z' },
+      { id: 'msg_3', threadId: 'thread_1', role: 'assistant', content: 'Done', runId: 'run_2', createdAt: '2026-05-19T00:00:03.000Z' },
+    ],
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:03.000Z',
+  }
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
+      listRunsByThread: () => [
+        { id: 'run_2', threadId: 'thread_1', sessionId: 'session_1', status: 'completed', input: { sourceMessageId: 'msg_2' }, assistantMessageId: 'msg_3', createdAt: '2026-05-19T00:00:02.100Z', updatedAt: '2026-05-19T00:00:03.000Z' },
+      ],
+    },
+  } as unknown as AgentServerContext)
+
+  const latest = await dispatch(handler, 'GET', '/threads/thread_1/messages?limit=2')
+  const latestBody = JSON.parse(latest.body)
+
+  assert.equal(latest.statusCode, 200)
+  assert.deepEqual(latestBody.messages.map((message: { id: string }) => message.id), ['message:msg_2', 'assistant:run_2'])
+  assert.equal(latestBody.hasMoreBefore, true)
+  assert.equal(typeof latestBody.nextBefore, 'string')
+
+  const older = await dispatch(handler, 'GET', `/threads/thread_1/messages?limit=2&before=${encodeURIComponent(latestBody.nextBefore)}`)
+  const olderBody = JSON.parse(older.body)
+
+  assert.equal(older.statusCode, 200)
+  assert.deepEqual(olderBody.messages.map((message: { id: string }) => message.id), ['message:msg_1'])
+  assert.equal(olderBody.hasMoreBefore, false)
+})
+
+test('session message feed can project all session threads or one thread', async () => {
+  const snapshot = {
+    session: { id: 'session_1', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:04.000Z' },
+    threads: [
+      {
+        id: 'thread_1',
+        sessionId: 'session_1',
+        messages: [{ id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'One', createdAt: '2026-05-19T00:00:01.000Z' }],
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:01.000Z',
+      },
+      {
+        id: 'thread_2',
+        sessionId: 'session_1',
+        messages: [{ id: 'msg_2', threadId: 'thread_2', role: 'user', content: 'Two', createdAt: '2026-05-19T00:00:02.000Z' }],
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:02.000Z',
+      },
+    ],
+    runs: [],
+    works: [],
+    interactions: [],
+    continuations: [],
+    wakeEvents: [],
+    taskGraphs: [],
+    updatedAt: '2026-05-19T00:00:04.000Z',
+  }
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getSessionRuntimeSnapshot: (sessionId: string) => sessionId === 'session_1' ? snapshot : undefined,
+    },
+  } as unknown as AgentServerContext)
+
+  const all = await dispatch(handler, 'GET', '/sessions/session_1/messages?limit=10')
+  const oneThread = await dispatch(handler, 'GET', '/sessions/session_1/messages?threadId=thread_2&limit=10')
+
+  assert.deepEqual(JSON.parse(all.body).messages.map((message: { threadId: string }) => message.threadId), ['thread_1', 'thread_2'])
+  assert.deepEqual(JSON.parse(oneThread.body).messages.map((message: { threadId: string }) => message.threadId), ['thread_2'])
+})
+
+test('thread message stream emits created and updated message feed events', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => threadId === 'thread_1'
+        ? { id: threadId, sessionId: 'session_1', messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      getRun: (runId: string) => runId === 'run_1'
+        ? { id: 'run_1', threadId: 'thread_1', sessionId: 'session_1', status: 'in_progress', createdAt: '2026-05-19T00:00:01.000Z', updatedAt: '2026-05-19T00:00:02.000Z' }
+        : undefined,
+      listRunsByThread: () => [],
+      subscribeThreadStream: (threadId: string, listener: (event: unknown) => void) => {
+        calls.push(`subscribe:${threadId}`)
+        listener({
+          type: 'assistant_progress',
+          threadId,
+          runId: 'run_1',
+          traceEventId: 'trace_1',
+          delta: 'Hel',
+          accumulated: 'Hel',
+          createdAt: '2026-05-19T00:00:02.000Z',
+        })
+        listener({
+          type: 'assistant_message',
+          threadId,
+          runId: 'run_1',
+          run: { id: 'run_1', threadId, sessionId: 'session_1', status: 'completed', createdAt: '2026-05-19T00:00:01.000Z', updatedAt: '2026-05-19T00:00:03.000Z' },
+          message: { id: 'msg_assistant', threadId, role: 'assistant', content: 'Hello', runId: 'run_1', createdAt: '2026-05-19T00:00:03.000Z' },
+        })
+        return () => calls.push(`unsubscribe:${threadId}`)
+      },
+    },
+  } as unknown as AgentServerContext)
+  const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
+  req.method = 'GET'
+  req.url = '/threads/thread_1/messages/stream'
+  req.headers = { host: '127.0.0.1' }
+  let statusCode = 0
+  let output = ''
+  const res = {
+    setHeader() {},
+    writeHead(code: number) {
+      statusCode = code
+    },
+    write(chunk: string) {
+      output += chunk
+    },
+    end() {},
+    writableEnded: false,
+  } as unknown as ServerResponse
+
+  await handler(req, res)
+  req.emit('close')
+
+  assert.equal(statusCode, 200)
+  assert.match(output, /event: message\.created/)
+  assert.match(output, /event: message\.updated/)
+  assert.match(output, /"id":"assistant:run_1"/)
+  assert.match(output, /"content":"Hello"/)
+  assert.deepEqual(calls, ['subscribe:thread_1', 'unsubscribe:thread_1'])
+})
+
 test('thread stream endpoint delegates thread-scoped runtime stream events', async () => {
   const calls: string[] = []
   const handler = createAgentRequestListener({
@@ -1400,7 +1539,7 @@ test('config file tool permissions endpoint saves requested runtime tool overrid
     },
   } as unknown as AgentServerContext)
 
-  const toolGrants = [{ name: 'draft_apply_preview', mode: 'deny' }]
+  const toolGrants = [{ name: 'workspace_apply_preview', mode: 'deny' }]
   const response = await dispatch(handler, 'POST', '/agent-config-files/config_file_default/tool-permissions', JSON.stringify({ toolGrants }))
 
   assert.equal(response.statusCode, 200)
@@ -1489,54 +1628,54 @@ test('public agent project id boundaries reject invalid project scopes', async (
         calls.push({ endpoint: 'capabilities', input })
         return { ok: true }
       },
-      listDrafts: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'drafts', input })
+      listWorkspaces: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'workspaces', input })
         return []
       },
-      createLocalDraft: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'draft', input })
-        return { id: 'draft_1', ...input }
+      createLocalWorkspace: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'workspace', input })
+        return { id: 'workspace_1', ...input }
       },
     },
   } as unknown as AgentServerContext)
 
   for (const invalidProjectId of ['0', '42.5']) {
     const capabilities = await dispatch(handler, 'GET', `/capabilities?projectId=${invalidProjectId}`)
-    const drafts = await dispatch(handler, 'GET', `/drafts?projectId=${invalidProjectId}`)
-    const draft = await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: Number(invalidProjectId), kind: 'project_standards_proposal' }))
+    const workspaces = await dispatch(handler, 'GET', `/workspaces?projectId=${invalidProjectId}`)
+    const workspace = await dispatch(handler, 'POST', '/workspace', JSON.stringify({ projectId: Number(invalidProjectId), kind: 'project_standards_workspace' }))
 
     assert.equal(capabilities.statusCode, 400)
     assert.equal(JSON.parse(capabilities.body).error, 'projectId must be a positive safe integer')
-    assert.equal(drafts.statusCode, 400)
-    assert.equal(JSON.parse(drafts.body).error, 'projectId must be a positive safe integer')
-    assert.equal(draft.statusCode, 400)
-    assert.equal(JSON.parse(draft.body).error, 'draft projectId must be a positive safe integer')
+    assert.equal(workspaces.statusCode, 400)
+    assert.equal(JSON.parse(workspaces.body).error, 'projectId must be a positive safe integer')
+    assert.equal(workspace.statusCode, 400)
+    assert.equal(JSON.parse(workspace.body).error, 'workspace projectId must be a positive safe integer')
   }
   await dispatch(handler, 'GET', '/capabilities?projectId=42')
-  await dispatch(handler, 'GET', '/drafts?projectId=42')
-  await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: 42, kind: 'project_standards_proposal' }))
+  await dispatch(handler, 'GET', '/workspaces?projectId=42')
+  await dispatch(handler, 'POST', '/workspace', JSON.stringify({ projectId: 42, kind: 'project_standards_workspace' }))
 
   assert.deepEqual(calls.map((call) => [call.endpoint, call.input.projectId, call.input.currentProjectId]), [
     ['capabilities', undefined, 42],
-    ['drafts', 42, undefined],
-    ['draft', 42, undefined],
+    ['workspaces', 42, undefined],
+    ['workspace', 42, undefined],
   ])
 })
 
-test('draft creation drops invalid numeric business reference ids', async () => {
+test('workspace creation drops invalid numeric business reference ids', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      createLocalDraft: (input: Record<string, unknown>) => {
+      createLocalWorkspace: (input: Record<string, unknown>) => {
         calls.push(input)
-        return { id: 'draft_1', ...input }
+        return { id: 'workspace_1', ...input }
       },
     },
   } as unknown as AgentServerContext)
 
-  const response = await dispatch(handler, 'POST', '/draft', JSON.stringify({
-    kind: 'project_standards_proposal',
-    content: 'Draft',
+  const response = await dispatch(handler, 'POST', '/workspace', JSON.stringify({
+    kind: 'project_standards_workspace',
+    content: 'Workspace',
     source: {
       entityType: 'scene_moment',
       entityId: 0,
@@ -1558,8 +1697,8 @@ test('public agent query limit boundaries are normalized before runtime calls', 
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      listDrafts: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'drafts', input })
+      listWorkspaces: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'workspaces', input })
         return []
       },
       listMemorySummaries: (input: Record<string, unknown>) => {
@@ -1570,18 +1709,18 @@ test('public agent query limit boundaries are normalized before runtime calls', 
   } as unknown as AgentServerContext)
 
   for (const limit of ['0', '2.8', 'Infinity', '999']) {
-    await dispatch(handler, 'GET', `/drafts?limit=${limit}`)
+    await dispatch(handler, 'GET', `/workspaces?limit=${limit}`)
     await dispatch(handler, 'GET', `/memories?projectId=42&limit=${limit}`)
   }
 
   assert.deepEqual(calls.map((call) => [call.endpoint, call.input.limit]), [
-    ['drafts', 1],
+    ['workspaces', 1],
     ['memories', 1],
-    ['drafts', 2],
+    ['workspaces', 2],
     ['memories', 2],
-    ['drafts', undefined],
+    ['workspaces', undefined],
     ['memories', undefined],
-    ['drafts', 100],
+    ['workspaces', 100],
     ['memories', 100],
   ])
 })

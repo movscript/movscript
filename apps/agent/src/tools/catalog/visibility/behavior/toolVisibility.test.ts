@@ -48,12 +48,12 @@ test('isToolVisibleForActiveBehavior scopes task tools to active hints', () => {
   assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'studio.production_context',
     activeSkills,
-    userMessage: 'make production proposal',
+    userMessage: 'make production workspace',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'studio.general_context',
     activeSkills,
-    userMessage: 'make production proposal',
+    userMessage: 'make production workspace',
   }), false)
 })
 

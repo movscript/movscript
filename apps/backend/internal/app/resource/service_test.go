@@ -262,7 +262,7 @@ func TestAdoptToTeamMovesOwnedPersonalResourceIntoOrg(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "draft.png", FilePath: "/tmp/draft.png"}
+	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "workspace.png", FilePath: "/tmp/workspace.png"}
 	if err := db.Create(&resource).Error; err != nil {
 		t.Fatalf("create resource: %v", err)
 	}

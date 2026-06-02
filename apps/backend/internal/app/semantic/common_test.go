@@ -19,7 +19,7 @@ func TestRepositoryItemPersistenceDoesNotImplicitlySyncEntityRelations(t *testin
 		Kind:       "person",
 		Name:       "Ada",
 		Importance: "supporting",
-		Status:     "draft",
+		Status:     "workspace",
 	}
 
 	if err := repo.createItemOnly(ctx, &item); err != nil {
@@ -63,7 +63,7 @@ func TestServiceDeleteItemByKindKeepsPersistenceModelsInRepository(t *testing.T)
 		Kind:       "person",
 		Name:       "Ada",
 		Importance: "supporting",
-		Status:     "draft",
+		Status:     "workspace",
 	}
 	if err := db.Create(&item).Error; err != nil {
 		t.Fatalf("seed item: %v", err)

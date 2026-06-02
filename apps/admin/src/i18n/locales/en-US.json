@@ -202,10 +202,10 @@
       "character": "Character",
       "scene": "Scene",
       "prop": "Prop",
-      "draft": "Draft"
+      "workspace": "Workspace"
     },
     "episodeStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "scripted": "Scripted",
       "storyboarded": "Storyboarded",
       "generating": "Generating",
@@ -213,7 +213,7 @@
       "done": "Done"
     },
     "reviewStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "under_review": "In Review",
       "approved": "Approved",
       "revision": "Needs Revision"
@@ -225,7 +225,7 @@
       "scene": "Scene Script"
     },
     "shotStatus": {
-      "draft": "Draft",
+      "workspace": "Workspace",
       "prompt_ready": "Ready",
       "generating": "Generating",
       "generated": "Generated",
@@ -318,7 +318,7 @@
     "submit": "Submit for Review",
     "approve": "Approve",
     "requestRevision": "Request Revision",
-    "resetDraft": "Reset to Draft"
+    "resetWorkspace": "Reset to Workspace"
   },
   "details": {
     "aiAnalyze": "AI Analyze",
@@ -349,10 +349,10 @@
     "rawSourceVideo": "Raw Source Video",
     "uploadKeyframe": "Upload Keyframe",
     "generateKeyframe": "AI Generate Keyframe",
-    "draftVideo": "Draft Video",
+    "workspaceVideo": "Workspace Video",
     "cameraReference": "Camera control reference",
-    "noDraftVideo": "No draft video",
-    "generateDraft": "AI Generate Draft",
+    "noWorkspaceVideo": "No workspace video",
+    "generateWorkspace": "AI Generate Workspace",
     "contentManagement": "Content Management",
     "scriptBody": "Script Body",
     "scriptSummary": "Script Outline",
@@ -741,17 +741,17 @@
         "title": "Production Management Status",
         "ready": "Confirmed",
         "pending": "Pending",
-        "missing": "No draft found",
+        "missing": "No workspace found",
         "readySummary": "Production management is confirmed and can move on to task assignment and review.",
-        "pendingSummary": "This project has a production management draft, but it is not ready for production yet.",
-        "missingSummary": "There is no usable production management draft yet. Confirm one in Production Management first.",
+        "pendingSummary": "This project has a production management workspace, but it is not ready for production yet.",
+        "missingSummary": "There is no usable production management workspace yet. Confirm one in Production Management first.",
         "readyTitle": "Ready for content production",
         "notReadyTitle": "Not in a production-ready state yet",
         "savedAt": "Saved at: {{value}}",
         "confirmedAt": "Confirmed at: {{value}}",
         "unknown": "N/A",
-        "foundDraft": "Latest production management draft",
-        "noDraft": "The latest saved draft will appear here after Production Management is used.",
+        "foundWorkspace": "Latest production management workspace",
+        "noWorkspace": "The latest saved workspace will appear here after Production Management is used.",
         "enterProduction": "Enter Content Production",
         "goPreview": "Go to Production Management",
         "viewPreview": "View Production Management"
@@ -1041,19 +1041,19 @@
         "more": "+{{count}} more"
       }
     },
-    "draftHistory": {
-      "title": "New AI Drafts",
-      "description": "Only new, unhandled local runtime drafts are shown here. Find applied, rejected, or superseded draft history in the original AI Assistant conversation.",
+    "workspaceHistory": {
+      "title": "New AI Workspaces",
+      "description": "Only new, unhandled local runtime workspaces are shown here. Find applied, rejected, or superseded workspace history in the original AI Assistant conversation.",
       "searchPlaceholder": "Search title, content, thread, or run",
       "allProjects": "All projects",
       "currentProject": "Current project",
-      "emptySelection": "Select a draft to inspect it.",
+      "emptySelection": "Select a workspace to inspect it.",
       "copyId": "Copy ID",
       "sourceThread": "Source thread",
       "sourceRun": "Source run",
       "createdAt": "Created",
       "updatedAt": "Updated",
-      "content": "Draft content",
+      "content": "Workspace content",
       "source": "Source",
       "target": "Target"
     },
@@ -1087,7 +1087,7 @@
       "projectContext": "Project info",
       "currentProject": "Current project: {{name}}",
       "projectRequiredTitle": "Select a project first",
-      "projectRequiredHint": "The Agent uses the current project info for drafts and tool actions.",
+      "projectRequiredHint": "The Agent uses the current project info for workspaces and tool actions.",
       "projectRequiredMessage": "Please select a project, or create a new one above the input box before continuing.",
       "selectProject": "Select project",
       "createProjectInline": "Create",
@@ -1098,34 +1098,34 @@
       "autoPlan": "Planning mode",
       "hideContext": "Hide context",
       "showContext": "Show context",
-      "drafts": {
+      "workspaces": {
         "title": "Review Items",
         "filters": {
           "allStatuses": "All statuses",
           "allKinds": "All types"
         },
         "status": {
-          "draft": "Pending review",
+          "workspace": "Pending review",
           "accepted": "Accepted",
           "rejected": "Deleted",
           "applied": "Written",
           "superseded": "Replaced"
         },
         "kinds": {
-          "script": "Script draft",
+          "script": "Script workspace",
           "creative_reference": "Creative reference suggestion",
           "asset_slot": "Asset need",
           "content_unit": "Shot suggestion",
           "prompt": "Prompt",
           "note": "Review note",
-          "pipeline": "Pipeline proposal",
-          "segment": "Segment proposal",
-          "scene_moment": "Scene moment proposal",
-          "asset_proposal": "Asset candidate proposal",
-          "project_proposal": "Project proposal",
-          "production_proposal": "Production proposal",
-          "content_unit_proposal": "Content unit proposal",
-          "script_split_proposal": "Script split proposal"
+          "pipeline": "Pipeline workspace",
+          "segment": "Segment workspace",
+          "scene_moment": "Scene moment workspace",
+          "asset_workspace": "Asset candidate workspace",
+          "project_workspace": "Project workspace",
+          "production_workspace": "Production workspace",
+          "content_unit_workspace": "Content unit workspace",
+          "script_split_workspace": "Script split workspace"
         }
       },
       "modes": {
@@ -1269,12 +1269,12 @@
       "kindFact": "Fact",
       "kindDecision": "Decision",
       "kindEntityRef": "Entity reference",
-      "kindDraft": "Draft",
+      "kindWorkspace": "Workspace",
       "kindWarning": "Warning",
-      "draftsTitle": "Review Items",
+      "workspacesTitle": "Review Items",
       "allStatuses": "All statuses",
       "allKinds": "All types",
-      "statusDraft": "Pending review",
+      "statusWorkspace": "Pending review",
       "statusAccepted": "Accepted",
       "statusRejected": "Rejected",
       "statusApplied": "Written",
@@ -1312,8 +1312,8 @@
           "capabilities": "Capabilities",
           "prompt": "Prompt",
           "execution": "Execution",
-          "artifacts": "Drafts",
-          "drafts": "Drafts"
+          "artifacts": "Workspaces",
+          "workspaces": "Workspaces"
         },
         "status": {
           "localRuntimeOnline": "Local runtime online",
@@ -1347,7 +1347,7 @@
           "pageContext": "Page Context",
           "prompt": "Prompt",
           "execution": "Execution",
-          "artifacts": "Drafts"
+          "artifacts": "Workspaces"
         },
         "pageContext": {
           "page": "Page",
@@ -1355,13 +1355,13 @@
           "route": "Route",
           "entity": "Entity",
           "selection": "Selection",
-          "currentDraft": "Current draft",
+          "currentWorkspace": "Current workspace",
           "unknown": "Unknown page",
           "none": "No entity",
-          "noDraft": "Not bound",
+          "noWorkspace": "Not bound",
           "empty": "This conversation has no page context.",
-          "draftHint": "The agent should fill, modify, or validate this page-bound draft. Applying the draft still belongs to the corresponding page.",
-          "noDraftHint": "No writable draft is bound to this context. Write flows should create a page-owned draft shell before handing work to the agent."
+          "workspaceHint": "The agent should fill, modify, or validate this page-bound workspace. Applying the workspace still belongs to the corresponding page.",
+          "noWorkspaceHint": "No writable workspace is bound to this context. Write flows should create a page-owned workspace shell before handing work to the agent."
         },
         "capabilities": {
           "title": "Capabilities",
@@ -1434,21 +1434,21 @@
             "fact": "Fact",
             "decision": "Decision",
             "entity_ref": "Entity reference",
-            "draft": "Draft",
+            "workspace": "Workspace",
             "warning": "Warning"
           }
         },
-        "drafts": {
-          "currentThreadTitle": "Current thread drafts",
-          "history": "Draft history",
+        "workspaces": {
+          "currentThreadTitle": "Current thread workspaces",
+          "history": "Workspace history",
           "refresh": "Refresh",
-          "noOnline": "Start the local runtime to inspect Agent drafts.",
-          "noThread": "This conversation is not bound to a runtime thread yet. Send a message to show drafts from this thread.",
-          "emptyFilter": "No drafts match this filter.",
+          "noOnline": "Start the local runtime to inspect Agent workspaces.",
+          "noThread": "This conversation is not bound to a runtime thread yet. Send a message to show workspaces from this thread.",
+          "emptyFilter": "No workspaces match this filter.",
           "projectBadge": "project #{{id}}",
           "openPage": "Open page",
-          "pageOnlyHint": "This view only inspects the draft. Apply it from the target page as needed.",
-          "noPage": "This draft does not have an available page entry yet.",
+          "pageOnlyHint": "This view only inspects the workspace. Apply it from the target page as needed.",
+          "noPage": "This workspace does not have an available page entry yet.",
           "current": "Current",
           "proposed": "Proposed",
           "entityTypePlaceholder": "entity type",
@@ -1460,7 +1460,7 @@
           "diff": "Diff",
           "apply": "Apply",
           "reject": "Reject",
-          "emptyDraft": "Empty draft",
+          "emptyWorkspace": "Empty workspace",
           "previewSideEffect": "{{sideEffect}} Approval is required before this write can run."
         },
         "debugPreview": {
@@ -2363,7 +2363,7 @@
         "frames": "Frames",
         "execution_expires_after": "Expiration (seconds)",
         "preset": "Preset",
-        "draft": "Draft Mode",
+        "workspace": "Workspace Mode",
         "size": "Size",
         "sequential_image_generation": "Sequential Images",
         "optimize_prompt_mode": "Prompt Optimization",
@@ -3237,7 +3237,7 @@
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",
-      "aiDrafts": "AI Drafts",
+      "aiWorkspaces": "AI Workspaces",
       "myAgents": "My Agents",
       "agentDebug": "Agent Debug",
       "production": "Production Hub",

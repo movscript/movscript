@@ -79,27 +79,27 @@ export function AgentRunPageMain({ className, ...props }: HTMLAttributes<HTMLEle
   return <section className={cn("agent-run-page-main", className)} {...props} />;
 }
 
-export function AgentDraftsPageBody({
+export function AgentWorkspacesPageBody({
   className,
   ...props
 }: Omit<ComponentProps<typeof AppPageShellBody>, "padding" | "scroll">) {
-  return <AgentPageShellBody padding="none" scroll="responsive-split" className={cn("agent-drafts-page-body", className)} {...props} />;
+  return <AgentPageShellBody padding="none" scroll="responsive-split" className={cn("agent-workspaces-page-body", className)} {...props} />;
 }
 
-export function AgentDraftsPageSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <aside className={cn("agent-drafts-page-sidebar", className)} {...props} />;
+export function AgentWorkspacesPageSidebar({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <aside className={cn("agent-workspaces-page-sidebar", className)} {...props} />;
 }
 
-export function AgentDraftsPageSidebarControls({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-drafts-page-sidebar__controls", className)} {...props} />;
+export function AgentWorkspacesPageSidebarControls({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspaces-page-sidebar__controls", className)} {...props} />;
 }
 
-export function AgentDraftsPageList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-drafts-page-list", className)} {...props} />;
+export function AgentWorkspacesPageList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspaces-page-list", className)} {...props} />;
 }
 
-export function AgentDraftsPageMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <main className={cn("agent-drafts-page-main", className)} {...props} />;
+export function AgentWorkspacesPageMain({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <main className={cn("agent-workspaces-page-main", className)} {...props} />;
 }
 
 export function AgentPageHeaderContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -122,84 +122,84 @@ export function AgentPageDescription({ className, ...props }: HTMLAttributes<HTM
   return <p className={cn("agent-page-description", className)} {...props} />;
 }
 
-export function AgentDraftsFilterGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-drafts-filter-grid", className)} {...props} />;
+export function AgentWorkspacesFilterGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspaces-filter-grid", className)} {...props} />;
 }
 
-export function AgentDraftListState({ icon, className, children, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
+export function AgentWorkspaceListState({ icon, className, children, ...props }: HTMLAttributes<HTMLDivElement> & { icon?: ReactNode }) {
   return (
-    <div className={cn("agent-draft-list-state", className)} {...props}>
+    <div className={cn("agent-workspace-list-state", className)} {...props}>
       {icon}
       {children}
     </div>
   );
 }
 
-export function AgentDraftListItemButton({ className, ...props }: ButtonProps) {
-  return <Button type="button" variant="ghost" className={cn("agent-draft-list-item", className)} {...props} />;
+export function AgentWorkspaceListItemButton({ className, ...props }: ButtonProps) {
+  return <Button type="button" variant="ghost" className={cn("agent-workspace-list-item", className)} {...props} />;
 }
 
-export function AgentDraftListItemHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-list-item__header", className)} {...props} />;
+export function AgentWorkspaceListItemHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-list-item__header", className)} {...props} />;
 }
 
-export function AgentDraftListItemTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("agent-draft-list-item__title", className)} {...props} />;
+export function AgentWorkspaceListItemTitle({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn("agent-workspace-list-item__title", className)} {...props} />;
 }
 
-export function AgentDraftListItemMeta({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-list-item__meta", className)} {...props} />;
+export function AgentWorkspaceListItemMeta({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-list-item__meta", className)} {...props} />;
 }
 
-export function AgentDraftDetailStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-detail-stack", className)} {...props} />;
+export function AgentWorkspaceDetailStack({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-detail-stack", className)} {...props} />;
 }
 
-export function AgentDraftDetailCard({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock className={cn("agent-draft-detail-card", className)} {...props} />;
+export function AgentWorkspaceDetailCard({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
+  return <AgentSurfaceBlock className={cn("agent-workspace-detail-card", className)} {...props} />;
 }
 
-export function AgentDraftDetailHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-detail-header", className)} {...props} />;
+export function AgentWorkspaceDetailHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-detail-header", className)} {...props} />;
 }
 
-export function AgentDraftDetailCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-detail-copy", className)} {...props} />;
+export function AgentWorkspaceDetailCopy({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-detail-copy", className)} {...props} />;
 }
 
-export function AgentDraftDetailTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn("agent-draft-detail-title", className)} {...props} />;
+export function AgentWorkspaceDetailTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return <h2 className={cn("agent-workspace-detail-title", className)} {...props} />;
 }
 
-export function AgentDraftBadgeRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-badge-row", className)} {...props} />;
+export function AgentWorkspaceBadgeRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-badge-row", className)} {...props} />;
 }
 
-export function AgentDraftActionRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-action-row", className)} {...props} />;
+export function AgentWorkspaceActionRow({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-action-row", className)} {...props} />;
 }
 
-export function AgentDraftMetaGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-meta-grid", className)} {...props} />;
+export function AgentWorkspaceMetaGrid({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-meta-grid", className)} {...props} />;
 }
 
-export function AgentDraftCodePanel({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
-  return <AgentSurfaceBlock asChild className={cn("agent-draft-code-panel", className)} {...props} />;
+export function AgentWorkspaceCodePanel({ className, ...props }: ComponentProps<typeof AgentSurfaceBlock>) {
+  return <AgentSurfaceBlock asChild className={cn("agent-workspace-code-panel", className)} {...props} />;
 }
 
-export function AgentDraftCodePanelHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-draft-code-panel__header", className)} {...props} />;
+export function AgentWorkspaceCodePanelHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-workspace-code-panel__header", className)} {...props} />;
 }
 
-export function AgentDraftJsonGrid({ className, ...props }: HTMLAttributes<HTMLElement>) {
-  return <section className={cn("agent-draft-json-grid", className)} {...props} />;
+export function AgentWorkspaceJsonGrid({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-workspace-json-grid", className)} {...props} />;
 }
 
-export function AgentDraftMetaItem({ label, value, title, className, ...props }: HTMLAttributes<HTMLDivElement> & { label: ReactNode; value: ReactNode; title?: string }) {
+export function AgentWorkspaceMetaItem({ label, value, title, className, ...props }: HTMLAttributes<HTMLDivElement> & { label: ReactNode; value: ReactNode; title?: string }) {
   return (
-    <div className={cn("agent-draft-meta-item", className)} {...props}>
-      <div className="agent-draft-meta-item__label">{label}</div>
-      <div className="agent-draft-meta-item__value" title={title}>{value}</div>
+    <div className={cn("agent-workspace-meta-item", className)} {...props}>
+      <div className="agent-workspace-meta-item__label">{label}</div>
+      <div className="agent-workspace-meta-item__value" title={title}>{value}</div>
     </div>
   );
 }

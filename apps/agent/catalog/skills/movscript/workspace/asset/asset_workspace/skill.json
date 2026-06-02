@@ -1,0 +1,53 @@
+{
+  "id": "movscript.asset_workspace",
+  "version": "1.0.0",
+  "name": "Asset Workspace",
+  "description": "打开并编辑统一的素材 workspace：既可定义 project asset slots，也可为已选 asset slot 规划候选 prompt、参考资源、模型能力需求、风险和验收标准；不创建生成任务。",
+  "priority": 904,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "asset_workspace"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "素材需求工作区",
+        "素材需求",
+        "素材位",
+        "素材工作区",
+        "素材方案",
+        "素材候选",
+        "素材候选方案",
+        "候选图方案",
+        "候选视频方案",
+        "prompt 方案",
+        "asset slot",
+        "asset workspace",
+        "asset_edit"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.asset_workspace.v1"
+  ],
+  "outputContract": "返回 workspaceId、projectId、素材需求变更数量、已知时的 asset slot 或已选目标、候选计划数量、validation/apply 状态和未解决风险。",
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "movscript_focus_get",
+    "movscript_script_locate",
+    "movscript_creative_reference_query",
+    "movscript_asset_slot_query",
+    "movscript_production_context_query",
+    "workspace_open",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
+    "workspace_validate",
+    "workspace_apply",
+    "get_workspace_model",
+    "core_user_input_request"
+  ]
+}

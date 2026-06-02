@@ -618,12 +618,9 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		expires := int64(req.ExecutionExpiresAfter)
 		createReq.ExecutionExpiresAfter = &expires
 	}
-	if req.Draft != nil {
-		createReq.Draft = req.Draft
-	}
-	if req.WebSearch {
-		createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
-	}
+		if req.WebSearch {
+			createReq.Tools = []*arkmodel.ContentGenerationTool{{Type: arkmodel.ToolTypeWebSearch}}
+		}
 
 	debugBody := map[string]any{
 		"model":  req.Model,
@@ -667,8 +664,8 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 	if req.ExecutionExpiresAfter > 0 {
 		debugBody["execution_expires_after"] = req.ExecutionExpiresAfter
 	}
-	if req.Draft != nil {
-		debugBody["draft"] = *req.Draft
+	if req.Workspace != nil {
+		debugBody["workspace"] = *req.Workspace
 	}
 	if req.WebSearch {
 		debugBody["tools"] = []map[string]any{{"type": "web_search"}}

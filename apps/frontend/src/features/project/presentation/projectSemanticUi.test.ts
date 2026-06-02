@@ -31,7 +31,7 @@ test('project workspace states map to UI semantic recipes', () => {
   assert.deepEqual(projectReadinessRecipe(69), { intent: 'neutral', emphasis: 'soft' })
 })
 
-test('project task and proposal states map to UI semantic recipes', () => {
+test('project task and workspace states map to UI semantic recipes', () => {
   assert.deepEqual(projectTaskStatusRecipe('in_progress'), { intent: 'info', emphasis: 'soft' })
   assert.deepEqual(projectTaskStatusRecipe('submitted'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(projectTaskStatusRecipe('changes_requested'), { intent: 'danger', emphasis: 'soft' })

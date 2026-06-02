@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getMCPFocusSnapshot, updateMCPContextSnapshot } from './server'
 
-test('MCP focus omits draftId from route search while preserving page focus params', () => {
+test('MCP focus omits workspaceId from route search while preserving page focus params', () => {
   updateMCPContextSnapshot({
     route: {
       pathname: '/project/pre-production',
-      search: '?view=review&draftId=draft_mpfwa1ow_tx4g65&asset_slot_id=88',
+      search: '?view=review&workspaceId=workspace_mpfwa1ow_tx4g65&asset_slot_id=88',
       hash: '',
     },
     project: {
@@ -27,11 +27,11 @@ test('MCP focus omits draftId from route search while preserving page focus para
   assert.equal(snapshot.project?.id, 2)
 })
 
-test('MCP focus returns an empty search when draftId is the only route query param', () => {
+test('MCP focus returns an empty search when workspaceId is the only route query param', () => {
   updateMCPContextSnapshot({
     route: {
       pathname: '/project/pre-production',
-      search: '?draftId=draft_mpfwa1ow_tx4g65',
+      search: '?workspaceId=workspace_mpfwa1ow_tx4g65',
       hash: '',
     },
     project: null,

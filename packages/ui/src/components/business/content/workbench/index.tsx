@@ -64,7 +64,7 @@ export {
   type ContentWorkbenchReviewDiff,
   type ContentWorkbenchReviewDiffKind,
   type ContentWorkbenchReviewDiffState,
-  type ContentWorkbenchReviewDraft,
+  type ContentWorkbenchReviewWorkspace,
   type ContentWorkbenchReviewFieldDiff,
   type ContentWorkbenchReviewModel,
   type ContentWorkbenchReviewPanelProps,

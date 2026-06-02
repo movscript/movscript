@@ -1,5 +1,5 @@
 import type { SemanticEntityPayload } from '@/shared/infrastructure/api/semanticEntities'
-import { contentWorkbenchProposalDefaults } from '@/features/content/domain/contentWorkbenchDraftProposal'
+import { contentWorkbenchWorkspaceDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceWorkspace'
 import { mergeMetadataJSON, parseMetadataJSON } from '@/features/content/domain/contentUnitPlanningMetadata'
 import { type ContentWorkbenchDropPosition, pickPreviewTimelineItemForUnit, reorderContentWorkbenchUnits } from '@/features/content/domain/contentWorkbenchTimeline'
 import { byOrder, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
@@ -47,8 +47,8 @@ export interface ContentCandidateAttachmentResource {
   name?: unknown
 }
 
-export function buildContentUnitProposalPatch(current: ContentWorkbenchRecord | undefined, proposal: Record<string, unknown>): SemanticEntityPayload {
-  const defaults = contentWorkbenchProposalDefaults(proposal)
+export function buildContentUnitWorkspacePatch(current: ContentWorkbenchRecord | undefined, workspace: Record<string, unknown>): SemanticEntityPayload {
+  const defaults = contentWorkbenchWorkspaceDefaults(workspace)
   const { status: _status, metadata_json, ...basePayload } = defaults
   const payload: SemanticEntityPayload = { ...basePayload }
   if (metadata_json) {
@@ -118,7 +118,7 @@ export function buildContentUnitTimelineMoveTaskGraph({
       name: `${titleOfRecord(unit)} 时间轴`,
       duration_sec: Math.max(normalizedStartSec + durationSec, durationSec, 1),
       is_primary: true,
-      status: 'draft',
+      status: 'workspace',
     },
     itemPayload: {
       production_id: productionId,
@@ -129,7 +129,7 @@ export function buildContentUnitTimelineMoveTaskGraph({
       start_sec: normalizedStartSec,
       duration_sec: durationSec,
       order: numberOf(unit.order) || row.units.findIndex((item) => item.ID === unit.ID) + 1,
-      status: 'draft',
+      status: 'workspace',
     },
   }
 }

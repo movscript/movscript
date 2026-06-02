@@ -37,13 +37,14 @@ test('buildAgentMessagePresentation promotes generated assistant media and hides
   assert.equal(result.displayContent.includes('技术细节'), true)
 })
 
-test('buildAgentMessagePresentation reports missing generated resource ids for hydration', () => {
+test('buildAgentMessagePresentation hides technical output summaries without hydrating resources', () => {
   const result = buildAgentMessagePresentation(message({
     content: 'Output resources: #7, #8',
     attachments: [attachment({ id: 'existing_7', resourceId: 7 })],
   }))
 
-  assert.deepEqual(result.missingTextOutputResourceIds, [8])
+  assert.equal(result.displayContent, '')
+  assert.equal(result.messageAttachments.length, 1)
 })
 
 test('buildAgentMessagePresentation hides content behind context diagnostics and opens diagnostics section', () => {
@@ -120,10 +121,10 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
         field: 'image',
         message: 'too many images',
       }],
-      draftArtifacts: [{
-        type: 'draft',
-        draftId: 'draft_1',
-        draftKind: 'content_unit_proposal',
+      workspaceArtifacts: [{
+        type: 'workspace',
+        workspaceId: 'workspace_1',
+        workspaceKind: 'content_unit_workspace',
       }],
     },
   }))
@@ -133,7 +134,7 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
   assert.equal(result.generationJobs[0]?.jobId, 42)
   assert.equal(result.generationParamAudits[0]?.modelConfigId, 7)
   assert.equal(result.generationValidationErrors[0]?.code, 'INVALID_INPUT_COUNT')
-  assert.equal(result.draftArtifacts[0]?.draftId, 'draft_1')
+  assert.equal(result.workspaceArtifacts[0]?.workspaceId, 'workspace_1')
   assert.equal(result.hasResultSection, true)
   assert.equal(result.hasProcessSection, true)
   assert.equal(result.hasDiagnosticSection, true)
@@ -151,7 +152,7 @@ test('buildAgentMessagePresentation hides internal run status breadcrumbs', () =
 
 test('buildAgentMessagePresentation hides requires-action summary text while preserving inline activity', () => {
   const result = buildAgentMessagePresentation(message({
-    content: '执行前需要确认：\n- draft_apply: 需要正式写入项目数据',
+    content: '执行前需要确认：\n- workspace_apply: 需要正式写入项目数据',
     meta: {
       localRunActivity: {
         runId: 'run_action',
@@ -162,7 +163,7 @@ test('buildAgentMessagePresentation hides requires-action summary text while pre
         approvals: [{
           id: 'approval_1',
           runId: 'run_action',
-          toolName: 'draft_apply',
+          toolName: 'workspace_apply',
           reason: '需要正式写入项目数据',
           status: 'pending',
           createdAt: '2026-05-19T00:00:00.000Z',

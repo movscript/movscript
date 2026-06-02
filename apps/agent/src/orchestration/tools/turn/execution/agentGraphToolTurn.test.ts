@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 import { buildModelToolResultContext } from '../../../../context/tool-result/toolResultContext.js'
-import { InMemoryAgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import {
-  createDefaultDraftApplyPort,
-  createDefaultDraftApplyPreviewPort,
+  createDefaultWorkspaceApplyPort,
+  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultProposalSnapshotHydrationPort,
+  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -75,7 +75,7 @@ test('executeToolTurn reuses stored dropped tool result projection for stable re
 
 test('executeToolTurn reuses completed side-effect tool results after runtime recovery resume', async () => {
   const call = { id: 'call_write_1', name: 'studio_write_tool', args: { projectId: 42, title: '雨夜便利店' } }
-  const result = { ok: true, proposalId: 'proposal_1' }
+  const result = { ok: true, workspaceId: 'workspace_1' }
   const run = buildRun({
     maxRetrievedContextChars: 24000,
     metadata: {
@@ -118,7 +118,7 @@ test('executeToolTurn reuses completed side-effect tool results after runtime re
   assert.deepEqual(completedSteps, [{ stepId: 'step_1', result }])
   assert.equal(input.executedRuntimeHandlerCount, 0)
   assert.equal(input.traces.some((trace) => (trace.data as any)?.replayGuard?.eventType === 'tool.call.replay_guard_reused'), true)
-  assert.match(turn.turnResult.content, /proposal_1/)
+  assert.match(turn.turnResult.content, /workspace_1/)
 })
 
 function buildRun(input: {
@@ -178,7 +178,7 @@ function buildGraphInput(input: {
     byName: { [toolName]: tool },
   }
   const traces: Array<{ data?: unknown }> = []
-  const draftApplyBackend = {
+  const workspaceApplyBackend = {
     async applyReview(): Promise<any> { return { performed: false } },
     async previewApplyReview(): Promise<any> { return { performed: false } },
   }
@@ -198,16 +198,16 @@ function buildGraphInput(input: {
     config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
     auth: {},
     runtimeLimits,
-    draftStore: new InMemoryAgentDraftStore(),
+    workspaceStore: new InMemoryAgentWorkspaceStore(),
     externalToolGatewayPort: createDefaultExternalToolGatewayPort({
       initialize: async () => null,
       callTool: async () => {
         throw new Error('external gateway should not run')
       },
     }),
-    draftApplyPort: createDefaultDraftApplyPort(draftApplyBackend),
-    draftApplyPreviewPort: createDefaultDraftApplyPreviewPort(draftApplyBackend),
-    proposalSnapshotHydrationPort: createDefaultProposalSnapshotHydrationPort({ initialize: async () => null, callTool: async () => null }),
+    workspaceApplyPort: createDefaultWorkspaceApplyPort(workspaceApplyBackend),
+    workspaceApplyPreviewPort: createDefaultWorkspaceApplyPreviewPort(workspaceApplyBackend),
+    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort({ initialize: async () => null, callTool: async () => null }),
     resourceFilePort: createDefaultResourceFilePort({ initialize: async () => null }),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false }) }),
     projectStandardsPort: createDefaultProjectStandardsPort({ async getProject(): Promise<any> { return { performed: false } } }),

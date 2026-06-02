@@ -47,14 +47,14 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
     staleTime: 5 * 60 * 1000,
   })
   const savedTextValue = data.textContent ?? resourceText ?? ''
-  const [draftText, setDraftText] = useState(savedTextValue)
+  const [workspaceText, setWorkspaceText] = useState(savedTextValue)
   const [previewing, setPreviewing] = useState(false)
   useEffect(() => {
-    setDraftText(savedTextValue)
+    setWorkspaceText(savedTextValue)
   }, [savedTextValue, data.rfNodeId])
-  const dirty = draftText !== savedTextValue
+  const dirty = workspaceText !== savedTextValue
   const { editable, resourceBacked } = canvasTextNodeEditState(data)
-  const preview = draftText
+  const preview = workspaceText
   return (
     <CanvasTextNodeView
       selected={selected}
@@ -84,7 +84,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
             title={t('canvas.editor.textNode.applyToCanvas', { defaultValue: '应用到画布' })}
             aria-label={t('canvas.editor.textNode.applyToCanvas', { defaultValue: '应用到画布' })}
             disabled={!dirty}
-            onClick={() => data.onUpdateContent?.(draftText)}
+            onClick={() => data.onUpdateContent?.(workspaceText)}
           >
             <Save size={12} />
           </CanvasNodeCardActionButton>
@@ -102,10 +102,10 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
       note={resourceBacked
         ? t('canvas.editor.textNode.resourceReadonly', { defaultValue: '资源文本只读，转为画布文本后可编辑。' })
         : undefined}
-      textValue={draftText}
+      textValue={workspaceText}
       textPlaceholder={t('canvas.textInputPlaceholder')}
-      textLoadingLabel={resourceTextLoading && !draftText ? t('common.loadingShort') : undefined}
-      onTextChange={setDraftText}
+      textLoadingLabel={resourceTextLoading && !workspaceText ? t('common.loadingShort') : undefined}
+      onTextChange={setWorkspaceText}
       preview={preview}
       emptyLabel={t('canvas.emptyContent')}
     />

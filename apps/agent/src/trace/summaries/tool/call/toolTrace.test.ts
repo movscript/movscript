@@ -10,7 +10,7 @@ import {
 
 test('summarizeToolCallTrace hashes tool results without storing the full result payload', () => {
   const summary = summarizeToolCallTrace({
-    call: { name: 'core_file_read', args: { ref: 'agent://draft/draft_1/content' } },
+    call: { name: 'core_file_read', args: { ref: 'agent://workspace/workspace_1/content' } },
     source: 'runtime',
     result: { content: 'large content' },
     durationMs: 12,

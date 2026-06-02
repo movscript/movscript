@@ -1,9 +1,9 @@
 {
   "contract_version": 1,
-  "model_id": "video.draft",
-  "display_name": "Draft Video",
-  "short_name": "draft-video",
-  "logical_model_id": "video.draft",
+  "model_id": "video.workspace",
+  "display_name": "Workspace Video",
+  "short_name": "workspace-video",
+  "logical_model_id": "video.workspace",
   "capabilities": [
     "video",
     "video_i2v"
@@ -20,17 +20,17 @@
     }
   },
   "supported_param_keys": [
-    "draft",
     "frames",
     "image_count",
     "resolution",
     "return_last_frame",
-    "sequential_image_generation"
+    "sequential_image_generation",
+    "workspace"
   ],
   "supported_params": [
     {
-      "key": "draft",
-      "label": "Draft",
+      "key": "workspace",
+      "label": "Workspace",
       "type": "boolean"
     },
     {
@@ -44,7 +44,7 @@
       "default": "480p",
       "conditional_enum": [
         {
-          "when_param": "draft",
+          "when_param": "workspace",
           "when_value": true,
           "options": [
             "480p"
@@ -76,7 +76,7 @@
       "default": false,
       "conditional_const": [
         {
-          "when_param": "draft",
+          "when_param": "workspace",
           "when_value": true,
           "value": false
         }

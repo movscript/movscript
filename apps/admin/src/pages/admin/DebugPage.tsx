@@ -591,7 +591,7 @@ type SystemHealthSnapshot = {
 
 type SystemHealthThresholds = SystemHealthSnapshot['thresholds']
 
-type HealthThresholdDraft = {
+type HealthThresholdWorkspace = {
   errorRateWarn: string
   errorRateCritical: string
   failedJobsWarn: string
@@ -600,7 +600,7 @@ type HealthThresholdDraft = {
   slowRequestsCritical: string
 }
 
-const DEFAULT_HEALTH_THRESHOLD_DRAFT: HealthThresholdDraft = {
+const DEFAULT_HEALTH_THRESHOLD_WORKSPACE: HealthThresholdWorkspace = {
   errorRateWarn: '5',
   errorRateCritical: '20',
   failedJobsWarn: '1',
@@ -609,8 +609,8 @@ const DEFAULT_HEALTH_THRESHOLD_DRAFT: HealthThresholdDraft = {
   slowRequestsCritical: '20',
 }
 
-function thresholdsToDraft(thresholds?: SystemHealthThresholds): HealthThresholdDraft {
-  if (!thresholds) return DEFAULT_HEALTH_THRESHOLD_DRAFT
+function thresholdsToWorkspace(thresholds?: SystemHealthThresholds): HealthThresholdWorkspace {
+  if (!thresholds) return DEFAULT_HEALTH_THRESHOLD_WORKSPACE
   return {
     errorRateWarn: String(thresholds.error_rate_warn),
     errorRateCritical: String(thresholds.error_rate_critical),
@@ -621,21 +621,21 @@ function thresholdsToDraft(thresholds?: SystemHealthThresholds): HealthThreshold
   }
 }
 
-function draftToThresholds(draft: HealthThresholdDraft): SystemHealthThresholds {
+function workspaceToThresholds(workspace: HealthThresholdWorkspace): SystemHealthThresholds {
   return {
-    error_rate_warn: Number(draft.errorRateWarn || 0),
-    error_rate_critical: Number(draft.errorRateCritical || 0),
-    failed_jobs_warn: Number(draft.failedJobsWarn || 0),
-    failed_jobs_critical: Number(draft.failedJobsCritical || 0),
-    slow_requests_warn: Number(draft.slowRequestsWarn || 0),
-    slow_requests_critical: Number(draft.slowRequestsCritical || 0),
+    error_rate_warn: Number(workspace.errorRateWarn || 0),
+    error_rate_critical: Number(workspace.errorRateCritical || 0),
+    failed_jobs_warn: Number(workspace.failedJobsWarn || 0),
+    failed_jobs_critical: Number(workspace.failedJobsCritical || 0),
+    slow_requests_warn: Number(workspace.slowRequestsWarn || 0),
+    slow_requests_critical: Number(workspace.slowRequestsCritical || 0),
   }
 }
 
 function SystemOverviewSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [healthThresholds, setHealthThresholds] = useState<HealthThresholdDraft>(DEFAULT_HEALTH_THRESHOLD_DRAFT)
+  const [healthThresholds, setHealthThresholds] = useState<HealthThresholdWorkspace>(DEFAULT_HEALTH_THRESHOLD_WORKSPACE)
   const metricsQuery = useQuery<HTTPMetricsSnapshot>({
     queryKey: ['admin', 'debug', 'metrics'],
     queryFn: () => api.get('/admin/debug/metrics').then((r) => r.data),
@@ -658,7 +658,7 @@ function SystemOverviewSection() {
   const healthSettingsMutation = useMutation({
     mutationFn: (payload: SystemHealthThresholds) => api.put('/admin/debug/health-settings', payload).then((r) => r.data as SystemHealthThresholds),
     onSuccess: (thresholds) => {
-      setHealthThresholds(thresholdsToDraft(thresholds))
+      setHealthThresholds(thresholdsToWorkspace(thresholds))
       qc.invalidateQueries({ queryKey: ['admin', 'debug', 'health-settings'] })
       qc.invalidateQueries({ queryKey: ['admin', 'debug', 'health'] })
     },
@@ -666,7 +666,7 @@ function SystemOverviewSection() {
 
   useEffect(() => {
     if (healthSettingsQuery.data && !healthSettingsMutation.isPending) {
-      setHealthThresholds(thresholdsToDraft(healthSettingsQuery.data))
+      setHealthThresholds(thresholdsToWorkspace(healthSettingsQuery.data))
     }
   }, [healthSettingsQuery.data, healthSettingsMutation.isPending])
 
@@ -689,12 +689,12 @@ function SystemOverviewSection() {
     healthSettingsQuery.refetch()
   }
 
-  function updateHealthThreshold<K extends keyof HealthThresholdDraft>(key: K, value: string) {
+  function updateHealthThreshold<K extends keyof HealthThresholdWorkspace>(key: K, value: string) {
     setHealthThresholds((current) => ({ ...current, [key]: value }))
   }
 
   function saveHealthThresholds() {
-    healthSettingsMutation.mutate(draftToThresholds(healthThresholds))
+    healthSettingsMutation.mutate(workspaceToThresholds(healthThresholds))
   }
 
   return (

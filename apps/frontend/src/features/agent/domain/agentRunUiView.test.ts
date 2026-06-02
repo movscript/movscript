@@ -150,11 +150,11 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
     tools: [{
       type: 'function',
       name: 'core_file_edit',
-      description: 'Edit draft text',
+      description: 'Edit workspace text',
       parameters: {
         type: 'object',
         properties: {
-          draftId: { type: 'string' },
+          workspaceId: { type: 'string' },
           patch: { type: 'string' },
         },
       },
@@ -190,8 +190,8 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
   assert.deepEqual(view.modelDetail?.tools, [{
     index: 1,
     name: 'core_file_edit',
-    description: 'Edit draft text',
-    parameterKeys: ['draftId', 'patch'],
+    description: 'Edit workspace text',
+    parameterKeys: ['workspaceId', 'patch'],
   }])
 })
 
@@ -398,7 +398,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalRiskLabel('destructive'), '破坏性')
   assert.equal(approvalPermissionLabel('filesystem'), '文件系统')
   assert.equal(approvalPermissionLabel('project.assets.write'), '项目素材写入')
-  assert.equal(approvalPermissionLabel('draft.apply'), '应用草稿变更')
+  assert.equal(approvalPermissionLabel('workspace.apply'), '应用工作区变更')
   assert.equal(approvalPermissionLabel('generation.create'), '创建生成任务')
   assert.equal(approvalPermissionLabel('memory.write'), '记忆写入')
   assert.equal(approvalPermissionLabel('custom.scope'), '未识别权限：custom.scope')
@@ -406,7 +406,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalStatusLabel('approved'), '已同意')
   assert.equal(approvalStatusLabel('unknown_status'), '未知审批状态 (unknown_status)')
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
-  assert.equal(approvalImpactLabel({ toolName: 'draft_apply', permission: 'draft.apply', risk: 'write', preview: undefined }), '批准后会把草稿变更应用到当前项目。')
+  assert.equal(approvalImpactLabel({ toolName: 'workspace_apply', permission: 'workspace.apply', risk: 'write', preview: undefined }), '批准后会把工作区变更应用到当前项目。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
   assert.equal(toolApprovalLabel('on_write'), '写入时审批')
@@ -419,12 +419,12 @@ test('run trace labels localize categories and statuses', () => {
 
 test('agent permission display supports i18n labels and unknown fallback interpolation', () => {
   const t = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => {
-    if (key === 'agents.tools.permissions.draft_apply') return 'Apply draft changes'
+    if (key === 'agents.tools.permissions.workspace_apply') return 'Apply workspace changes'
     if (key === 'agents.tools.unknown.permission') return `Unrecognized permission: ${options?.value}`
     return options?.defaultValue ?? key
   }
 
-  assert.equal(agentPermissionLabel('draft.apply', t), 'Apply draft changes')
+  assert.equal(agentPermissionLabel('workspace.apply', t), 'Apply workspace changes')
   assert.equal(agentPermissionLabel('custom.scope', t), 'Unrecognized permission: custom.scope')
 })
 

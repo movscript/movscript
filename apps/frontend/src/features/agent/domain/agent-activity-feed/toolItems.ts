@@ -25,10 +25,10 @@ interface ToolActivityRecord {
 }
 
 const CORE_TOOL_NAMES = new Set([
-  'draft_create',
+  'workspace_create',
   'core_file_edit',
-  'draft_apply_preview',
-  'draft_apply',
+  'workspace_apply_preview',
+  'workspace_apply',
   'core_update_plan',
   'core_work_start',
   'core_work_wait',
@@ -160,9 +160,9 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
   const failed = record.status === 'failed' || record.status === 'blocked' || !!record.error
   const statusLine = failed ? record.error ?? record.summary ?? '执行失败' : undefined
 
-  if (record.toolName === 'draft_create') {
-    return block(record, 'draft', '创建本地草稿', compactLines([
-      draftIdLine(result),
+  if (record.toolName === 'workspace_create') {
+    return block(record, 'workspace', '创建本地工作区', compactLines([
+      workspaceIdLine(result),
       stringValue(args?.title) ? `标题：${stringValue(args?.title)}` : undefined,
       stringValue(args?.kind) ? `类型：${stringValue(args?.kind)}` : undefined,
       numberValue(args?.projectId) !== undefined ? `项目：#${numberValue(args?.projectId)}` : undefined,
@@ -172,27 +172,27 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
   }
 
   if (record.toolName === 'core_file_edit') {
-    return block(record, 'draft', '修改草稿正文', compactLines([
+    return block(record, 'workspace', '修改工作区正文', compactLines([
       stringValue(args?.ref) ? `文件：${stringValue(args?.ref)}` : undefined,
-      draftEditSummary(args, result),
+      workspaceEditSummary(args, result),
       statusLine,
     ]), patchCodeView(args))
   }
 
-  if (record.toolName === 'draft_apply_preview') {
+  if (record.toolName === 'workspace_apply_preview') {
     return block(record, 'write', '预览正式应用', compactLines([
-      draftIdLine(args) ?? draftIdLine(result),
+      workspaceIdLine(args) ?? workspaceIdLine(result),
       stringValue(result?.message),
       '这里只是预览，还没有写入项目。',
       statusLine,
     ]))
   }
 
-  if (record.toolName === 'draft_apply') {
-    return block(record, 'write', '正式应用草稿', compactLines([
-      draftIdLine(args) ?? draftIdLine(result),
+  if (record.toolName === 'workspace_apply') {
+    return block(record, 'write', '正式应用工作区', compactLines([
+      workspaceIdLine(args) ?? workspaceIdLine(result),
       stringValue(result?.message),
-      '项目数据已按草稿应用。',
+      '项目数据已按工作区应用。',
       statusLine,
     ]))
   }
@@ -295,7 +295,7 @@ function fallbackToolText(record: ToolActivityRecord): string {
 }
 
 function fallbackToolKind(toolName: string): AgentActivityKind {
-  if (toolName.startsWith('draft_')) return 'draft'
+  if (toolName.startsWith('workspace_')) return 'workspace'
   if (toolName.includes('apply') || toolName.includes('attach') || toolName.includes('edit') || toolName.includes('delete')) return 'write'
   if (toolName.includes('generation') || toolName.includes('operation') || toolName.includes('subagent')) return 'task'
   if (isReadTool(toolName)) return 'read'
@@ -317,12 +317,12 @@ function isReadTool(toolName: string) {
     || toolName.includes('inspect')
 }
 
-function draftIdLine(value: Record<string, unknown> | undefined): string | undefined {
-  const draftId = stringValue(value?.draftId) ?? stringValue(value?.draft_id) ?? stringValue(recordValue(value?.draft)?.id) ?? stringValue(recordValue(value?.draft)?.draftId)
-  return draftId ? `草稿：${draftId}` : undefined
+function workspaceIdLine(value: Record<string, unknown> | undefined): string | undefined {
+  const workspaceId = stringValue(value?.workspaceId) ?? stringValue(value?.workspace_id) ?? stringValue(recordValue(value?.workspace)?.id) ?? stringValue(recordValue(value?.workspace)?.workspaceId)
+  return workspaceId ? `工作区：${workspaceId}` : undefined
 }
 
-function draftEditSummary(args: Record<string, unknown> | undefined, result: Record<string, unknown> | undefined): string | undefined {
+function workspaceEditSummary(args: Record<string, unknown> | undefined, result: Record<string, unknown> | undefined): string | undefined {
   const edits = Array.isArray(args?.edits) ? args.edits.length : undefined
   const patch = stringValue(args?.patch)
   const replacements = numberValue(result?.replacementCount) ?? numberValue(recordValue(result?.changeSet)?.replacementCount)

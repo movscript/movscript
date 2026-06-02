@@ -28,8 +28,8 @@ export function productionChangeRecipe(change: 'before' | 'after' | 'blocked'): 
   return productionChangeStatus.recipe(change)
 }
 
-export function productionProposalModeRecipe(active: boolean): ProductionStatusRecipe {
-  return productionProposalModeStatus.recipe(active ? 'active' : 'default')
+export function productionWorkspaceModeRecipe(active: boolean): ProductionStatusRecipe {
+  return productionWorkspaceModeStatus.recipe(active ? 'active' : 'default')
 }
 
 const productionWorkflowStatus = defineFeatureStatusRecipeGroup('production.workflow.status', {
@@ -87,7 +87,7 @@ const productionChangeStatus = defineFeatureStatusRecipeGroup('production.change
   default: 'neutral',
 })
 
-const productionProposalModeStatus = defineFeatureStatusRecipeGroup('production.proposal.mode.status', {
+const productionWorkspaceModeStatus = defineFeatureStatusRecipeGroup('production.workspace.mode.status', {
   active: 'warning',
   default: 'neutral',
 })

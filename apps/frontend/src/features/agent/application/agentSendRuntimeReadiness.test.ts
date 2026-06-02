@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { prepareSendRuntime, type PrepareSendRuntimeDeps } from './agentSendRuntimeReadiness'
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 
 test('prepareSendRuntime starts local runtime, checks MCP, syncs model config, and marks create thread', async () => {
   const calls: string[] = []
   await prepareSendRuntime({
-    draft: draft({ runtimeModelId: 'runtime-model' }),
+    workspace: workspace({ runtimeModelId: 'runtime-model' }),
     localAgentOnline: false,
     localAgentBaseURL: 'http://localhost:4123',
     mcpEndpoint: 'http://localhost:4124',
@@ -34,7 +34,7 @@ test('prepareSendRuntime starts local runtime, checks MCP, syncs model config, a
 test('prepareSendRuntime skips ensure-running when runtime is already online and falls back to model name', async () => {
   const calls: string[] = []
   await prepareSendRuntime({
-    draft: draft({ name: 'display-model' }),
+    workspace: workspace({ name: 'display-model' }),
     localAgentOnline: true,
     localAgentBaseURL: 'http://localhost:4123',
     signal: new AbortController().signal,
@@ -58,7 +58,7 @@ test('prepareSendRuntime stops after ensure-running if the send signal is aborte
 
   await assert.rejects(
     () => prepareSendRuntime({
-      draft: draft(),
+      workspace: workspace(),
       localAgentOnline: false,
       localAgentBaseURL: 'http://localhost:4123',
       signal: controller.signal,
@@ -100,9 +100,9 @@ function depsFixture(calls: string[]): PrepareSendRuntimeDeps {
   }
 }
 
-function draft(model: Partial<AgentSendDraft['model']> = {}): AgentSendDraft {
+function workspace(model: Partial<AgentSendWorkspace['model']> = {}): AgentSendWorkspace {
   return {
-    id: 'draft_1',
+    id: 'workspace_1',
     createdAt: 1,
     route: 'local-runtime',
     visibleUserContent: 'Hello',

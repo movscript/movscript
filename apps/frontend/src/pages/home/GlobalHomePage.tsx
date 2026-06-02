@@ -55,7 +55,7 @@ export default function GlobalHomePage() {
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const createRuntimeConversation = useAgentSessionStore((s) => s.createRuntimeConversation)
-  const updateConversationDraft = useAgentSessionStore((s) => s.updateConversationDraft)
+  const updateConversationWorkspace = useAgentSessionStore((s) => s.updateConversationWorkspace)
   const updateConversationTitle = useAgentSessionStore((s) => s.updateConversationTitle)
   const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
   const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
@@ -100,7 +100,7 @@ export default function GlobalHomePage() {
           error: undefined,
         })
         updateConversationTitle(userId, conversationId, label)
-        updateConversationDraft(userId, conversationId, {
+        updateConversationWorkspace(userId, conversationId, {
           input: String(t(`home.inspirationPrompts.${option.key}`)),
         })
         navigate(ROUTES.project.agent)

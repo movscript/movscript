@@ -5,7 +5,7 @@ import {
   buildProjectWorkbenchReviewParams,
   buildProjectWorkbenchReviewPath,
   getProjectWorkbenchDefinition,
-  getProjectWorkbenchDefinitionForProposalKind,
+  getProjectWorkbenchDefinitionForWorkspaceKind,
   mergeProjectWorkbenchReviewSearchParams,
   projectWorkbenchDefinitions,
   type ProjectWorkbenchId,
@@ -37,68 +37,68 @@ test('project workbench definitions cover the five canonical workbenches', () =>
   }
 })
 
-test('project workbench definitions own proposal kinds at the correct layer', () => {
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('project_standards_proposal')?.id, 'project_standards')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('setting_proposal')?.id, 'pre_production')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('asset_proposal')?.id, 'pre_production')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('production_proposal')?.id, 'orchestration_production')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('content_unit_proposal')?.id, 'orchestration_production')
+test('project workbench definitions own workspace kinds at the correct layer', () => {
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('project_standards_workspace'), null)
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('setting_workspace')?.id, 'pre_production')
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('asset_workspace')?.id, 'pre_production')
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('production_workspace'), null)
+  assert.equal(getProjectWorkbenchDefinitionForWorkspaceKind('content_unit_workspace'), null)
 })
 
 test('project workbench review paths are generated from review query contracts', () => {
   assert.equal(
-    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('project_standards'), { draftId: 'draft-a' }),
-    '/project/standards?draftId=draft-a',
+    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('project_standards'), { workspaceId: 'workspace-a' }),
+    '/project/standards?workspaceId=workspace-a',
   )
   assert.equal(
     buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('pre_production'), {
-      draftId: 'draft-b',
+      workspaceId: 'workspace-b',
       entityType: 'asset_slot',
       entityId: 88,
     }),
-    '/project/pre-production?view=review&draftId=draft-b&asset_slot_id=88',
+    '/project/pre-production?view=review&workspaceId=workspace-b&asset_slot_id=88',
   )
   assert.equal(
     buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('content_orchestration'), {
-      draftId: 'draft-c',
+      workspaceId: 'workspace-c',
       entityType: 'scene_moment',
       entityId: 77,
     }),
-    '/project/content-units/workbench?view=review&draftId=draft-c&scene_moment_id=77',
+    '/project/content-units/workbench?view=review&workspaceId=workspace-c&scene_moment_id=77',
   )
   assert.equal(
-    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('orchestration_production'), { draftId: 'draft-d' }),
+    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('orchestration_production'), { workspaceId: 'workspace-d' }),
     null,
   )
   assert.equal(
     buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('orchestration_production'), {
-      draftId: 'draft-d',
+      workspaceId: 'workspace-d',
       entityType: 'production',
       entityId: 301,
     }),
-    '/project/production/orchestration?view=review&draftId=draft-d&productionId=301',
+    '/project/production/orchestration?view=review&workspaceId=workspace-d&productionId=301',
   )
 })
 
 test('project workbench review params can be merged into existing search params', () => {
   assert.deepEqual(
     buildProjectWorkbenchReviewParams(getProjectWorkbenchDefinition('pre_production'), {
-      draftId: 'draft-b',
+      workspaceId: 'workspace-b',
       entityType: 'creative_reference',
       entityId: 42,
     }),
-    { view: 'review', draftId: 'draft-b', reference_id: 42 },
+    { view: 'review', workspaceId: 'workspace-b', reference_id: 42 },
   )
 
   const merged = mergeProjectWorkbenchReviewSearchParams(
-    new URLSearchParams('tab=assets&draftId=old'),
+    new URLSearchParams('tab=assets&workspaceId=old'),
     getProjectWorkbenchDefinition('pre_production'),
     {
-      draftId: 'draft-b',
+      workspaceId: 'workspace-b',
       entityType: 'creative_reference',
       entityId: 42,
     },
   )
 
-  assert.equal(merged?.toString(), 'tab=assets&draftId=draft-b&view=review&reference_id=42')
+  assert.equal(merged?.toString(), 'tab=assets&workspaceId=workspace-b&view=review&reference_id=42')
 })

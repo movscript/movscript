@@ -21,7 +21,7 @@ export interface ProjectMember {
   role: string
 }
 
-export type ReviewStatus = 'draft' | 'under_review' | 'approved' | 'revision'
+export type ReviewStatus = 'workspace' | 'under_review' | 'approved' | 'revision'
 
 export interface Script {
   ID: number
@@ -501,13 +501,13 @@ export type ResourceBindingRole =
   | 'reference'
   | 'input'
   | 'output'
-  | 'draft'
+  | 'workspace'
   | 'final'
   | 'thumbnail'
   | 'attachment'
   | 'source'
 
-export type ResourceBindingStatus = 'draft' | 'selected' | 'rejected' | 'approved' | 'archived'
+export type ResourceBindingStatus = 'workspace' | 'selected' | 'rejected' | 'approved' | 'archived'
 export type ResourceBindingSourceType = 'upload' | 'job' | 'canvas' | 'import' | 'manual' | 'legacy'
 
 export interface ResourceBinding {

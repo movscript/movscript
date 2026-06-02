@@ -12,7 +12,7 @@ export interface ContentWorkbenchUnitHealthInput {
   generationContextReady: boolean
   generationContextLoading: boolean
   generationContextError: boolean
-  pendingReviewDraftCount: number
+  pendingReviewWorkspaceCount: number
   runningJobCount: number
   completedJobCount: number
   previewItemCount?: number
@@ -51,7 +51,7 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   const missingSlotCount = positiveInteger(input.missingSlotCount)
   const keyframeCount = positiveInteger(input.keyframeCount)
   const requiresKeyframe = input.requiresKeyframe ?? true
-  const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
+  const pendingReviewWorkspaceCount = positiveInteger(input.pendingReviewWorkspaceCount)
   const runningJobCount = positiveInteger(input.runningJobCount)
   const completedJobCount = positiveInteger(input.completedJobCount)
   const previewItemCount = positiveInteger(input.previewItemCount)
@@ -94,9 +94,9 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
     {
       key: 'ai_review',
       label: 'AI 审稿',
-      value: pendingReviewDraftCount > 0 ? `${pendingReviewDraftCount} 待审` : '已处理',
-      state: pendingReviewDraftCount > 0 ? 'pending' : 'ready',
-      done: pendingReviewDraftCount === 0,
+      value: pendingReviewWorkspaceCount > 0 ? `${pendingReviewWorkspaceCount} 待审` : '已处理',
+      state: pendingReviewWorkspaceCount > 0 ? 'pending' : 'ready',
+      done: pendingReviewWorkspaceCount === 0,
       weight: 10,
     },
     {

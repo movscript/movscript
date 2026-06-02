@@ -9,7 +9,7 @@ import type {
   AgentContextDiagnostic,
   AgentContextDiagnosticTool,
   AgentConversation,
-  AgentConversationDraft,
+  AgentConversationWorkspace,
   AgentGenerationInputPreflightError,
   AgentGenerationInputRequirement,
   AgentGenerationInputRequirements,
@@ -32,7 +32,7 @@ import type {
 
 export type ChatMessage = AgentChatMessage
 export type Conversation = AgentConversation
-export type ConversationDraft = AgentConversationDraft
+export type ConversationWorkspace = AgentConversationWorkspace
 
 export interface AgentSettings {
   modelId: number | null

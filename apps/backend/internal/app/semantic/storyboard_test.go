@@ -19,7 +19,7 @@ func TestPatchStoryboardScriptAllowsSourceChangeBeforeDerivedItems(t *testing.T)
 	if err := db.Create(&secondVersion).Error; err != nil {
 		t.Fatalf("create second script version: %v", err)
 	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &firstVersion.ID, Name: script.Title, Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &firstVersion.ID, Name: script.Title, Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestPatchStoryboardScriptAllowsSourceChangeBeforeDerivedItems(t *testing.T)
 	patched, err := service.PatchStoryboardScript(context.Background(), 1, strconv.FormatUint(uint64(storyboardScript.ID), 10), StoryboardScriptInput{
 		ScriptVersionID: &secondVersion.ID,
 		Name:            "Storyboard v2",
-		Status:          "draft",
+		Status:          "workspace",
 	})
 	if err != nil {
 		t.Fatalf("PatchStoryboardScript() error = %v", err)
@@ -45,7 +45,7 @@ func TestPatchStoryboardScriptRejectsSourceChangeAfterVersionCreated(t *testing.
 	if err := db.Create(&secondVersion).Error; err != nil {
 		t.Fatalf("create second script version: %v", err)
 	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &firstVersion.ID, Name: script.Title, Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &firstVersion.ID, Name: script.Title, Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestPatchStoryboardScriptRejectsSourceChangeAfterVersionCreated(t *testing.
 	_, err := service.PatchStoryboardScript(context.Background(), 1, strconv.FormatUint(uint64(storyboardScript.ID), 10), StoryboardScriptInput{
 		ScriptVersionID: &secondVersion.ID,
 		Name:            "Moved source",
-		Status:          "draft",
+		Status:          "workspace",
 	})
 	var invalid ErrInvalidInput
 	if !errors.As(err, &invalid) {
@@ -70,7 +70,7 @@ func TestStoryboardVersionIsImmutableAfterCreate(t *testing.T) {
 	db := newStoryboardTestDB(t)
 	service := NewService(db)
 	script, version, _ := seedStoryboardScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestCreateStoryboardVersionAssignsVersionNumberServerSide(t *testing.T) {
 	db := newStoryboardTestDB(t)
 	service := NewService(db)
 	_, scriptVersion, _ := seedStoryboardScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestStoryboardVersionCannotBeDeletedByKind(t *testing.T) {
 	db := newStoryboardTestDB(t)
 	service := NewService(db)
 	script, version, _ := seedStoryboardScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
@@ -136,8 +136,8 @@ func TestCreateStoryboardVersionRejectsParentFromDifferentScript(t *testing.T) {
 	db := newStoryboardTestDB(t)
 	service := NewService(db)
 	_, scriptVersion, _ := seedStoryboardScriptSource(t, db, 1)
-	firstScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "First", Status: "draft"}
-	secondScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Second", Status: "draft"}
+	firstScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "First", Status: "workspace"}
+	secondScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Second", Status: "workspace"}
 	if err := db.Create(&firstScript).Error; err != nil {
 		t.Fatalf("create first storyboard script: %v", err)
 	}
@@ -164,11 +164,11 @@ func TestDeleteStoryboardScriptRejectsDownstreamVersions(t *testing.T) {
 	db := newStoryboardTestDB(t)
 	service := NewService(db)
 	script, version, _ := seedStoryboardScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}
-	storyboardVersion := model.StoryboardVersion{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, Title: "v1", Status: "draft"}
+	storyboardVersion := model.StoryboardVersion{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, Title: "v1", Status: "workspace"}
 	if err := db.Create(&storyboardVersion).Error; err != nil {
 		t.Fatalf("create storyboard version: %v", err)
 	}

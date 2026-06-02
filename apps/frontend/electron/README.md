@@ -39,7 +39,7 @@ Renderer 侧其他 MCP 命名应放在真实所属 feature 下：
 
 - server lifecycle and protocol：`server/`、`rpc/`、`server*.ts`、`rpc*.ts`、`toolCallRouter.ts` facade、`toolRegistry.ts`、`resources.ts`
 - backend access：`backendClient/`、`backendErrors/`
-- tool domains：`candidateAttach/`、`draftReviewApply/`、`generationJobs/`、`generationConnectors/`、`modelCatalog/`、`semanticQueries/`、`scriptLocate/`、`projectTools/`
+- tool domains：`candidateAttach/`、`workspaceReviewApply/`、`generationJobs/`、`generationConnectors/`、`modelCatalog/`、`semanticQueries/`、`scriptLocate/`、`projectTools/`
 - runtime context：`context/`
 - response and value helpers：`responseFormat/`、`values/`、`types.ts`
 

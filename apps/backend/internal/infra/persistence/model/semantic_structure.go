@@ -7,8 +7,8 @@ import (
 )
 
 // ScriptVersion is an immutable snapshot of imported or revised script text.
-// Script remains the editable project-facing draft; semantic structure hangs from
-// versions so downstream references stay stable across later draft edits.
+// Script remains the editable project-facing workspace; semantic structure hangs from
+// versions so downstream references stay stable across later workspace edits.
 type ScriptVersion struct {
 	gorm.Model
 	ProjectID       uint   `gorm:"not null;index" json:"project_id"`
@@ -20,7 +20,7 @@ type ScriptVersion struct {
 	Content         string `gorm:"type:text" json:"content"`
 	RawSource       string `gorm:"type:text" json:"raw_source"`
 	Summary         string `gorm:"type:text" json:"summary"`
-	Status          string `gorm:"not null;default:'draft';index" json:"status"` // draft|active|archived
+	Status          string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|active|archived
 	CreatedByID     *uint  `json:"created_by_id,omitempty"`
 }
 
@@ -48,7 +48,7 @@ type ScriptBlock struct {
 	EndLine         int    `gorm:"not null;default:0;index" json:"end_line"`
 	StartChar       int    `gorm:"not null;default:0" json:"start_char"`
 	EndChar         int    `gorm:"not null;default:0" json:"end_char"`
-	Status          string `gorm:"not null;default:'active';index" json:"status"` // active|draft|archived
+	Status          string `gorm:"not null;default:'active';index" json:"status"` // active|workspace|archived
 	MetadataJSON    string `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -67,7 +67,7 @@ type Segment struct {
 	Title           string `json:"title"`
 	Summary         string `gorm:"type:text" json:"summary"`
 	Content         string `gorm:"type:text" json:"content"`
-	Status          string `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
+	Status          string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|confirmed|ignored
 	MetadataJSON    string `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -89,7 +89,7 @@ type SceneMoment struct {
 	ConditionText string `gorm:"type:text" json:"condition_text"`
 	ActionText    string `gorm:"type:text" json:"action_text"`
 	Mood          string `json:"mood"`
-	Status        string `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|ignored
+	Status        string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|confirmed|ignored
 	MetadataJSON  string `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -118,13 +118,13 @@ type StoryboardScript struct {
 	ScriptVersionID *uint  `gorm:"index" json:"script_version_id,omitempty"`
 	Name            string `gorm:"not null" json:"name"`
 	Description     string `gorm:"type:text" json:"description"`
-	Status          string `gorm:"not null;default:'draft';index" json:"status"` // draft|active|locked|archived
+	Status          string `gorm:"not null;default:'workspace';index" json:"status"` // workspace|active|locked|archived
 	IsPrimary       bool   `gorm:"default:false;index" json:"is_primary"`
 	MetadataJSON    string `gorm:"type:text" json:"metadata_json"`
 }
 
 // StoryboardVersion stores revision snapshots for a structured storyboard
-// script so generated proposals and user edits can be compared.
+// script so generated workspaces and user edits can be compared.
 type StoryboardVersion struct {
 	gorm.Model
 	ProjectID          uint   `gorm:"not null;index" json:"project_id"`
@@ -133,7 +133,7 @@ type StoryboardVersion struct {
 	VersionNumber      int    `gorm:"not null;default:1" json:"version_number"`
 	Title              string `json:"title"`
 	Source             string `gorm:"not null;default:'manual';index" json:"source"` // ai|manual|import
-	Status             string `gorm:"not null;default:'draft';index" json:"status"`  // draft|active|archived
+	Status             string `gorm:"not null;default:'workspace';index" json:"status"`  // workspace|active|archived
 	SnapshotJSON       string `gorm:"type:text" json:"snapshot_json"`
 	MetadataJSON       string `gorm:"type:text" json:"metadata_json"`
 }
@@ -168,7 +168,7 @@ type ContentUnit struct {
 	Stabilization    string  `json:"stabilization"`
 	CameraParamsJSON string  `gorm:"type:text" json:"camera_params_json"`
 	CameraNotes      string  `gorm:"type:text" json:"camera_notes"`
-	Status           string  `gorm:"not null;default:'draft';index" json:"status"` // draft|candidate|confirmed|in_production|locked
+	Status           string  `gorm:"not null;default:'workspace';index" json:"status"` // workspace|candidate|confirmed|in_production|locked
 	MetadataJSON     string  `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -196,7 +196,7 @@ type PreviewTimeline struct {
 	ProductionID    *uint   `gorm:"index" json:"production_id,omitempty"`
 	ScriptVersionID *uint   `gorm:"index" json:"script_version_id,omitempty"`
 	Name            string  `gorm:"not null" json:"name"`
-	Status          string  `gorm:"not null;default:'draft';index" json:"status"` // draft|playable|confirmed|archived
+	Status          string  `gorm:"not null;default:'workspace';index" json:"status"` // workspace|playable|confirmed|archived
 	DurationSec     float64 `json:"duration_sec"`
 	IsPrimary       bool    `gorm:"default:false;index" json:"is_primary"`
 	MetadataJSON    string  `gorm:"type:text" json:"metadata_json"`
@@ -215,6 +215,6 @@ type PreviewTimelineItem struct {
 	StartSec          float64 `json:"start_sec"`
 	DurationSec       float64 `json:"duration_sec"`
 	Label             string  `json:"label"`
-	Status            string  `gorm:"not null;default:'draft';index" json:"status"` // draft|confirmed|needs_asset|locked
+	Status            string  `gorm:"not null;default:'workspace';index" json:"status"` // workspace|confirmed|needs_asset|locked
 	MetadataJSON      string  `gorm:"type:text" json:"metadata_json"`
 }

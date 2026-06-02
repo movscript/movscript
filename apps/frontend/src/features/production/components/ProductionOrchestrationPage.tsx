@@ -1,23 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
-  Wand2,
 } from 'lucide-react'
 
 import { semanticEntityConfig } from '@/shared/infrastructure/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/shared/ui/SemanticEntityCrudDialog'
-import { ProductionProposalReviewPanel } from '@/features/production/components/proposals/ProductionProposalReviewPanel'
+import { ProductionWorkspaceReviewPanel } from '@/features/production/components/workspaces/ProductionWorkspaceReviewPanel'
 import { ProductionOrchestrationWorkspace } from '@/features/production/components/ProductionOrchestrationWorkspace'
 import { ContentWorkbenchDialogs } from '@/features/content/components/ContentWorkbenchDialogs'
 import { useProjectWorkbenchShellProps } from '@/features/project-workbenches/application/useProjectWorkbenchShellProps'
 import { isGeneratedKeyframeCandidateRecord } from '@/features/agent/domain/agentGeneratedResourceBinding'
 import { listScriptVersions, type ScriptVersion } from '@/shared/infrastructure/api/scriptVersions'
-import {
-  buildContentWorkbenchAiSuggestLaunchInput,
-  launchContentWorkbenchAiSuggestAgent,
-} from '@/features/content/application/contentWorkbenchAgentLaunch'
 import {
   buildMoveContentUnitOnTimelineMutationOptions,
   buildReorderContentUnitsMutationOptions,
@@ -49,18 +44,13 @@ import {
   type OrchestrationData,
 } from '@/features/production/domain/productionOrchestrationData'
 import {
-  buildCurrentProductionProposalSnapshot,
-} from '@/features/production/domain/productionProposalReviewModel'
-import {
-  buildProductionProposalRevisionRequestId,
-  launchProductionProposalRevisionAgent,
-} from '@/features/production/application/productionProposalAgentLaunch'
+  buildCurrentProductionWorkspaceSnapshot,
+} from '@/features/production/domain/productionWorkspaceReviewModel'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import {
   buildProductionOrchestrationStaleContentUnitParams,
   useProductionOrchestrationPageController,
 } from '@/features/production/application/productionOrchestrationPageController'
-import { useProductionOrchestrationLaunchController } from '@/features/production/application/productionOrchestrationLaunchController'
 import { useProductionOrchestrationReviewController } from '@/features/production/application/productionOrchestrationReviewController'
 import {
   compareProductionOrchestrationOrder,
@@ -73,7 +63,6 @@ import { toast } from '@/shared/ui/toastStore'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import {
   Dialog,
-  ProductionOrchestrationGenerationNotice,
   ProductionOrchestrationHeaderAction,
   ProductionOrchestrationHeaderMetaBadge,
   ProductionOrchestrationProductionCard,
@@ -88,7 +77,6 @@ import {
   ProductionOrchestrationReviewDialogContent,
   ProductionOrchestrationReviewDialogTitle,
   ProductionOrchestrationReviewEmptyNotice,
-  ProductionOrchestrationRevisionDialogContent,
   ProductionOrchestrationSkeleton,
   Select,
   SelectContent,
@@ -137,7 +125,7 @@ export default function ProductionOrchestrationPage() {
   )
   const scriptSourceText = scriptSourceTextForVersion(selectedScriptVersion)
   const scriptText = scriptSourceText.trim()
-  const canLaunchLinkedProposal = Boolean(scriptText) && !isFetchingScriptVersions
+  const canLaunchLinkedWorkspace = Boolean(scriptText) && !isFetchingScriptVersions
   const mutationBase = { projectId, queryClient, queryKey, refetch }
   const bindScriptVersionMutation = useMutation(buildBindProductionScriptVersionMutationOptions({
     ...mutationBase,
@@ -212,7 +200,7 @@ export default function ProductionOrchestrationPage() {
     [data?.creativeReferences],
   )
   const currentProductionSnapshot = useMemo(
-    () => buildCurrentProductionProposalSnapshot({
+    () => buildCurrentProductionWorkspaceSnapshot({
       segments: allSegments,
       sceneMoments: allSceneMoments,
       creativeReferences: allCreativeReferences,
@@ -225,18 +213,18 @@ export default function ProductionOrchestrationPage() {
     [allAssetSlots, allContentUnits, allCreativeReferences, allKeyframes, allSceneMoments, allSegments, allWritingExpressions, data?.creativeReferenceUsages],
   )
   const {
-    openedDraftId,
-    openedSettingDraftId,
-    openedAssetProposalDraftId,
-    openedDraftQuery,
-    openedSettingDraftQuery,
-    openedAssetProposalDraftQuery,
-    proposalPreviewDraft,
-    proposalNodeDecisions,
-    setProposalNodeDecisions,
-    proposalReviewNodeCount,
+    openedWorkspaceId,
+    openedSettingWorkspaceId,
+    openedAssetWorkspaceWorkspaceId,
+    openedWorkspaceQuery,
+    openedSettingWorkspaceQuery,
+    openedAssetWorkspaceWorkspaceQuery,
+    workspacePreviewWorkspace,
+    workspaceNodeDecisions,
+    setWorkspaceNodeDecisions,
+    workspaceReviewNodeCount,
     reviewOpen,
-    clearProposalReview,
+    clearWorkspaceReview,
   } = useProductionOrchestrationReviewController({
     projectId,
     searchParams,
@@ -255,27 +243,9 @@ export default function ProductionOrchestrationPage() {
     queryKey,
     refetch,
   })
-  const launchController = useProductionOrchestrationLaunchController({
-    projectId,
-    effectiveProductionId,
-    selectedProduction,
-    openedDraftId,
-    canLaunchLinkedProposal,
-    productionSnapshot: currentProductionSnapshot,
-    selectedScriptVersion,
-    scriptVersions,
-    setSearchParams,
-    refetch,
-    queryClient,
-    queryKey,
-  })
   const productionLabel = selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作'
-  const [launchingProposalRevision, setLaunchingProposalRevision] = useState(false)
   const [createProductionOpen, setCreateProductionOpen] = useState(false)
-  const [proposalRevisionDialogOpen, setProposalRevisionDialogOpen] = useState(false)
-  const [proposalRevisionInstruction, setProposalRevisionInstruction] = useState('')
   const [productionPage, setProductionPage] = useState(0)
-  const proposalRevisionCleanupRef = useRef<(() => void) | null>(null)
   const workspaceLookup = useMemo(() => buildProductionOrchestrationLookup({
     scriptText,
     scriptVersionTitle: selectedScriptVersion?.title ?? '',
@@ -332,10 +302,6 @@ export default function ProductionOrchestrationPage() {
     pageController.focusSceneMoment(rowForUnit.moment.ID)
   }, [currentSceneMomentIds, pageController.selectedWritingMomentId, selectedContentUnitId, setSearchParams, shotPlanRows])
 
-  useEffect(() => {
-    return () => proposalRevisionCleanupRef.current?.()
-  }, [])
-
   const productionCards = useMemo(() => buildProductionHeaderCards(data), [data])
   const productionPageCount = Math.max(1, Math.ceil(productionCards.length / PRODUCTION_PAGE_SIZE))
   const currentProductionPage = Math.min(productionPage, productionPageCount - 1)
@@ -356,63 +322,42 @@ export default function ProductionOrchestrationPage() {
     if (selectedPage !== productionPage) setProductionPage(selectedPage)
   }, [effectiveProductionId, productionCards, productionPage])
 
-  function clearProposalPatchParams() {
-    clearProposalReview()
+  function clearWorkspacePatchParams() {
+    clearWorkspaceReview()
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('view')
-      next.delete('draftId')
-      next.delete('settingDraftId')
-      next.delete('assetProposalDraftId')
+      next.delete('workspaceId')
+      next.delete('settingWorkspaceId')
+      next.delete('assetWorkspaceWorkspaceId')
       return next
     }, { replace: true })
   }
 
-  async function handleProposalDraftUpdated() {
+  async function handleWorkspaceWorkspaceUpdated() {
     await Promise.all([
-      openedDraftQuery.refetch(),
-      openedSettingDraftQuery.refetch(),
-      openedAssetProposalDraftQuery.refetch(),
+      openedWorkspaceQuery.refetch(),
+      openedSettingWorkspaceQuery.refetch(),
+      openedAssetWorkspaceWorkspaceQuery.refetch(),
       refetch(),
     ])
     queryClient.invalidateQueries({ queryKey })
   }
 
-  async function discardProposalDraft() {
-    if (openedDraftId) {
-      await localAgentClient.rejectDraft(openedDraftId, '用户放弃 production proposal patch').catch(() => undefined)
+  async function discardWorkspaceWorkspace() {
+    if (openedWorkspaceId) {
+      await localAgentClient.rejectWorkspace(openedWorkspaceId, '用户放弃 production workspace patch').catch(() => undefined)
     }
-    clearProposalPatchParams()
+    clearWorkspacePatchParams()
   }
 
-  async function handleProposalApplied() {
+  async function handleWorkspaceApplied() {
     await refetch()
     queryClient.invalidateQueries({ queryKey })
-    clearProposalPatchParams()
+    clearWorkspacePatchParams()
   }
 
-  function launchProposalRevisionAgent(instruction = proposalRevisionInstruction) {
-    const draft = openedDraftQuery.data
-    if (!projectId || !effectiveProductionId || !draft || launchingProposalRevision) return
-    setLaunchingProposalRevision(true)
-    setProposalRevisionDialogOpen(false)
-    proposalRevisionCleanupRef.current?.()
-    proposalRevisionCleanupRef.current = launchProductionProposalRevisionAgent({
-      requestId: buildProductionProposalRevisionRequestId(),
-      projectId,
-      productionId: effectiveProductionId,
-      productionLabel,
-      draftId: draft.id,
-      instruction,
-      onSettled: async () => {
-        setLaunchingProposalRevision(false)
-        setProposalRevisionInstruction('')
-        await handleProposalDraftUpdated()
-      },
-    })
-  }
-
-  function closeProposalPatchDialog() {
+  function closeWorkspacePatchDialog() {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('view')
@@ -450,20 +395,6 @@ export default function ProductionOrchestrationPage() {
     setCreatingContentUnit(true)
   }
 
-  function openShotPlanAiSuggest() {
-    const launchInput = buildContentWorkbenchAiSuggestLaunchInput({
-      projectId,
-      row: selectedShotPlanRow,
-      productions: data?.productions ?? [],
-    })
-    if (!launchInput) {
-      toast.info('请先选择情节')
-      return
-    }
-    launchContentWorkbenchAiSuggestAgent(launchInput)
-    toast.success('已打开 AI 助手，可在输入框补充需求后发送')
-  }
-
   function openContentUnitEditor(unitId: number) {
     if (!selectedShotPlanRow) return
     navigate(withRouteParams(ROUTES.project.contentUnitEditor, {
@@ -490,20 +421,10 @@ export default function ProductionOrchestrationPage() {
     description: '组织剧本、设定和素材约束，形成创作蓝图。',
     badges: (
       <>
-        {openedSettingDraftId ? <ProductionOrchestrationHeaderMetaBadge>设定 draft</ProductionOrchestrationHeaderMetaBadge> : null}
-        {openedAssetProposalDraftId ? <ProductionOrchestrationHeaderMetaBadge>素材需求 draft</ProductionOrchestrationHeaderMetaBadge> : null}
-        {openedDraftId ? <ProductionOrchestrationHeaderMetaBadge>已打开 draft</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedSettingWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>设定 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedAssetWorkspaceWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>素材需求 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
+        {openedWorkspaceId ? <ProductionOrchestrationHeaderMetaBadge>已打开 workspace</ProductionOrchestrationHeaderMetaBadge> : null}
       </>
-    ),
-    actions: (
-      <ProductionOrchestrationHeaderAction
-        variant="outline"
-        onClick={() => { void launchController.openProposalPatchDialog() }}
-        disabled={!projectId || !effectiveProductionId}
-      >
-        <Wand2 size={14} />
-        提案草案
-      </ProductionOrchestrationHeaderAction>
     ),
     headerBody: (
       <>
@@ -588,9 +509,6 @@ export default function ProductionOrchestrationPage() {
           <ProductionOrchestrationSkeleton />
         ) : (
           <WorkbenchProjectViewport direction="column">
-            {launchController.orchestrationStage !== 'idle' ? (
-              <ProductionOrchestrationGenerationNotice />
-            ) : null}
             <WorkbenchProjectPane>
               <ProductionOrchestrationWorkspace
                 scriptSourceText={scriptSourceText}
@@ -623,7 +541,6 @@ export default function ProductionOrchestrationPage() {
                 }}
                 onSelectContentUnit={(unitId) => selectContentUnitFromShotPlan(selectedShotPlanRow, unitId)}
                 onCreateContentUnit={createContentUnitForSelectedMoment}
-                onAiSuggestShotPlan={openShotPlanAiSuggest}
                 onOpenContentUnitEditor={openContentUnitEditor}
                 onSelectFirstSceneMomentForShotPlan={selectFirstSceneMomentForShotPlan}
                 onReorderContentUnit={(draggedUnitId, targetUnitId, position) => {
@@ -663,55 +580,33 @@ export default function ProductionOrchestrationPage() {
       </WorkbenchProjectBody>
 
       <Dialog open={reviewOpen} onOpenChange={(open) => {
-        if (!open) closeProposalPatchDialog()
+        if (!open) closeWorkspacePatchDialog()
       }}>
         <ProductionOrchestrationReviewDialogContent>
           <ProductionOrchestrationReviewDialogTitle />
           <div className="production-orchestration-review-dialog-toolbar">
             <div className="production-orchestration-review-dialog-toolbar__copy">
-              <span className="production-orchestration-review-dialog-toolbar__title">提案 Patch</span>
+              <span className="production-orchestration-review-dialog-toolbar__title">工作区 Patch</span>
               <span className="production-orchestration-review-dialog-toolbar__meta">
-                {proposalPreviewDraft ? `待审节点 ${proposalReviewNodeCount}` : '等待 draft'}
+                {workspacePreviewWorkspace ? `待审节点 ${workspaceReviewNodeCount}` : '等待 workspace'}
               </span>
             </div>
-            <ProductionOrchestrationHeaderAction
-              size="sm"
-              variant="outline"
-              onClick={() => setProposalRevisionDialogOpen(true)}
-              loading={launchingProposalRevision}
-              disabled={!openedDraftQuery.data || launchingProposalRevision}
-              title="Agent 会读取并编辑当前 production proposal draft 文件"
-            >
-              <Wand2 size={14} />
-              Agent 调整提案
-            </ProductionOrchestrationHeaderAction>
           </div>
-          {proposalPreviewDraft ? (
-            <ProductionProposalReviewPanel
+          {workspacePreviewWorkspace ? (
+            <ProductionWorkspaceReviewPanel
               projectId={projectId}
-              proposalDraft={proposalPreviewDraft}
+              workspaceWorkspace={workspacePreviewWorkspace}
               currentSnapshot={currentProductionSnapshot}
-              nodeDecisions={proposalNodeDecisions}
-              onNodeDecisionsChange={setProposalNodeDecisions}
-              onAccepted={closeProposalPatchDialog}
-              onDiscard={() => { void discardProposalDraft() }}
-              onApplied={() => { void handleProposalApplied() }}
+              nodeDecisions={workspaceNodeDecisions}
+              onNodeDecisionsChange={setWorkspaceNodeDecisions}
+              onAccepted={closeWorkspacePatchDialog}
+              onDiscard={() => { void discardWorkspaceWorkspace() }}
+              onApplied={() => { void handleWorkspaceApplied() }}
             />
           ) : (
             <ProductionOrchestrationReviewEmptyNotice />
           )}
         </ProductionOrchestrationReviewDialogContent>
-      </Dialog>
-
-      <Dialog open={proposalRevisionDialogOpen} onOpenChange={setProposalRevisionDialogOpen}>
-        <ProductionOrchestrationRevisionDialogContent
-          instruction={proposalRevisionInstruction}
-          onInstructionChange={setProposalRevisionInstruction}
-          launching={launchingProposalRevision}
-          disabled={!openedDraftQuery.data}
-          onCancel={() => setProposalRevisionDialogOpen(false)}
-          onLaunch={() => launchProposalRevisionAgent()}
-        />
       </Dialog>
 
       <SemanticEntityCrudDialog
@@ -749,7 +644,7 @@ export default function ProductionOrchestrationPage() {
         assetSlotConfig={assetSlotConfig}
         keyframeConfig={keyframeConfig}
         creatingUnit={creatingContentUnit}
-        unitDraftDefaults={null}
+        unitWorkspaceDefaults={null}
         editingUnit={false}
         creatingAssetSlot={false}
         assetSlotDefaults={undefined}

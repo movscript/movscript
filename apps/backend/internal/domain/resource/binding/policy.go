@@ -31,14 +31,14 @@ const (
 	RoleReference  = "reference"
 	RoleInput      = "input"
 	RoleOutput     = "output"
-	RoleDraft      = "draft"
+	RoleWorkspace      = "workspace"
 	RoleFinal      = "final"
 	RoleThumbnail  = "thumbnail"
 	RoleAttachment = "attachment"
 	RoleSource     = "source"
 	RoleCandidate  = "candidate"
 
-	StatusDraft    = "draft"
+	StatusWorkspace    = "workspace"
 	StatusSelected = "selected"
 	StatusRejected = "rejected"
 	StatusApproved = "approved"
@@ -165,7 +165,7 @@ func Normalize(binding *Binding) {
 	}
 	binding.Status = NormalizeStatus(binding.Status)
 	if binding.Status == "" {
-		binding.Status = StatusDraft
+		binding.Status = StatusWorkspace
 	}
 	binding.SourceType = NormalizeSourceType(binding.SourceType)
 	if binding.SourceType == "" {
@@ -187,7 +187,7 @@ func ValidOwnerType(value string) bool {
 
 func ValidRole(value string) bool {
 	switch value {
-	case RoleReference, RoleInput, RoleOutput, RoleDraft, RoleFinal, RoleThumbnail, RoleAttachment, RoleSource, RoleCandidate:
+	case RoleReference, RoleInput, RoleOutput, RoleWorkspace, RoleFinal, RoleThumbnail, RoleAttachment, RoleSource, RoleCandidate:
 		return true
 	default:
 		return false
@@ -196,7 +196,7 @@ func ValidRole(value string) bool {
 
 func ValidStatus(value string) bool {
 	switch value {
-	case StatusDraft, StatusSelected, StatusRejected, StatusApproved, StatusArchived:
+	case StatusWorkspace, StatusSelected, StatusRejected, StatusApproved, StatusArchived:
 		return true
 	default:
 		return false
@@ -224,7 +224,7 @@ func NormalizeCreateInput(input *CreateInput) {
 	}
 	input.Status = NormalizeStatus(input.Status)
 	if input.Status == "" {
-		input.Status = StatusDraft
+		input.Status = StatusWorkspace
 	}
 	input.SourceType = NormalizeSourceType(input.SourceType)
 	if input.SourceType == "" {

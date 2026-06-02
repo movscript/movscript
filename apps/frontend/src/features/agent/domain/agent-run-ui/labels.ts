@@ -141,10 +141,10 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   }
 
   const permission = approval.permission ?? ''
-  if (permission === 'draft.apply') return '批准后会把草稿变更应用到当前项目。'
+  if (permission === 'workspace.apply') return '批准后会把工作区变更应用到当前项目。'
   if (permission.includes('generation')) return '批准后会影响生成任务。'
   if (permission.includes('project') && permission.includes('write')) return '批准后会写入项目数据。'
-  if (permission.includes('draft') && permission.includes('write')) return '批准后会写入草稿数据。'
+  if (permission.includes('workspace') && permission.includes('write')) return '批准后会写入工作区数据。'
   if (permission.includes('memory') && permission.includes('write')) return '批准后会写入或更新记忆。'
   if (approval.risk === 'destructive') return '批准后可能执行不可逆操作。'
   if (approval.risk === 'write') return '批准后会执行写入类操作。'

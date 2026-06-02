@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { buildContentDraftReviewModel, dedupeDrafts } from '@/features/content/domain/contentWorkbenchDraftReviewModel'
+import { buildContentWorkspaceReviewModel, dedupeWorkspaces } from '@/features/content/domain/contentWorkbenchWorkspaceReviewModel'
 import type { ContentGenerationMomentRow } from '@/features/content/domain/contentWorkbenchModel'
 import { buildContentWorkbenchReviewQueueSummary } from '@/features/content/domain/contentWorkbenchReviewQueue'
-import { localAgentClient, type AgentDraft } from '@/shared/infrastructure/localAgentClient'
-import { mergeProjectWorkbenchArtifactReviewSearchParams } from '@/features/project-workbenches/application/projectWorkbenchDraftReview'
+import { localAgentClient, type AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
+import { mergeProjectWorkbenchArtifactReviewSearchParams } from '@/features/project-workbenches/application/projectWorkbenchWorkspaceReview'
 
 type SearchParamsSetter = (
   nextInit: URLSearchParams | ((current: URLSearchParams) => URLSearchParams),
@@ -24,56 +24,56 @@ export function useContentWorkbenchReviewController({
   setSearchParams: SearchParamsSetter
 }) {
   const [collapsed, setCollapsed] = useState(false)
-  const reviewDraftId = searchParams.get('draftId')?.trim() ?? ''
-  const reviewMode = searchParams.get('view') === 'review' || reviewDraftId.length > 0
+  const reviewWorkspaceId = searchParams.get('workspaceId')?.trim() ?? ''
+  const reviewMode = searchParams.get('view') === 'review' || reviewWorkspaceId.length > 0
 
   useEffect(() => {
     if (reviewMode) setCollapsed(false)
   }, [reviewMode])
 
-  const draftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['workbench', 'production', 'content-drafts', projectId],
+  const workspacesQuery = useQuery<AgentWorkspace[]>({
+    queryKey: ['workbench', 'production', 'content-workspaces', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const contentUnitProposals = await localAgentClient.listDrafts({
+      const contentUnitWorkspaces = await localAgentClient.listWorkspaces({
         projectId,
-        kind: 'content_unit_proposal',
-        status: ['draft', 'accepted'],
+        kind: 'content_unit_workspace',
+        status: ['workspace', 'accepted'],
         limit: 20,
       })
-      return dedupeDrafts(contentUnitProposals.drafts)
+      return dedupeWorkspaces(contentUnitWorkspaces.workspaces)
     },
     enabled: !!projectId,
     retry: false,
   })
 
-  const drafts = draftsQuery.data ?? []
-  const draftsById = useMemo(() => new Map(drafts.map((draft) => [draft.id, draft] as const)), [drafts])
-  const selectedDraft = reviewDraftId ? draftsById.get(reviewDraftId) ?? null : drafts[0] ?? null
+  const workspaces = workspacesQuery.data ?? []
+  const workspacesById = useMemo(() => new Map(workspaces.map((workspace) => [workspace.id, workspace] as const)), [workspaces])
+  const selectedWorkspace = reviewWorkspaceId ? workspacesById.get(reviewWorkspaceId) ?? null : workspaces[0] ?? null
   const reviewModel = useMemo(() => {
-    if (!selectedDraft) return null
-    return buildContentDraftReviewModel(selectedDraft, {
+    if (!selectedWorkspace) return null
+    return buildContentWorkspaceReviewModel(selectedWorkspace, {
       rowByMomentId: new Map(rows.map((row) => [row.moment.ID, row] as const)),
       rowByUnitId: new Map(rows.flatMap((row) => row.units.map((unit) => [unit.ID, row] as const))),
     })
-  }, [rows, selectedDraft])
+  }, [rows, selectedWorkspace])
   const queueSummary = useMemo(() => buildContentWorkbenchReviewQueueSummary({
-    drafts,
+    workspaces,
     selectedReview: reviewModel ? {
       warningCount: reviewModel.warnings.length,
       diffCount: reviewModel.diffs.length,
       addedCount: reviewModel.diffs.filter((diff) => diff.state === 'added').length,
       changedCount: reviewModel.diffs.filter((diff) => diff.state === 'changed').length,
     } : null,
-  }), [drafts, reviewModel])
+  }), [workspaces, reviewModel])
 
-  function selectDraft(draftId: string) {
+  function selectWorkspace(workspaceId: string) {
     setCollapsed(false)
     setSearchParams((current) => mergeProjectWorkbenchArtifactReviewSearchParams(current, {
       workbenchId: 'content_orchestration',
       primary: {
-        proposalKind: 'content_unit_proposal',
-        fallbackDraftId: draftId,
+        workspaceKind: 'content_unit_workspace',
+        fallbackWorkspaceId: workspaceId,
       },
     }), { replace: true })
   }
@@ -83,7 +83,7 @@ export function useContentWorkbenchReviewController({
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('view')
-      next.delete('draftId')
+      next.delete('workspaceId')
       return next
     }, { replace: true })
   }
@@ -91,15 +91,15 @@ export function useContentWorkbenchReviewController({
   return {
     collapsed,
     setCollapsed,
-    reviewDraftId,
+    reviewWorkspaceId,
     reviewMode,
-    draftsQuery,
-    drafts,
-    selectedDraft,
+    workspacesQuery,
+    workspaces,
+    selectedWorkspace,
     reviewModel,
     queueSummary,
-    showReviewPanel: reviewMode || draftsQuery.isLoading || (drafts.length > 0 && !collapsed),
-    selectDraft,
+    showReviewPanel: reviewMode || workspacesQuery.isLoading || (workspaces.length > 0 && !collapsed),
+    selectWorkspace,
     closeReview,
   }
 }

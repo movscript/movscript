@@ -334,7 +334,7 @@ function configFileWithToolPermissionUpdates(configFile: AgentConfigFile, input:
 
 function normalizeConfigFileApprovalDefaults(input: Record<string, unknown>): AgentConfigFile['approvalDefaults'] {
   const defaults: NonNullable<AgentConfigFile['approvalDefaults']> = {}
-  for (const key of ['default', 'read', 'draft', 'write', 'generate', 'destructive', 'ui'] as const) {
+  for (const key of ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'] as const) {
     const approval = normalizeApprovalMode(input[key])
     if (approval) defaults[key] = approval
   }

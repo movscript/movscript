@@ -55,7 +55,7 @@ test('buildAgentRunInputSnapshot isolates forced tool calls and task snapshots',
   const forcedToolCall = { name: 'movscript_focus_get', args: { scope: { projectId: 1 } } }
   const task = {
     id: 'task_1',
-    title: 'Draft outline',
+    title: 'Workspace outline',
     instructions: 'Report artifacts.',
     expectedArtifacts: ['outline.md'],
   }
@@ -88,7 +88,7 @@ test('buildAgentRunTaskInputSnapshot captures task instructions without mutable 
     id: 'task_1',
     taskGraphId: 'task_graph_1',
     deps: [],
-    title: 'Draft outline',
+    title: 'Workspace outline',
     description: 'Create the first outline.',
     status: 'pending' as const,
     progress: 0,
@@ -103,7 +103,7 @@ test('buildAgentRunTaskInputSnapshot captures task instructions without mutable 
 
   assert.deepEqual(snapshot, {
     id: 'task_1',
-    title: 'Draft outline',
+    title: 'Workspace outline',
     description: 'Create the first outline.',
     instructions: 'Execute this worker task and report durable artifacts, blockers, and completion status.',
     expectedArtifacts: ['outline.md'],
@@ -119,7 +119,7 @@ test('buildAgentRunTaskInputSnapshot ignores non-plain task metadata records', (
     id: 'task_1',
     taskGraphId: 'task_graph_1',
     deps: [],
-    title: 'Draft outline',
+    title: 'Workspace outline',
     status: 'pending',
     progress: 0,
     artifacts: [],
@@ -130,7 +130,7 @@ test('buildAgentRunTaskInputSnapshot ignores non-plain task metadata records', (
 
   assert.deepEqual(snapshot, {
     id: 'task_1',
-    title: 'Draft outline',
+    title: 'Workspace outline',
     instructions: 'Execute this worker task and report durable artifacts, blockers, and completion status.',
   })
 })
@@ -138,13 +138,13 @@ test('buildAgentRunTaskInputSnapshot ignores non-plain task metadata records', (
 test('normalizeAgentRunInputTask accepts only structured task snapshots', () => {
   assert.deepEqual(normalizeAgentRunInputTask({
     id: ' task_1 ',
-    title: ' Draft outline ',
+    title: ' Workspace outline ',
     description: ' Create the first outline. ',
     instructions: ' Report artifacts. ',
     expectedArtifacts: [' outline.md ', '', 1],
   }), {
     id: 'task_1',
-    title: 'Draft outline',
+    title: 'Workspace outline',
     description: 'Create the first outline.',
     instructions: 'Report artifacts.',
     expectedArtifacts: ['outline.md'],
@@ -155,7 +155,7 @@ test('normalizeAgentRunInputTask accepts only structured task snapshots', () => 
 test('normalizeAgentRunInputTask rejects non-plain task records', () => {
   class RuntimeTask {
     id = 'task_1'
-    title = 'Draft outline'
+    title = 'Workspace outline'
     instructions = 'Report artifacts.'
   }
 

@@ -277,7 +277,7 @@ export function buildMomentStandards(row: ContentGenerationMomentRow | null, job
   const hasJob = jobs.length > 0
   return [
     { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, state: workbenchGateState(hasStoryContext) },
-    { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划制作项', done: hasUnits, state: workbenchGateState(hasUnits) },
+    { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建制作项', done: hasUnits, state: workbenchGateState(hasUnits) },
     { label: '制作项提示可用', detail: hasUnitPrompt ? '已有描述或创作提示，可驱动后续执行' : '需要为制作项补上创作提示或用途说明', done: hasUnitPrompt, state: workbenchGateState(hasUnitPrompt) },
     { label: '素材输入就绪', detail: assetsReady ? '没有待补齐的素材缺口' : `${row.missingSlots.length} 个素材缺口需要补齐`, done: assetsReady, state: workbenchGateState(assetsReady) },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, state: workbenchGateState(hasJob) },
@@ -440,7 +440,7 @@ export function previewTimelineRank(item: ContentWorkbenchRecord) {
   if (Boolean(item.is_primary)) return 0
   if (status === 'confirmed') return 1
   if (status === 'playable') return 2
-  if (status === 'draft') return 3
+  if (status === 'workspace') return 3
   return 4
 }
 

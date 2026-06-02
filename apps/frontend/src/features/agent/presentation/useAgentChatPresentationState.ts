@@ -31,7 +31,7 @@ export function useAgentChatPresentationState({
 
   const scroll = useAgentConversationAutoScroll({
     blockCount: derived.conversationPresentation.blocks.length,
-    building: derived.buildingSendDraft,
+    building: derived.buildingSendWorkspace,
     conversationId,
     generationProgressKey: derived.generationProgressKey,
     hasPendingAssistantState: !!derivedInput.pendingAssistantState,

@@ -1,5 +1,5 @@
-import type { AgentDraftKind, AgentDraftStatus } from '../../../drafts/store/draftStore.js'
-import { normalizeDraftKind, normalizeDraftStatus } from '../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceKind, AgentWorkspaceStatus } from '../../../workspaces/store/workspaceStore.js'
+import { normalizeWorkspaceKind, normalizeWorkspaceStatus } from '../../../workspaces/store/workspaceStore.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../../runtime/runtimeContext.js'
 
 export { defaultRuntimeLimits, normalizeRuntimeLimitsOverride } from '../../../state/run/core/limits/runtimeLimits.js'
@@ -13,7 +13,7 @@ export {
   mergePendingInputRequests,
 } from '../../../state/run/interaction/runInteractionState.js'
 
-export function normalizeDraftQuery(query: {
+export function normalizeWorkspaceQuery(query: {
   projectId?: unknown
   kind?: unknown
   status?: unknown
@@ -30,9 +30,9 @@ export function normalizeDraftQuery(query: {
   limit?: unknown
 }): {
   projectId?: number
-  kind?: AgentDraftKind
-  status?: AgentDraftStatus
-  statuses?: AgentDraftStatus[]
+  kind?: AgentWorkspaceKind
+  status?: AgentWorkspaceStatus
+  statuses?: AgentWorkspaceStatus[]
   threadId?: string
   runId?: string
   sourceEntityType?: string
@@ -44,9 +44,9 @@ export function normalizeDraftQuery(query: {
   pageEntityId?: number | string
   limit?: number
 } {
-  const kind = normalizeOptionalDraftKind(query.kind)
-  const status = normalizeDraftStatus(query.status)
-  const statuses = normalizeDraftStatuses(query.statuses ?? query.status)
+  const kind = normalizeOptionalWorkspaceKind(query.kind)
+  const status = normalizeWorkspaceStatus(query.status)
+  const statuses = normalizeWorkspaceStatuses(query.statuses ?? query.status)
   return {
     ...(isValidAgentProjectId(query.projectId) ? { projectId: query.projectId } : {}),
     ...(kind ? { kind } : {}),
@@ -65,15 +65,15 @@ export function normalizeDraftQuery(query: {
   }
 }
 
-function normalizeDraftStatuses(value: unknown): AgentDraftStatus[] {
+function normalizeWorkspaceStatuses(value: unknown): AgentWorkspaceStatus[] {
   const raw = Array.isArray(value) ? value : []
   return Array.from(new Set(raw.flatMap((item) => {
-    const status = normalizeDraftStatus(item)
+    const status = normalizeWorkspaceStatus(item)
     return status ? [status] : []
   })))
 }
 
-export function normalizeOptionalDraftKind(value: unknown): AgentDraftKind | undefined {
-  const kind = normalizeDraftKind(value)
+export function normalizeOptionalWorkspaceKind(value: unknown): AgentWorkspaceKind | undefined {
+  const kind = normalizeWorkspaceKind(value)
   return kind === value ? kind : undefined
 }

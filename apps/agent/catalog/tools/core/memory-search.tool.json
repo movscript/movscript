@@ -1,6 +1,6 @@
 {
   "name": "core_memory_search",
-  "description": "按查询和可选 kind 搜索当前项目中的本地 agent memories，包括历史偏好、决策、警告、条目引用和 draft notes。",
+  "description": "按查询和可选 kind 搜索当前项目中的本地 agent memories，包括历史偏好、决策、警告、条目引用和 workspace notes。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -15,7 +15,7 @@
           "fact",
           "item_ref",
           "entity_ref",
-          "draft",
+          "workspace",
           "decision",
           "warning"
         ]

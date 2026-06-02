@@ -1,0 +1,54 @@
+{
+  "name": "get_workspace_model",
+  "description": "读取 frontend WorkspaceModel 契约，用于检查字段归属、seed policy、apply boundary，或显式查看按目标 hydrate 的当前数据。创建 setting_edit / asset_edit workspace 时不需要先调用本工具；workspace_open 会在缺少 source state 时自动 hydrate 当前数据。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "setting_edit",
+          "project_standards_edit",
+          "production_edit",
+          "script_split_edit",
+          "asset_edit",
+          "content_unit_edit"
+        ]
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "seedMode": {
+        "type": "string",
+        "enum": [
+          "empty",
+          "snapshot",
+          "editable_snapshot"
+        ]
+      },
+      "include": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "hydrate": {
+        "type": "boolean"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "从前端单一模型源读取 workspace 语义、seed 和保存边界契约。"
+}

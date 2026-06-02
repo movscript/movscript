@@ -438,7 +438,7 @@ export function analyzeShotReference(
     title,
     summary,
     analysisStatus: 'ready',
-    analysisSource: 'manual_draft',
+    analysisSource: 'manual_workspace',
     intent: inferredIntent,
     pattern: inferredPattern,
     shotFunction,

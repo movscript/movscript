@@ -1,0 +1,38 @@
+{
+  "id": "workspace.pack.lifecycle",
+  "version": "1.0.0",
+  "name": "Workspace Lifecycle",
+  "description": "本地 workspace schema、validate 和 save 工具；正文读写通过 core file tools 完成，validate 内置 validation。",
+  "source": "builtin",
+  "resources": {
+    "skills": [
+      "workspace/rules/lifecycle",
+      "workspace/lifecycle_support"
+    ],
+    "tools": [
+      "workspace"
+    ]
+  },
+  "schemas": [
+    "movscript.setting_workspace.v1",
+    "movscript.asset_workspace.v1",
+    "movscript.project_standards_workspace.v1",
+    "movscript.production_workspace.v1",
+    "movscript.content_unit_workspace.v1"
+  ],
+  "tools": [
+    "get_workspace_model",
+    "workspace_open",
+    "workspace_validate",
+    "workspace_apply"
+  ],
+  "skills": [
+    "workspace.rules.lifecycle",
+    "workspace.lifecycle_support"
+  ],
+  "requires": {
+    "packs": {
+      "core.pack.agent": ">=1.0.0"
+    }
+  }
+}

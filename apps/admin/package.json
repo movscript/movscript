@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@movscript/drafts": "workspace:*",
+    "@movscript/workspaces": "workspace:*",
     "@movscript/theme": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-toast": "^1.2.4",

@@ -161,7 +161,7 @@ export function reorderContentWorkbenchUnits<T extends ContentWorkbenchTimelineR
 export function previewTimelineItemRank(item: ContentWorkbenchTimelineRecord) {
   const status = String(item.status ?? '').toLowerCase()
   if (status === 'locked' || status === 'approved' || status === 'confirmed') return 0
-  if (status === 'draft') return 1
+  if (status === 'workspace') return 1
   return 2
 }
 

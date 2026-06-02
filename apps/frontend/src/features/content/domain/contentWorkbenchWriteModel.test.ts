@@ -4,7 +4,7 @@ import test from 'node:test'
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from './contentWorkbenchModel'
 import {
   buildContentCandidateAttachmentPayload,
-  buildContentUnitProposalPatch,
+  buildContentUnitWorkspacePatch,
   buildContentUnitReorderPatchTaskGraph,
   buildContentUnitTimelineMoveTaskGraph,
 } from './contentWorkbenchWriteModel'
@@ -35,8 +35,8 @@ function row(input: Partial<ContentGenerationMomentRow>): ContentGenerationMomen
   }
 }
 
-test('content workbench write model builds proposal patch and merges metadata', () => {
-  const patch = buildContentUnitProposalPatch(
+test('content workbench write model builds workspace patch and merges metadata', () => {
+  const patch = buildContentUnitWorkspacePatch(
     record({ ID: 50, metadata_json: JSON.stringify({ existing: true }) }),
     {
       title: '手部特写',
@@ -111,7 +111,7 @@ test('content workbench write model creates a timeline item and missing timeline
     name: '手部特写 时间轴',
     duration_sec: 14,
     is_primary: true,
-    status: 'draft',
+    status: 'workspace',
   })
   assert.deepEqual(taskGraph.itemPayload, {
     production_id: 1,
@@ -122,7 +122,7 @@ test('content workbench write model creates a timeline item and missing timeline
     start_sec: 8,
     duration_sec: 6,
     order: 2,
-    status: 'draft',
+    status: 'workspace',
   })
 })
 

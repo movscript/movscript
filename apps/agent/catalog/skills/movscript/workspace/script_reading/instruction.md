@@ -2,9 +2,9 @@
 读取并解释后端项目剧本 / Script，包括总剧本、分集剧本、第一集和正文内容。
 
 核心边界：
-- Script / 剧本是后端项目数据；Draft 是 Agent 本地审阅 artifact。
-- 用户说“剧本草稿”“总剧本草稿”“第一集草稿”时，除非明确给出本地 Agent draftId，优先按后端剧本处理。
-- 不要把后端剧本 ID 当成本地 draftId；剧本正文只能通过 `movscript_script_locate` 定位后用 `core_file_read` 读取。
+- Script / 剧本是后端项目数据；Workspace 是 Agent 本地审阅 artifact。
+- 用户说“剧本工作区”“总剧本工作区”“第一集工作区”时，除非明确给出本地 Agent workspaceId，优先按后端剧本处理。
+- 不要把后端剧本 ID 当成本地 workspaceId；剧本正文只能通过 `movscript_script_locate` 定位后用 `core_file_read` 读取。
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}

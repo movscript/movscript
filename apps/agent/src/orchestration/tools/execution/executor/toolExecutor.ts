@@ -1,12 +1,12 @@
 import type { JSONValue } from '../../../../state/shared/types.js'
 import type { AgentRun, ToolCall } from '../../../../state/shared/types.js'
 import type { AgentManifest } from '../../../../catalog/manifest/agentManifest.js'
-import type { AgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { ToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
-import type { DraftApplyPort } from '../../../../ports/draft/apply/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../../../../ports/draft/preview/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../../../../ports/draft/hydration/proposalSnapshotHydrationPort.js'
+import type { WorkspaceApplyPort } from '../../../../ports/workspace/apply/workspaceApplyPort.js'
+import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
+import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
@@ -43,11 +43,11 @@ export interface ToolExecutionResult {
 
 export interface ToolExecutorOptions {
   run: AgentRun
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  draftApplyPort: DraftApplyPort
-  draftApplyPreviewPort: DraftApplyPreviewPort
-  proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
+  workspaceApplyPort: WorkspaceApplyPort
+  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
+  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort

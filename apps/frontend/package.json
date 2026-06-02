@@ -44,7 +44,7 @@
     "@movscript/event-state": "workspace:*",
     "@movscript/conversation": "workspace:*",
     "@movscript/protocol": "workspace:*",
-    "@movscript/drafts": "workspace:*",
+    "@movscript/workspaces": "workspace:*",
     "@movscript/theme": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.11",

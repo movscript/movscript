@@ -9,7 +9,7 @@ import {
 
 test('production orchestration entity defaults stay scoped to the selected production and segment', () => {
   assert.deepEqual(createProductionOrchestrationDefaultsForType('segments', 12), {
-    status: 'draft',
+    status: 'workspace',
     kind: 'emotional_function',
     production_id: 12,
   })
@@ -20,7 +20,7 @@ test('production orchestration entity defaults stay scoped to the selected produ
     owner_id: 34,
   })
   assert.deepEqual(createProductionOrchestrationDefaultsForType('contentUnits', 12, 34, 56), {
-    status: 'draft',
+    status: 'workspace',
     production_id: 12,
     segment_id: 34,
     scene_moment_id: 56,

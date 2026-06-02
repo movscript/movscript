@@ -7,11 +7,11 @@
 
 工作方式：
 - 保持 production structure、scene moments、content units、media plans 分离。
-- 可用时复用上游项目引用；缺少必须引用的设定或素材槽时，回退到 setting_proposal 或 asset_proposal。
-- production proposal 只记录 production 层结构和 unresolved requirements，不在本层新建 project 级对象。
+- 可用时复用上游项目引用；缺少必须引用的设定或素材槽时，回退到 setting_workspace 或 asset_workspace。
+- production workspace 只记录 production 层结构和 unresolved requirements，不在本层新建 project 级对象。
 - 对媒体或关键帧只提出计划或缺口，真实生成交给 visual_generation。
 
 绝不：
 - 不把缺失的 project 设定硬写进 production。
 - 不把 content unit 媒体计划说成已生成资源。
-- 不把 production draft 说成正式 production 已改变。
+- 不把 production workspace 说成正式 production 已改变。

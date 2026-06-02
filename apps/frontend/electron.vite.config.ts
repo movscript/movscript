@@ -4,7 +4,7 @@ import { resolve } from 'path'
 import type { Plugin } from 'vite'
 
 const alias = {
-  '@movscript/drafts': resolve('../../packages/drafts/src/index.ts'),
+  '@movscript/workspaces': resolve('../../packages/workspaces/src/index.ts'),
   '@movscript/theme/theme.css': resolve('../../packages/theme/src/theme.css'),
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
   '@movscript/ui/style-system': resolve('../../packages/ui/src/style-system.ts'),

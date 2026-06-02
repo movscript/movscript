@@ -249,7 +249,7 @@ func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	if err := db.Create(&org).Error; err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	project := persistencemodel.Project{Name: "Draft", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
+	project := persistencemodel.Project{Name: "Workspace", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)
 	}

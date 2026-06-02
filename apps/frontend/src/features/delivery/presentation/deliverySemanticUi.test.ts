@@ -13,7 +13,7 @@ test('delivery status recipes map delivery workflow states', () => {
   assert.deepEqual(deliveryWorkbenchStatusRecipe('needs_asset'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(deliveryWorkbenchStatusRecipe('confirmed'), { intent: 'info', emphasis: 'soft' })
   assert.deepEqual(deliveryWorkbenchStatusRecipe('failed'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(deliveryWorkbenchStatusRecipe('draft'), { intent: 'neutral', emphasis: 'soft' })
+  assert.deepEqual(deliveryWorkbenchStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
   assert.deepEqual(deliveryGateStatusRecipe('passed'), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(deliveryGateStatusRecipe('warning'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(deliveryGateStatusRecipe('blocked'), { intent: 'danger', emphasis: 'soft' })

@@ -174,7 +174,7 @@ function normalizeKind(value: unknown): AgentMemory['kind'] | undefined {
     || value === 'fact'
     || value === 'item_ref'
     || value === 'entity_ref'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'decision'
     || value === 'warning'
     ? value

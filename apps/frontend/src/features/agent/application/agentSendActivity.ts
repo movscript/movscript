@@ -1,5 +1,5 @@
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import type { DebugHttpRequest } from '@/features/agent/application/agentSendDraft'
+import type { DebugHttpRequest } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentThreadResolution } from '@/shared/infrastructure/localAgentClient'
 
 export function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Date().toISOString()): ChatRunActivityEvent[] {

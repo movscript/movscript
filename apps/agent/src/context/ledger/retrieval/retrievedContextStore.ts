@@ -120,7 +120,7 @@ function normalizeContextRef(value: unknown): ContextRef[] {
 function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
   return value === 'reference'
     || value === 'memory'
-    || value === 'draft'
+    || value === 'workspace'
     || value === 'tool_result'
     || value === 'project'
     || value === 'production'

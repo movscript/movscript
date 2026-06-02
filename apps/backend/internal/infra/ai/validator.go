@@ -356,15 +356,15 @@ func validateCrossParamRules(params map[string]any) error {
 		}
 	}
 
-	if draft, ok := boolValue(params["draft"]); ok && draft {
+	if workspace, ok := boolValue(params["workspace"]); ok && workspace {
 		if lastFrame, ok := boolValue(params["return_last_frame"]); ok && lastFrame {
-			return invalidParamCombinationError("parameter \"return_last_frame\" cannot be true when \"draft\" is true", "return_last_frame", "draft")
+			return invalidParamCombinationError("parameter \"return_last_frame\" cannot be true when \"workspace\" is true", "return_last_frame", "workspace")
 		}
 		if tier, ok := stringValue(params["service_tier"]); ok && tier == "flex" {
-			return invalidParamCombinationError("parameter \"service_tier\" cannot be flex when \"draft\" is true", "service_tier", "draft")
+			return invalidParamCombinationError("parameter \"service_tier\" cannot be flex when \"workspace\" is true", "service_tier", "workspace")
 		}
 		if resolution, ok := stringValue(params["resolution"]); ok && resolution != "" && resolution != "480p" {
-			err := invalidParamCombinationError("parameter \"resolution\" must be 480p when \"draft\" is true", "resolution", "draft")
+			err := invalidParamCombinationError("parameter \"resolution\" must be 480p when \"workspace\" is true", "resolution", "workspace")
 			err.AllowedValues = []any{"480p"}
 			err.SuggestedFix = map[string]any{"resolution": "480p"}
 			return err

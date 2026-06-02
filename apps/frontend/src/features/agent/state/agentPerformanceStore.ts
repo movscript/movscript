@@ -429,7 +429,7 @@ function recordFrontendStorageMetrics(input: {
 
 function storageKindFromKey(name: string): string {
   if (name === 'agent-store-v4') return 'agent_store'
-  if (name === 'agent-drafts-v1') return 'agent_draft_store'
+  if (name === 'agent-workspaces-v1') return 'agent_workspace_store'
   if (name === 'agent-session-store-v2') return 'agent_session_store'
   if (name.startsWith('agent-')) return 'agent'
   return 'unknown'
@@ -538,13 +538,15 @@ export function phaseLabel(name: string): string {
     operation_error: '操作失败',
     operation_cancelled: '操作取消',
     click_send: '点击发送',
-    build_draft_start: '构建发送草稿开始',
-    build_draft_done: '构建发送草稿完成',
+    pending_send_visible: '发送 Pending 已设置',
+    pending_send_frame: '发送 Pending 已渲染',
+    build_workspace_start: '构建发送工作区开始',
+    build_workspace_done: '构建发送工作区完成',
     preview_ready: '预览就绪',
     commit_start: '提交开始',
-    clear_draft_done: '清空输入草稿',
+    clear_workspace_done: '清空输入工作区',
     runtime_loading_set: '运行状态已设置',
-    user_message_appended: '用户消息已写入',
+    source_message_prepared: '消息来源已准备',
     post_commit_frame: '下一帧已提交',
     prepare_runtime_start: '准备 Runtime 开始',
     prepare_runtime_done: '准备 Runtime 完成',
@@ -571,9 +573,13 @@ export function phaseLabel(name: string): string {
     first_run_update: '首次 Run 更新',
     first_runtime_event: '首次 Runtime 事件',
     first_assistant_progress: '首次助手进度',
+    first_stream_text_visible: '首次流式文字可见',
+    stream_progress_sample: '流式进度采样',
     run_stream_done: 'Run 流结束',
     complete_result_start: '落地结果开始',
     complete_result_done: '落地结果完成',
+    streaming_assistant_reset: '流式临时消息清理',
+    final_state_cleared: '最终状态清理',
     optimistic_update: '乐观状态更新',
     approval_request_start: '确认请求开始',
     approval_request_done: '确认请求完成',

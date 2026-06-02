@@ -1,0 +1,30 @@
+{
+  "id": "kernel.workspace_first",
+  "version": "1.0.0",
+  "name": "Workspace First",
+  "description": "在正式写入前，把宽泛、跨层或缺上游上下文的请求路由到最小必要的本地 workspace。",
+  "priority": 700,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "workspace",
+        "工作区"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已选择的 workspace 或推荐的 workspace kind、选择理由、阻塞项、下一步编辑动作和应交接的 task。",
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "movscript_focus_get",
+    "workspace_open",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
+    "workspace_validate",
+    "workspace_apply",
+    "core_user_input_request"
+  ]
+}

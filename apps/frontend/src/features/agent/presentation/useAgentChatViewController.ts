@@ -5,6 +5,7 @@ import { buildAgentChatViewLayoutProps } from '@/features/agent/presentation/age
 import { useAgentChatComposerState } from '@/features/agent/presentation/useAgentChatComposerState'
 import { useAgentChatContextState } from '@/features/agent/presentation/useAgentChatContextState'
 import { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
+import { useAgentMessageFeed } from '@/features/agent/presentation/useAgentMessageFeed'
 import { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
 import { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
 import { useAgentChatStoreBindings } from '@/features/agent/presentation/useAgentChatStoreBindings'
@@ -28,7 +29,7 @@ export interface AgentChatViewControllerInput {
   onRestoreLocalThread: (threadId: string) => Promise<void>
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
-  onExternalDraftConsumed?: () => void
+  onExternalWorkspaceConsumed?: () => void
   showCollapse?: boolean
   showConversationControls?: boolean
 }
@@ -49,7 +50,7 @@ export function useAgentChatViewController({
   onRestoreLocalThread,
   externalTask,
   pageToolRequestId,
-  onExternalDraftConsumed,
+  onExternalWorkspaceConsumed,
   showCollapse,
   showConversationControls,
 }: AgentChatViewControllerInput) {
@@ -58,11 +59,13 @@ export function useAgentChatViewController({
     conversation: conv,
     userId,
   })
+  const messageFeed = useAgentMessageFeed({
+    localSessionId: store.localSessionId,
+    localThreadId: store.localThreadId,
+  })
   const effectiveConversation = useMemo(() => {
-    const baseMessages = store.runtimeThreadProjectionMessages ?? conv.messages
-    if (store.transientMessages.length === 0 && baseMessages === conv.messages) return conv
-    return { ...conv, messages: [...baseMessages, ...store.transientMessages] }
-  }, [conv, store.runtimeThreadProjectionMessages, store.transientMessages])
+    return { ...conv, messages: messageFeed.messages }
+  }, [conv, messageFeed.messages])
   const runtime = useAgentChatRuntimeState({
     conversationId: conv.id,
   })
@@ -73,7 +76,7 @@ export function useAgentChatViewController({
   const composer = useAgentChatComposerState({
     userId,
     conversationId: conv.id,
-    draft: store.draft,
+    workspace: store.workspace,
     settings: store.settings,
     updateSettings: store.updateSettings,
     fileRef: runtime.fileRef,
@@ -82,7 +85,7 @@ export function useAgentChatViewController({
 
   const activeLocalRun = store.conversationRuntime?.run ?? null
   const loading = store.conversationRuntime?.loading ?? false
-  const buildingSendDraft = store.conversationRuntime?.building ?? false
+  const buildingSendWorkspace = store.conversationRuntime?.building ?? false
 
   const context = useAgentChatContextState({
     agentContextConfig: store.agentContextConfig,
@@ -102,9 +105,9 @@ export function useAgentChatViewController({
     loading,
     messages: effectiveConversation.messages,
     pendingAssistantState: runtime.pendingAssistantState,
-    pendingSendDraft: runtime.pendingSendDraft,
+    pendingSendWorkspace: runtime.pendingSendWorkspace,
     runtimeApproving: store.conversationRuntime?.approving,
-    runtimeBuilding: buildingSendDraft,
+    runtimeBuilding: buildingSendWorkspace,
     runtimeStopping: store.conversationRuntime?.stopping,
     runtimeStopRequested: store.conversationRuntime?.stopRequested,
     streamingAssistantMessageId: runtime.streamingAssistantMessageId,
@@ -115,13 +118,13 @@ export function useAgentChatViewController({
   })
   const interaction = useAgentChatInteractionController(buildAgentChatInteractionControllerInput({
     activeLocalRun,
-    buildingSendDraft,
+    buildingSendWorkspace,
     composer,
     context,
     conv: effectiveConversation,
     externalTask,
     loading,
-    onExternalDraftConsumed,
+    onExternalWorkspaceConsumed,
     pageToolRequestId,
     taskGraph,
     presentation,
@@ -153,7 +156,7 @@ export function useAgentChatViewController({
     onSelectConversation,
     showCollapse,
     showConversationControls,
-    updateDraft: composer.updateDraft,
+    updateWorkspace: composer.updateWorkspace,
     updateTaskGraphDispatchSettings: taskGraph.updateTaskGraphDispatchSettings,
   })
 }

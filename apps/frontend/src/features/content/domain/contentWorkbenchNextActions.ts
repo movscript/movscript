@@ -7,7 +7,7 @@ export type ContentWorkbenchNextActionKey =
   | 'upload_missing_assets'
   | 'add_first_keyframe'
   | 'resolve_generation_context'
-  | 'review_ai_drafts'
+  | 'review_ai_workspaces'
   | 'open_generation_canvas'
   | 'inspect_preview_mount'
   | 'open_delivery_workspace'
@@ -29,7 +29,7 @@ export interface ContentWorkbenchNextActionInput {
   missingSlotCount: number
   keyframeCount: number
   requiresKeyframe?: boolean
-  pendingReviewDraftCount?: number
+  pendingReviewWorkspaceCount?: number
   missingGenerationContext?: Array<{ label: string; detail: string }>
   completedJobCount?: number
   previewItemCount?: number
@@ -49,16 +49,10 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
   if (input.unitCount === 0) {
     return [
       {
-        key: 'ai_task_graph_units',
-        title: '让 AI 规划制作项',
-        detail: '当前情节还没有制作项。建议先让 AI 生成 3-6 条候选，再人工确认。',
-        state: 'required',
-      },
-      {
         key: 'manual_add_unit',
         title: '手动添加制作项',
-        detail: '适合已经明确镜头、旁白、字幕卡或转场结构的情节。',
-        state: 'optional',
+        detail: '当前情节还没有制作项。先添加镜头、旁白、字幕卡或转场条目。',
+        state: 'required',
       },
     ]
   }
@@ -108,11 +102,11 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
     }))
   }
 
-  if (input.pendingReviewDraftCount && input.pendingReviewDraftCount > 0) {
+  if (input.pendingReviewWorkspaceCount && input.pendingReviewWorkspaceCount > 0) {
     return [{
-      key: 'review_ai_drafts',
+      key: 'review_ai_workspaces',
       title: '审阅 AI 草案',
-      detail: `${input.pendingReviewDraftCount} 个制作项草案还没有处理，建议先确认或忽略再进入生成计划。`,
+      detail: `${input.pendingReviewWorkspaceCount} 个制作项草案还没有处理，建议先确认或忽略再进入生成计划。`,
       state: 'required',
     }]
   }

@@ -1,4 +1,4 @@
-import type { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
+import type { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import { isValidAgentReferenceId } from '../../context/runtime/runtimeContext.js'
 import { isJSONRecord } from '../../shared/json/jsonValue.js'
 import type { ProjectStandardsPort } from '../../ports/project/projectStandardsPort.js'

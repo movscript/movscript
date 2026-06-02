@@ -10,7 +10,7 @@ test('content workbench activity feed waits for a production focus', () => {
     generationContextReady: false,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     jobs: [],
   })
 
@@ -30,18 +30,18 @@ test('content workbench activity feed keeps gate blockers out of activity histor
     generationContextReady: false,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 1,
+    pendingReviewWorkspaceCount: 1,
     jobs: [{ id: 7, type: 'video_i2v', status: 'running' }],
   })
 
   assert.equal(feed.title, '生产活动需处理')
   assert.equal(feed.detail, '纸条特写 · 1 条活动需要处理')
   assert.deepEqual(feed.items.map((item) => item.key), [
-    'review-drafts',
+    'review-workspaces',
     'job-7',
   ])
   assert.deepEqual(feed.items.map((item) => item.actionKey), [
-    'review_ai_drafts',
+    'review_ai_workspaces',
     undefined,
   ])
   assert.equal(feed.items.some((item) => item.key === 'missing-assets' || item.key === 'keyframes' || item.key === 'generation-context'), false)
@@ -56,7 +56,7 @@ test('content workbench activity feed records completed generation output', () =
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     jobs: [{ id: 9, title: '雨夜视频', type: 'video', status: 'succeeded', outputResourceId: 88 }],
   })
 
@@ -74,7 +74,7 @@ test('content workbench activity feed records multiple generation outputs', () =
     generationContextReady: true,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     jobs: [{ id: 10, title: '雨夜组图', type: 'image', status: 'succeeded', outputResourceIds: [88, 89] }],
   })
 
@@ -90,7 +90,7 @@ test('content workbench activity feed shows empty activity without repeating gat
     generationContextReady: false,
     generationContextLoading: false,
     generationContextError: false,
-    pendingReviewDraftCount: 0,
+    pendingReviewWorkspaceCount: 0,
     jobs: [],
   })
 

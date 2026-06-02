@@ -5,7 +5,7 @@ const (
 	AssetSlotStatusCandidate = "candidate"
 	AssetSlotStatusLocked    = "locked"
 	AssetSlotStatusWaived    = "waived"
-	AssetSlotStatusDraft     = "draft"
+	AssetSlotStatusWorkspace     = "workspace"
 
 	AssetSlotCandidateStatusCandidate = "candidate"
 	AssetSlotCandidateStatusSelected  = "selected"
@@ -22,7 +22,7 @@ const (
 )
 
 func MarkSlotCandidate(slot *AssetSlot) {
-	if slot.Status == "" || slot.Status == AssetSlotStatusMissing || slot.Status == AssetSlotStatusDraft {
+	if slot.Status == "" || slot.Status == AssetSlotStatusMissing || slot.Status == AssetSlotStatusWorkspace {
 		slot.Status = AssetSlotStatusCandidate
 	}
 }

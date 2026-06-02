@@ -22,8 +22,8 @@ test('normalizes a valid current agent manifest', () => {
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 
-test('active manifest does not grant generic draft creation', () => {
-  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'draft_create'), false)
+test('active manifest does not grant generic workspace creation', () => {
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'workspace_open'), false)
 })
 
 test('falls back to active manifest for unsupported input', () => {

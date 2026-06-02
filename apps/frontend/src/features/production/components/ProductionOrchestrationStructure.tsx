@@ -54,7 +54,7 @@ const segmentKindOptions = [
 ]
 
 const segmentStatusOptions = [
-  { value: 'draft', label: '草稿' },
+  { value: 'workspace', label: '工作区' },
   { value: 'confirmed', label: '已确认' },
   { value: 'ignored', label: '已忽略' },
 ]
@@ -427,32 +427,32 @@ function ProductionSegmentCardEditor({
   onSave: (payload: SemanticEntityPayload) => void
   onDelete: () => void
 }) {
-  const [draft, setDraft] = useState({
+  const [workspace, setWorkspace] = useState({
     title: '',
     kind: 'emotional_function',
     summary: '',
-    status: 'draft',
+    status: 'workspace',
   })
 
   useEffect(() => {
-    setDraft(segmentDraftFromRecord(segment))
+    setWorkspace(segmentWorkspaceFromRecord(segment))
   }, [segment])
 
-  const original = segmentDraftFromRecord(segment)
-  const changed = Object.keys(draft).some((key) => draft[key as keyof typeof draft].trim() !== original[key as keyof typeof original].trim())
+  const original = segmentWorkspaceFromRecord(segment)
+  const changed = Object.keys(workspace).some((key) => workspace[key as keyof typeof workspace].trim() !== original[key as keyof typeof original].trim())
 
-  function resetDraft() {
-    setDraft(original)
+  function resetWorkspace() {
+    setWorkspace(original)
     onCancel()
   }
 
-  function saveDraft() {
-    if (!draft.title.trim()) return
+  function saveWorkspace() {
+    if (!workspace.title.trim()) return
     onSave({
-      title: draft.title.trim(),
-      kind: draft.kind.trim(),
-      summary: draft.summary.trim(),
-      status: draft.status.trim(),
+      title: workspace.title.trim(),
+      kind: workspace.kind.trim(),
+      summary: workspace.summary.trim(),
+      status: workspace.status.trim(),
     })
   }
 
@@ -468,14 +468,14 @@ function ProductionSegmentCardEditor({
       <ProductionSelectedSegmentEditStack>
         <ProductionSelectedSegmentField label="标题">
           <ProductionSelectedSegmentInput
-            value={draft.title}
-            onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+            value={workspace.title}
+            onChange={(event) => setWorkspace((prev) => ({ ...prev, title: event.target.value }))}
             placeholder="编排段标题"
           />
         </ProductionSelectedSegmentField>
         <ProductionSelectedSegmentFieldGrid>
           <ProductionSelectedSegmentField label="情绪功能">
-            <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value }))}>
+            <Select value={workspace.kind} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, kind: value }))}>
               <ProductionSelectedSegmentSelectTrigger>
                 <SelectValue />
               </ProductionSelectedSegmentSelectTrigger>
@@ -487,7 +487,7 @@ function ProductionSegmentCardEditor({
             </Select>
           </ProductionSelectedSegmentField>
           <ProductionSelectedSegmentField label="状态">
-            <Select value={draft.status} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value }))}>
+            <Select value={workspace.status} onValueChange={(value) => setWorkspace((prev) => ({ ...prev, status: value }))}>
               <ProductionSelectedSegmentSelectTrigger>
                 <SelectValue />
               </ProductionSelectedSegmentSelectTrigger>
@@ -501,8 +501,8 @@ function ProductionSegmentCardEditor({
         </ProductionSelectedSegmentFieldGrid>
         <ProductionSelectedSegmentField label="情绪 / 节奏 / 戏剧功能说明">
           <ProductionSelectedSegmentTextarea
-            value={draft.summary}
-            onChange={(event) => setDraft((prev) => ({ ...prev, summary: event.target.value }))}
+            value={workspace.summary}
+            onChange={(event) => setWorkspace((prev) => ({ ...prev, summary: event.target.value }))}
             placeholder="说明这一段承担的情绪推进、节奏变化或戏剧功能"
           />
         </ProductionSelectedSegmentField>
@@ -520,11 +520,11 @@ function ProductionSegmentCardEditor({
           <Trash2 size={12} />
           删除
         </ProductionStructureActionButton>
-        <ProductionStructureActionButton size="sm" variant="outline" disabled={isSaving || isDeleting} onClick={resetDraft}>
+        <ProductionStructureActionButton size="sm" variant="outline" disabled={isSaving || isDeleting} onClick={resetWorkspace}>
           <X size={12} />
           取消
         </ProductionStructureActionButton>
-        <ProductionStructureActionButton size="sm" loading={isSaving} disabled={!draft.title.trim() || !changed || isSaving || isDeleting} onClick={saveDraft}>
+        <ProductionStructureActionButton size="sm" loading={isSaving} disabled={!workspace.title.trim() || !changed || isSaving || isDeleting} onClick={saveWorkspace}>
           <Check size={12} />
           保存
         </ProductionStructureActionButton>
@@ -533,12 +533,12 @@ function ProductionSegmentCardEditor({
   )
 }
 
-function segmentDraftFromRecord(segment: SemanticEntityRecord | null | undefined) {
+function segmentWorkspaceFromRecord(segment: SemanticEntityRecord | null | undefined) {
   return {
     title: stringField(segment?.title) || stringField(segment?.name) || '',
     kind: stringField(segment?.kind) || 'emotional_function',
     summary: stringField(segment?.summary) || stringField(segment?.content) || '',
-    status: stringField(segment?.status) || 'draft',
+    status: stringField(segment?.status) || 'workspace',
   }
 }
 

@@ -573,7 +573,7 @@ export function ProductionOrchestrationProductionEmptyState({
   return <div className={cn("production-orchestration-production-empty", className)} {...props}>{children}</div>;
 }
 
-export function ProductionOrchestrationProposalBanner({
+export function ProductionOrchestrationWorkspaceBanner({
   saving,
   reviewDisabled,
   discardDisabled,
@@ -591,21 +591,21 @@ export function ProductionOrchestrationProposalBanner({
   onDiscard: () => void;
 }) {
   return (
-    <WorkbenchSurfaceItem className={cn("production-orchestration-proposal-banner", className)} {...props}>
-      <div className="production-orchestration-proposal-banner__message">
-        <GitBranch size={13} className="production-orchestration-proposal-banner__icon" />
-        <span className="production-orchestration-proposal-banner__text">正在审阅 AI 编排提案草稿。</span>
-        {saving ? <Badge className="production-orchestration-proposal-banner__saving">保存中</Badge> : null}
+    <WorkbenchSurfaceItem className={cn("production-orchestration-workspace-banner", className)} {...props}>
+      <div className="production-orchestration-workspace-banner__message">
+        <GitBranch size={13} className="production-orchestration-workspace-banner__icon" />
+        <span className="production-orchestration-workspace-banner__text">正在审阅 AI 编排工作区工作区。</span>
+        {saving ? <Badge className="production-orchestration-workspace-banner__saving">保存中</Badge> : null}
       </div>
-      <div className="production-orchestration-proposal-banner__actions">
-        <Button size="sm" variant="outline" className="production-orchestration-proposal-banner__button" onClick={onReview} disabled={reviewDisabled}>
-          应用提案到项目
+      <div className="production-orchestration-workspace-banner__actions">
+        <Button size="sm" variant="outline" className="production-orchestration-workspace-banner__button" onClick={onReview} disabled={reviewDisabled}>
+          应用工作区到项目
         </Button>
-        <Button size="sm" variant="ghost" className="production-orchestration-proposal-banner__button" onClick={onExit}>
-          关闭提案
+        <Button size="sm" variant="ghost" className="production-orchestration-workspace-banner__button" onClick={onExit}>
+          关闭工作区
         </Button>
-        <Button size="sm" variant="ghost" tone="danger" className="production-orchestration-proposal-banner__button" onClick={onDiscard} disabled={discardDisabled}>
-          放弃提案
+        <Button size="sm" variant="ghost" tone="danger" className="production-orchestration-workspace-banner__button" onClick={onDiscard} disabled={discardDisabled}>
+          放弃工作区
         </Button>
       </div>
     </WorkbenchSurfaceItem>
@@ -615,7 +615,7 @@ export function ProductionOrchestrationProposalBanner({
 export function ProductionOrchestrationGenerationNotice({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <WorkbenchSurfaceItem className={cn("production-orchestration-generation-notice", className)} {...props}>
-      正在生成编排提案，完成后会打开审阅弹窗。
+      正在生成编排工作区，完成后会打开审阅弹窗。
     </WorkbenchSurfaceItem>
   );
 }
@@ -634,7 +634,7 @@ export function ProductionOrchestrationReviewDialogContent({
 
 export function ProductionOrchestrationReviewDialogTitle({
   className,
-  children = "应用 production proposal 到项目",
+  children = "应用 production workspace 到项目",
   ...props
 }: ComponentPropsWithoutRef<typeof DialogTitle>) {
   return (
@@ -645,7 +645,7 @@ export function ProductionOrchestrationReviewDialogTitle({
 }
 
 export function ProductionOrchestrationReviewEmptyNotice({
-  children = "当前没有可应用的 production proposal draft。",
+  children = "当前没有可应用的 production workspace workspace。",
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
@@ -664,10 +664,10 @@ export function ProductionOrchestrationRevisionDialogContent({
   disabled,
   onCancel,
   onLaunch,
-  title = "让 Agent 调整提案",
+  title = "让 Agent 调整工作区",
   label = "调整要求",
   placeholder = "例如：把开场压缩成一个情节；强化主角和产品设定的关联；补齐缺少素材需求的镜头。",
-  notice = "Agent 会读取并编辑当前 production proposal draft 文件；正式项目只会在你点击“应用提案到项目”后写入。",
+  notice = "Agent 会读取并编辑当前 production workspace workspace 文件；正式项目只会在你点击“应用工作区到项目”后写入。",
   cancelLabel = "取消",
   launchLabel = "开始调整",
   className,

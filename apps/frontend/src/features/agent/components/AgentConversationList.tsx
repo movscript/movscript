@@ -86,7 +86,7 @@ export function ConversationList({
     title: localThreadTitle(thread, t),
     description: [
       t('agents.chat.messagesCount', { count: thread.messageCount }),
-      thread.projectId ? t('agents.chat.panel.drafts.projectBadge', { id: thread.projectId }) : null,
+      thread.projectId ? t('agents.chat.panel.workspaces.projectBadge', { id: thread.projectId }) : null,
     ].filter(Boolean).join(' · '),
     meta: restoringThreadId === thread.id ? t('agents.chat.restoring') : formatAgentDate(thread.updatedAt, locale),
     onClick: () => { void restoreThread(thread.id) },

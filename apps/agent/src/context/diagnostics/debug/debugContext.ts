@@ -177,7 +177,7 @@ function buildStatusDigest(snapshot: unknown): string[] {
     const value = snapshot[key]
     if (isRecord(value)) lines.push(`${labelize(key)}: ${summarizeRecord(value)}`)
   }
-  for (const key of ['productions', 'scripts', 'creativeReferences', 'semanticEntities', 'assetSlots', 'drafts', 'recentResources']) {
+  for (const key of ['productions', 'scripts', 'creativeReferences', 'semanticEntities', 'assetSlots', 'workspaces', 'recentResources']) {
     const value = snapshot[key]
     if (Array.isArray(value)) lines.push(`${labelize(key)}: ${value.length} item(s)${sampleRecords(value)}`)
   }

@@ -241,7 +241,7 @@ func TestMigration000021ResequencesAndEnforcesStoryboardVersionNumbers(t *testin
 	if err := db.Create(&scriptVersion).Error; err != nil {
 		t.Fatalf("create script version: %v", err)
 	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "workspace"}
 	if err := db.Create(&storyboardScript).Error; err != nil {
 		t.Fatalf("create storyboard script: %v", err)
 	}

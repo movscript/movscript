@@ -1,6 +1,6 @@
 import { defineFeatureStatusRecipeGroup, type UiStatusRecipe } from '@/shared/presentation/semanticRecipe'
 import type { GenerationJobBadgeState } from '@/features/agent/domain/agentGenerationDisplay'
-import type { AgentDraftStatus, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentWorkspaceStatus, AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 export type AgentStatusRecipe = UiStatusRecipe
 
@@ -16,8 +16,8 @@ export function agentRunInteractionActionStatusRecipe(status: string): AgentStat
   return agentRunInteractionActionStatus.recipe(status)
 }
 
-export function agentDraftStatusRecipe(status: AgentDraftStatus | string): AgentStatusRecipe {
-  return agentDraftStatus.recipe(status)
+export function agentWorkspaceStatusRecipe(status: AgentWorkspaceStatus | string): AgentStatusRecipe {
+  return agentWorkspaceStatus.recipe(status)
 }
 
 export function agentGenerationStatusRecipe(state: GenerationJobBadgeState): AgentStatusRecipe {
@@ -114,7 +114,7 @@ const agentRunInteractionActionStatus = defineFeatureStatusRecipeGroup('agent.ru
   default: 'neutral',
 })
 
-const agentDraftStatus = defineFeatureStatusRecipeGroup('agent.draft.status', {
+const agentWorkspaceStatus = defineFeatureStatusRecipeGroup('agent.workspace.status', {
   applied: 'success',
   rejected: 'danger',
   accepted: 'warning',

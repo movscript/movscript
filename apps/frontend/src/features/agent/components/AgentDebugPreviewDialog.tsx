@@ -18,12 +18,12 @@ import {
   AgentDebugDialogSurface,
   AgentDebugDialogTitle,
   AgentDebugDialogTitleRow,
-  AgentDebugDraftDiffCodeBlock,
-  AgentDebugDraftDiffColumns,
-  AgentDebugDraftDiffHeader,
-  AgentDebugDraftDiffLine,
-  AgentDebugDraftDiffRows,
-  AgentDebugDraftDiffShell,
+  AgentDebugWorkspaceDiffCodeBlock,
+  AgentDebugWorkspaceDiffColumns,
+  AgentDebugWorkspaceDiffHeader,
+  AgentDebugWorkspaceDiffLine,
+  AgentDebugWorkspaceDiffRows,
+  AgentDebugWorkspaceDiffShell,
   AgentDebugErrorCallout,
   AgentDebugFieldCodePanel,
   AgentDebugGrid,
@@ -51,8 +51,8 @@ import {
 } from '@movscript/ui'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/features/agent/domain/agentRunUi'
-import type { AgentSendDraft, DebugHttpRequest } from '@/features/agent/application/agentSendDraft'
-import type { AgentDebugTool, AgentDraftApplyPreview } from '@/shared/infrastructure/localAgentClient'
+import type { AgentSendWorkspace, DebugHttpRequest } from '@/features/agent/application/agentSendWorkspace'
+import type { AgentDebugTool, AgentWorkspaceApplyPreview } from '@/shared/infrastructure/localAgentClient'
 import {
   localAgentApprovalImpactText,
   localAgentApprovalRiskText,
@@ -85,23 +85,23 @@ function toolResolutionLabel(tool: AgentDebugTool, t: ReturnType<typeof useTrans
 }
 
 export function AgentDebugPreviewDialog({
-  draft,
+  workspace,
   sending,
   onCancel,
   onConfirm,
 }: {
-  draft: AgentSendDraft | null
+  workspace: AgentSendWorkspace | null
   sending: boolean
   onCancel: () => void
   onConfirm: () => void
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  if (!draft) return null
-  const raw = safeJSONStringify(draft)
-  const preview = draft.localRuntime?.preview
+  if (!workspace) return null
+  const raw = safeJSONStringify(workspace)
+  const preview = workspace.localRuntime?.preview
   const pendingApprovals = preview?.pendingApprovals.filter((approval) => approval.status === 'pending') ?? []
-  const primaryRequest = draft.httpRequests[0]
+  const primaryRequest = workspace.httpRequests[0]
 
   async function copyRaw() {
     await navigator.clipboard.writeText(raw)
@@ -117,11 +117,11 @@ export function AgentDebugPreviewDialog({
             <AgentDebugDialogTitleRow>
               <ClipboardCheck size={14} />
               <AgentDebugDialogTitle>{t('agents.chat.panel.debugPreview.title')}</AgentDebugDialogTitle>
-              <AgentDebugPreviewBadge>{draft.route}</AgentDebugPreviewBadge>
+              <AgentDebugPreviewBadge>{workspace.route}</AgentDebugPreviewBadge>
               {primaryRequest && <AgentDebugPreviewBadge variant="outline">{primaryRequest.method}</AgentDebugPreviewBadge>}
             </AgentDebugDialogTitleRow>
             <AgentDebugDialogDescription>
-              {primaryRequest ? primaryRequest.url : draft.id}
+              {primaryRequest ? primaryRequest.url : workspace.id}
             </AgentDebugDialogDescription>
           </AgentDebugDialogHeaderCopy>
           <AgentDebugPreviewActionButton type="button" size="icon-sm" variant="ghost" onClick={onCancel} disabled={sending} aria-label={t('agents.chat.panel.debugPreview.close')}>
@@ -131,22 +131,22 @@ export function AgentDebugPreviewDialog({
 
         <AgentDebugDialogBody>
           <AgentDebugGrid columns="four">
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.localRuntime?.preview?.runtimeLimits ? runApprovalModeLabel(draft.localRuntime.preview.runtimeLimits.approvalMode) : t('agents.chat.panel.runtime.unknown')} />
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(workspace.model.name ?? workspace.model.id ?? t('common.emptyTitle'))} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={workspace.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={workspace.localRuntime?.preview?.runtimeLimits ? runApprovalModeLabel(workspace.localRuntime.preview.runtimeLimits.approvalMode) : t('agents.chat.panel.runtime.unknown')} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(workspace.httpRequests.length)} />
           </AgentDebugGrid>
 
-          {draft.warnings.length > 0 && (
+          {workspace.warnings.length > 0 && (
             <AgentDebugWarningCallout>
               <AgentDebugToneText as="div" tone="warning">{t('agents.chat.panel.debugPreview.warnings')}</AgentDebugToneText>
-              <AgentDebugIssueList items={draft.warnings} />
+              <AgentDebugIssueList items={workspace.warnings} />
             </AgentDebugWarningCallout>
           )}
 
           <AgentDebugSection title={t('agents.chat.panel.prompt.finalHttpRequests')}>
             <AgentDebugStack density="compact">
-              {draft.httpRequests.map((request, index) => (
+              {workspace.httpRequests.map((request, index) => (
                 <DebugHttpRequestCard key={request.id} request={request} index={index} />
               ))}
             </AgentDebugStack>
@@ -279,19 +279,19 @@ export function AgentDebugPreviewDialog({
             </AgentDebugSection>
           )}
 
-          {(draft.localRuntime || pendingApprovals.length > 0) && (
+          {(workspace.localRuntime || pendingApprovals.length > 0) && (
             <AgentDebugSection title={t('agents.chat.panel.prompt.approvals')}>
               <AgentDebugStack density="compact">
-                {draft.localRuntime && (
+                {workspace.localRuntime && (
                   <AgentDebugGrid columns="three">
-                    <AgentDebugSummaryItem label={t('agents.chat.panel.status.thread')} value={draft.localRuntime.threadId ?? t('agents.chat.panel.status.newThread')} />
-                    <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={draft.localRuntime.diagnosticCommand ? t('agents.chat.panel.debugPreview.diagnostic') : t('agents.chat.panel.debugPreview.conversation')} />
+                    <AgentDebugSummaryItem label={t('agents.chat.panel.status.thread')} value={workspace.localRuntime.threadId ?? t('agents.chat.panel.status.newThread')} />
+                    <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={workspace.localRuntime.diagnosticCommand ? t('agents.chat.panel.debugPreview.diagnostic') : t('agents.chat.panel.debugPreview.conversation')} />
                     <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={t('agents.chat.panel.debugPreview.default')} />
                   </AgentDebugGrid>
                 )}
-                {draft.localRuntime?.previewError && (
+                {workspace.localRuntime?.previewError && (
                   <AgentDebugErrorCallout>
-                    {draft.localRuntime.previewError}
+                    {workspace.localRuntime.previewError}
                   </AgentDebugErrorCallout>
                 )}
                 {pendingApprovals.length > 0 ? (
@@ -328,7 +328,7 @@ export function AgentDebugPreviewDialog({
 
           <AgentDebugSection title={t('agents.chat.panel.prompt.outboundMessages')}>
             <AgentDebugStack density="compact">
-              {draft.outbound.messages.map((message, index) => (
+              {workspace.outbound.messages.map((message, index) => (
                 <AgentDebugLabeledCodePanel
                   key={`${message.role}-${index}`}
                   size="large"
@@ -440,43 +440,43 @@ function diffRows(currentValue: unknown, proposedValue: unknown) {
   ]
 }
 
-export function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
+export function WorkspaceDiff({ preview }: { preview: AgentWorkspaceApplyPreview }) {
   const { t } = useTranslation()
   const rows = diffRows(preview.review.currentValue, preview.review.proposedValue)
   return (
-    <AgentDebugDraftDiffShell>
-      <AgentDebugDraftDiffHeader
-        currentLabel={t('agents.chat.panel.drafts.current')}
-        proposedLabel={t('agents.chat.panel.drafts.proposed')}
+    <AgentDebugWorkspaceDiffShell>
+      <AgentDebugWorkspaceDiffHeader
+        currentLabel={t('agents.chat.panel.workspaces.current')}
+        proposedLabel={t('agents.chat.panel.workspaces.proposed')}
       />
-      <AgentDebugDraftDiffColumns>
-        <AgentDebugDraftDiffCodeBlock side="current">
+      <AgentDebugWorkspaceDiffColumns>
+        <AgentDebugWorkspaceDiffCodeBlock side="current">
           {asString(preview.review.currentValue) || t('common.emptyTitle')}
-        </AgentDebugDraftDiffCodeBlock>
-        <AgentDebugDraftDiffCodeBlock side="proposed">
+        </AgentDebugWorkspaceDiffCodeBlock>
+        <AgentDebugWorkspaceDiffCodeBlock side="proposed">
           {asString(preview.review.proposedValue) || t('common.emptyTitle')}
-        </AgentDebugDraftDiffCodeBlock>
-      </AgentDebugDraftDiffColumns>
-      <AgentDebugDraftDiffRows>
+        </AgentDebugWorkspaceDiffCodeBlock>
+      </AgentDebugWorkspaceDiffColumns>
+      <AgentDebugWorkspaceDiffRows>
         {rows.map((row, index) => (
-          <AgentDebugDraftDiffLine
+          <AgentDebugWorkspaceDiffLine
             key={`${row.type}-${index}`}
             change={row.type}
           >
             {row.type === 'removed' ? '- ' : row.type === 'added' ? '+ ' : '  '}
             {row.text || emptyLabel(t)}
-          </AgentDebugDraftDiffLine>
+          </AgentDebugWorkspaceDiffLine>
         ))}
-      </AgentDebugDraftDiffRows>
-    </AgentDebugDraftDiffShell>
+      </AgentDebugWorkspaceDiffRows>
+    </AgentDebugWorkspaceDiffShell>
   )
 }
 
-export function isDraftApplyPreview(value: unknown): value is AgentDraftApplyPreview {
+export function isWorkspaceApplyPreview(value: unknown): value is AgentWorkspaceApplyPreview {
   if (!value || typeof value !== 'object') return false
-  const record = value as Partial<AgentDraftApplyPreview>
+  const record = value as Partial<AgentWorkspaceApplyPreview>
   return !!record.review
     && typeof record.review === 'object'
-    && typeof record.review.draftId === 'string'
-    && !!record.draft
+    && typeof record.review.workspaceId === 'string'
+    && !!record.workspace
 }

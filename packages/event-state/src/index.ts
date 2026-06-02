@@ -454,7 +454,7 @@ export function runtimeAssistantProgressFromEvent(event: AgentRuntimeEventV2): A
   return event.kind === 'assistant.progress' ? event.assistantProgress : undefined
 }
 
-export function runtimeThreadProjectionShouldRefresh(event: AgentRuntimeEventV2): boolean {
+export function runtimeStateShouldRefresh(event: AgentRuntimeEventV2): boolean {
   return event.kind === 'run.upserted'
     || event.kind === 'trace.upserted'
     || event.kind === 'message.upserted'

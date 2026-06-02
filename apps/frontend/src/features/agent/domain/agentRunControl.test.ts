@@ -2,8 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createLocalAgentStopAbortError, isStoppableAgentRun, isTerminalAgentRun, stopLocalRunAction, type StopLocalRunActionDeps } from '@/features/agent/domain/agentRunControl'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
-import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 test('run status helpers classify stoppable and terminal runs', () => {
   assert.equal(isStoppableAgentRun(makeRun({ status: 'queued' })), true)
@@ -18,7 +17,7 @@ test('createLocalAgentStopAbortError creates an abort-shaped error', () => {
   assert.equal(error.message, '用户停止了当前会话。')
 })
 
-test('stopLocalRunAction aborts active send, applies optimistic cancellation, then appends cancelled result', async () => {
+test('stopLocalRunAction aborts active send and applies optimistic cancellation', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.now = () => new Date('2026-05-19T10:00:00.000Z')
@@ -43,8 +42,6 @@ test('stopLocalRunAction aborts active send, applies optimistic cancellation, th
     'cancel:run_1:用户停止了当前会话。',
     'runtime:false:false:false',
     'setRun:run_1:cancelled:false:false',
-    'getThread',
-    'append:run_1:cancelled:1',
   ])
 })
 
@@ -120,23 +117,6 @@ function depsFixture(calls: string[]): StopLocalRunActionDeps {
       calls.push('getRun')
       return makeRun({ id: runId, status: 'completed' })
     },
-    getThread: async () => {
-      calls.push('getThread')
-      return makeThread()
-    },
-    appendAssistantRunResult: async (run, _thread, liveEvents) => {
-      calls.push(`append:${run.id}:${run.status}:${liveEvents.length}`)
-    },
-    liveEvents: () => [{
-      id: 'event_1',
-      kind: 'runtime',
-      title: 'Event',
-      status: 'completed',
-      createdAt: '2026-05-19T00:00:00.000Z',
-    }] satisfies ChatRunActivityEvent[],
-    addAssistantMessage: (content) => {
-      calls.push(`assistant:${content}`)
-    },
   }
 }
 
@@ -144,16 +124,6 @@ async function flushAsync() {
   await Promise.resolve()
   await Promise.resolve()
   await new Promise<void>((resolve) => setImmediate(resolve))
-}
-
-function makeThread(): AgentThread {
-  return {
-    id: 'thread_1',
-    status: 'completed',
-    createdAt: '2026-05-19T00:00:00.000Z',
-    updatedAt: '2026-05-19T00:00:01.000Z',
-    messages: [],
-  }
 }
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

@@ -37,6 +37,9 @@ import type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
+  AgentFeedMessage,
+  AgentFeedMessagePage,
+  AgentFeedMessageStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -98,6 +101,9 @@ import type {
   AgentRuntimeLimitsOverride,
   AgentThreadListQuery,
   AgentHealth,
+  AgentMessageFeedQuery,
+  AgentMessageFeedStreamOptions,
+  AgentSessionMessageFeedQuery,
   AgentRuntimeTelemetryMetricSample,
   AgentRuntimeTelemetryLogEntry,
   AgentRuntimeTelemetrySpan,
@@ -105,12 +111,12 @@ import type {
   AgentRuntimeTelemetrySnapshot,
   AgentMemoryScope,
   AgentMemoryKind,
-  AgentDraftKind,
-  AgentDraftStatus,
+  AgentWorkspaceKind,
+  AgentWorkspaceStatus,
   AgentMemory,
-  AgentDraft,
-  AgentDraftApplyReview,
-  AgentDraftApplyPreview,
+  AgentWorkspace,
+  AgentWorkspaceApplyReview,
+  AgentWorkspaceApplyPreview,
   AgentRunTraceResponse,
   AgentRunDebugLedger,
   AgentRunDebugEvidenceKind,
@@ -140,6 +146,9 @@ export type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
+  AgentFeedMessage,
+  AgentFeedMessagePage,
+  AgentFeedMessageStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -201,6 +210,9 @@ export type {
   AgentRuntimeLimitsOverride,
   AgentThreadListQuery,
   AgentHealth,
+  AgentMessageFeedQuery,
+  AgentMessageFeedStreamOptions,
+  AgentSessionMessageFeedQuery,
   AgentRuntimeTelemetryMetricSample,
   AgentRuntimeTelemetryLogEntry,
   AgentRuntimeTelemetrySpan,
@@ -208,12 +220,12 @@ export type {
   AgentRuntimeTelemetrySnapshot,
   AgentMemoryScope,
   AgentMemoryKind,
-  AgentDraftKind,
-  AgentDraftStatus,
+  AgentWorkspaceKind,
+  AgentWorkspaceStatus,
   AgentMemory,
-  AgentDraft,
-  AgentDraftApplyReview,
-  AgentDraftApplyPreview,
+  AgentWorkspace,
+  AgentWorkspaceApplyReview,
+  AgentWorkspaceApplyPreview,
   AgentRunTraceResponse,
   AgentRunDebugLedger,
   AgentRunDebugEvidenceKind,
@@ -368,6 +380,21 @@ export class LocalAgentClient {
 
   getThreadRuntime(threadId: string, signal?: AbortSignal): Promise<AgentRuntimeSnapshotV2> {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
+  }
+
+  listThreadMessages(threadId: string, query: AgentMessageFeedQuery = {}, signal?: AbortSignal): Promise<AgentFeedMessagePage> {
+    const params = new URLSearchParams()
+    if (query.before) params.set('before', query.before)
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/messages${params.size ? `?${params.toString()}` : ''}`, { signal })
+  }
+
+  listSessionMessages(sessionId: string, query: AgentSessionMessageFeedQuery = {}, signal?: AbortSignal): Promise<AgentFeedMessagePage> {
+    const params = new URLSearchParams()
+    if (query.threadId) params.set('threadId', query.threadId)
+    if (query.before) params.set('before', query.before)
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/messages${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
   previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; runtimeLimits?: AgentRuntimeLimitsOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
@@ -670,6 +697,16 @@ export class LocalAgentClient {
     await this.streamRuntimeEvents(`/sessions/${encodeURIComponent(sessionId)}/stream`, options)
   }
 
+  async streamThreadMessages(threadId: string, options: AgentMessageFeedStreamOptions = {}): Promise<void> {
+    await this.streamMessageFeedEvents(`/threads/${encodeURIComponent(threadId)}/messages/stream`, options)
+  }
+
+  async streamSessionMessages(sessionId: string, options: AgentMessageFeedStreamOptions = {}): Promise<void> {
+    const params = new URLSearchParams()
+    if (options.threadId) params.set('threadId', options.threadId)
+    await this.streamMessageFeedEvents(`/sessions/${encodeURIComponent(sessionId)}/messages/stream${params.size ? `?${params.toString()}` : ''}`, options)
+  }
+
   async streamPlan(taskGraphId: string, options: PlanStreamOptions = {}): Promise<void> {
     await this.streamRuntimeEvents(`/plans/${encodeURIComponent(taskGraphId)}/stream`, options)
   }
@@ -688,6 +725,26 @@ export class LocalAgentClient {
       try {
         const event = parseRuntimeEvent(data)
         if (event) options.onRuntimeEvent?.(event)
+      } catch {
+        continue
+      }
+    }
+  }
+
+  private async streamMessageFeedEvents(
+    path: string,
+    options: AgentMessageFeedStreamOptions = {},
+  ): Promise<void> {
+    const stream = await this.openMeasuredEventStream(path, {
+      headers: this.authHeaders({ Accept: 'text/event-stream' }),
+      signal: options.signal,
+    })
+    if (!stream.ok) throw await localAgentStreamError(stream)
+
+    for await (const data of stream.messages()) {
+      try {
+        const event = parseMessageFeedEvent(data)
+        if (event) options.onMessageEvent?.(event)
       } catch {
         continue
       }
@@ -798,7 +855,7 @@ export class LocalAgentClient {
     return this.getJSON(`/memories${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus | AgentDraftStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
+  listWorkspaces(query: { projectId?: number; kind?: AgentWorkspaceKind; status?: AgentWorkspaceStatus | AgentWorkspaceStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ workspaces: AgentWorkspace[] }> {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     if (query.kind) params.set('kind', query.kind)
@@ -815,31 +872,31 @@ export class LocalAgentClient {
     if (query.pageEntityType) params.set('pageEntityType', query.pageEntityType)
     if (query.pageEntityId !== undefined) params.set('pageEntityId', String(query.pageEntityId))
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
-    return this.getJSON(`/drafts${params.size ? `?${params.toString()}` : ''}`)
+    return this.getJSON(`/workspaces${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  getDraft(draftId: string): Promise<AgentDraft> {
-    return this.getJSON(`/drafts/${encodeURIComponent(draftId)}`)
+  getWorkspace(workspaceId: string): Promise<AgentWorkspace> {
+    return this.getJSON(`/workspaces/${encodeURIComponent(workspaceId)}`)
   }
 
-  createDraft(input: { projectId?: number; kind?: AgentDraftKind; title: string; content: string; source?: Record<string, unknown>; target?: Record<string, unknown>; seed?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
-    return this.postJSON('/draft', input)
+  createWorkspace(input: { projectId?: number; kind?: AgentWorkspaceKind; title: string; content: string; source?: Record<string, unknown>; target?: Record<string, unknown>; seed?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentWorkspace> {
+    return this.postJSON('/workspace', input)
   }
 
-  updateDraft(draftId: string, input: { status?: AgentDraftStatus; title?: string; content?: string; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
-    return this.patchJSON(`/drafts/${encodeURIComponent(draftId)}`, input)
+  updateWorkspace(workspaceId: string, input: { status?: AgentWorkspaceStatus; title?: string; content?: string; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentWorkspace> {
+    return this.patchJSON(`/workspaces/${encodeURIComponent(workspaceId)}`, input)
   }
 
-  previewApplyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {
-    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply-preview`, input)
+  previewApplyWorkspace(workspaceId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentWorkspaceApplyPreview> {
+    return this.postJSON(`/workspaces/${encodeURIComponent(workspaceId)}/apply-preview`, input)
   }
 
-  applyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {
-    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply`, input)
+  applyWorkspace(workspaceId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentWorkspaceApplyPreview> {
+    return this.postJSON(`/workspaces/${encodeURIComponent(workspaceId)}/apply`, input)
   }
 
-  rejectDraft(draftId: string, reason?: string): Promise<AgentDraft> {
-    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/reject`, { reason })
+  rejectWorkspace(workspaceId: string, reason?: string): Promise<AgentWorkspace> {
+    return this.postJSON(`/workspaces/${encodeURIComponent(workspaceId)}/reject`, { reason })
   }
 
   createMemory(input: { scope: AgentMemoryScope; kind: AgentMemoryKind; content: string; projectId?: number; threadId?: string }): Promise<AgentMemory> {
@@ -1092,4 +1149,26 @@ export const localAgentClient = new LocalAgentClient()
 function statusClass(status: number): string {
   if (!Number.isFinite(status) || status <= 0) return 'unknown'
   return `${Math.floor(status / 100)}xx`
+}
+
+function parseMessageFeedEvent(data: string): AgentFeedMessageStreamEvent | undefined {
+  const parsed = JSON.parse(data) as unknown
+  if (!isPlainRecord(parsed)) return undefined
+  const type = parsed.type
+  if (type !== 'message.created' && type !== 'message.updated' && type !== 'messages.reset_required') return undefined
+  const revision = typeof parsed.revision === 'number' && Number.isFinite(parsed.revision)
+    ? parsed.revision
+    : Date.now()
+  return {
+    type,
+    revision,
+    ...(isPlainRecord(parsed.message) ? { message: parsed.message as unknown as AgentFeedMessageStreamEvent['message'] } : {}),
+    ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}),
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object'
+    && value !== null
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
 }

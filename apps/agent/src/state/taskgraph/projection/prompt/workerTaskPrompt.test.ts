@@ -5,14 +5,14 @@ import type { AgentTaskGraph, AgentTask } from '../../../shared/types.js'
 
 test('formatWorkerTaskMessage renders task graph task and execution instructions', () => {
   assert.equal(formatWorkerTaskMessage(taskGraph(), task({
-    description: 'Write the draft.',
+    description: 'Write the workspace.',
     deps: ['task_a', 'task_b'],
     metadata: { subagentName: 'Ada' },
   })), [
     'TaskGraph: Build article',
     'Subagent name: Ada',
-    'Task: Draft section',
-    'Description: Write the draft.',
+    'Task: Workspace section',
+    'Description: Write the workspace.',
     'Dependencies: task_a, task_b',
     '',
     WORKER_TASK_INSTRUCTIONS,
@@ -22,7 +22,7 @@ test('formatWorkerTaskMessage renders task graph task and execution instructions
 test('formatWorkerTaskMessage omits optional blank fields', () => {
   assert.equal(formatWorkerTaskMessage(taskGraph(), task()), [
     'TaskGraph: Build article',
-    'Task: Draft section',
+    'Task: Workspace section',
     '',
     WORKER_TASK_INSTRUCTIONS,
   ].join('\n'))
@@ -46,7 +46,7 @@ function task(overrides: Partial<AgentTask> = {}): AgentTask {
     id: 'task_1',
     taskGraphId: 'task_graph_1',
     deps: [],
-    title: 'Draft section',
+    title: 'Workspace section',
     status: 'pending',
     progress: 0,
     artifacts: [],

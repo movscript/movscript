@@ -1,36 +1,26 @@
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { assistantResultPayloadForRun } from '@/features/agent/domain/agentMessageViewModel'
 import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
-import { formatLocalAgentAssistantContent } from '@/features/agent/domain/localAgentResult'
-import { localAgentClient, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from '@/shared/infrastructure/localAgentClient'
-import { appendAssistantRunResultMessage } from '@movscript/conversation'
+import { localAgentClient, type AgentRun, type AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
 import { runtimeAssistantProgressFromEvent } from '@movscript/event-state'
-import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type { AgentConversationRuntimeState } from '@/features/agent/state/agentSessionStore'
 
 type ConversationRunPatch = Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>
 
 export interface UseAgentRunResultActionsInput {
   conversationId: string
-  userId: string
   setConversationRun: (conversationId: string, run: AgentRun, patch?: ConversationRunPatch) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
   updateStreamingAssistantText: (runId: string, text: string, roundIndex?: number) => void
-  getStreamingAssistantMessageId: () => string | null
-  resetStreamingAssistant: () => void
 }
 
 export function useAgentRunResultActions({
   conversationId,
-  userId,
   setConversationRun,
   setSubmittedInteractionRuns,
   recordLiveTraceEvent,
   updateStreamingAssistantText,
-  getStreamingAssistantMessageId,
-  resetStreamingAssistant,
 }: UseAgentRunResultActionsInput) {
   const streamFollowUpRun = useCallback(async (runId: string) => {
     return await localAgentClient.streamRun(runId, {
@@ -50,26 +40,7 @@ export function useAgentRunResultActions({
     })
   }, [conversationId, recordLiveTraceEvent, setConversationRun, setSubmittedInteractionRuns, updateStreamingAssistantText])
 
-  const appendAssistantRunResult = useCallback(async (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[] = []) => {
-    const result = await appendAssistantRunResultMessage<ChatMessage, AgentRun, AgentThread, ChatRunActivityEvent>({
-      run,
-      thread,
-      liveEvents,
-      deps: {
-        userId,
-        conversationId,
-        getStreamingAssistantMessageId,
-        resetStreamingAssistant,
-        formatAssistantContent: formatLocalAgentAssistantContent,
-        assistantResultPayloadForRun: (payloadRun, payloadLiveEvents, assistantContent) =>
-          assistantResultPayloadForRun(payloadRun, payloadLiveEvents, assistantContent),
-      },
-    })
-    return { artifacts: result.artifacts, content: result.content }
-  }, [conversationId, getStreamingAssistantMessageId, resetStreamingAssistant, userId])
-
   return {
-    appendAssistantRunResult,
     streamFollowUpRun,
   }
 }

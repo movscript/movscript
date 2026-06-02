@@ -5,7 +5,7 @@ import {
   type AgentRuntimeStatusLight,
 } from '@/features/agent/domain/agentRuntimeStatusLight'
 import { localAgentClient, type AgentRuntimeEventV2, type AgentRuntimeSnapshotV2 } from '@/shared/infrastructure/localAgentClient'
-import { runtimeThreadProjectionShouldRefresh } from '@movscript/event-state'
+import { runtimeStateShouldRefresh } from '@movscript/event-state'
 
 export interface AgentRuntimeStatusLightWatchTarget {
   conversationId: string
@@ -86,7 +86,7 @@ export class AgentRuntimeStatusLightController {
     this.client = options.client
     this.sink = options.sink
     this.refreshDebounceMs = options.refreshDebounceMs ?? 300
-    this.shouldRefresh = options.shouldRefresh ?? runtimeThreadProjectionShouldRefresh
+    this.shouldRefresh = options.shouldRefresh ?? runtimeStateShouldRefresh
   }
 
   setOwnerTargets(ownerId: string, targets: AgentRuntimeStatusLightWatchTarget[]): void {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentInputRequest } from '../../../state/shared/types.js'
-import { formatInputAnswerMessage, mergePendingInputRequests, normalizeDraftQuery } from './normalizeRunInput.js'
+import { formatInputAnswerMessage, mergePendingInputRequests, normalizeWorkspaceQuery } from './normalizeRunInput.js'
 
 test('mergePendingInputRequests updates matching pending requests and preserves resolved history', () => {
   const existing: AgentInputRequest[] = [
@@ -51,8 +51,8 @@ test('formatInputAnswerMessage includes selected choices and custom text', () =>
   assert.doesNotMatch(message, /素材/)
 })
 
-test('normalizeDraftQuery drops invalid numeric entity reference ids', () => {
-  assert.deepEqual(normalizeDraftQuery({
+test('normalizeWorkspaceQuery drops invalid numeric entity reference ids', () => {
+  assert.deepEqual(normalizeWorkspaceQuery({
     projectId: 42,
     sourceEntityType: 'scene',
     sourceEntityId: 0,
@@ -64,7 +64,7 @@ test('normalizeDraftQuery drops invalid numeric entity reference ids', () => {
     pageEntityType: 'production',
   })
 
-  assert.deepEqual(normalizeDraftQuery({
+  assert.deepEqual(normalizeWorkspaceQuery({
     sourceEntityId: 'scene_1',
     pageEntityId: 'production_1',
   }), {

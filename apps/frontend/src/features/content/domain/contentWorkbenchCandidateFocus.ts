@@ -35,7 +35,7 @@ function isPrimaryStatus(status: string | null | undefined) {
 
 function isCandidateStatus(status: string | null | undefined) {
   const normalized = normalizeStatus(status)
-  return normalized === '' || normalized === 'draft' || normalized === 'candidate'
+  return normalized === '' || normalized === 'workspace' || normalized === 'candidate'
 }
 
 function normalizeStatus(status: string | null | undefined) {

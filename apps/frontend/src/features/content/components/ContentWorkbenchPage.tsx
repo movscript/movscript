@@ -4,15 +4,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ClipboardCheck,
   Route,
-  Wand2,
 } from 'lucide-react'
 
-import {
-  buildContentWorkbenchAiSuggestLaunchInput,
-  launchContentWorkbenchAiSuggestAgent,
-} from '@/features/content/application/contentWorkbenchAgentLaunch'
 import { pickContentWorkbenchFirstUsableUnit } from '@/features/content/domain/contentWorkbenchCandidateFocus'
-import { contentWorkbenchProposalDefaults } from '@/features/content/domain/contentWorkbenchDraftProposal'
+import { contentWorkbenchWorkspaceDefaults } from '@/features/content/domain/contentWorkbenchWorkspaceWorkspace'
 import { useContentWorkbenchPageController } from '@/features/content/application/contentWorkbenchPageController'
 import { useContentWorkbenchReviewController } from '@/features/content/application/contentWorkbenchReviewController'
 import {
@@ -22,10 +17,10 @@ import {
   type ContentGenerationMomentRow,
 } from '@/features/content/domain/contentWorkbenchModel'
 import {
-  buildApplyContentUnitProposalMutationOptions,
-  buildMarkContentDraftReviewedMutationOptions,
+  buildApplyContentUnitWorkspaceMutationOptions,
+  buildMarkContentWorkspaceReviewedMutationOptions,
   buildMoveContentUnitOnTimelineMutationOptions,
-  buildRejectContentDraftMutationOptions,
+  buildRejectContentWorkspaceMutationOptions,
   buildReorderContentUnitsMutationOptions,
 } from '@/features/content/application/contentWorkbenchMutationController'
 import {
@@ -154,7 +149,7 @@ export function ContentWorkbenchPage() {
   })
   const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
   const [creatingUnit, setCreatingUnit] = useState(false)
-  const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
+  const [unitWorkspaceDefaults, setUnitWorkspaceDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
   const detailPane = usePersistentOverlapPaneController({
     storageKey: CONTENT_WORKBENCH_DETAIL_PANE_WIDTH_STORAGE_KEY,
     defaultSize: 880,
@@ -219,28 +214,28 @@ export function ContentWorkbenchPage() {
     setSearchParams,
   })
   const {
-    drafts: reviewDrafts,
-    draftsQuery: reviewDraftsQuery,
-    selectedDraft: selectedReviewDraft,
-    reviewModel: contentDraftReview,
+    workspaces: reviewWorkspaces,
+    workspacesQuery: reviewWorkspacesQuery,
+    selectedWorkspace: selectedReviewWorkspace,
+    reviewModel: contentWorkspaceReview,
     queueSummary: reviewQueueSummary,
     reviewMode,
     showReviewPanel,
-    selectDraft: selectReviewDraft,
+    selectWorkspace: selectReviewWorkspace,
     closeReview,
   } = reviewController
 
-  const rejectContentDraft = useMutation(buildRejectContentDraftMutationOptions({
-    refetchDrafts: reviewDraftsQuery.refetch,
+  const rejectContentWorkspace = useMutation(buildRejectContentWorkspaceMutationOptions({
+    refetchWorkspaces: reviewWorkspacesQuery.refetch,
     closeReview,
   }))
-  const markContentDraftReviewed = useMutation(buildMarkContentDraftReviewedMutationOptions({
+  const markContentWorkspaceReviewed = useMutation(buildMarkContentWorkspaceReviewedMutationOptions({
     projectId,
     selectedMomentId: selected?.moment.ID,
-    refetchDrafts: reviewDraftsQuery.refetch,
+    refetchWorkspaces: reviewWorkspacesQuery.refetch,
     closeReview,
   }))
-  const applyContentUnitProposal = useMutation(buildApplyContentUnitProposalMutationOptions({
+  const applyContentUnitWorkspace = useMutation(buildApplyContentUnitWorkspaceMutationOptions({
     projectId,
     contentUnitConfig,
     contentUnits: data?.contentUnits ?? [],
@@ -293,29 +288,14 @@ export function ContentWorkbenchPage() {
     },
   })
 
-  function openAiSuggest(rowOverride?: ContentGenerationMomentRow) {
-    const targetRow = rowOverride ?? selected
-    const launchInput = buildContentWorkbenchAiSuggestLaunchInput({
-      projectId,
-      row: targetRow,
-      productions: data?.productions ?? [],
-    })
-    if (!launchInput) {
-      toast.info('请先选择情节')
-      return
-    }
-    launchContentWorkbenchAiSuggestAgent(launchInput)
-    toast.success('已打开 AI 助手，可在输入框补充需求后发送')
-  }
-
   function openReviewQueue() {
     reviewController.setCollapsed(false)
-    const draft = selectedReviewDraft ?? reviewDrafts[0]
-    if (!draft) {
-      openAiSuggest()
+    const workspace = selectedReviewWorkspace ?? reviewWorkspaces[0]
+    if (!workspace) {
+      toast.info('暂无待审 AI 工作区')
       return
     }
-    selectReviewDraft(draft.id)
+    selectReviewWorkspace(workspace.id)
   }
 
   function openReviewUnitEditor(unitId: number) {
@@ -327,20 +307,20 @@ export function ContentWorkbenchPage() {
     openUnitEditor(targetRow, unitId)
   }
 
-  function openCreateUnitFromProposal(proposal: Record<string, unknown>) {
-    setUnitDraftDefaults(contentWorkbenchProposalDefaults(proposal))
+  function openCreateUnitFromWorkspace(workspace: Record<string, unknown>) {
+    setUnitWorkspaceDefaults(contentWorkbenchWorkspaceDefaults(workspace))
     setCreatingUnit(true)
   }
 
   function openCreateUnit() {
     if (!selected) return
-    setUnitDraftDefaults(null)
+    setUnitWorkspaceDefaults(null)
     setCreatingUnit(true)
   }
 
   function openCreateUnitForRow(row: ContentGenerationMomentRow) {
     focusRowForUnitCreation(row)
-    setUnitDraftDefaults(null)
+    setUnitWorkspaceDefaults(null)
     setCreatingUnit(true)
   }
 
@@ -443,13 +423,13 @@ export function ContentWorkbenchPage() {
                   >
                     <ContentWorkbenchDetailContent>
                       <ContentWorkbenchViewHeader
-                        icon={<Wand2 size={14} />}
+                        icon={<Route size={14} />}
                         kicker="编排视图"
                         title={contentWorkbenchViewTitle}
                         detail={contentWorkbenchViewDetail}
                         action={(
                           <ContentWorkbenchReviewButton
-                            data-action-key="review_ai_drafts"
+                            data-action-key="review_ai_workspaces"
                             pendingCount={reviewQueueSummary.pending}
                             icon={<ClipboardCheck size={14} />}
                             onClick={openReviewQueue}
@@ -477,19 +457,18 @@ export function ContentWorkbenchPage() {
                           {showReviewPanel ? (
                             <ContentWorkbenchReviewPanel
                               reviewMode={reviewMode}
-                              drafts={reviewDrafts}
-                              selectedDraft={selectedReviewDraft}
-                              reviewModel={contentDraftReview}
+                              workspaces={reviewWorkspaces}
+                              selectedWorkspace={selectedReviewWorkspace}
+                              reviewModel={contentWorkspaceReview}
                               queueSummary={reviewQueueSummary}
-                              rejectingDraft={rejectContentDraft.isPending}
-                              markingDraftReviewed={markContentDraftReviewed.isPending}
-                              onOpenAiSuggest={openAiSuggest}
-                              onSelectDraft={selectReviewDraft}
-                              onCreateUnitFromProposal={openCreateUnitFromProposal}
+                              rejectingWorkspace={rejectContentWorkspace.isPending}
+                              markingWorkspaceReviewed={markContentWorkspaceReviewed.isPending}
+                              onSelectWorkspace={selectReviewWorkspace}
+                              onCreateUnitFromWorkspace={openCreateUnitFromWorkspace}
                               onEditCurrentUnit={openReviewUnitEditor}
-                              onApplyUnitProposal={(unitId, proposal) => applyContentUnitProposal.mutate({ unitId, proposal })}
-                              onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
-                              onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
+                              onApplyUnitWorkspace={(unitId, workspace) => applyContentUnitWorkspace.mutate({ unitId, workspace })}
+                              onMarkWorkspaceReviewed={(workspace) => markContentWorkspaceReviewed.mutate(workspace)}
+                              onRejectWorkspace={(workspace) => rejectContentWorkspace.mutate(workspace)}
                               onCloseReview={closeReview}
                             />
                           ) : null}
@@ -515,7 +494,6 @@ export function ContentWorkbenchPage() {
                             }}
                             onOpenUnitEditor={(unitId) => openUnitEditor(selected, unitId)}
                             onCreateUnit={() => openCreateUnitForRow(selected)}
-                            onAiSuggest={() => openAiSuggest(selected)}
                             onSelectFirstMoment={selectFirstSceneMoment}
                             onReorderUnit={(draggedUnitId, targetUnitId, position) => {
                               if (reorderContentUnits.isPending) return
@@ -568,7 +546,7 @@ export function ContentWorkbenchPage() {
         assetSlotConfig={assetSlotConfig}
         keyframeConfig={keyframeConfig}
         creatingUnit={creatingUnit}
-        unitDraftDefaults={unitDraftDefaults}
+        unitWorkspaceDefaults={unitWorkspaceDefaults}
         editingUnit={false}
         creatingAssetSlot={false}
         assetSlotDefaults={undefined}
@@ -577,14 +555,14 @@ export function ContentWorkbenchPage() {
         onCreatingUnitChange={(open) => {
           if (!open) {
             setCreatingUnit(false)
-            setUnitDraftDefaults(null)
+            setUnitWorkspaceDefaults(null)
           }
         }}
         onUnitSaved={(record) => {
           selectContentUnit(record.ID)
           setOptimisticSelectedUnit(record)
           setCreatingUnit(false)
-          setUnitDraftDefaults(null)
+          setUnitWorkspaceDefaults(null)
           if (selected) openUnitEditor(selected, record.ID)
         }}
         onEditingUnitChange={() => {}}

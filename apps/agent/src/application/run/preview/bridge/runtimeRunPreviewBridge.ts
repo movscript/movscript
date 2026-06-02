@@ -1,4 +1,4 @@
-import type { AgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
 import type { AgentCapabilitiesResponse, AgentRunPreview, PreviewRunInput } from '../../../../state/shared/types.js'
@@ -15,7 +15,7 @@ export function createRuntimeRunPreviewBridge(input: {
   store: AgentStore
   mcpClient: Parameters<typeof buildRuntimeRunPreview>[0]['mcpClient']
   memoryManager: MemoryManager
-  draftStore: AgentDraftStore
+  workspaceStore: AgentWorkspaceStore
   catalogSnapshots: RuntimeCatalogSnapshotRegistry
   contractResolver: AgentRuntimeContractResolver
   updateState?: AgentCapabilitiesResponse['updates']
@@ -27,7 +27,7 @@ export function createRuntimeRunPreviewBridge(input: {
       store: input.store,
       mcpClient: input.mcpClient,
       memoryManager: input.memoryManager,
-      draftStore: input.draftStore,
+      workspaceStore: input.workspaceStore,
       catalogSnapshot: input.catalogSnapshots.current,
       contractResolver: input.contractResolver,
       updateState: input.updateState,

@@ -6,7 +6,7 @@ import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 import { buildLayeredCatalogRegistry } from '../../../../catalog/registry/core/registry.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../../../../contracts/runtime/runtimeContract.js'
-import { InMemoryAgentDraftStore } from '../../../../drafts/store/draftStore.js'
+import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { AgentMemory } from '../../../../memory/shared/types.js'
 import type { MCPResource, MCPTool } from '../../../../state/shared/types.js'
 import { DEFAULT_TOOL_REGISTRY } from '../../../../tools/registry/core/toolRegistry.js'
@@ -87,7 +87,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
           return memories
         },
       } as never,
-      draftStore: new InMemoryAgentDraftStore(),
+      workspaceStore: new InMemoryAgentWorkspaceStore(),
       catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: {
@@ -206,7 +206,7 @@ test('buildRuntimeRunPreview uses active config file runtime limits by default',
           return []
         },
       } as never,
-      draftStore: new InMemoryAgentDraftStore(),
+      workspaceStore: new InMemoryAgentWorkspaceStore(),
       catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: { message: 'preview configured limits', runtimeLimits: { maxIterations: 9 } },
@@ -265,7 +265,7 @@ test('buildRuntimeRunPreview ignores invalid focus project ids at preview bounda
           return []
         },
       } as never,
-      draftStore: new InMemoryAgentDraftStore(),
+      workspaceStore: new InMemoryAgentWorkspaceStore(),
       catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: { message: 'memory preview scope check', agentManifest: DEFAULT_AGENT_MANIFEST },

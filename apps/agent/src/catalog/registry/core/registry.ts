@@ -1,4 +1,4 @@
-import { DRAFT_SCHEMA_REGISTRY } from '@movscript/drafts'
+import { WORKSPACE_SCHEMA_REGISTRY } from '@movscript/workspaces'
 import type { AgentManifest } from '../../manifest/agentManifest.js'
 import type { RegisteredTool } from '../../../tools/registry/core/toolRegistry.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
@@ -20,7 +20,7 @@ const EMPTY_OBJECT_SCHEMA = {
 export function createEmptyCatalogRegistry(version = new Date().toISOString()): CatalogRegistry {
   return {
     version,
-    schemas: new Map(Object.entries(DRAFT_SCHEMA_REGISTRY)),
+    schemas: new Map(Object.entries(WORKSPACE_SCHEMA_REGISTRY)),
     tools: new Map(),
     skills: new Map(),
     packs: new Map(),

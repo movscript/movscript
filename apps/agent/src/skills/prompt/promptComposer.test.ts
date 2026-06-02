@@ -14,14 +14,14 @@ test('active config file prompt composition covers runtime rules and triggered S
   const skills = [
     catalog.layeredRegistry.skills.get('core.base.default'),
     catalog.layeredRegistry.skills.get('core.rules.runtime'),
-    catalog.layeredRegistry.skills.get('movscript.project_standards_proposal'),
-    catalog.layeredRegistry.skills.get('kernel.proposal_first'),
+    catalog.layeredRegistry.skills.get('movscript.project_standards_workspace'),
+    catalog.layeredRegistry.skills.get('kernel.workspace_first'),
   ].flatMap((skill) => skill ? [skill] : [])
 
   const ctx: RuntimeContext = {
     configFile,
-    message: '请帮我做项目规范提案草稿',
-    intents: ['project_standards_proposal'],
+    message: '请帮我做项目规范工作区workspace',
+    intents: ['project_standards_workspace'],
     uiContext: { route: '/project-workspace', projectId: 1 },
     conversation: { turnCount: 0, lastToolCalls: [], recentErrors: [] },
     catalogVersion: catalog.layeredRegistry.version,
@@ -32,8 +32,8 @@ test('active config file prompt composition covers runtime rules and triggered S
     skills,
   })
 
-  assert.match(prompt.systemPrompt, /Project Standards Proposal/)
-  assert.match(prompt.systemPrompt, /Proposal First/)
+  assert.match(prompt.systemPrompt, /Project Standards Workspace/)
+  assert.match(prompt.systemPrompt, /Workspace First/)
   assert.match(prompt.systemPrompt, /movscript_script_locate/)
   assert.match(prompt.systemPrompt, /项目规范必须基于剧本题材/)
   assert.match(prompt.systemPrompt, /定义 agent 对自身运行能力的稳定认知/)
@@ -41,6 +41,6 @@ test('active config file prompt composition covers runtime rules and triggered S
   assert.match(prompt.systemPrompt, /当前配置文件、active skills、可见工具和工具 schema 是本轮能力边界/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
   assert.ok(prompt.parts.some((part) => part.id === 'core.rules.runtime'))
-  assert.equal(prompt.parts.some((part) => part.id === 'draft.rules.lifecycle'), false)
-  assert.ok(prompt.parts.some((part) => part.id === 'movscript.project_standards_proposal'))
+  assert.equal(prompt.parts.some((part) => part.id === 'workspace.rules.lifecycle'), false)
+  assert.ok(prompt.parts.some((part) => part.id === 'movscript.project_standards_workspace'))
 })

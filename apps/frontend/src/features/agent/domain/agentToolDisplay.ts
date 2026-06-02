@@ -1,11 +1,11 @@
 export type AgentToolDisplayTranslator = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => string
 
 const TOOL_NAME_LABELS_ZH: Record<string, string> = {
-  draft_apply: '应用草稿',
+  workspace_apply: '应用工作区',
   candidate_asset_slot_attach: '加入素材槽候选',
   candidate_keyframe_attach: '加入关键帧候选',
   generation_job_cancel: '取消生成任务',
-  draft_create: '创建草稿',
+  workspace_create: '创建工作区',
   generation_job_create: '创建生成任务',
   core_memory_create: '创建记忆',
   movscript_project_create: '创建项目',
@@ -17,8 +17,8 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   core_file_search: '搜索文件',
   core_file_edit: '编辑文件',
   core_update_plan: '更新执行计划',
-  draft_apply_preview: '预览应用草稿',
-  draft_model_get: '读取草稿模型',
+  workspace_apply_preview: '预览应用工作区',
+  get_workspace_model: '读取工作区模型',
   movscript_focus_get: '读取当前焦点',
   generation_job_get: '查看生成任务',
   reference_get: '读取参考',
@@ -72,9 +72,9 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'agent.work.write': '提交异步任务',
   'agent.skills.manage': '管理 Agent 技能',
   'asset.candidate.write': '写入素材候选',
-  'draft.apply': '应用草稿变更',
-  'draft.read': '读取草稿',
-  'draft.write': '写入草稿',
+  'workspace.apply': '应用工作区变更',
+  'workspace.read': '读取工作区',
+  'workspace.write': '写入工作区',
   'generation.create': '创建生成任务',
   'generation.read': '读取生成任务',
   'generation.cancel': '取消生成任务',
@@ -120,8 +120,8 @@ function businessPermissionLabel(permission: string): string | undefined {
   const parts = permission.split(/[.:/]/).filter(Boolean)
   const domain = parts.includes('project')
     ? '项目'
-    : parts.includes('draft')
-      ? '草稿'
+    : parts.includes('workspace')
+      ? '工作区'
       : parts.includes('memory')
         ? '记忆'
         : parts.includes('generation')

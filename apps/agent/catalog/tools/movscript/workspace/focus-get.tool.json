@@ -14,5 +14,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "读取当前任务 focus，但不加载项目列表、剧本、drafts、资源或 proposal 详情。"
+  "capability": "读取当前任务 focus，但不加载项目列表、剧本、workspaces、资源或 workspace 详情。"
 }

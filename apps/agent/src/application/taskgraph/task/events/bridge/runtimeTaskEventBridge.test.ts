@@ -36,11 +36,11 @@ test('applyRuntimeTaskEventBridgeRequest can record task protocol traces without
 
   applyRuntimeTaskEventBridgeRequest({
     store,
-    task: makeTask({ id: 'task_1', title: 'Draft outline' }),
+    task: makeTask({ id: 'task_1', title: 'Workspace outline' }),
     recordTrace: (_run, trace) => calls.push(`trace:${trace.title}:${trace.summary}`),
   })
 
-  assert.deepEqual(calls, ['trace:Task created:Draft outline'])
+  assert.deepEqual(calls, ['trace:Task created:Workspace outline'])
 })
 
 test('createRuntimeTaskEventBridge provides reusable trace and trace-plus-event callbacks', () => {

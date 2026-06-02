@@ -135,7 +135,7 @@ const statusLabels: Record<string, string> = {
   locked: '已锁定',
   accepted: '已采纳',
   attached: '已关联',
-  draft: '草稿',
+  workspace: '工作区',
   candidate: '候选',
   generated: '已生成',
   missing: '缺素材需求',
@@ -160,7 +160,7 @@ function matchesStatus(status: StatusFilter, item: SegmentWorkspace) {
   const value = String(item.segment.status ?? '')
   if (status === 'all') return true
   if (status === 'ready') return item.readiness >= 70 && item.assetSlots.every((slot) => !isAssetGap(slot))
-  if (status === 'attention') return item.readiness < 70 || item.assetSlots.some(isAssetGap) || ['draft', 'candidate', 'review', 'blocked'].includes(value)
+  if (status === 'attention') return item.readiness < 70 || item.assetSlots.some(isAssetGap) || ['workspace', 'candidate', 'review', 'blocked'].includes(value)
   return value === status
 }
 
@@ -548,7 +548,7 @@ export default function SegmentsPage() {
               projectId={projectId}
               config={segmentConfig}
               item={creatingSegment ? null : selectedSegment}
-              defaults={creatingSegment ? { order: segmentWorkspaces.length + 1, status: 'draft', kind: 'emotional_function' } : undefined}
+              defaults={creatingSegment ? { order: segmentWorkspaces.length + 1, status: 'workspace', kind: 'emotional_function' } : undefined}
               queryKey={['semantic-segment-workspace', projectId]}
               onSaved={(record) => {
                 setCreatingSegment(false)
@@ -587,7 +587,7 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
     >
       <ContentPageListCardHeader
         aside={(
-          <StatusBadge {...contentEntityStatusRecipe(item.segment.status ?? 'draft')}>{statusLabel(item.segment.status ?? 'draft')}</StatusBadge>
+          <StatusBadge {...contentEntityStatusRecipe(item.segment.status ?? 'workspace')}>{statusLabel(item.segment.status ?? 'workspace')}</StatusBadge>
         )}
       >
         <ContentPageListCardIdentity icon={<BookOpenText size={14} />} accent="cyan">
@@ -715,7 +715,7 @@ function SegmentDetailCard({
 
   const title = isEditing ? String(form.title ?? '') : record ? titleOf(record as SegmentRecord) : '新建编排段'
   const kind = isEditing ? String(form.kind ?? '') : String(record?.kind ?? '')
-  const status = isEditing ? String(form.status ?? 'draft') : String(record?.status ?? 'draft')
+  const status = isEditing ? String(form.status ?? 'workspace') : String(record?.status ?? 'workspace')
   const summary = isEditing ? String(form.summary ?? '') : String(record?.summary || record?.content || '')
   const isNew = !record
   const sourceLabel = item?.scriptBlock
@@ -904,7 +904,7 @@ function SceneMomentRow({
       active={selected}
     >
       <ContentPageListCardHeader
-        aside={<StatusBadge {...contentEntityStatusRecipe(sceneMoment.status ?? 'draft')}>{statusLabel(sceneMoment.status ?? 'draft')}</StatusBadge>}
+        aside={<StatusBadge {...contentEntityStatusRecipe(sceneMoment.status ?? 'workspace')}>{statusLabel(sceneMoment.status ?? 'workspace')}</StatusBadge>}
       >
         <ContentPageListCardTitle prefix={sceneIdentifier(sceneMoment) ? <Badge variant="outline" className="shrink-0 type-tiny">{sceneIdentifier(sceneMoment)}</Badge> : null}>
           {titleOf(sceneMoment)}
@@ -947,7 +947,7 @@ function ContentUnitRow({
       active={selected}
     >
       <ContentPageListCardHeader
-        aside={<StatusBadge {...contentEntityStatusRecipe(item.status ?? 'draft')}>{statusLabel(item.status ?? 'draft')}</StatusBadge>}
+        aside={<StatusBadge {...contentEntityStatusRecipe(item.status ?? 'workspace')}>{statusLabel(item.status ?? 'workspace')}</StatusBadge>}
       >
         <ContentPageListCardTitle prefix={productionIdentifier(sceneMoment, item) ? <Badge variant="outline" className="shrink-0 type-tiny">{productionIdentifier(sceneMoment, item)}</Badge> : null}>
           {titleOf(item)}
@@ -975,7 +975,7 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
     <ContentPageDetailPanel
       icon={Film}
       title="当前情景"
-      action={<StatusBadge {...contentEntityStatusRecipe(sceneMoment.status ?? 'draft')}>{statusLabel(sceneMoment.status ?? 'draft')}</StatusBadge>}
+      action={<StatusBadge {...contentEntityStatusRecipe(sceneMoment.status ?? 'workspace')}>{statusLabel(sceneMoment.status ?? 'workspace')}</StatusBadge>}
       bodyMode="stack"
     >
         <div>
@@ -1007,7 +1007,7 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
       action={(
         <ContentPageActionRow>
           {productionIdentifier(sceneMoment, contentUnit) ? <Badge variant="outline" className="type-tiny">{productionIdentifier(sceneMoment, contentUnit)}</Badge> : null}
-          <StatusBadge {...contentEntityStatusRecipe(contentUnit.status ?? 'draft')}>{statusLabel(contentUnit.status ?? 'draft')}</StatusBadge>
+          <StatusBadge {...contentEntityStatusRecipe(contentUnit.status ?? 'workspace')}>{statusLabel(contentUnit.status ?? 'workspace')}</StatusBadge>
         </ContentPageActionRow>
       )}
       bodyMode="stack"
@@ -1245,8 +1245,8 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
     <ContentPageRelatedItem>
       <ContentPageRelatedHeader
         aside={(
-          <StatusBadge {...contentEntityStatusRecipe(item.status ?? item.priority ?? 'draft')}>
-            {statusLabel(item.status ?? item.priority ?? 'draft')}
+          <StatusBadge {...contentEntityStatusRecipe(item.status ?? item.priority ?? 'workspace')}>
+            {statusLabel(item.status ?? item.priority ?? 'workspace')}
           </StatusBadge>
         )}
       >

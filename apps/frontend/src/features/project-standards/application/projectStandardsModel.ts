@@ -5,7 +5,7 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
-import type { AgentDraft } from '@/shared/infrastructure/localAgentClient'
+import type { AgentWorkspace } from '@/shared/infrastructure/localAgentClient'
 
 export type WorkspaceRecord = SemanticEntityRecord & {
   description?: string
@@ -38,21 +38,21 @@ export interface WorkspaceData {
   contentUnits: WorkspaceRecord[]
 }
 
-export interface ProjectStandardsProposalDraftView {
+export interface ProjectStandardsWorkspaceWorkspaceView {
   summary: string
   impactNotes: string[]
   debug: {
     scope?: string
     pageKey?: string
-    draftId?: string
-    draftUpdatedAt?: string
-    draftStatus?: string
+    workspaceId?: string
+    workspaceUpdatedAt?: string
+    workspaceStatus?: string
     sourceRunId?: string
     sourceThreadId?: string
   }
 }
 
-export interface ProjectStyleDraftRow {
+export interface ProjectStyleWorkspaceRow {
   key: string
   label: string
   before: string
@@ -61,10 +61,10 @@ export interface ProjectStyleDraftRow {
   kind?: 'core' | 'custom'
 }
 
-export interface ProjectStandardsReviewDraft {
-  draft: AgentDraft
-  proposalView: ProjectStandardsProposalDraftView | null
-  styleRows: ProjectStyleDraftRow[]
+export interface ProjectStandardsReviewWorkspace {
+  workspace: AgentWorkspace
+  workspaceView: ProjectStandardsWorkspaceWorkspaceView | null
+  styleRows: ProjectStyleWorkspaceRow[]
 }
 
 export type PromptRole = 'context' | 'style' | 'constraint' | 'negative' | 'quality_gate'
@@ -167,15 +167,15 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
-export function isProjectStandardsProposalHelperDraft(draft: AgentDraft) {
-  if (draft.kind !== 'project_standards_proposal') return false
-  const metadata = isRecord(draft.metadata) ? draft.metadata : {}
-  return typeof metadata.sourceDraftId === 'string' && metadata.sourceDraftId.trim().length > 0
+export function isProjectStandardsWorkspaceHelperWorkspace(workspace: AgentWorkspace) {
+  if (workspace.kind !== 'project_standards_workspace') return false
+  const metadata = isRecord(workspace.metadata) ? workspace.metadata : {}
+  return typeof metadata.sourceWorkspaceId === 'string' && metadata.sourceWorkspaceId.trim().length > 0
 }
 
-export function parseProjectStandardsProposalDraft(draft: AgentDraft, pageKey?: string): ProjectStandardsProposalDraftView | null {
+export function parseProjectStandardsWorkspaceWorkspace(workspace: AgentWorkspace, pageKey?: string): ProjectStandardsWorkspaceWorkspaceView | null {
   try {
-    const content = JSON.parse(draft.content) as Record<string, unknown>
+    const content = JSON.parse(workspace.content) as Record<string, unknown>
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...asRecordArray(content.impactNotes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
@@ -189,11 +189,11 @@ export function parseProjectStandardsProposalDraft(draft: AgentDraft, pageKey?: 
       debug: {
         scope: asString(content.scope, ''),
         pageKey,
-        draftId: draft.id,
-        draftUpdatedAt: draft.updatedAt,
-        draftStatus: draft.status,
-        sourceRunId: asString(draft.createdByRunId, asString(content.sourceRunId, '')),
-        sourceThreadId: asString(draft.createdByThreadId, asString(content.sourceThreadId, '')),
+        workspaceId: workspace.id,
+        workspaceUpdatedAt: workspace.updatedAt,
+        workspaceStatus: workspace.status,
+        sourceRunId: asString(workspace.createdByRunId, asString(content.sourceRunId, '')),
+        sourceThreadId: asString(workspace.createdByThreadId, asString(content.sourceThreadId, '')),
       },
     }
   } catch {
@@ -201,19 +201,19 @@ export function parseProjectStandardsProposalDraft(draft: AgentDraft, pageKey?: 
   }
 }
 
-export function buildProjectStyleApplyPayload(draft: AgentDraft) {
-  const content = JSON.parse(draft.content) as Record<string, unknown>
-  const proposal = isRecord(content.proposal) ? content.proposal : {}
+export function buildProjectStyleApplyPayload(workspace: AgentWorkspace) {
+  const content = JSON.parse(workspace.content) as Record<string, unknown>
+  const workspacePayload = isRecord(content.workspace) ? content.workspace : {}
   return JSON.stringify({
     ...content,
     mode: 'snapshot',
-    proposal: {
-      project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
+    workspace: {
+      project_style: isRecord(workspacePayload.project_style) ? workspacePayload.project_style : {},
     },
   }, null, 2)
 }
 
-function draftEntryFieldText(value: unknown) {
+function workspaceEntryFieldText(value: unknown) {
   if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value.trim()
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
@@ -228,8 +228,8 @@ function draftEntryFieldText(value: unknown) {
 }
 
 function valueToPromptText(value: unknown) {
-  if (Array.isArray(value)) return value.map((item) => draftEntryFieldText(item)).filter(Boolean).join('；')
-  return draftEntryFieldText(value)
+  if (Array.isArray(value)) return value.map((item) => workspaceEntryFieldText(item)).filter(Boolean).join('；')
+  return workspaceEntryFieldText(value)
 }
 
 export function splitListText(value: string) {
@@ -258,7 +258,7 @@ function normalizePromptRole(value: unknown): PromptRole {
 function normalizeProjectPromptRule(value: unknown, index: number): ProjectPromptRule | null {
   if (!isRecord(value)) return null
   const label = asString(value.label, asString(value.name, asString(value.key, `扩展规范 ${index + 1}`)))
-  const ruleValue = draftEntryFieldText(value.value ?? value.content ?? value.description)
+  const ruleValue = workspaceEntryFieldText(value.value ?? value.content ?? value.description)
   const key = asString(value.key, label.toLowerCase().replace(/\s+/g, '_'))
   if (!label && !ruleValue) return null
   return {
@@ -371,17 +371,17 @@ export function buildProjectPromptPreview(project?: WorkspaceRecord | null) {
   return sections.length > 0 ? `项目规范：\n${sections.join('\n')}` : '项目规范：\n- 暂无已启用规范。'
 }
 
-export function parseProjectStyleDraftRows(draft: AgentDraft, project?: WorkspaceRecord | null): ProjectStyleDraftRow[] {
+export function parseProjectStyleWorkspaceRows(workspace: AgentWorkspace, project?: WorkspaceRecord | null): ProjectStyleWorkspaceRow[] {
   try {
-    const content = JSON.parse(draft.content) as Record<string, unknown>
-    const proposal = isRecord(content.proposal) ? content.proposal : {}
-    const projectStyle = isRecord(proposal.project_style) ? proposal.project_style : {}
+    const content = JSON.parse(workspace.content) as Record<string, unknown>
+    const workspacePayload = isRecord(content.workspace) ? content.workspace : {}
+    const projectStyle = isRecord(workspacePayload.project_style) ? workspacePayload.project_style : {}
     const currentStyle = parseProjectStyleRecord(project)
     const coreRows = CORE_STANDARD_DEFS.flatMap(({ key, label }) => {
       const value = projectStyle[key]
-      const text = draftEntryFieldText(value)
+      const text = workspaceEntryFieldText(value)
       if (!text) return []
-      const before = draftEntryFieldText(key === 'aspect_ratio'
+      const before = workspaceEntryFieldText(key === 'aspect_ratio'
         ? project?.aspect_ratio ?? currentStyle[key]
         : key === 'visual_style'
           ? project?.visual_style ?? currentStyle[key]
@@ -419,7 +419,7 @@ export function parseProjectStyleRecord(project?: WorkspaceRecord | null): Recor
   }
 }
 
-export function projectStandardRows(project?: WorkspaceRecord | null): ProjectStyleDraftRow[] {
+export function projectStandardRows(project?: WorkspaceRecord | null): ProjectStyleWorkspaceRow[] {
   return CORE_STANDARD_DEFS.map((item) => ({
     key: item.key,
     label: item.label,

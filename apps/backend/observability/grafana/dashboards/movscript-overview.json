@@ -36,7 +36,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
       "id": 2,
       "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "(sum(rate(movscript_http_route_errors_total[$window])) / clamp_min(sum(rate(movscript_http_requests_total[$window])), 1)) or vector(0)", "legendFormat": "5xx ratio", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "(sum(rate(movscript_http_route_errors_total[$window])) / clamp_min(sum(rate(movscript_http_requests_total[$window])), 1e-9)) or vector(0)", "legendFormat": "5xx ratio", "refId": "A" }],
       "title": "HTTP Error Ratio",
       "type": "stat"
     },
@@ -56,7 +56,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "id": 4,
       "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto", "wideLayout": true },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1)) or vector(0)", "legendFormat": "agent", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1e-9)) or vector(0)", "legendFormat": "agent", "refId": "A" }],
       "title": "Agent Latency",
       "type": "stat"
     },
@@ -98,7 +98,7 @@
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "histogram_quantile(0.95, sum(rate(movscript_http_request_duration_milliseconds_bucket[$window])) by (le, route))", "legendFormat": "HTTP {{route}} p95", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1)", "legendFormat": "Agent {{kind}} {{status}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[$window])) by (kind, status) / clamp_min(sum(rate(movscript_agent_client_operation_duration_milliseconds_count[$window])) by (kind, status), 1e-9)", "legendFormat": "Agent {{kind}} {{status}}", "refId": "B" }
       ],
       "title": "Latency Overview",
       "type": "timeseries"

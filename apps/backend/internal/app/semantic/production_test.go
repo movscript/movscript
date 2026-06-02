@@ -67,7 +67,7 @@ func TestPatchProductionAllowsSourceChangeAfterDerivedItems(t *testing.T) {
 			name: "content unit",
 			seed: func(t *testing.T, db *gorm.DB, production model.Production) {
 				t.Helper()
-				unit := model.ContentUnit{ProjectID: production.ProjectID, ProductionID: &production.ID, Title: "Unit", Status: "draft"}
+				unit := model.ContentUnit{ProjectID: production.ProjectID, ProductionID: &production.ID, Title: "Unit", Status: "workspace"}
 				if err := db.Create(&unit).Error; err != nil {
 					t.Fatalf("create content unit: %v", err)
 				}
@@ -216,7 +216,7 @@ func TestCreateGeneratedKeyframeCandidateIsIdempotentForSameTargetAndResource(t 
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -302,7 +302,7 @@ func TestCreateGeneratedKeyframeCandidateRejectsMissingResource(t *testing.T) {
 	ctx := context.Background()
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -335,7 +335,7 @@ func TestCreateGeneratedKeyframeCandidateRejectsUnknownResource(t *testing.T) {
 	ctx := context.Background()
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -370,7 +370,7 @@ func TestCreateGeneratedKeyframeCandidateRejectsDirectAcceptedStatus(t *testing.
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -408,7 +408,7 @@ func TestCreateGeneratedKeyframeCandidateRejectsCandidateTarget(t *testing.T) {
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -448,14 +448,14 @@ func TestPatchKeyframeRejectsGeneratedCandidateMetadataWithoutResource(t *testin
 	ctx := context.Background()
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
 	}
 	subject, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Patch subject",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create patch subject: %v", err)
@@ -486,14 +486,14 @@ func TestPatchKeyframeRejectsGeneratedCandidateMetadataWithUnknownResource(t *te
 	ctx := context.Background()
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
 	}
 	subject, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Patch subject",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create patch subject: %v", err)
@@ -526,7 +526,7 @@ func TestPatchGeneratedKeyframeCandidateRejectsDirectAcceptedStatus(t *testing.T
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -570,7 +570,7 @@ func TestPatchGeneratedKeyframeCandidateAllowsRejectedStatus(t *testing.T) {
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -601,7 +601,7 @@ func TestPatchGeneratedKeyframeCandidateAllowsRejectedStatus(t *testing.T) {
 	if err := db.First(&targetReloaded, target.ID).Error; err != nil {
 		t.Fatalf("reload target keyframe: %v", err)
 	}
-	if targetReloaded.ResourceID != nil || targetReloaded.Status != "draft" {
+	if targetReloaded.ResourceID != nil || targetReloaded.Status != "workspace" {
 		t.Fatalf("target changed after rejecting candidate: %+v", targetReloaded)
 	}
 	decisions, err := service.ListCandidateDecisions(ctx, CandidateDecisionFilter{
@@ -675,7 +675,7 @@ func TestPatchGeneratedKeyframeCandidateRejectWithoutResourcePayloadKeepsResourc
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -726,7 +726,7 @@ func TestPatchGeneratedKeyframeCandidateRejectsUnknownResourceWithoutMetadataPay
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -768,7 +768,7 @@ func TestPatchKeyframeRejectsInvalidGeneratedCandidateTarget(t *testing.T) {
 	}
 	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Hero frame",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create target keyframe: %v", err)
@@ -784,7 +784,7 @@ func TestPatchKeyframeRejectsInvalidGeneratedCandidateTarget(t *testing.T) {
 	}
 	subject, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
 		Title:  "Patch subject",
-		Status: "draft",
+		Status: "workspace",
 	})
 	if err != nil {
 		t.Fatalf("create patch subject: %v", err)

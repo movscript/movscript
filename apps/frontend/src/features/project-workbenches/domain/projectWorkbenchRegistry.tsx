@@ -22,17 +22,14 @@ export type ProjectWorkbenchStage =
   | 'content_orchestration'
   | 'delivery'
 
-export type ProjectWorkbenchProposalKind =
-  | 'project_standards_proposal'
-  | 'setting_proposal'
-  | 'asset_proposal'
-  | 'production_proposal'
-  | 'content_unit_proposal'
+export type ProjectWorkbenchWorkspaceKind =
+  | 'setting_workspace'
+  | 'asset_workspace'
 
 export interface ProjectWorkbenchReviewQuery {
   viewParam?: string
   viewValue?: string
-  draftIdParam: string
+  workspaceIdParam: string
   entityParams?: Record<string, string>
   requiresEntity?: boolean
 }
@@ -51,7 +48,7 @@ export interface ProjectWorkbenchDefinition {
   output: string
   owns: string[]
   reads: string[]
-  proposalKinds: ProjectWorkbenchProposalKind[]
+  workspaceKinds: ProjectWorkbenchWorkspaceKind[]
   primarySelection?: {
     queryParam: string
     entityType: string
@@ -70,14 +67,14 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     stage: 'standards',
     icon: LayoutDashboard,
     purpose: '统一项目级画幅、镜头语言、视觉风格、节奏和禁用规则。',
-    decision: '审阅并写入固定 8 项项目规范和扩展 prompt 规则。',
+    decision: '手动维护固定 8 项项目规范和扩展 prompt 规则。',
     output: '可被后续设定、素材、编排和生成继承的项目级规范。',
     owns: ['project.aspect_ratio', 'project.visual_style', 'project.project_style'],
     reads: ['project'],
-    proposalKinds: ['project_standards_proposal'],
+    workspaceKinds: [],
     primarySelection: { queryParam: 'projectId', entityType: 'project' },
     reviewQuery: {
-      draftIdParam: 'draftId',
+      workspaceIdParam: 'workspaceId',
       entityParams: { project: 'projectId' },
     },
   },
@@ -91,15 +88,15 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     stage: 'pre_production',
     icon: Sparkles,
     purpose: '沉淀设定资料、素材需求和候选素材，补齐下游生成前的可复用上下文。',
-    decision: '审阅设定和素材提案，确认缺口、归属、候选、锁定和豁免状态。',
+    decision: '审阅设定和素材工作区，确认缺口、归属、候选、锁定和豁免状态。',
     output: '可进入创作编排和内容编辑的设定素材包。',
     owns: ['creative_reference', 'asset_slot', 'asset_slot_candidate'],
     reads: ['project', 'script', 'production', 'scene_moment', 'content_unit', 'resource'],
-    proposalKinds: ['setting_proposal', 'asset_proposal'],
+    workspaceKinds: ['setting_workspace', 'asset_workspace'],
     reviewQuery: {
       viewParam: 'view',
       viewValue: 'review',
-      draftIdParam: 'draftId',
+      workspaceIdParam: 'workspaceId',
       entityParams: {
         creative_reference: 'reference_id',
         asset_slot: 'asset_slot_id',
@@ -116,16 +113,16 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     stage: 'orchestration_production',
     icon: Clapperboard,
     purpose: '把剧本、设定、素材约束组织成 production 级创作蓝图，并继续拆解镜头方案、时间轴和镜头列表。',
-    decision: '审阅 production proposal 和 content unit proposal，确认 segments、scene moments、引用关系和镜头方案。',
+    decision: '手动维护 segments、scene moments、引用关系和镜头方案。',
     output: '可进入内容编辑细化执行的创作方案。',
     owns: ['production', 'segment', 'scene_moment', 'creative_reference_usage', 'asset_slot_usage', 'production_local_requirement', 'content_unit', 'keyframe', 'preview_timeline_item'],
     reads: ['project_standards', 'creative_reference', 'asset_slot', 'script'],
-    proposalKinds: ['production_proposal', 'content_unit_proposal'],
+    workspaceKinds: [],
     primarySelection: { queryParam: 'productionId', entityType: 'production' },
     reviewQuery: {
       viewParam: 'view',
       viewValue: 'review',
-      draftIdParam: 'draftId',
+      workspaceIdParam: 'workspaceId',
       entityParams: {
         production: 'productionId',
         scene_moment: 'scene_moment_id',
@@ -148,12 +145,12 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     output: '可驱动画面、视频和返工处理的创作输入。',
     owns: ['content_unit', 'keyframe', 'preview_timeline_item', 'generation_context'],
     reads: ['production', 'segment', 'scene_moment', 'creative_reference', 'asset_slot', 'resource', 'job'],
-    proposalKinds: [],
+    workspaceKinds: [],
     primarySelection: { queryParam: 'scene_moment_id', entityType: 'scene_moment' },
     reviewQuery: {
       viewParam: 'view',
       viewValue: 'review',
-      draftIdParam: 'draftId',
+      workspaceIdParam: 'workspaceId',
       entityParams: {
         production: 'productionId',
         scene_moment: 'scene_moment_id',
@@ -175,10 +172,10 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     output: '交付包、内部评审版、正式成片和归档记录。',
     owns: ['delivery_version', 'delivery_timeline_item', 'export_record'],
     reads: ['production', 'preview_timeline', 'content_unit', 'resource'],
-    proposalKinds: [],
+    workspaceKinds: [],
     primarySelection: { queryParam: 'productionId', entityType: 'production' },
     reviewQuery: {
-      draftIdParam: 'draftId',
+      workspaceIdParam: 'workspaceId',
       entityParams: {
         production: 'productionId',
         delivery_version: 'deliveryVersionId',
@@ -191,12 +188,12 @@ export function getProjectWorkbenchDefinition(id: ProjectWorkbenchId) {
   return projectWorkbenchDefinitions.find((item) => item.id === id) ?? projectWorkbenchDefinitions[0]
 }
 
-export function getProjectWorkbenchDefinitionForProposalKind(kind: string) {
-  return projectWorkbenchDefinitions.find((item) => item.proposalKinds.includes(kind as ProjectWorkbenchProposalKind)) ?? null
+export function getProjectWorkbenchDefinitionForWorkspaceKind(kind: string) {
+  return projectWorkbenchDefinitions.find((item) => item.workspaceKinds.includes(kind as ProjectWorkbenchWorkspaceKind)) ?? null
 }
 
 export interface ProjectWorkbenchReviewInput {
-  draftId: string
+  workspaceId: string
   entityType?: string
   entityId?: string | number
 }
@@ -215,7 +212,7 @@ export function buildProjectWorkbenchReviewParams(
   if (definition.reviewQuery.viewParam && definition.reviewQuery.viewValue) {
     params[definition.reviewQuery.viewParam] = definition.reviewQuery.viewValue
   }
-  params[definition.reviewQuery.draftIdParam] = input.draftId
+  params[definition.reviewQuery.workspaceIdParam] = input.workspaceId
   if (definition.reviewQuery.viewParam && entityParam) {
     if (entityParam) params[entityParam] = input.entityId
   }

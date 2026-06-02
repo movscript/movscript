@@ -382,7 +382,7 @@ function formatDuration(ms: number) {
 
 function kindLabel(kind: AgentActivityKind): string {
   if (kind === 'read') return '读取'
-  if (kind === 'draft') return '草稿'
+  if (kind === 'workspace') return '工作区'
   if (kind === 'write') return '写入'
   if (kind === 'task') return '任务'
   if (kind === 'system') return '系统'

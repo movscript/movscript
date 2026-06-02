@@ -97,7 +97,7 @@ export function CreateContentUnitQuickCard({
     onSuccess: async (record) => {
       await queryClient.invalidateQueries({ queryKey })
       if (projectId) queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
-      toast.success('制作项草稿已创建')
+      toast.success('制作项工作区已创建')
       onSaved(record)
     },
     onError: (error) => {
@@ -109,7 +109,7 @@ export function CreateContentUnitQuickCard({
     <ContentWorkbenchQuickCreateCard
       icon={Boxes}
       title="新建制作项"
-      description={`${selected.title} · 候选草稿`}
+      description={`${selected.title} · 候选工作区`}
       badge="需时长"
     >
       <ContentWorkbenchQuickCreateSelectField

@@ -31,7 +31,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   onSelectConversation: (id: string) => void
   showCollapse?: boolean
   showConversationControls?: boolean
-  updateDraft: (patch: { input: string }) => void
+  updateWorkspace: (patch: { input: string }) => void
   updateTaskGraphDispatchSettings: (settings: PlanDispatchSettings) => void
 }
 
@@ -58,15 +58,15 @@ export function buildAgentChatViewLayoutProps({
   onSelectConversation,
   showCollapse,
   showConversationControls,
-  updateDraft,
+  updateWorkspace,
   updateTaskGraphDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput) {
   return {
     debugPreview: {
-      draft: runtime.pendingSendDraft,
+      workspace: runtime.pendingSendWorkspace,
       sending: presentation.loading,
-      onCancel: () => runtime.setPendingSendDraft(null),
-      onConfirm: interaction.confirmPendingSendDraft,
+      onCancel: () => runtime.setPendingSendWorkspace(null),
+      onConfirm: interaction.confirmPendingSendWorkspace,
     },
     header: {
       activeConversation: conv,
@@ -122,7 +122,7 @@ export function buildAgentChatViewLayoutProps({
       answeringPendingInput: presentation.answeringPendingInput,
       activePendingInputTitle: presentation.activePendingInputRequest?.title,
       addMentionTrigger: composer.addMentionTrigger,
-      buildingSendDraft: presentation.buildingSendDraft,
+      buildingSendWorkspace: presentation.buildingSendWorkspace,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
       canSend: presentation.canSend,
       canStopLocalRun: presentation.canStopLocalRun,
@@ -154,7 +154,7 @@ export function buildAgentChatViewLayoutProps({
       onComposerDrop: composer.handleComposerDrop,
       onComposerPaste: composer.handleComposerPaste,
       onDebugBeforeSendChange: runtime.setDebugBeforeSend,
-      onInputChange: (value: string) => updateDraft({ input: value }),
+      onInputChange: (value: string) => updateWorkspace({ input: value }),
       onMentionEscape: () => composer.setMentionRange(null),
       onMentionSelect: composer.insertResourceMention,
       onMentionState: composer.updateMentionState,

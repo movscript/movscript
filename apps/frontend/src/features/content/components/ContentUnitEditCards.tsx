@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
 
 import {
   deleteSemanticEntity,
@@ -13,20 +13,20 @@ import {
   buildKeyframeGenerationPrompt,
   contentUnitEditCameraAngleOptions,
   contentUnitEditCameraMotionOptions,
-  contentUnitEditDraftEqualsRecord,
-  contentUnitEditDraftFromRecord,
+  contentUnitEditWorkspaceEqualsRecord,
+  contentUnitEditWorkspaceFromRecord,
   contentUnitEditPayload,
   contentUnitEditShotSizeOptions,
-  keyframeEditDraftEqualsRecord,
-  keyframeEditDraftFromRecord,
+  keyframeEditWorkspaceEqualsRecord,
+  keyframeEditWorkspaceFromRecord,
   keyframeEditPayload,
   keyframeHasOutput,
   keyframeHasRunningJob,
-  type ContentUnitEditDraft,
+  type ContentUnitEditWorkspace,
   type ContentWorkbenchEditRecord,
   type ContentWorkbenchKeyframePromptRow,
   type ContentUnitInputDrawerTab,
-  type KeyframeEditDraft,
+  type KeyframeEditWorkspace,
 } from '@/features/content/domain/contentWorkbenchEditModel'
 import { trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import { byOrder, firstText, formatDuration, numberOf, titleOfRecord } from '@/features/content/domain/contentWorkbenchRecordUtils'
@@ -99,8 +99,6 @@ export function ContentUnitEditCards({
   compact = false,
   onSelectUnit,
   onCreateUnit,
-  onAiSuggest,
-  onAiVisualTaskGraph,
   onCreateAssetSlot,
   onCreateKeyframe,
   onOpenCanvas,
@@ -115,8 +113,6 @@ export function ContentUnitEditCards({
   compact?: boolean
   onSelectUnit: (unitId: number) => void
   onCreateUnit: () => void
-  onAiSuggest?: () => void
-  onAiVisualTaskGraph?: () => void
   onCreateAssetSlot?: () => void
   onCreateKeyframe?: () => void
   onOpenCanvas?: () => void
@@ -126,7 +122,7 @@ export function ContentUnitEditCards({
   const queryClient = useQueryClient()
   const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
-  const [draft, setDraft] = useState<ContentUnitEditDraft>(() => contentUnitEditDraftFromRecord(unit))
+  const [workspace, setWorkspace] = useState<ContentUnitEditWorkspace>(() => contentUnitEditWorkspaceFromRecord(unit))
   const [activeInputDrawer, setActiveInputDrawer] = useState<ContentUnitInputDrawerTab>('generation')
   const [keyframeModelId, setKeyframeModelId] = useState('')
   const { data: imageModels = [] } = useQuery<PublicModel[]>({
@@ -139,7 +135,7 @@ export function ContentUnitEditCards({
   }, [imageModels, keyframeModelId])
 
   useEffect(() => {
-    setDraft(contentUnitEditDraftFromRecord(unit))
+    setWorkspace(contentUnitEditWorkspaceFromRecord(unit))
     setActiveInputDrawer('generation')
   }, [unit?.ID])
 
@@ -151,28 +147,28 @@ export function ContentUnitEditCards({
     ? row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).slice().sort(byOrder)
     : []
   const visualPlanReady = hasStructuredText(
-    draft.visual_task_graph_space,
-    draft.visual_task_graph_blocking,
-    draft.visual_task_graph_camera_path,
-    draft.visual_task_graph_beats,
-    draft.visual_task_graph_lighting,
+    workspace.visual_task_graph_space,
+    workspace.visual_task_graph_blocking,
+    workspace.visual_task_graph_camera_path,
+    workspace.visual_task_graph_beats,
+    workspace.visual_task_graph_lighting,
   )
   const storyboardBriefReady = hasStructuredText(
-    draft.storyboard_purpose,
-    draft.storyboard_subject,
-    draft.storyboard_composition,
-    draft.storyboard_action_moment,
-    draft.storyboard_keyframe_suggestions,
+    workspace.storyboard_purpose,
+    workspace.storyboard_subject,
+    workspace.storyboard_composition,
+    workspace.storyboard_action_moment,
+    workspace.storyboard_keyframe_suggestions,
   )
   const requiresKeyframe = unit ? contentWorkbenchUnitRequiresKeyframe(unit.kind) : true
   const workStatus = unit ? contentUnitWorkStatus(unit, missingSlots) : 'blocked'
-  const unchanged = unit ? contentUnitEditDraftEqualsRecord(draft, unit) : true
+  const unchanged = unit ? contentUnitEditWorkspaceEqualsRecord(workspace, unit) : true
   const [selectedKeyframeId, setSelectedKeyframeId] = useState<number | null>(null)
   const selectedKeyframe = keyframes.find((keyframe) => keyframe.ID === selectedKeyframeId) ?? keyframes[0] ?? null
-  const [keyframeDraft, setKeyframeDraft] = useState<KeyframeEditDraft>(() => keyframeEditDraftFromRecord(selectedKeyframe))
+  const [keyframeWorkspace, setKeyframeWorkspace] = useState<KeyframeEditWorkspace>(() => keyframeEditWorkspaceFromRecord(selectedKeyframe))
   const selectedModel = imageModels.find((model) => publicModelId(model) === keyframeModelId) ?? imageModels[0] ?? null
   const unfinishedKeyframes = keyframes.filter((keyframe) => !keyframeHasOutput(keyframe, jobs) && !keyframeHasRunningJob(keyframe, jobs))
-  const keyframeUnchanged = selectedKeyframe ? keyframeEditDraftEqualsRecord(keyframeDraft, selectedKeyframe) : true
+  const keyframeUnchanged = selectedKeyframe ? keyframeEditWorkspaceEqualsRecord(keyframeWorkspace, selectedKeyframe) : true
 
   useEffect(() => {
     if (keyframes.length === 0) {
@@ -185,19 +181,19 @@ export function ContentUnitEditCards({
   }, [keyframes, selectedKeyframeId])
 
   useEffect(() => {
-    setKeyframeDraft(keyframeEditDraftFromRecord(selectedKeyframe))
+    setKeyframeWorkspace(keyframeEditWorkspaceFromRecord(selectedKeyframe))
   }, [selectedKeyframe?.ID])
 
   const saveUnit = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit) throw new Error('缺少制作项')
-      return updateSemanticEntity(projectId, contentUnitConfig, unit.ID, contentUnitEditPayload(draft))
+      return updateSemanticEntity(projectId, contentUnitConfig, unit.ID, contentUnitEditPayload(workspace))
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
       await queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
       toast.success('制作项已保存')
-      setDraft(contentUnitEditDraftFromRecord(saved))
+      setWorkspace(contentUnitEditWorkspaceFromRecord(saved))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '制作项保存失败'))
@@ -223,14 +219,14 @@ export function ContentUnitEditCards({
   const saveKeyframe = useMutation({
     mutationFn: async () => {
       if (!projectId || !selectedKeyframe) throw new Error('缺少关键帧')
-      return updateSemanticEntity(projectId, keyframeConfig, selectedKeyframe.ID, keyframeEditPayload(keyframeDraft))
+      return updateSemanticEntity(projectId, keyframeConfig, selectedKeyframe.ID, keyframeEditPayload(keyframeWorkspace))
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
       await queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
       toast.success('关键帧已保存')
       setSelectedKeyframeId(saved.ID)
-      setKeyframeDraft(keyframeEditDraftFromRecord(saved))
+      setKeyframeWorkspace(keyframeEditWorkspaceFromRecord(saved))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '关键帧保存失败'))
@@ -324,12 +320,12 @@ export function ContentUnitEditCards({
     },
   })
 
-  function updateDraft(key: keyof ContentUnitEditDraft, value: string) {
-    setDraft((current) => ({ ...current, [key]: value }))
+  function updateWorkspace(key: keyof ContentUnitEditWorkspace, value: string) {
+    setWorkspace((current) => ({ ...current, [key]: value }))
   }
 
-  function updateKeyframeDraft(key: keyof KeyframeEditDraft, value: string) {
-    setKeyframeDraft((current) => ({ ...current, [key]: value }))
+  function updateKeyframeWorkspace(key: keyof KeyframeEditWorkspace, value: string) {
+    setKeyframeWorkspace((current) => ({ ...current, [key]: value }))
   }
 
   function removeUnit() {
@@ -368,12 +364,6 @@ export function ContentUnitEditCards({
                 <Plus size={14} />
                 新建制作项
               </ContentWorkbenchUnitEditActionButton>
-              {onAiSuggest ? (
-                <ContentWorkbenchUnitEditActionButton variant="outline" onClick={onAiSuggest}>
-                  <Sparkles size={14} />
-                  让 AI 规划
-                </ContentWorkbenchUnitEditActionButton>
-              ) : null}
             </ContentWorkbenchUnitEditActionRow>
           )}
         />
@@ -422,32 +412,32 @@ export function ContentUnitEditCards({
           />
           <ContentWorkbenchEditorFieldGrid variant="unit-title">
             <ContentWorkbenchEditorField label="标题" htmlFor={`content-unit-title-${unit.ID}`}>
-              <Input id={`content-unit-title-${unit.ID}`} value={draft.title} onChange={(event) => updateDraft('title', event.target.value)} />
+              <Input id={`content-unit-title-${unit.ID}`} value={workspace.title} onChange={(event) => updateWorkspace('title', event.target.value)} />
             </ContentWorkbenchEditorField>
             <ContentWorkbenchEditorField label="时长秒" htmlFor={`content-unit-duration-${unit.ID}`}>
-              <Input id={`content-unit-duration-${unit.ID}`} type="number" min="0" value={draft.duration_sec} onChange={(event) => updateDraft('duration_sec', event.target.value)} />
+              <Input id={`content-unit-duration-${unit.ID}`} type="number" min="0" value={workspace.duration_sec} onChange={(event) => updateWorkspace('duration_sec', event.target.value)} />
             </ContentWorkbenchEditorField>
           </ContentWorkbenchEditorFieldGrid>
           <ContentWorkbenchEditorFieldGrid>
-            <ContentWorkbenchEditorSelectField label="景别" value={draft.shot_size} options={contentUnitEditShotSizeOptions} onChange={(value) => updateDraft('shot_size', value)} />
-            <ContentWorkbenchEditorSelectField label="机位角度" value={draft.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateDraft('camera_angle', value)} />
-            <ContentWorkbenchEditorSelectField label="运镜方式" value={draft.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateDraft('camera_motion', value)} />
+            <ContentWorkbenchEditorSelectField label="景别" value={workspace.shot_size} options={contentUnitEditShotSizeOptions} onChange={(value) => updateWorkspace('shot_size', value)} />
+            <ContentWorkbenchEditorSelectField label="机位角度" value={workspace.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateWorkspace('camera_angle', value)} />
+            <ContentWorkbenchEditorSelectField label="运镜方式" value={workspace.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateWorkspace('camera_motion', value)} />
           </ContentWorkbenchEditorFieldGrid>
           <ContentWorkbenchEditorFieldGrid>
             <ContentWorkbenchEditorField label="描述" htmlFor={`content-unit-description-${unit.ID}`}>
               <ContentWorkbenchUnitEditTextarea
                 id={`content-unit-description-${unit.ID}`}
                 compact={compact}
-                value={draft.description}
-                onChange={(event) => updateDraft('description', event.target.value)}
+                value={workspace.description}
+                onChange={(event) => updateWorkspace('description', event.target.value)}
               />
             </ContentWorkbenchEditorField>
             <ContentWorkbenchEditorField label="生成提示" htmlFor={`content-unit-prompt-${unit.ID}`}>
               <ContentWorkbenchUnitEditTextarea
                 id={`content-unit-prompt-${unit.ID}`}
                 compact={compact}
-                value={draft.prompt}
-                onChange={(event) => updateDraft('prompt', event.target.value)}
+                value={workspace.prompt}
+                onChange={(event) => updateWorkspace('prompt', event.target.value)}
               />
             </ContentWorkbenchEditorField>
           </ContentWorkbenchEditorFieldGrid>
@@ -460,13 +450,13 @@ export function ContentUnitEditCards({
         <ContentUnitGenerationInputsPanel
           compact={compact}
           unit={unit}
-          draft={draft}
+          workspace={workspace}
           activeInputDrawer={activeInputDrawer}
           assetSlots={assetSlots}
           missingSlots={missingSlots}
           keyframes={keyframes}
           selectedKeyframe={selectedKeyframe}
-          keyframeDraft={keyframeDraft}
+          keyframeWorkspace={keyframeWorkspace}
           jobs={jobs}
           imageModels={imageModels}
           keyframeModelId={keyframeModelId}
@@ -481,17 +471,16 @@ export function ContentUnitEditCards({
           generatePending={generateKeyframes.isPending}
           keyframeUnchanged={keyframeUnchanged}
           onInputDrawerChange={setActiveInputDrawer}
-          onDraftChange={(field, value) => updateDraft(field, value)}
+          onWorkspaceChange={(field, value) => updateWorkspace(field, value)}
           onCreateAssetSlot={onCreateAssetSlot}
           onCreateKeyframe={onCreateKeyframe}
           onUploadMissingAssets={onUploadMissingAssets}
           onOpenCanvas={onOpenCanvas}
-          onAiVisualTaskGraph={onAiVisualTaskGraph}
           onSelectKeyframe={setSelectedKeyframeId}
           onMoveKeyframe={(keyframe, direction) => reorderKeyframe.mutate({ keyframe: keyframe as ContentUnitEditRecord, direction })}
           onDeleteKeyframe={(keyframe) => removeKeyframe(keyframe as ContentUnitEditRecord)}
           onSaveKeyframe={() => saveKeyframe.mutate()}
-          onKeyframeDraftChange={updateKeyframeDraft}
+          onKeyframeWorkspaceChange={updateKeyframeWorkspace}
           onKeyframeModelChange={setKeyframeModelId}
           onGenerateKeyframes={(targets) => generateKeyframes.mutate(targets as ContentUnitEditRecord[])}
         />

@@ -4,9 +4,9 @@ import { publicModelId } from '@/shared/domain/modelDisplay'
 import type { PublicModel } from '@/types'
 
 export type RuntimeModelAPIKind = NonNullable<RuntimeModelConfigPublic['apiKind']>
-export type ToolGrantDraft = AgentManifest['tools'][number]
-export type SkillConfigDraft = { id: string; enabled: boolean }
-export type ConfigFileToolPermissionOverrides = { configFileId: string; toolGrants: ToolGrantDraft[] }
+export type ToolGrantWorkspace = AgentManifest['tools'][number]
+export type SkillConfigWorkspace = { id: string; enabled: boolean }
+export type ConfigFileToolPermissionOverrides = { configFileId: string; toolGrants: ToolGrantWorkspace[] }
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA = 'movscript.agent.settings.snapshot.v1'
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION = 1
 export const AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL = 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json'
@@ -31,7 +31,7 @@ export type AgentSettingsSnapshot = {
   activeConfigFileId?: string
   configFiles?: AgentCatalogConfigFile[]
   runtimeLimits?: AgentCatalogConfigFile['limits']
-  skillConfig?: SkillConfigDraft[]
+  skillConfig?: SkillConfigWorkspace[]
   toolPermissionOverrides?: ConfigFileToolPermissionOverrides[]
 }
 
@@ -39,7 +39,7 @@ export function buildSettingsSnapshot(input: {
   config: RuntimeModelConfigPublic | null
   configFileId: string
   configFiles: AgentCatalogConfigFile[]
-  skillConfig: SkillConfigDraft[]
+  skillConfig: SkillConfigWorkspace[]
   toolPermissionOverrides: ConfigFileToolPermissionOverrides[]
 }): AgentSettingsSnapshot {
   const model = buildSnapshotModel(input.config)
@@ -278,7 +278,7 @@ function parseSnapshotAPIKind(input: unknown): RuntimeModelAPIKind | undefined {
   throw new Error('agent settings snapshot model.apiKind is invalid')
 }
 
-function parseSnapshotSkillConfig(input: unknown): SkillConfigDraft[] {
+function parseSnapshotSkillConfig(input: unknown): SkillConfigWorkspace[] {
   if (!Array.isArray(input)) throw new Error('agent settings snapshot skillConfig must be an array')
   const seenIds = new Set<string>()
   return input.map((item, index) => {
@@ -309,7 +309,7 @@ function parseSnapshotToolPermissionOverrides(input: unknown): ConfigFileToolPer
   })
 }
 
-function parseSnapshotToolPermissionGrants(input: unknown, label: string): ToolGrantDraft[] {
+function parseSnapshotToolPermissionGrants(input: unknown, label: string): ToolGrantWorkspace[] {
   if (!Array.isArray(input)) throw new Error(`${label} must be an array`)
   const seenNames = new Set<string>()
   return input.map((item, index) => {
@@ -381,9 +381,9 @@ function parseSnapshotConfigFileToolGrants(input: unknown, configFileIndex: numb
 
 function parseSnapshotApprovalDefaults(input: unknown, label: string): NonNullable<AgentCatalogConfigFile['approvalDefaults']> {
   if (!isRecord(input)) throw new Error(`${label} must be an object`)
-  assertAllowedKeys(input, label, ['default', 'read', 'draft', 'write', 'generate', 'destructive', 'ui'])
+  assertAllowedKeys(input, label, ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'])
   const defaults: NonNullable<AgentCatalogConfigFile['approvalDefaults']> = {}
-  for (const key of ['default', 'read', 'draft', 'write', 'generate', 'destructive', 'ui'] as const) {
+  for (const key of ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'] as const) {
     const value = input[key]
     if (value === undefined) continue
     if (value !== 'never' && value !== 'always' && value !== 'on_write') throw new Error(`${label}.${key} is invalid`)
@@ -473,7 +473,7 @@ function validateSnapshotConfigFileReferences(
 }
 
 function validateSnapshotSkillConfigReferences(
-  defaults: SkillConfigDraft[],
+  defaults: SkillConfigWorkspace[],
   skills: AgentCatalogSkill[],
   configFile: AgentCatalogConfigFile | null,
 ): AgentSettingsSnapshotReferenceIssue[] {
@@ -483,18 +483,18 @@ function validateSnapshotSkillConfigReferences(
   const enabledById = new Map(skills.map((skill) => [skill.id, skill.loadMode === 'core' || configSkillIds.has(skill.id)]))
   const changedIds = new Set<string>()
 
-  for (const [index, draft] of defaults.entries()) {
-    const skill = skillById.get(draft.id)
+  for (const [index, workspace] of defaults.entries()) {
+    const skill = skillById.get(workspace.id)
     if (!skill) {
-      setReferenceIssue(issues, `skillConfig.${draft.id}.missing`, `skillConfig.${index + 1}.id`, `skill ${draft.id} not found`)
+      setReferenceIssue(issues, `skillConfig.${workspace.id}.missing`, `skillConfig.${index + 1}.id`, `skill ${workspace.id} not found`)
       continue
     }
-    if (skill.loadMode === 'core' && draft.enabled === false) {
-      setReferenceIssue(issues, `skillConfig.${draft.id}.core`, `skillConfig.${index + 1}.enabled`, `core skill ${draft.id} cannot be disabled`)
+    if (skill.loadMode === 'core' && workspace.enabled === false) {
+      setReferenceIssue(issues, `skillConfig.${workspace.id}.core`, `skillConfig.${index + 1}.enabled`, `core skill ${workspace.id} cannot be disabled`)
       continue
     }
-    if (enabledById.get(draft.id) !== draft.enabled) changedIds.add(draft.id)
-    enabledById.set(draft.id, draft.enabled)
+    if (enabledById.get(workspace.id) !== workspace.enabled) changedIds.add(workspace.id)
+    enabledById.set(workspace.id, workspace.enabled)
   }
 
   for (const id of changedIds) {
@@ -527,7 +527,7 @@ function validateSnapshotSkillConfigReferences(
 }
 
 function validateSnapshotToolPermissionReferences(
-  permissions: ToolGrantDraft[],
+  permissions: ToolGrantWorkspace[],
   configFile: AgentCatalogConfigFile,
   pathPrefix: string,
 ): AgentSettingsSnapshotReferenceIssue[] {

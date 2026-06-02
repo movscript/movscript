@@ -342,7 +342,7 @@
       "properties": {
         "default": { "$ref": "#/$defs/approvalMode" },
         "read": { "$ref": "#/$defs/approvalMode" },
-        "draft": { "$ref": "#/$defs/approvalMode" },
+        "workspace": { "$ref": "#/$defs/approvalMode" },
         "write": { "$ref": "#/$defs/approvalMode" },
         "generate": { "$ref": "#/$defs/approvalMode" },
         "destructive": { "$ref": "#/$defs/approvalMode" },

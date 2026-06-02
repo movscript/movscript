@@ -32,7 +32,7 @@ type ProductionTextBlock struct {
 	Content       string `gorm:"type:text" json:"content"`
 	Summary       string `gorm:"type:text" json:"summary"`
 	SourceType    string `gorm:"not null;default:'manual';index" json:"source_type"` // manual|script|brief|ai|import
-	Status        string `gorm:"not null;default:'draft';index" json:"status"`       // draft|active|archived
+	Status        string `gorm:"not null;default:'workspace';index" json:"status"`       // workspace|active|archived
 	MetadataJSON  string `gorm:"type:text" json:"metadata_json"`
 }
 
@@ -71,7 +71,7 @@ type AssetSlotCandidate struct {
 }
 
 // CandidateDecision records user or system decisions for generated candidates.
-// It supports persisted candidates by ID and draft/runtime candidates by client
+// It supports persisted candidates by ID and workspace/runtime candidates by client
 // ID so acceptance history is not lost before a candidate becomes a fact.
 type CandidateDecision struct {
 	gorm.Model
@@ -160,7 +160,7 @@ type DeliveryVersion struct {
 	PreviewTimelineID *uint   `gorm:"index" json:"preview_timeline_id,omitempty"`
 	Name              string  `gorm:"not null" json:"name"`
 	Description       string  `gorm:"type:text" json:"description"`
-	Status            string  `gorm:"not null;default:'draft';index" json:"status"` // draft|checking|approved|exported|archived
+	Status            string  `gorm:"not null;default:'workspace';index" json:"status"` // workspace|checking|approved|exported|archived
 	IsPrimary         bool    `gorm:"default:false;index" json:"is_primary"`
 	DurationSec       float64 `json:"duration_sec"`
 	MetadataJSON      string  `gorm:"type:text" json:"metadata_json"`
@@ -178,7 +178,7 @@ type DeliveryTimelineItem struct {
 	StartSec          float64 `json:"start_sec"`
 	DurationSec       float64 `json:"duration_sec"`
 	Label             string  `json:"label"`
-	Status            string  `gorm:"not null;default:'draft';index" json:"status"` // draft|missing|locked|approved
+	Status            string  `gorm:"not null;default:'workspace';index" json:"status"` // workspace|missing|locked|approved
 	MetadataJSON      string  `gorm:"type:text" json:"metadata_json"`
 }
 

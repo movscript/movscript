@@ -1,6 +1,6 @@
 export type ContentWorkbenchReviewQueueState = 'empty' | 'needs_review' | 'pending_review' | 'processed'
 
-export interface ContentWorkbenchReviewDraftLike {
+export interface ContentWorkbenchReviewWorkspaceLike {
   status?: string
 }
 
@@ -27,15 +27,15 @@ export interface ContentWorkbenchReviewQueueSummary {
 }
 
 export function buildContentWorkbenchReviewQueueSummary(input: {
-  drafts: ContentWorkbenchReviewDraftLike[]
+  workspaces: ContentWorkbenchReviewWorkspaceLike[]
   selectedReview?: ContentWorkbenchSelectedReview | null
 }): ContentWorkbenchReviewQueueSummary {
-  const total = input.drafts.length
-  const pending = input.drafts.filter((draft) => {
-    const status = normalizeDraftStatus(draft.status)
-    return status === 'draft' || status === 'accepted'
+  const total = input.workspaces.length
+  const pending = input.workspaces.filter((workspace) => {
+    const status = normalizeWorkspaceStatus(workspace.status)
+    return status === 'workspace' || status === 'accepted'
   }).length
-  const applied = input.drafts.filter((draft) => normalizeDraftStatus(draft.status) === 'applied').length
+  const applied = input.workspaces.filter((workspace) => normalizeWorkspaceStatus(workspace.status) === 'applied').length
   const inactive = Math.max(0, total - pending - applied)
   const warningCount = input.selectedReview?.warningCount ?? 0
   const diffCount = input.selectedReview?.diffCount ?? 0
@@ -109,6 +109,6 @@ export function buildContentWorkbenchReviewQueueSummary(input: {
   }
 }
 
-function normalizeDraftStatus(value: unknown) {
+function normalizeWorkspaceStatus(value: unknown) {
   return String(value ?? '').trim().toLowerCase()
 }

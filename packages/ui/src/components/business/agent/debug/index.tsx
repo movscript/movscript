@@ -25,8 +25,8 @@ import { AgentSurfaceBlock } from "../surface-block";
 
 export type AgentDebugSeverity = "ready" | "action" | "warning" | "info";
 export type AgentDebugTone = "neutral" | "info" | "success" | "warning" | "danger";
-export type AgentDebugDraftDiffSide = "current" | "proposed";
-export type AgentDebugDraftDiffLineChange = "removed" | "added" | "same";
+export type AgentDebugWorkspaceDiffSide = "current" | "proposed";
+export type AgentDebugWorkspaceDiffLineChange = "removed" | "added" | "same";
 
 export function AgentDebugHeaderContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("agent-debug-header", className)} {...props} />;
@@ -105,7 +105,7 @@ export function AgentDebugTabsContent({
   className,
   ...props
 }: ComponentProps<typeof TabsContent> & {
-  layout?: "stack" | "two" | "overview" | "tool-console" | "draft-runtime" | "metrics";
+  layout?: "stack" | "two" | "overview" | "tool-console" | "workspace-runtime" | "metrics";
 }) {
   return <TabsContent data-layout={layout} className={cn("agent-debug-tabs-content", className)} {...props} />;
 }
@@ -430,15 +430,15 @@ export function AgentDebugFieldGroup({
   );
 }
 
-export function AgentDebugDraftDiffShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function AgentDebugWorkspaceDiffShell({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <AgentSurfaceBlock asChild className={cn("agent-debug-draft-diff", className)}>
+    <AgentSurfaceBlock asChild className={cn("agent-debug-workspace-diff", className)}>
       <div {...props} />
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentDebugDraftDiffHeader({
+export function AgentDebugWorkspaceDiffHeader({
   currentLabel,
   proposedLabel,
 }: {
@@ -446,21 +446,21 @@ export function AgentDebugDraftDiffHeader({
   proposedLabel: ReactNode;
 }) {
   return (
-    <div className="agent-debug-draft-diff__header">
-      <span className="agent-debug-draft-diff__header-cell agent-debug-draft-diff__header-cell--current">{currentLabel}</span>
-      <span className="agent-debug-draft-diff__header-cell">{proposedLabel}</span>
+    <div className="agent-debug-workspace-diff__header">
+      <span className="agent-debug-workspace-diff__header-cell agent-debug-workspace-diff__header-cell--current">{currentLabel}</span>
+      <span className="agent-debug-workspace-diff__header-cell">{proposedLabel}</span>
     </div>
   );
 }
 
-export function AgentDebugDraftDiffColumns({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("agent-debug-draft-diff__columns", className)} {...props} />;
+export function AgentDebugWorkspaceDiffColumns({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-debug-workspace-diff__columns", className)} {...props} />;
 }
 
-export function AgentDebugDraftDiffRows({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function AgentDebugWorkspaceDiffRows({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("agent-debug-draft-diff__rows", className)}>
-      <AgentSurfaceBlock className="agent-debug-draft-diff__rows-inner" {...props} />
+    <div className={cn("agent-debug-workspace-diff__rows", className)}>
+      <AgentSurfaceBlock className="agent-debug-workspace-diff__rows-inner" {...props} />
     </div>
   );
 }
@@ -661,35 +661,35 @@ export function AgentDebugToneText({
   );
 }
 
-export function AgentDebugDraftDiffCodeBlock({
+export function AgentDebugWorkspaceDiffCodeBlock({
   side,
   className,
   ...props
 }: ComponentProps<typeof AppCodeBlock> & {
-  side: AgentDebugDraftDiffSide;
+  side: AgentDebugWorkspaceDiffSide;
 }) {
   const tone = side === "current" ? "danger" : "success";
   return (
     <AppCodeBlock
-      className={cn("agent-debug-draft-diff-code", `agent-debug-draft-diff-code--${side}`, toneSurfaceClass(tone), toneTextClass(tone), className)}
+      className={cn("agent-debug-workspace-diff-code", `agent-debug-workspace-diff-code--${side}`, toneSurfaceClass(tone), toneTextClass(tone), className)}
       {...props}
     />
   );
 }
 
-export function AgentDebugDraftDiffLine({
+export function AgentDebugWorkspaceDiffLine({
   change,
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
-  change: AgentDebugDraftDiffLineChange;
+  change: AgentDebugWorkspaceDiffLineChange;
 }) {
   const tone = change === "removed" ? "danger" : change === "added" ? "success" : undefined;
   return (
     <div
       className={cn(
-        "agent-debug-draft-diff-line",
-        `agent-debug-draft-diff-line--${change}`,
+        "agent-debug-workspace-diff-line",
+        `agent-debug-workspace-diff-line--${change}`,
         tone ? cn(toneSurfaceClass(tone), toneTextClass(tone)) : undefined,
         className,
       )}

@@ -20,7 +20,7 @@ export interface ContentWorkbenchActivityInput {
   generationContextReady: boolean
   generationContextLoading: boolean
   generationContextError: boolean
-  pendingReviewDraftCount: number
+  pendingReviewWorkspaceCount: number
   jobs: ContentWorkbenchActivityJobLike[]
 }
 
@@ -56,15 +56,15 @@ export function buildContentWorkbenchActivityFeed(input: ContentWorkbenchActivit
   }
 
   const items: ContentWorkbenchActivityItem[] = []
-  const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
+  const pendingReviewWorkspaceCount = positiveInteger(input.pendingReviewWorkspaceCount)
 
-  if (pendingReviewDraftCount > 0) {
+  if (pendingReviewWorkspaceCount > 0) {
     items.push({
-      key: 'review-drafts',
+      key: 'review-workspaces',
       title: 'AI 草案待审',
-      detail: `${pendingReviewDraftCount} 个草案需要人工确认后再进入生成计划。`,
+      detail: `${pendingReviewWorkspaceCount} 个草案需要人工确认后再进入生成计划。`,
       state: 'blocked',
-      actionKey: 'review_ai_drafts',
+      actionKey: 'review_ai_workspaces',
       actionLabel: '审阅',
     })
   }

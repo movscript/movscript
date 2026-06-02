@@ -769,7 +769,7 @@
 }
 
 .resource-prep-thumbnail--card,
-.resource-prep-thumbnail--draft {
+.resource-prep-thumbnail--workspace {
   width: 80px;
   height: 64px;
 }
@@ -790,13 +790,13 @@
   max-height: 176px;
 }
 
-.resource-prep-thumbnail--draft {
+.resource-prep-thumbnail--workspace {
   border-color: color-mix(in srgb, var(--ms-color-primary) 30%, transparent);
   background: color-mix(in srgb, var(--ms-color-primary) 10%, transparent);
   color: var(--ms-color-primary);
 }
 
-.resource-prep-board [data-draft] {
+.resource-prep-board [data-workspace] {
   border-color: var(--ms-color-primary);
   background: color-mix(in srgb, var(--ms-color-primary) 5%, transparent);
 }

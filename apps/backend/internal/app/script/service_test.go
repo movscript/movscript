@@ -49,7 +49,7 @@ func TestCreateScriptDoesNotCreateEmptyInitialVersion(t *testing.T) {
 	item, err := service.Create(ctx, CreateInput{
 		ProjectID: 1,
 		AuthorID:  1,
-		Script:    dto.ScriptInput{Title: "Empty Draft"},
+		Script:    dto.ScriptInput{Title: "Empty Workspace"},
 	})
 	if err != nil {
 		t.Fatalf("create script: %v", err)

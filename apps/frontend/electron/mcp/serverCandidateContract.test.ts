@@ -15,20 +15,20 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   ].map((name) => readFileSync(resolve(`electron/mcp/tools/${name}.ts`), 'utf8')).join('\n')
   const toolSchemaSource = readFileSync(resolve('electron/mcp/tools/schema.ts'), 'utf8')
   const toolCallRouterSource = readFileSync(resolve('electron/mcp/tools/router.ts'), 'utf8')
-  const draftReviewApplySource = readFileSync(resolve('electron/mcp/draftReviewApply.ts'), 'utf8')
-  const draftReviewApplyModuleSources = [
+  const workspaceReviewApplySource = readFileSync(resolve('electron/mcp/workspaceReviewApply.ts'), 'utf8')
+  const workspaceReviewApplyModuleSources = [
     'apply',
     'directPatch',
-    'proposalPayloads',
-    'projectLayerProposalKind',
-    'productionProposalPayloads',
-    'projectLayerProposalPayloads',
-    'projectLayerProposalStyle',
-    'proposalTargets',
+    'workspacePayloads',
+    'projectLayerWorkspaceKind',
+    'productionWorkspacePayloads',
+    'projectLayerWorkspacePayloads',
+    'projectLayerWorkspaceStyle',
+    'workspaceTargets',
     'request',
     'types',
     'utils',
-  ].map((name) => readFileSync(resolve(`electron/mcp/draftReviewApply/${name}.ts`), 'utf8')).join('\n')
+  ].map((name) => readFileSync(resolve(`electron/mcp/workspaceReviewApply/${name}.ts`), 'utf8')).join('\n')
   const candidateAttachSource = readFileSync(resolve('electron/mcp/candidateAttach.ts'), 'utf8')
   const candidateAttachModuleSources = [
     'assetSlotCandidate',
@@ -54,7 +54,7 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
     'utils',
   ].map((name) => readFileSync(resolve(`electron/mcp/generationModelContracts/${name}.ts`), 'utf8')).join('\n')
   const candidateAttachContractSource = `${candidateAttachSource}\n${candidateAttachModuleSources}`
-  const mcpContractSource = `${serverSource}\n${toolRegistrySource}\n${generationToolDefinitionsSource}\n${generationToolDefinitionModuleSources}\n${toolSchemaSource}\n${toolCallRouterSource}\n${draftReviewApplySource}\n${draftReviewApplyModuleSources}\n${candidateAttachContractSource}\n${generationJobsSource}\n${generationModelContractsSource}\n${generationModelContractModuleSources}`
+  const mcpContractSource = `${serverSource}\n${toolRegistrySource}\n${generationToolDefinitionsSource}\n${generationToolDefinitionModuleSources}\n${toolSchemaSource}\n${toolCallRouterSource}\n${workspaceReviewApplySource}\n${workspaceReviewApplyModuleSources}\n${candidateAttachContractSource}\n${generationJobsSource}\n${generationModelContractsSource}\n${generationModelContractModuleSources}`
   const candidateParamsSource = readFileSync(resolve('electron/mcp/candidateAttach/candidateParams.ts'), 'utf8')
   const createJobTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/generation/job-create.tool.json'), 'utf8'))
   const assetTool = JSON.parse(readFileSync(resolve('../agent/catalog/tools/candidate/asset-slot-attach.tool.json'), 'utf8'))

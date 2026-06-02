@@ -4,7 +4,7 @@ import "testing"
 
 func TestNewSegmentAppliesDefaults(t *testing.T) {
 	item := NewSegment(SegmentSpec{ProjectID: 1})
-	if item.Kind != "emotional_function" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "emotional_function" || item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected segment defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
@@ -17,7 +17,7 @@ func TestNewSegmentAppliesDefaults(t *testing.T) {
 
 func TestNewProductionTextBlockAppliesDefaults(t *testing.T) {
 	item := NewProductionTextBlock(ProductionTextBlockSpec{ProjectID: 1, ProductionID: 2})
-	if item.Kind != "section" || item.SourceType != "manual" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "section" || item.SourceType != "manual" || item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected text block defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
@@ -30,7 +30,7 @@ func TestNewProductionTextBlockAppliesDefaults(t *testing.T) {
 
 func TestNewContentUnitAppliesDefaults(t *testing.T) {
 	item := NewContentUnit(ContentUnitSpec{ProjectID: 1})
-	if item.Kind != "shot" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "shot" || item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected content unit defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
@@ -43,20 +43,20 @@ func TestNewContentUnitAppliesDefaults(t *testing.T) {
 
 func TestNewSceneMomentAppliesDefaultsAndMaps(t *testing.T) {
 	item := NewSceneMoment(SceneMomentSpec{ProjectID: 1})
-	if item.Status != ProposalDraftStatusValue {
+	if item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected scene moment defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
 	modelItem.ID = 11
 	roundTrip := SceneMomentFromModel(modelItem)
-	if roundTrip.ID != 11 || roundTrip.Status != ProposalDraftStatusValue {
+	if roundTrip.ID != 11 || roundTrip.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected scene moment round-trip: %+v", roundTrip)
 	}
 }
 
 func TestNewPreviewTimelineItemAppliesDefaults(t *testing.T) {
 	item := NewPreviewTimelineItem(PreviewTimelineItemSpec{ProjectID: 1, PreviewTimelineID: 2})
-	if item.Kind != "keyframe" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "keyframe" || item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected preview timeline item defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
@@ -169,7 +169,7 @@ func TestNewExportRecordAndWorkReviewApplyPendingDefault(t *testing.T) {
 
 func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 	script := NewStoryboardScript(StoryboardScriptSpec{ProjectID: 1})
-	if script.Name != "Storyboard Script" || script.Status != ProposalDraftStatusValue {
+	if script.Name != "Storyboard Script" || script.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected storyboard script defaults: %+v", script)
 	}
 	modelScript := script.ToModel()
@@ -179,7 +179,7 @@ func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	version := NewStoryboardVersion(StoryboardVersionSpec{ProjectID: 1, VersionNumber: 3})
-	if version.Title != "Storyboard v3" || version.Source != CandidateDecisionSourceManual || version.Status != ProposalDraftStatusValue {
+	if version.Title != "Storyboard v3" || version.Source != CandidateDecisionSourceManual || version.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected storyboard version defaults: %+v", version)
 	}
 	modelVersion := version.ToModel()
@@ -192,7 +192,7 @@ func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 
 func TestNewCreativeFactoriesApplyDefaults(t *testing.T) {
 	ref := NewCreativeReference(CreativeReferenceSpec{ProjectID: 1})
-	if ref.Kind != "character" || ref.Importance != "supporting" || ref.Status != ProposalDraftStatusValue {
+	if ref.Kind != "character" || ref.Importance != "supporting" || ref.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected creative reference defaults: %+v", ref)
 	}
 	modelRef := ref.ToModel()
@@ -202,17 +202,17 @@ func TestNewCreativeFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	state := NewCreativeReferenceState(CreativeReferenceStateSpec{ProjectID: 1})
-	if state.Status != ProposalDraftStatusValue {
+	if state.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected creative state defaults: %+v", state)
 	}
 	modelState := state.ToModel()
 	modelState.ID = 22
-	if roundTrip := CreativeReferenceStateFromModel(modelState); roundTrip.ID != 22 || roundTrip.Status != ProposalDraftStatusValue {
+	if roundTrip := CreativeReferenceStateFromModel(modelState); roundTrip.ID != 22 || roundTrip.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected creative state round-trip: %+v", roundTrip)
 	}
 
 	usage := NewCreativeReferenceUsage(CreativeReferenceUsageSpec{ProjectID: 1})
-	if usage.Source != CandidateDecisionSourceManual || usage.Status != ProposalDraftStatusValue {
+	if usage.Source != CandidateDecisionSourceManual || usage.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected creative usage defaults: %+v", usage)
 	}
 	modelUsage := usage.ToModel()
@@ -222,7 +222,7 @@ func TestNewCreativeFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	relationship := NewCreativeRelationship(CreativeRelationshipSpec{ProjectID: 1})
-	if relationship.Category != "relationship" || relationship.Source != CandidateDecisionSourceManual || relationship.Status != ProposalDraftStatusValue {
+	if relationship.Category != "relationship" || relationship.Source != CandidateDecisionSourceManual || relationship.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected creative relationship defaults: %+v", relationship)
 	}
 	modelRelationship := relationship.ToModel()
@@ -254,7 +254,7 @@ func TestNewProductionDeliveryAndScriptFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	timeline := NewPreviewTimeline(PreviewTimelineSpec{ProjectID: 1})
-	if timeline.Name != "Preview" || timeline.Status != ProposalDraftStatusValue {
+	if timeline.Name != "Preview" || timeline.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected preview timeline defaults: %+v", timeline)
 	}
 	modelTimeline := timeline.ToModel()
@@ -264,7 +264,7 @@ func TestNewProductionDeliveryAndScriptFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	delivery := NewDeliveryVersion(DeliveryVersionSpec{ProjectID: 1})
-	if delivery.Name != "Delivery" || delivery.Status != ProposalDraftStatusValue {
+	if delivery.Name != "Delivery" || delivery.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected delivery version defaults: %+v", delivery)
 	}
 	modelDelivery := delivery.ToModel()
@@ -274,7 +274,7 @@ func TestNewProductionDeliveryAndScriptFactoriesApplyDefaults(t *testing.T) {
 	}
 
 	item := NewDeliveryTimelineItem(DeliveryTimelineItemSpec{ProjectID: 1})
-	if item.Kind != "video" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "video" || item.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected delivery timeline item defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
@@ -285,16 +285,16 @@ func TestNewProductionDeliveryAndScriptFactoriesApplyDefaults(t *testing.T) {
 
 	version := NewScriptVersion(ScriptVersionSpec{
 		ProjectID:         1,
-		FallbackTitle:     "Draft",
+		FallbackTitle:     "Workspace",
 		FallbackContent:   "content",
 		FallbackRawSource: "raw source",
 	})
-	if version.Title != "Draft" || version.Content != "content" || version.RawSource != "raw source" || version.SourceType != "raw" || version.Status != ProposalDraftStatusValue {
+	if version.Title != "Workspace" || version.Content != "content" || version.RawSource != "raw source" || version.SourceType != "raw" || version.Status != WorkspaceWorkspaceStatusValue {
 		t.Fatalf("unexpected script version defaults: %+v", version)
 	}
 	modelVersion := version.ToModel()
 	modelVersion.ID = 46
-	if roundTrip := ScriptVersionFromModel(modelVersion); roundTrip.ID != 46 || roundTrip.Title != "Draft" {
+	if roundTrip := ScriptVersionFromModel(modelVersion); roundTrip.ID != 46 || roundTrip.Title != "Workspace" {
 		t.Fatalf("unexpected script version round-trip: %+v", roundTrip)
 	}
 }

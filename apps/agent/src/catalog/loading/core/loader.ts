@@ -745,7 +745,7 @@ function normalizeLayeredTool(input: unknown, filePath: string, warnings: string
   const name = nonEmptyString(input.name)
   const description = nonEmptyString(input.description)
   const permission = nonEmptyString(input.permission)
-  const risk = input.risk === 'read' || input.risk === 'draft' || input.risk === 'write' || input.risk === 'generate' || input.risk === 'destructive' || input.risk === 'ui'
+  const risk = input.risk === 'read' || input.risk === 'workspace' || input.risk === 'write' || input.risk === 'generate' || input.risk === 'destructive' || input.risk === 'ui'
     ? input.risk
     : undefined
   if (!name || !description || !permission || !risk || !isRecord(input.inputSchema)) {
@@ -855,7 +855,7 @@ function normalizeContextSelector(input: Record<string, unknown>): ContextSelect
     ...(stringArray(input.route).length > 0 ? { route: stringArray(input.route) } : {}),
     ...(stringArray(input.selectedKind).length > 0 ? { selectedKind: stringArray(input.selectedKind) as never } : {}),
     ...(stringArray(input.selectedScope).length > 0 ? { selectedScope: stringArray(input.selectedScope) as never } : {}),
-    ...(stringArray(input.draftStatus).length > 0 ? { draftStatus: stringArray(input.draftStatus).filter((item) => item === 'proposed' || item === 'confirmed' || item === 'superseded') as never } : {}),
+    ...(stringArray(input.workspaceStatus).length > 0 ? { workspaceStatus: stringArray(input.workspaceStatus).filter((item) => item === 'proposed' || item === 'confirmed' || item === 'superseded') as never } : {}),
     ...(typeof input.hasProjectId === 'boolean' ? { hasProjectId: input.hasProjectId } : {}),
     ...(typeof input.hasProductionId === 'boolean' ? { hasProductionId: input.hasProductionId } : {}),
   }
@@ -871,7 +871,7 @@ function normalizeConfigFileToolGrants(value: unknown): AgentConfigFile['toolGra
 
 function normalizeConfigFileApprovalDefaults(input: Record<string, unknown>): NonNullable<AgentConfigFile['approvalDefaults']> | undefined {
   const defaults: NonNullable<AgentConfigFile['approvalDefaults']> = {}
-  for (const key of ['default', 'read', 'draft', 'write', 'generate', 'destructive', 'ui'] as const) {
+  for (const key of ['default', 'read', 'workspace', 'write', 'generate', 'destructive', 'ui'] as const) {
     const approval = input[key]
     if (approval === 'never' || approval === 'always' || approval === 'on_write') defaults[key] = approval
   }

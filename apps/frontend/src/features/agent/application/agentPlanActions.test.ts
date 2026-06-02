@@ -127,7 +127,7 @@ test('cancelPlanTreeAction cancels root run and clears loading state', async () 
   ])
 })
 
-test('taskGraph actions report failures through assistant messages and clear busy state', async () => {
+test('taskGraph actions report failures through runtime errors and clear busy state', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.dispatchTaskGraph = async () => {
@@ -144,7 +144,7 @@ test('taskGraph actions report failures through assistant messages and clear bus
   assert.equal(handled, false)
   assert.deepEqual(calls, [
     'busy:true',
-    'assistant:计划调度失败：backend offline',
+    'error:计划调度失败：backend offline',
     'busy:false',
   ])
 })
@@ -157,8 +157,8 @@ function depsFixture(calls: string[]): AgentPlanActionDeps {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${patch.loading === true}`)
     },
-    addAssistantMessage: (content) => {
-      calls.push(`assistant:${content}`)
+    reportError: (message) => {
+      calls.push(`error:${message}`)
     },
     dispatchTaskGraph: async (_taskGraphId, input) => {
       calls.push(`dispatch:${input.plannerRunId}`)

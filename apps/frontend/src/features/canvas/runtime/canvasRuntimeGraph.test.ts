@@ -60,10 +60,10 @@ test('single node runtime order includes upstream generated dependencies before 
 test('runtime prompt combines node prompt and connected upstream text', () => {
   const node = { id: 'gen', type: 'text_gen', position: { x: 0, y: 0 }, data: { source: 'ai', prompt: 'polish this' } }
   const prompt = runtimePromptForNode(node, {
-    prompt: [{ type: 'text', text: 'rough draft' }],
+    prompt: [{ type: 'text', text: 'rough workspace' }],
   })
 
-  assert.equal(prompt, 'polish this\n\nrough draft')
+  assert.equal(prompt, 'polish this\n\nrough workspace')
 })
 
 test('runtime resource ids keep inline prompt mentions before other canvas inputs', () => {

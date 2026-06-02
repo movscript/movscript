@@ -19,7 +19,7 @@ test('script workspace states map to UI semantic recipes', () => {
 
   assert.deepEqual(scriptVersionStatusRecipe('active'), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(scriptVersionStatusRecipe('archived'), { intent: 'neutral', emphasis: 'soft' })
-  assert.deepEqual(scriptVersionStatusRecipe('draft'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(scriptVersionStatusRecipe('workspace'), { intent: 'warning', emphasis: 'soft' })
 
   assert.deepEqual(scriptStageRecipe(1), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(scriptStageRecipe(0), { intent: 'warning', emphasis: 'soft' })

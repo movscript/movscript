@@ -1,0 +1,44 @@
+{
+  "id": "movscript.setting_workspace",
+  "version": "1.0.0",
+  "name": "Setting Workspace",
+  "description": "打开并编辑 project 层设定资料 workspace：人物、地点、道具、产品、风格、世界规则、关系和合并候选。",
+  "priority": 905,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "setting_workspace"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "设定工作区",
+        "设定资料",
+        "人物设定",
+        "地点设定",
+        "世界观",
+        "setting workspace",
+        "setting_edit"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.setting_workspace.v1"
+  ],
+  "instructionTemplatePath": "instruction.md",
+  "outputContract": "回复 workspaceId、projectId、validation/apply 结果，以及设定资料变更摘要。",
+  "toolGrants": [
+    "movscript_focus_get",
+    "movscript_script_locate",
+    "get_workspace_model",
+    "workspace_open",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
+    "workspace_validate",
+    "workspace_apply",
+    "core_user_input_request"
+  ]
+}

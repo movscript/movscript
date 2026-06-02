@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, callComfyUITool, callWebUITool, createGenerationJob, getDraftModelContract, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, setMCPGenerationToolsSettings, summarizeModelContractForAgent, testMCPGenerationToolServer, updateMCPContextSnapshot, waitGenerationJobs } from './server'
+import { applyWorkspaceReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, callComfyUITool, callWebUITool, createGenerationJob, getWorkspaceModelContract, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, setMCPGenerationToolsSettings, summarizeModelContractForAgent, testMCPGenerationToolServer, updateMCPContextSnapshot, waitGenerationJobs } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -421,7 +421,7 @@ test('local generation connector tools use configured ComfyUI and WebUI servers'
   }
 })
 
-test('local generation connector connection test checks the draft server directly', async () => {
+test('local generation connector connection test checks the workspace server directly', async () => {
   const previousFetch = globalThis.fetch
   const calls: Array<Record<string, unknown>> = []
   globalThis.fetch = mockFetch({
@@ -433,23 +433,23 @@ test('local generation connector connection test checks the draft server directl
 
   try {
     const result = await testMCPGenerationToolServer({
-      id: 'draft-comfy',
+      id: 'workspace-comfy',
       scope: 'local',
       type: 'comfyui',
-      name: 'Draft Comfy',
+      name: 'Workspace Comfy',
       enabled: false,
       baseURL: 'http://127.0.0.1:8188',
       timeoutMS: 120000,
       priority: 10,
       authKind: 'bearer',
-      token: 'draft-token',
+      token: 'workspace-token',
     }) as Record<string, any>
 
     assert.equal(result.success, true)
     assert.equal(result.status_code, 200)
     assert.equal(result.server.token, undefined)
     assert.equal(result.server.tokenSet, true)
-    assert.equal(calls[0].auth, 'Bearer draft-token')
+    assert.equal(calls[0].auth, 'Bearer workspace-token')
   } finally {
     globalThis.fetch = previousFetch
   }
@@ -1704,9 +1704,9 @@ test('attach keyframe candidate rejects nested generated candidate targets', asy
   }
 })
 
-test('draft model MCP tool exposes frontend-owned field and seed contract', async () => {
-  const result = await getDraftModelContract({
-    kind: 'production_proposal',
+test('workspace model MCP tool exposes frontend-owned field and seed contract', async () => {
+  const result = await getWorkspaceModelContract({
+    kind: 'production_workspace',
     target: { entityType: 'production', entityId: 301, projectId: 42 },
     seedMode: 'editable_snapshot',
     include: ['production', 'segments', 'not_allowed'],
@@ -1714,37 +1714,37 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   }) as Record<string, any>
 
   assert.equal(result.contractVersion, 1)
-  assert.equal(result.kind, 'production_proposal')
-  assert.equal(result.contentSchemaId, 'movscript.production_proposal.v1')
+  assert.equal(result.kind, 'production_workspace')
+  assert.equal(result.contentSchemaId, 'movscript.production_workspace.v1')
   assert.deepEqual(result.seedPolicy.include, ['production', 'segments'])
   assert.equal(result.seedPolicy.defaultMode, 'editable_snapshot')
   assert.deepEqual(result.seedPolicy.allowedModes, ['empty', 'snapshot', 'editable_snapshot'])
   assert.deepEqual(result.fieldGuide.owns, [
-    'snapshot.proposal.segments',
-    'snapshot.proposal.segments[].scene_moments',
-    'snapshot.proposal.segments[].scene_moments[].writing_expressions',
+    'snapshot.workspace.segments',
+    'snapshot.workspace.segments[].scene_moments',
+    'snapshot.workspace.segments[].scene_moments[].writing_expressions',
   ])
-  assert.equal(result.applyBoundary.backendApply, 'production_proposal')
-  assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&draftId=:draftId')
-  assert.equal(result.modelRef, 'frontend:DraftDomainModel:production_proposal:v1')
+  assert.equal(result.applyBoundary.backendApply, 'production_workspace')
+  assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&workspaceId=:workspaceId')
+  assert.equal(result.modelRef, 'frontend:WorkspaceDomainModel:production_workspace:v1')
 })
 
-test('draft model MCP tool normalizes project standards proposal aliases', async () => {
-  const result = await getDraftModelContract({
-    kind: 'project standards proposal',
+test('workspace model MCP tool normalizes project standards workspace aliases', async () => {
+  const result = await getWorkspaceModelContract({
+    kind: 'project standards workspace',
     target: { entityType: 'project', entityId: 42, projectId: 42 },
     hydrate: false,
   }) as Record<string, any>
 
-  assert.equal(result.kind, 'project_standards_proposal')
-  assert.equal(result.contentSchemaId, 'movscript.project_standards_proposal.v1')
-  assert.equal(result.contentSchema?.properties?.schema?.const, 'movscript.project_standards_proposal.v1')
-  assert.equal(result.applyBoundary.backendApply, 'project_standards_proposal')
-  assert.equal(result.reviewRoute, '/project/standards?draftId=:draftId')
-  assert.equal(result.modelRef, 'frontend:DraftDomainModel:project_standards_proposal:v1')
+  assert.equal(result.kind, 'project_standards_workspace')
+  assert.equal(result.contentSchemaId, 'movscript.project_standards_workspace.v1')
+  assert.equal(result.contentSchema?.properties?.schema?.const, 'movscript.project_standards_workspace.v1')
+  assert.equal(result.applyBoundary.backendApply, 'project_standards_workspace')
+  assert.equal(result.reviewRoute, '/project/standards?workspaceId=:workspaceId')
+  assert.equal(result.modelRef, 'frontend:WorkspaceDomainModel:project_standards_workspace:v1')
 })
 
-test('draft model MCP tool hydrates production proposal snapshot with production brief and project scripts', async () => {
+test('workspace model MCP tool hydrates production workspace snapshot with production brief and project scripts', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42/entities/productions': [{
@@ -1784,14 +1784,14 @@ test('draft model MCP tool hydrates production proposal snapshot with production
   const previousBaseURL = 'http://localhost:8765'
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const result = await getDraftModelContract({
-      kind: 'production_proposal',
+    const result = await getWorkspaceModelContract({
+      kind: 'production_workspace',
       target: { entityType: 'production', productionId: 301, projectId: 42 },
       include: ['production_script_brief', 'project_scripts', 'creative_references'],
     }) as Record<string, any>
 
     assert.equal(result.seedPolicy.mode, 'editable_snapshot')
-    assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&draftId=:draftId')
+    assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&workspaceId=:workspaceId')
     assert.equal(result.seed.data.production_script_brief.scriptVersionId, 77)
     assert.equal(result.seed.data.production_script_brief.brief, 'Production brief from page.')
     assert.equal(result.seed.data.production_script_brief.body_excerpt, 'A long script body.')
@@ -1805,7 +1805,7 @@ test('draft model MCP tool hydrates production proposal snapshot with production
   }
 })
 
-test('draft model MCP tool hydrates asset proposal seed from allowed backend includes', async () => {
+test('workspace model MCP tool hydrates asset workspace seed from allowed backend includes', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42': { id: 42, name: 'Seed Project', UpdatedAt: '2026-05-13T00:00:00.000Z' },
@@ -1825,8 +1825,8 @@ test('draft model MCP tool hydrates asset proposal seed from allowed backend inc
   const previousBaseURL = 'http://localhost:8765'
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const result = await getDraftModelContract({
-      kind: 'asset_proposal',
+    const result = await getWorkspaceModelContract({
+      kind: 'asset_workspace',
       target: { entityType: 'project', entityId: 42 },
       include: ['project', 'creative_references', 'asset_slots', 'asset_slot_ownership'],
     }) as Record<string, any>
@@ -1850,7 +1850,7 @@ test('semantic query tools expose creative references and linked asset slots', a
   globalThis.fetch = mockFetch({
     '/projects/42/entities/creative-references?kind=person': [
       { ID: 11, project_id: 42, kind: 'person', name: '女主', description: '主角', status: 'confirmed' },
-      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'draft' },
+      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'workspace' },
     ],
     '/projects/42/entities/creative-reference-states?creative_reference_id=11': [
       { ID: 21, creative_reference_id: 11, name: '雨夜状态', emotion: '紧张' },
@@ -1888,7 +1888,7 @@ test('semantic query creative reference count is filtered and total_count preser
   globalThis.fetch = mockFetch({
     '/projects/42/entities/creative-references?kind=person': [
       { ID: 11, project_id: 42, kind: 'person', name: '女主', description: '主角', status: 'confirmed' },
-      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'draft' },
+      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'workspace' },
     ],
   }) as typeof fetch
   setMCPAPIBaseURL('http://mock.backend')
@@ -1914,9 +1914,9 @@ test('semantic query creative references matches Chinese names from backend rows
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42/entities/creative-references': [
-      { ID: 10, project_id: 42, proposal_client_id: 'cr_zhou_dehou', kind: 'character', name: '周德厚', description: '周建国父亲', status: 'needs_review' },
-      { ID: 11, project_id: 42, proposal_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
-      { ID: 12, project_id: 42, proposal_client_id: 'cr_laoyang', kind: 'character', name: '老杨', description: '陈家坳村长', status: 'needs_review' },
+      { ID: 10, project_id: 42, workspace_client_id: 'cr_zhou_dehou', kind: 'character', name: '周德厚', description: '周建国父亲', status: 'needs_review' },
+      { ID: 11, project_id: 42, workspace_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
+      { ID: 12, project_id: 42, workspace_client_id: 'cr_laoyang', kind: 'character', name: '老杨', description: '陈家坳村长', status: 'needs_review' },
     ],
   }) as typeof fetch
   setMCPAPIBaseURL('http://mock.backend')
@@ -1941,7 +1941,7 @@ test('semantic query creative references exposes hidden-character query mismatch
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42/entities/creative-references': [
-      { ID: 11, project_id: 42, proposal_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
+      { ID: 11, project_id: 42, workspace_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
     ],
   }) as typeof fetch
   setMCPAPIBaseURL('http://mock.backend')
@@ -1975,7 +1975,7 @@ test('semantic query tools expose production context and content unit generation
       { ID: 301, production_id: 7, segment_id: 101, scene_moment_id: 201, title: '女主抬头', prompt: 'close up' },
     ],
     '/projects/42/entities/keyframes?production_id=7&scene_moment_id=201&content_unit_id=301': [
-      { ID: 401, production_id: 7, scene_moment_id: 201, content_unit_id: 301, title: '开头帧', prompt: 'close up', resource_id: 88, status: 'draft' },
+      { ID: 401, production_id: 7, scene_moment_id: 201, content_unit_id: 301, title: '开头帧', prompt: 'close up', resource_id: 88, status: 'workspace' },
       { ID: 402, production_id: 7, scene_moment_id: 201, content_unit_id: 301, title: '候选：开头帧', status: 'candidate', metadata_json: '{"source":"ai_generated_keyframe_candidate","target_keyframe_id":401}' },
     ],
     'POST /projects/42/entities/content-units/301/generation-context': {
@@ -2011,11 +2011,11 @@ test('semantic query tools expose production context and content unit generation
   }
 })
 
-test('applyDraftReview posts direct asset proposal snapshot rows to asset proposal apply', async () => {
+test('applyWorkspaceReview posts direct asset workspace snapshot rows to asset workspace apply', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
-    'POST /projects/4/entities/asset-proposals/apply': (body: Record<string, unknown>) => {
+    'POST /projects/4/entities/asset-workspaces/apply': (body: Record<string, unknown>) => {
       postedBodies.push(body)
       return { counts: { asset_slots_created: 3 } }
     },
@@ -2023,10 +2023,10 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
   setMCPAPIBaseURL('http://mock.backend')
   try {
     const proposedValue = JSON.stringify({
-      schema: 'movscript.asset_proposal.v1',
+      schema: 'movscript.asset_workspace.v1',
       mode: 'snapshot',
       summary: '批量提交：3 项',
-      proposal: {
+      workspace: {
         asset_slots: [{
           client_id: 'slot_001',
           owner_type: 'scene_moment',
@@ -2040,19 +2040,19 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
       },
     })
 
-    const result = await applyDraftReview({
+    const result = await applyWorkspaceReview({
       review: {
-        draftKind: 'note',
-        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        workspaceKind: 'note',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'workspace' },
         proposedValue,
       },
     }) as Record<string, any>
 
     assert.equal(result.performed, true)
-    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/asset-proposals/apply')
-    assert.equal(postedBodies[0].scope, 'asset_proposal')
+    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/asset-workspaces/apply')
+    assert.equal(postedBodies[0].scope, 'asset_workspace')
     assert.equal(postedBodies[0].mode, 'snapshot')
-    assert.deepEqual(postedBodies[0].proposal, {
+    assert.deepEqual(postedBodies[0].workspace, {
       creative_references: [],
       asset_slots: [{
         client_id: 'slot_001',
@@ -2070,32 +2070,32 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
   }
 })
 
-test('applyDraftReview allows omitted asset ids because proposal is the desired snapshot', async () => {
+test('applyWorkspaceReview allows omitted asset ids because workspace is the desired snapshot', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
-    'POST /projects/4/entities/asset-proposals/apply': (body: Record<string, unknown>) => {
+    'POST /projects/4/entities/asset-workspaces/apply': (body: Record<string, unknown>) => {
       postedBodies.push(body)
       return { counts: { asset_slots_deleted: 1 } }
     },
   }) as typeof fetch
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const result = await applyDraftReview({
+    const result = await applyWorkspaceReview({
       review: {
-        draftKind: 'asset_proposal',
-        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        workspaceKind: 'asset_workspace',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'workspace' },
         proposedValue: JSON.stringify({
-          schema: 'movscript.asset_proposal.v1',
+          schema: 'movscript.asset_workspace.v1',
           mode: 'snapshot',
-          proposal: {
+          workspace: {
             asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
           },
         }),
       },
     }) as Record<string, any>
     assert.equal(result.performed, true)
-    assert.deepEqual(postedBodies[0]?.proposal, {
+    assert.deepEqual(postedBodies[0]?.workspace, {
       creative_references: [],
       asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
     })
@@ -2105,26 +2105,26 @@ test('applyDraftReview allows omitted asset ids because proposal is the desired 
   }
 })
 
-test('applyDraftReview normalizes project standards shot size object arrays before apply', async () => {
+test('applyWorkspaceReview normalizes project standards shot size object arrays before apply', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
-    'POST /projects/4/entities/project-standards-proposals/apply': (body: Record<string, unknown>) => {
+    'POST /projects/4/entities/project-standards-workspaces/apply': (body: Record<string, unknown>) => {
       postedBodies.push(body)
       return { counts: { project_style_updated: 1 } }
     },
   }) as typeof fetch
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const result = await applyDraftReview({
+    const result = await applyWorkspaceReview({
       review: {
-        draftKind: 'project_standards_proposal',
-        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        workspaceKind: 'project_standards_workspace',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'workspace' },
         proposedValue: JSON.stringify({
-          schema: 'movscript.project_standards_proposal.v1',
-          scope: 'project_standards_proposal',
+          schema: 'movscript.project_standards_workspace.v1',
+          scope: 'project_standards_workspace',
           mode: 'snapshot',
-          proposal: {
+          workspace: {
             project_style: {
               aspect_ratio: '9:16',
               shot_size_system: [{
@@ -2141,46 +2141,46 @@ test('applyDraftReview normalizes project standards shot size object arrays befo
     }) as Record<string, any>
 
     assert.equal(result.performed, true)
-    assert.deepEqual((postedBodies[0].proposal as any).project_style.shot_size_system, ['CU 特写：用于人物表情反转。；头肩构图。'])
+    assert.deepEqual((postedBodies[0].workspace as any).project_style.shot_size_system, ['CU 特写：用于人物表情反转。；头肩构图。'])
   } finally {
     setMCPAPIBaseURL('http://localhost:8765')
     globalThis.fetch = previousFetch
   }
 })
 
-test('applyDraftReview rejects direct candidate resource writes for asset slots and keyframes', async () => {
-  await assert.rejects(() => applyDraftReview({
+test('applyWorkspaceReview rejects direct candidate resource writes for asset slots and keyframes', async () => {
+  await assert.rejects(() => applyWorkspaceReview({
     review: {
       target: { projectId: 4, entityType: 'asset_slot', entityId: 7, field: 'resource_id' },
       proposedValue: 88,
     },
-  }), /apply_draft cannot write field resource_id on asset_slot/)
+  }), /apply_workspace cannot write field resource_id on asset_slot/)
 
-  await assert.rejects(() => applyDraftReview({
+  await assert.rejects(() => applyWorkspaceReview({
     review: {
       target: { projectId: 4, entityType: 'asset_slot', entityId: 7, field: 'locked_asset_slot_id' },
       proposedValue: 19,
     },
-  }), /apply_draft cannot write field locked_asset_slot_id on asset_slot/)
+  }), /apply_workspace cannot write field locked_asset_slot_id on asset_slot/)
 
-  await assert.rejects(() => applyDraftReview({
+  await assert.rejects(() => applyWorkspaceReview({
     review: {
       target: { projectId: 4, entityType: 'keyframe', entityId: 17, field: 'resource_id' },
       proposedValue: 88,
     },
-  }), /apply_draft cannot write field resource_id on keyframe/)
+  }), /apply_workspace cannot write field resource_id on keyframe/)
 })
 
-test('applyDraftReview rejects legacy production proposal action payloads', async () => {
-  await assert.rejects(() => applyDraftReview({
+test('applyWorkspaceReview rejects legacy production workspace action payloads', async () => {
+  await assert.rejects(() => applyWorkspaceReview({
     review: {
-      draftKind: 'production_proposal',
-      target: { projectId: 4, entityType: 'production', entityId: 9, field: 'proposal' },
+      workspaceKind: 'production_workspace',
+      target: { projectId: 4, entityType: 'production', entityId: 9, field: 'workspace' },
       proposedValue: JSON.stringify({
-        schema: 'movscript.production_proposal.v1',
+        schema: 'movscript.production_workspace.v1',
         mode: 'snapshot',
         productionId: 9,
-        proposal: {
+        workspace: {
           segments: [{
             action: 'create',
             title: 'Opening',
@@ -2320,7 +2320,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     const result = await createGenerationJob({
       prompt: 'a production frame',
       job_type: 'image_edit',
-      model_id: 'video.draft',
+      model_id: 'video.workspace',
       wait: false,
       input_resource_ids: [1, 2, 3, 4, 5],
       aspect_ratio: '21:9',
@@ -2352,7 +2352,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
         image: 5,
         video: 0,
       },
-      supported_params: ['draft', 'frames', 'image_count', 'resolution', 'return_last_frame', 'sequential_image_generation'],
+      supported_params: ['workspace', 'frames', 'image_count', 'resolution', 'return_last_frame', 'sequential_image_generation'],
       submitted_extra_params: ['frames', 'resolution'],
       provided_extra_params: ['frames', 'resolution', 'unsupported_flag'],
       dropped_extra_params: ['unsupported_flag'],
@@ -2396,7 +2396,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     })
     assert.equal(postedBodies.length, 1)
     assert.deepEqual(postedBodies[0], {
-      model_id: 'video.draft',
+      model_id: 'video.workspace',
       job_type: 'image_edit',
       feature_key: 'agent.chat_generation',
       title: postedBodies[0]?.title,
@@ -2655,16 +2655,16 @@ test('generation param validation audit matches canonical v1 fixture shape', () 
 
 test('preflightGenerationParams records local contract errors without dropping params', () => {
   const modelParamContract = {
-    supportedParamKeys: new Set(['duration', 'frames', 'draft', 'aspect_ratio']),
+    supportedParamKeys: new Set(['duration', 'frames', 'workspace', 'aspect_ratio']),
     supportedParams: new Map([
       ['duration', { key: 'duration', type: 'select', options: ['5', '10'] }],
       ['frames', { key: 'frames', type: 'number', min: 29, max: 289 }],
-      ['draft', { key: 'draft', type: 'boolean' }],
+      ['workspace', { key: 'workspace', type: 'boolean' }],
       ['aspect_ratio', { key: 'aspect_ratio', type: 'string', options: ['16:9', '9:16'] }],
     ]),
     rules: {
       conflicts: [{ key: 'duration', other: 'frames' }],
-      conditionalEnums: [{ key: 'aspect_ratio', whenParam: 'draft', whenValue: true, options: ['16:9'] }],
+      conditionalEnums: [{ key: 'aspect_ratio', whenParam: 'workspace', whenValue: true, options: ['16:9'] }],
       conditionalConsts: [],
       requiresValues: [],
     },
@@ -2675,7 +2675,7 @@ test('preflightGenerationParams records local contract errors without dropping p
   const preflightErrors = preflightGenerationParams({
     duration: '6',
     frames: 10,
-    draft: true,
+    workspace: true,
     aspect_ratio: '1:1',
   }, modelParamContract)
 
@@ -2708,7 +2708,7 @@ test('preflightGenerationParams records local contract errors without dropping p
     {
       code: 'INVALID_PARAMETER_COMBINATION',
       field: 'aspect_ratio',
-      message: 'parameter "aspect_ratio" is not allowed for "draft" in the local model contract',
+      message: 'parameter "aspect_ratio" is not allowed for "workspace" in the local model contract',
       allowed_values: ['16:9'],
       suggested_fix: { aspect_ratio: '16:9' },
     },
@@ -2727,9 +2727,9 @@ test('preflightGenerationParams records local contract errors without dropping p
 
 test('preflightGenerationParams records compact conditional const and requires value rules', () => {
   const modelParamContract = {
-    supportedParamKeys: new Set(['draft', 'return_last_frame', 'image_count', 'sequential_image_generation']),
+    supportedParamKeys: new Set(['workspace', 'return_last_frame', 'image_count', 'sequential_image_generation']),
     supportedParams: new Map([
-      ['draft', { key: 'draft', type: 'boolean' }],
+      ['workspace', { key: 'workspace', type: 'boolean' }],
       ['return_last_frame', { key: 'return_last_frame', type: 'boolean' }],
       ['image_count', { key: 'image_count', type: 'number', min: 1, max: 15 }],
       ['sequential_image_generation', { key: 'sequential_image_generation', type: 'select', options: ['disabled', 'auto'] }],
@@ -2737,7 +2737,7 @@ test('preflightGenerationParams records compact conditional const and requires v
     rules: {
       conflicts: [],
       conditionalEnums: [],
-      conditionalConsts: [{ key: 'return_last_frame', whenParam: 'draft', whenValue: true, value: false }],
+      conditionalConsts: [{ key: 'return_last_frame', whenParam: 'workspace', whenValue: true, value: false }],
       requiresValues: [{ key: 'image_count', param: 'sequential_image_generation', value: 'auto' }],
     },
     inputRequirements: emptyGenerationInputRequirements(),
@@ -2747,7 +2747,7 @@ test('preflightGenerationParams records compact conditional const and requires v
 
   assert.deepEqual(
     preflightGenerationParams({
-      draft: true,
+      workspace: true,
       return_last_frame: true,
       image_count: 3,
       sequential_image_generation: 'disabled',
@@ -2756,7 +2756,7 @@ test('preflightGenerationParams records compact conditional const and requires v
       {
         code: 'INVALID_PARAMETER_COMBINATION',
         field: 'return_last_frame',
-        message: 'parameter "return_last_frame" must match the required value for "draft" in the local model contract',
+        message: 'parameter "return_last_frame" must match the required value for "workspace" in the local model contract',
         allowed_values: [false],
         suggested_fix: { return_last_frame: false },
       },
@@ -2958,9 +2958,9 @@ function backendModelFixture(id: number): Record<string, unknown> {
   const contract = loadAgentCompactContractFixture()
   return {
     id,
-    display_name: 'Draft Video',
-    short_name: 'draft-video',
-    logical_model_id: 'video.draft',
+    display_name: 'Workspace Video',
+    short_name: 'workspace-video',
+    logical_model_id: 'video.workspace',
     capabilities: ['video', 'video_i2v'],
     accepts_image_input: true,
     input_requirements: contract.input_requirements,
@@ -2968,7 +2968,7 @@ function backendModelFixture(id: number): Record<string, unknown> {
     params_schema: {
       type: 'object',
       properties: Object.fromEntries(contract.supported_params.map((param: any) => [param.key, paramSchemaFixture(param)])),
-      allOf: [{ if: { properties: { draft: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
+      allOf: [{ if: { properties: { workspace: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
     },
   }
 }
@@ -3026,9 +3026,9 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
   assert.deepEqual(
     agentCompactContractFields(summarizeModelContractForAgent({
       id: 42,
-      display_name: 'Draft Video',
-      short_name: 'draft-video',
-      logical_model_id: 'video.draft',
+      display_name: 'Workspace Video',
+      short_name: 'workspace-video',
+      logical_model_id: 'video.workspace',
       capabilities: ['video', 'video_i2v', 'video'],
       accepts_image_input: true,
       input_requirements: {
@@ -3037,8 +3037,8 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
       },
       supported_params: [
         {
-          key: 'draft',
-          label: 'Draft',
+          key: 'workspace',
+          label: 'Workspace',
           type: 'boolean',
         },
         {
@@ -3047,7 +3047,7 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
           type: 'select',
           options: ['480p', '720p'],
           default: '480p',
-          conditional_enum: [{ when_param: 'draft', when_value: true, options: ['480p'] }],
+          conditional_enum: [{ when_param: 'workspace', when_value: true, options: ['480p'] }],
         },
         {
           key: 'frames',
@@ -3063,7 +3063,7 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
           label: 'Return Last Frame',
           type: 'boolean',
           default: false,
-          conditional_const: [{ when_param: 'draft', when_value: true, value: false }],
+          conditional_const: [{ when_param: 'workspace', when_value: true, value: false }],
         },
         {
           key: 'sequential_image_generation',
@@ -3084,7 +3084,7 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
       params_schema: {
         type: 'object',
         properties: {
-          draft: { type: 'boolean' },
+          workspace: { type: 'boolean' },
           resolution: { type: 'string', enum: ['360p', '480p'] },
           frames: {
             type: 'number',
@@ -3097,7 +3097,7 @@ test('summarizeModelContractForAgent exposes compact model capability contract',
           sequential_image_generation: { type: 'string', enum: ['disabled', 'auto'] },
           image_count: { type: 'number', default: 1, minimum: 1, maximum: 15 },
         },
-        allOf: [{ if: { properties: { draft: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
+        allOf: [{ if: { properties: { workspace: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
       },
     })),
     expectedContract,
@@ -3109,9 +3109,9 @@ test('preview agent contract supported params round-trip through agent summarize
   assert.deepEqual(
     agentCompactContractFields(summarizeModelContractForAgent({
       id: 42,
-      display_name: 'Draft Video',
-      short_name: 'draft-video',
-      logical_model_id: 'video.draft',
+      display_name: 'Workspace Video',
+      short_name: 'workspace-video',
+      logical_model_id: 'video.workspace',
       capabilities: ['video', 'video_i2v'],
       accepts_image_input: true,
       input_requirements: {
@@ -3122,7 +3122,7 @@ test('preview agent contract supported params round-trip through agent summarize
       params_schema: {
         type: 'object',
         properties: {
-          draft: { type: 'boolean' },
+          workspace: { type: 'boolean' },
           resolution: { type: 'string', enum: ['360p', '480p'] },
           frames: {
             type: 'number',
@@ -3136,7 +3136,7 @@ test('preview agent contract supported params round-trip through agent summarize
           sequential_image_generation: { type: 'string', enum: ['disabled', 'auto'] },
           image_count: { type: 'number', default: 1, minimum: 1, maximum: 15 },
         },
-        allOf: [{ if: { properties: { draft: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
+        allOf: [{ if: { properties: { workspace: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
       },
     })),
     expectedContract,
@@ -3235,19 +3235,19 @@ test('summarizeModelContractForAgent drops malformed compact rule items', () => 
           type: 'select',
           options: ['480p'],
           conditional_enum: [
-            { when_param: 'draft', when_value: true, options: ['480p', 720] },
+            { when_param: 'workspace', when_value: true, options: ['480p', 720] },
             { when_param: '', when_value: true, options: ['480p'] },
-            { when_param: 'draft', when_value: true, options: [] },
-            { when_param: 'draft', when_value: { invalid: true }, options: ['480p'] },
+            { when_param: 'workspace', when_value: true, options: [] },
+            { when_param: 'workspace', when_value: { invalid: true }, options: ['480p'] },
           ],
         },
         {
           key: 'return_last_frame',
           type: 'boolean',
           conditional_const: [
-            { when_param: 'draft', when_value: true, value: false },
-            { when_param: 'draft', when_value: true, value: { invalid: true } },
-            { when_param: 'draft', when_value: ['yes'], value: false },
+            { when_param: 'workspace', when_value: true, value: false },
+            { when_param: 'workspace', when_value: true, value: { invalid: true } },
+            { when_param: 'workspace', when_value: ['yes'], value: false },
           ],
         },
         {
@@ -3261,8 +3261,8 @@ test('summarizeModelContractForAgent drops malformed compact rule items', () => 
       ],
     }).supported_params,
     [
-      { key: 'resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'draft', when_value: true, options: ['480p'] }] },
-      { key: 'return_last_frame', type: 'boolean', conditional_const: [{ when_param: 'draft', when_value: true, value: false }] },
+      { key: 'resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'workspace', when_value: true, options: ['480p'] }] },
+      { key: 'return_last_frame', type: 'boolean', conditional_const: [{ when_param: 'workspace', when_value: true, value: false }] },
       { key: 'image_count', type: 'number', requires_value: [{ param: 'sequential_image_generation', value: 'auto' }] },
     ],
   )

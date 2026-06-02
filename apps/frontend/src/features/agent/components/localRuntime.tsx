@@ -126,10 +126,10 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   }
 
   const permission = approval.permission ?? ''
-  if (permission === 'draft.apply') return t('agents.chat.task.approvalImpact.draftApply')
+  if (permission === 'workspace.apply') return t('agents.chat.task.approvalImpact.workspaceApply')
   if (permission.includes('generation')) return t('agents.chat.task.approvalImpact.generationGeneric')
   if (permission.includes('project') && permission.includes('write')) return t('agents.chat.task.approvalImpact.projectWrite')
-  if (permission.includes('draft') && permission.includes('write')) return t('agents.chat.task.approvalImpact.draftWrite')
+  if (permission.includes('workspace') && permission.includes('write')) return t('agents.chat.task.approvalImpact.workspaceWrite')
   if (permission.includes('memory') && permission.includes('write')) return t('agents.chat.task.approvalImpact.memoryWrite')
   if (approval.risk === 'destructive') return t('agents.chat.task.approvalImpact.destructive')
   if (approval.risk === 'write') return t('agents.chat.task.approvalImpact.write')

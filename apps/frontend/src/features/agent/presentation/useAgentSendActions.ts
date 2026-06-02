@@ -2,15 +2,17 @@ import { useCallback, useEffect } from 'react'
 import type { MutableRefObject, RefObject } from 'react'
 import { notifyAgentPanelRunSettled } from '@/features/agent/application/agentPanelBridge'
 import { processExternalAgentTask } from '@/features/agent/application/agentExternalTaskProcessor'
-import type { BuildAgentSendDraftOptions } from '@/features/agent/presentation/useAgentSendDraftBuilder'
+import type { BuildAgentSendWorkspaceOptions } from '@/features/agent/presentation/useAgentSendWorkspaceBuilder'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
-import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
+import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import {
   beginAgentPerformanceOperation,
   finishAgentPerformanceOperation,
   markAgentPerformancePhase,
+  performanceNow,
+  recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
 
 interface PendingInputRequestRef {
@@ -22,27 +24,26 @@ export interface UseAgentSendActionsInput {
   composerAttachments: AgentAttachment[]
   loading: boolean
   uploading: boolean
-  buildingSendDraft: boolean
+  buildingSendWorkspace: boolean
   answeringPendingInput: boolean
   activePendingInputRequest: PendingInputRequestRef | null | undefined
   canAnswerPendingInputWithText: boolean
   canSendActiveRunRuntimeInput: boolean
   modelId: number | null
   debugBeforeSend: boolean
-  pendingSendDraft: AgentSendDraft | null
+  pendingSendWorkspace: AgentSendWorkspace | null
   externalTask?: AgentPageTaskState | null
   processedExternalTaskRequestIdRef: MutableRefObject<string | null>
   inputRef: RefObject<HTMLDivElement>
-  onExternalDraftConsumed?: () => void
-  updateDraft: (patch: { input?: string; attachments?: AgentAttachment[] }) => void
+  onExternalWorkspaceConsumed?: () => void
+  updateWorkspace: (patch: { input?: string; attachments?: AgentAttachment[] }) => void
   setMentionRange: (range: null) => void
   answerActiveLocalRunInput: (requestId: string, answer: AgentInputAnswer) => Promise<unknown>
   sendActiveRunRuntimeInput: (input: { content: string; attachments: AgentAttachment[] }) => Promise<unknown>
-  addAssistantMessage: (content: string) => void
   setConversationBuilding: (patch: { building: boolean; loading?: boolean; error?: string }) => void
-  buildSendDraft: (options?: BuildAgentSendDraftOptions) => Promise<AgentSendDraft>
-  commitSendDraft: (draft: AgentSendDraft) => Promise<unknown>
-  setPendingSendDraft: (draft: AgentSendDraft | null) => void
+  buildSendWorkspace: (options?: BuildAgentSendWorkspaceOptions) => Promise<AgentSendWorkspace>
+  commitSendWorkspace: (workspace: AgentSendWorkspace) => Promise<unknown>
+  setPendingSendWorkspace: (workspace: AgentSendWorkspace | null) => void
   labels: {
     selectModelFirst: string
     busyError: string
@@ -55,27 +56,26 @@ export function useAgentSendActions({
   composerAttachments,
   loading,
   uploading,
-  buildingSendDraft,
+  buildingSendWorkspace,
   answeringPendingInput,
   activePendingInputRequest,
   canAnswerPendingInputWithText,
   canSendActiveRunRuntimeInput,
   modelId,
   debugBeforeSend,
-  pendingSendDraft,
+  pendingSendWorkspace,
   externalTask,
   processedExternalTaskRequestIdRef,
   inputRef,
-  onExternalDraftConsumed,
-  updateDraft,
+  onExternalWorkspaceConsumed,
+  updateWorkspace,
   setMentionRange,
   answerActiveLocalRunInput,
   sendActiveRunRuntimeInput,
-  addAssistantMessage,
   setConversationBuilding,
-  buildSendDraft,
-  commitSendDraft,
-  setPendingSendDraft,
+  buildSendWorkspace,
+  commitSendWorkspace,
+  setPendingSendWorkspace,
   labels,
 }: UseAgentSendActionsInput) {
   useEffect(() => {
@@ -83,39 +83,37 @@ export function useAgentSendActions({
       task: externalTask,
       processedRequestId: processedExternalTaskRequestIdRef.current,
     }, {
-      busy: loading || uploading || buildingSendDraft,
+      busy: loading || uploading || buildingSendWorkspace,
       busyError: labels.busyError,
       buildFailurePrefix: labels.buildFailurePrefix,
-      updateDraft,
+      updateWorkspace,
       focusInput: () => window.setTimeout(() => inputRef.current?.focus(), 0),
-      onExternalDraftConsumed,
+      onExternalWorkspaceConsumed,
       setProcessedRequestId: (requestId) => {
         processedExternalTaskRequestIdRef.current = requestId
       },
-      addAssistantMessage,
       setConversationBuilding,
-      buildSendDraft,
-      commitSendDraft,
+      buildSendWorkspace,
+      commitSendWorkspace,
       notifyRunSettled: notifyAgentPanelRunSettled,
     })
   }, [
     externalTask,
-    onExternalDraftConsumed,
+    onExternalWorkspaceConsumed,
     loading,
     uploading,
-    buildingSendDraft,
-    addAssistantMessage,
-    buildSendDraft,
-    commitSendDraft,
+    buildingSendWorkspace,
+    buildSendWorkspace,
+    commitSendWorkspace,
     inputRef,
     labels,
     processedExternalTaskRequestIdRef,
     setConversationBuilding,
-    updateDraft,
+    updateWorkspace,
   ])
 
   const send = useCallback(async () => {
-    if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendDraft) return
+    if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendWorkspace) return
     if (answeringPendingInput && activePendingInputRequest) {
       const text = input.trim()
       if (!canAnswerPendingInputWithText || !text) return
@@ -124,7 +122,7 @@ export function useAgentSendActions({
         meta: { inputLength: text.length },
       })
       markAgentPerformancePhase(operationId, 'click_send')
-      updateDraft({ input: '' })
+      updateWorkspace({ input: '' })
       setMentionRange(null)
       try {
         await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
@@ -143,7 +141,7 @@ export function useAgentSendActions({
         meta: { inputLength: content.length, attachmentCount: attachments.length },
       })
       markAgentPerformancePhase(operationId, 'click_send')
-      updateDraft({ input: '', attachments: [] })
+      updateWorkspace({ input: '', attachments: [] })
       setMentionRange(null)
       try {
         await sendActiveRunRuntimeInput({ content, attachments })
@@ -155,7 +153,7 @@ export function useAgentSendActions({
       return
     }
     if (!modelId) {
-      addAssistantMessage(labels.selectModelFirst)
+      setConversationBuilding({ building: false, loading: false, error: labels.selectModelFirst })
       return
     }
 
@@ -163,26 +161,29 @@ export function useAgentSendActions({
       kind: 'send',
       meta: { inputLength: input.trim().length, attachmentCount: composerAttachments.length, debugBeforeSend },
     })
+    const sendStartedMs = performanceNow()
     markAgentPerformancePhase(operationId, 'click_send')
     setConversationBuilding({ building: true, loading: false, error: undefined })
+    markAgentPerformancePhase(operationId, 'pending_send_visible')
+    recordSendEntryStageLatency('pending_send_visible', sendStartedMs)
+    schedulePendingSendFrame(operationId, sendStartedMs)
     try {
-      markAgentPerformancePhase(operationId, 'build_draft_start')
-      const draft = await buildSendDraft({ includeRuntimePreview: debugBeforeSend, performanceOperationId: operationId })
-      markAgentPerformancePhase(operationId, 'build_draft_done', {
-        details: { warningCount: draft.warnings.length, messageCount: draft.outbound.messages.length },
+      markAgentPerformancePhase(operationId, 'build_workspace_start')
+      const workspace = await buildSendWorkspace({ includeRuntimePreview: debugBeforeSend, performanceOperationId: operationId })
+      markAgentPerformancePhase(operationId, 'build_workspace_done', {
+        details: { warningCount: workspace.warnings.length, messageCount: workspace.outbound.messages.length },
       })
       if (debugBeforeSend) {
         markAgentPerformancePhase(operationId, 'preview_ready')
         finishAgentPerformanceOperation(operationId, 'success')
-        setPendingSendDraft(draft)
+        setPendingSendWorkspace(workspace)
         return
       }
-      await commitSendDraft(draft)
+      await commitSendWorkspace(workspace)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       finishAgentPerformanceOperation(operationId, 'error', { error: message })
-      addAssistantMessage(`${labels.buildFailurePrefix}${message}`)
-      setConversationBuilding({ building: false, error: message })
+      setConversationBuilding({ building: false, error: `${labels.buildFailurePrefix}${message}` })
     } finally {
       setConversationBuilding({ building: false })
     }
@@ -191,39 +192,61 @@ export function useAgentSendActions({
     composerAttachments,
     loading,
     uploading,
-    buildingSendDraft,
+    buildingSendWorkspace,
     answeringPendingInput,
     activePendingInputRequest,
     canAnswerPendingInputWithText,
     canSendActiveRunRuntimeInput,
-    updateDraft,
+    updateWorkspace,
     setMentionRange,
     answerActiveLocalRunInput,
     sendActiveRunRuntimeInput,
     modelId,
-    addAssistantMessage,
     labels,
     setConversationBuilding,
-    buildSendDraft,
+    buildSendWorkspace,
     debugBeforeSend,
-    setPendingSendDraft,
-    commitSendDraft,
+    setPendingSendWorkspace,
+    commitSendWorkspace,
   ])
 
-  const confirmPendingSendDraft = useCallback(async () => {
-    const draft = pendingSendDraft
-    if (!draft || loading) return
+  const confirmPendingSendWorkspace = useCallback(async () => {
+    const workspace = pendingSendWorkspace
+    if (!workspace || loading) return
     const operationId = beginAgentPerformanceOperation({
       kind: 'send_preview_confirm',
-      meta: { draftId: draft.id, inputLength: draft.visibleUserContent.length },
+      meta: { workspaceId: workspace.id, inputLength: workspace.visibleUserContent.length },
     })
     markAgentPerformancePhase(operationId, 'commit_start')
-    setPendingSendDraft(null)
-    await commitSendDraft({ ...draft, performanceOperationId: operationId })
-  }, [pendingSendDraft, loading, setPendingSendDraft, commitSendDraft])
+    setPendingSendWorkspace(null)
+    await commitSendWorkspace({ ...workspace, performanceOperationId: operationId })
+  }, [pendingSendWorkspace, loading, setPendingSendWorkspace, commitSendWorkspace])
 
   return {
-    confirmPendingSendDraft,
+    confirmPendingSendWorkspace,
     send,
   }
+}
+
+function schedulePendingSendFrame(operationId: string, sendStartedMs: number): void {
+  if (typeof requestAnimationFrame !== 'function') return
+  requestAnimationFrame(() => {
+    markAgentPerformancePhase(operationId, 'pending_send_frame')
+    recordSendEntryStageLatency('pending_send_frame', sendStartedMs)
+  })
+}
+
+function recordSendEntryStageLatency(stage: string, startedMs: number): void {
+  recordAgentPerformanceMetric({
+    name: 'frontend_agent_send_stage_latency_ms',
+    value: Math.max(0, performanceNow() - startedMs),
+    unit: 'ms',
+    labels: {
+      area: 'agent_frontend',
+      component: 'agent_chat',
+      kind: 'send',
+      stage,
+      status: 'running',
+    },
+  })
 }

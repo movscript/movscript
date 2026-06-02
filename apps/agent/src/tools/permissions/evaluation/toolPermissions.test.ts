@@ -14,10 +14,10 @@ const registry = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
-    name: 'draft_create',
-    description: 'Create a local draft artifact.',
-    permission: 'draft.write',
-    risk: 'draft',
+    name: 'workspace_open',
+    description: 'Create a local workspace artifact.',
+    permission: 'workspace.write',
+    risk: 'workspace',
     source: 'runtime',
     projectScoped: true,
     requiresApprovalByDefault: false,
@@ -55,9 +55,9 @@ const registry = new StaticToolRegistry([
     requiresApprovalByDefault: true,
   },
   {
-    name: 'draft_apply',
-    description: 'Apply a draft.',
-    permission: 'draft.apply',
+    name: 'workspace_apply',
+    description: 'Apply a workspace.',
+    permission: 'workspace.apply',
     risk: 'write',
     projectScoped: false,
     requiresApprovalByDefault: true,
@@ -75,7 +75,7 @@ const registry = new StaticToolRegistry([
 test('tool permissions injects current projectId into project scoped tools', () => {
   const result = applyToolPermissions([
     { name: 'movscript_script_locate', args: { limit: 10 } },
-    { name: 'draft_create', args: { kind: 'project_standards_proposal', title: 't', content: 'c' } },
+    { name: 'workspace_open', args: { kind: 'project_standards_workspace', title: 't', content: 'c' } },
   ], {
     currentProjectId: 42,
     registry,
@@ -83,7 +83,7 @@ test('tool permissions injects current projectId into project scoped tools', () 
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'draft_create', mode: 'allow', approval: 'never' },
+        { name: 'workspace_open', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -115,14 +115,14 @@ test('tool permissions allows explicit projectId for read-only project scoped to
 
 test('tool permissions still requires a current project for non-read project scoped tools', () => {
   const result = applyToolPermissions([
-    { name: 'draft_create', args: { projectId: 42, kind: 'project_standards_proposal', title: 't', content: 'c' } },
+    { name: 'workspace_open', args: { projectId: 42, kind: 'project_standards_workspace', title: 't', content: 'c' } },
   ], {
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'draft_create', mode: 'allow', approval: 'never' },
+        { name: 'workspace_open', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -180,7 +180,7 @@ test('tool permissions blocks tools outside the whitelist', () => {
 
 test('tool permissions blocks registered tools that the manifest does not grant', () => {
   const result = applyToolPermissions([
-    { name: 'draft_create', args: { kind: 'project_standards_proposal', title: 't', content: 'c' } },
+    { name: 'workspace_open', args: { kind: 'project_standards_workspace', title: 't', content: 'c' } },
   ], {
     currentProjectId: 42,
     registry,
@@ -191,7 +191,7 @@ test('tool permissions blocks registered tools that the manifest does not grant'
   })
 
   assert.deepEqual(result.toolCalls, [])
-  assert.deepEqual(result.warnings, ['draft_create 未被当前 agent manifest 授权'])
+  assert.deepEqual(result.warnings, ['workspace_open 未被当前 agent manifest 授权'])
   assert.equal(result.blockedToolCalls[0].reason, 'not_granted')
 })
 
@@ -295,30 +295,30 @@ test('tool permissions lets sandbox intercept approval-gated write and generatio
 
 test('tool permissions auto approval mode allows granted write tools without explicit approval', () => {
   const result = applyToolPermissions([
-    { name: 'draft_apply', args: { draftId: 'draft_1' } },
+    { name: 'workspace_apply', args: { workspaceId: 'workspace_1' } },
   ], {
     approvalMode: 'auto',
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'draft_apply', mode: 'allow', approval: 'on_write' }],
+      tools: [{ name: 'workspace_apply', mode: 'allow', approval: 'on_write' }],
     },
   })
 
   assert.deepEqual(result.warnings, [])
   assert.equal(result.blockedToolCalls.length, 0)
-  assert.equal(result.toolCalls[0].name, 'draft_apply')
+  assert.equal(result.toolCalls[0].name, 'workspace_apply')
 })
 
-test('tool permissions readonly auto mode still blocks draft apply writes', () => {
+test('tool permissions readonly auto mode still blocks workspace apply writes', () => {
   const result = applyToolPermissions([
-    { name: 'draft_apply', args: { draftId: 'draft_1' } },
+    { name: 'workspace_apply', args: { workspaceId: 'workspace_1' } },
   ], {
     approvalMode: 'auto_readonly',
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'draft_apply', mode: 'allow', approval: 'on_write' }],
+      tools: [{ name: 'workspace_apply', mode: 'allow', approval: 'on_write' }],
     },
   })
 

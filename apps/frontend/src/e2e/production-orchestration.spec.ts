@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -11,7 +11,7 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /审阅提案|生成编排提案/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /审阅工作区|生成编排工作区/ })).toHaveCount(0)
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
   await expect(page.getByText('剧本', { exact: true }).first()).toBeVisible()
@@ -44,24 +44,24 @@ test('production orchestration keeps the screenwriter workspace readable on mobi
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /审阅提案|生成编排提案/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /审阅工作区|生成编排工作区/ })).toHaveCount(0)
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
   await expect(page.getByText('按编排段、情节和表达条目写清楚这一段戏', { exact: true })).toBeVisible()
 })
 
-test('production orchestration opens production proposal patch dialog for active drafts', async ({ page }, testInfo) => {
+test('production orchestration opens production workspace patch dialog for active workspaces', async ({ page }, testInfo) => {
   await openProductionOrchestrationPage(page, testInfo, {
     view: 'review',
-    draftId: 'production-draft-e2e',
+    workspaceId: 'production-workspace-e2e',
   })
 
-  await expect(page.getByText('提案 Patch', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('工作区 Patch', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('button', { name: '应用提案到项目' })).toBeVisible({ timeout: 10_000 })
-  await page.getByRole('button', { name: 'Agent 调整提案' }).click()
-  await expect(page.getByRole('dialog').getByRole('heading', { name: '让 Agent 调整提案' })).toBeVisible()
-  await expect(page.getByText('制作提案草稿', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: '应用工作区到项目' })).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('button', { name: 'Agent 调整工作区' }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: '让 Agent 调整工作区' })).toBeVisible()
+  await expect(page.getByText('制作工作区工作区', { exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
 async function mockProductionOrchestrationEntities(page: Page) {
@@ -91,7 +91,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         kind: 'setup',
         summary: '主角进入新的场景空间。',
         script_block_id: 9010,
-        status: 'draft',
+        status: 'workspace',
         order: 1,
       }],
       'scene-moments': [{
@@ -103,7 +103,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         location_text: '入口',
         action_text: '主角观察周围并停下。',
         mood: '谨慎',
-        status: 'draft',
+        status: 'workspace',
         order: 1,
       }],
       'creative-references': [{
@@ -118,7 +118,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         project_id: PROJECT_ID,
         name: '项目级角色设定',
         kind: 'person',
-        status: 'draft',
+        status: 'workspace',
         description: '即使暂时没有被当前制作引用，也应在资源池中可见。',
       }],
       'creative-reference-usages': [{
@@ -128,7 +128,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         owner_id: 402,
         creative_reference_id: 501,
         role: 'supporting',
-        status: 'draft',
+        status: 'workspace',
       }],
       'script-blocks': [{
         ID: 9010,
@@ -172,49 +172,49 @@ async function mockProductionOrchestrationEntities(page: Page) {
     })
   })
 
-  let createdProductionDraftContent = ''
-  await page.route('http://127.0.0.1:28765/draft', async (route) => {
+  let createdProductionWorkspaceContent = ''
+  await page.route('http://127.0.0.1:28765/workspace', async (route) => {
     const input = await route.request().postDataJSON().catch(() => ({})) as { content?: string }
-    createdProductionDraftContent = typeof input.content === 'string' ? input.content : createdProductionDraftContent
+    createdProductionWorkspaceContent = typeof input.content === 'string' ? input.content : createdProductionWorkspaceContent
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        id: 'production-draft-created-e2e',
+        id: 'production-workspace-created-e2e',
         projectId: PROJECT_ID,
-        kind: 'production_proposal',
-        title: '制作提案草稿',
-        content: createdProductionDraftContent,
-        status: 'draft',
+        kind: 'production_workspace',
+        title: '制作工作区工作区',
+        content: createdProductionWorkspaceContent,
+        status: 'workspace',
         createdAt: '2026-05-11T12:00:00.000Z',
         updatedAt: '2026-05-11T12:00:00.000Z',
       }),
     })
   })
 
-  await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
+  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
-    if (pathname === '/drafts' || pathname === '/drafts/') {
+    if (pathname === '/workspaces' || pathname === '/workspaces/') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ drafts: [] }),
+        body: JSON.stringify({ workspaces: [] }),
       })
       return
     }
-    if (pathname.endsWith('/project-draft-e2e')) {
+    if (pathname.endsWith('/project-workspace-e2e')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 'project-draft-e2e',
+          id: 'project-workspace-e2e',
           projectId: PROJECT_ID,
-          kind: 'project_standards_proposal',
-          title: '项目规范提案草稿',
+          kind: 'project_standards_workspace',
+          title: '项目规范工作区工作区',
           content: JSON.stringify({
-            summary: '项目级设定与素材草稿',
-            proposal: {
+            summary: '项目级设定与素材工作区',
+            workspace: {
               creative_references: [{
                 title: '风格统一',
                 description: '确保视觉与叙事风格保持一致。',
@@ -225,30 +225,30 @@ async function mockProductionOrchestrationEntities(page: Page) {
               }],
             },
           }),
-          status: 'draft',
+          status: 'workspace',
           createdAt: '2026-05-11T12:00:00.000Z',
           updatedAt: '2026-05-11T12:00:00.000Z',
         }),
       })
       return
     }
-    if (pathname.endsWith('/production-draft-e2e') || pathname.endsWith('/production-draft-created-e2e')) {
+    if (pathname.endsWith('/production-workspace-e2e') || pathname.endsWith('/production-workspace-created-e2e')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: pathname.endsWith('/production-draft-created-e2e') ? 'production-draft-created-e2e' : 'production-draft-e2e',
+          id: pathname.endsWith('/production-workspace-created-e2e') ? 'production-workspace-created-e2e' : 'production-workspace-e2e',
           projectId: PROJECT_ID,
-          kind: 'production_proposal',
-          title: '制作提案草稿',
-          content: createdProductionDraftContent || JSON.stringify({
-            schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-            scope: 'production_proposal',
+          kind: 'production_workspace',
+          title: '制作工作区工作区',
+          content: createdProductionWorkspaceContent || JSON.stringify({
+            schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
+            scope: 'production_workspace',
             mode: 'snapshot',
             productionId: 301,
-            proposalScope: 'production',
-            summary: '制作提案草稿',
-            proposal: {
+            workspaceScope: 'production',
+            summary: '制作工作区工作区',
+            workspace: {
               segments: [{
                 title: '进入空间',
                 summary: '主角进入新的场景空间。',
@@ -263,7 +263,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
             },
             impact_notes: [],
           }),
-          status: 'draft',
+          status: 'workspace',
           createdAt: '2026-05-11T12:00:00.000Z',
           updatedAt: '2026-05-11T12:00:00.000Z',
         }),
@@ -278,7 +278,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
   })
 }
 
-async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, params?: { view?: string; draftId?: string; projectDraftId?: string }) {
+async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, params?: { view?: string; workspaceId?: string; projectWorkspaceId?: string }) {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('production orchestrate E2E requires a baseURL')
 
@@ -299,8 +299,8 @@ async function openProductionOrchestrationPage(page: Page, testInfo: TestInfo, p
   const search = new URLSearchParams({
     productionId: '301',
     ...(params?.view ? { view: params.view } : {}),
-    ...(params?.draftId ? { draftId: params.draftId } : {}),
-    ...(params?.projectDraftId ? { projectDraftId: params.projectDraftId } : {}),
+    ...(params?.workspaceId ? { workspaceId: params.workspaceId } : {}),
+    ...(params?.projectWorkspaceId ? { projectWorkspaceId: params.projectWorkspaceId } : {}),
   })
   await page.goto(`/project/production/orchestration?${search.toString()}`)
 }

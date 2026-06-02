@@ -4,7 +4,7 @@ import {
   agentAttentionStatusRecipe,
   agentAvailabilityStatusRecipe,
   agentConfigStatusRecipe,
-  agentDraftStatusRecipe,
+  agentWorkspaceStatusRecipe,
   agentGenerationStatusRecipe,
   agentOptionalStatusRecipe,
   agentPerformanceHealthRecipe,
@@ -45,11 +45,11 @@ test('agent run interaction action statuses map to UI semantic recipes', () => {
   assert.deepEqual(agentRunInteractionActionStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
 })
 
-test('agent draft statuses map to UI semantic recipes', () => {
-  assert.deepEqual(agentDraftStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentDraftStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(agentDraftStatusRecipe('accepted'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(agentDraftStatusRecipe('draft'), { intent: 'neutral', emphasis: 'soft' })
+test('agent workspace statuses map to UI semantic recipes', () => {
+  assert.deepEqual(agentWorkspaceStatusRecipe('applied'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(agentWorkspaceStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(agentWorkspaceStatusRecipe('accepted'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(agentWorkspaceStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('agent generation badge states map to UI semantic recipes', () => {

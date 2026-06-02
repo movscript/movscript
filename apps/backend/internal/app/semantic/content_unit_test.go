@@ -110,7 +110,7 @@ func TestCreateSceneMomentInheritsScriptBlockFromSegment(t *testing.T) {
 func TestSceneMomentCodesAreProductionScopedAndStableAcrossReorder(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
-	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "draft"}
+	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "workspace"}
 	if err := db.Create(&production).Error; err != nil {
 		t.Fatalf("create production: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestCreateContentUnitPrefersSceneMomentScriptBlock(t *testing.T) {
 func TestContentUnitCodesAreSceneAndKindScoped(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
-	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "draft"}
+	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "workspace"}
 	if err := db.Create(&production).Error; err != nil {
 		t.Fatalf("create production: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestPatchSegmentAllowsMetadataAfterSceneMoments(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Segment", Status: "draft"}
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Segment", Status: "workspace"}
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
@@ -604,7 +604,7 @@ func TestAbandonSegmentMarksDownstreamGraphInactive(t *testing.T) {
 	if err := db.Create(&momentUnit).Error; err != nil {
 		t.Fatalf("create moment content unit: %v", err)
 	}
-	segmentUnit := model.ContentUnit{ProjectID: 1, SegmentID: &segment.ID, ScriptBlockID: &block.ID, Title: "Segment unit", Status: "draft"}
+	segmentUnit := model.ContentUnit{ProjectID: 1, SegmentID: &segment.ID, ScriptBlockID: &block.ID, Title: "Segment unit", Status: "workspace"}
 	if err := db.Create(&segmentUnit).Error; err != nil {
 		t.Fatalf("create segment content unit: %v", err)
 	}
@@ -682,7 +682,7 @@ func TestPatchSceneMomentAllowsScriptBlockChangeAfterContentUnits(t *testing.T) 
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -735,7 +735,7 @@ func TestPatchSceneMomentRejectsSegmentChangeAfterContentUnits(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -770,7 +770,7 @@ func TestDeleteSceneMomentRejectsDownstreamContentUnits(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -799,7 +799,7 @@ func TestAbandonSceneMomentMarksDownstreamGraphInactive(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
-	firstUnit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "First unit", Status: "draft"}
+	firstUnit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "First unit", Status: "workspace"}
 	secondUnit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Second unit", Status: "confirmed"}
 	if err := db.Create(&firstUnit).Error; err != nil {
 		t.Fatalf("create first content unit: %v", err)
@@ -807,7 +807,7 @@ func TestAbandonSceneMomentMarksDownstreamGraphInactive(t *testing.T) {
 	if err := db.Create(&secondUnit).Error; err != nil {
 		t.Fatalf("create second content unit: %v", err)
 	}
-	firstTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, SceneMomentID: &moment.ID, ContentUnitID: &firstUnit.ID, Kind: "content_unit", Status: "draft"}
+	firstTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, SceneMomentID: &moment.ID, ContentUnitID: &firstUnit.ID, Kind: "content_unit", Status: "workspace"}
 	secondTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, ContentUnitID: &secondUnit.ID, Kind: "content_unit", Status: "confirmed"}
 	if err := db.Create(&firstTimelineItem).Error; err != nil {
 		t.Fatalf("create first preview timeline item: %v", err)
@@ -913,11 +913,11 @@ func TestPatchSceneMomentAllowsMetadataAfterContentUnits(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "draft"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "workspace"}
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -942,7 +942,7 @@ func TestSourceLockStatusReportsUnlockedSceneMoment(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "draft"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "workspace"}
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
@@ -972,7 +972,7 @@ func TestPatchContentUnitInheritsScriptBlockFromNewSceneMoment(t *testing.T) {
 	if err := db.Create(&secondMoment).Error; err != nil {
 		t.Fatalf("create second scene moment: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &firstMoment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &firstMoment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -997,7 +997,7 @@ func TestPatchContentUnitRejectsSourceChangeAfterKeyframes(t *testing.T) {
 	if err := db.Create(&secondBlock).Error; err != nil {
 		t.Fatalf("create second script block: %v", err)
 	}
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -1029,7 +1029,7 @@ func TestPatchContentUnitAllowsMetadataAfterKeyframes(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -1059,7 +1059,7 @@ func TestSourceLockStatusReportsContentUnitLockedFields(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -1087,7 +1087,7 @@ func TestSourceLockStatusIgnoresGeneratedKeyframeCandidates(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
@@ -1127,7 +1127,7 @@ func TestDeleteContentUnitRejectsDownstreamKeyframes(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, _, block := seedContentUnitScriptSource(t, db, 1)
-	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "workspace"}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}

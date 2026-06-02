@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
+import type { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import { extractVideoFramesFromBackendResource, type VideoFrameExtraction, type VideoFrameExtractionRequest } from '../../media/video/videoFrameExtraction.js'
 import { isValidAgentReferenceId } from '../../context/runtime/runtimeContext.js'
 import { isJSONRecord } from '../../shared/json/jsonValue.js'

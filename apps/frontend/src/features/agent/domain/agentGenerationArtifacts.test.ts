@@ -245,7 +245,7 @@ test('generationParamAuditsFromRun extracts audit data from repaired generation 
             {
               code: 'INVALID_PARAMETER_CONDITIONAL_CONST',
               field: 'return_last_frame',
-              message: 'parameter "return_last_frame" must be false when draft is true',
+              message: 'parameter "return_last_frame" must be false when workspace is true',
               suggested_fix: {
                 return_last_frame: false,
               },
@@ -273,7 +273,7 @@ test('generationParamAuditsFromRun extracts audit data from repaired generation 
     preflightErrors: [{
       code: 'INVALID_PARAMETER_CONDITIONAL_CONST',
       field: 'return_last_frame',
-      message: 'parameter "return_last_frame" must be false when draft is true',
+      message: 'parameter "return_last_frame" must be false when workspace is true',
       suggestedFix: {
         return_last_frame: false,
       },

@@ -9,33 +9,33 @@ import type { AgentRuntimeRouter } from '../../../application/router/runtimeRout
 import type { RuntimeDebugEvidenceRefQuery } from '../../../application/read/trace/runtimeTraceReadBridge.js'
 import { installAgentPack, uninstallAgentPack, type AgentPackFile } from '../../../catalog/loading/install/packInstaller.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../../../context/runtime/runtimeContext.js'
-import { normalizeDraftKind, normalizeDraftStatus } from '../../../drafts/store/draftStore.js'
+import { normalizeWorkspaceKind, normalizeWorkspaceStatus } from '../../../workspaces/store/workspaceStore.js'
 import { isValidMemoryProjectId } from '../../../memory/shared/types.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import type { JSONValue } from '../../../shared/protocol/types.js'
 import { AgentHTTPError } from '../../core/http.js'
 
-export function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
-  if (!isRecord(body)) throw new AgentHTTPError(400, 'draft body must be an object')
-  const projectId = normalizeDraftBodyProjectId(body.projectId)
+export function normalizeWorkspaceBody(body: unknown): Record<string, JSONValue> {
+  if (!isRecord(body)) throw new AgentHTTPError(400, 'workspace body must be an object')
+  const projectId = normalizeWorkspaceBodyProjectId(body.projectId)
   return {
     ...(projectId !== undefined ? { projectId } : {}),
-    kind: normalizeDraftKind(body.kind),
-    title: typeof body.title === 'string' ? body.title : 'Untitled draft',
+    kind: normalizeWorkspaceKind(body.kind),
+    title: typeof body.title === 'string' ? body.title : 'Untitled workspace',
     content: typeof body.content === 'string' ? body.content : '',
-    ...(isRecord(body.source) ? { source: normalizeDraftSource(body.source) } : {}),
+    ...(isRecord(body.source) ? { source: normalizeWorkspaceSource(body.source) } : {}),
     ...(isRecord(body.target) ? { target: body.target as Record<string, JSONValue> } : {}),
     ...(isRecord(body.metadata) ? { metadata: body.metadata as Record<string, JSONValue> } : {}),
   }
 }
 
-export function normalizeDraftQuery(url: URL): Parameters<AgentRuntimeRouter['listDrafts']>[0] {
+export function normalizeWorkspaceQuery(url: URL): Parameters<AgentRuntimeRouter['listWorkspaces']>[0] {
   const projectId = url.searchParams.get('projectId')
   const parsedProjectId = parseOptionalProjectIdParam(projectId)
-  const kind = normalizeDraftKind(url.searchParams.get('kind'))
-  const status = normalizeDraftStatus(url.searchParams.get('status'))
+  const kind = normalizeWorkspaceKind(url.searchParams.get('kind'))
+  const status = normalizeWorkspaceStatus(url.searchParams.get('status'))
   const statuses = url.searchParams.getAll('status').flatMap((item) => {
-    const parsed = normalizeDraftStatus(item)
+    const parsed = normalizeWorkspaceStatus(item)
     return parsed ? [parsed] : []
   })
   const threadId = url.searchParams.get('threadId')
@@ -73,10 +73,10 @@ export function parseOptionalProjectIdParam(value: string | null): number | unde
   throw new AgentHTTPError(400, 'projectId must be a positive safe integer')
 }
 
-function normalizeDraftBodyProjectId(value: unknown): number | undefined {
+function normalizeWorkspaceBodyProjectId(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined
   if (isValidAgentProjectId(value)) return value
-  throw new AgentHTTPError(400, 'draft projectId must be a positive safe integer')
+  throw new AgentHTTPError(400, 'workspace projectId must be a positive safe integer')
 }
 
 export function normalizeAgentPackBody(body: Record<string, unknown>, packInstallRootDir: string): Parameters<typeof installAgentPack>[0] {
@@ -109,7 +109,7 @@ export function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['l
   const parsedLimit = parseLimitParam(limit, 100)
   return {
     projectId,
-    ...(kind === 'preference' || kind === 'fact' || kind === 'item_ref' || kind === 'entity_ref' || kind === 'draft' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
+    ...(kind === 'preference' || kind === 'fact' || kind === 'item_ref' || kind === 'entity_ref' || kind === 'workspace' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
     ...(query ? { query } : {}),
     ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
   }
@@ -117,7 +117,7 @@ export function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['l
 
 export function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntimeRouter['createMemory']>[0] {
   const projectId = isValidMemoryProjectId(body.projectId) ? body.projectId : undefined
-  const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'draft' || body.kind === 'decision' || body.kind === 'warning'
+  const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'workspace' || body.kind === 'decision' || body.kind === 'warning'
     ? body.kind
     : undefined
   if (projectId === undefined) throw new AgentHTTPError(400, 'memory projectId is required')
@@ -143,7 +143,7 @@ export function normalizeMemoryProjectId(url: URL): number | undefined {
   return undefined
 }
 
-function normalizeDraftSource(source: Record<string, unknown>): Record<string, JSONValue> {
+function normalizeWorkspaceSource(source: Record<string, unknown>): Record<string, JSONValue> {
   return {
     ...(typeof source.entityType === 'string' ? { entityType: source.entityType } : {}),
     ...(isValidAgentReferenceId(source.entityId) ? { entityId: source.entityId } : {}),

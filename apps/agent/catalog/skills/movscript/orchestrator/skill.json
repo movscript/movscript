@@ -7,7 +7,7 @@
       "description": "站在 project 层组织项目制作标准、可复用设定和素材需求锚点。",
       "priority": 1000,
       "enabled": true,
-      "outputContract": "返回 project 层状态、缺口、建议 proposal kind 和下一步审阅动作。",
+      "outputContract": "返回 project 层状态、缺口、建议 workspace kind 和下一步审阅动作。",
       "instructionTemplatePath": "project-orchestrator.md"
     },
     {

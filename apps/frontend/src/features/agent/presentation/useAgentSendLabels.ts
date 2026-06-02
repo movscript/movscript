@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { TFunction } from 'i18next'
 
 export function useAgentSendLabels(t: TFunction) {
-  const sendDraftLabels = useMemo(() => ({
+  const sendWorkspaceLabels = useMemo(() => ({
     attachmentOnlyMessage: t('agents.chat.attachmentOnlyMessage'),
     syncModelConfig: t('agents.chat.panel.http.syncModelConfig'),
     loadExistingThread: t('agents.chat.panel.http.loadExistingThread'),
@@ -29,6 +29,6 @@ export function useAgentSendLabels(t: TFunction) {
   return {
     commitSendLabels,
     sendActionLabels,
-    sendDraftLabels,
+    sendWorkspaceLabels,
   }
 }

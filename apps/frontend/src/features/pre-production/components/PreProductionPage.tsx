@@ -127,7 +127,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const [assetCreateReferenceId, setAssetCreateReferenceId] = useState<string>('')
   const resourceLibrary = usePreProductionResourceLibrary()
   const reviewController = usePreProductionReviewController({ projectId, searchParams, setSearchParams })
-  const { workspaceView, assetProposalDraftsQuery, settingProposalDraftsQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
+  const { workspaceView, assetWorkspaceWorkspacesQuery, settingWorkspaceWorkspacesQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
   const preProductionData = usePreProductionWorkbenchData(projectId)
   const {
     slotConfig,
@@ -301,8 +301,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     await refreshPreProductionWorkbenchContext({
       projectId,
       queryClient,
-      refetchSettingDrafts: settingProposalDraftsQuery.refetch,
-      refetchAssetProposalDrafts: assetProposalDraftsQuery.refetch,
+      refetchSettingWorkspaces: settingWorkspaceWorkspacesQuery.refetch,
+      refetchAssetWorkspaceWorkspaces: assetWorkspaceWorkspacesQuery.refetch,
     })
   }
 
@@ -391,10 +391,10 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const reviewWorkspace = (
     <PreProductionReviewWorkspace
       projectId={projectId}
-      settingDrafts={settingProposalDraftsQuery.data ?? []}
-      settingDraftsLoading={settingProposalDraftsQuery.isLoading}
-      drafts={assetProposalDraftsQuery.data ?? []}
-      loading={assetProposalDraftsQuery.isLoading}
+      settingWorkspaces={settingWorkspaceWorkspacesQuery.data ?? []}
+      settingWorkspacesLoading={settingWorkspaceWorkspacesQuery.isLoading}
+      workspaces={assetWorkspaceWorkspacesQuery.data ?? []}
+      loading={assetWorkspaceWorkspacesQuery.isLoading}
       creativeReferences={creativeReferences}
       assetSlots={visibleSlots}
       onApplied={refreshPreProduction}
@@ -420,7 +420,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
             projectId={projectId}
             config={referenceConfig}
             record={null}
-            defaults={{ kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' }}
+            defaults={{ kind: 'person', importance: 'main', status: 'workspace', name: '未命名设定' }}
             queryKey={preProductionCreativeReferencesQueryKey(projectId)}
             editKey={referenceCreateKey}
             title="设定字段"
@@ -1014,7 +1014,7 @@ function ReferenceInlineCard({
             projectId={projectId}
             config={referenceConfig}
             record={reference}
-            defaults={isCreating ? { kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' } : undefined}
+            defaults={isCreating ? { kind: 'person', importance: 'main', status: 'workspace', name: '未命名设定' } : undefined}
             queryKey={preProductionCreativeReferencesQueryKey(projectId)}
             editKey={effectiveEditKey}
             title="设定字段"

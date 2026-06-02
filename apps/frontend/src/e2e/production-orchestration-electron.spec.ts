@@ -29,7 +29,7 @@ test('electron renderer smoke reaches production orchestration with project-leve
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
     await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-    await expect(page.getByRole('button', { name: /AI 提案/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /AI 工作区/ })).toHaveCount(0)
     await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
     await expect(page.getByText('剧本', { exact: true }).first()).toBeVisible()
@@ -79,7 +79,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         kind: 'setup',
         summary: '主角进入新的场景空间。',
         script_block_id: 9010,
-        status: 'draft',
+        status: 'workspace',
         order: 1,
       }],
       'scene-moments': [{
@@ -91,7 +91,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         location_text: '入口',
         action_text: '主角观察周围并停下。',
         mood: '谨慎',
-        status: 'draft',
+        status: 'workspace',
         order: 1,
       }],
       'creative-references': [{
@@ -106,7 +106,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         project_id: PROJECT_ID,
         name: '项目级角色设定',
         kind: 'person',
-        status: 'draft',
+        status: 'workspace',
         description: '即使暂时没有被当前制作引用，也应在资源池中可见。',
       }],
       'creative-reference-usages': [{
@@ -116,7 +116,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         owner_id: 402,
         creative_reference_id: 501,
         role: 'supporting',
-        status: 'draft',
+        status: 'workspace',
       }],
       'script-blocks': [{
         ID: 9010,
@@ -160,29 +160,29 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
     })
   })
 
-  await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
+  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
-    if (pathname === '/drafts' || pathname === '/drafts/') {
+    if (pathname === '/workspaces' || pathname === '/workspaces/') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ drafts: [] }),
+        body: JSON.stringify({ workspaces: [] }),
       })
       return
     }
-    if (pathname.endsWith('/project-draft-e2e')) {
+    if (pathname.endsWith('/project-workspace-e2e')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 'project-draft-e2e',
+          id: 'project-workspace-e2e',
           projectId: PROJECT_ID,
-          kind: 'project_standards_proposal',
-          title: '项目规范提案草稿',
+          kind: 'project_standards_workspace',
+          title: '项目规范工作区工作区',
           content: JSON.stringify({
-            summary: '项目级设定与素材草稿',
-            proposal: {
+            summary: '项目级设定与素材工作区',
+            workspace: {
               creative_references: [{
                 title: '风格统一',
                 description: '确保视觉与叙事风格保持一致。',
@@ -193,27 +193,27 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
               }],
             },
           }),
-          status: 'draft',
+          status: 'workspace',
           createdAt: '2026-05-11T12:00:00.000Z',
           updatedAt: '2026-05-11T12:00:00.000Z',
         }),
       })
       return
     }
-    if (pathname.endsWith('/production-draft-e2e')) {
+    if (pathname.endsWith('/production-workspace-e2e')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 'production-draft-e2e',
+          id: 'production-workspace-e2e',
           projectId: PROJECT_ID,
-          kind: 'production_proposal',
-          title: '制作提案草稿',
+          kind: 'production_workspace',
+          title: '制作工作区工作区',
           content: JSON.stringify({
             mode: 'snapshot',
             productionId: 301,
-            summary: '制作提案草稿',
-            proposal: {
+            summary: '制作工作区工作区',
+            workspace: {
               segments: [{
                 title: '进入空间',
                 summary: '主角进入新的场景空间。',
@@ -227,7 +227,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
               }],
             },
           }),
-          status: 'draft',
+          status: 'workspace',
           createdAt: '2026-05-11T12:00:00.000Z',
           updatedAt: '2026-05-11T12:00:00.000Z',
         }),

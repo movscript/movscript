@@ -2,21 +2,23 @@
   "id": "movscript.pack.workspace",
   "version": "1.0.0",
   "name": "MovScript",
-  "description": "MovScript workspace、proposal 规划、项目进度审阅和视觉生成能力。",
+  "description": "MovScript workspace 和前期准备阶段的设定、素材规划能力。",
   "source": "builtin",
   "resources": {
     "skills": [
-      "movscript/orchestrator",
       "movscript/rules/workspace",
       "movscript/workspace",
-      "kernel/proposal_first",
-      "movscript/proposal",
+      "movscript/workspace/project/setting_workspace",
+      "movscript/workspace/project/setting_prep",
+      "movscript/workspace/asset/asset_workspace",
+      "movscript/workspace/content_unit/content_unit_workspace",
+      "film/storyboard/director",
       "candidate/asset_planning",
-      "generation/visual_execution",
-      "film/storyboard"
+      "generation/visual_execution"
     ],
     "tools": [
       "movscript/workspace",
+      "workspace",
       "generation",
       "candidate",
       "reference"
@@ -31,7 +33,10 @@
     "movscript_creative_reference_query",
     "movscript_asset_slot_query",
     "movscript_production_context_query",
-    "draft_model_get",
+    "get_workspace_model",
+    "workspace_open",
+    "workspace_validate",
+    "workspace_apply",
     "movscript_project_create",
     "generation_model_list",
     "tool_comfyui",
@@ -43,27 +48,19 @@
   ],
   "skills": [
     "movscript.rules.workspace",
-    "movscript.orchestrator.project",
-    "movscript.orchestrator.production",
-    "film.director.visual",
-    "movscript.project_progress_review",
     "movscript.script_reading",
-    "kernel.proposal_first",
-    "movscript.project_standards_proposal",
-    "movscript.setting_proposal",
-    "movscript.asset_proposal",
+    "movscript.setting_workspace",
+    "movscript.asset_workspace",
+    "movscript.content_unit_workspace",
+    "film.storyboard.director",
     "movscript.setting_prep",
-    "movscript.production_proposal",
     "candidate.asset_planning",
-    "movscript.content_unit_proposal",
-    "movscript.storyboard_gap_review",
-    "generation.visual_execution",
-    "film.storyboard.director"
+    "generation.visual_execution"
   ],
   "requires": {
     "packs": {
       "core.pack.agent": ">=1.0.0",
-      "draft.pack.lifecycle": ">=1.0.0"
+      "workspace.pack.lifecycle": ">=1.0.0"
     }
   }
 }

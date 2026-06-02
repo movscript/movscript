@@ -22,13 +22,13 @@ test('prepareRuntimeTaskGraphCreation validates thread ownership and normalizes 
       threadId: ' thread_1 ',
       title: 'Launch taskGraph',
       goal: ' Ship the feature ',
-      tasks: [{ id: 'task_1', title: 'Draft' }],
+      tasks: [{ id: 'task_1', title: 'Workspace' }],
     },
   })
 
   assert.equal(preparation.thread.id, 'thread_1')
   assert.equal(preparation.goal, 'Ship the feature')
-  assert.deepEqual(preparation.taskInputs, [{ id: 'task_1', title: 'Draft' }])
+  assert.deepEqual(preparation.taskInputs, [{ id: 'task_1', title: 'Workspace' }])
 })
 
 test('prepareRuntimeTaskGraphCreation rejects missing thread ids and duplicate thread plans', () => {
@@ -50,7 +50,7 @@ test('resolveRuntimeTaskGraphCreationTasks keeps explicit tasks without invoking
   const result = await resolveRuntimeTaskGraphCreationTasks({
     preparation: {
       thread: makeThread(),
-      taskInputs: [{ id: 'task_1', title: 'Draft' }],
+      taskInputs: [{ id: 'task_1', title: 'Workspace' }],
       goal: 'Launch',
     },
     planInput: { title: 'Launch taskGraph' },
@@ -60,7 +60,7 @@ test('resolveRuntimeTaskGraphCreationTasks keeps explicit tasks without invoking
   })
 
   assert.deepEqual(result, {
-    taskInputs: [{ id: 'task_1', title: 'Draft' }],
+    taskInputs: [{ id: 'task_1', title: 'Workspace' }],
     plannerWarnings: [],
   })
 })
@@ -120,7 +120,7 @@ test('createRuntimePlanWithTasks persists a taskGraph and validated tasks', () =
     taskGraphId: 'task_graph_1',
     thread: makeThread(),
     planInput: { title: 'Launch taskGraph', metadata: { source: 'test' } },
-    taskInputs: [{ id: 'task_1', title: 'Draft' }],
+    taskInputs: [{ id: 'task_1', title: 'Workspace' }],
     now: '2026-01-01T00:00:00.000Z',
     goal: 'Launch',
     plannerSource: 'fallback',
@@ -171,7 +171,7 @@ test('applyRuntimeTaskGraphCreationRootRun creates root planner run and assigns 
     taskGraphId: 'task_graph_1',
     thread,
     planInput: { threadId: thread.id, title: 'Launch taskGraph' },
-    taskInputs: [{ id: 'task_1', title: 'Draft' }],
+    taskInputs: [{ id: 'task_1', title: 'Workspace' }],
     now: '2026-01-01T00:00:00.000Z',
   })
   const calls: string[] = []
@@ -215,7 +215,7 @@ test('applyRuntimeTaskGraphCreationRootRun skips root run when disabled', () => 
     taskGraphId: 'task_graph_1',
     thread,
     planInput: { threadId: thread.id, createPlannerRun: false },
-    taskInputs: [{ id: 'task_1', title: 'Draft' }],
+    taskInputs: [{ id: 'task_1', title: 'Workspace' }],
     now: '2026-01-01T00:00:00.000Z',
   })
   const result = applyRuntimeTaskGraphCreationRootRun({
@@ -245,12 +245,12 @@ test('applyRuntimeTaskGraphCreationFlow persists taskGraph, records created task
     taskGraphId: 'task_graph_1',
     preparation: {
       thread,
-      taskInputs: [{ id: 'task_1', title: 'Draft' }],
+      taskInputs: [{ id: 'task_1', title: 'Workspace' }],
       goal: 'Launch',
     },
     planInput: { threadId: thread.id, title: 'Launch taskGraph' },
     resolvedTasks: {
-      taskInputs: [{ id: 'task_1', title: 'Draft' }],
+      taskInputs: [{ id: 'task_1', title: 'Workspace' }],
       plannerSource: 'fallback',
       plannerWarnings: ['planner unavailable'],
     },

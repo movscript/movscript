@@ -21,8 +21,8 @@ test('applyRuntimePlanCompletionTrace records completion on the root run', () =>
         id: 'task_2',
         artifacts: [{
           id: 'artifact_1',
-          type: 'draft',
-          title: 'Draft',
+          type: 'workspace',
+          title: 'Workspace',
           createdAt: '2026-01-01T00:00:00.000Z',
         }],
       }),

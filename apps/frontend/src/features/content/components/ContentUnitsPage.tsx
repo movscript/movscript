@@ -218,7 +218,7 @@ interface ContentUnitViewModel {
 }
 
 const statusMeta: Record<string, { label: string }> = {
-  draft: { label: '草稿' },
+  workspace: { label: '工作区' },
   confirmed: { label: '已确认' },
   in_production: { label: '生成中' },
   locked: { label: '已锁定' },
@@ -404,7 +404,7 @@ export default function ContentUnitsPage() {
   const filteredUnits = useMemo(() => {
     const q = query.trim().toLowerCase()
     return unitViewModels.filter((item) => {
-      const status = String(item.unit.status ?? 'draft')
+      const status = String(item.unit.status ?? 'workspace')
       const matchesKind = kindFilter === 'all' || item.unit.kind === kindFilter
       const matchesSegment = !segmentFilterId || item.unit.segment_id === segmentFilterId || item.section?.ID === segmentFilterId
       const matchesSceneMoment = !sceneMomentFilterId || item.unit.scene_moment_id === sceneMomentFilterId
@@ -414,7 +414,7 @@ export default function ContentUnitsPage() {
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'ready' && item.readiness >= 70 && item.missingAssets.length === 0) ||
-        (statusFilter === 'attention' && (item.readiness < 70 || item.missingAssets.length > 0 || ['draft', 'candidate'].includes(status))) ||
+        (statusFilter === 'attention' && (item.readiness < 70 || item.missingAssets.length > 0 || ['workspace', 'candidate'].includes(status))) ||
         (statusFilter === 'locked' && status === 'locked')
       const haystack = [
         titleOf(item.unit),
@@ -585,7 +585,7 @@ export default function ContentUnitsPage() {
                 script_block_id: selected?.unit.script_block_id ?? null,
                 order: unitViewModels.length + 1,
                 kind: 'shot',
-                status: 'draft',
+                status: 'workspace',
               } : undefined}
               queryKey={['semantic-content-positioning', projectId]}
               title={creatingContentUnit ? '新建制作项' : '卡片内编辑制作项'}
@@ -597,7 +597,7 @@ export default function ContentUnitsPage() {
                 subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 制作项 #${selected.unit.ID}` : '制作项',
                 summary: creatingContentUnit ? '创建后可继续补充创作提示、运镜参数，并收拢关键帧、画面、语音和字幕候选。' : selected?.unit.description || selected?.unit.prompt || '暂无内容描述或创作提示。',
                 compact: true,
-                status: <StatusBadge {...contentEntityStatusRecipe(creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft')}>{statusMeta[creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft']?.label ?? (creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft')}</StatusBadge>,
+                status: <StatusBadge {...contentEntityStatusRecipe(creatingContentUnit ? 'workspace' : selected?.unit.status ?? 'workspace')}>{statusMeta[creatingContentUnit ? 'workspace' : selected?.unit.status ?? 'workspace']?.label ?? (creatingContentUnit ? 'workspace' : selected?.unit.status ?? 'workspace')}</StatusBadge>,
                 stats: selected && !creatingContentUnit ? [
                   { label: '类型', value: kindLabel(selected.unit.kind) },
                   { label: '时长', value: formatDuration(selected.unit.duration_sec) },
@@ -714,7 +714,7 @@ function ContentUnitCard({
   selected: boolean
   onSelect: () => void
 }) {
-  const status = String(item.unit.status ?? 'draft')
+  const status = String(item.unit.status ?? 'workspace')
   const sceneMomentTitle = item.sceneMoment ? titleOf(item.sceneMoment) : '未绑定情景'
   const identifier = unitIdentifier(item.unit)
 
@@ -780,7 +780,7 @@ function ContentUnitDetail({
             <Eye size={16} />
           </ContentPageIconFrame>
           <div className="flex shrink-0 items-center gap-2">
-            <StatusBadge {...contentEntityStatusRecipe(item.unit.status ?? 'draft')}>{statusMeta[item.unit.status ?? 'draft']?.label ?? (item.unit.status ?? 'draft')}</StatusBadge>
+            <StatusBadge {...contentEntityStatusRecipe(item.unit.status ?? 'workspace')}>{statusMeta[item.unit.status ?? 'workspace']?.label ?? (item.unit.status ?? 'workspace')}</StatusBadge>
             <ContentPageActionButton size="sm" variant="outline" onClick={() => setPreviewOpen(true)}>
               <Clapperboard size={14} />
               预览
@@ -867,8 +867,8 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
             <ContentPageRelatedItem key={record.id}>
               <ContentPageRelatedHeader
                 aside={(
-                  <StatusBadge {...contentEntityStatusRecipe(record.status ?? 'draft')} className="shrink-0 type-tiny">
-                    {statusMeta[record.status ?? 'draft']?.label ?? (record.status ?? 'draft')}
+                  <StatusBadge {...contentEntityStatusRecipe(record.status ?? 'workspace')} className="shrink-0 type-tiny">
+                    {statusMeta[record.status ?? 'workspace']?.label ?? (record.status ?? 'workspace')}
                   </StatusBadge>
                 )}
               >

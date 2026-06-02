@@ -2,10 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadDeps } from '@/features/agent/application/agentRuntimeThreadRestore'
-import type { RuntimeThreadHydrationResult } from '@/features/agent/application/agentRuntimeThreadHydration'
-import { STOPPED_RUNTIME_STATUS_LIGHT } from '@/features/agent/domain/agentRuntimeStatusLight'
-import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage, Conversation } from '@/features/agent/state/agentStore'
+import type { AgentThread } from '@/shared/infrastructure/localAgentClient'
+import type { Conversation } from '@/features/agent/state/agentStore'
 
 test('restoreRuntimeThreadConversation activates a conversation with a persisted runtime thread id', async () => {
   const calls: string[] = []
@@ -34,26 +32,22 @@ test('restoreRuntimeThreadConversation reuses session thread mappings before loa
   assert.deepEqual(calls, ['active:conv_2'])
 })
 
-test('restoreRuntimeThreadConversation creates a restored conversation from runtime projection', async () => {
+test('restoreRuntimeThreadConversation creates a restored conversation from runtime thread identity', async () => {
   const calls: string[] = []
   const result = await restoreRuntimeThreadConversation('thread_3', depsFixture(calls, {
-    projection: runtimeProjection({
-      thread: thread({ id: 'thread_3', title: 'Runtime thread' }),
-      messages: [message({ id: 'runtime_msg_1' })],
-    }),
+    thread: thread({ id: 'thread_3', title: 'Runtime thread' }),
   }))
 
   assert.deepEqual(result, {
     conversationId: 'thread_3',
     threadId: 'thread_3',
     reusedExistingConversation: false,
-    restoredMessageCount: 1,
+    restoredMessageCount: 0,
   })
   assert.deepEqual(calls, [
-    'load:thread_3',
+    'loadThread:thread_3',
     'createRuntime:thread_3:Runtime thread',
     'title:thread_3:Runtime thread',
-    'projection:thread_3:thread_3:none:1:Restored',
     'localThread:thread_3:thread_3',
     'runtimeThread:thread_3:thread_3',
     'active:thread_3',
@@ -65,7 +59,7 @@ function depsFixture(
   options: {
     conversations?: Conversation[]
     localThreadIdsByConversation?: Record<string, string>
-    projection?: RuntimeThreadHydrationResult
+    thread?: AgentThread
   } = {},
 ): RestoreRuntimeThreadDeps {
   return {
@@ -75,11 +69,10 @@ function depsFixture(
       localThreadIdsByConversation: options.localThreadIdsByConversation ?? {},
       conversationRuntimes: {},
     },
-    restoredLabel: 'Restored',
     titleForThread: (thread) => thread.title || thread.id,
-    loadProjection: async (threadId) => {
-      calls.push(`load:${threadId}`)
-      return options.projection ?? runtimeProjection({ thread: thread({ id: threadId }) })
+    loadThread: async (threadId) => {
+      calls.push(`loadThread:${threadId}`)
+      return options.thread ?? thread({ id: threadId })
     },
     createRuntimeConversation: (_userId, input) => {
       calls.push(`createRuntime:${input.threadId}:${input.title}`)
@@ -90,9 +83,6 @@ function depsFixture(
     },
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)
-    },
-    setRuntimeThreadProjection: (input) => {
-      calls.push(`projection:${input.conversationId}:${input.threadId}:${input.sessionId ?? 'none'}:${input.messages.length}:${input.messages[0]?.meta?.contextLabels?.[0]}`)
     },
     setLocalThreadId: (conversationId, threadId) => {
       calls.push(`localThread:${conversationId}:${threadId}`)
@@ -114,18 +104,6 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
   }
 }
 
-function runtimeProjection(overrides: Partial<RuntimeThreadHydrationResult> = {}): RuntimeThreadHydrationResult {
-  const runtimeThread = overrides.thread ?? thread()
-  return {
-    thread: runtimeThread,
-    runs: overrides.runs ?? [run({ threadId: runtimeThread.id })],
-    currentRun: overrides.currentRun,
-    actionableRuns: overrides.actionableRuns ?? [],
-    messages: overrides.messages ?? [message()],
-    runtimeStatusLight: overrides.runtimeStatusLight ?? STOPPED_RUNTIME_STATUS_LIGHT,
-  }
-}
-
 function thread(overrides: Partial<AgentThread> = {}): AgentThread {
   return {
     id: 'thread_1',
@@ -134,34 +112,6 @@ function thread(overrides: Partial<AgentThread> = {}): AgentThread {
     createdAt: '2026-05-19T00:00:00.000Z',
     updatedAt: '2026-05-19T00:00:00.000Z',
     messages: [],
-    ...overrides,
-  }
-}
-
-function run(overrides: Partial<AgentRun> = {}): AgentRun {
-  return {
-    id: 'run_1',
-    threadId: 'thread_1',
-    status: 'completed',
-    runtimeLimits: { approvalMode: 'interactive',
-      maxToolCalls: 20,
-      maxIterations: 8,
-      allowNetwork: false,
-      allowFileBytes: false,
-    },
-    createdAt: '2026-05-19T00:00:00.000Z',
-    updatedAt: '2026-05-19T00:00:00.000Z',
-    steps: [],
-    ...overrides,
-  }
-}
-
-function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
-  return {
-    id: 'runtime_msg_1',
-    role: 'assistant',
-    content: 'Hello',
-    timestamp: 1,
     ...overrides,
   }
 }

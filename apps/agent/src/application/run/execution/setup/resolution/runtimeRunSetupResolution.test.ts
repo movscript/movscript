@@ -517,7 +517,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function tool(name: string, risk: 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui' = 'read') {
+function tool(name: string, risk: 'read' | 'workspace' | 'write' | 'generate' | 'destructive' | 'ui' = 'read') {
   return {
     name,
     description: name,

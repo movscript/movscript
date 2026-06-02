@@ -51,7 +51,7 @@ type ScriptAnalysis struct {
 	ProjectID              uint    `gorm:"not null;index" json:"project_id"`
 	ScriptID               uint    `gorm:"not null;index" json:"script_id"`
 	Script                 *Script `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
-	Status                 string  `gorm:"default:'draft'" json:"status"` // draft|confirmed
+	Status                 string  `gorm:"default:'workspace'" json:"status"` // workspace|confirmed
 	Summary                string  `gorm:"type:text" json:"summary"`
 	WorldSetting           string  `gorm:"type:text" json:"world_setting"`
 	CharacterExtractJSON   string  `gorm:"type:text" json:"character_extract_json"`

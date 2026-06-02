@@ -15,8 +15,8 @@ export function preProductionSlotActionRecipe(state: ProductionTermState): PrePr
   return preProductionStateRecipe(state)
 }
 
-export function preProductionDraftRecipe(): PreProductionStatusRecipe {
-  return preProductionDraftStatus.recipe('draft')
+export function preProductionWorkspaceRecipe(): PreProductionStatusRecipe {
+  return preProductionWorkspaceStatus.recipe('workspace')
 }
 
 export function preProductionCountRecipe(kind: 'missing' | 'candidate' | 'locked'): PreProductionStatusRecipe {
@@ -31,20 +31,20 @@ export function preProductionCandidateAvailabilityRecipe(canLock: boolean): PreP
   return preProductionCandidateAvailabilityStatus.recipe(canLock ? 'lockable' : 'blocked')
 }
 
-export function preProductionProposalDraftStatusRecipe(status?: string): PreProductionStatusRecipe {
-  return preProductionProposalDraftStatus.recipe(status)
+export function preProductionWorkspaceWorkspaceStatusRecipe(status?: string): PreProductionStatusRecipe {
+  return preProductionWorkspaceWorkspaceStatus.recipe(status)
 }
 
-export function preProductionProposalEntryChangeRecipe(changeType?: string): PreProductionStatusRecipe {
-  return preProductionProposalEntryChangeStatus.recipe(changeType)
+export function preProductionWorkspaceEntryChangeRecipe(changeType?: string): PreProductionStatusRecipe {
+  return preProductionWorkspaceEntryChangeStatus.recipe(changeType)
 }
 
-export function preProductionProposalDecisionRecipe(decision?: 'submitted' | 'rejected'): PreProductionStatusRecipe {
-  return preProductionProposalDecisionStatus.recipe(decision)
+export function preProductionWorkspaceDecisionRecipe(decision?: 'submitted' | 'rejected'): PreProductionStatusRecipe {
+  return preProductionWorkspaceDecisionStatus.recipe(decision)
 }
 
-export function preProductionProposalCountRecipe(kind: 'deleted' | 'submitted' | 'rejected'): PreProductionStatusRecipe {
-  return preProductionProposalCountStatus.recipe(kind)
+export function preProductionWorkspaceCountRecipe(kind: 'deleted' | 'submitted' | 'rejected'): PreProductionStatusRecipe {
+  return preProductionWorkspaceCountStatus.recipe(kind)
 }
 
 function preProductionStateRecipe(state: ProductionTermState): PreProductionStatusRecipe {
@@ -64,8 +64,8 @@ const preProductionTermStatus = defineFeatureStatusRecipeGroup('pre-production.t
   default: 'neutral',
 })
 
-const preProductionDraftStatus = defineFeatureStatusRecipeGroup('pre-production.draft.status', {
-  draft: 'info',
+const preProductionWorkspaceStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.status', {
+  workspace: 'info',
   default: 'neutral',
 })
 
@@ -87,25 +87,25 @@ const preProductionCandidateAvailabilityStatus = defineFeatureStatusRecipeGroup(
   default: 'neutral',
 })
 
-const preProductionProposalDraftStatus = defineFeatureStatusRecipeGroup('pre-production.proposal.draft.status', {
+const preProductionWorkspaceWorkspaceStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.workspace.status', {
   applied: 'success',
   rejected: 'danger',
-  draft: 'warning',
+  workspace: 'warning',
   default: 'neutral',
 })
 
-const preProductionProposalEntryChangeStatus = defineFeatureStatusRecipeGroup('pre-production.proposal.entry-change.status', {
+const preProductionWorkspaceEntryChangeStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.entry-change.status', {
   deleted: 'danger',
   default: 'neutral',
 })
 
-const preProductionProposalDecisionStatus = defineFeatureStatusRecipeGroup('pre-production.proposal.decision.status', {
+const preProductionWorkspaceDecisionStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.decision.status', {
   submitted: 'success',
   rejected: 'danger',
   default: 'neutral',
 })
 
-const preProductionProposalCountStatus = defineFeatureStatusRecipeGroup('pre-production.proposal.count.status', {
+const preProductionWorkspaceCountStatus = defineFeatureStatusRecipeGroup('pre-production.workspace.count.status', {
   submitted: 'success',
   deleted: 'danger',
   rejected: 'danger',

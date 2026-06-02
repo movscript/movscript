@@ -27,8 +27,8 @@ test('normalizeClientInput drops non-plain nested attachment and ui snapshot rec
     ],
     uiSnapshot: {
       route: new RouteSnapshot(),
-      pageContext: { pageKey: 'draft', draftId: 'draft_1' },
-      selection: new Map([['entityType', 'draft']]),
+      pageContext: { pageKey: 'workspace', workspaceId: 'workspace_1' },
+      selection: new Map([['entityType', 'workspace']]),
       recentResources: [
         new AttachmentRef(),
         { ID: 7, name: 'Shot', type: 'image', mime_type: 'image/png' },
@@ -39,7 +39,7 @@ test('normalizeClientInput drops non-plain nested attachment and ui snapshot rec
   assert.equal(normalized?.visibleMessage, 'inspect')
   assert.deepEqual(normalized?.attachments, [{ id: 'att_2', name: 'Shot', mimeType: 'image/png', resourceId: 7 }])
   assert.equal(normalized?.uiSnapshot?.route, undefined)
-  assert.deepEqual(normalized?.uiSnapshot?.pageContext, { pageKey: 'draft', draftId: 'draft_1' })
+  assert.deepEqual(normalized?.uiSnapshot?.pageContext, { pageKey: 'workspace', workspaceId: 'workspace_1' })
   assert.equal(normalized?.uiSnapshot?.selection, undefined)
   assert.deepEqual(normalized?.uiSnapshot?.recentResources, [{ id: 7, name: 'Shot', type: 'image', mimeType: 'image/png' }])
 })

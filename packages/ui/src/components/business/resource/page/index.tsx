@@ -478,7 +478,7 @@ export function ResourcePrepThumbnail({
   className,
   ...props
 }: ComponentPropsWithoutRef<typeof WorkbenchThumbnail> & {
-  frame?: "card" | "strip" | "fill" | "banner" | "draft";
+  frame?: "card" | "strip" | "fill" | "banner" | "workspace";
 }) {
   return <WorkbenchThumbnail className={cn("resource-prep-thumbnail", `resource-prep-thumbnail--${frame}`, className)} {...props} />;
 }

@@ -15,8 +15,8 @@ export interface PreProductionAuditControllerOptions {
   queryClient: PreProductionAuditQueryClient
   setLaunching: (launching: boolean) => void
   setReviewSearchParams: (updater: (current: URLSearchParams) => URLSearchParams) => void
-  refetchSettingDrafts: () => Promise<unknown>
-  refetchAssetProposalDrafts: () => Promise<unknown>
+  refetchSettingWorkspaces: () => Promise<unknown>
+  refetchAssetWorkspaceWorkspaces: () => Promise<unknown>
 }
 
 export function runPreProductionAudit(options: PreProductionAuditControllerOptions) {
@@ -27,8 +27,8 @@ export function runPreProductionAudit(options: PreProductionAuditControllerOptio
     queryClient,
     setLaunching,
     setReviewSearchParams,
-    refetchSettingDrafts,
-    refetchAssetProposalDrafts,
+    refetchSettingWorkspaces,
+    refetchAssetWorkspaceWorkspaces,
   } = options
   if (!projectId) {
     toast.info('请先选择项目')
@@ -52,15 +52,15 @@ export function runPreProductionAudit(options: PreProductionAuditControllerOptio
         toast.error(payload.run?.error || payload.error || '前期准备梳理失败')
       } else {
         setReviewSearchParams((current) => buildPreProductionAuditReviewSearchParams(current, { artifacts: payload.artifacts }))
-        toast.success('前期准备梳理完成，可在审阅区查看设定和素材提案')
+        toast.success('前期准备梳理完成，可在审阅区查看设定和素材工作区')
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
-        refetchSettingDrafts(),
-        refetchAssetProposalDrafts(),
+        refetchSettingWorkspaces(),
+        refetchAssetWorkspaceWorkspaces(),
       ])
     },
   })
-  toast.info('已打开前期准备梳理会话；AI 生成的草稿会回到审阅区')
+  toast.info('已打开前期准备梳理会话；AI 生成的工作区会回到审阅区')
 }

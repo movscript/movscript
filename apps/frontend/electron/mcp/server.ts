@@ -14,8 +14,8 @@ export { listTools } from './toolRegistry'
 export { summarizeModelContractForAgent } from './modelContracts'
 export { listModels } from './modelCatalog'
 export { locateScriptPassages } from './scriptLocate'
-export { getDraftModelContract } from './draftModelContract'
-export { applyDraftReview } from './draftReviewApply'
+export { getWorkspaceModelContract } from './workspaceModelContract'
+export { applyWorkspaceReview } from './workspaceReviewApply'
 export { readResource } from './resources'
 export {
   attachAssetSlotCandidate,

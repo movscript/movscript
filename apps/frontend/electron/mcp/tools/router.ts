@@ -6,10 +6,10 @@ import {
   attachKeyframeCandidate,
 } from '../candidateAttach'
 import {
-  applyDraftReview,
-  previewApplyDraftReview,
-} from '../draftReviewApply'
-import { getDraftModelContract } from '../draftModelContract'
+  applyWorkspaceReview,
+  previewApplyWorkspaceReview,
+} from '../workspaceReviewApply'
+import { getWorkspaceModelContract } from '../workspaceModelContract'
 import {
   callComfyUITool,
   callWebUITool,
@@ -50,8 +50,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await queryAssetSlots(args))
     case 'movscript_production_context_query':
       return toolText(await queryProductionContext(args))
-    case 'draft_model_get':
-      return toolText(await getDraftModelContract(args))
+    case 'get_workspace_model':
+      return toolText(await getWorkspaceModelContract(args))
     case 'movscript_project_create':
       return toolText(await createProject(args))
     case 'generation_model_list':
@@ -74,10 +74,10 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await listGenerationJobs(args))
     case 'generation_job_cancel':
       return toolText(await cancelGenerationJob(args))
-    case 'draft_review_apply':
-      return toolText(await applyDraftReview(args))
-    case 'draft_review_apply_preview':
-      return toolText(await previewApplyDraftReview(args))
+    case 'workspace_review_apply':
+      return toolText(await applyWorkspaceReview(args))
+    case 'workspace_review_apply_preview':
+      return toolText(await previewApplyWorkspaceReview(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }

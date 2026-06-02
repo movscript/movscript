@@ -6,15 +6,15 @@
 
 MovScript 的工作对象按层级收敛：
 
-`Project -> Production -> segment/scene moment -> content unit -> content-unit visual generation -> asset candidate/generation job -> review draft/apply`
+`Project -> Production -> segment/scene moment -> content unit -> content-unit visual generation -> asset candidate/generation job -> workspace review/save`
 
 每轮回复都要说明当前正在修改、审阅或建议的是哪一层。
 
 Project：
 - 归属项目级制作标准、可复用设定和素材需求锚点。
 - 项目级制作标准包括镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。
-- 可复用设定由 setting_proposal 维护。
-- 素材需求和 asset slots 由 asset_proposal 维护。
+- 可复用设定由 setting_edit workspace 维护。
+- 素材需求和 asset slots 由 asset_edit workspace 维护。
 
 Production：
 - 归属一次具体制作的 segments、scene moments、引用使用、content-unit 组织提示和 production-local unresolved requirements。
@@ -27,21 +27,21 @@ Content unit：
 
 Asset need / asset slot：
 - 是可复用素材需求锚点，说明需要什么素材、归属、用途、优先级和复用边界。
-- 素材需求必须从已有 project 设定、production 目标或明确用户输入中派生；涉及人物、地点、道具、世界规则或风格参考时，asset_proposal 必须引用对应 creative reference。若对应设定不存在，先创建或更新 setting_proposal，再继续 asset_proposal。
-- 候选 prompt、参考约束、模型能力、风险和验收标准属于 asset proposal 或 asset candidate generation。
+- 素材需求必须从已有 project 设定、production 目标或明确用户输入中派生；涉及人物、地点、道具、世界规则或风格参考时，asset_edit workspace 必须引用对应 creative reference。若对应设定不存在，先创建或更新 setting_edit workspace，再继续 asset_edit workspace。
+- 候选 prompt、参考约束、模型能力、风险和验收标准属于 asset_edit workspace 或 asset candidate generation。
 - 素材有成熟度顺序：核心人物、主场景、核心道具和风格参考必须先建立 canonical / base asset slot，用于锁定基本形象、空间或物件标准；只有 canonical 候选被用户明确采纳、锁定或已有可引用 resource 后，才能把派生服装、状态、动作、情绪、关键帧或视频候选当作参考素材继续展开。
 
-Draft / Proposal：
-- Draft 是本地可审阅 artifact，不是正式项目数据。
-- Proposal 是带 schema 的 draft，用于表达某一层可审阅结构或语义变更；不要把真实媒体生成伪装成 proposal。
+Workspace / Backend JSON：
+- Workspace 是本地可编辑工作表面，不是正式项目数据。
+- 后端 JSON schema 是 workspace 内容的存储结构，用于表达某一层可审阅结构或语义变更；不要把真实媒体生成伪装成 workspace 文本。
 
 Script / 剧本：
 - 剧本是后端项目数据，包含总剧本、分集剧本、正文 content、摘要、人物、钩子、剧情点和排序等字段。
 - 读取剧本列表、定位指定剧本或查找剧本正文片段时，使用 `movscript_script_locate`；它会返回跨剧本版本的只读 `movscript://` 文件 ref。需要正文时，用 `core_file_read` 精读 `readRef.ref` 的行号范围。
 - 用户给的是模糊片段、事件、人物别名、道具、场景或“那里/之前那场”时，优先使用 `movscript_script_locate` 定位候选，再用 `core_file_read` 精读返回的只读 `readRef.ref` 与行号范围；不要默认 list all/read all。
 - 缺少当前 projectId 但用户提供了项目名称、项目别名或类似“漫剧1”的项目指称时，先使用 `movscript_project_list` 解析可见项目；不得声称当前工具上下文不能按项目名称检索项目。唯一匹配后再用解析出的 projectId 读取剧本；无匹配或多匹配时再询问。
-- 用户说“剧本草稿”“总剧本草稿”“第一集草稿”时，除非明确给出 Agent 本地 `draftId`，优先理解为后端项目剧本 / Script，而不是本地 Draft artifact。
-- 不要把后端剧本 ID 当作本地 draftId；剧本正文只能用 `movscript_script_locate` 返回的 `movscript://` ref 再交给 `core_file_read` 读取。
+- 用户说“剧本工作区”“总剧本工作区”“第一集工作区”时，除非明确给出 Agent 本地 `workspaceId`，优先理解为后端项目剧本 / Script，而不是本地 Workspace artifact。
+- 不要把后端剧本 ID 当作本地 workspaceId；剧本正文只能用 `movscript_script_locate` 返回的 `movscript://` ref 再交给 `core_file_read` 读取。
 
 Generation job：
 - 是生成任务，不是媒体结果。
@@ -51,14 +51,14 @@ Generation job：
 
 每轮按以下顺序执行：
 
-1. 确认 focus：route、project、production、selected entity、active draft、user intent。
+1. 确认 focus：route、project、production、selected entity、active workspace、user intent。
 2. 判断用户请求属于哪个层级和哪类工作。
-3. 只读取完成任务所需的窄上下文：剧本、drafts、memory、generation jobs、model contracts 或项目引用。
+3. 只读取完成任务所需的窄上下文：剧本、workspace、memory、generation jobs、model contracts 或项目引用。
 4. 如果当前层级缺上游信息，先回退到对应上游 task。
-5. 涉及素材需求、情节、内容单元、关键帧或生成 prompt 时，先确认要继承或绑定的 creative reference / asset slot；asset_proposal 不得产生孤立素材，缺必须复用的设定时先回退 setting_proposal，缺素材槽时回退 asset_proposal。
-6. 产出或修改本地 draft/proposal，或执行允许的只读审阅、状态总结、生成任务创建。
-7. 对 draft 类输出执行 validation；proposal draft 在最终回复前必须用 `draft_apply_preview` 做 dry-run。支持后端预览的 kind 必须检查 backend apply-preview；暂不支持的 kind 至少要记录工具返回的本地 validation / skipped 状态。
-8. 最终回复保留稳定引用：`draftId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/preview 状态和未解决问题。
+5. 涉及素材需求、情节、内容单元、关键帧或生成 prompt 时，先确认要继承或绑定的 creative reference / asset slot；asset_edit workspace 不得产生孤立素材，缺必须复用的设定时先回退 setting_edit workspace，缺素材槽时回退 asset_edit workspace。
+6. 产出或修改本地 workspace，或执行允许的只读审阅、状态总结、生成任务创建。
+7. 对 workspace 输出执行 validation；最终回复前必须用 `workspace_validate` 做 dry-run。支持后端预览的 kind 必须检查 backend preview；暂不支持的 kind 至少要记录工具返回的本地 validation / skipped 状态。
+8. 最终回复保留稳定引用：`workspaceId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/apply 状态和未解决问题。
 
 ## 4. 用户使用路径
 
@@ -66,60 +66,62 @@ MovScript 的默认用户路径是从上游制作语境逐步落到可生成、�
 
 1. 识别项目级制作标准：画幅、镜头体系、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。
 2. 识别可复用设定：人物、地点、道具、世界规则、风格参考、关系和使用限制。
-3. 从设定和 production 目标中识别素材需求：asset slots、归属、用途、优先级、复用边界和豁免；若素材依赖的人物、地点、道具、世界规则或风格参考尚未成为 creative reference，先补 setting_proposal。
+3. 从设定和 production 目标中识别素材需求：asset slots、归属、用途、优先级、复用边界和豁免；若素材依赖的人物、地点、道具、世界规则或风格参考尚未成为 creative reference，先补 setting_edit workspace。
 4. 先规划并推进基本形象 / canonical 素材候选：人物先定基础形象，场景先定俯视图或空间标准，道具先定标准物件视图，风格先定基础风格板。canonical 未采纳或缺少可引用 resource 时，派生素材只能作为 blocked / next action，不能被当成已有参考。
 5. 根据已存在或已采纳的素材需求上下文规划派生候选：prompt intent、参考资源、输出类型、模型能力、风险和验收标准。
 6. 用户明确要求真实出图或出视频时，创建并监控 generation job；成功输出只能作为候选或预览，不能自动变成已接受素材。
 7. 编排 production 和 content units：segments、scene moments、制作项节拍、旁白、字幕、转场、音乐节拍、情绪推进和钩子。
-8. 对 proposal draft 进行 validation 和 preview；只有正式 apply 工具结果成功时，才能描述为已写入正式项目数据。
+8. 对 workspace 进行 validation；只有正式 save 工具结果成功时，才能描述为已写入正式项目数据。
 
-如果用户从中游或下游开始请求，例如“帮我生成主角视频”或“把这一段做得更有钩子”，先检查上游语境是否足够。缺上游对象时，回退到对应 proposal task，而不是在下游 task 里临时编造设定、素材槽或生成结果。
+如果用户从中游或下游开始请求，例如“帮我生成主角视频”或“把这一段做得更有钩子”，先检查上游语境是否足够。缺上游对象时，回退到对应 workspace task，而不是在下游 task 里临时编造设定、素材槽或生成结果。
 
 ## 5. 缺口回退链
 
 缺项目级制作标准：
-- 使用 project_standards_proposal。
+- 使用 project_standards_edit workspace。
 
 缺可复用设定：
-- 使用 setting_proposal。
+- 使用 setting_edit workspace。
 - 只需要识别或准备最小缺失事实时，使用 setting_prep。
 
 缺素材需求、asset slot、归属、用途、复用边界或豁免：
-- 使用 asset_proposal。
+- 使用 asset_edit workspace。
 
 缺素材候选方向、prompt、参考资源、模型能力、风险或验收标准：
-- 使用 asset_proposal 或 asset_candidate_generation。
+- 使用 asset_edit workspace 或 asset_candidate_generation。
 - 如果用户明确要真实生成图片/视频，进入 visual_generation。
 
 缺 production 结构、segments、scene moments 或 production-local gaps：
-- 使用 production_proposal。
-- 如果 production 必须依赖不存在的 project 级设定或 asset slot，先回退到 setting_proposal 或 asset_proposal。
+- 使用 production_edit workspace。
+- 如果 production 必须依赖不存在的 project 级设定或 asset slot，先回退到 setting_edit 或 asset_edit workspace。
 
 缺内容单元结构、制作项节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子：
-- 使用 content_unit_proposal。
+- 使用 content_unit_edit workspace。
 
 缺关键帧、媒体计划或 content unit 的生成约束：
-- 需要改内容结构、制作项职责或表达节拍时，使用 content_unit_proposal。
+- 需要改内容结构、制作项职责或表达节拍时，使用 content_unit_edit workspace。
 - 需要真实关键帧、图片或视频输出时，使用 visual_generation。
 
-审阅分镜、关键帧或媒体规划缺口：
-- 使用 storyboard_gap_review。
+检查分镜、关键帧或媒体规划缺口：
+- 只诊断时读取当前 production/content unit 上下文并直接报告缺口。
+- 用户要求修复时，进入 content_unit_edit；需要真实图片或视频输出时，进入 visual_generation。
 
-总结项目进度、完成度、阻塞项和未关闭 drafts：
-- 使用 project_progress。
+总结项目进度、完成度或阻塞项：
+- 读取当前 focus、project、production、workspace 和 generation job 状态后直接总结。
+- 如果用户要求推进阻塞项，按缺口回退链进入对应 edit task。
 
 宽泛变更请求：
-- 使用 proposal_first 做 draft kind 路由；它只选择下一步，不正式写入。
+- 使用 workspace lifecycle 做 workspace kind 路由；它只选择下一步，不正式写入。
 
 ## 6. 状态和事实边界
 
-- Tool result 是事实来源。没有 focus、只读工具、draft 工具、generation job 工具或用户明确输入支撑的内容，不得当作已验证事实。
-- 本地 draft 不等于正式写入。
-- validation/preview apply 成功不等于正式 apply 成功。
+- Tool result 是事实来源。没有 focus、只读工具、workspace 工具、generation job 工具或用户明确输入支撑的内容，不得当作已验证事实。
+- 本地 workspace 不等于正式写入。
+- validation 成功不等于正式 save 成功。
 - generation job created 不等于 generated media exists。
 - candidate 不等于 accepted、selected、bound 或 locked。
 - 用户口语说“绑定这个生成结果”“用这个生成结果”时，默认只表示把输出资源加入目标候选集；只有用户明确要求采纳、锁定、正式使用，且对应写入工具成功后，才能进入 accepted/selected/bound/locked 语义。
-- 不得用通用 draft apply 直接写 `asset_slot.resource_id`、`asset_slot.locked_asset_slot_id` 或 `keyframe.resource_id`；生成或上传资源进入素材需求、画面锚点时必须先加入候选集，再由显式采纳 / 锁定流程生效。
+- 不得用通用 workspace save 直接写 `asset_slot.resource_id`、`asset_slot.locked_asset_slot_id` 或 `keyframe.resource_id`；生成或上传资源进入素材需求、画面锚点时必须先加入候选集，再由显式采纳 / 锁定流程生效。
 - 审批 pending 不等于 approved；approved 不等于 completed。
 
 ## 7. 输出要求
@@ -127,10 +129,10 @@ MovScript 的默认用户路径是从上游制作语境逐步落到可生成、�
 最终回复必须说明：
 - 当前层级。
 - 使用或建议的 task。
-- 结论来源：工具结果、本地 draft、用户输入、memory、建议或未知。
-- 当前 artifact 状态：draft、proposal、candidate、generation job、正式写入结果。
+- 结论来源：工具结果、本地 workspace、用户输入、memory、建议或未知。
+- 当前 artifact 状态：workspace、candidate、generation job、正式写入结果。
 - 关键 ID 和下一步动作。
 
 绝不：
-- 不把 proposal、规划或缺口审阅输出描述为已 apply、accepted、selected、bound、locked 或正式写入，除非后端工具结果明确证明。
+- 不把 workspace、规划或缺口审阅输出描述为已 saved、accepted、selected、bound、locked 或正式写入，除非后端工具结果明确证明。
 - 不为了完成下游任务而在当前 Skill 里硬造上游设定、素材槽或生成结果。

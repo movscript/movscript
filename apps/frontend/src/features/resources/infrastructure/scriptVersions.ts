@@ -1,6 +1,6 @@
 import { api } from '@/shared/infrastructure/api'
 
-export type ScriptVersionStatus = 'draft' | 'active' | 'archived'
+export type ScriptVersionStatus = 'workspace' | 'active' | 'archived'
 export type ScriptVersionSourceType = 'raw' | 'adapted' | 'revised' | 'ai'
 
 export type ScriptVersion = {

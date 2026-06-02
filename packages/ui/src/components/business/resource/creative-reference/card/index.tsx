@@ -16,7 +16,7 @@ export function CreativeReferenceCard({
   className?: string;
 }) {
   const meta = creativeReferenceKindMeta[reference.kind];
-  const status = creativeReferenceStatusMeta[reference.status] ?? creativeReferenceStatusMeta.draft;
+  const status = creativeReferenceStatusMeta[reference.status] ?? creativeReferenceStatusMeta.workspace;
   const Icon = meta.icon;
   const Component = onSelect ? "button" : "div";
 

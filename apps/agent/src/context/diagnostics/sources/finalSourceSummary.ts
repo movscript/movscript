@@ -37,7 +37,7 @@ function finalSourceLines(input: BuildFinalSourceSummaryInput): string[] {
   const records = store.records
   const refs = uniqueRetrievedContextRefs(records)
   const referenceRefs = refs.filter((ref) => ref.type === 'reference')
-  const draftRefs = refs.filter((ref) => ref.type === 'draft')
+  const workspaceRefs = refs.filter((ref) => ref.type === 'workspace')
   const projectRefs = refs.filter((ref) => ref.type === 'project' || ref.type === 'production' || ref.type === 'asset_slot')
   const generationRefs = refs.filter((ref) => ref.type === 'generation_job')
 
@@ -51,14 +51,14 @@ function finalSourceLines(input: BuildFinalSourceSummaryInput): string[] {
       defaultEvidence: ['verified'],
     }))
   }
-  if (draftRefs.length > 0) {
+  if (workspaceRefs.length > 0) {
     lines.push(formatSourceLine({
-      label: '本地草稿',
-      refs: draftRefs,
-      fallback: 'draft tool result',
+      label: '本地工作区',
+      refs: workspaceRefs,
+      fallback: 'workspace tool result',
       records,
-      defaultSources: ['draft'],
-      defaultEvidence: ['draft'],
+      defaultSources: ['workspace'],
+      defaultEvidence: ['workspace'],
     }))
   }
   if (referenceRefs.length > 0) {

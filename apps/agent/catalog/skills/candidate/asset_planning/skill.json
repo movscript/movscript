@@ -1,8 +1,8 @@
 {
   "id": "candidate.asset_planning",
   "version": "1.0.0",
-  "name": "Asset Candidate Generation",
-  "description": "在 asset slot、设定和验收标准明确后，创建并监控可审阅的图片或视频候选，并在成功后加入候选集。",
+  "name": "Asset Candidate Execution",
+  "description": "消费 asset_edit workspace 中已明确的候选制作方案，创建并监控可审阅的图片或视频候选，并在成功后加入候选集。",
   "priority": 770,
   "enabled": true,
   "triggers": [
@@ -14,8 +14,9 @@
       "kind": "keyword",
       "any": [
         "生成素材",
-        "图片候选",
-        "视频候选",
+        "生成候选",
+        "生成图片候选",
+        "生成视频候选",
         "asset candidate"
       ]
     }
@@ -28,7 +29,7 @@
     "movscript_creative_reference_query",
     "movscript_asset_slot_query",
     "movscript_production_context_query",
-    "draft_model_get",
+    "get_workspace_model",
     "core_user_input_request",
     "generation_model_list",
     "core_work_start",

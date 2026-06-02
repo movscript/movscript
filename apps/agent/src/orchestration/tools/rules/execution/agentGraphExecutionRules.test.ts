@@ -8,7 +8,7 @@ test('canExecuteConcurrently uses explicit tool execution metadata before risk f
     {
       name: 'studio.safe_write_preview',
       description: 'Preview write changes without mutating state.',
-      permission: 'draft.preview',
+      permission: 'workspace.preview',
       risk: 'write',
       source: 'runtime',
       projectScoped: false,

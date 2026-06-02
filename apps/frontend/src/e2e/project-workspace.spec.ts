@@ -1,25 +1,25 @@
 import { expect, test } from '@playwright/test'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
-import { PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA } from '@/features/project-standards/domain/projectStandardsProposalDraft'
+import { PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA } from '@/features/project-standards/domain/projectStandardsWorkspaceWorkspace'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
 const PROJECT_ID = 123
-const DRAFT_ID = 'draft-project-workspace-e2e'
+const WORKSPACE_ID = 'workspace-project-workspace-e2e'
 const NOW = '2026-05-11T12:00:00.000Z'
 
-const PROJECT_STANDARDS_PROPOSAL_DRAFT = {
-  id: DRAFT_ID,
+const PROJECT_STANDARDS_WORKSPACE_WORKSPACE = {
+  id: WORKSPACE_ID,
   projectId: PROJECT_ID,
-  kind: 'project_standards_proposal',
-  title: 'E2E 项目规范提案草稿',
+  kind: 'project_standards_workspace',
+  title: 'E2E 项目规范工作区工作区',
   content: JSON.stringify({
-    schema: PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA,
-    scope: 'project_standards_proposal',
+    schema: PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA,
+    scope: 'project_standards_workspace',
     projectId: PROJECT_ID,
     summary: '整理项目级制作标准。',
-    proposal: {
+    workspace: {
       project_style: {
         aspect_ratio: '9:16',
         visual_style: '竖屏短剧写实，人物表情和关键道具清晰可读。',
@@ -29,7 +29,7 @@ const PROJECT_STANDARDS_PROPOSAL_DRAFT = {
     impact_notes: ['后续设定资料和素材需求必须遵守项目标准。'],
     createdAt: NOW,
   }),
-  status: 'draft',
+  status: 'workspace',
   metadata: {
     pageOwned: true,
   },
@@ -37,7 +37,7 @@ const PROJECT_STANDARDS_PROPOSAL_DRAFT = {
   updatedAt: NOW,
 }
 
-test('project workspace reviews project standards proposal', async ({ page }, testInfo) => {
+test('project workspace reviews project standards workspace', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project workspace E2E requires a baseURL')
 
@@ -54,12 +54,12 @@ test('project workspace reviews project standards proposal', async ({ page }, te
 
   await mockGenerationAppShell(page)
   await mockProjectWorkspaceEntities(page)
-  await mockProjectWorkspaceDrafts(page)
+  await mockProjectWorkspaceWorkspaces(page)
 
   await page.goto('/project/standards')
 
   await expect(page.getByRole('heading', { name: '项目标准审阅' })).toBeVisible()
-  await expect(page.getByText('E2E 项目规范提案草稿')).toBeVisible()
+  await expect(page.getByText('E2E 项目规范工作区工作区')).toBeVisible()
   await expect(page.getByText('竖屏短剧写实，人物表情和关键道具清晰可读。')).toBeVisible()
   await expect(page.getByText('不要随机改脸')).toBeVisible()
 })
@@ -102,15 +102,15 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
   })
 }
 
-async function mockProjectWorkspaceDrafts(page: Parameters<typeof mockGenerationAppShell>[0]) {
-  await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
+async function mockProjectWorkspaceWorkspaces(page: Parameters<typeof mockGenerationAppShell>[0]) {
+  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
     const url = new URL(route.request().url())
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(url.pathname === `/drafts/${DRAFT_ID}`
-        ? PROJECT_STANDARDS_PROPOSAL_DRAFT
-        : { drafts: [PROJECT_STANDARDS_PROPOSAL_DRAFT] }),
+      body: JSON.stringify(url.pathname === `/workspaces/${WORKSPACE_ID}`
+        ? PROJECT_STANDARDS_WORKSPACE_WORKSPACE
+        : { workspaces: [PROJECT_STANDARDS_WORKSPACE_WORKSPACE] }),
     })
   })
 }

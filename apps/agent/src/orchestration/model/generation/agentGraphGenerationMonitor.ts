@@ -15,11 +15,11 @@ export async function monitorGenerationJob(
   input: Pick<
     AgentGraphInput,
     | 'run'
-    | 'draftStore'
+    | 'workspaceStore'
     | 'externalToolGatewayPort'
-    | 'draftApplyPort'
-    | 'draftApplyPreviewPort'
-    | 'proposalSnapshotHydrationPort'
+    | 'workspaceApplyPort'
+    | 'workspaceApplyPreviewPort'
+    | 'workspaceSnapshotHydrationPort'
     | 'resourceFilePort'
     | 'imageProcessingPort'
     | 'videoFrameExtractionPort'
@@ -44,11 +44,11 @@ export async function monitorGenerationJob(
     throwIfAborted(input.signal)
     const execResult = await executeTool({ name: request.toolName, args: request.args }, {
       run: input.run,
-      draftStore: input.draftStore,
+      workspaceStore: input.workspaceStore,
       externalToolGatewayPort: input.externalToolGatewayPort,
-      draftApplyPort: input.draftApplyPort,
-      draftApplyPreviewPort: input.draftApplyPreviewPort,
-      proposalSnapshotHydrationPort: input.proposalSnapshotHydrationPort,
+      workspaceApplyPort: input.workspaceApplyPort,
+      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
+      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,

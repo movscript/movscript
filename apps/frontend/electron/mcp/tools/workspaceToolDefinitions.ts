@@ -5,7 +5,7 @@ export function workspaceTools(): MCPTool[] {
   return [
     {
       name: 'movscript_focus_get',
-      description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, drafts, or resources.',
+      description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
       inputSchema: objectSchema({}),
     },
     {
@@ -98,11 +98,11 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
-      name: 'draft_model_get',
-      description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
+      name: 'get_workspace_model',
+      description: 'Return the frontend-owned WorkspaceModel contract for a workspace kind and target. This is the single source for workspace field ownership, seed policy, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal', 'asset_proposal'] },
+          kind: { type: 'string', enum: ['setting_edit', 'project_standards_edit', 'production_edit', 'content_unit_edit', 'asset_edit'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -144,8 +144,8 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
-      name: 'draft_review_apply',
-      description: 'Apply an approved local draft review to the formal MovScript backend entity. This writes backend state and must only run after UI approval.',
+      name: 'workspace_review_apply',
+      description: 'Apply an approved local workspace review to the formal MovScript backend entity. This writes backend state and must only run after UI approval.',
       inputSchema: objectSchema(
         {
           review: { type: 'object' },
@@ -155,8 +155,8 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
-      name: 'draft_review_apply_preview',
-      description: 'Preview backend effects for applying a local draft review without writing final entity state when the backend supports dry run.',
+      name: 'workspace_review_apply_preview',
+      description: 'Preview backend effects for applying a local workspace review without writing final entity state when the backend supports dry run.',
       inputSchema: objectSchema(
         {
           review: { type: 'object' },

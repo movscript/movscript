@@ -8,7 +8,7 @@ import { AgentPanelShell } from '@movscript/ui'
 export function AIAgentPanel() {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser[userId]))
+  const hasOpenConversations = useAgentSessionStore((s) => Boolean(s.activeConversationIdsByUser?.[userId]))
   const {
     dockLayout,
     handlePendingThreadHandled,

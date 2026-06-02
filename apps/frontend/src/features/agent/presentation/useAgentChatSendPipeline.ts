@@ -1,52 +1,47 @@
 import { useTranslation } from 'react-i18next'
 import { runTouchesAgentCatalog } from '@/features/agent/application/agentCatalogRun'
-import { useAgentCommitSendDraft, type UseAgentCommitSendDraftInput } from '@/features/agent/presentation/useAgentCommitSendDraft'
+import { useAgentCommitSendWorkspace, type UseAgentCommitSendWorkspaceInput } from '@/features/agent/presentation/useAgentCommitSendWorkspace'
 import { useAgentMCPReadiness } from '@/features/agent/presentation/useAgentMCPReadiness'
-import { useAgentRuntimeThreadHydration, type UseAgentRuntimeThreadHydrationInput } from '@/features/agent/presentation/useAgentRuntimeThreadHydration'
 import { useAgentSendActions, type UseAgentSendActionsInput } from '@/features/agent/presentation/useAgentSendActions'
-import { useAgentSendDraftBuilder, type UseAgentSendDraftBuilderInput } from '@/features/agent/presentation/useAgentSendDraftBuilder'
+import { useAgentSendWorkspaceBuilder, type UseAgentSendWorkspaceBuilderInput } from '@/features/agent/presentation/useAgentSendWorkspaceBuilder'
 import { useAgentSendLabels } from '@/features/agent/presentation/useAgentSendLabels'
 
 export interface UseAgentChatSendPipelineInput {
-  draftBuilder: Omit<UseAgentSendDraftBuilderInput, 'assertMCPReady' | 'labels'>
-  commitDraft: Omit<UseAgentCommitSendDraftInput, 'assertMCPReady' | 'labels' | 'runTouchesAgentCatalog'>
-  runtimeThreadHydration: UseAgentRuntimeThreadHydrationInput
-  sendActions: Omit<UseAgentSendActionsInput, 'buildSendDraft' | 'commitSendDraft' | 'labels'>
+  workspaceBuilder: Omit<UseAgentSendWorkspaceBuilderInput, 'assertMCPReady' | 'labels'>
+  commitWorkspace: Omit<UseAgentCommitSendWorkspaceInput, 'assertMCPReady' | 'labels' | 'runTouchesAgentCatalog'>
+  sendActions: Omit<UseAgentSendActionsInput, 'buildSendWorkspace' | 'commitSendWorkspace' | 'labels'>
 }
 
 export function useAgentChatSendPipeline({
-  draftBuilder,
-  commitDraft,
-  runtimeThreadHydration,
+  workspaceBuilder,
+  commitWorkspace,
   sendActions,
 }: UseAgentChatSendPipelineInput) {
   const { t } = useTranslation()
   const {
     commitSendLabels,
     sendActionLabels,
-    sendDraftLabels,
+    sendWorkspaceLabels,
   } = useAgentSendLabels(t)
   const assertMCPReady = useAgentMCPReadiness()
 
-  const buildSendDraft = useAgentSendDraftBuilder({
-    ...draftBuilder,
+  const buildSendWorkspace = useAgentSendWorkspaceBuilder({
+    ...workspaceBuilder,
     assertMCPReady,
-    labels: sendDraftLabels,
+    labels: sendWorkspaceLabels,
   })
 
-  const commitSendDraft = useAgentCommitSendDraft({
-    ...commitDraft,
+  const commitSendWorkspace = useAgentCommitSendWorkspace({
+    ...commitWorkspace,
     assertMCPReady,
     runTouchesAgentCatalog,
     labels: commitSendLabels,
   })
 
-  useAgentRuntimeThreadHydration(runtimeThreadHydration)
-
   return useAgentSendActions({
     ...sendActions,
-    buildSendDraft,
-    commitSendDraft,
+    buildSendWorkspace,
+    commitSendWorkspace,
     labels: sendActionLabels,
   })
 }

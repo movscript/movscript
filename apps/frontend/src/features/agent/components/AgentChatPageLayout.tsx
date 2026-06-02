@@ -25,7 +25,7 @@ export function AgentChatPageLayout({
 }: AgentChatViewLayoutProps & { emptyAccessory?: ReactNode; host?: AgentChatHost }) {
   const { t } = useTranslation()
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
-  const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.draft
+  const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
   const hasPinnedStatus = hasAgentPinnedStatus({
     plan: latestPlanFromMessages(thread.messages),
     generationProgressStates: thread.generationProgressStates,

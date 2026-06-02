@@ -2,7 +2,7 @@
   "id": "movscript.script_reading",
   "version": "1.0.0",
   "name": "Script Reading",
-  "description": "读取后端项目剧本 / Script 列表、指定剧本和剧本正文，避免把剧本误判为本地 draft artifact。",
+  "description": "读取后端项目剧本 / Script 列表、指定剧本和剧本正文，避免把剧本误判为本地 workspace artifact。",
   "priority": 760,
   "enabled": true,
   "load": "manual",
@@ -16,7 +16,7 @@
   "useWhen": [
     "用户要查看、读取、理解、分析或总结后端项目剧本内容",
     "用户提到总剧本、第一集、分集剧本或剧本正文",
-    "不要用 asset-proposal、setting-proposal 或本地 draft task 代替纯剧本读取"
+    "不要用 asset-workspace、setting-workspace 或本地 workspace task 代替纯剧本读取"
   ],
   "triggers": [
     {

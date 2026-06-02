@@ -66,7 +66,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "id": 6,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport), 1)", "legendFormat": "{{method}} {{route_group}} {{status_class}}", "refId": "A" }],
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_agent_network_request_duration_ms\"}[$window])) by (route_group, method, status_class, transport), 1e-9)", "legendFormat": "{{method}} {{route_group}} {{status_class}}", "refId": "A" }],
       "title": "Agent Network Latency",
       "type": "timeseries"
     },
@@ -78,7 +78,7 @@
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_client_long_task_duration_milliseconds_max", "legendFormat": "long task max", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status), 1)", "legendFormat": "{{component}} {{kind}} {{stage}} {{status}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_storage_operation_duration_ms\"}[$window])) by (component, kind, stage, status), 1e-9)", "legendFormat": "{{component}} {{kind}} {{stage}} {{status}}", "refId": "B" }
       ],
       "title": "Long Task and Storage Latency",
       "type": "timeseries"

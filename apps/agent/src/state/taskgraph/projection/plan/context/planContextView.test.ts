@@ -34,7 +34,7 @@ test('buildSubagentSnapshotView exposes workers, artifacts, and summary', () => 
   const task = makeTask({
     id: 'task_1',
     metadata: { subagentName: 'Writer' },
-    artifacts: [{ id: 'artifact_1', type: 'draft', title: 'Draft', createdAt: '2026-01-01T00:00:00.000Z' }],
+    artifacts: [{ id: 'artifact_1', type: 'workspace', title: 'Workspace', createdAt: '2026-01-01T00:00:00.000Z' }],
   })
   const planner = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: taskGraph.id })
   const worker = makeRun({ id: 'run_worker', role: 'worker', parentRunId: planner.id, taskGraphId: taskGraph.id, taskId: task.id })

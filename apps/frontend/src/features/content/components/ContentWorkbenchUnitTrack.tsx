@@ -100,7 +100,6 @@ export function UnitProductionTrack({
   onSelectUnit,
   onCreateUnit,
   onOpenUnitEditor,
-  onAiSuggest,
   onSelectFirstMoment,
   onCreateAssetSlot,
   onCreateKeyframe,
@@ -121,7 +120,6 @@ export function UnitProductionTrack({
   onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
   onOpenUnitEditor?: (unitId: number) => void
-  onAiSuggest?: () => void
   onSelectFirstMoment: () => void
   onCreateAssetSlot?: () => void
   onCreateKeyframe?: () => void
@@ -211,12 +209,6 @@ export function UnitProductionTrack({
             }
             actions={row ? (
               <>
-                {onAiSuggest ? (
-                  <ContentWorkbenchUnitTrackActionButton onClick={onAiSuggest}>
-                    <Sparkles size={14} />
-                    AI 规划内容方案
-                  </ContentWorkbenchUnitTrackActionButton>
-                ) : null}
                 <ContentWorkbenchUnitTrackActionButton variant="outline" onClick={onCreateUnit}>
                   <Plus size={14} />
                   手动添加条目
@@ -372,12 +364,6 @@ export function UnitProductionTrack({
                 { label: `${summary.keyframeCount} 关键帧`, tone: summary.keyframeCount > 0 ? 'neutral' : 'warning' },
               ]}
             />
-            {onAiSuggest ? (
-              <ContentWorkbenchUnitTrackActionButton onClick={onAiSuggest} data-testid="content-workbench-ai-shot-taskGraph">
-                <Sparkles size={14} />
-                AI 规划内容方案
-              </ContentWorkbenchUnitTrackActionButton>
-            ) : null}
             <ContentWorkbenchUnitTrackActionButton variant="outline" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
               <Plus size={14} />
               手动添加条目
@@ -692,7 +678,6 @@ export function UnitProductionTrack({
             unit={selectedUnit}
             onSelectUnit={onSelectUnit}
             onCreateUnit={onCreateUnit}
-            onAiSuggest={onAiSuggest}
             onCreateAssetSlot={onCreateAssetSlot}
             onCreateKeyframe={onCreateKeyframe}
             onOpenCanvas={onOpenCanvas}

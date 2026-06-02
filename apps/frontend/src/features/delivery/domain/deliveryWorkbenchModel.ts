@@ -1,7 +1,7 @@
 import { resourceFromId, type ContentUnit, type DeliveryTimelineItem, type DeliveryVersion, type PreviewTimelineItem } from '@/shared/infrastructure/api/deliveryEntities'
 import type { RawResource } from '@/types'
 
-export type DeliveryVersionFilter = 'all' | 'draft' | 'checking' | 'approved' | 'exported'
+export type DeliveryVersionFilter = 'all' | 'workspace' | 'checking' | 'approved' | 'exported'
 
 export interface DeliveryReadiness {
   missingCount: number
@@ -97,7 +97,7 @@ export function buildDeliveryGateChecks(input: {
       label: '版本审核',
       description: versionOk
         ? '版本已批准，可以导出。'
-        : `当前版本状态为「${deliveryStatusLabel(selectedVersion?.status ?? 'draft')}」，需推进到「已批准」。`,
+        : `当前版本状态为「${deliveryStatusLabel(selectedVersion?.status ?? 'workspace')}」，需推进到「已批准」。`,
       status: versionOk ? 'passed' : 'warning',
       count: selectedVersion ? deliveryStatusLabel(selectedVersion.status) : '未选择',
     },
@@ -131,7 +131,7 @@ function previewTimelineRank(item: { is_primary?: boolean; status?: string }) {
   if (item.is_primary) return 0
   if (status === 'confirmed') return 1
   if (status === 'playable') return 2
-  if (status === 'draft') return 3
+  if (status === 'workspace') return 3
   return 4
 }
 
@@ -197,7 +197,7 @@ export function deliveryVersionFilterLabel(value: DeliveryVersionFilter) {
 
 export function deliveryStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    draft: '草稿',
+    workspace: '工作区',
     checking: '检查中',
     approved: '已批准',
     exported: '已导出',

@@ -17,7 +17,7 @@ test('content workbench unit track surfaces blockers across units', () => {
       title: '雨夜全景',
       kind: 'shot',
       durationSec: 4,
-      status: 'draft',
+      status: 'workspace',
       summary: '雨夜巷口建立空间',
       keyframeTitles: ['雨夜全景'],
       missingAssetTitles: ['雨夜窄巷'],

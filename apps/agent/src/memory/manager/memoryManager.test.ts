@@ -4,20 +4,20 @@ import { MemoryManager } from './memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../store/in-memory/memoryStore.js'
 import type { AgentMessage, AgentRun } from '../../state/shared/types.js'
 
-test('memory manager only writes explicit memory preferences, not draft side effects', () => {
-  class DraftResult {
-    id = 'draft_1'
-    title = 'Prototype draft'
+test('memory manager only writes explicit memory preferences, not workspace side effects', () => {
+  class WorkspaceResult {
+    id = 'workspace_1'
+    title = 'Prototype workspace'
   }
 
   const manager = new MemoryManager(new InMemoryAgentMemoryStore())
   const memories = manager.extractAndWriteMemories({
     run: makeRun(),
-    userMessage: { ...makeUserMessage(), content: 'create a draft' },
+    userMessage: { ...makeUserMessage(), content: 'create a workspace' },
     projectId: 42,
     toolResults: [{
-      call: { name: 'draft_create', args: { kind: 'project_standards_proposal' } },
-      result: new DraftResult() as never,
+      call: { name: 'workspace_open', args: { kind: 'project_standards_workspace' } },
+      result: new WorkspaceResult() as never,
     }],
     warnings: [],
   })
@@ -90,7 +90,7 @@ function makeUserMessage(): AgentMessage {
     id: 'msg_1',
     threadId: 'thread_1',
     role: 'user',
-    content: 'create a draft',
+    content: 'create a workspace',
     createdAt: '2026-05-16T00:00:00.000Z',
   }
 }

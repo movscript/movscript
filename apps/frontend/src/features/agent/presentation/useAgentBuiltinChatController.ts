@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, type AgentPanelDraftPayload } from '@/features/agent/application/agentPanelBridge'
-import { activateConversationForPanelDraft, consumeQueuedPanelDrafts } from '@/features/agent/application/agentPanelDraftIntake'
-import { loadRuntimeThreadProjection } from '@/features/agent/application/agentRuntimeThreadHydration'
+import { AGENT_PANEL_WORKSPACE_EVENT, AGENT_PANEL_NEW_CONVERSATION_EVENT, consumeAgentPanelWorkspace, consumeAgentPanelNewConversation, type AgentPanelWorkspacePayload, type AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
+import { activateConversationForPanelWorkspace, consumeQueuedPanelWorkspaces } from '@/features/agent/application/agentPanelWorkspaceIntake'
+import { runtimeThreadSummaryFromThread, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadResult } from '@/features/agent/application/agentRuntimeThreadRestore'
-import { fetchResourceById } from '@/features/agent/domain/agentMessageViewModel'
 import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { conversationFromRuntimeThreadSummary } from '@/features/agent/presentation/agentRuntimeThreadConversation'
+import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { localAgentClient, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 
@@ -23,20 +23,21 @@ export function useAgentBuiltinChatController({
   onPendingThreadHandled,
 }: UseAgentBuiltinChatControllerOptions) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
+  const conversationRuntimes = useAgentSessionStore((s) => s.conversationRuntimes)
   const getActiveConversationId = useAgentSessionStore((s) => s.getActiveConversationId)
   const createRuntimeConversation = useAgentSessionStore((s) => s.createRuntimeConversation)
   const removeRuntimeConversation = useAgentSessionStore((s) => s.removeRuntimeConversation)
   const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
   const updateConversationTitle = useAgentSessionStore((s) => s.updateConversationTitle)
   const attachPageTaskConversation = useAgentSessionStore((s) => s.attachPageTaskConversation)
-  const runtimeThreadProjections = useAgentSessionStore((s) => s.runtimeThreadProjections)
   const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
   const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
   const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
   const setConversationRuntimeSessionId = useAgentSessionStore((s) => s.setConversationRuntimeSessionId)
   const setConversationRuntimeThreadId = useAgentSessionStore((s) => s.setConversationRuntimeThreadId)
-  const setRuntimeThreadProjection = useAgentSessionStore((s) => s.setRuntimeThreadProjection)
   const clearConversationRuntimeState = useAgentSessionStore((s) => s.clearConversationRuntimeState)
   const {
     data: runtimeThreads = [],
@@ -51,24 +52,21 @@ export function useAgentBuiltinChatController({
   })
 
   const conversations = useMemo(() => {
-    return runtimeThreads.map((thread) => conversationFromRuntimeThreadSummary(thread, t))
-  }, [runtimeThreads, t])
-  const conversationsWithRuntimeProjection = useMemo(
-    () => conversations.map((conversation) => {
-      const projectionMessages = runtimeThreadProjections[conversation.id]?.messages
-      return projectionMessages ? { ...conversation, messages: projectionMessages } : conversation
-    }),
-    [conversations, runtimeThreadProjections],
-  )
+    return runtimeThreads.map((thread) => {
+      const conversation = conversationFromRuntimeThreadSummary(thread, t)
+      const title = conversationRuntimes[conversation.id]?.title?.trim()
+      return title ? { ...conversation, title } : conversation
+    })
+  }, [conversationRuntimes, runtimeThreads, t])
   const openConversations = useMemo(
-    () => conversationsWithRuntimeProjection.filter((conversation) => conversation.archived !== true),
-    [conversationsWithRuntimeProjection],
+    () => conversations.filter((conversation) => conversation.archived !== true),
+    [conversations],
   )
   const archivedConversations = useMemo(
-    () => conversationsWithRuntimeProjection
+    () => conversations
       .filter((conversation) => conversation.archived === true)
       .sort((a, b) => b.updatedAt - a.updatedAt),
-    [conversationsWithRuntimeProjection],
+    [conversations],
   )
   const activeConversationId = getActiveConversationId(userId)
   const activeConversation = openConversations.find((conversation) => conversation.id === activeConversationId) ?? null
@@ -89,6 +87,7 @@ export function useAgentBuiltinChatController({
     })
     const createdAt = Date.parse(thread.createdAt)
     const updatedAt = Date.parse(thread.updatedAt)
+    const threadSummary = runtimeThreadSummaryFromThread(thread)
     const conversationId = createRuntimeConversation(userId, {
       threadId: thread.id,
       ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
@@ -96,6 +95,7 @@ export function useAgentBuiltinChatController({
       createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
       updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
     })
+    upsertCachedLocalAgentThread(queryClient, threadSummary)
     setLocalThreadId(conversationId, thread.id)
     if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
     setConversationRuntime(conversationId, {
@@ -105,9 +105,10 @@ export function useAgentBuiltinChatController({
       building: false,
       error: undefined,
     })
+    setAgentPanelOpen(true)
     void refetchRuntimeThreads()
     return conversationId
-  }, [createRuntimeConversation, refetchRuntimeThreads, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
+  }, [createRuntimeConversation, queryClient, refetchRuntimeThreads, setAgentPanelOpen, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
 
   const handleNewConversation = useCallback(() => {
     void createProvisionalRuntimeConversation().catch((error) => {
@@ -133,14 +134,12 @@ export function useAgentBuiltinChatController({
         sessionIdsByConversation: sessionState.sessionIdsByConversation,
         conversationRuntimes: sessionState.conversationRuntimes,
       },
-      restoredLabel: t('agents.chat.panel.runtime.restoredLocalRuntime'),
       titleForThread: (thread) => localThreadTitle(thread, t),
-      loadProjection: (id) => loadRuntimeThreadProjection({ threadId: id }, { fetchResourceById }),
+      loadThread: (id) => localAgentClient.getThread(id),
       createRuntimeConversation,
       setActiveConversation,
       unarchiveConversation: () => undefined,
       updateConversationTitle,
-      setRuntimeThreadProjection,
       setLocalThreadId,
       setConversationSessionId,
       setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
@@ -164,7 +163,6 @@ export function useAgentBuiltinChatController({
     setConversationRuntimeThreadId,
     setConversationSessionId,
     setLocalThreadId,
-    setRuntimeThreadProjection,
     t,
     updateConversationTitle,
     userId,
@@ -183,7 +181,26 @@ export function useAgentBuiltinChatController({
     return activeId && threadIdForConversation(activeId) ? activeId : null
   }, [getActiveConversationId, threadIdForConversation])
 
-  const createConversationForPanelDraft = useCallback((payload: AgentPanelDraftPayload) => {
+  const patchCachedRuntimeThreads = useCallback((threadIds: Iterable<string>, patch: Partial<AgentThreadSummary>) => {
+    const threadIdSet = new Set(threadIds)
+    if (threadIdSet.size === 0) return
+    queryClient.setQueriesData<AgentThreadSummary[]>({
+      predicate: (query) => Array.isArray(query.queryKey)
+        && query.queryKey[0] === 'local-agent-threads'
+        && query.queryKey[1] === localAgentClient.baseURL,
+    }, (threads) => {
+      if (!threads) return threads
+      return threads.map((thread) => threadIdSet.has(thread.id) ? { ...thread, ...patch } : thread)
+    })
+  }, [queryClient])
+
+  const activeConversationAfterArchive = useCallback((archivedIds: Set<string>) => {
+    const currentActiveId = getActiveConversationId(userId)
+    if (!currentActiveId || !archivedIds.has(currentActiveId)) return currentActiveId
+    return openConversations.find((conversation) => !archivedIds.has(conversation.id))?.id ?? null
+  }, [getActiveConversationId, openConversations, userId])
+
+  const createConversationForPanelWorkspace = useCallback((payload: AgentPanelWorkspacePayload) => {
     return createProvisionalRuntimeConversation({
       title: payload.title ?? t('agents.chat.newConversation'),
       ...(typeof payload.projectId === 'number' ? { projectId: payload.projectId } : {}),
@@ -196,16 +213,23 @@ export function useAgentBuiltinChatController({
       if (archived) setActiveConversation(userId, null)
       return
     }
+    patchCachedRuntimeThreads([runtimeThreadId], { archived })
+    if (archived) {
+      const nextActiveConversationId = activeConversationAfterArchive(new Set([conversationId]))
+      setActiveConversation(userId, nextActiveConversationId)
+      if (!nextActiveConversationId) setAgentPanelOpen(false)
+    }
     await localAgentClient.updateThread(runtimeThreadId, { archived })
     void refetchRuntimeThreads()
-    if (archived && getActiveConversationId(userId) === conversationId) setActiveConversation(userId, null)
-  }, [getActiveConversationId, refetchRuntimeThreads, setActiveConversation, threadIdForConversation, userId])
+    if (!archived) setActiveConversation(userId, conversationId)
+  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, refetchRuntimeThreads, setActiveConversation, setAgentPanelOpen, threadIdForConversation, userId])
 
   const handleArchiveConversation = useCallback((id: string) => {
     void patchConversationArchiveState(id, true).catch((error) => {
+      void refetchRuntimeThreads()
       console.error('[agent] failed to archive runtime conversation', error)
     })
-  }, [patchConversationArchiveState])
+  }, [patchConversationArchiveState, refetchRuntimeThreads])
 
   const handleArchiveConversations = useCallback((ids: string[]) => {
     void (async () => {
@@ -214,13 +238,18 @@ export function useAgentBuiltinChatController({
         const runtimeThreadId = threadIdForConversation(id)
         if (runtimeThreadId) runtimeIds.push(runtimeThreadId)
       }
+      patchCachedRuntimeThreads(runtimeIds, { archived: true })
+      const archivedIdSet = new Set(ids)
+      const nextActiveConversationId = activeConversationAfterArchive(archivedIdSet)
+      setActiveConversation(userId, nextActiveConversationId)
+      if (!nextActiveConversationId) setAgentPanelOpen(false)
       await Promise.all(runtimeIds.map((threadId) => localAgentClient.updateThread(threadId, { archived: true })))
       if (runtimeIds.length > 0) void refetchRuntimeThreads()
-      if (ids.some((id) => getActiveConversationId(userId) === id)) setActiveConversation(userId, null)
     })().catch((error) => {
+      void refetchRuntimeThreads()
       console.error('[agent] failed to archive runtime conversations', error)
     })
-  }, [getActiveConversationId, refetchRuntimeThreads, setActiveConversation, threadIdForConversation, userId])
+  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, refetchRuntimeThreads, setActiveConversation, setAgentPanelOpen, threadIdForConversation, userId])
 
   const cleanupDeletedRuntimeConversations = useCallback((conversationId: string, deletedThreadIds: Iterable<string>) => {
     const deletedThreadIdSet = new Set(deletedThreadIds)
@@ -269,36 +298,59 @@ export function useAgentBuiltinChatController({
   }, [handleRestoreLocalThread, onPendingThreadHandled, pendingThreadIdToOpen])
 
   useEffect(() => {
-    void consumeQueuedPanelDrafts(consumeAgentPanelDraft, {
+    void consumeQueuedPanelWorkspaces(consumeAgentPanelWorkspace, {
       userId,
-      createConversationForDraft: createConversationForPanelDraft,
+      createConversationForWorkspace: createConversationForPanelWorkspace,
       getActiveConversationId: getActiveRuntimeConversationId,
       setActiveConversation,
       updateConversationTitle,
       attachPageTaskConversation,
     }).catch((error) => {
-      console.error('[agent] failed to consume queued panel drafts', error)
+      console.error('[agent] failed to consume queued panel workspaces', error)
     })
-  }, [attachPageTaskConversation, createConversationForPanelDraft, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
 
   useEffect(() => {
-    function handleDraft(event: Event) {
-      const detail = (event as CustomEvent<AgentPanelDraftPayload>).detail
-      void activateConversationForPanelDraft(detail, {
+    function handleWorkspace(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelWorkspacePayload>).detail
+      void activateConversationForPanelWorkspace(detail, {
         userId,
-        createConversationForDraft: createConversationForPanelDraft,
+        createConversationForWorkspace: createConversationForPanelWorkspace,
         getActiveConversationId: getActiveRuntimeConversationId,
         setActiveConversation,
         updateConversationTitle,
         attachPageTaskConversation,
       }).catch((error) => {
-        console.error('[agent] failed to activate panel draft', error)
+        console.error('[agent] failed to activate panel workspace', error)
       })
     }
 
-    window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
-    return () => window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
-  }, [attachPageTaskConversation, createConversationForPanelDraft, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
+    window.addEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+    return () => window.removeEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, setActiveConversation, updateConversationTitle, userId])
+
+  useEffect(() => {
+    function createFromPayload(payload: AgentPanelNewConversationPayload | undefined) {
+      void createProvisionalRuntimeConversation({
+        title: payload?.title ?? t('agents.chat.newConversation'),
+        ...(typeof payload?.projectId === 'number' ? { projectId: payload.projectId } : {}),
+      }).catch((error) => {
+        console.error('[agent] failed to start provisional conversation', error)
+      })
+    }
+
+    for (let payload = consumeAgentPanelNewConversation(); payload; payload = consumeAgentPanelNewConversation()) {
+      createFromPayload(payload)
+    }
+
+    function handleNewConversation(event: Event) {
+      const detail = (event as CustomEvent<AgentPanelNewConversationPayload>).detail
+      createFromPayload(consumeAgentPanelNewConversation() ?? detail)
+    }
+
+    window.addEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
+    return () => window.removeEventListener(AGENT_PANEL_NEW_CONVERSATION_EVENT, handleNewConversation)
+  }, [createProvisionalRuntimeConversation, t])
 
   return {
     activeConversation,

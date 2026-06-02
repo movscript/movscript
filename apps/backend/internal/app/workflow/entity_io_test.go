@@ -425,7 +425,7 @@ func TestWriteAndReadContentUnitGeneratedMediaBindings(t *testing.T) {
 		ProjectID: projectID,
 		Kind:      "shot",
 		Title:     "开场镜头",
-		Status:    "draft",
+		Status:    "workspace",
 	}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)

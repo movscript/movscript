@@ -202,10 +202,10 @@
       "character": "角色",
       "scene": "场景",
       "prop": "道具",
-      "draft": "底稿"
+      "workspace": "底稿"
     },
     "episodeStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "scripted": "已编剧",
       "storyboarded": "已分镜",
       "generating": "生成中",
@@ -213,7 +213,7 @@
       "done": "完成"
     },
     "reviewStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "under_review": "提审中",
       "approved": "审核定稿",
       "revision": "重改中"
@@ -225,7 +225,7 @@
       "scene": "分场剧本"
     },
     "shotStatus": {
-      "draft": "草稿",
+      "workspace": "工作区",
       "prompt_ready": "就绪",
       "generating": "生成中",
       "generated": "已生成",
@@ -317,7 +317,7 @@
     "submit": "提交审核",
     "approve": "审核通过",
     "requestRevision": "打回重改",
-    "resetDraft": "重置草稿"
+    "resetWorkspace": "重置工作区"
   },
   "details": {
     "aiAnalyze": "AI 分析",
@@ -348,10 +348,10 @@
     "rawSourceVideo": "底稿视频",
     "uploadKeyframe": "上传关键帧",
     "generateKeyframe": "AI 生成关键帧",
-    "draftVideo": "底稿视频",
+    "workspaceVideo": "底稿视频",
     "cameraReference": "镜头控制参考",
-    "noDraftVideo": "暂无底稿视频",
-    "generateDraft": "AI 生成底稿",
+    "noWorkspaceVideo": "暂无底稿视频",
+    "generateWorkspace": "AI 生成底稿",
     "contentManagement": "内容管理",
     "scriptBody": "剧本正文",
     "scriptSummary": "剧本提纲",
@@ -740,17 +740,17 @@
         "title": "制作管理状态",
         "ready": "已确认",
         "pending": "待确认",
-        "missing": "未找到草稿",
+        "missing": "未找到工作区",
         "readySummary": "制作管理已经确认，可以继续任务分配与审核。",
-        "pendingSummary": "当前项目已有制作管理草稿，但还没有完成确认。",
-        "missingSummary": "当前项目还没有可用的制作管理草稿，先完成制作管理确认。",
+        "pendingSummary": "当前项目已有制作管理工作区，但还没有完成确认。",
+        "missingSummary": "当前项目还没有可用的制作管理工作区，先完成制作管理确认。",
         "readyTitle": "制作管理已确认",
         "notReadyTitle": "制作管理待确认",
         "savedAt": "保存时间：{{value}}",
         "confirmedAt": "确认时间：{{value}}",
         "unknown": "暂无",
-        "foundDraft": "最近制作管理草稿",
-        "noDraft": "进入制作管理后会显示最近保存的草稿状态。",
+        "foundWorkspace": "最近制作管理工作区",
+        "noWorkspace": "进入制作管理后会显示最近保存的工作区状态。",
         "enterProduction": "继续内容制作",
         "goPreview": "前往制作管理",
         "viewPreview": "查看制作管理"
@@ -1040,19 +1040,19 @@
         "more": "+{{count}} 项"
       }
     },
-    "draftHistory": {
-      "title": "AI 新建草稿",
-      "description": "这里只展示 local runtime 中尚未处理的新建草稿。已应用、拒绝或被替换的历史草稿请回到 AI 助手对应会话中查找。",
+    "workspaceHistory": {
+      "title": "AI 新建工作区",
+      "description": "这里只展示 local runtime 中尚未处理的新建工作区。已应用、拒绝或被替换的历史工作区请回到 AI 助手对应会话中查找。",
       "searchPlaceholder": "搜索标题、内容、thread 或 run",
       "allProjects": "全部项目",
       "currentProject": "当前项目",
-      "emptySelection": "选择一个草稿查看详情。",
+      "emptySelection": "选择一个工作区查看详情。",
       "copyId": "复制 ID",
       "sourceThread": "来源 thread",
       "sourceRun": "来源 run",
       "createdAt": "创建时间",
       "updatedAt": "更新时间",
-      "content": "草稿内容",
+      "content": "工作区内容",
       "source": "来源",
       "target": "目标"
     },
@@ -1086,7 +1086,7 @@
       "projectContext": "项目信息",
       "currentProject": "当前项目：{{name}}",
       "projectRequiredTitle": "先选择一个项目",
-      "projectRequiredHint": "Agent 会围绕当前项目信息读取内容、创建草稿和执行工具。",
+      "projectRequiredHint": "Agent 会围绕当前项目信息读取内容、创建工作区和执行工具。",
       "projectRequiredMessage": "请先选择一个项目，或者在输入框上方创建新项目后再继续。",
       "selectProject": "选择项目",
       "createProjectInline": "创建",
@@ -1097,34 +1097,34 @@
       "autoPlan": "规划模式",
       "hideContext": "隐藏上下文",
       "showContext": "显示上下文",
-      "drafts": {
+      "workspaces": {
         "title": "待确认建议",
         "filters": {
           "allStatuses": "全部状态",
           "allKinds": "全部类型"
         },
         "status": {
-          "draft": "待确认",
+          "workspace": "待确认",
           "accepted": "已采纳",
           "rejected": "已删除",
           "applied": "已写入",
           "superseded": "已替换"
         },
         "kinds": {
-          "script": "剧本草稿",
+          "script": "剧本工作区",
           "creative_reference": "设定资料建议",
           "asset_slot": "素材需求",
           "content_unit": "镜头建议",
           "prompt": "提示词",
           "note": "审阅备注",
-          "pipeline": "流程提案",
-          "segment": "编排段提案",
-          "scene_moment": "情节提案",
-          "asset_proposal": "素材候选提案",
-          "project_proposal": "项目提案",
-          "production_proposal": "制作提案",
-          "content_unit_proposal": "内容单元提案",
-          "script_split_proposal": "剧本划分提案"
+          "pipeline": "流程工作区",
+          "segment": "编排段工作区",
+          "scene_moment": "情节工作区",
+          "asset_workspace": "素材候选工作区",
+          "project_workspace": "项目工作区",
+          "production_workspace": "制作工作区",
+          "content_unit_workspace": "内容单元工作区",
+          "script_split_workspace": "剧本划分工作区"
         }
       },
       "modes": {
@@ -1195,8 +1195,8 @@
           "capabilities": "能力",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "草稿",
-          "drafts": "草稿"
+          "artifacts": "工作区",
+          "workspaces": "工作区"
         },
         "status": {
           "localRuntimeOnline": "本地 Runtime 已上线",
@@ -1230,7 +1230,7 @@
           "pageContext": "页面上下文",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "草稿"
+          "artifacts": "工作区"
         },
         "pageContext": {
           "page": "页面",
@@ -1238,13 +1238,13 @@
           "route": "路由",
           "entity": "实体",
           "selection": "选择",
-          "currentDraft": "当前草稿",
+          "currentWorkspace": "当前工作区",
           "unknown": "未知页面",
           "none": "无实体",
-          "noDraft": "未绑定",
+          "noWorkspace": "未绑定",
           "empty": "当前对话没有页面上下文。",
-          "draftHint": "Agent 应在这个页面绑定的草稿里填充、修改或校验内容；应用草稿仍由对应页面处理。",
-          "noDraftHint": "当前上下文没有绑定可写草稿。需要写入类任务时，应先由页面创建草稿壳再交给 Agent。"
+          "workspaceHint": "Agent 应在这个页面绑定的工作区里填充、修改或校验内容；应用工作区仍由对应页面处理。",
+          "noWorkspaceHint": "当前上下文没有绑定可写工作区。需要写入类任务时，应先由页面创建工作区壳再交给 Agent。"
         },
         "capabilities": {
           "title": "能力",
@@ -1317,21 +1317,21 @@
             "fact": "事实",
             "decision": "决策",
             "entity_ref": "实体引用",
-            "draft": "草稿",
+            "workspace": "工作区",
             "warning": "警告"
           }
         },
-        "drafts": {
-          "currentThreadTitle": "当前 thread 草稿",
-          "history": "历史草稿",
+        "workspaces": {
+          "currentThreadTitle": "当前 thread 工作区",
+          "history": "历史工作区",
           "refresh": "刷新",
-          "noOnline": "先启动本地 Runtime，才能查看 Agent 草稿。",
-          "noThread": "当前对话还没有绑定 runtime thread，发送一次消息后这里会显示本 thread 的草稿。",
-          "emptyFilter": "没有草稿符合当前筛选条件。",
+          "noOnline": "先启动本地 Runtime，才能查看 Agent 工作区。",
+          "noThread": "当前对话还没有绑定 runtime thread，发送一次消息后这里会显示本 thread 的工作区。",
+          "emptyFilter": "没有工作区符合当前筛选条件。",
           "projectBadge": "项目 #{{id}}",
           "openPage": "进入页面",
-          "pageOnlyHint": "这里只负责查看草稿，应用请到对应页面里按需处理。",
-          "noPage": "当前草稿还没有可进入的页面。",
+          "pageOnlyHint": "这里只负责查看工作区，应用请到对应页面里按需处理。",
+          "noPage": "当前工作区还没有可进入的页面。",
           "current": "当前值",
           "proposed": "建议值",
           "entityTypePlaceholder": "实体类型",
@@ -1343,7 +1343,7 @@
           "diff": "差异",
           "apply": "应用",
           "reject": "拒绝",
-          "emptyDraft": "空草稿",
+          "emptyWorkspace": "空工作区",
           "previewSideEffect": "{{sideEffect}}。该写入在执行前需要审批。"
         },
         "debugPreview": {
@@ -2246,7 +2246,7 @@
         "frames": "帧数",
         "execution_expires_after": "过期时间(秒)",
         "preset": "预设",
-        "draft": "样片模式",
+        "workspace": "样片模式",
         "size": "尺寸",
         "sequential_image_generation": "组图",
         "optimize_prompt_mode": "提示词优化",
@@ -3120,7 +3120,7 @@
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
-      "aiDrafts": "AI 草稿",
+      "aiWorkspaces": "AI 工作区",
       "myAgents": "我的 Agent",
       "agentDebug": "Agent 调试",
       "production": "生产中台",

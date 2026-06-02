@@ -50,16 +50,16 @@ test('buildAgentActivityFeed keeps tool debug args and result for expandable row
   })
 })
 
-test('buildAgentActivityFeed renders core draft tools as lightweight blocks', () => {
+test('buildAgentActivityFeed renders core workspace tools as lightweight blocks', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
-        id: 'step_draft',
+        id: 'step_workspace',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'draft_create',
-        args: { kind: 'content_unit_proposal', title: '镜头描述草稿', projectId: 7 },
-        result: { draftId: 'draft_123' },
+        toolName: 'workspace_create',
+        args: { kind: 'content_unit_workspace', title: '镜头描述工作区', projectId: 7 },
+        result: { workspaceId: 'workspace_123' },
         createdAt: '2026-05-22T01:00:00.000Z',
         completedAt: '2026-05-22T01:00:01.000Z',
       }],
@@ -68,12 +68,12 @@ test('buildAgentActivityFeed renders core draft tools as lightweight blocks', ()
 
   const item = feed?.items[0]
   assert.equal(item?.type, 'block')
-  assert.equal(item?.kind, 'draft')
-  assert.equal(item?.type === 'block' ? item.title : '', '创建本地草稿')
+  assert.equal(item?.kind, 'workspace')
+  assert.equal(item?.type === 'block' ? item.title : '', '创建本地工作区')
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '草稿：draft_123',
-    '标题：镜头描述草稿',
-    '类型：content_unit_proposal',
+    '工作区：workspace_123',
+    '标题：镜头描述工作区',
+    '类型：content_unit_workspace',
     '项目：#7',
     '项目数据尚未正式写入。',
   ])
@@ -270,7 +270,7 @@ test('buildAgentActivityFeed compacts runtime work observations when the latest 
   assert.equal(item?.durationMs, 250)
 })
 
-test('buildAgentActivityFeed exposes draft file patch as plain text code', () => {
+test('buildAgentActivityFeed exposes workspace file patch as plain text code', () => {
   const patch = [
     '*** Begin Patch',
     '*** Update File: content',
@@ -287,7 +287,7 @@ test('buildAgentActivityFeed exposes draft file patch as plain text code', () =>
         status: 'completed',
         toolName: 'core_file_edit',
         args: {
-          ref: 'agent://draft/draft_1/content',
+          ref: 'agent://workspace/workspace_1/content',
           patch,
         },
         createdAt: '2026-05-22T01:00:00.000Z',
@@ -321,14 +321,14 @@ test('buildAgentActivityFeed groups tool calls by model http round', () => {
           createdAt: '2026-05-22T01:00:01.500Z',
         },
         {
-          id: 'step_draft',
+          id: 'step_workspace',
           type: 'tool_call',
           status: 'completed',
           roundIndex: 1,
           roundLabel: 'Model turn 1',
-          toolName: 'draft_create',
-          args: { kind: 'content_unit_proposal' },
-          result: { draftId: 'draft_round' },
+          toolName: 'workspace_create',
+          args: { kind: 'content_unit_workspace' },
+          result: { workspaceId: 'workspace_round' },
           createdAt: '2026-05-22T01:00:02.000Z',
         },
       ],
@@ -617,9 +617,9 @@ test('buildAgentActivityFeed renders user approvals at their activity position',
     activity: activity({
       approvals: [{
         id: 'approval_1',
-        toolName: 'draft_apply',
+        toolName: 'workspace_apply',
         reason: '需要正式写入项目数据',
-        permission: 'draft.apply',
+        permission: 'workspace.apply',
         risk: 'write',
         status: 'pending',
         createdAt: '2026-05-22T01:00:00.000Z',

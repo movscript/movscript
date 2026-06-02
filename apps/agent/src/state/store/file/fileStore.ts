@@ -684,7 +684,7 @@ function compactPersistedJSONValue(
   }
   if (record) {
     for (const [key, item] of Object.entries(record)) {
-      if (key === 'result' || key === 'content' || key === 'bodyText' || key === 'snapshot' || key === 'proposal') continue
+      if (key === 'result' || key === 'content' || key === 'bodyText' || key === 'snapshot' || key === 'workspace') continue
       if (item === null || typeof item === 'boolean') compact[key] = item
       if (typeof item === 'number' && Number.isFinite(item)) compact[key] = item
       if (typeof item === 'string') compact[key] = compactStringField(item)

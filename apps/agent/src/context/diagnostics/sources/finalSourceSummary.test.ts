@@ -43,7 +43,7 @@ test('final source summary can stand alone when model content is empty', () => {
     },
   })
 
-  const content = appendFinalSourceSummary('', { run, userMessage: '请创建内容单元分镜 proposal 草稿' })
+  const content = appendFinalSourceSummary('', { run, userMessage: '请创建内容单元分镜 workspace 工作区' })
 
   assert.match(content, /^来源：/m)
   assert.match(content, /参考资料：reference#storyboard\.rhythm\.basic《分镜节奏基础》/)

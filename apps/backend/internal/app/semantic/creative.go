@@ -17,7 +17,7 @@ type CreativeReferenceFilter struct {
 }
 
 type CreativeReferenceInput struct {
-	ProposalClientID string `json:"proposal_client_id"`
+	WorkspaceClientID string `json:"workspace_client_id"`
 	SourceScriptID   *uint  `json:"source_script_id"`
 	SourceAnalysisID *uint  `json:"source_analysis_id"`
 	Kind             string `json:"kind" binding:"required"`
@@ -101,7 +101,7 @@ func (s *Service) ListCreativeReferences(ctx context.Context, filter CreativeRef
 func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, input CreativeReferenceInput) (domainsemantic.CreativeReference, error) {
 	item := domainsemantic.NewCreativeReference(domainsemantic.CreativeReferenceSpec{
 		ProjectID:        projectID,
-		ProposalClientID: input.ProposalClientID,
+		WorkspaceClientID: input.WorkspaceClientID,
 		SourceScriptID:   input.SourceScriptID,
 		SourceAnalysisID: input.SourceAnalysisID,
 		Kind:             input.Kind,
@@ -136,7 +136,7 @@ func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id
 		return item, err
 	}
 	patch := domainsemantic.CreativeReferencePatch{
-		ProposalClientID: input.ProposalClientID,
+		WorkspaceClientID: input.WorkspaceClientID,
 		SourceScriptID:   input.SourceScriptID,
 		SourceAnalysisID: input.SourceAnalysisID,
 		Kind:             input.Kind,

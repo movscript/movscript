@@ -1,36 +1,36 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  buildAssetCandidateProposalAgentPanelDraftPayload,
-  buildAssetCandidateProposalReviewSearchParams,
-  buildMediaCandidateGenerationAgentPanelDraftPayload,
-  buildPreProductionAuditAgentPanelDraftPayload,
+  buildAssetCandidateWorkspaceAgentPanelWorkspacePayload,
+  buildAssetCandidateWorkspaceReviewSearchParams,
+  buildMediaCandidateGenerationAgentPanelWorkspacePayload,
+  buildPreProductionAuditAgentPanelWorkspacePayload,
   buildPreProductionAuditReviewSearchParams,
   mediaCandidateOutputResourceIds,
 } from './preProductionAgentLaunch'
 
-test('asset candidate proposal launch builds draft-aware agent payload', () => {
-  const payload = buildAssetCandidateProposalAgentPanelDraftPayload({
+test('asset candidate workspace launch builds workspace-aware agent payload', () => {
+  const payload = buildAssetCandidateWorkspaceAgentPanelWorkspacePayload({
     requestId: 'asset-request',
     projectId: 7,
     assetSlotId: 51,
     slotName: '主角背包',
-    draftId: 'asset-draft',
+    workspaceId: 'asset-workspace',
   })
 
   assert.equal(payload.requestId, 'asset-request')
-  assert.equal(payload.taskType, 'asset_candidate_proposal')
+  assert.equal(payload.taskType, 'asset_candidate_workspace')
   assert.equal(payload.projectId, 7)
   assert.equal(payload.autoSend, true)
   assert.ok(payload.clientInput)
-  assert.equal(payload.clientInput.uiSnapshot?.draftId, 'asset-draft')
+  assert.equal(payload.clientInput.uiSnapshot?.workspaceId, 'asset-workspace')
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityType, 'asset_slot')
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityId, 51)
-  assert.match(payload.clientInput.message, /素材候选生成提案/)
+  assert.match(payload.clientInput.message, /素材候选生成工作区/)
 })
 
-test('pre-production audit launch asks only for setting and asset proposals', () => {
-  const payload = buildPreProductionAuditAgentPanelDraftPayload({
+test('pre-production audit launch asks only for setting and asset workspaces', () => {
+  const payload = buildPreProductionAuditAgentPanelWorkspacePayload({
     requestId: 'prep-audit',
     projectId: 7,
     projectLabel: '测试项目',
@@ -39,13 +39,13 @@ test('pre-production audit launch asks only for setting and asset proposals', ()
   assert.equal(payload.taskType, 'pre_production_audit')
   assert.equal(payload.renderMode, 'page')
   assert.ok(payload.clientInput)
-  assert.match(payload.clientInput.message, /setting_proposal/)
-  assert.match(payload.clientInput.message, /asset_proposal/)
-  assert.doesNotMatch(payload.clientInput.message, /production_proposal/)
+  assert.match(payload.clientInput.message, /setting_workspace/)
+  assert.match(payload.clientInput.message, /asset_workspace/)
+  assert.doesNotMatch(payload.clientInput.message, /production_workspace/)
 })
 
 test('media candidate generation launch builds real generation payload', () => {
-  const payload = buildMediaCandidateGenerationAgentPanelDraftPayload({
+  const payload = buildMediaCandidateGenerationAgentPanelWorkspacePayload({
     requestId: 'media-request',
     projectId: 7,
     assetSlotId: 51,
@@ -72,26 +72,26 @@ test('media candidate generation result normalizes output resource ids', () => {
   assert.deepEqual(mediaCandidateOutputResourceIds(undefined), [])
 })
 
-test('pre-production launch review search preserves related proposal drafts', () => {
-  const assetSearch = buildAssetCandidateProposalReviewSearchParams(new URLSearchParams('kind=image'), {
+test('pre-production launch review search preserves related workspace workspaces', () => {
+  const assetSearch = buildAssetCandidateWorkspaceReviewSearchParams(new URLSearchParams('kind=image'), {
     assetSlotId: 51,
-    fallbackDraftId: 'fallback-asset',
-    artifacts: [{ type: 'draft', draftId: 'artifact-asset', draftKind: 'asset_proposal' }],
+    fallbackWorkspaceId: 'fallback-asset',
+    artifacts: [{ type: 'workspace', workspaceId: 'artifact-asset', workspaceKind: 'asset_workspace' }],
   })
   assert.equal(assetSearch.get('kind'), 'image')
   assert.equal(assetSearch.get('view'), 'review')
   assert.equal(assetSearch.get('asset_slot_id'), '51')
-  assert.equal(assetSearch.get('draftId'), 'artifact-asset')
-  assert.equal(assetSearch.get('assetProposalDraftId'), 'artifact-asset')
+  assert.equal(assetSearch.get('workspaceId'), 'artifact-asset')
+  assert.equal(assetSearch.get('assetWorkspaceWorkspaceId'), 'artifact-asset')
 
   const auditSearch = buildPreProductionAuditReviewSearchParams(new URLSearchParams(), {
     artifacts: [
-      { type: 'draft', draftId: 'setting-draft', draftKind: 'setting_proposal' },
-      { type: 'draft', draftId: 'asset-draft', draftKind: 'asset_proposal' },
+      { type: 'workspace', workspaceId: 'setting-workspace', workspaceKind: 'setting_workspace' },
+      { type: 'workspace', workspaceId: 'asset-workspace', workspaceKind: 'asset_workspace' },
     ],
   })
   assert.equal(auditSearch.get('view'), 'review')
-  assert.equal(auditSearch.get('draftId'), 'setting-draft')
-  assert.equal(auditSearch.get('settingDraftId'), 'setting-draft')
-  assert.equal(auditSearch.get('assetProposalDraftId'), 'asset-draft')
+  assert.equal(auditSearch.get('workspaceId'), 'setting-workspace')
+  assert.equal(auditSearch.get('settingWorkspaceId'), 'setting-workspace')
+  assert.equal(auditSearch.get('assetWorkspaceWorkspaceId'), 'asset-workspace')
 })

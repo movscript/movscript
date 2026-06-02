@@ -25,7 +25,7 @@ export function buildCommandFirstClientInput(input: {
   hints?: {
     projectId?: number
     productionId?: number
-    draftId?: string
+    workspaceId?: string
     agent?: {
       key?: string
       name?: string
@@ -39,7 +39,7 @@ export function buildCommandFirstClientInput(input: {
     route,
     projectId: input.hints?.projectId,
     productionId: input.hints?.productionId,
-    draftId: input.hints?.draftId,
+    workspaceId: input.hints?.workspaceId,
     selection: input.hints && 'selection' in input.hints ? input.hints.selection ?? null : undefined,
     labels: input.labels,
   })
@@ -51,7 +51,7 @@ export function buildCommandFirstClientInput(input: {
         ...(pageContext ? { pageContext } : {}),
         ...(input.hints?.projectId !== undefined ? { project: { id: input.hints.projectId } } : {}),
         ...(input.hints?.productionId !== undefined ? { productionId: input.hints.productionId } : {}),
-        ...(input.hints?.draftId ? { draftId: input.hints.draftId } : {}),
+        ...(input.hints?.workspaceId ? { workspaceId: input.hints.workspaceId } : {}),
         ...(input.hints?.agent ? { agent: input.hints.agent } : {}),
         ...(input.hints && 'selection' in input.hints ? { selection: input.hints.selection ?? null } : {}),
         ...(input.labels?.length ? { labels: input.labels } : {}),
@@ -64,7 +64,7 @@ export function buildPageContext(input: {
   route?: { pathname?: string; search?: string; hash?: string }
   projectId?: number
   productionId?: number
-  draftId?: string
+  workspaceId?: string
   selection?: AgentSelectionHint
   labels?: string[]
 }): {
@@ -73,7 +73,7 @@ export function buildPageContext(input: {
   pageRoute?: string
   pageEntityType?: string
   pageEntityId?: number | string
-  draftId?: string
+  workspaceId?: string
 } | undefined {
   const pageType = inferPageType(input.labels, input.route?.pathname)
   const pageRoute = normalizeRoute(input.route)
@@ -86,7 +86,7 @@ export function buildPageContext(input: {
     ...(pageRoute ? { pageRoute } : {}),
     ...(pageEntityType ? { pageEntityType } : {}),
     ...(pageEntityId !== undefined ? { pageEntityId } : {}),
-    ...(input.draftId ? { draftId: input.draftId } : {}),
+    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
   }
 }
 

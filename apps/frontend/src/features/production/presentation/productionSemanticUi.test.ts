@@ -4,7 +4,7 @@ import {
   productionChangeRecipe,
   productionEntityStatusRecipe,
   productionPresenceRecipe,
-  productionProposalModeRecipe,
+  productionWorkspaceModeRecipe,
   productionReferencePresenceRecipe,
   productionStatusRecipe,
   productionUnitStatusRecipe,
@@ -26,7 +26,7 @@ test('production unit and entity statuses map to UI semantic recipes', () => {
   assert.deepEqual(productionEntityStatusRecipe('candidate'), { intent: 'info', emphasis: 'soft' })
   assert.deepEqual(productionEntityStatusRecipe('missing'), { intent: 'warning', emphasis: 'soft' })
   assert.deepEqual(productionEntityStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(productionEntityStatusRecipe('draft'), { intent: 'neutral', emphasis: 'soft' })
+  assert.deepEqual(productionEntityStatusRecipe('workspace'), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('production availability, diff, and timeline recipes keep business meaning explicit', () => {
@@ -38,6 +38,6 @@ test('production availability, diff, and timeline recipes keep business meaning 
   assert.deepEqual(productionChangeRecipe('before'), { intent: 'danger', emphasis: 'soft' })
   assert.deepEqual(productionChangeRecipe('after'), { intent: 'success', emphasis: 'soft' })
   assert.deepEqual(productionChangeRecipe('blocked'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(productionProposalModeRecipe(true), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(productionProposalModeRecipe(false), { intent: 'neutral', emphasis: 'soft' })
+  assert.deepEqual(productionWorkspaceModeRecipe(true), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(productionWorkspaceModeRecipe(false), { intent: 'neutral', emphasis: 'soft' })
 })

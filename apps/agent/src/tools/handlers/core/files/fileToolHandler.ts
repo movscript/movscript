@@ -161,11 +161,11 @@ function selectJSONPointerValue(content: string, path: string): JSONValue {
   try {
     value = JSON.parse(content) as unknown
   } catch (error) {
-    throw new Error(`read_draft_file jsonPointer requires JSON draft content: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`read_workspace_file jsonPointer requires JSON workspace content: ${error instanceof Error ? error.message : String(error)}`)
   }
-  if (!isJSONValue(value)) throw new Error('read_draft_file jsonPointer resolved non-JSON draft content')
+  if (!isJSONValue(value)) throw new Error('read_workspace_file jsonPointer resolved non-JSON workspace content')
   if (path === '') return value
-  if (!path.startsWith('/')) throw new Error('read_draft_file jsonPointer must be a JSON pointer')
+  if (!path.startsWith('/')) throw new Error('read_workspace_file jsonPointer must be a JSON pointer')
   let current: unknown = value
   for (const segment of decodeToolJSONPointer(path)) {
     if (Array.isArray(current)) {

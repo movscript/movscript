@@ -40,17 +40,17 @@ test('content workbench AI prompt forbids operation-style patches', () => {
   assert.match(prompt, /完整草案快照和当前快照做对比/)
 })
 
-test('content workbench AI prompt defines the draft envelope contract', () => {
+test('content workbench AI prompt defines the workspace envelope contract', () => {
   const prompt = buildContentWorkbenchAiSuggestPrompt({
     momentTitle: '旧伞纸条滑落',
     sceneMomentId: 402,
   })
 
-  assert.match(prompt, /content_unit_proposal/)
-  assert.match(prompt, /movscript\.content_unit_proposal\.v1/)
-  assert.match(prompt, /\{"scene_moment_id": 402, "proposal": \{"units": \[\.\.\.\]\}\}/)
+  assert.match(prompt, /content_unit_workspace/)
+  assert.match(prompt, /movscript\.content_unit_workspace\.v1/)
+  assert.match(prompt, /\{"scene_moment_id": 402, "workspace": \{"units": \[\.\.\.\]\}\}/)
   assert.match(prompt, /unit\.timing/)
-  assert.match(prompt, /不要在 content_unit_proposal 里创建 production 级 preview_timeline/)
+  assert.match(prompt, /不要在 content_unit_workspace 里创建 production 级 preview_timeline/)
 })
 
 test('content workbench visual taskGraph prompt keeps a full snapshot and selected unit focus', () => {
@@ -75,7 +75,7 @@ test('content workbench visual taskGraph prompt keeps a full snapshot and select
   })
 
   assert.match(prompt, /\[SELECTED\] 纸条特写/)
-  assert.match(prompt, /proposal\.units 必须包含当前情节的完整制作项快照/)
+  assert.match(prompt, /workspace\.units 必须包含当前情节的完整制作项快照/)
   assert.match(prompt, /visual_taskGraph/)
   assert.match(prompt, /storyboard_brief/)
   assert.match(prompt, /beats、props、risks、keyframe_suggestions 使用字符串数组/)

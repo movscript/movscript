@@ -115,7 +115,9 @@ export function AgentConversationThreadSection({
     planSnapshot: activePlanSnapshot,
   }) && (pinnedStatusExpanded ?? true), [activePlanSnapshot, currentPlan, generationProgressStates, pinnedStatusExpanded])
   const activeRunId = activeRun?.id
-  const suppressedInteractionRunIds = useMemo(() => activeRunId && !isTerminalAgentRunStatus(activeRun?.status)
+  const suppressedInteractionRunIds = useMemo(() => activeRunId
+    && activeRun?.status !== 'requires_action'
+    && !isTerminalAgentRunStatus(activeRun?.status)
     ? new Set([activeRunId])
     : new Set<string>(), [activeRun?.status, activeRunId])
   const threadItems = useMemo(() => buildAgentConversationThreadItems({

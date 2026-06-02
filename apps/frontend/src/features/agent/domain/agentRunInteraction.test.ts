@@ -105,7 +105,7 @@ test('run interaction echo helpers hide accepted runtime input answer echoes', (
   assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), true)
 })
 
-test('run interaction echo helpers hide local input answer drafts before echoes hydrate', () => {
+test('run interaction echo helpers hide local input answer workspaces before echoes hydrate', () => {
   const message: ChatMessage = {
     id: 'msg_echo',
     role: 'user',

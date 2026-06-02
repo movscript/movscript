@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildKeyframeGenerationPrompt,
-  contentUnitEditDraftEqualsRecord,
-  contentUnitEditDraftFromRecord,
+  contentUnitEditWorkspaceEqualsRecord,
+  contentUnitEditWorkspaceFromRecord,
   contentUnitEditPayload,
   frameRoleLabel,
-  keyframeEditDraftFromRecord,
+  keyframeEditWorkspaceFromRecord,
   keyframeFrameRoleLabel,
   keyframeGenerationStatusLabel,
   keyframeHasOutput,
@@ -47,14 +47,14 @@ test('content workbench edit model round-trips visual taskGraph and storyboard m
     }),
   }
 
-  const draft = contentUnitEditDraftFromRecord(unit)
+  const workspace = contentUnitEditWorkspaceFromRecord(unit)
 
-  assert.equal(draft.visual_task_graph_beats, '停顿\n回头')
-  assert.equal(draft.storyboard_keyframe_suggestions, '首帧\n尾帧')
-  assert.equal(contentUnitEditDraftEqualsRecord(draft, unit), true)
+  assert.equal(workspace.visual_task_graph_beats, '停顿\n回头')
+  assert.equal(workspace.storyboard_keyframe_suggestions, '首帧\n尾帧')
+  assert.equal(contentUnitEditWorkspaceEqualsRecord(workspace, unit), true)
 
   const payload = contentUnitEditPayload({
-    ...draft,
+    ...workspace,
     duration_sec: '5',
     visual_task_graph_props: '伞\n门牌',
   })
@@ -74,7 +74,7 @@ test('content workbench edit model derives keyframe roles and titles', () => {
   assert.equal(keyframeOrderForRole('first', [{ ID: 1, order: 1 }, { ID: 2, order: 3 }]), 4)
   assert.equal(keyframeTitleForRole('last', { ID: 9, title: '雨夜特写' }, ''), '尾帧 · 雨夜特写')
 
-  const draft = keyframeEditDraftFromRecord({
+  const workspace = keyframeEditWorkspaceFromRecord({
     ID: 2,
     title: '尾帧',
     order: 3,
@@ -82,8 +82,8 @@ test('content workbench edit model derives keyframe roles and titles', () => {
     metadata_json: JSON.stringify({ frame_role: 'last' }),
   })
 
-  assert.equal(draft.frame_role, 'last')
-  assert.equal(draft.prompt, 'end frame')
+  assert.equal(workspace.frame_role, 'last')
+  assert.equal(workspace.prompt, 'end frame')
 })
 
 test('content workbench edit model tracks keyframe generation jobs', () => {

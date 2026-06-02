@@ -36,9 +36,9 @@ test('applyRuntimeTaskProtocolEvents records status progress and artifact change
     ownerRunId: 'run_worker',
     artifacts: [{
       id: 'artifact_1',
-      type: 'draft',
-      title: 'Draft',
-      uri: 'draft:1',
+      type: 'workspace',
+      title: 'Workspace',
+      uri: 'workspace:1',
       createdAt: '2026-01-01T00:00:00.000Z',
     }],
   })

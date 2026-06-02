@@ -51,7 +51,7 @@ import { assetCoverage, assetSlotAction } from '@/shared/domain/productionTermin
 import {
   preProductionCountRecipe,
   preProductionCoverageRecipe,
-  preProductionDraftRecipe,
+  preProductionWorkspaceRecipe,
   preProductionQueueDetailRecipe,
   preProductionSlotActionRecipe,
 } from '@/features/pre-production/presentation/preProductionSemanticUi'
@@ -160,7 +160,7 @@ export function PreProductionAssetBoard({
             {loading ? <ResourcePrepLoadingState>加载中</ResourcePrepLoadingState> : null}
             {!loading && clusters.length === 0 && !creatingReference ? <EmptyPreview title="暂无前期资料" description="先创建设定，再为它添加要准备的素材。" /> : null}
             <ResourcePrepSidebarList>
-              {creatingReference ? <DraftReferenceClusterButton /> : null}
+              {creatingReference ? <WorkspaceReferenceClusterButton /> : null}
               {clusters.map((cluster) => (
                 <ReferenceClusterButton
                   key={cluster.reference?.ID ?? 'unbound'}
@@ -236,7 +236,7 @@ export function PreProductionAssetBoard({
                 >
                   {creatingReference || queueReferenceRows.length > 0 ? (
                     <ResourcePrepAssetGrid>
-                      {creatingReference ? <DraftReferencePrepItem /> : null}
+                      {creatingReference ? <WorkspaceReferencePrepItem /> : null}
                       {queueReferenceRows.map((cluster) => (
                         <ReferencePrepItem
                           key={cluster.reference?.ID}
@@ -492,22 +492,22 @@ function ReferencePrepMedia({ cluster }: { cluster: ReferenceAssetCluster }) {
   )
 }
 
-function DraftReferencePrepItem() {
+function WorkspaceReferencePrepItem() {
   return (
     <ResourcePrepEntityCard
       active
-      data-draft
+      data-workspace
       media={(
-        <ResourcePrepThumbnail icon={Sparkles} frame="draft" />
+        <ResourcePrepThumbnail icon={Sparkles} frame="workspace" />
       )}
       title="未命名设定"
       description="人物 · 编辑中"
-      status={<ResourcePrepStatusBadge {...preProductionDraftRecipe()} label="新建" />}
+      status={<ResourcePrepStatusBadge {...preProductionWorkspaceRecipe()} label="新建" />}
     />
   )
 }
 
-export function SlotThumb({ slot, fit = 'cover', ratio = 'default', frame = 'card' }: { slot?: AssetSlotRecord; fit?: MediaFit; ratio?: 'square' | 'wide' | 'banner' | 'default'; frame?: 'card' | 'strip' | 'fill' | 'banner' | 'draft' }) {
+export function SlotThumb({ slot, fit = 'cover', ratio = 'default', frame = 'card' }: { slot?: AssetSlotRecord; fit?: MediaFit; ratio?: 'square' | 'wide' | 'banner' | 'default'; frame?: 'card' | 'strip' | 'fill' | 'banner' | 'workspace' }) {
   const resource = slot?.resource
   if (!resource?.url) {
     return <ResourcePrepThumbnail icon={slotKindIcon(slot?.kind)} fit={fit} ratio={ratio} frame={frame} />
@@ -641,12 +641,12 @@ function ClusterPreviewStrip({
   )
 }
 
-function DraftReferenceClusterButton() {
+function WorkspaceReferenceClusterButton() {
   return (
     <ResourcePrepSummaryCard
       title="未命名设定"
       description="人物 · 编辑中"
-      status={<ResourcePrepStatusBadge {...preProductionDraftRecipe()} label="新建" />}
+      status={<ResourcePrepStatusBadge {...preProductionWorkspaceRecipe()} label="新建" />}
       active
     >
       <ResourcePrepSummaryStatusGrid>

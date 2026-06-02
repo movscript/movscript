@@ -124,7 +124,7 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
     nameConflicts: [{ subagentName: 'Einstein', taskIds: ['task_a', 'task_b'] }],
     tasks: [
       task({ id: 'task_a', title: 'Research', status: 'running', ownerRunId: 'run_a' }),
-      task({ id: 'task_b', title: 'Draft', status: 'blocked' }),
+      task({ id: 'task_b', title: 'Workspace', status: 'blocked' }),
     ],
     runs: [
       run({ id: 'run_a', role: 'worker', status: 'in_progress', taskId: 'task_a', taskGraphId: 'task_graph_1' }),
@@ -134,12 +134,12 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
   assert.deepEqual(buildPlanNameConflictViews(planSnapshot), [{
     subagentName: 'Einstein',
     taskIds: ['task_a', 'task_b'],
-    taskTitles: ['Research', 'Draft'],
+    taskTitles: ['Research', 'Workspace'],
     entries: [
       { taskId: 'task_a', taskTitle: 'Research', taskStatus: 'running', ownerRunId: 'run_a', ownerRunStatus: 'in_progress' },
-      { taskId: 'task_b', taskTitle: 'Draft', taskStatus: 'blocked', ownerRunId: undefined, ownerRunStatus: undefined },
+      { taskId: 'task_b', taskTitle: 'Workspace', taskStatus: 'blocked', ownerRunId: undefined, ownerRunStatus: undefined },
     ],
-    label: 'Einstein: Research, Draft',
+    label: 'Einstein: Research, Workspace',
   }])
   assert.equal(buildPlanStatusExplanation(planSnapshot), '1 个子 agent 重名 · 1 个执行器运行中 · 1 个被阻塞')
 })
@@ -160,7 +160,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
         blockedReason: 'Need storyboard direction',
         metadata: { subagentName: 'Einstein', retryAttempt: 2, maxTaskAttempts: 3, previousOwnerRunId: 'run_previous', previousStatus: 'failed', timedOutRunId: 'run_timeout', workerTimeoutMs: 900000 },
         artifacts: [
-          { id: 'artifact_1', type: 'draft', title: 'Storyboard notes', metadata: { subagentName: 'Einstein', sourceRunId: 'run_worker', sourceTaskId: 'task_source' }, createdAt: '2026-05-12T00:00:00.000Z' },
+          { id: 'artifact_1', type: 'workspace', title: 'Storyboard notes', metadata: { subagentName: 'Einstein', sourceRunId: 'run_worker', sourceTaskId: 'task_source' }, createdAt: '2026-05-12T00:00:00.000Z' },
           { id: 'artifact_2', type: 'rollback-policy', metadata: { sourceRunId: 'run_worker' }, createdAt: '2026-05-12T00:00:01.000Z' },
         ],
       }),
@@ -368,7 +368,7 @@ test('buildPlanOverviewStats prefers backend summary and falls back locally', ()
 
   const withoutSummary = snapshot({
     tasks: [
-      task({ id: 'task_done', title: 'Done', status: 'done', artifacts: [{ id: 'artifact_1', type: 'draft', title: 'Draft', createdAt: '2026-05-12T00:00:00.000Z' }] }),
+      task({ id: 'task_done', title: 'Done', status: 'done', artifacts: [{ id: 'artifact_1', type: 'workspace', title: 'Workspace', createdAt: '2026-05-12T00:00:00.000Z' }] }),
       task({ id: 'task_pending', title: 'Pending', status: 'pending' }),
     ],
     runs: [
@@ -432,14 +432,14 @@ test('buildPlanArtifactSummary aggregates taskGraph artifacts by recency and typ
         status: 'done',
         ownerRunId: 'run_source',
         artifacts: [
-          { id: 'artifact_old', type: 'draft', title: 'Older draft', metadata: { subagentName: 'Einstein', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:00:00.000Z' },
+          { id: 'artifact_old', type: 'workspace', title: 'Older workspace', metadata: { subagentName: 'Einstein', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:00:00.000Z' },
         ],
       }),
       task({
         id: 'task_b',
         title: 'Second',
         artifacts: [
-          { id: 'artifact_new', type: 'draft', title: 'Newer draft', metadata: { sourceRunId: 'run_b' }, createdAt: '2026-05-12T00:01:00.000Z' },
+          { id: 'artifact_new', type: 'workspace', title: 'Newer workspace', metadata: { sourceRunId: 'run_b' }, createdAt: '2026-05-12T00:01:00.000Z' },
           { id: 'artifact_policy', type: 'rollback-policy', title: 'Rollback', metadata: { sourceRunId: 'run_b', policy: 'manual_compensation' }, createdAt: '2026-05-12T00:02:00.000Z' },
           { id: 'artifact_cross_task', type: 'review', title: 'Cross task review', metadata: { sourceTaskId: 'task_a', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:03:00.000Z' },
         ],
@@ -449,7 +449,7 @@ test('buildPlanArtifactSummary aggregates taskGraph artifacts by recency and typ
 
   assert.equal(summary.totalCount, 4)
   assert.deepEqual(summary.byType, [
-    { type: 'draft', count: 2 },
+    { type: 'workspace', count: 2 },
     { type: 'review', count: 1 },
     { type: 'rollback-policy', count: 1 },
   ])
@@ -467,7 +467,7 @@ test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () 
     id: 'task_artifacts',
     title: 'Artifact task',
     artifacts: [
-      { id: 'artifact_old', type: 'draft', title: 'Old draft', metadata: { sourceRunId: 'run_old' }, createdAt: '2026-05-12T00:00:00.000Z' },
+      { id: 'artifact_old', type: 'workspace', title: 'Old workspace', metadata: { sourceRunId: 'run_old' }, createdAt: '2026-05-12T00:00:00.000Z' },
       { id: 'artifact_new', type: 'review', title: 'New review', uri: 'agent://artifact/new', metadata: { sourceRunId: 'run_new', sourceTaskId: 'task_source', toolName: 'tool_review', subagentName: 'Hawking' }, createdAt: '2026-05-12T00:00:02.000Z' },
     ],
   })
