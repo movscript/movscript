@@ -164,7 +164,6 @@ export default function AgentConsolePage() {
     return {
       total: skills.length,
       enabled: skills.filter((skill) => skill.enabled !== false).length,
-      review: skills.filter((skill) => skill.loadMode === 'manual').length,
     }
   }, [inspectQuery.data?.skills])
   const issues = useMemo<ConsoleIssue[]>(() => buildConsoleIssues({
@@ -232,14 +231,14 @@ export default function AgentConsolePage() {
               {loading && <AgentConsoleSyncBadge>同步中</AgentConsoleSyncBadge>}
             </AgentConsoleHeaderTitleRow>
             <AgentConsoleHeaderDescription>
-              管理 Agent 的配置、插件、运行记录、高级诊断和草稿索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
+              管理 Agent 的配置文件、已安装能力、可执行工具、运行记录、高级诊断和草稿索引。创作者仍从业务页面的对比审阅视图处理 Agent 建议。
             </AgentConsoleHeaderDescription>
           </AgentConsoleHeaderCopy>
           <AgentConsoleHeaderActions>
             <AgentConsoleActionButton asChild size="sm" variant="outline">
               <Link to={ROUTES.agentSettings}>
                 <Settings size={14} />
-                模型与能力配置
+                配置文件与能力设置
               </Link>
             </AgentConsoleActionButton>
             <AgentConsoleActionButton
@@ -332,8 +331,12 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="管理入口" icon={<Terminal size={14} />}>
               <AgentConsoleGrid>
-                <ManagementLink to={ROUTES.agentSettings} icon={<Settings size={14} />} title="模型与能力配置" detail="模型、Run Presets、Profiles、Skills、Tools policy。" />
-                <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="插件" detail="应用插件、画布节点、工具页，以及可安装到 Agent 的 Skill bundle。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-config-files')} icon={<Settings size={14} />} title="配置文件" detail="管理当前激活配置文件、配置列表、复制、回滚和导入导出。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-installed-capabilities')} icon={<Blocks size={14} />} title="已安装能力" detail="查看本地 Pack、插件来源、Catalog reload 和安装状态。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-skills')} icon={<Cable size={14} />} title="Skills" detail="管理当前配置文件的 Skill 激活候选、依赖和冲突。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-tools')} icon={<Terminal size={14} />} title="Tools" detail="管理当前配置文件的工具授权、审批、风险和运行可用性。" />
+                <ManagementLink to={agentSettingsSectionPath('agent-settings-model')} icon={<Settings size={14} />} title="模型与运行限制" detail="配置模型、API 模式、预算和默认审批行为。" />
+                <ManagementLink to={ROUTES.plugins} icon={<Blocks size={14} />} title="Pack / 插件市场" detail="Pack 是安装和发布单元；插件市场是未来的 Pack 来源之一，也承载应用插件、画布节点和工具页。" />
                 <ManagementLink to={ROUTES.agentRuns} icon={<ListTree size={14} />} title="运行记录" detail="统一查看 Run 状态，并进入 trace 详情。" />
                 <ManagementLink to={ROUTES.agentDebug} icon={<Terminal size={14} />} title="高级诊断" detail="Prompt preview、工具控制台、调试包。" />
                 <ManagementLink to={ROUTES.agentDrafts} icon={<FileSearch size={14} />} title="草稿索引" detail={`${drafts.length} 个待业务审阅草稿，可追踪来源。`} />
@@ -865,7 +868,7 @@ function buildConsoleIssues(input: {
   }
   if (input.blockedTools > 0 || input.capabilityWarnings > 0) {
     issues.push({
-      id: 'tool-policy',
+      id: 'tool-permissions',
       tone: 'warning',
       title: '工具能力存在限制',
       detail: `${input.blockedTools} 个工具不可用，${input.capabilityWarnings} 条能力警告。`,
@@ -895,6 +898,10 @@ function summarizeRuns(runs: AgentRun[]) {
 
 function sortRuns(runs: AgentRun[]) {
   return [...runs].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+}
+
+function agentSettingsSectionPath(sectionId: string): string {
+  return `${ROUTES.agentSettings}#${encodeURIComponent(sectionId)}`
 }
 
 function modelDisplay(value: string) {

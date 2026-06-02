@@ -145,12 +145,12 @@ test('completeSendRunResult does not append a plain assistant summary for requir
 
   const items = buildAgentConversationMessageItems({
     messages: projectedMessages,
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map([[approvalResultMessage.id, [approvalRun]]]),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([[approvalResultMessage.id, [approvalRun]]]),
   })
-  const approvalMessage = items.find((item) => item.beforeMessageWorkflowRuns.some((run) => run.id === 'run_1'))
+  const approvalMessage = items.find((item) => item.beforeMessageInteractionRuns.some((run) => run.id === 'run_1'))
   assert.ok(approvalMessage)
-  assert.equal(approvalMessage?.beforeMessageWorkflowRuns[0]?.pendingApprovals?.[0]?.toolName, 'generation_job_create')
+  assert.equal(approvalMessage?.beforeMessageInteractionRuns[0]?.pendingApprovals?.[0]?.toolName, 'generation_job_create')
 })
 
 function depsFixture(calls: string[]): CompleteSendRunResultDeps {
@@ -223,10 +223,8 @@ function draft(localRuntime: NonNullable<AgentSendDraft['localRuntime']> = {}): 
     model: { id: 1 },
     agent: { id: null },
     settings: {
-      permissionMode: 'ask',
       includeProjectContext: true,
       includeRecentResources: false,
-      autoTaskGraph: false,
     },
     contextLabels: [],
     context: { recentResources: [] },
@@ -289,8 +287,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

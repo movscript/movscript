@@ -12,8 +12,8 @@ async function main() {
   const authToken = args.authToken ?? args['auth-token'] ?? process.env.MOVSCRIPT_AUTH_TOKEN
   const includeInactive = args.includeInactive === true || args['include-inactive'] === true
 
-  const health = await getJSON(`${agentBaseURL}/health`)
-  const mcpEndpoint = args.mcpEndpoint ?? args['mcp-endpoint'] ?? health.mcpEndpoint ?? process.env.MOVSCRIPT_MCP_ENDPOINT ?? DEFAULT_MCP_ENDPOINT
+  const runtimeCapabilities = await getJSON(`${agentBaseURL}/runtime/capabilities`)
+  const mcpEndpoint = args.mcpEndpoint ?? args['mcp-endpoint'] ?? runtimeCapabilities.mcpEndpoint ?? process.env.MOVSCRIPT_MCP_ENDPOINT ?? DEFAULT_MCP_ENDPOINT
   await mcpCall(mcpEndpoint, 'initialize', {
     protocolVersion: '2025-06-18',
     clientInfo: { name: 'asset-proposal-draft-slot-check', version: '0.1.0' },
@@ -87,7 +87,7 @@ async function main() {
   const report = {
     projectId,
     draftId: draft.id,
-    draftPath: health.draftPath,
+    draftPath: runtimeCapabilities.paths?.draftPath,
     agentBaseURL,
     mcpEndpoint,
     backendBaseURL,

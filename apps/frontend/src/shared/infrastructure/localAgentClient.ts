@@ -1,12 +1,37 @@
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { getAPIV1BaseURL } from '@/shared/infrastructure/config'
-import type { AgentDraftKind } from '@/shared/contracts/agentDraft'
-import { AGENT_RUNTIME_EVENT_V2_SCHEMA, AGENT_TRACE_EVENT_KINDS } from '@movscript/protocol'
+import type { AgentRuntimeTransport } from '@/shared/infrastructure/agentRuntimeTransport'
+import {
+  DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS,
+  DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS,
+  DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS,
+  runtimeLocalAgentBaseURL,
+  runtimeLocalAgentTransport,
+  TERMINAL_RUN_STATUSES,
+} from '@/shared/infrastructure/local-agent-client/config'
+import {
+  isLocalAgentNotFoundError,
+  isRetryableRunStreamError,
+  localAgentResponseError,
+  LocalAgentHTTPError,
+  localAgentStreamError,
+} from '@/shared/infrastructure/local-agent-client/errors'
+import {
+  createLocalAgentAbortError,
+  createLocalAgentRequestSignal,
+  normalizePositiveTimeoutMs,
+  sleepWithAbort,
+} from '@/shared/infrastructure/local-agent-client/requestSignal'
+import { withRuntimeModelConfigError } from '@/shared/infrastructure/local-agent-client/modelConfigError'
+import { parseRuntimeEvent } from '@/shared/infrastructure/local-agent-client/runtimeEvent'
+import { minimalResolvedThread } from '@/shared/infrastructure/local-agent-client/threadResolution'
+import { AGENT_TRACE_EVENT_KINDS } from '@movscript/protocol'
 import { runtimeRunFromEvent, runtimeRunIdFromEvent } from '@movscript/event-state'
 import type {
   AgentApprovalRequest,
   AgentCapabilitiesResponse,
-  AgentCatalogProfile,
+  AgentCatalogConfigFile,
+  AgentCatalogPack,
   AgentCatalogSkill,
   AgentClientInput,
   AgentDebugTool,
@@ -22,7 +47,7 @@ import type {
   AgentPlanTaskStatus,
   AgentRun,
   AgentRunInput,
-  AgentRunPolicy,
+  AgentRuntimeLimits,
   AgentRunRole,
   AgentRunPreview,
   AgentRunStatus,
@@ -67,13 +92,48 @@ import type {
   RuntimeWork,
   ToolCall,
   UpdateTaskGraphResult,
-} from '@movscript/protocol'
+  AgentToolCall,
+  AgentRuntimeLimitsOverride,
+  AgentThreadListQuery,
+  AgentHealth,
+  AgentRuntimeTelemetryMetricSample,
+  AgentRuntimeTelemetryLogEntry,
+  AgentRuntimeTelemetrySpan,
+  AgentRuntimeTelemetryOperation,
+  AgentRuntimeTelemetrySnapshot,
+  AgentMemoryScope,
+  AgentMemoryKind,
+  AgentDraftKind,
+  AgentDraftStatus,
+  AgentMemory,
+  AgentDraft,
+  AgentDraftApplyReview,
+  AgentDraftApplyPreview,
+  AgentRunTraceResponse,
+  AgentRunDebugLedger,
+  AgentRunDebugEvidenceKind,
+  AgentRunDebugEvidenceRef,
+  AgentRunDebugEvidenceRefQuery,
+  AgentRunDebugEvidenceRefResponse,
+  AgentRunDebugEvidence,
+  AgentTraceDebugView,
+  AgentRunGenerationView,
+  AgentPackFile,
+  AgentPackInstallResult,
+  AgentPackUninstallResult,
+  RunMessageOptions,
+  ThreadStreamOptions,
+  SessionStreamOptions,
+  PlanStreamOptions,
+} from '@/shared/infrastructure/local-agent-client/types'
 
 export { AGENT_TRACE_EVENT_KINDS }
+export { isLocalAgentNotFoundError, LocalAgentHTTPError }
 export type {
   AgentApprovalRequest,
   AgentCapabilitiesResponse,
-  AgentCatalogProfile,
+  AgentCatalogConfigFile,
+  AgentCatalogPack,
   AgentCatalogSkill,
   AgentClientInput,
   AgentDebugTool,
@@ -89,7 +149,7 @@ export type {
   AgentPlanTaskStatus,
   AgentRun,
   AgentRunInput,
-  AgentRunPolicy,
+  AgentRuntimeLimits,
   AgentRunRole,
   AgentRunPreview,
   AgentRunStatus,
@@ -134,681 +194,71 @@ export type {
   RuntimeWork,
   ToolCall,
   UpdateTaskGraphResult,
-}
-
-export type AgentToolCall = ToolCall
-
-export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'workflow'>>
-
-export interface AgentThreadListQuery {
-  cursor?: string
-  limit?: number
-}
-
-export interface AgentHealth {
-  ok: boolean
-  service: string
-  mode: string
-  mcpEndpoint: string
-  runtime?: {
-    apiVersion: number
-    features: string[]
-    endpoints: string[]
-  }
-  paths?: {
-    statePath: string
-    memoryPath: string
-    draftPath: string
-    modelConfigPath: string
-  }
-  modelConfigPath?: string
-  modelConfig?: RuntimeModelConfigPublic
-  modelCapabilities?: RuntimeModelCapabilityRoutePublic[]
-  pluginCatalog?: {
-    skillsDir: string
-    toolsDir: string
-    builtinSkillsDir?: string
-    builtinToolsDir?: string
-    skillCount: number
-    toolCount: number
-    warnings?: string[]
-  }
-}
-
-export interface AgentRuntimeTelemetryMetricSample {
-  name: string
-  value: number
-  unit: 'ms' | 'bytes' | 'count'
-  createdAt: string
-  labels?: Record<string, string | number | boolean>
-}
-
-export interface AgentRuntimeTelemetryLogEntry {
-  level: 'info' | 'warning' | 'error'
-  message: string
-  createdAt: string
-  operationId?: string
-  spanId?: string
-  details?: Record<string, unknown>
-}
-
-export interface AgentRuntimeTelemetrySpan {
-  id: string
-  traceEventId?: string
-  runId: string
-  threadId?: string
-  kind: string
-  name: string
-  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
-  startedAt: string
-  endedAt?: string
-  durationMs?: number
-  toolName?: string
-  labels?: Record<string, string | number | boolean>
-}
-
-export interface AgentRuntimeTelemetryOperation {
-  id: string
-  kind: string
-  status: 'running' | 'success' | 'error'
-  startedAt: string
-  updatedAt: string
-  endedAt?: string
-  durationMs?: number
-  runId?: string
-  threadId?: string
-  requestPath?: string
-  method?: string
-  phases: Array<{ name: string; label: string; at: string; offsetMs: number; deltaMs: number; details?: Record<string, unknown> }>
-}
-
-export interface AgentRuntimeTelemetrySnapshot {
-  schema: 'movscript.agent.runtime-telemetry.v1'
-  generatedAt: string
-  service: {
-    name: 'movscript-agent'
-    storage: 'memory'
-    metricsEndpoint: '/metrics'
-    snapshotEndpoint: '/runtime/telemetry'
-  }
-  retention: {
-    operations: number
-    spans: number
-    metrics: number
-    logs: number
-  }
-  operations: AgentRuntimeTelemetryOperation[]
-  spans: AgentRuntimeTelemetrySpan[]
-  metrics: AgentRuntimeTelemetryMetricSample[]
-  logs: AgentRuntimeTelemetryLogEntry[]
-  summary: {
-    operationCount: number
-    runningOperationCount: number
-    slowOperationCount: number
-    errorOperationCount: number
-    spanCount: number
-    slowSpanCount: number
-    errorSpanCount: number
-  }
-}
-
-export type AgentMemoryScope = 'global' | 'project' | 'thread'
-export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
-export type { AgentDraftKind }
-export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
-
-export interface AgentMemory {
-  id: string
-  scope: AgentMemoryScope
-  projectId?: number
-  threadId?: string
-  kind: AgentMemoryKind
-  content: string
-  sourceRunId?: string
-  sourceMessageId?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface AgentDraft {
-  id: string
-  filePath?: string
-  projectId?: number
-  kind: AgentDraftKind
-  title: string
-  content: string
-  status: AgentDraftStatus
-  source?: Record<string, unknown>
-  target?: Record<string, unknown>
-  createdByRunId?: string
-  createdByThreadId?: string
-  appliedByUserId?: number | string
-  appliedAt?: string
-  rejectedReason?: string
-  metadata?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-}
-
-export interface AgentDraftApplyReview {
-  draftId: string
-  draftTitle: string
-  draftKind: AgentDraftKind
-  target: Record<string, unknown>
-  currentValue: unknown
-  proposedValue: unknown
-  risk: 'write'
-  sideEffect: string
-  requiresBackendApply: boolean
-}
-
-export interface AgentDraftApplyPreview {
-  status: 'preview' | 'applied'
-  review: AgentDraftApplyReview
-  draft: AgentDraft
-  message: string
-  backendApply?: Record<string, unknown>
-}
-
-export class LocalAgentHTTPError extends Error {
-  constructor(
-    readonly status: number,
-    readonly responseText: string,
-    message: string,
-  ) {
-    super(`local agent returned ${status}: ${message}`)
-  }
-}
-
-export function isLocalAgentNotFoundError(error: unknown): boolean {
-  return error instanceof LocalAgentHTTPError
-    ? error.status === 404
-    : error instanceof Error && /^local agent returned 404:/.test(error.message)
-}
-
-export type AgentRunTraceResponse = AgentRunTracePage
-
-export interface AgentRunDebugLedger {
-  schema: 'movscript.agent.run-debug-ledger.v1'
-  runId: string
-  generatedAt: string
-  budget: { maxChars: number; estimatedChars: number; truncated: boolean }
-  run: {
-    status: AgentRunStatus
-    role?: AgentRunRole
-    objective?: string
-    currentRound?: number
-    error?: string
-    warnings: string[]
-  }
-  context: {
-    promptChars?: number
-    messageCount?: number
-    systemMessageCount?: number
-    activeSkillIds: string[]
-    availableToolNames: string[]
-    blockedToolCount?: number
-    droppedSummary: {
-      count: number
-      totalOriginalChars: number
-      totalRenderedChars: number
-      samples: Array<{ eventId: string; originalChars: number; renderedChars: number; reason?: string }>
-    }
-    layers: Array<{ label: string; chars: number }>
-  }
-  modelCalls: Array<{
-    callId: string
-    roundIndex?: number
-    status: 'request_only' | 'complete' | 'failed' | 'result_only'
-    model?: string
-    messageCount?: number
-    toolCount?: number
-    httpStatus?: number
-    latencyMs?: number
-    inputTokens?: number
-    outputTokens?: number
-    responseChars?: number
-    retryCount?: number
-    evidenceRefs: string[]
-    issue?: string
-  }>
-  toolCalls: Array<{
-    eventId: string
-    roundIndex?: number
-    toolName: string
-    status: AgentTraceEvent['status']
-    durationMs?: number
-    summary?: string
-    argsEvidenceRef?: string
-    resultEvidenceRef?: string
-    issue?: string
-  }>
-  decisions: Array<{ eventId: string; kind: 'policy' | 'approval' | 'input' | 'skill' | 'context'; summary: string; impact?: string }>
-  attention: Array<{ eventId: string; severity: 'info' | 'warning' | 'error' | 'blocked'; title: string; summary?: string; nextAction?: string }>
-  evidenceIndex: AgentRunDebugEvidenceRef[]
-}
-
-export type AgentRunDebugEvidenceKind = 'model_request' | 'model_response' | 'tool_args' | 'tool_result' | 'raw_event'
-
-export interface AgentRunDebugEvidenceRef {
-  evidenceId: string
-  eventId: string
-  kind: AgentRunDebugEvidenceKind
-  label: string
-  chars: number
-  preview: string
-  fetchPath: string
-  refKeys?: string[]
-  contentHashes?: string[]
-  resultHashes?: string[]
-  contextBundleIds?: string[]
-}
-
-export interface AgentRunDebugEvidenceRefQuery {
-  kind?: AgentRunDebugEvidenceKind
-  contextBundleId?: string
-  refKey?: string
-  contentHash?: string
-  resultHash?: string
-}
-
-export interface AgentRunDebugEvidenceRefResponse {
-  runId: string
-  evidenceRefs: AgentRunDebugEvidenceRef[]
-}
-
-export interface AgentRunDebugEvidence {
-  schema: 'movscript.agent.run-debug-evidence.v1'
-  runId: string
-  evidenceId: string
-  eventId: string
-  kind: AgentRunDebugEvidenceKind
-  chars: number
-  value: unknown
-}
-
-export interface AgentTraceDebugView {
-  schema: 'movscript.agent-trace-debug-view.v1'
-  generatedAt: string
-  runId: string
-  run: AgentRun
-  trace: { loaded: number; total: number; hasMore: false }
-  coverage: {
-    loadedLabel: string
-    hasUnloadedTrace: boolean
-    modelCallsLabel: string
-    promptDetailsLabel: string
-    messageWritesLabel: string
-    toolDetailsLabel: string
-    httpResponsesLabel: string
-    requestPayloadsLabel: string
-    httpResponseBodiesLabel: string
-    tokenUsageLabel: string
-    issues: string[]
-  }
-  readinessChecklist: Array<{ id: string; label: string; status: 'ok' | 'warning'; detail: string; action: string }>
-  modelCalls: Array<{
-    id: string
-    label: string
-    roundId?: string
-    roundIndex?: number
-    roundLabel?: string
-    correlateByEventWindow?: boolean
-    eventIds: string[]
-    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
-    statusLabel: string
-    requestEventId?: string
-    responseEventId?: string
-    resultEventId?: string
-    model?: string
-    messageCount?: string
-    toolCount?: string
-    httpStatus?: string
-    latency?: string
-    responseChars?: string
-    inputTokens?: string
-    outputTokens?: string
-    retryCount?: string
-    error?: string
-    issue?: string
-    hasRequestPayload: boolean
-    hasResponseBody: boolean
-  }>
-  modelCallContexts: Array<{
-    callId: string
-    label: string
-    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
-    statusLabel: string
-    correlationLabel: string
-    requestEventId?: string
-    responseEventId?: string
-    resultEventId?: string
-    modelEventIds: string[]
-    toolCalls: Array<{ eventId: string; toolName?: string; status: string; statusLabel: string; summary?: string }>
-    messageWrites: Array<{ eventId: string; messageId?: string; source?: string; sourceLabel?: string; contentChars: number; contentPreview?: string }>
-    issue?: string
-  }>
-  runtimeSummary: {
-    skills: {
-      activeSkillIds: string[]
-      loadedSkillIds: string[]
-      unloadedSkillIds: string[]
-      availableSkillIds: string[]
-      contextProjection: Array<{
-        skillId: string
-        name: string
-        category?: string
-        activationReason?: string
-        contextBehavior?: string
-        includedInPrompt: boolean
-        promptPartId?: string
-        promptLayer?: string
-        promptKind?: string
-        renderedChars?: string
-        omittedReason?: string
-        omittedStage?: string
-        originalChars?: string
-        priority?: string
-      }>
-      omissions: Array<{
-        skillId: string
-        name: string
-        kind?: string
-        stage: string
-        reason: string
-        matched?: boolean
-        selected?: boolean
-        triggerReason?: string
-        dependencyIds: string[]
-        missingDependencyIds: string[]
-        inactiveDependencyIds: string[]
-        conflictSkillIds: string[]
-      }>
-      sourceEventId?: string
-    }
-    tools: {
-      availableToolNames: string[]
-      usedToolNames: string[]
-      failedToolNames: string[]
-      blockedToolNames: string[]
-      approvalRequiredToolNames: string[]
-      deniedToolNames: string[]
-      policyGateBlockedToolNames: string[]
-      pendingApprovalToolNames: string[]
-      blockedToolCount?: number
-      sourceEventId?: string
-    }
-    context: {
-      promptEventId?: string
-      contextMutationCount: number
-      latestMutationReason?: string
-      historyProjection?: {
-        inputCount: number
-        retainedCount: number
-        compactedCount: number
-        filteredCount: number
-        summaryChars: number
-        decisions: Array<{
-          action: string
-          stage?: string
-          reason?: string
-          messageCount?: number
-          retainedCount?: number
-          summaryChars?: number
-          maxMessages?: number
-        }>
-      }
-      toolLoopProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
-      attachmentProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
-    }
-  }
-  skillTimeline: {
-    timeline: Array<{
-      eventId: string
-      createdAt: string
-      eventType: string
-      title: string
-      summary?: string
-      activeSkillIds: string[]
-      loadedSkillIds: string[]
-      unloadedSkillIds: string[]
-      availableSkillIds: string[]
-      omissions: Array<{
-        skillId: string
-        name: string
-        kind?: string
-        stage: string
-        reason: string
-        matched?: boolean
-        selected?: boolean
-        triggerReason?: string
-        dependencyIds: string[]
-        missingDependencyIds: string[]
-        inactiveDependencyIds: string[]
-        conflictSkillIds: string[]
-      }>
-    }>
-    currentActiveSkillIds: string[]
-    currentLoadedSkillIds: string[]
-    currentUnloadedSkillIds: string[]
-    currentAvailableSkillIds: string[]
-    currentOmissions: Array<{
-      skillId: string
-      name: string
-      kind?: string
-      stage: string
-      reason: string
-      matched?: boolean
-      selected?: boolean
-      triggerReason?: string
-      dependencyIds: string[]
-      missingDependencyIds: string[]
-      inactiveDependencyIds: string[]
-      conflictSkillIds: string[]
-    }>
-  }
-  promptDetails: Array<{
-    eventId: string
-    title: string
-    runtimeSkillState?: {
-      activeSkillIds: string[]
-      loadedSkillIds: string[]
-      unloadedSkillIds: string[]
-      availableSkillIds: string[]
-      omissions: Array<{
-        skillId: string
-        name: string
-        kind?: string
-        stage: string
-        reason: string
-        matched?: boolean
-        selected?: boolean
-        triggerReason?: string
-        dependencyIds: string[]
-        missingDependencyIds: string[]
-        inactiveDependencyIds: string[]
-        conflictSkillIds: string[]
-      }>
-      sourceEventId?: string
-    }
-    contextLedgerState?: {
-      mutationCount: number
-      mutationEventIds: string[]
-      latestMutationEventId?: string
-      latestMutationReason?: string
-    }
-  }>
-  contextMutations: Array<{
-    eventId: string
-    title: string
-    total: number
-    appended: number
-    amended: number
-    deleted: number
-    affectedContextKeys: string[]
-    appendedContextKeys: string[]
-    amendedContextKeys: string[]
-    deletedContextKeys: string[]
-    latest?: { id: string; type: 'append' | 'amend' | 'delete'; createdAt: string; reason?: string }
-    refs: Array<{ kind: 'context_bundle' | 'context' | 'content_hash' | 'result_hash'; label: string; key?: string; id?: string; type?: string; hash?: string }>
-  }>
-  messageWrites: unknown[]
-  toolCalls: unknown[]
-  attentionEvents: Array<{
-    eventId: string
-    createdAt: string
-    kind: AgentTraceEventKind
-    kindLabel: string
-    status: AgentTraceEvent['status']
-    statusLabel: string
-    title: string
-    summary?: string
-    behavior?: string
-    impact?: string
-    error?: string
-  }>
-  pendingActions: unknown[]
-  fieldGuide: Array<{ id: string; label: string; description: string }>
-  events: AgentTraceEvent[]
-  reportText: string
-  bundle: Record<string, unknown>
-}
-
-export interface AgentRunGenerationView {
-  schema: 'movscript.agent-run-generation-view.v1'
-  generatedAt: string
-  runId: string
-  jobs: Array<{
-    jobId?: number
-    jobType?: string
-    providerName?: string
-    modelDisplay?: string
-    modelIdentifier?: string
-    modelConfigId?: number
-    status: string
-    stage?: string
-    progress?: number
-    terminal: boolean
-    outputResourceId?: number
-    outputResourceIds?: number[]
-    message?: string
-    firstSeenAt?: string
-    updatedAt?: string
-    completedAt?: string
-  }>
-  latestJob: AgentRunGenerationView['jobs'][number] | null
-  outputResourceIds: number[]
-  outputResources: Array<{
-    ID: number
-    owner_id: number
-    type: 'image' | 'video' | 'audio' | 'text' | 'file'
-    name: string
-    url: string
-    size: number
-    mime_type: string
-    direct_url?: string
-    storage_backend?: string
-    storage_key?: string
-  }>
-  metadataByResourceId: Record<string, {
-    jobId?: number
-    jobType?: string
-    providerName?: string
-    modelDisplay?: string
-    modelIdentifier?: string
-    modelConfigId?: number
-    status?: string
-    stage?: string
-  }>
-  active: number
-  terminal: number
-  succeeded: number
-  failed: number
-  cancelled: number
-  timeout: number
-}
-
-export interface AgentSkillBundleFile {
-  path: string
-  content: string
-}
-
-export interface AgentSkillBundleInstallResult {
-  status: 'installed'
-  pluginId: string
-  targetDir: string
-  installedFiles: string[]
-  catalog?: Record<string, unknown>
-}
-
-export interface AgentSkillBundleUninstallResult {
-  status: 'uninstalled'
-  pluginId: string
-  targetDir: string
-  removed: boolean
-  catalog?: Record<string, unknown>
-}
-
-export interface RunMessageOptions {
-  onRunUpdate?: (run: AgentRun) => void
-  onSourceMessage?: (message: AgentMessage, run: AgentRun) => void
-  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
-  onPhase?: (name: string, details?: Record<string, unknown>) => void
-  timeoutMs?: number
-  streamRequestTimeoutMs?: number
-  pollMs?: number
-  agentManifest?: AgentManifest
-  runPolicy?: AgentRunPolicyOverride
-  signal?: AbortSignal
-}
-
-export interface ThreadStreamOptions {
-  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
-  signal?: AbortSignal
-}
-
-export interface SessionStreamOptions {
-  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
-  signal?: AbortSignal
-}
-
-export interface PlanStreamOptions {
-  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
-  signal?: AbortSignal
-}
-
-const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
-const DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS = 5_000
-const DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS = 30_000
-const DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS = 60_000
-const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
-  'completed',
-  'completed_with_warnings',
-  'requires_action',
-  'failed',
-  'cancelled',
-])
-
+  AgentToolCall,
+  AgentRuntimeLimitsOverride,
+  AgentThreadListQuery,
+  AgentHealth,
+  AgentRuntimeTelemetryMetricSample,
+  AgentRuntimeTelemetryLogEntry,
+  AgentRuntimeTelemetrySpan,
+  AgentRuntimeTelemetryOperation,
+  AgentRuntimeTelemetrySnapshot,
+  AgentMemoryScope,
+  AgentMemoryKind,
+  AgentDraftKind,
+  AgentDraftStatus,
+  AgentMemory,
+  AgentDraft,
+  AgentDraftApplyReview,
+  AgentDraftApplyPreview,
+  AgentRunTraceResponse,
+  AgentRunDebugLedger,
+  AgentRunDebugEvidenceKind,
+  AgentRunDebugEvidenceRef,
+  AgentRunDebugEvidenceRefQuery,
+  AgentRunDebugEvidenceRefResponse,
+  AgentRunDebugEvidence,
+  AgentTraceDebugView,
+  AgentRunGenerationView,
+  AgentPackFile,
+  AgentPackInstallResult,
+  AgentPackUninstallResult,
+  RunMessageOptions,
+  ThreadStreamOptions,
+  SessionStreamOptions,
+  PlanStreamOptions,
+} from '@/shared/infrastructure/local-agent-client/types'
 export function canStartLocalAgentFromClient(): boolean {
   return typeof window !== 'undefined' && typeof window.api?.ensureAgentRuntime === 'function'
 }
 
 export class LocalAgentClient {
   readonly baseURL: string
+  readonly transportKind: AgentRuntimeTransport['kind']
+  private readonly transport: AgentRuntimeTransport
   private readonly healthTimeoutMs: number
   private readonly requestTimeoutMs: number
 
   constructor(
-    baseURL = runtimeLocalAgentBaseURL(),
-    options: { healthTimeoutMs?: number; requestTimeoutMs?: number } = {},
+    baseURL: string | AgentRuntimeTransport = runtimeLocalAgentBaseURL(),
+    options: { healthTimeoutMs?: number; requestTimeoutMs?: number; transport?: AgentRuntimeTransport } = {},
   ) {
-    this.baseURL = baseURL.replace(/\/+$/, '')
+    this.transport = typeof baseURL === 'string'
+      ? options.transport ?? runtimeLocalAgentTransport(baseURL)
+      : baseURL
+    this.baseURL = this.transport.endpointLabel
+    this.transportKind = this.transport.kind
     this.healthTimeoutMs = normalizePositiveTimeoutMs(options.healthTimeoutMs) ?? DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS
     this.requestTimeoutMs = normalizePositiveTimeoutMs(options.requestTimeoutMs) ?? DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS
   }
 
-  health(): Promise<AgentHealth> {
-    return this.getJSON('/health', { auth: false, timeoutMs: this.healthTimeoutMs })
+  async health(): Promise<AgentHealth> {
+    try {
+      return await this.getJSON('/runtime/compat', { auth: false, timeoutMs: this.healthTimeoutMs })
+    } catch (error) {
+      if (!isLocalAgentNotFoundError(error)) throw error
+      return this.getJSON('/health', { auth: false, timeoutMs: this.healthTimeoutMs })
+    }
   }
 
   inspect(): Promise<AgentInspectResponse> {
@@ -828,7 +278,11 @@ export class LocalAgentClient {
         throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter @movscript/agent dev`)
       }
 
-      const status = await ensureAgentRuntime({ baseURL: this.baseURL })
+      const status = await ensureAgentRuntime({
+        baseURL: this.baseURL,
+        transportKind: this.transport.kind,
+        ...(this.transport.socketPath ? { socketPath: this.transport.socketPath } : {}),
+      })
       if (!status.ok) {
         throw new Error(status.error || `failed to start agent at ${this.baseURL}`)
       }
@@ -882,8 +336,8 @@ export class LocalAgentClient {
     agentManifest?: AgentManifest
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
-    policy?: AgentRunPolicyOverride
-    activeRunPolicy?: 'runtime_input' | 'new_run'
+    runtimeLimits?: AgentRuntimeLimitsOverride
+    activeRunMode?: 'runtime_input' | 'new_run'
     runtimeInputMode?: 'soft' | 'hard'
   }, signal?: AbortSignal): Promise<CreateMessageRunResult> {
     return this.postJSON(`/threads/${encodeURIComponent(threadId)}/runs`, input, signal)
@@ -905,7 +359,7 @@ export class LocalAgentClient {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
   }
 
-  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; runtimeLimits?: AgentRuntimeLimitsOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
     return this.postJSON('/runs/preview', input, signal)
   }
 
@@ -915,28 +369,36 @@ export class LocalAgentClient {
     return this.getJSON(`/capabilities${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  installAgentSkillBundle(input: { pluginId: string; files: AgentSkillBundleFile[] }, signal?: AbortSignal): Promise<AgentSkillBundleInstallResult> {
-    return this.postJSON('/agent-catalog/skills/install-bundle', input, signal)
+  installAgentPack(input: { pluginId: string; files: AgentPackFile[] }, signal?: AbortSignal): Promise<AgentPackInstallResult> {
+    return this.postJSON('/agent-catalog/packs/install', input, signal)
   }
 
-  uninstallAgentSkillBundle(input: { pluginId: string }, signal?: AbortSignal): Promise<AgentSkillBundleUninstallResult> {
-    return this.postJSON('/agent-catalog/skills/uninstall-bundle', input, signal)
+  uninstallAgentPack(input: { pluginId: string }, signal?: AbortSignal): Promise<AgentPackUninstallResult> {
+    return this.postJSON('/agent-catalog/packs/uninstall', input, signal)
   }
 
   reloadAgentCatalog(signal?: AbortSignal): Promise<unknown> {
     return this.postJSON('/agent-catalog/reload', {}, signal)
   }
 
-  saveDefaultAgentProfile(input: { profileId: string }, signal?: AbortSignal): Promise<AgentManifest> {
-    return this.postJSON('/agent-profiles/default', input, signal)
+  saveActiveAgentConfigFile(input: { configFileId: string }, signal?: AbortSignal): Promise<AgentManifest> {
+    return this.postJSON('/agent-config-files/active', input, signal)
   }
 
-  saveDefaultToolPolicy(input: { toolGrants: AgentManifest['tools'] }, signal?: AbortSignal): Promise<AgentManifest> {
-    return this.postJSON('/agent-tools/default-policy', input, signal)
+  saveAgentConfigFile(input: { configFile: AgentCatalogConfigFile; activate?: boolean }, signal?: AbortSignal): Promise<{ configFile: AgentCatalogConfigFile; configFiles: AgentCatalogConfigFile[]; activeAgentManifest: AgentManifest }> {
+    return this.postJSON('/agent-config-files', input, signal)
   }
 
-  saveDefaultSkillPolicy(input: { skills: Array<{ id: string; enabled: boolean }> }, signal?: AbortSignal): Promise<{ skills: AgentCatalogSkill[] }> {
-    return this.postJSON('/agent-skills/default-policy', input, signal)
+  deleteAgentConfigFile(input: { configFileId: string }, signal?: AbortSignal): Promise<{ configFiles: AgentCatalogConfigFile[]; activeAgentManifest: AgentManifest }> {
+    return this.deleteJSON(`/agent-config-files/${encodeURIComponent(input.configFileId)}`, signal)
+  }
+
+  saveConfigFileToolPermissions(input: { configFileId: string; toolGrants: AgentManifest['tools'] }, signal?: AbortSignal): Promise<AgentManifest> {
+    return this.postJSON(`/agent-config-files/${encodeURIComponent(input.configFileId)}/tool-permissions`, { toolGrants: input.toolGrants }, signal)
+  }
+
+  saveSkillInstructions(input: { skills: Array<{ id: string; instructionTemplate: string }> }, signal?: AbortSignal): Promise<{ skills: AgentCatalogSkill[] }> {
+    return this.postJSON('/agent-skills/instructions', input, signal)
   }
 
   getModelConfig(): Promise<RuntimeModelConfigPublic> {
@@ -1001,7 +463,7 @@ export class LocalAgentClient {
     tasks?: Array<Partial<AgentTask> & { title?: string }>
     createPlannerRun?: boolean
     agentManifest?: AgentManifest
-    policy?: AgentRunPolicyOverride
+    runtimeLimits?: AgentRuntimeLimitsOverride
   }, signal?: AbortSignal): Promise<AgentTaskGraphSnapshot> {
     return this.postJSON('/plans', input, signal)
   }
@@ -1022,7 +484,7 @@ export class LocalAgentClient {
     retryFailed?: boolean
     workerTimeoutMs?: number
     agentManifest?: AgentManifest
-    policy?: AgentRunPolicyOverride
+    runtimeLimits?: AgentRuntimeLimitsOverride
   } = {}, signal?: AbortSignal): Promise<DispatchTaskGraphResult> {
     return this.postJSON(`/plans/${encodeURIComponent(taskGraphId)}/dispatch`, input, signal)
   }
@@ -1205,43 +667,20 @@ export class LocalAgentClient {
     path: string,
     options: { onRuntimeEvent?: (event: AgentRuntimeEventV2) => void; signal?: AbortSignal } = {},
   ): Promise<void> {
-    const res = await fetch(`${this.baseURL}${path}`, {
+    const stream = await this.transport.openEventStream(path, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
       signal: options.signal,
     })
-    if (!res.ok) throw await localAgentResponseError(res)
-    if (!res.body) return
+    if (!stream.ok) throw await localAgentStreamError(stream)
 
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    const processBlock = (block: string) => {
-      const parsed = parseSSEBlock(block)
-      if (!parsed) return
+    for await (const data of stream.messages()) {
       try {
-        const event = parseRuntimeEvent(parsed.data)
+        const event = parseRuntimeEvent(data)
         if (event) options.onRuntimeEvent?.(event)
       } catch {
-        return
+        continue
       }
     }
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      let normalized = buffer.replace(/\r\n/g, '\n')
-      let separatorIndex = normalized.indexOf('\n\n')
-      while (separatorIndex >= 0) {
-        processBlock(normalized.slice(0, separatorIndex))
-        normalized = normalized.slice(separatorIndex + 2)
-        separatorIndex = normalized.indexOf('\n\n')
-      }
-      buffer = normalized
-    }
-    const tail = decoder.decode()
-    if (tail) buffer += tail
-    if (buffer.trim()) processBlock(buffer)
   }
 
   private async streamRunFromThread(threadId: string, runId: string, options: RunMessageOptions, initialRun?: AgentRun): Promise<AgentRun> {
@@ -1295,21 +734,15 @@ export class LocalAgentClient {
   }
 
   private async readRunStreamAttempt(runId: string, options: RunMessageOptions, signal: AbortSignal): Promise<{ run: AgentRun }> {
-    const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
+    const stream = await this.transport.openEventStream(`/runs/${encodeURIComponent(runId)}/stream`, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
       signal,
     })
-    if (!res.ok) throw await localAgentResponseError(res)
-    if (!res.body) return { run: await this.waitForRun(runId, { ...options, signal }) }
+    if (!stream.ok) throw await localAgentStreamError(stream)
 
     let latestRun = await this.getRun(runId, signal)
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    const processBlock = (block: string): AgentRun | undefined => {
-      const parsed = parseSSEBlock(block)
-      if (!parsed) return undefined
-      const event = parseRuntimeEvent(parsed.data)
+    const processData = (data: string): AgentRun | undefined => {
+      const event = parseRuntimeEvent(data)
       if (!event) return undefined
       options.onRuntimeEvent?.(event)
       const eventRun = runtimeRunFromEvent(event)
@@ -1320,33 +753,13 @@ export class LocalAgentClient {
       if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
       return undefined
     }
-    const finishFromStream = async (run: AgentRun): Promise<{ run: AgentRun }> => {
-      await reader.cancel().catch(() => undefined)
-      return { run }
-    }
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      let normalized = buffer.replace(/\r\n/g, '\n')
-      let separatorIndex = normalized.indexOf('\n\n')
-      while (separatorIndex >= 0) {
-        const terminalRun = processBlock(normalized.slice(0, separatorIndex))
-        if (terminalRun) return await finishFromStream(terminalRun)
-        normalized = normalized.slice(separatorIndex + 2)
-        separatorIndex = normalized.indexOf('\n\n')
-      }
-      buffer = normalized
-    }
-    const tail = decoder.decode()
-    if (tail) buffer += tail
-    if (buffer.trim()) {
-      const terminalRun = processBlock(buffer)
-      if (terminalRun) return await finishFromStream(terminalRun)
+    for await (const data of stream.messages()) {
+      const terminalRun = processData(data)
+      if (terminalRun) return { run: terminalRun }
     }
     if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
-      return await finishFromStream(latestRun)
+      return { run: latestRun }
     }
     return { run: latestRun }
   }
@@ -1429,7 +842,7 @@ export class LocalAgentClient {
     clientInput?: AgentClientInput
     toolCall?: AgentToolCall
     approvedToolNames?: string[]
-    activeRunPolicy?: 'runtime_input' | 'new_run'
+    activeRunMode?: 'runtime_input' | 'new_run'
   }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     options.onPhase?.('resolve_thread_start', {
       requestedThreadId: input.threadId,
@@ -1445,10 +858,10 @@ export class LocalAgentClient {
     let thread = resolvedThread.thread
     options.onPhase?.('create_message_run_start', {
       threadId: thread.id,
-      activeRunPolicy: input.activeRunPolicy ?? 'new_run',
+      activeRunMode: input.activeRunMode ?? 'new_run',
       hasClientInput: Boolean(input.clientInput),
       hasAgentManifest: Boolean(options.agentManifest),
-      hasRunPolicy: Boolean(options.runPolicy),
+      hasRuntimeLimits: Boolean(options.runtimeLimits),
     })
     const created = await this.createMessageRunWithMissingThreadFallback(thread.id, {
       message: input.message,
@@ -1457,8 +870,8 @@ export class LocalAgentClient {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
-      activeRunPolicy: input.activeRunPolicy ?? 'new_run',
-      ...(options.runPolicy ? { policy: options.runPolicy } : {}),
+      activeRunMode: input.activeRunMode ?? 'new_run',
+      ...(options.runtimeLimits ? { runtimeLimits: options.runtimeLimits } : {}),
     }, {
       input,
       resolvedThread,
@@ -1550,7 +963,7 @@ export class LocalAgentClient {
   private async getJSON<T>(path: string, options: { auth?: boolean; signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
     const request = createLocalAgentRequestSignal(options.signal, options.timeoutMs ?? this.requestTimeoutMs)
     try {
-      const res = await fetch(`${this.baseURL}${path}`, {
+      const res = await this.transport.request(path, {
         headers: options.auth === false ? {} : this.authHeaders(),
         signal: request.signal,
       })
@@ -1564,7 +977,7 @@ export class LocalAgentClient {
   private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await fetch(`${this.baseURL}${path}`, {
+      const res = await this.transport.request(path, {
         method: 'POST',
         headers: this.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(this.withBackendContext(body)),
@@ -1580,7 +993,7 @@ export class LocalAgentClient {
   private async patchJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await fetch(`${this.baseURL}${path}`, {
+      const res = await this.transport.request(path, {
         method: 'PATCH',
         headers: this.authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(this.withBackendContext(body)),
@@ -1596,7 +1009,7 @@ export class LocalAgentClient {
   private async deleteJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
-      const res = await fetch(`${this.baseURL}${path}`, {
+      const res = await this.transport.request(path, {
         method: 'DELETE',
         headers: this.authHeaders(),
         signal: request.signal,
@@ -1621,148 +1034,4 @@ export class LocalAgentClient {
   }
 }
 
-function runtimeLocalAgentBaseURL(): string {
-  return import.meta.env?.VITE_LOCAL_AGENT_BASE_URL || DEFAULT_LOCAL_AGENT_BASE_URL
-}
-
 export const localAgentClient = new LocalAgentClient()
-
-async function localAgentResponseError(res: Response): Promise<LocalAgentHTTPError> {
-  const text = await res.text()
-  const message = localAgentErrorMessage(text)
-  return new LocalAgentHTTPError(res.status, text, message)
-}
-
-function localAgentErrorMessage(text: string): string {
-  const body = text.trim()
-  if (!body) return ''
-  try {
-    const parsed = JSON.parse(body) as unknown
-    if (isLocalAgentErrorRecord(parsed)) {
-      const error = parsed.error
-      if (typeof error === 'string' && error.trim()) return error.trim()
-      if (isLocalAgentErrorRecord(error) && typeof error.message === 'string' && error.message.trim()) return error.message.trim()
-      if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim()
-    }
-  } catch {
-    // Fall back to the raw response body.
-  }
-  return body
-}
-
-function isLocalAgentErrorRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function createLocalAgentRequestSignal(externalSignal: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
-  const controller = new AbortController()
-  const abortFromExternal = () => {
-    if (!controller.signal.aborted) controller.abort(externalSignal?.reason ?? createLocalAgentAbortError())
-  }
-  if (externalSignal?.aborted) abortFromExternal()
-  else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
-
-  const timer = globalThis.setTimeout(() => {
-    if (!controller.signal.aborted) controller.abort(createLocalAgentTimeoutError(timeoutMs))
-  }, timeoutMs)
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      globalThis.clearTimeout(timer)
-      externalSignal?.removeEventListener('abort', abortFromExternal)
-    },
-  }
-}
-
-function normalizePositiveTimeoutMs(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
-}
-
-function isRetryableRunStreamError(error: unknown): boolean {
-  if (error instanceof LocalAgentHTTPError) return false
-  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') return true
-  if (error instanceof Error) {
-    return error.name === 'AbortError' || error.name === 'TypeError'
-  }
-  return false
-}
-
-async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
-  try {
-    return await promise
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('local agent returned 404')) {
-      throw new Error('当前 Agent 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter @movscript/agent dev')
-    }
-    throw error
-  }
-}
-
-function parseSSEBlock(block: string): { event?: string; data: string } | undefined {
-  const lines = block.replace(/\r\n/g, '\n').split('\n')
-  const dataLines: string[] = []
-  let event: string | undefined
-  for (const line of lines) {
-    if (line.startsWith('event:')) {
-      event = line.slice('event:'.length).trim()
-      continue
-    }
-    if (line.startsWith('data:')) {
-      dataLines.push(line.slice('data:'.length).trimStart())
-    }
-  }
-  if (dataLines.length === 0) return undefined
-  return { event, data: dataLines.join('\n').trim() }
-}
-
-function parseRuntimeEvent(data: string): AgentRuntimeEventV2 | undefined {
-  const value = JSON.parse(data) as AgentRuntimeEventV2
-  return value?.schema === AGENT_RUNTIME_EVENT_V2_SCHEMA ? value : undefined
-}
-
-function minimalResolvedThread(threadId: string): AgentThread {
-  const now = new Date().toISOString()
-  return {
-    id: threadId,
-    status: 'idle',
-    createdAt: now,
-    updatedAt: now,
-    messages: [],
-  }
-}
-
-function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? createLocalAgentAbortError())
-      return
-    }
-    const timer = globalThis.setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => {
-      globalThis.clearTimeout(timer)
-      reject(signal.reason ?? createLocalAgentAbortError())
-    }, { once: true })
-  })
-}
-
-function createLocalAgentAbortError(): Error {
-  try {
-    return new DOMException('Aborted', 'AbortError')
-  } catch {
-    const error = new Error('Aborted')
-    error.name = 'AbortError'
-    return error
-  }
-}
-
-function createLocalAgentTimeoutError(timeoutMs: number): Error {
-  try {
-    return new DOMException(`Local agent request timed out after ${timeoutMs}ms`, 'TimeoutError')
-  } catch {
-    const error = new Error(`Local agent request timed out after ${timeoutMs}ms`)
-    error.name = 'TimeoutError'
-    return error
-  }
-}

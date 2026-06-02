@@ -1,8 +1,8 @@
 import { execFile, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { promisify } from 'util'
-import { resolvePort } from './config'
 import { waitForAgentRuntimeToStop } from './health'
+import { resolveAgentRuntimeControlTransport, type AgentRuntimeControlTransport } from './transport'
 
 const execFileAsync = promisify(execFile)
 
@@ -58,21 +58,23 @@ export async function terminateAgentProcess(
   }
 }
 
-export async function stopUnmanagedIncompatibleRuntime(baseURL: string): Promise<boolean> {
+export async function stopUnmanagedIncompatibleRuntime(input: string | AgentRuntimeControlTransport): Promise<boolean> {
+  const transport = resolveAgentRuntimeControlTransport(input)
   try {
-    const res = await fetch(`${baseURL}/runtime/shutdown`, { method: 'POST' })
-    if (res.ok && await waitForAgentRuntimeToStop(baseURL, 3_000)) return true
+    const res = await transport.request('/runtime/shutdown', { method: 'POST' })
+    if (res.ok && await waitForAgentRuntimeToStop(transport, 3_000)) return true
   } catch {
     // Older runtimes do not expose /runtime/shutdown; fall back to the port owner.
   }
 
-  if (!await terminateRuntimePortOwner(baseURL)) return false
-  return waitForAgentRuntimeToStop(baseURL, 3_000)
+  if (!await terminateRuntimePortOwner(transport)) return false
+  return waitForAgentRuntimeToStop(transport, 3_000)
 }
 
-async function terminateRuntimePortOwner(baseURL: string): Promise<boolean> {
+async function terminateRuntimePortOwner(transport: AgentRuntimeControlTransport): Promise<boolean> {
   if (process.platform === 'win32') return false
-  const port = resolvePort(baseURL)
+  const port = transport.port
+  if (!port) return false
   let stdout = ''
   try {
     const result = await execFileAsync(resolveLsofCommand(), ['-nP', `-tiTCP:${port}`, '-sTCP:LISTEN'])
@@ -93,7 +95,7 @@ async function terminateRuntimePortOwner(baseURL: string): Promise<boolean> {
       // The process may have exited after lsof returned it.
     }
   }
-  if (await waitForAgentRuntimeToStop(baseURL, 1_500)) return true
+  if (await waitForAgentRuntimeToStop(transport, 1_500)) return true
 
   for (const pid of pids) {
     try {

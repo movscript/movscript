@@ -45,7 +45,7 @@ import {
 import { agentRunPath } from '@/routes/projectRoutes'
 import { LocalAgentApprovalRequestCard, LocalAgentInputRequestCard, type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { AgentInputAnswer } from '@/features/agent/domain/agentWorkflowInteraction'
+import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function AgentActivityFeedView({

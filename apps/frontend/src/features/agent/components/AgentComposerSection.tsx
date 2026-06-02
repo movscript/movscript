@@ -1,4 +1,4 @@
-import type { ComponentProps, CSSProperties, DragEventHandler, FormEvent, RefObject } from 'react'
+import type { ClipboardEventHandler, ComponentProps, CSSProperties, DragEventHandler, FormEvent, RefObject } from 'react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,11 @@ import {
   AgentSurfaceBlock,
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Input,
 } from '@movscript/ui'
 import { attachmentKey } from '@/features/agent/domain/agentAttachments'
@@ -56,11 +61,14 @@ export interface AgentComposerSectionProps {
   pendingRuntimeInputQueue: AgentPendingRuntimeInputQueueItem[]
   stoppingLocalRun: boolean
   uploading: boolean
+  uploadedFileCount: number
+  uploadingFileNames: string[]
   onAcceptMention: () => boolean
   onComposerDragEnter: DragEventHandler
   onComposerDragLeave: DragEventHandler
   onComposerDragOver: DragEventHandler
   onComposerDrop: DragEventHandler
+  onComposerPaste: ClipboardEventHandler
   onDebugBeforeSendChange: (next: boolean) => void
   onInputChange: (value: string) => void
   onMentionEscape: () => void
@@ -93,11 +101,14 @@ export function AgentComposerSection({
   pendingRuntimeInputQueue,
   stoppingLocalRun,
   uploading,
+  uploadedFileCount,
+  uploadingFileNames,
   onAcceptMention,
   onComposerDragEnter,
   onComposerDragLeave,
   onComposerDragOver,
   onComposerDrop,
+  onComposerPaste,
   onDebugBeforeSendChange,
   onInputChange,
   onMentionEscape,
@@ -179,9 +190,44 @@ export function AgentComposerSection({
     onSend()
   }
 
+  const uploadingFileCount = uploadingFileNames.length
+  const uploadingPrimaryFileName = uploadingFileNames[0]
+
   return (
     <AgentSurfaceBlock asChild variant="card">
       <section className={cn('ai-agent-panel-card ai-agent-panel-input-card', `ai-agent-panel-input-card--${chrome}`)} data-chrome={chrome}>
+        <Dialog open={uploading}>
+          <DialogContent
+            hideClose
+            className="w-[min(360px,calc(100vw-32px))]"
+            onEscapeKeyDown={(event) => event.preventDefault()}
+            onPointerDownOutside={(event) => event.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle>{t('agents.chat.uploadDialogTitle')}</DialogTitle>
+              <DialogDescription>
+                {t('agents.chat.uploadDialogDescription', {
+                  count: uploadingFileCount,
+                  uploaded: uploadedFileCount,
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center gap-3 rounded-md border border-border bg-muted px-3 py-2">
+              <Loader2 size={16} className="shrink-0 animate-spin text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="truncate type-caption text-foreground">
+                  {uploadingPrimaryFileName ?? t('agents.chat.uploadDialogPreparing')}
+                </p>
+                <p className="type-tiny text-muted-foreground">
+                  {t('agents.chat.uploadDialogProgress', {
+                    uploaded: uploadedFileCount,
+                    count: uploadingFileCount,
+                  })}
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       {pendingRuntimeInputQueue.length > 0 && (
         <div className="mb-2 space-y-1.5 px-2 py-1.5">
           <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
@@ -210,6 +256,7 @@ export function AgentComposerSection({
         onDragOver={onComposerDragOver}
         onDragLeave={onComposerDragLeave}
         onDrop={onComposerDrop}
+        onPaste={onComposerPaste}
         onSubmit={handleSubmit}
       >
         <Input
@@ -241,6 +288,7 @@ export function AgentComposerSection({
             onEscape={onMentionEscape}
             onAcceptMention={onAcceptMention}
             onSubmit={onSend}
+            onPaste={onComposerPaste}
           />
           {draggingFiles && (
             <AgentComposerDropOverlay>

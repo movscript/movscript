@@ -76,6 +76,8 @@ function buildIframeHTML(plugin: ClientPluginManifest): string {
     models:        function(cap)         { return call('models',        [cap]); },
     modelConfigs:  function()            { return call('modelConfigs',  []); },
     resources:     function()            { return call('resources',     []); },
+    uploadResource:function(req)         { return call('uploadResource',[req]); },
+    generateMedia: function(req)         { return call('generateMedia', [req]); },
     generateImage: function(req)         { return call('generateImage', [req]); },
     sleep:         function(ms)          { return call('sleep',         [ms]); },
     mcp: {

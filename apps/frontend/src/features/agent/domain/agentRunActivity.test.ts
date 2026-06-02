@@ -30,8 +30,7 @@ test('compactRunActivity preserves top-level step and trace durations', () => {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 4,
       maxIterations: 2,
       allowNetwork: false,
@@ -72,8 +71,7 @@ test('compactRunActivity preserves approval and input request state', () => {
     id: 'run_action',
     threadId: 'thread_1',
     status: 'requires_action',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 4,
       maxIterations: 2,
       allowNetwork: false,

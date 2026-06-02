@@ -165,8 +165,7 @@ export function buildGenerationAppBootstrapScenario(
     id: RUN_ID,
     threadId: THREAD_ID,
     status: outcome === 'success' ? 'in_progress' : outcome === 'timeout' ? 'completed_with_warnings' : 'failed',
-    policy: {
-      approvalMode: 'auto_readonly',
+    runtimeLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 4,
       maxIterations: 4,
@@ -244,8 +243,6 @@ export function buildGenerationAppBootstrapScenario(
       settings: {
         includeProjectContext: true,
         includeRecentResources: true,
-        autoTaskGraph: true,
-        permissionMode: 'ask',
       },
       conversations: [{
         conversation,

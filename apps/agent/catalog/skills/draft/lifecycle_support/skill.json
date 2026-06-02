@@ -1,0 +1,37 @@
+{
+  "id": "draft.lifecycle_support",
+  "version": "1.0.0",
+  "name": "Draft Lifecycle",
+  "description": "通用本地 draft 读取、创建、编辑、dry-run preview 和汇报流程；preview 内置 validation。",
+  "priority": 740,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "draft",
+        "草稿",
+        "提案",
+        "审阅",
+        "修改草稿",
+        "validate",
+        "preview",
+        "preview_apply",
+        "apply"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回 draftId、kind、是否读取过现有 draft、validation/preview/apply 结果，以及下一步 review 或 apply 动作。",
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "draft_model_get",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
+    "draft_create",
+    "draft_apply_preview",
+    "draft_apply",
+    "core_user_input_request"
+  ]
+}

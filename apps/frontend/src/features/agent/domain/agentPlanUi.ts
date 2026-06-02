@@ -1,6 +1,6 @@
 import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/localAgentClient'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
-import { runHasWorkflowInteraction } from '@/features/agent/domain/agentWorkflowInteraction'
+import { runHasRunInteraction } from '@/features/agent/domain/agentRunInteraction'
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
@@ -379,7 +379,7 @@ export function actionableRunsForTaskGraph(snapshot: AgentTaskGraphSnapshot | un
 }
 
 export function interactionRunsForTaskGraph(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
-  return collectPlanRuns(snapshot, activeRun, runHasWorkflowInteraction)
+  return collectPlanRuns(snapshot, activeRun, runHasRunInteraction)
 }
 
 function collectPlanRuns(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined, predicate: (run: AgentRun) => boolean): AgentRun[] {

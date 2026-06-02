@@ -77,8 +77,7 @@ export function plannerRunFixture(): AgentRun {
     role: 'planner',
     taskGraphId: PLANNER_TASK_GRAPH_ID,
     progress: 0.45,
-    policy: {
-      approvalMode: 'auto_readonly',
+    runtimeLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 8,
       maxIterations: 6,
@@ -112,8 +111,7 @@ export function workerRunFixture(): AgentRun {
     taskGraphId: PLANNER_TASK_GRAPH_ID,
     taskId: 'task_einstein_audit',
     progress: 0.62,
-    policy: {
-      approvalMode: 'auto_readonly',
+    runtimeLimits: { approvalMode: 'auto_readonly',
       sandboxMode: false,
       maxToolCalls: 4,
       maxIterations: 4,
@@ -429,7 +427,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
         charCount: 1024,
         messageCount: 3,
         systemMessageCount: 1,
-        skillIds: ['movscript.workflow.asset-review', 'draft.policy.lifecycle'],
+        skillIds: ['movscript.asset_review', 'draft.rules.lifecycle'],
         availableToolNames: ['movscript_review_assets', 'movscript_focus_get'],
         blockedToolCount: 1,
         promptStats: {
@@ -450,7 +448,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
           parts: [
             { id: 'runtime.contract', layer: 'level0_core', contextLayer: 'runtime_contract', chars: 420 },
             { id: 'focus.project', layer: 'level1_context', contextLayer: 'focus', chars: 260 },
-            { id: 'skill.workflow.asset-review', layer: 'level2_behavior', contextLayer: 'behavior', chars: 220 },
+            { id: 'movscript.asset_review', layer: 'level2_behavior', contextLayer: 'behavior', chars: 220 },
             { id: 'thread.latest', layer: 'level1_context', contextLayer: 'thread_continuity', chars: 100 },
             { id: 'runtime.warning.blocked_tools', layer: 'runtime_warnings', contextLayer: 'warning', chars: 24 },
           ],

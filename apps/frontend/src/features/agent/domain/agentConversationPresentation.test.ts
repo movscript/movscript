@@ -8,8 +8,7 @@ const baseRun: AgentRun = {
   id: 'run_1',
   threadId: 'thread_1',
   status: 'in_progress',
-  policy: {
-    approvalMode: 'interactive',
+  runtimeLimits: { approvalMode: 'interactive',
     maxToolCalls: 8,
     maxIterations: 4,
     allowNetwork: false,

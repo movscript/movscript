@@ -8,6 +8,58 @@ export interface PublicModel {
 
 export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
 
+export type MediaPipelineCapability =
+  | 'audio_tts'
+  | 'audio_transcribe'
+  | 'subtitle_align'
+  | 'render_video'
+
+export type MediaProviderFeature =
+  | 'streaming'
+  | 'ssml'
+  | 'word_timestamps'
+  | 'phoneme_timestamps'
+  | 'viseme_timestamps'
+  | 'voice_clone'
+  | 'voice_design'
+  | 'multi_speaker'
+  | 'emotion_control'
+  | 'speed_control'
+  | 'pitch_control'
+  | 'forced_alignment'
+  | 'burn_in_subtitles'
+
+export interface MediaProviderParamDef {
+  key: string
+  label?: string
+  type: 'string' | 'number' | 'boolean' | 'select'
+  default?: unknown
+  options?: Array<string | number | boolean>
+  min?: number
+  max?: number
+  step?: number
+}
+
+export interface MediaModelContract {
+  modelId: string
+  displayName: string
+  features: MediaProviderFeature[]
+  supportedLanguages?: string[]
+  supportedFormats?: string[]
+  supportedParams: MediaProviderParamDef[]
+}
+
+export interface MediaCapabilityContract {
+  capability: MediaPipelineCapability
+  models: MediaModelContract[]
+}
+
+export interface MediaProviderContract {
+  provider: string
+  displayName?: string
+  capabilities: MediaCapabilityContract[]
+}
+
 export interface GenerateMediaRequest {
   model_id: string
   prompt: string
@@ -24,6 +76,14 @@ export type GenerateImageRequest = GenerateMediaRequest & {
   job_type?: 'image' | 'image_edit'
 }
 
+export interface UploadResourceRequest {
+  filename: string
+  mime_type?: string
+  data_base64?: string
+  text?: string
+  folder_id?: number
+}
+
 export type ExecutableCapability =
   | 'text'
   | 'image'
@@ -32,6 +92,7 @@ export type ExecutableCapability =
   | 'video_i2v'
   | 'video_v2v'
   | 'audio'
+  | MediaPipelineCapability
 
 export interface ExecutableSpec {
   executor: 'ai_model'
@@ -93,8 +154,6 @@ export interface CanvasNodeContribution {
   title: string
   description?: string
   tool?: string
-  /** ID of a workflow contribution from this plugin to invoke as a reusable workflow node. */
-  workflow?: string
   inputs?: CanvasPortDef[]
   outputs?: CanvasPortDef[]
   card?: string
@@ -103,19 +162,6 @@ export interface CanvasNodeContribution {
   defaultData?: Record<string, unknown>
 }
 
-export interface PluginWorkflowContribution {
-  id: string
-  title: string
-  description?: string
-  /** Stable public workflow key from the workflow market or registry. */
-  workflowKey: string
-  version?: string
-  inputs?: CanvasPortDef[]
-  outputs?: CanvasPortDef[]
-  tags?: string[]
-}
-
-export type AgentSkillContributionKind = 'persona' | 'workflow' | 'policy' | 'expertise'
 export type AgentSkillContributionLoadMode = 'core' | 'on_demand' | 'manual'
 export type AgentSkillContributionScope = 'turn' | 'run' | 'thread'
 
@@ -133,7 +179,6 @@ export type AgentSkillContributionScope = 'turn' | 'run' | 'thread'
 export interface AgentSkillContribution {
   path: string
   id?: string
-  kind?: AgentSkillContributionKind
   tags?: string[]
   aliases?: string[]
   useWhen?: string[]
@@ -147,7 +192,6 @@ export interface PluginContributions {
   tools?: PluginToolContribution[]
   cards?: PluginCardContribution[]
   canvasNodes?: CanvasNodeContribution[]
-  workflows?: PluginWorkflowContribution[]
   agentSkills?: AgentSkillContribution[]
   commands?: Array<{ id: string; title: string; tool?: string }>
 }
@@ -174,6 +218,7 @@ export interface MovRuntime {
   /** Fetch all platform model configs — use this to let users pick a model. */
   modelConfigs(): Promise<PublicModel[]>
   resources(): Promise<unknown[]>
+  uploadResource(req: UploadResourceRequest): Promise<unknown>
   generateMedia(req: GenerateMediaRequest): Promise<unknown>
   /** @deprecated Use generateMedia for new image and video plugins. */
   generateImage(req: GenerateImageRequest): Promise<unknown>

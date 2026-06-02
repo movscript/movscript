@@ -21,7 +21,7 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   draft_model_get: '读取草稿模型',
   movscript_focus_get: '读取当前焦点',
   generation_job_get: '查看生成任务',
-  knowledge_get: '读取知识',
+  reference_get: '读取参考',
   core_memory_get: '读取记忆',
   movscript_project_standards_get: '读取项目标准',
   core_catalog_inspect: '检查 Agent 工具目录',
@@ -33,7 +33,7 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   movscript_production_context_query: '查询制作上下文',
   movscript_script_locate: '读取项目剧本',
   core_user_input_request: '请求用户补充',
-  knowledge_search: '搜索知识',
+  reference_search: '搜索参考',
   core_memory_search: '搜索记忆',
   core_skill_update: '更新启用技能',
   core_work_cancel: '取消异步任务',
@@ -79,7 +79,7 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'generation.read': '读取生成任务',
   'generation.cancel': '取消生成任务',
   'keyframe.candidate.write': '写入关键帧候选',
-  'knowledge.read': '读取知识库',
+  'reference.read': '读取参考源',
   'memory.read': '记忆读取',
   'memory.write': '记忆写入',
   'model.generation.read': '读取生成模型',
@@ -128,8 +128,8 @@ function businessPermissionLabel(permission: string): string | undefined {
           ? '生成任务'
           : parts.includes('model')
             ? '模型'
-            : parts.includes('knowledge')
-              ? '知识库'
+            : parts.includes('reference')
+              ? '参考源'
               : undefined
   const target = parts.includes('assets')
     ? '素材'

@@ -21,7 +21,7 @@ user input
 
 CLI、SDK、远程会话、子 agent 都围绕同一个 kernel 组织。UI 只是这个 kernel 的一个投影。
 
-`apps/agent` 已经具备相似骨架：`executeRuntimeRun` 负责 run 生命周期，`runAgentGraph` 负责 `model -> policy -> execute` 循环，catalog/profile/pack 负责能力激活，context manager 负责 prompt 分层，tool policy 负责硬边界。真正值得吸收的不是 Claude Code 的庞大命令系统，而是它在工具协议、上下文预算、并发/中断、恢复语义、子 agent 组织上的细节。
+`apps/agent` 已经具备相似骨架：`executeRuntimeRun` 负责 run 生命周期，`runAgentGraph` 负责 `model -> policy -> execute` 循环，catalog/config-file/pack 负责能力激活，context manager 负责 prompt 分层，tool policy 负责硬边界。真正值得吸收的不是 Claude Code 的庞大命令系统，而是它在工具协议、上下文预算、并发/中断、恢复语义、子 agent 组织上的细节。
 
 ## 代码量为什么差这么多
 
@@ -68,7 +68,7 @@ Claude Code 长，不只是因为功能多，还因为它把“模型能操作�
 | `src/domains` | 4.6 千行 | 领域 tool handler 与 message/trace/domain logic。 |
 | `src/contextManager` | 3.1 千行 | prompt 分层、context budget、tool result context、ledger。 |
 | `src/orchestration` | 2.8 千行 | agent graph、tool execution、model trace、generation monitor。 |
-| `src/catalog` | 2.5 千行 | profile/pack/manifest/tool/skill catalog。 |
+| `src/catalog` | 2.5 千行 | config-file/pack/manifest/tool/skill catalog。 |
 | `src/tools` | 0.8 千行 | tool registry、policy、authorization、visibility。 |
 | `src/runtimeWork` | 0.6 千行 | background work abstraction。 |
 
@@ -305,7 +305,7 @@ Claude Code 用 `ToolSearchTool` 和工具字段 `shouldDefer` / `alwaysLoad` �
 
 MovScript 当前对应：
 
-- catalog/profile/pack 已经能从 enabled packs 推导可用工具和 skills。
+- catalog/config-file/pack 已经能从 enabled packs 推导可用工具和 skills。
 - `core_skill_update` 支持运行中加载/卸载 agent skills。
 - `Skill Discovery` prompt layer 已经列出 available/active skills。
 
@@ -314,7 +314,7 @@ MovScript 当前对应：
 - 把 `core_skill_update` 扩展成更完整的“能力发现/激活”协议。
 - 区分三类能力：
   - always loaded：核心安全工具、plan、input。
-  - discoverable：workflow/expertise。
+  - discoverable：task/expertise。
   - hidden until activated：大量生成、候选、专业领域工具。
 - 对未激活工具调用返回 repair hint，当前 `agentGraphSkillActivationRepair` 已经是正确方向。
 
@@ -342,7 +342,7 @@ MovScript 当前对应：
 
 - 把 `approval_required`、`input_required`、`auth_required`、`model_retry_required` 统一为 interaction 类型。
 - 工具执行层即使收到已 policy allow 的调用，也应进行二次安全校验，避免未来绕过 graph policy。
-- 对 destructive/generate 工具保留硬性不可自动批准规则，避免被 profile 配置误放大。
+- 对 destructive/generate 工具保留硬性不可自动批准规则，避免被 config file 配置误放大。
 
 ### 9. 子 agent 与后台任务
 
@@ -388,7 +388,7 @@ MovScript 当前对应：
 | 上下文 | dynamic projection + compact/collapse | prompt layers + budgeter + ledger | MovScript 语义好，需补长期压缩资产 |
 | 大结果 | result budget + persistence | summary + contextBoundary | 增加 ref-based reread |
 | 工具并发 | concurrency-safe 分区、streaming executor | runtime work 支持长任务 | 普通工具可补并发策略 |
-| 技能/工具发现 | ToolSearch + deferred tools | pack/profile + skill discovery + skill update | 建议形成 discover/activate 协议 |
+| 技能/工具发现 | ToolSearch + deferred tools | pack/config-file + skill discovery + skill update | 建议形成 discover/activate 协议 |
 | 子 agent | AgentTool + background/worktree/remote | RuntimeWork + SubagentRunWorkProvider | MovScript 方向正确，完善 progress/result refs |
 | 恢复 | session transcript + QueryEngine state | RuntimeRecoveryBridge + store | 继续把 interrupted/requires_action 作为可恢复状态 |
 | 可观测性 | telemetry/logEvent/tracing | metrics + trace + logs | MovScript 已更产品化 |
@@ -455,7 +455,7 @@ ToolCall
 
 ### P1：能力发现/激活协议
 
-Claude Code 的 ToolSearch 解决“大工具集上下文爆炸”。MovScript 的 pack/profile 更强，但需要模型可操作的发现协议。
+Claude Code 的 ToolSearch 解决“大工具集上下文爆炸”。MovScript 的 pack/config-file 更强，但需要模型可操作的发现协议。
 
 建议：
 
@@ -662,7 +662,7 @@ Claude Code 代码长还有一个隐性原因：真实 agent runtime 的边界�
 - run debug bundle。
 - 前端 trace 解释。
 - context drop/skill activation/permission decision 可视化。
-- catalog/profile/tool health inspection。
+- catalog/config-file/tool health inspection。
 
 ## 不建议照搬的部分
 
@@ -693,7 +693,7 @@ HTTP / Desktop bridge
 
 其中：
 
-- catalog/profile/pack 继续负责产品能力组合。
+- catalog/config-file/pack 继续负责产品能力组合。
 - manifest/policy 继续负责 run 边界。
 - context manager 负责可信上下文投影。
 - tool execution pipeline 负责 syscall 安全。

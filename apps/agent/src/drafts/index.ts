@@ -1,3 +1,4 @@
-export * as DraftApply from './draftApply.js'
-export * as DraftStore from './draftStore.js'
-export * as BackendApplyClient from './backendApplyClient.js'
+export * as DraftApply from './apply/draftApply.js'
+export * as DraftProposal from './proposal/index.js'
+export * as DraftStore from './store/draftStore.js'
+export * as BackendApplyClient from './adapters/backend/backendApplyClient.js'

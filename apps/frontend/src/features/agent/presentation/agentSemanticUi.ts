@@ -8,12 +8,12 @@ export function agentRunStatusRecipe(status: AgentRun['status'] | string): Agent
   return agentRunStatus.recipe(status)
 }
 
-export function agentWorkflowStatusRecipe(status: string): AgentStatusRecipe {
-  return agentWorkflowStatus.recipe(status)
+export function agentRunInteractionStatusRecipe(status: string): AgentStatusRecipe {
+  return agentRunInteractionStatus.recipe(status)
 }
 
-export function agentWorkflowActionStatusRecipe(status: string): AgentStatusRecipe {
-  return agentWorkflowActionStatus.recipe(status)
+export function agentRunInteractionActionStatusRecipe(status: string): AgentStatusRecipe {
+  return agentRunInteractionActionStatus.recipe(status)
 }
 
 export function agentDraftStatusRecipe(status: AgentDraftStatus | string): AgentStatusRecipe {
@@ -85,7 +85,7 @@ const agentRunStatus = defineFeatureStatusRecipeGroup('agent.run.status', {
   default: 'neutral',
 })
 
-const agentWorkflowStatus = defineFeatureStatusRecipeGroup('agent.workflow.status', {
+const agentRunInteractionStatus = defineFeatureStatusRecipeGroup('agent.task.status', {
   completed: 'success',
   done: 'success',
   in_progress: 'info',
@@ -102,7 +102,7 @@ const agentWorkflowStatus = defineFeatureStatusRecipeGroup('agent.workflow.statu
   default: 'neutral',
 })
 
-const agentWorkflowActionStatus = defineFeatureStatusRecipeGroup('agent.workflow-action.status', {
+const agentRunInteractionActionStatus = defineFeatureStatusRecipeGroup('agent.run-interaction-action.status', {
   approved: 'success',
   answered: 'success',
   completed: 'success',

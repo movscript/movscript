@@ -2,18 +2,18 @@ import { runTouchesAgentCatalog } from '@/features/agent/application/agentCatalo
 import { useAgentPlanActionBindings, type UseAgentPlanActionBindingsInput } from '@/features/agent/presentation/useAgentPlanActionBindings'
 import { useAgentRunResultActions, type UseAgentRunResultActionsInput } from '@/features/agent/presentation/useAgentRunResultActions'
 import { useAgentRunStopAction, type UseAgentRunStopActionInput } from '@/features/agent/presentation/useAgentRunStopAction'
-import { useAgentWorkflowActionBindings, type UseAgentWorkflowActionBindingsInput } from '@/features/agent/presentation/useAgentWorkflowActionBindings'
+import { useAgentRunInteractionActionBindings, type UseAgentRunInteractionActionBindingsInput } from '@/features/agent/presentation/useAgentRunInteractionActionBindings'
 
 export interface UseAgentChatActionBindingsInput {
   runResultActions: UseAgentRunResultActionsInput
-  workflowActions: Omit<UseAgentWorkflowActionBindingsInput, 'streamFollowUpRun' | 'appendAssistantRunResult' | 'runTouchesAgentCatalog'>
+  runInteractionActions: Omit<UseAgentRunInteractionActionBindingsInput, 'streamFollowUpRun' | 'appendAssistantRunResult' | 'runTouchesAgentCatalog'>
   planActions: UseAgentPlanActionBindingsInput
   stopAction: Omit<UseAgentRunStopActionInput, 'appendAssistantRunResult'>
 }
 
 export function useAgentChatActionBindings({
   runResultActions,
-  workflowActions,
+  runInteractionActions,
   planActions,
   stopAction,
 }: UseAgentChatActionBindingsInput) {
@@ -22,8 +22,8 @@ export function useAgentChatActionBindings({
     streamFollowUpRun,
   } = useAgentRunResultActions(runResultActions)
 
-  const workflow = useAgentWorkflowActionBindings({
-    ...workflowActions,
+  const runInteraction = useAgentRunInteractionActionBindings({
+    ...runInteractionActions,
     streamFollowUpRun,
     appendAssistantRunResult,
     runTouchesAgentCatalog,
@@ -39,7 +39,7 @@ export function useAgentChatActionBindings({
   return {
     appendAssistantRunResult,
     stopActiveLocalRun,
-    ...workflow,
+    ...runInteraction,
     ...taskGraph,
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "generation_job_create",
-  "description": "Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect generation_model_list and obey the selected model capability contract. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. This is a provider-level MCP tool; planner-facing workflows should normally call core_work_start with kind:\"generation_job\".",
+  "description": "Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect generation_model_list and obey the selected model capability contract. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. This is a provider-level MCP tool; planner-facing Skills should normally call core_work_start with kind:\"generation_job\".",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

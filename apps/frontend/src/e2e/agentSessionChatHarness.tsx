@@ -50,11 +50,11 @@ function AgentSessionChatHarness() {
           ]}
           planActionBusy={false}
           planDispatchSettings={planDispatchSettings()}
-          showLocalWorkflow
+          showLocalRunInteraction
           thinkingState={{ status: 'thinking' }}
           threadRef={createRef<HTMLDivElement>()}
-          workflowAnswerEchoes={new Set()}
-          workflowRunsByResultMessageId={new Map([
+          runInteractionAnswerEchoes={new Set()}
+          interactionRunsByResultMessageId={new Map([
             ['local_user', [run({
               id: 'run_worker',
               pendingApprovals: [approval({
@@ -66,7 +66,7 @@ function AgentSessionChatHarness() {
               })],
             })]],
           ])}
-          workflowRunsWithoutResultMessage={[]}
+          interactionRunsWithoutResultMessage={[]}
           onAcceptPlanReview={() => {}}
           onAnswerLocalRunInput={() => {}}
           onApproveLocalRun={() => {}}
@@ -99,7 +99,7 @@ function run(overrides: Partial<AgentRun>): AgentRun {
     id: 'run_1',
     threadId: 'thread_worker',
     status: 'requires_action',
-    policy: {
+    runtimeLimits: {
       approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,

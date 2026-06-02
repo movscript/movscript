@@ -8,9 +8,13 @@ import { build } from 'esbuild'
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repoRoot = resolve(appRoot, '../..')
 const draftSchemasRoot = resolve(repoRoot, 'packages/drafts')
+const protocolRoot = resolve(repoRoot, 'packages/protocol')
 
 await withBuildLock('movscript-agent-build', async () => {
-  if (draftSchemasBuildIsStale()) {
+  if (packageBuildIsStale(protocolRoot)) {
+    run('pnpm', ['--filter', '@movscript/protocol', 'build'])
+  }
+  if (packageBuildIsStale(draftSchemasRoot)) {
     run('pnpm', ['--filter', '@movscript/drafts', 'build'])
   }
   rmSync(resolve(appRoot, 'dist'), { recursive: true, force: true })
@@ -46,18 +50,18 @@ function run(command, args) {
   }
 }
 
-function draftSchemasBuildIsStale() {
+function packageBuildIsStale(packageRoot) {
   const outputFiles = [
-    resolve(draftSchemasRoot, 'dist/index.cjs'),
-    resolve(draftSchemasRoot, 'dist/index.d.ts'),
-    resolve(draftSchemasRoot, 'dist/index.js'),
+    resolve(packageRoot, 'dist/index.cjs'),
+    resolve(packageRoot, 'dist/index.d.ts'),
+    resolve(packageRoot, 'dist/index.js'),
   ]
   if (outputFiles.some((file) => !existsSync(file))) return true
 
   const oldestOutputMtime = Math.min(...outputFiles.map((file) => statSync(file).mtimeMs))
   const sourceMtime = newestMtime([
-    resolve(draftSchemasRoot, 'package.json'),
-    resolve(draftSchemasRoot, 'src'),
+    resolve(packageRoot, 'package.json'),
+    resolve(packageRoot, 'src'),
   ])
   return sourceMtime > oldestOutputMtime
 }

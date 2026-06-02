@@ -1,0 +1,90 @@
+{
+  "name": "core_image_crop",
+  "description": "本地裁剪图片资源的指定区域，并把裁剪后的优化图片作为下一轮模型 image part 发送。适合查看小字、局部人物、局部 UI 或原图细节。",
+  "permission": "agent.media.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "media",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "resourceId": { "type": "number", "minimum": 1, "description": "图片资源 ID。" },
+      "resource_id": { "type": "number", "minimum": 1, "description": "resourceId 的别名。" },
+      "dataUrl": { "type": "string", "description": "图片 data URL，仅在没有 resourceId 时使用。" },
+      "data_url": { "type": "string", "description": "dataUrl 的别名。" },
+      "left": { "type": "number", "minimum": 0, "description": "裁剪区域左上角 x 坐标。" },
+      "top": { "type": "number", "minimum": 0, "description": "裁剪区域左上角 y 坐标。" },
+      "width": { "type": "number", "minimum": 1, "description": "裁剪宽度。" },
+      "height": { "type": "number", "minimum": 1, "description": "裁剪高度。" },
+      "crop": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "left": { "type": "number", "minimum": 0 },
+          "top": { "type": "number", "minimum": 0 },
+          "width": { "type": "number", "minimum": 1 },
+          "height": { "type": "number", "minimum": 1 }
+        },
+        "required": ["left", "top", "width", "height"]
+      },
+      "preset": {
+        "type": "string",
+        "enum": ["vision_default", "vision_detail", "ui_screenshot", "thumbnail"],
+        "description": "裁剪后输出预设。默认 vision_default。"
+      },
+      "maxDimension": { "type": "number", "minimum": 128, "maximum": 4096, "description": "输出图片最长边像素。" },
+      "max_dimension": { "type": "number", "minimum": 128, "maximum": 4096, "description": "maxDimension 的别名。" },
+      "format": { "type": "string", "enum": ["jpeg", "png", "webp"], "description": "输出格式。" },
+      "quality": { "type": "number", "minimum": 1, "maximum": 100, "description": "输出质量，主要用于 jpeg/webp。" },
+      "name": { "type": "string", "description": "源图片名称。" },
+      "mimeType": { "type": "string", "description": "源图片 MIME 类型。" },
+      "mime_type": { "type": "string", "description": "mimeType 的别名。" }
+    },
+    "allOf": [
+      {
+        "anyOf": [
+          { "required": ["resourceId"] },
+          { "required": ["resource_id"] },
+          { "required": ["dataUrl"] },
+          { "required": ["data_url"] }
+        ]
+      },
+      {
+        "anyOf": [
+          { "required": ["left", "top", "width", "height"] },
+          { "required": ["crop"] }
+        ]
+      }
+    ]
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["source", "original", "crop", "output", "preset"],
+    "properties": {
+      "source": { "type": "object" },
+      "original": { "type": "object" },
+      "crop": { "type": "object" },
+      "preset": { "type": "string" },
+      "output": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["width", "height", "mimeType", "sizeBytes", "image_payload"],
+        "properties": {
+          "width": { "type": "number" },
+          "height": { "type": "number" },
+          "mimeType": { "type": "string" },
+          "sizeBytes": { "type": "number" },
+          "image_payload": { "type": "string", "const": "sent_to_model_as_image_part" }
+        }
+      }
+    }
+  },
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "capability": "本地裁剪图片局部并发送优化后的裁剪图给 vision 模型；适合按需查看原图细节。"
+}

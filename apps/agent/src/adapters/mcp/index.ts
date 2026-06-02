@@ -1,1 +1,1 @@
-export * from '../../mcpClient.js'
+export * from './client/mcpClient.js'

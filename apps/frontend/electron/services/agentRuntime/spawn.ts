@@ -7,9 +7,11 @@ import {
   resolvePort,
 } from './config'
 import { resolveAgentRuntimeLaunch } from './launch'
+import type { AgentRuntimeControlTransport } from './transport'
 
 export interface SpawnAgentRuntimeInput {
   baseURL: string
+  transport: AgentRuntimeControlTransport
   backendAPIBaseURL: string
   detached: boolean
   spawnStartedAt: number
@@ -21,11 +23,11 @@ export function spawnAgentRuntimeProcess(input: SpawnAgentRuntimeInput): ChildPr
   const launch = resolveAgentRuntimeLaunch()
   console.info(`[agent] resolved runtime launch elapsed=${Date.now() - launchResolveStartedAt}ms command=${launch.command} args=${launch.args.join(' ')} cwd=${launch.cwd}`)
 
-  const port = resolvePort(input.baseURL)
+  const port = input.transport.port ?? resolvePort(input.baseURL)
   const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
   const agentUserDataDir = process.env.MOVSCRIPT_AGENT_USER_DATA_DIR || join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR)
   console.info(`[agent] spawning ${launch.command} ${launch.args.join(' ')} cwd=${launch.cwd}`)
-  console.info(`[agent] spawn env MOVSCRIPT_AGENT_PORT=${port} MOVSCRIPT_MCP_ENDPOINT=${mcpEndpoint} MOVSCRIPT_BACKEND_API_BASE_URL=${input.backendAPIBaseURL || '(unset)'} MOVSCRIPT_AGENT_USER_DATA_DIR=${agentUserDataDir} parentPid=${process.pid}`)
+  console.info(`[agent] spawn env MOVSCRIPT_AGENT_TRANSPORT=${input.transport.kind} MOVSCRIPT_AGENT_PORT=${port} MOVSCRIPT_AGENT_SOCKET_PATH=${input.transport.socketPath ?? '(unset)'} MOVSCRIPT_MCP_ENDPOINT=${mcpEndpoint} MOVSCRIPT_BACKEND_API_BASE_URL=${input.backendAPIBaseURL || '(unset)'} MOVSCRIPT_AGENT_USER_DATA_DIR=${agentUserDataDir} parentPid=${process.pid}`)
 
   const child = spawn(launch.command, launch.args, {
     cwd: launch.cwd,
@@ -33,7 +35,9 @@ export function spawnAgentRuntimeProcess(input: SpawnAgentRuntimeInput): ChildPr
     env: {
       ...process.env,
       ...launch.env,
+      MOVSCRIPT_AGENT_TRANSPORT: input.transport.kind,
       MOVSCRIPT_AGENT_PORT: String(port),
+      ...(input.transport.socketPath ? { MOVSCRIPT_AGENT_SOCKET_PATH: input.transport.socketPath } : {}),
       MOVSCRIPT_MCP_ENDPOINT: mcpEndpoint,
       MOVSCRIPT_AGENT_USER_DATA_DIR: agentUserDataDir,
       ...(input.backendAPIBaseURL ? {

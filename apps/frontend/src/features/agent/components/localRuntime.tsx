@@ -1,40 +1,40 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, ListChecks, Loader2, ShieldCheck, Workflow, X } from 'lucide-react'
+import { Check, ListChecks, Loader2, ShieldCheck, Route, X } from 'lucide-react'
 import {
-  AgentWorkflowActionButton,
-  AgentWorkflowAnswerText,
-  AgentWorkflowChoiceButton,
-  AgentWorkflowImpactLabel,
-  AgentWorkflowImpactText,
-  AgentWorkflowMarkerDot,
-  AgentWorkflowMetaBadge,
-  AgentWorkflowRequestActions,
-  AgentWorkflowRequestCard,
-  AgentWorkflowRequestCopy,
-  AgentWorkflowRequestDetail,
-  AgentWorkflowRequestHeader,
-  AgentWorkflowRequestPrompt,
-  AgentWorkflowRequestSummary,
-  AgentWorkflowRequestTitle,
-  AgentWorkflowRuntimeHeader,
-  AgentWorkflowRuntimePanel,
-  AgentWorkflowRuntimeStatusBadge,
-  AgentWorkflowRuntimeTitle,
-  AgentWorkflowSection,
-  AgentWorkflowSectionActions,
-  AgentWorkflowSectionHeader,
-  AgentWorkflowSectionTitle,
-  AgentWorkflowStack,
-  AgentWorkflowStateBadge,
-  AgentWorkflowStatusBadge,
-  AgentWorkflowTextInput,
+  AgentRunInteractionActionButton,
+  AgentRunInteractionAnswerText,
+  AgentRunInteractionChoiceButton,
+  AgentRunInteractionImpactLabel,
+  AgentRunInteractionImpactText,
+  AgentRunInteractionMarkerDot,
+  AgentRunInteractionMetaBadge,
+  AgentRunInteractionRequestActions,
+  AgentRunInteractionRequestCard,
+  AgentRunInteractionRequestCopy,
+  AgentRunInteractionRequestDetail,
+  AgentRunInteractionRequestHeader,
+  AgentRunInteractionRequestPrompt,
+  AgentRunInteractionRequestSummary,
+  AgentRunInteractionRequestTitle,
+  AgentRunInteractionRuntimeHeader,
+  AgentRunInteractionRuntimePanel,
+  AgentRunInteractionRuntimeStatusBadge,
+  AgentRunInteractionRuntimeTitle,
+  AgentRunInteractionSection,
+  AgentRunInteractionSectionActions,
+  AgentRunInteractionSectionHeader,
+  AgentRunInteractionSectionTitle,
+  AgentRunInteractionStack,
+  AgentRunInteractionStateBadge,
+  AgentRunInteractionStatusBadge,
+  AgentRunInteractionTextInput,
 } from '@movscript/ui'
 import { buildAgentRunTimeline, type AgentTimelineItem } from '@/features/agent/domain/agentTimeline'
 import { approvalImpactLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { agentRunStatusRecipe, agentWorkflowActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import { agentRunStatusRecipe, agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityApproval, ChatRunActivityEvent, ChatRunActivityInputRequest } from '@/features/agent/state/agentStore'
 
@@ -46,7 +46,7 @@ type PendingApproval = LocalAgentApprovalRequest
 type PendingInputRequest = LocalAgentInputRequest
 type ApprovalLike = Pick<PendingApproval, 'toolName' | 'risk' | 'permission' | 'preview'>
 
-export interface LocalAgentWorkflowPanelProps {
+export interface LocalAgentRunInteractionPanelProps {
   run: AgentRun | null
   approving?: boolean
   title?: ReactNode
@@ -90,15 +90,15 @@ export function localAgentApprovalPermissionText(permission: string, t: ReturnTy
 export function localAgentApprovalStatusText(status: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
   switch (status) {
     case 'pending':
-      return t('agents.chat.workflow.approvalPending')
+      return t('agents.chat.task.approvalPending')
     case 'approved':
-      return t('agents.chat.workflow.approvalApproved')
+      return t('agents.chat.task.approvalApproved')
     case 'rejected':
-      return t('agents.chat.workflow.approvalRejected')
+      return t('agents.chat.task.approvalRejected')
     case 'cancelled':
-      return t('agents.chat.workflow.cancelled')
+      return t('agents.chat.task.cancelled')
     case 'expired':
-      return t('agents.chat.workflow.approvalExpired')
+      return t('agents.chat.task.approvalExpired')
     default:
       return status ?? '-'
   }
@@ -106,34 +106,34 @@ export function localAgentApprovalStatusText(status: string | undefined, t: Retu
 
 function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<typeof useTranslation>['t']): string {
   const previewSideEffect = approvalPreviewSideEffectText(approval.preview)
-  if (previewSideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect: previewSideEffect })
+  if (previewSideEffect) return t('agents.chat.task.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
   switch (approval.toolName) {
     case 'generation_job_create':
-      return t('agents.chat.workflow.approvalImpact.generationCreate')
+      return t('agents.chat.task.approvalImpact.generationCreate')
     case 'generation_job_cancel':
-      return t('agents.chat.workflow.approvalImpact.generationCancel')
+      return t('agents.chat.task.approvalImpact.generationCancel')
     case 'movscript_project_create':
-      return t('agents.chat.workflow.approvalImpact.projectCreate')
+      return t('agents.chat.task.approvalImpact.projectCreate')
     case 'core_memory_delete':
-      return t('agents.chat.workflow.approvalImpact.memoryDelete')
+      return t('agents.chat.task.approvalImpact.memoryDelete')
     case 'core_work_start':
-      return t('agents.chat.workflow.approvalImpact.workStart', { defaultValue: 'Approving will submit async runtime work; generation jobs may consume quota and subagent runs start worker agents.' })
+      return t('agents.chat.task.approvalImpact.workStart', { defaultValue: 'Approving will submit async runtime work; generation jobs may consume quota and subagent runs start worker agents.' })
     case 'core_work_cancel':
-      return t('agents.chat.workflow.approvalImpact.workCancel', { defaultValue: 'Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.' })
+      return t('agents.chat.task.approvalImpact.workCancel', { defaultValue: 'Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.' })
     default:
       break
   }
 
   const permission = approval.permission ?? ''
-  if (permission === 'draft.apply') return t('agents.chat.workflow.approvalImpact.draftApply')
-  if (permission.includes('generation')) return t('agents.chat.workflow.approvalImpact.generationGeneric')
-  if (permission.includes('project') && permission.includes('write')) return t('agents.chat.workflow.approvalImpact.projectWrite')
-  if (permission.includes('draft') && permission.includes('write')) return t('agents.chat.workflow.approvalImpact.draftWrite')
-  if (permission.includes('memory') && permission.includes('write')) return t('agents.chat.workflow.approvalImpact.memoryWrite')
-  if (approval.risk === 'destructive') return t('agents.chat.workflow.approvalImpact.destructive')
-  if (approval.risk === 'write') return t('agents.chat.workflow.approvalImpact.write')
-  return t('agents.chat.workflow.approvalImpact.default')
+  if (permission === 'draft.apply') return t('agents.chat.task.approvalImpact.draftApply')
+  if (permission.includes('generation')) return t('agents.chat.task.approvalImpact.generationGeneric')
+  if (permission.includes('project') && permission.includes('write')) return t('agents.chat.task.approvalImpact.projectWrite')
+  if (permission.includes('draft') && permission.includes('write')) return t('agents.chat.task.approvalImpact.draftWrite')
+  if (permission.includes('memory') && permission.includes('write')) return t('agents.chat.task.approvalImpact.memoryWrite')
+  if (approval.risk === 'destructive') return t('agents.chat.task.approvalImpact.destructive')
+  if (approval.risk === 'write') return t('agents.chat.task.approvalImpact.write')
+  return t('agents.chat.task.approvalImpact.default')
 }
 
 function approvalPreviewSideEffectText(preview: unknown): string | null {
@@ -158,69 +158,69 @@ export function LocalAgentInputRequestCard({
   const controlsDisabled = disabled || request.status !== 'pending'
   const selectedChoiceIds = new Set(request.answer?.choiceIds ?? [])
   return (
-    <AgentWorkflowRequestCard requestKind="input" status={request.status}>
-      <AgentWorkflowRequestHeader>
-        <AgentWorkflowRequestCopy>
-          <AgentWorkflowRequestTitle>{request.title}</AgentWorkflowRequestTitle>
+    <AgentRunInteractionRequestCard requestKind="input" status={request.status}>
+      <AgentRunInteractionRequestHeader>
+        <AgentRunInteractionRequestCopy>
+          <AgentRunInteractionRequestTitle>{request.title}</AgentRunInteractionRequestTitle>
           {meta}
-        </AgentWorkflowRequestCopy>
-        <AgentWorkflowStateBadge requestKind="input" status={request.status}>
-          {inputWorkflowStatusLabel(request.status, t)}
-        </AgentWorkflowStateBadge>
-      </AgentWorkflowRequestHeader>
-      <AgentWorkflowRequestSummary hiddenContent={!request.summary}>
+        </AgentRunInteractionRequestCopy>
+        <AgentRunInteractionStateBadge requestKind="input" status={request.status}>
+          {inputRunInteractionStatusLabel(request.status, t)}
+        </AgentRunInteractionStateBadge>
+      </AgentRunInteractionRequestHeader>
+      <AgentRunInteractionRequestSummary hiddenContent={!request.summary}>
         {request.summary ?? ''}
-      </AgentWorkflowRequestSummary>
-      <AgentWorkflowRequestPrompt>{request.question}</AgentWorkflowRequestPrompt>
+      </AgentRunInteractionRequestSummary>
+      <AgentRunInteractionRequestPrompt>{request.question}</AgentRunInteractionRequestPrompt>
       {request.choices.length > 0 && (
-        <AgentWorkflowStack>
+        <AgentRunInteractionStack>
           {request.choices.map((choice) => (
-            <AgentWorkflowChoiceButton
+            <AgentRunInteractionChoiceButton
               key={choice.id}
               type="button"
               selected={selectedChoiceIds.has(choice.id)}
               disabled={controlsDisabled}
               onClick={() => onAnswer({ choiceIds: [choice.id] })}
               data-testid="agent-run-input-choice"
-              aria-label={t('agents.chat.workflow.answerChoiceAria', { title: request.title, choice: choice.label })}
+              aria-label={t('agents.chat.task.answerChoiceAria', { title: request.title, choice: choice.label })}
             >
-              <AgentWorkflowRequestCopy>
-                <AgentWorkflowRequestTitle>{choice.label}</AgentWorkflowRequestTitle>
-                {choice.description ? <AgentWorkflowRequestDetail>{choice.description}</AgentWorkflowRequestDetail> : null}
-              </AgentWorkflowRequestCopy>
-            </AgentWorkflowChoiceButton>
+              <AgentRunInteractionRequestCopy>
+                <AgentRunInteractionRequestTitle>{choice.label}</AgentRunInteractionRequestTitle>
+                {choice.description ? <AgentRunInteractionRequestDetail>{choice.description}</AgentRunInteractionRequestDetail> : null}
+              </AgentRunInteractionRequestCopy>
+            </AgentRunInteractionChoiceButton>
           ))}
-        </AgentWorkflowStack>
+        </AgentRunInteractionStack>
       )}
       {(request.allowCustomAnswer || request.inputType === 'text') && (
-        <AgentWorkflowRequestHeader>
-          <AgentWorkflowTextInput
+        <AgentRunInteractionRequestHeader>
+          <AgentRunInteractionTextInput
             value={text}
             onChange={(e) => setText(e.target.value)}
             disabled={controlsDisabled}
             placeholder={placeholder ?? t('common.inputPlaceholder')}
             data-testid="agent-run-input-text"
-            aria-label={t('agents.chat.workflow.answerCustomAria', { title: request.title })}
+            aria-label={t('agents.chat.task.answerCustomAria', { title: request.title })}
           />
-          <AgentWorkflowActionButton
+          <AgentRunInteractionActionButton
             type="button"
             size="sm"
             variant="soft"
             disabled={controlsDisabled || !text.trim()}
             onClick={() => onAnswer({ text: text.trim() })}
             data-testid="agent-run-input-submit"
-            aria-label={t('agents.chat.workflow.submitCustomAria', { title: request.title })}
+            aria-label={t('agents.chat.task.submitCustomAria', { title: request.title })}
           >
             {sendLabel ?? t('common.send')}
-          </AgentWorkflowActionButton>
-        </AgentWorkflowRequestHeader>
+          </AgentRunInteractionActionButton>
+        </AgentRunInteractionRequestHeader>
       )}
       {answered && inputAnswerSummaryText(request, t) && (
-        <AgentWorkflowAnswerText>
+        <AgentRunInteractionAnswerText>
           {inputAnswerSummaryText(request, t)}
-        </AgentWorkflowAnswerText>
+        </AgentRunInteractionAnswerText>
       )}
-    </AgentWorkflowRequestCard>
+    </AgentRunInteractionRequestCard>
   )
 }
 
@@ -236,48 +236,48 @@ export function LocalAgentApprovalRequestCard({
   const approvalTitle = localAgentApprovalTitle(approval, t)
   const approvalReason = localAgentApprovalReason(approval, t)
   return (
-    <AgentWorkflowRequestCard status={approval.status} approving={approving}>
-      <AgentWorkflowRequestHeader>
-        <AgentWorkflowRequestCopy>
-          <AgentWorkflowRequestTitle title={approvalTitle}>{approvalTitle}</AgentWorkflowRequestTitle>
+    <AgentRunInteractionRequestCard status={approval.status} approving={approving}>
+      <AgentRunInteractionRequestHeader>
+        <AgentRunInteractionRequestCopy>
+          <AgentRunInteractionRequestTitle title={approvalTitle}>{approvalTitle}</AgentRunInteractionRequestTitle>
           {approval.risk && (
-            <AgentWorkflowMetaBadge>
+            <AgentRunInteractionMetaBadge>
               {localAgentApprovalRiskText(approval.risk, t)}
-            </AgentWorkflowMetaBadge>
+            </AgentRunInteractionMetaBadge>
           )}
           {approval.permission && (
-            <AgentWorkflowMetaBadge>
+            <AgentRunInteractionMetaBadge>
               {localAgentApprovalPermissionText(approval.permission, t)}
-            </AgentWorkflowMetaBadge>
+            </AgentRunInteractionMetaBadge>
           )}
-        </AgentWorkflowRequestCopy>
-        <AgentWorkflowRequestActions>
-          <AgentWorkflowStateBadge status={approval.status}>
+        </AgentRunInteractionRequestCopy>
+        <AgentRunInteractionRequestActions>
+          <AgentRunInteractionStateBadge status={approval.status}>
             {localAgentApprovalStatusText(approval.status, t)}
-          </AgentWorkflowStateBadge>
+          </AgentRunInteractionStateBadge>
           {isPending ? (
             <>
               {onReject && (
-                <AgentWorkflowActionButton type="button" size="xs" variant="ghost" actionTone="reject" onClick={() => onReject([approval.id])}>
-                  {t('agents.chat.workflow.reject')}
-                </AgentWorkflowActionButton>
+                <AgentRunInteractionActionButton type="button" size="xs" variant="ghost" actionTone="reject" onClick={() => onReject([approval.id])}>
+                  {t('agents.chat.task.reject')}
+                </AgentRunInteractionActionButton>
               )}
               {onApprove && (
-                <AgentWorkflowActionButton type="button" size="xs" onClick={() => onApprove([approval.id])}>
-                  {t('agents.chat.workflow.approve')}
-                </AgentWorkflowActionButton>
+                <AgentRunInteractionActionButton type="button" size="xs" onClick={() => onApprove([approval.id])}>
+                  {t('agents.chat.task.approve')}
+                </AgentRunInteractionActionButton>
               )}
             </>
           ) : null}
-        </AgentWorkflowRequestActions>
-      </AgentWorkflowRequestHeader>
-      {approvalReason && <AgentWorkflowRequestDetail>{approvalReason}</AgentWorkflowRequestDetail>}
-      <AgentWorkflowImpactText status={approval.status}>
-        <AgentWorkflowImpactLabel>{t('agents.chat.workflow.approvalImpact.label')}: </AgentWorkflowImpactLabel>
+        </AgentRunInteractionRequestActions>
+      </AgentRunInteractionRequestHeader>
+      {approvalReason && <AgentRunInteractionRequestDetail>{approvalReason}</AgentRunInteractionRequestDetail>}
+      <AgentRunInteractionImpactText status={approval.status}>
+        <AgentRunInteractionImpactLabel>{t('agents.chat.task.approvalImpact.label')}: </AgentRunInteractionImpactLabel>
         {localAgentApprovalImpactText(approval, t)}
-      </AgentWorkflowImpactText>
+      </AgentRunInteractionImpactText>
       {approvalDetails ? approvalDetails(approval) : null}
-    </AgentWorkflowRequestCard>
+    </AgentRunInteractionRequestCard>
   )
 }
 
@@ -287,9 +287,9 @@ function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof
     ? approval.args as Record<string, unknown>
     : undefined
   const kind = typeof args?.kind === 'string' ? args.kind : undefined
-  if (kind === 'generation_job') return t('agents.chat.workflow.approvalOperation.generationJob', { defaultValue: '创建生成任务' })
-  if (kind === 'subagent_run') return t('agents.chat.workflow.approvalOperation.subagentRun', { defaultValue: '启动子 agent 运行' })
-  return t('agents.chat.workflow.approvalOperation.default', { defaultValue: '提交异步任务' })
+  if (kind === 'generation_job') return t('agents.chat.task.approvalOperation.generationJob', { defaultValue: '创建生成任务' })
+  if (kind === 'subagent_run') return t('agents.chat.task.approvalOperation.subagentRun', { defaultValue: '启动子 agent 运行' })
+  return t('agents.chat.task.approvalOperation.default', { defaultValue: '提交异步任务' })
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
@@ -297,12 +297,12 @@ function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeo
     return ''
   }
   if (approval.toolName === 'core_work_start' && /core_work_start|agent\.work\.write|work\.write/i.test(approval.reason)) {
-    return t('agents.chat.workflow.approvalOperation.confirmBeforeRun', { defaultValue: '需要用户确认后才能执行。' })
+    return t('agents.chat.task.approvalOperation.confirmBeforeRun', { defaultValue: '需要用户确认后才能执行。' })
   }
   return approval.reason
 }
 
-export function LocalAgentWorkflowPanel({
+export function LocalAgentRunInteractionPanel({
   run,
   approving = false,
   title,
@@ -311,7 +311,7 @@ export function LocalAgentWorkflowPanel({
   onReject,
   onAnswerInput,
   approvalDetails,
-}: LocalAgentWorkflowPanelProps) {
+}: LocalAgentRunInteractionPanelProps) {
   const { t } = useTranslation()
   if (!run) return null
 
@@ -338,34 +338,34 @@ export function LocalAgentWorkflowPanel({
       || (typeof event.title === 'string' && /timing|setup complete|resolved/i.test(event.title))
   })
   const statusLabel = run.status === 'requires_action'
-    ? pendingInputs.length > 0 ? t('agents.chat.workflow.waitingForInput') : t('agents.chat.workflow.waitingForApproval')
+    ? pendingInputs.length > 0 ? t('agents.chat.task.waitingForInput') : t('agents.chat.task.waitingForApproval')
     : run.status === 'cancelled'
-      ? t('agents.chat.workflow.cancelled')
-    : workflowRunStatusLabel(run.status, t)
+      ? t('agents.chat.task.cancelled')
+    : interactionRunStatusLabel(run.status, t)
   const showBulkApprovalActions = pendingApprovals.length > 1
   const runStatusRecipe = agentRunStatusRecipe(run.status)
 
   return (
-    <AgentWorkflowRuntimePanel>
-      <AgentWorkflowRuntimeHeader>
-        <AgentWorkflowRuntimeTitle>
-          <Workflow size={14} />
-          {title ?? t('agents.chat.workflow.panelTitle')}
-        </AgentWorkflowRuntimeTitle>
-        <AgentWorkflowRuntimeStatusBadge intent={runStatusRecipe.intent} emphasis={runStatusRecipe.emphasis}>
+    <AgentRunInteractionRuntimePanel>
+      <AgentRunInteractionRuntimeHeader>
+        <AgentRunInteractionRuntimeTitle>
+          <Route size={14} />
+          {title ?? t('agents.chat.task.panelTitle')}
+        </AgentRunInteractionRuntimeTitle>
+        <AgentRunInteractionRuntimeStatusBadge intent={runStatusRecipe.intent} emphasis={runStatusRecipe.emphasis}>
           {statusLabel}
-        </AgentWorkflowRuntimeStatusBadge>
-      </AgentWorkflowRuntimeHeader>
+        </AgentRunInteractionRuntimeStatusBadge>
+      </AgentRunInteractionRuntimeHeader>
 
       {actionInputs.length > 0 && onAnswerInput && (
-        <AgentWorkflowSection>
-          <AgentWorkflowSectionHeader>
-            <AgentWorkflowSectionTitle>
+        <AgentRunInteractionSection>
+          <AgentRunInteractionSectionHeader>
+            <AgentRunInteractionSectionTitle>
               <ListChecks size={12} />
-              {t('agents.chat.workflow.inputRequired')}
-            </AgentWorkflowSectionTitle>
-          </AgentWorkflowSectionHeader>
-          <AgentWorkflowStack>
+              {t('agents.chat.task.inputRequired')}
+            </AgentRunInteractionSectionTitle>
+          </AgentRunInteractionSectionHeader>
+          <AgentRunInteractionStack>
             {actionInputs.map((request) => (
               <LocalAgentInputRequestCard
                 key={request.id}
@@ -374,19 +374,19 @@ export function LocalAgentWorkflowPanel({
                 onAnswer={(answer) => onAnswerInput?.(request.id, answer)}
               />
             ))}
-          </AgentWorkflowStack>
-        </AgentWorkflowSection>
+          </AgentRunInteractionStack>
+        </AgentRunInteractionSection>
       )}
 
       {actionApprovals.length > 0 && (
-        <AgentWorkflowSection state={approvalTone}>
-          <AgentWorkflowSectionHeader>
-            <AgentWorkflowSectionTitle state={approvalTone}>
+        <AgentRunInteractionSection state={approvalTone}>
+          <AgentRunInteractionSectionHeader>
+            <AgentRunInteractionSectionTitle state={approvalTone}>
               <ShieldCheck size={12} />
-              {workflowApprovalSectionTitle(approvalTone, t)}
-            </AgentWorkflowSectionTitle>
-            <AgentWorkflowSectionActions visible={showBulkApprovalActions}>
-              <AgentWorkflowActionButton
+              {runInteractionApprovalSectionTitle(approvalTone, t)}
+            </AgentRunInteractionSectionTitle>
+            <AgentRunInteractionSectionActions visible={showBulkApprovalActions}>
+              <AgentRunInteractionActionButton
                 type="button"
                 size="xs"
                 variant="ghost"
@@ -395,9 +395,9 @@ export function LocalAgentWorkflowPanel({
                 disabled={!showBulkApprovalActions || approving || !onReject}
               >
                 <X size={10} />
-                {t('agents.chat.workflow.rejectAll')}
-              </AgentWorkflowActionButton>
-              <AgentWorkflowActionButton
+                {t('agents.chat.task.rejectAll')}
+              </AgentRunInteractionActionButton>
+              <AgentRunInteractionActionButton
                 type="button"
                 size="xs"
                 variant="soft"
@@ -405,11 +405,11 @@ export function LocalAgentWorkflowPanel({
                 disabled={!showBulkApprovalActions || approving || !onApprove}
               >
                 {approving ? <Loader2 size={10} /> : <Check size={10} />}
-                {t('agents.chat.workflow.approveAll')}
-              </AgentWorkflowActionButton>
-            </AgentWorkflowSectionActions>
-          </AgentWorkflowSectionHeader>
-          <AgentWorkflowStack>
+                {t('agents.chat.task.approveAll')}
+              </AgentRunInteractionActionButton>
+            </AgentRunInteractionSectionActions>
+          </AgentRunInteractionSectionHeader>
+          <AgentRunInteractionStack>
             {actionApprovals.map((approval) => (
               <LocalAgentApprovalRequestCard
                 key={approval.id}
@@ -420,35 +420,35 @@ export function LocalAgentWorkflowPanel({
                 approvalDetails={approvalDetails}
               />
             ))}
-          </AgentWorkflowStack>
-        </AgentWorkflowSection>
+          </AgentRunInteractionStack>
+        </AgentRunInteractionSection>
       )}
 
       {actionHistory.length > 0 && (
-        <AgentWorkflowSection>
-          <AgentWorkflowSectionHeader>
-            <AgentWorkflowSectionTitle>
+        <AgentRunInteractionSection>
+          <AgentRunInteractionSectionHeader>
+            <AgentRunInteractionSectionTitle>
               <ListChecks size={12} />
-              {t('agents.chat.workflow.interactionHistory')}
-            </AgentWorkflowSectionTitle>
-          </AgentWorkflowSectionHeader>
-          <AgentWorkflowStack>
+              {t('agents.chat.task.interactionHistory')}
+            </AgentRunInteractionSectionTitle>
+          </AgentRunInteractionSectionHeader>
+          <AgentRunInteractionStack>
             {actionHistory.map((item) => (
-              <WorkflowActionHistoryItem key={item.id} item={item} />
+              <RunInteractionActionHistoryItem key={item.id} item={item} />
             ))}
-          </AgentWorkflowStack>
-        </AgentWorkflowSection>
+          </AgentRunInteractionStack>
+        </AgentRunInteractionSection>
       )}
 
       {timingEvents.length > 0 && (
-        <AgentWorkflowSection>
-          <AgentWorkflowSectionHeader>
-            <AgentWorkflowSectionTitle>
-              <Workflow size={12} />
-              {t('agents.chat.workflow.timing')}
-            </AgentWorkflowSectionTitle>
-          </AgentWorkflowSectionHeader>
-          <AgentWorkflowStack>
+        <AgentRunInteractionSection>
+          <AgentRunInteractionSectionHeader>
+            <AgentRunInteractionSectionTitle>
+              <Route size={12} />
+              {t('agents.chat.task.timing')}
+            </AgentRunInteractionSectionTitle>
+          </AgentRunInteractionSectionHeader>
+          <AgentRunInteractionStack>
             {timingEvents.map((event) => {
               const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
               const durationMs = typeof data?.durationMs === 'number' ? data.durationMs : undefined
@@ -457,83 +457,83 @@ export function LocalAgentWorkflowPanel({
                 : undefined
               const focusMs = typeof focusTimings?.focusMs === 'number' ? focusTimings.focusMs : undefined
               return (
-                <AgentWorkflowRequestCard key={event.id} status="completed">
-                  <AgentWorkflowRequestHeader>
-                    <AgentWorkflowRequestTitle>{event.title}</AgentWorkflowRequestTitle>
+                <AgentRunInteractionRequestCard key={event.id} status="completed">
+                  <AgentRunInteractionRequestHeader>
+                    <AgentRunInteractionRequestTitle>{event.title}</AgentRunInteractionRequestTitle>
                     {durationMs !== undefined && (
-                      <AgentWorkflowMetaBadge>
+                      <AgentRunInteractionMetaBadge>
                         {Math.round(durationMs)}ms
-                      </AgentWorkflowMetaBadge>
+                      </AgentRunInteractionMetaBadge>
                     )}
-                  </AgentWorkflowRequestHeader>
-                  {event.summary && <AgentWorkflowRequestDetail>{event.summary}</AgentWorkflowRequestDetail>}
-                  {focusMs !== undefined && <AgentWorkflowRequestSummary>{t('agents.chat.workflow.focusTotal', { ms: Math.round(focusMs) })}</AgentWorkflowRequestSummary>}
-                </AgentWorkflowRequestCard>
+                  </AgentRunInteractionRequestHeader>
+                  {event.summary && <AgentRunInteractionRequestDetail>{event.summary}</AgentRunInteractionRequestDetail>}
+                  {focusMs !== undefined && <AgentRunInteractionRequestSummary>{t('agents.chat.task.focusTotal', { ms: Math.round(focusMs) })}</AgentRunInteractionRequestSummary>}
+                </AgentRunInteractionRequestCard>
               )
             })}
-          </AgentWorkflowStack>
-        </AgentWorkflowSection>
+          </AgentRunInteractionStack>
+        </AgentRunInteractionSection>
       )}
-    </AgentWorkflowRuntimePanel>
+    </AgentRunInteractionRuntimePanel>
   )
 }
 
-function WorkflowActionHistoryItem({ item }: { item: AgentTimelineItem }) {
-  const actionRecipe = agentWorkflowActionStatusRecipe(item.status)
+function RunInteractionActionHistoryItem({ item }: { item: AgentTimelineItem }) {
+  const actionRecipe = agentRunInteractionActionStatusRecipe(item.status)
   return (
-    <AgentWorkflowRequestCard status={item.status}>
-      <AgentWorkflowRequestHeader>
-        <AgentWorkflowRequestCopy>
-          <AgentWorkflowMarkerDot size="xs" status={item.status} />
-          <AgentWorkflowRequestTitle>{item.title}</AgentWorkflowRequestTitle>
-        </AgentWorkflowRequestCopy>
-        <AgentWorkflowStatusBadge intent={actionRecipe.intent} emphasis={actionRecipe.emphasis}>
+    <AgentRunInteractionRequestCard status={item.status}>
+      <AgentRunInteractionRequestHeader>
+        <AgentRunInteractionRequestCopy>
+          <AgentRunInteractionMarkerDot size="xs" status={item.status} />
+          <AgentRunInteractionRequestTitle>{item.title}</AgentRunInteractionRequestTitle>
+        </AgentRunInteractionRequestCopy>
+        <AgentRunInteractionStatusBadge intent={actionRecipe.intent} emphasis={actionRecipe.emphasis}>
           {item.statusLabel ?? item.status}
-        </AgentWorkflowStatusBadge>
-      </AgentWorkflowRequestHeader>
-      {item.summary && <AgentWorkflowRequestDetail>{item.summary}</AgentWorkflowRequestDetail>}
-    </AgentWorkflowRequestCard>
+        </AgentRunInteractionStatusBadge>
+      </AgentRunInteractionRequestHeader>
+      {item.summary && <AgentRunInteractionRequestDetail>{item.summary}</AgentRunInteractionRequestDetail>}
+    </AgentRunInteractionRequestCard>
   )
 }
 
-function workflowApprovalSectionTitle(tone: 'pending' | 'approved' | 'rejected' | 'idle', t: ReturnType<typeof useTranslation>['t']): string {
-  if (tone === 'approved') return t('agents.chat.workflow.approvalApprovedSection')
-  if (tone === 'rejected') return t('agents.chat.workflow.approvalRejectedSection')
-  return t('agents.chat.workflow.approvalRequired')
+function runInteractionApprovalSectionTitle(tone: 'pending' | 'approved' | 'rejected' | 'idle', t: ReturnType<typeof useTranslation>['t']): string {
+  if (tone === 'approved') return t('agents.chat.task.approvalApprovedSection')
+  if (tone === 'rejected') return t('agents.chat.task.approvalRejectedSection')
+  return t('agents.chat.task.approvalRequired')
 }
 
-function workflowRunStatusLabel(status: AgentRun['status'], t: ReturnType<typeof useTranslation>['t']): string {
+function interactionRunStatusLabel(status: AgentRun['status'], t: ReturnType<typeof useTranslation>['t']): string {
   switch (status) {
     case 'queued':
-      return t('agents.chat.workflow.runQueued')
+      return t('agents.chat.task.runQueued')
     case 'in_progress':
-      return t('agents.chat.workflow.runInProgress')
+      return t('agents.chat.task.runInProgress')
     case 'requires_action':
-      return t('agents.chat.workflow.runRequiresAction')
+      return t('agents.chat.task.runRequiresAction')
     case 'completed':
-      return t('agents.chat.workflow.runCompleted')
+      return t('agents.chat.task.runCompleted')
     case 'completed_with_warnings':
-      return t('agents.chat.workflow.runCompletedWithWarnings')
+      return t('agents.chat.task.runCompletedWithWarnings')
     case 'failed':
-      return t('agents.chat.workflow.runFailed')
+      return t('agents.chat.task.runFailed')
     case 'cancelled':
-      return t('agents.chat.workflow.cancelled')
+      return t('agents.chat.task.cancelled')
     default:
       return runStatusLabel(status)
   }
 }
 
-function inputWorkflowStatusLabel(status: string, t: ReturnType<typeof useTranslation>['t']): string {
-  if (status === 'answered') return t('agents.chat.workflow.inputAnswered')
-  if (status === 'cancelled') return t('agents.chat.workflow.inputCancelled')
-  return t('agents.chat.workflow.inputPending')
+function inputRunInteractionStatusLabel(status: string, t: ReturnType<typeof useTranslation>['t']): string {
+  if (status === 'answered') return t('agents.chat.task.inputAnswered')
+  if (status === 'cancelled') return t('agents.chat.task.inputCancelled')
+  return t('agents.chat.task.inputPending')
 }
 
 function inputAnswerSummaryText(request: PendingInputRequest, t: ReturnType<typeof useTranslation>['t']): string {
   return [
-    request.answer?.choiceIds?.length ? t('agents.chat.workflow.choiceAnswerSummary', { value: inputAnswerChoiceLabels(request).join(', ') }) : undefined,
-    request.answer?.text ? t('agents.chat.workflow.customAnswerSummary', { value: request.answer.text }) : undefined,
-  ].filter(Boolean).join(t('agents.chat.workflow.answerSummarySeparator'))
+    request.answer?.choiceIds?.length ? t('agents.chat.task.choiceAnswerSummary', { value: inputAnswerChoiceLabels(request).join(', ') }) : undefined,
+    request.answer?.text ? t('agents.chat.task.customAnswerSummary', { value: request.answer.text }) : undefined,
+  ].filter(Boolean).join(t('agents.chat.task.answerSummarySeparator'))
 }
 
 function inputAnswerChoiceLabels(request: PendingInputRequest): string[] {

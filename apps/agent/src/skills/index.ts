@@ -1,3 +1,3 @@
-export * from './intentResolver.js'
-export * from './triggerEvaluator.js'
-export * from './promptComposer.js'
+export * from './resolution/intent/intentResolver.js'
+export * from './activation/triggers/triggerEvaluator.js'
+export * from './prompt/promptComposer.js'

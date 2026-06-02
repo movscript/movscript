@@ -1,6 +1,6 @@
 import { loadRuntimeThreadProjection, type RuntimeThreadHydrationResult } from '@/features/agent/application/agentRuntimeThreadHydration'
 import { mergeRuntimeThreadProjectionMessages, runtimeThreadHydrationKey } from '@movscript/conversation'
-import { runHasWorkflowInteraction, upsertWorkflowRunSnapshot } from '@/features/agent/domain/agentWorkflowInteraction'
+import { runHasRunInteraction, upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { AgentConversationMessageStore } from '@movscript/conversation'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
@@ -70,9 +70,9 @@ export async function hydrateRuntimeThreadConversation(input: {
         stopRequested: false,
       })
     }
-    const interactionRuns = projection.runs.filter(runHasWorkflowInteraction)
+    const interactionRuns = projection.runs.filter(runHasRunInteraction)
     if (interactionRuns.length > 0) {
-      deps.setSubmittedInteractionRuns?.((current) => interactionRuns.reduce(upsertWorkflowRunSnapshot, current))
+      deps.setSubmittedInteractionRuns?.((current) => interactionRuns.reduce(upsertInteractionRunSnapshot, current))
     }
     deps.setRuntimeStatusLight?.(projection.runtimeStatusLight)
     const title = projection.thread.title?.trim()

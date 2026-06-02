@@ -1,0 +1,21 @@
+.ms-agent-run-interaction-thumb {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ms-agent-run-interaction-thumb > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ms-agent-run-interaction-thumb__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ms-color-info);
+}

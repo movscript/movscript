@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { api } from '@/shared/infrastructure/api'
-import { generateImageViaRuntime } from '@/features/plugins/application/clientPlugins'
+import { generateImageViaRuntime, generateMediaViaRuntime, uploadResourceViaRuntime } from '@/features/plugins/application/clientPlugins'
 import { createMcpTools } from '@/features/plugins/infrastructure/mcpTools'
 
 export function usePluginBridge(iframeRef: React.RefObject<HTMLIFrameElement | null>) {
@@ -59,6 +59,10 @@ async function dispatch(method: string, args: unknown[], mcp: ReturnType<typeof 
       return api.get('/models?capability=image').then((r) => r.data)
     case 'resources':
       return api.get('/resources').then((r) => r.data)
+    case 'uploadResource':
+      return uploadResourceViaRuntime(args[0] as any)
+    case 'generateMedia':
+      return generateMediaViaRuntime(args[0] as any)
     case 'generateImage':
       return generateImageViaRuntime(args[0] as any)
     case 'sleep':

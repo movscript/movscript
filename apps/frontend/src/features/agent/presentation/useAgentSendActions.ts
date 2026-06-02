@@ -5,7 +5,7 @@ import { processExternalAgentTask } from '@/features/agent/application/agentExte
 import type { BuildAgentSendDraftOptions } from '@/features/agent/presentation/useAgentSendDraftBuilder'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
-import type { AgentInputAnswer } from '@/features/agent/domain/agentWorkflowInteraction'
+import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
 import {
   beginAgentPerformanceOperation,

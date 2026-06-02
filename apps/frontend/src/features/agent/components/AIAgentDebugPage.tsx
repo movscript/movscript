@@ -381,7 +381,7 @@ export default function AIAgentDebugPage() {
           },
         },
       }, {
-        runPolicy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+        runtimeLimits: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
         timeoutMs: 90_000,
         onRunUpdate: (latestRun) => setToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
       })
@@ -457,7 +457,7 @@ export default function AIAgentDebugPage() {
           },
         },
       }, {
-        runPolicy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+        runtimeLimits: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
         timeoutMs: 90_000,
         onRunUpdate: (latestRun) => setDraftToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
       })
@@ -759,8 +759,8 @@ export default function AIAgentDebugPage() {
             </AgentDebugTabsContent>
 
             <AgentDebugTabsContent value="manifest" layout="two">
-              <AgentDebugJsonPanel icon={Bot} formatValue={formatJson} title={t('agents.debug.panels.effectiveManifest')} value={preview?.agentManifest ?? debugQuery.data.capabilities.defaultAgentManifest} emptyText={t('agents.debug.empty.noManifest')} />
-              <AgentDebugJsonPanel icon={Bot} formatValue={formatJson} title={t('agents.debug.panels.defaultManifest')} value={debugQuery.data.inspect.defaultAgentManifest} emptyText={t('agents.debug.empty.noDefaultManifest')} />
+              <AgentDebugJsonPanel icon={Bot} formatValue={formatJson} title={t('agents.debug.panels.effectiveManifest')} value={preview?.agentManifest ?? debugQuery.data.capabilities.activeAgentManifest} emptyText={t('agents.debug.empty.noManifest')} />
+              <AgentDebugJsonPanel icon={Bot} formatValue={formatJson} title={t('agents.debug.panels.activeManifest')} value={debugQuery.data.inspect.activeAgentManifest} emptyText={t('agents.debug.empty.noActiveManifest')} />
             </AgentDebugTabsContent>
 
             <AgentDebugTabsContent value="toolConsole" layout="tool-console">

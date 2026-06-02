@@ -5,7 +5,7 @@ import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import { isRuntimeAsyncWorkHandoffRun } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import { getThinkingBubbleState, type ThinkingBubbleState } from '@/features/agent/presentation/agentThinkingBubbleState'
-import { useAgentChatWorkflowState } from '@/features/agent/presentation/useAgentChatWorkflowState'
+import { useAgentChatRunInteractionState } from '@/features/agent/presentation/useAgentChatRunInteractionState'
 import type { AgentSendDraft } from '@/features/agent/application/agentSendDraft'
 import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
 import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
@@ -91,23 +91,23 @@ export function useAgentChatDerivedState({
     visibleActivityEvents,
   ])
 
-  const workflowState = useAgentChatWorkflowState({
+  const runInteractionState = useAgentChatRunInteractionState({
     activePlanSnapshot,
     messages,
     run: activeLocalRun,
     submittedInteractionRuns,
   })
   const canSend = (
-    workflowState.answeringPendingInput
-      ? workflowState.canAnswerPendingInputWithText && !!input.trim()
+    runInteractionState.answeringPendingInput
+      ? runInteractionState.canAnswerPendingInputWithText && !!input.trim()
       : (!!input.trim() || composerAttachments.length > 0)
   ) && !uploading && !buildingSendDraft
   const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (inputBlockingLoading || buildingSendDraft)
-  const canStopLocalRun = !workflowState.answeringPendingInput && (isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || runtimeStopRequested)
-  const composerPlaceholder = workflowState.activePendingInputRequest
-    ? workflowState.activePendingInputRequest.inputType === 'choice'
-      ? workflowState.activePendingInputRequest.allowCustomAnswer ? '可补充自定义答案' : '请选择上方选项'
-      : workflowState.activePendingInputRequest.question
+  const canStopLocalRun = !runInteractionState.answeringPendingInput && (isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || runtimeStopRequested)
+  const composerPlaceholder = runInteractionState.activePendingInputRequest
+    ? runInteractionState.activePendingInputRequest.inputType === 'choice'
+      ? runInteractionState.activePendingInputRequest.allowCustomAnswer ? '可补充自定义答案' : '请选择上方选项'
+      : runInteractionState.activePendingInputRequest.question
     : inputPlaceholder
 
   return {
@@ -127,6 +127,6 @@ export function useAgentChatDerivedState({
     stoppingLocalRun: runtimeStopping,
     stopRequestedBeforeRun: runtimeStopRequested,
     thinkingState,
-    ...workflowState,
+    ...runInteractionState,
   }
 }

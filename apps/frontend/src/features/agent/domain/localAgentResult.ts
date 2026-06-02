@@ -9,21 +9,21 @@ export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<Age
   const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
   const content = assistant?.content
     ?? (run.status === 'failed'
-      ? t('agents.chat.workflow.failed', { error: run.error ?? t('agents.chat.workflow.unknownError') })
+      ? t('agents.chat.task.failed', { error: run.error ?? t('agents.chat.task.unknownError') })
       : run.status === 'cancelled'
-        ? t('agents.chat.workflow.cancelledMessage')
+        ? t('agents.chat.task.cancelledMessage')
         : run.status === 'requires_action'
           ? pendingInputs.length > 0
-            ? t('agents.chat.workflow.needsInput', {
+            ? t('agents.chat.task.needsInput', {
               items: pendingInputs.map((request) => `- ${request.title}: ${request.question}`).join('\n'),
             })
-            : t('agents.chat.workflow.needsApproval', {
-              items: pendingApprovals.map((approval) => `- ${approval.toolName}: ${approval.reason}`).join('\n') || t('agents.chat.workflow.waitingForToolCallConfirmation'),
+            : t('agents.chat.task.needsApproval', {
+              items: pendingApprovals.map((approval) => `- ${approval.toolName}: ${approval.reason}`).join('\n') || t('agents.chat.task.waitingForToolCallConfirmation'),
             })
-          : t('agents.chat.workflow.noAssistantMessage'))
+          : t('agents.chat.task.noAssistantMessage'))
 
   if (run.status !== 'completed_with_warnings' || !run.warnings?.length) return content
   const missing = run.warnings.filter((warning) => !content.includes(warning))
   if (missing.length === 0) return content
-  return `${content}\n\n${t('agents.chat.workflow.warnings')}:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
+  return `${content}\n\n${t('agents.chat.task.warnings')}:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
 }

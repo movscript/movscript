@@ -766,7 +766,21 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
 
   await page.route('http://127.0.0.1:28765/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/health' || url.pathname === '/inspect' || url.pathname === '/capabilities') {
+    if (url.pathname === '/livez') {
+      await fulfillJSON(route, { ok: true })
+      return
+    }
+    if (url.pathname === '/runtime/compat' || url.pathname === '/health') {
+      await fulfillJSON(route, {
+        ok: true,
+        service: 'movscript-agent',
+        mode: 'e2e',
+        mcpEndpoint: 'http://127.0.0.1:29999/mcp',
+        runtime: { apiVersion: 1, features: ['model-config', 'runtime-capabilities'], endpoints: ['/livez', '/runtime/compat'] },
+      })
+      return
+    }
+    if (url.pathname === '/inspect' || url.pathname === '/capabilities') {
       await route.fallback()
       return
     }

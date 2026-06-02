@@ -6,8 +6,8 @@
   "source": "builtin",
   "resources": {
     "skills": [
-      "draft/policy/lifecycle",
-      "draft/workflow/lifecycle"
+      "draft/rules/lifecycle",
+      "draft/lifecycle_support"
     ],
     "tools": [
       "draft"
@@ -27,8 +27,8 @@
     "draft_apply"
   ],
   "skills": [
-    "draft.policy.lifecycle",
-    "draft.workflow.lifecycle"
+    "draft.rules.lifecycle",
+    "draft.lifecycle_support"
   ],
   "requires": {
     "packs": {

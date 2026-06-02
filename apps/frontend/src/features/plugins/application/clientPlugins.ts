@@ -2,7 +2,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } from '@/types'
 import { createMcpTools, type McpTools } from '@/features/plugins/infrastructure/mcpTools'
 import { publicModelId } from '@/shared/domain/modelDisplay'
-import { localAgentClient, type AgentSkillBundleFile, type AgentSkillBundleInstallResult } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentPackFile, type AgentPackInstallResult } from '@/shared/infrastructure/localAgentClient'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,7 +47,6 @@ export interface ClientPluginContributions {
   agentSkills?: Array<{
     path: string
     id?: string
-    kind?: 'persona' | 'workflow' | 'policy' | 'expertise' | string
     tags?: string[]
     aliases?: string[]
     useWhen?: string[]
@@ -82,7 +81,7 @@ export interface ClientPluginManifest {
   /** Logo as data URL (extracted from .movpkg assets/) */
   logoDataUrl?: string
   /** Result of installing bundled agent skills into the local agent catalog. */
-  agentSkillInstall?: AgentSkillBundleInstallResult
+  agentPackInstall?: AgentPackInstallResult
   installedAt?: string
 }
 
@@ -111,6 +110,14 @@ export type GenerateImageRequest = GenerateMediaRequest & {
   job_type?: 'image' | 'image_edit'
 }
 
+export interface UploadResourceRequest {
+  filename: string
+  mime_type?: string
+  data_base64?: string
+  text?: string
+  folder_id?: number
+}
+
 export interface ClientPluginRuntime {
   get: <T = unknown>(path: string) => Promise<T>
   post: <T = unknown>(path: string, body?: unknown) => Promise<T>
@@ -119,6 +126,7 @@ export interface ClientPluginRuntime {
   models: (capability: string) => Promise<PublicModel[]>
   modelConfigs: () => Promise<PublicModel[]>
   resources: () => Promise<RawResource[]>
+  uploadResource: (req: UploadResourceRequest) => Promise<RawResource>
   generateMedia: (req: GenerateMediaRequest) => Promise<unknown>
   generateImage: (req: GenerateImageRequest) => Promise<unknown>
   sleep: (ms: number) => Promise<void>
@@ -272,7 +280,7 @@ async function installPluginFromMovpkg(file: File): Promise<ClientPluginManifest
   }
   if (agentSkillFiles.length > 0) {
     await localAgentClient.ensureRunning()
-    manifest.agentSkillInstall = await localAgentClient.installAgentSkillBundle({
+    manifest.agentPackInstall = await localAgentClient.installAgentPack({
       pluginId: manifest.id,
       files: agentSkillFiles,
     })
@@ -283,8 +291,8 @@ async function installPluginFromMovpkg(file: File): Promise<ClientPluginManifest
 
 async function extractMovpkgAgentSkillFiles(zip: {
   forEach: (callback: (relativePath: string, file: { dir: boolean; async: (type: 'text') => Promise<string> }) => void) => void
-}): Promise<AgentSkillBundleFile[]> {
-  const pending: Array<Promise<AgentSkillBundleFile>> = []
+}): Promise<AgentPackFile[]> {
+  const pending: Array<Promise<AgentPackFile>> = []
   zip.forEach((relativePath, entry) => {
     if (entry.dir) return
     if (!relativePath.startsWith('agent-skills/')) return
@@ -374,7 +382,7 @@ export async function runClientPlugin(plugin: ClientPluginManifest, args: Record
     return { content: [{ type: 'text', text: String(result ?? '') }], data: result }
   }
 
-  if (typeof runFn !== 'function') throw new Error('plugin bundle does not export a run() function')
+  if (typeof runFn !== 'function') throw new Error('plugin pack does not export a run() function')
   const result = await runFn(runtime, args)
   if (result && typeof result === 'object') return result as ClientPluginResult
   return { content: [{ type: 'text', text: String(result ?? '') }], data: result }
@@ -436,11 +444,34 @@ function createRuntime(): ClientPluginRuntime {
     models: (capability) => api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data),
     modelConfigs: () => api.get('/models?capability=image').then((r) => r.data),
     resources: () => api.get('/resources').then((r) => r.data),
+    uploadResource: uploadResourceViaRuntime,
     generateMedia: generateMediaViaRuntime,
     generateImage: generateImageViaRuntime,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     mcp: createMcpTools(),
   }
+}
+
+export async function uploadResourceViaRuntime(req: UploadResourceRequest): Promise<RawResource> {
+  if (!req.filename?.trim()) throw new Error('filename is required')
+  if (!req.data_base64 && req.text === undefined) throw new Error('data_base64 or text is required')
+
+  const mimeType = req.mime_type || 'application/octet-stream'
+  const bytes = req.data_base64 ? base64ToUint8Array(req.data_base64) : undefined
+  const blob = bytes ? new Blob([bytes], { type: mimeType }) : new Blob([req.text ?? ''], { type: mimeType })
+  const fd = new FormData()
+  fd.append('file', blob, req.filename)
+  if (req.folder_id !== undefined) fd.append('folder_id', String(req.folder_id))
+  return api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+}
+
+function base64ToUint8Array(value: string) {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
 }
 
 export async function generateImageViaRuntime(req: GenerateImageRequest): Promise<unknown> {

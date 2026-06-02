@@ -50,7 +50,7 @@ import {
   AgentDebugWarningCallout,
 } from '@movscript/ui'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { agentPermissionModeLabel, runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/features/agent/domain/agentRunUi'
+import { runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentSendDraft, DebugHttpRequest } from '@/features/agent/application/agentSendDraft'
 import type { AgentDebugTool, AgentDraftApplyPreview } from '@/shared/infrastructure/localAgentClient'
 import {
@@ -58,7 +58,7 @@ import {
   localAgentApprovalRiskText,
   localAgentApprovalStatusText,
 } from '@/features/agent/components/localRuntime'
-import { agentWorkflowActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import { agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 
 function emptyLabel(t: ReturnType<typeof useTranslation>['t']) {
   return t('agents.chat.panel.runtime.empty')
@@ -133,7 +133,7 @@ export function AgentDebugPreviewDialog({
           <AgentDebugGrid columns="four">
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
-            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={agentPermissionModeLabel(draft.settings.permissionMode)} />
+            <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.localRuntime?.preview?.runtimeLimits ? runApprovalModeLabel(draft.localRuntime.preview.runtimeLimits.approvalMode) : t('agents.chat.panel.runtime.unknown')} />
             <AgentDebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
           </AgentDebugGrid>
 
@@ -191,22 +191,22 @@ export function AgentDebugPreviewDialog({
             </AgentDebugSection>
           )}
 
-          {preview?.policy && (
-            <AgentDebugSection title={t('agents.chat.panel.runtime.policy')}>
+          {preview?.runtimeLimits && (
+            <AgentDebugSection title={t('agents.chat.panel.runtime.runtimeLimits')}>
               <AgentDebugGrid columns="four">
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={runApprovalModeLabel(preview.policy.approvalMode)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.policy.maxToolCalls)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.policy.maxIterations)} />
-                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.policy.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={runApprovalModeLabel(preview.runtimeLimits.approvalMode)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.runtimeLimits.maxToolCalls)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.runtimeLimits.maxIterations)} />
+                <AgentDebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.runtimeLimits.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
               </AgentDebugGrid>
               <AgentDebugGrid columns="two">
                 <AgentDataBlock>
                   <AgentDebugItemTitle>{t('agents.chat.panel.runtime.runtimeBoundaries')}</AgentDebugItemTitle>
                   <AgentDebugMetaList
                     items={[
-                      `${t('agents.chat.panel.runtime.network')}: ${preview.policy.allowNetwork ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
-                      `${t('agents.chat.panel.runtime.fileBytes')}: ${preview.policy.allowFileBytes ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
-                      `${t('agents.chat.panel.runtime.costLimit')}: ${preview.policy.costLimit ? `${preview.policy.costLimit.amount} ${preview.policy.costLimit.currency}` : t('agents.chat.panel.runtime.none')}`,
+                      `${t('agents.chat.panel.runtime.network')}: ${preview.runtimeLimits.allowNetwork ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
+                      `${t('agents.chat.panel.runtime.fileBytes')}: ${preview.runtimeLimits.allowFileBytes ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}`,
+                      `${t('agents.chat.panel.runtime.costLimit')}: ${preview.runtimeLimits.costLimit ? `${preview.runtimeLimits.costLimit.amount} ${preview.runtimeLimits.costLimit.currency}` : t('agents.chat.panel.runtime.none')}`,
                     ]}
                   />
                 </AgentDataBlock>
@@ -257,7 +257,7 @@ export function AgentDebugPreviewDialog({
                 <AgentDataBlock>
                   <AgentDebugSimpleText>{preview.message}</AgentDebugSimpleText>
                   <AgentDebugSubtleText>
-                    {t('agents.chat.panel.runtime.project')}: {preview.currentProjectId ?? t('common.emptyTitle')} · {t('agents.chat.panel.runtime.memories')}: {preview.memoryCount} · {t('agents.chat.panel.runtime.toolCalls')}: {preview.toolCalls.length} · {t('agents.chat.panel.runtime.sandbox')}: {preview.policy?.sandboxMode ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
+                    {t('agents.chat.panel.runtime.project')}: {preview.currentProjectId ?? t('common.emptyTitle')} · {t('agents.chat.panel.runtime.memories')}: {preview.memoryCount} · {t('agents.chat.panel.runtime.toolCalls')}: {preview.toolCalls.length} · {t('agents.chat.panel.runtime.sandbox')}: {preview.runtimeLimits?.sandboxMode ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
                   </AgentDebugSubtleText>
                 </AgentDataBlock>
                 <AgentDebugStack density="compact">
@@ -296,17 +296,17 @@ export function AgentDebugPreviewDialog({
                 )}
                 {pendingApprovals.length > 0 ? (
                   <AgentDataBlock>
-                    <AgentDebugItemTitle>{t('agents.chat.workflow.approvalRequired')}</AgentDebugItemTitle>
+                    <AgentDebugItemTitle>{t('agents.chat.task.approvalRequired')}</AgentDebugItemTitle>
                     <AgentDebugStack density="compact">
                       {pendingApprovals.map((approval) => (
                         <AgentDebugCard key={approval.id} variant="card">
                           <AgentDebugCardHeader>
                             <AgentDebugCardTitle title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</AgentDebugCardTitle>
-                            <AgentDebugPreviewStatusBadge intent={agentWorkflowActionStatusRecipe('pending').intent} emphasis={agentWorkflowActionStatusRecipe('pending').emphasis}>{approval.risk ? localAgentApprovalRiskText(approval.risk, t) : localAgentApprovalStatusText(approval.status, t)}</AgentDebugPreviewStatusBadge>
+                            <AgentDebugPreviewStatusBadge intent={agentRunInteractionActionStatusRecipe('pending').intent} emphasis={agentRunInteractionActionStatusRecipe('pending').emphasis}>{approval.risk ? localAgentApprovalRiskText(approval.risk, t) : localAgentApprovalStatusText(approval.status, t)}</AgentDebugPreviewStatusBadge>
                           </AgentDebugCardHeader>
                           <AgentDebugCardDetail>{approval.reason}</AgentDebugCardDetail>
                           <AgentDebugCard variant="subtle">
-                            {t('agents.chat.workflow.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                            {t('agents.chat.task.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
                           </AgentDebugCard>
                           {approval.args && (
                             <AgentDebugCodePanel size="small">

@@ -1,0 +1,878 @@
+import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
+import test from 'node:test'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { AgentRuntimeRouter } from '../../application/router/runtimeRouter.js'
+import { InMemoryAgentMemoryStore } from '../../memory/store/in-memory/memoryStore.js'
+import { InMemoryAgentStore } from '../../state/store/core/store.js'
+import { InMemoryAgentDraftStore } from '../../drafts/store/draftStore.js'
+import { BackendApplyClient } from '../../drafts/adapters/backend/backendApplyClient.js'
+import type { ApplyDraftReview } from '../../drafts/apply/draftApply.js'
+import { DEFAULT_AGENT_MANIFEST } from '../../catalog/manifest/agentManifest.js'
+import { StaticAgentRuntimeContractResolver } from '../../contracts/runtime/runtimeContract.js'
+import { InMemoryAgentCatalogStateStore } from '../../catalog/registry/state/catalogState.js'
+import { createAgentRequestListener } from './server.js'
+import { RuntimeModelConfigStore } from '../../model/config/modelConfig.js'
+import { defaultRuntimeLimits } from '../../context/input/run/normalizeRunInput.js'
+import { buildAgentRun } from '../../state/run/core/creation/runFactory.js'
+import type { AgentServerContext } from '../../bootstrap/server/agentServerContext.js'
+import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
+import type { JSONValue, MCPResource, MCPTool } from '../../shared/protocol/types.js'
+
+class StubMCPClient {
+  async initialize(): Promise<JSONValue> {
+    return { ok: true }
+  }
+
+  async callTool(name: string): Promise<JSONValue> {
+    if (name === 'movscript_focus_get') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
+    return { ok: true }
+  }
+
+  async listTools(): Promise<MCPTool[]> {
+    return []
+  }
+
+  async listResources(): Promise<MCPResource[]> {
+    return []
+  }
+}
+
+class StubBackendApplyClient extends BackendApplyClient {
+  readonly calls: ApplyDraftReview[] = []
+
+  override async applyReview(review: ApplyDraftReview) {
+    this.calls.push(review)
+    return {
+      performed: true,
+      method: 'PATCH' as const,
+      url: 'http://backend/api/v1/projects/42/entities/content-units/7',
+      payload: { description: review.proposedValue },
+    }
+  }
+}
+
+test('memories endpoints stay project-scoped', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const context = buildServerContext(runtime)
+  const handler = createAgentRequestListener(context)
+
+  const local = runtime.createMemory({ projectId: 42, title: 'Local', kind: 'preference', content: 'local' })
+  const other = runtime.createMemory({ projectId: 7, title: 'Other', kind: 'preference', content: 'other' })
+
+  const listRes = await dispatch(handler, 'GET', '/memories?projectId=42')
+  const listJson = JSON.parse(listRes.body) as { memories: Array<{ id: string }> }
+  assert.equal(listRes.statusCode, 200)
+  assert.deepEqual(listJson.memories.map((item) => item.id), [local.id])
+
+  const detailRes = await dispatch(handler, 'GET', `/memories/${local.id}?projectId=42`)
+  const detailJson = JSON.parse(detailRes.body) as { memory: { id: string; projectId: number } }
+  assert.equal(detailRes.statusCode, 200)
+  assert.equal(detailJson.memory.id, local.id)
+  assert.equal(detailJson.memory.projectId, 42)
+
+  const missingRes = await dispatch(handler, 'GET', `/memories/${other.id}?projectId=42`)
+  assert.equal(missingRes.statusCode, 404)
+
+  const invalidDetailRes = await dispatch(handler, 'GET', `/memories/${local.id}?projectId=42.5`)
+  assert.equal(invalidDetailRes.statusCode, 404)
+
+  const invalidDeleteRes = await dispatch(handler, 'DELETE', `/memories/${local.id}?projectId=42.5`)
+  assert.equal(invalidDeleteRes.statusCode, 404)
+  assert.ok(runtime.getMemory(42, local.id))
+
+  const deleteRes = await dispatch(handler, 'DELETE', `/memories/${local.id}?projectId=42`)
+  assert.equal(deleteRes.statusCode, 200)
+  assert.equal(runtime.getMemory(42, local.id), undefined)
+  assert.ok(runtime.getMemory(7, other.id))
+})
+
+test('memory list accepts non-project scopes without server errors', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  runtime.createMemory({ projectId: 42, title: 'Local', kind: 'preference', content: 'local' })
+
+  const globalRes = await dispatch(handler, 'GET', '/memories?scope=global')
+  assert.equal(globalRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(globalRes.body), { memories: [] })
+
+  const threadRes = await dispatch(handler, 'GET', '/memories?scope=thread&threadId=t1')
+  assert.equal(threadRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(threadRes.body), { memories: [] })
+
+  const emptyProjectRes = await dispatch(handler, 'GET', '/memories?projectId=')
+  assert.equal(emptyProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(emptyProjectRes.body), { memories: [] })
+
+  const zeroProjectRes = await dispatch(handler, 'GET', '/memories?projectId=0')
+  assert.equal(zeroProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(zeroProjectRes.body), { memories: [] })
+
+  const fractionalProjectRes = await dispatch(handler, 'GET', '/memories?projectId=42.5')
+  assert.equal(fractionalProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(fractionalProjectRes.body), { memories: [] })
+})
+
+test('create memory requires projectId through the HTTP layer', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const cases = [
+    {
+      body: { title: 'Missing project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 0, title: 'Invalid project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 42.5, title: 'Invalid project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 42, kind: 'preference', content: 'x' },
+      error: 'memory title is required',
+    },
+    {
+      body: { projectId: 42, title: 'Missing kind', content: 'x' },
+      error: 'memory kind is required',
+    },
+    {
+      body: { projectId: 42, title: 'Missing content', kind: 'preference' },
+      error: 'memory content is required',
+    },
+  ]
+
+  for (const entry of cases) {
+    const res = await dispatch(handler, 'POST', '/memories', entry.body)
+    assert.equal(res.statusCode, 400)
+    assert.equal((JSON.parse(res.body) as { error: string }).error, entry.error)
+  }
+})
+
+test('draft apply endpoint is an application-layer action outside agent runs', async () => {
+  const backendApplyClient = new StubBackendApplyClient()
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient,
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'content_unit_proposal',
+    title: 'Description update',
+    content: 'New description',
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+  })
+
+  const res = await dispatch(handler, 'POST', `/drafts/${draft.id}/apply`, {
+    currentValue: 'Old description',
+  })
+  const json = JSON.parse(res.body) as { status: string; draft: { status: string; metadata?: { lastApplyStatus?: string } } }
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(json.status, 'applied')
+  assert.equal(json.draft.status, 'draft')
+  assert.equal(json.draft.metadata?.lastApplyStatus, 'applied')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
+  assert.equal(backendApplyClient.calls.length, 1)
+  assert.equal(runtime.listRuns().length, 0)
+})
+
+test('run updateTaskGraph endpoint uses taskGraph root planner when called on a worker run', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP updateTaskGraph root planner',
+    tasks: [{ id: 'task_http_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
+  })
+  const rootPlanner = await waitForRun(runtime, taskGraph.runs[0]!.id)
+  const otherPlanner = runtime.createRun({ threadId: thread.id, taskGraphId: taskGraph.taskGraph.id, role: 'planner' })
+  const dispatched = runtime.dispatchTaskGraph({
+    taskGraphId: taskGraph.taskGraph.id,
+    plannerRunId: otherPlanner.id,
+    taskIds: ['task_http_worker'],
+  })
+  const worker = dispatched.spawnedRuns[0]
+  assert.ok(worker)
+  assert.equal(worker.parentRunId, otherPlanner.id)
+
+  const res = await dispatch(handler, 'POST', `/runs/${worker.id}/updateTaskGraph`, {
+    resetFailed: true,
+    dispatch: true,
+    maxWorkers: 1,
+  })
+  const json = JSON.parse(res.body) as { dispatch?: { spawnedRuns: unknown[] } }
+
+  assert.equal(res.statusCode, 202)
+  assert.equal(json.dispatch?.spawnedRuns.length, 0)
+  assert.equal(runtime.getTaskGraph(taskGraph.taskGraph.id)?.rootRunId, rootPlanner.id)
+})
+
+test('HTTP updateTaskGraph rejects invalid addTasks without partial task creation', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP updateTaskGraph invalid addTasks',
+    tasks: [{ id: 'task_http_retask_graph_base', title: 'Base task', metadata: { executionMode: 'worker' } }],
+  })
+  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
+
+  const rejected = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
+    addTasks: [
+      { id: 'task_http_retask_graph_cycle_a', title: 'Cycle A', deps: ['task_http_retask_graph_cycle_b'] },
+      { id: 'task_http_retask_graph_cycle_b', title: 'Cycle B', deps: ['task_http_retask_graph_cycle_a'] },
+    ],
+    dispatch: false,
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /dependency cycle detected/)
+
+  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_retask_graph_cycle_a'), false)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_retask_graph_cycle_b'), false)
+
+  const parentCycle = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
+    addTasks: [
+      { id: 'task_http_retask_graph_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_retask_graph_parent_cycle_b' },
+      { id: 'task_http_retask_graph_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_retask_graph_parent_cycle_a' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+
+  const afterParentCycle = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_retask_graph_parent_cycle_a'), false)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_retask_graph_parent_cycle_b'), false)
+
+  const badUpdate = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
+    addTasks: [
+      { id: 'task_http_retask_graph_update_atomic', title: 'Update Atomic' },
+    ],
+    updates: [
+      { id: 'task_http_retask_graph_missing_update', title: 'Missing update target' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(badUpdate.statusCode, 500)
+  assert.match(JSON.parse(badUpdate.body).error, /task not found/)
+
+  const afterBadUpdate = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(afterBadUpdate.tasks.some((task) => task.id === 'task_http_retask_graph_update_atomic'), false)
+
+  const accepted = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
+    addTasks: [
+      { id: 'task_http_retask_graph_followup', title: 'Followup', deps: ['task_http_retask_graph_base'] },
+    ],
+    updates: [
+      { id: 'task_http_retask_graph_base', description: 'Updated by HTTP updateTaskGraph.' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(accepted.statusCode, 202)
+  assert.deepEqual(JSON.parse(accepted.body).createdTaskIds, ['task_http_retask_graph_followup'])
+  assert.deepEqual(JSON.parse(accepted.body).updatedTaskIds, ['task_http_retask_graph_base'])
+})
+
+test('legacy public run endpoint is no longer an execution entrypoint', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
+
+  const res = await dispatch(handler, 'POST', '/runs', {
+    threadId: thread.id,
+    role: 'worker',
+    parentRunId: 'run_external_parent',
+    taskId: 'task_external_worker',
+  })
+
+  assert.equal(res.statusCode, 404)
+  assert.deepEqual(runtime.listRunsByThread(thread.id), [])
+})
+
+test('legacy public tool run endpoint is no longer an execution entrypoint', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
+
+  const res = await dispatch(handler, 'POST', '/runs/tool', {
+    threadId: thread.id,
+    role: 'planner',
+    parentRunId: 'run_external_parent',
+    taskGraphId: 'task_graph_external',
+    taskId: 'task_external_worker',
+    progress: 0.7,
+    blockedReason: 'external status injection',
+    toolCall: {
+      name: 'movscript_script_locate',
+      args: { projectId: 42 },
+    },
+  })
+
+  assert.equal(res.statusCode, 404)
+  assert.deepEqual(runtime.listRunsByThread(thread.id), [])
+})
+
+test('HTTP taskGraph creation rejects invalid task graphs without writing taskGraph state', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+
+  const missingDep = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid missing dep taskGraph',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_invalid_dep', title: 'Invalid dep', deps: ['task_missing_dep'] },
+    ],
+  })
+  assert.equal(missingDep.statusCode, 500)
+  assert.match(JSON.parse(missingDep.body).error, /task not found/)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid missing dep taskGraph'), false)
+
+  const cycle = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid cycle taskGraph',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_cycle_a', title: 'Cycle A', deps: ['task_http_cycle_b'] },
+      { id: 'task_http_cycle_b', title: 'Cycle B', deps: ['task_http_cycle_a'] },
+    ],
+  })
+  assert.equal(cycle.statusCode, 500)
+  assert.match(JSON.parse(cycle.body).error, /dependency cycle detected/)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid cycle taskGraph'), false)
+
+  const parentCycle = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid parent cycle taskGraph',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_parent_cycle_b' },
+      { id: 'task_http_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_parent_cycle_a' },
+    ],
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid parent cycle taskGraph'), false)
+
+  const valid = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP valid graph taskGraph',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_a', title: 'Graph A' },
+      { id: 'task_http_graph_b', title: 'Graph B', deps: ['task_http_graph_a'] },
+    ],
+  })
+  assert.equal(valid.statusCode, 201)
+  assert.equal(JSON.parse(valid.body).tasks.find((task: any) => task.id === 'task_http_graph_b')?.deps[0], 'task_http_graph_a')
+})
+
+test('HTTP taskGraph snapshot exposes reusable summary', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP snapshot summary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_summary_running', title: 'Running summary', metadata: { executionMode: 'worker' } },
+      { id: 'task_http_summary_failed', title: 'Failed summary' },
+    ],
+  })
+  const worker = runtime.createRun({
+    threadId: thread.id,
+    role: 'worker',
+    taskGraphId: taskGraph.taskGraph.id,
+    taskId: 'task_http_summary_running',
+  })
+  runtime.updateTask('task_http_summary_running', {
+    status: 'running',
+    ownerRunId: worker.id,
+    artifacts: [{ id: 'artifact_http_summary', type: 'draft', title: 'HTTP summary artifact' }],
+  })
+  runtime.updateTask('task_http_summary_failed', {
+    status: 'failed',
+    blockedReason: 'Worker failed',
+  })
+
+  const res = await dispatch(handler, 'GET', `/plans/${taskGraph.taskGraph.id}`)
+  const json = JSON.parse(res.body) as {
+    summary?: {
+      taskCount: number
+      taskStatusCounts: Record<string, number>
+      workerCount: number
+      activeWorkerCount: number
+      artifactCount: number
+      failedTaskIds: string[]
+    }
+  }
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(json.summary?.taskCount, 2)
+  assert.equal(json.summary?.taskStatusCounts.running, 1)
+  assert.equal(json.summary?.taskStatusCounts.failed, 1)
+  assert.equal(json.summary?.workerCount, 1)
+  assert.equal(json.summary?.activeWorkerCount, 1)
+  assert.equal(json.summary?.artifactCount, 1)
+  assert.deepEqual(json.summary?.failedTaskIds, ['task_http_summary_failed'])
+})
+
+test('HTTP cancel-tree only accepts the taskGraph root planner run', async () => {
+  const store = new InMemoryAgentStore()
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store,
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP cancel tree root planner',
+    tasks: [{ id: 'task_http_cancel_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
+  })
+  const rootPlanner = await waitForRun(runtime, taskGraph.runs[0]!.id)
+  const now = new Date().toISOString()
+  const worker = buildAgentRun({
+    id: 'run_http_cancel_worker',
+    threadId: thread.id,
+    now,
+    agentManifest: DEFAULT_AGENT_MANIFEST,
+    runtimeLimits: defaultRuntimeLimits(),
+    role: 'worker',
+    parentRunId: rootPlanner.id,
+    taskGraphId: taskGraph.taskGraph.id,
+    taskId: 'task_http_cancel_worker',
+    progress: 0,
+  })
+  worker.status = 'in_progress'
+  worker.startedAt = now
+  store.createRun(worker)
+
+  const rejected = await dispatch(handler, 'POST', `/runs/${worker.id}/cancel-tree`, {
+    reason: 'Worker should not cancel the whole taskGraph.',
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /is not a planner run/)
+  assert.notEqual(runtime.getRun(worker.id)?.status, 'cancelled')
+
+  const accepted = await dispatch(handler, 'POST', `/runs/${rootPlanner.id}/cancel-tree`, {
+    reason: 'Stop the whole taskGraph.',
+  })
+  assert.equal(accepted.statusCode, 200)
+  assert.deepEqual(JSON.parse(accepted.body).cancelledRunIds, [worker.id, rootPlanner.id])
+  assert.equal(runtime.getRun(worker.id)?.status, 'cancelled')
+  assert.equal(runtime.getRun(rootPlanner.id)?.status, 'cancelled')
+})
+
+test('HTTP task update cannot create duplicate subagent names', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP task subagent name boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_named_a', title: 'Named A', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
+      { id: 'task_http_named_b', title: 'Named B', metadata: { executionMode: 'worker' } },
+    ],
+  })
+
+  const rejected = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
+    metadata: {
+      subagentName: 'Einstein',
+      reviewOutcome: 'should_not_write',
+    },
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /subagent name already exists/)
+
+  const taskB = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_http_named_b')
+  assert.equal(taskB?.metadata?.subagentName, undefined)
+  assert.equal(taskB?.metadata?.reviewOutcome, undefined)
+
+  const accepted = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
+    metadata: {
+      subagentName: 'Hawking',
+    },
+  })
+  assert.equal(accepted.statusCode, 200)
+  assert.equal(JSON.parse(accepted.body).metadata.subagentName, 'Hawking')
+})
+
+test('HTTP task update cannot corrupt the task graph', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const taskGraph = await runtime.createTaskGraph({
+    threadId: thread.id,
+    title: 'HTTP task graph boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_a', title: 'Graph A' },
+      { id: 'task_http_graph_b', title: 'Graph B', deps: ['task_http_graph_a'] },
+    ],
+  })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '另一个规划' }] })
+  await runtime.createTaskGraph({
+    threadId: otherThread.id,
+    title: 'HTTP other graph boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_other', title: 'Other graph task' },
+    ],
+  })
+
+  const crossTaskGraph = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    deps: ['task_http_graph_other'],
+  })
+  assert.equal(crossTaskGraph.statusCode, 500)
+  assert.match(JSON.parse(crossTaskGraph.body).error, /does not belong to taskGraph/)
+
+  const cycle = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    deps: ['task_http_graph_b'],
+  })
+  assert.equal(cycle.statusCode, 500)
+  assert.match(JSON.parse(cycle.body).error, /dependency cycle detected/)
+
+  const acceptedParent = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    deps: [],
+    parentId: 'task_http_graph_a',
+  })
+  assert.equal(acceptedParent.statusCode, 200)
+
+  const parentCycle = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    parentId: 'task_http_graph_b',
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+
+  const taskA = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_http_graph_a')
+  assert.deepEqual(taskA?.deps, [])
+  assert.equal(taskA?.parentId, undefined)
+
+  const accepted = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    deps: [],
+    parentId: 'task_http_graph_a',
+  })
+  assert.equal(accepted.statusCode, 200)
+  const body = JSON.parse(accepted.body)
+  assert.deepEqual(body.deps, [])
+  assert.equal(body.parentId, 'task_http_graph_a')
+
+  const cleared = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    parentId: null,
+  })
+  assert.equal(cleared.statusCode, 200)
+  assert.equal(JSON.parse(cleared.body).parentId, undefined)
+})
+
+test('runtime shutdown endpoint accepts local non-browser management requests', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener(buildServerContext(runtime), {
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+
+  const res = await dispatch(handler, 'POST', '/runtime/shutdown')
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(res.statusCode, 202)
+  assert.deepEqual(JSON.parse(res.body), { ok: true, shuttingDown: true })
+  assert.equal(shutdownRequests, 1)
+})
+
+test('runtime shutdown endpoint rejects cross-site browser requests', async () => {
+  const runtime = new AgentRuntimeRouter({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    activeAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener(buildServerContext(runtime), {
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+
+  const res = await dispatch(handler, 'POST', '/runtime/shutdown', undefined, {
+    headers: { 'sec-fetch-site': 'cross-site' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(res.statusCode, 403)
+  assert.equal(shutdownRequests, 0)
+})
+
+function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerContext {
+  return {
+    port: 0,
+    mcpEndpoint: 'http://127.0.0.1:0/mcp',
+    paths: {
+      statePath: '/tmp/state.json',
+      memoryPath: '/tmp/memories.json',
+      draftPath: '/tmp/drafts.json',
+      toolResultPath: '/tmp/tool-results.json',
+      catalogStatePath: '/tmp/catalog.json',
+      modelConfigPath: '/tmp/model-config.json',
+    },
+    updates: buildUpdateState(),
+    client: new StubMCPClient() as never,
+    runtimeRouter,
+    backendApplyClient: new BackendApplyClient(),
+    modelConfigStore: new RuntimeModelConfigStore('/tmp/model-config.json'),
+    telemetry: new RuntimeTelemetryRegistry(),
+    pluginCatalog: {
+      skillsDir: '/tmp',
+      toolsDir: '/tmp',
+      builtinSkillsDir: '/tmp',
+      builtinToolsDir: '/tmp',
+      skillCount: 0,
+      toolCount: 0,
+      warnings: [],
+    } as never,
+  }
+}
+
+function buildUpdateState(): AgentServerContext['updates'] {
+  return {
+    current: { policyVersion: '0', channel: 'manual', severity: 'normal', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    applied: [],
+    warnings: [],
+    history: [],
+    policy: { channel: 'manual', allowRemote: false },
+  } as never
+}
+
+async function waitForRun(runtime: AgentRuntimeRouter, runId: string) {
+  const deadline = Date.now() + 1000
+  while (true) {
+    const latest = runtime.getRun(runId)
+    if (latest && latest.status !== 'queued' && latest.status !== 'in_progress') return latest
+    if (Date.now() > deadline) throw new Error(`run ${runId} did not finish`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+function dispatch(
+  handler: ReturnType<typeof createAgentRequestListener>,
+  method: string,
+  path: string,
+  body?: unknown,
+  options: { headers?: Record<string, string> } = {},
+): Promise<{ statusCode: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = new EventEmitter() as unknown as IncomingMessage & {
+      method?: string
+      url?: string
+      headers: Record<string, string>
+      setEncoding: (encoding: BufferEncoding) => void
+      destroy: () => void
+    }
+    req.method = method
+    req.url = path
+    req.headers = { host: '127.0.0.1', ...options.headers }
+    ;(req as any).setEncoding = () => {}
+    ;(req as any).destroy = () => {}
+
+    const resBody = new PassThrough()
+    let statusCode = 0
+    const res = {
+      writeHead(code: number) {
+        statusCode = code
+      },
+      setHeader() {},
+      end(this: { writableEnded: boolean }, chunk?: string) {
+        this.writableEnded = true
+        if (chunk) resBody.end(chunk)
+        else resBody.end()
+      },
+      write(chunk: string) {
+        resBody.write(chunk)
+      },
+      writableEnded: false,
+    } as unknown as ServerResponse
+
+    let output = ''
+    resBody.setEncoding('utf8')
+    resBody.on('data', (chunk) => {
+      output += chunk
+    })
+    resBody.on('end', () => resolve({ statusCode, body: output }))
+    resBody.on('error', reject)
+
+    void handler(req, res).catch(reject)
+    queueMicrotask(() => {
+      if (body !== undefined) {
+        req.emit('data', JSON.stringify(body))
+      }
+      req.emit('end')
+    })
+  })
+}

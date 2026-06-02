@@ -257,6 +257,205 @@
       ],
       "title": "Errors",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(movscript_agent_client_operations_total[5m])) by (kind, status)",
+          "legendFormat": "{{kind}} {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(movscript_agent_client_slow_operations_total[5m])) by (kind, status)",
+          "legendFormat": "slow {{kind}} {{status}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Agent Client Operation Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[5m])) by (kind, status) / sum(rate(movscript_agent_client_operation_duration_milliseconds_count[5m])) by (kind, status)",
+          "legendFormat": "avg {{kind}} {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max(movscript_agent_client_operation_duration_milliseconds_max) by (kind, status)",
+          "legendFormat": "max {{kind}} {{status}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Agent Client Operation Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_sum[5m])) by (kind, phase) / sum(rate(movscript_agent_client_operation_phase_delta_milliseconds_count[5m])) by (kind, phase)",
+          "legendFormat": "avg {{kind}} {{phase}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max(movscript_agent_client_operation_phase_delta_milliseconds_max) by (kind, phase)",
+          "legendFormat": "max {{kind}} {{phase}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Agent Client Phase Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "long task max"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "storage latest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "movscript_agent_client_long_task_duration_milliseconds_max",
+          "legendFormat": "long task max",
+          "refId": "A"
+        },
+        {
+          "expr": "movscript_agent_client_storage_bytes{kind=\"latest\"}",
+          "legendFormat": "storage latest",
+          "refId": "B"
+        }
+      ],
+      "title": "Agent Client Browser Health",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",
@@ -264,6 +463,7 @@
   "tags": [
     "movscript",
     "backend",
+    "agent-client",
     "shot-vectors"
   ],
   "templating": {

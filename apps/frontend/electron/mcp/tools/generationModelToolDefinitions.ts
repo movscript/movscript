@@ -5,10 +5,10 @@ export function generationModelTools(): MCPTool[] {
   return [
     {
       name: 'generation_model_list',
-      description: 'List enabled AI models for a runtime capability. Use image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, and video_v2v for video-to-video. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
+      description: 'List enabled AI models for a runtime capability. Use image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, video_v2v for video-to-video, audio_tts for voiceover generation, audio_transcribe for STT, subtitle_align for subtitle alignment, and render_video for renderer capabilities. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
       inputSchema: objectSchema(
         {
-          capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
+          capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, video_v2v, audio_tts, audio_transcribe, subtitle_align, or render_video.' },
           provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }

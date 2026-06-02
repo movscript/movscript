@@ -88,12 +88,12 @@ function readAgentCss() {
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/attachment/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/code/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/feedback/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/card/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/badge/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/thumbnail/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/shell/runtime-code/styles.css',
     'packages/ui/src/components/business/agent/generated/styles.css',
     'packages/ui/src/components/business/agent/generated/media-preview/styles.css',
@@ -345,12 +345,12 @@ function readAgentSource() {
     'packages/ui/src/components/business/agent/message/section/index.tsx',
     'packages/ui/src/components/business/agent/message/chat/index.tsx',
     'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/code/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/feedback/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/card/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/badge/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/thumbnail/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/code/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/feedback/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/card/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/badge/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/thumbnail/index.tsx',
     'packages/ui/src/components/business/agent/generated/index.tsx',
     'packages/ui/src/components/business/agent/generated/feedback/index.tsx',
     'packages/ui/src/components/business/agent/generated/media-preview/index.tsx',
@@ -1101,12 +1101,12 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/shell/primitives/inline/styles.css',
     'packages/ui/src/components/business/agent/shell/attachment/styles.css',
     'packages/ui/src/components/business/agent/shell/chat-message/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/code/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/feedback/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/card/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/badge/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/thumbnail/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/shell/runtime-code/styles.css',
     'packages/ui/src/components/business/agent/generated/styles.css',
     'packages/ui/src/components/business/agent/generated/media-preview/styles.css',
@@ -1230,17 +1230,17 @@ test('@movscript/ui has explicit theme, primitive, and business component bounda
     'packages/ui/src/components/business/agent/message/section/index.tsx',
     'packages/ui/src/components/business/agent/message/chat/index.tsx',
     'packages/ui/src/components/business/agent/message/model-setup/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/code/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/code/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/feedback/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/feedback/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/card/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/card/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/badge/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/badge/styles.css',
-    'packages/ui/src/components/business/agent/workflow-approval/thumbnail/index.tsx',
-    'packages/ui/src/components/business/agent/workflow-approval/thumbnail/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/code/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/code/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/feedback/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/feedback/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/card/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/card/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/badge/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/badge/styles.css',
+    'packages/ui/src/components/business/agent/run-interaction/thumbnail/index.tsx',
+    'packages/ui/src/components/business/agent/run-interaction/thumbnail/styles.css',
     'packages/ui/src/components/business/agent/generated/index.tsx',
     'packages/ui/src/components/business/agent/generated/feedback/index.tsx',
     'packages/ui/src/components/business/agent/generated/media-preview/index.tsx',
@@ -3039,14 +3039,14 @@ test('agent surface blocks own reusable shell and row styling', () => {
   const sources = `${agentConsoleSource}\n${agentRunsSource}\n${agentPerformanceSource}\n${aiDraftsSource}\n${agentRunSource}`
   const agentSettingsOwnershipSource = `${agentSettingsSource}\n${agentSettingsUiSource}`
   const migratedSettingsSurfaceIds = [
-    'agent-run-preset-effective-policy',
-    'agent-settings-skill-governance',
-    'agent-settings-tool-policy-filters',
-    'agent-settings-tool-policy-filter-presets',
-    'agent-settings-tool-policy-bulk-actions',
+    'agent-settings-config-file-limits',
+    'agent-settings-skill-config-section',
+    'agent-settings-tool-permissions-filters',
+    'agent-settings-tool-permissions-filter-presets',
+    'agent-settings-tool-permissions-bulk-actions',
     'agent-settings-snapshot-import-scopes',
     'agent-settings-snapshot-impact',
-    'agent-settings-tool-policy-diff',
+    'agent-settings-tool-permissions-diff',
     'agent-settings-model-compatibility-probes',
     'agent-settings-api-mode-migration-guide',
     'agent-settings-api-mode-switch-taskGraph',
@@ -3245,8 +3245,10 @@ test('agent surface blocks own reusable shell and row styling', () => {
     if (testId === 'agent-settings-model-compatibility-probes') {
       assert.match(agentSettingsSource, /<AgentSettingsStatusPanel[\s\S]*?testId="agent-settings-model-compatibility-probes"/)
       assert.match(agentSettingsUiSource, /<AgentSurfaceBlock[^>]+data-testid=\{testId\}/)
-    } else if (testId === 'agent-settings-skill-governance') {
-      assert.match(agentSettingsSource, /<AgentDataBlock[^>]+data-testid="agent-settings-skill-governance"/)
+    } else if (testId === 'agent-settings-skill-config-section') {
+      assert.match(agentSettingsSource, /<AgentSettingsStack data-testid="agent-settings-skill-config-section"/)
+    } else if (testId === 'agent-settings-config-file-limits') {
+      assert.match(agentSettingsSource, /<AgentSettingsFormGrid columns="model" data-testid="agent-settings-config-file-limits"/)
     } else {
       assert.match(agentSettingsOwnershipSource, new RegExp(`<AgentSurfaceBlock[^>]+data-testid="${testId}"`), `${testId} must use AgentSurfaceBlock`)
     }
@@ -3268,30 +3270,29 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.match(agentSettingsUiSource, /export function AgentSettingsReadinessPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemsPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsActionItemRow/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsProfileCard/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsProfileDiffPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsProfileSummaryList/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileCard/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileDiffPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsConfigFileSummaryList/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsSkillCard/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPolicyDiffPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsDiffPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotImportScopePanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotSummaryPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsAuditTrailPanel/)
   assert.match(agentSettingsUiSource, /export function AgentSettingsSnapshotImpactPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsRunPresetEditorPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsRunPresetEffectivePolicyPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsSkillBundlePanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPolicyFilterPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPolicyFilterPresetPanel/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPolicyBulkActionPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsFormGrid/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsFormField/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsPackPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsFilterPresetPanel/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsBulkActionPanel/)
   assert.match(agentSettingsUiSource, /statusProps: AgentSettingsStatusProps/)
   assert.match(agentSettingsSource, /statusProps: agentSettingsStatusRecipe/)
   assert.match(agentSettingsSource, /<AgentSettingsStateMessage[\s\S]*?text=\{t\('common\.loading'\)\}/)
   assert.match(agentSettingsSource, /<AgentSettingsKeyValue[\s\S]*?label=\{t\('agents\.settings\.fields\.modelId'\)\}/)
   assert.match(agentSettingsSource, /<AgentSettingsCallout[\s\S]*?data-testid="agent-settings-provider-model-id-secret-warning"/)
-  assert.match(agentSettingsSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPolicyDraftIssues/)
+  assert.match(agentSettingsSource, /<AgentSettingsToneText[\s\S]*?tone="warning"[\s\S]*?agents\.settings\.toolPermissionsDraftIssues/)
   assert.doesNotMatch(agentSettingsSource, /\b(?:AppStateMessage|AppKeyValue|ReviewCallout|toneTextClass)\b/)
   assert.match(agentSettingsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
-  assert.match(agentSettingsSource, /trustProps=\{agentSettingsRecipe/)
   assert.doesNotMatch(agentSettingsUiSource, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(agentSettingsUiSource, /\bbadgeTone\b/)
   assert.doesNotMatch(agentSettingsUiSource, /\btrustTone\b/)
@@ -3300,17 +3301,17 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentSettingsSource, /flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 type-label/)
   assert.match(agentSettingsSource, /testResult && \([\s\S]*?<AgentDataBlock>[\s\S]*?<AgentSettingsCodeBlock>/)
   assert.doesNotMatch(agentSettingsSource, /\bAppCodeBlock\b/)
-  assert.match(agentSettingsSource, /<AgentSettingsSkillBundlePanel[\s\S]*?installedPlugins=\{skillBundlePlugins\.map\(\(plugin\) => \(\{/)
+  assert.match(agentSettingsSource, /<AgentSettingsPackPanel[\s\S]*?installedPlugins=\{packPlugins\.map\(\(plugin\) => \(\{/)
   assert.match(agentSettingsUiSource, /installedPlugins\.map\(\(plugin\) => \([\s\S]*?<AgentSurfaceBlock key=\{plugin\.id\} variant="card"/)
-  assert.doesNotMatch(agentSettingsSource, /skillBundlePlugins\.map[\s\S]*?<AgentSurfaceBlock key=\{plugin\.pluginId\} variant="card"/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyFilterPanel[\s\S]*?filterOptions=\{TOOL_POLICY_FILTER_OPTIONS\.map/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyFilterPresetPanel[\s\S]*?presets=\{agentSettings\.toolPolicyFilterPresets\.map/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyBulkActionPanel[\s\S]*?applyToolPolicyBulkEdit\('allow_available'\)/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyFilterPanel[\s\S]*?<Input[\s\S]*?data-testid="agent-settings-tool-policy-search"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyFilterPanel[\s\S]*?<Select[\s\S]*?onValueChange=\{onFilterChange\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyFilterPresetPanel[\s\S]*?presets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyBulkActionPanel[\s\S]*?data-testid="agent-settings-tool-policy-bulk-actions"/)
-  assert.doesNotMatch(agentSettingsSource, /agentSettings\.toolPolicyFilterPresets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
+  assert.doesNotMatch(agentSettingsSource, /packPlugins\.map[\s\S]*?<AgentSurfaceBlock key=\{plugin\.pluginId\} variant="card"/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPanel[\s\S]*?filterOptions=\{TOOL_PERMISSIONS_FILTER_OPTIONS\.map/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets=\{agentSettings\.toolPermissionsFilterPresets\.map/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?applyToolPermissionsBulkEdit\('allow_available'\)/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Input[\s\S]*?data-testid="agent-settings-tool-permissions-search"/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Select[\s\S]*?onValueChange=\{onFilterChange\}/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?presets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?data-testid="agent-settings-tool-permissions-bulk-actions"/)
+  assert.doesNotMatch(agentSettingsSource, /agentSettings\.toolPermissionsFilterPresets\.map[\s\S]*?<AgentSurfaceBlock key=\{preset\.id\} variant="subtle"/)
   assert.match(agentSettingsSource, /textModels\.slice\(0, 12\)\.map[\s\S]*?<AgentSettingsModelOptionButton[\s\S]*?onSelect=\{\(\) => setSelectedModelId\(publicModelId\(model\)\)\}/)
   assert.match(agentSettingsUiSource, /function AgentSettingsModelOptionButton[\s\S]*?<AgentSurfaceBlock[\s\S]*?asChild[\s\S]*?variant="card"[\s\S]*?<Button/)
   assert.match(agentSettingsSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
@@ -3325,33 +3326,22 @@ test('agent surface blocks own reusable shell and row styling', () => {
   assert.doesNotMatch(agentSettingsSource, /function SettingsSnapshotSummary[\s\S]{0,1200}<AppKeyValue/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsAuditTrailPanel[\s\S]{0,2400}<AgentSurfaceBlock/)
   assert.doesNotMatch(agentSettingsSource, /function SettingsSnapshotImpactPreview[\s\S]{0,1800}<StatusBadge/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsRunPresetRow/)
-  assert.match(agentSettingsSource, /function RunPresetRow[\s\S]*?<AgentSettingsRunPresetRow/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetRow[\s\S]*?<AgentSurfaceBlock[\s\S]*?asChild[\s\S]*?variant="card"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetRow[\s\S]*?<AppInlineMeta/)
-  assert.match(agentSettingsSource, /<AgentSettingsRunPresetEditorPanel[\s\S]*?onAutoTaskGraphChange=\{\(checked\) => updateRunPreset\(activeRunPreset\.id, \{ autoTaskGraph: checked \}\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetEditorPanel[\s\S]*?<Input[\s\S]*?onChange=\{\(event\) => onNameChange\(event\.target\.value\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetEditorPanel[\s\S]*?<Select[\s\S]*?onValueChange=\{onPermissionModeChange\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetEditorPanel[\s\S]*?<CheckboxField[\s\S]*?onCheckedChange=\{onAutoTaskGraphChange\}/)
-  assert.match(agentSettingsSource, /<AgentSettingsRunPresetEffectivePolicyPanel[\s\S]*?items=\{\[/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetEffectivePolicyPanel[\s\S]*?data-testid="agent-run-preset-effective-policy"[\s\S]*?<AppKeyValue/)
-  assert.doesNotMatch(agentSettingsSource, /function RunPresetRow[\s\S]{0,1200}<AgentSurfaceBlock/)
-  assert.doesNotMatch(agentSettingsSource, /function RunPresetRow[\s\S]{0,1200}<AppInlineMeta/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-run-preset-editor"[\s\S]{0,2200}<Input/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-run-preset-editor"[\s\S]{0,2600}<CheckboxField/)
-  assert.doesNotMatch(agentSettingsSource, /function RunPresetRow[\s\S]{0,900}rounded-md border p-2/)
-  assert.match(agentSettingsSource, /function ToolPolicyDiffPreview[\s\S]*?AgentSettingsToolPolicyDiffPanel/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-policy-diff"/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyDiffPanel[\s\S]*?<StatusBadge/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyDiffPreview[\s\S]{0,2200}<AgentSurfaceBlock/)
-  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPolicyRow/)
-  assert.match(agentSettingsSource, /function ToolPolicyRow[\s\S]*?AgentSettingsToolPolicyRow/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyRow[\s\S]*?<Select/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyRow[\s\S]*?<AppInlineMeta/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyRow[\s\S]{0,2200}<AgentSurfaceBlock/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyRow[\s\S]{0,2200}<Select/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyRow[\s\S]{0,2200}<AppInlineMeta/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyRow[\s\S]{0,2600}rounded bg-background px-1\.5 py-0\.5/)
+  assert.match(agentSettingsSource, /<AgentSettingsFormGrid columns="model" data-testid="agent-settings-config-file-limits"/)
+  assert.match(agentSettingsSource, /CONFIG_FILE_LIMIT_KEYS\.map\(\(key\) => \([\s\S]*?data-testid=\{`agent-settings-config-file-limit-\$\{key\}`\}/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsFormGrid[\s\S]*?data-columns=\{columns\}/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsFormField[\s\S]*?<div className=\{cn\("agent-settings-form-field"/)
+  assert.match(agentSettingsSource, /function ToolPermissionsDiffPreview[\s\S]*?AgentSettingsToolPermissionsDiffPanel/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-permissions-diff"/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<StatusBadge/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsDiffPreview[\s\S]{0,2200}<AgentSurfaceBlock/)
+  assert.match(agentSettingsUiSource, /export function AgentSettingsToolPermissionsRow/)
+  assert.match(agentSettingsSource, /function ToolPermissionsRow[\s\S]*?AgentSettingsToolPermissionsRow/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<Select/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<AppInlineMeta/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AgentSurfaceBlock/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsRow[\s\S]{0,2200}<Select/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsRow[\s\S]{0,2200}<AppInlineMeta/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsRow[\s\S]{0,2600}rounded bg-background px-1\.5 py-0\.5/)
 })
 
 test('agent message and pill primitives share internal base classes', () => {
@@ -7692,15 +7682,15 @@ test('generation cards use package tone contracts', () => {
   assert.doesNotMatch(genResultCardSource, /function MediaCell/)
 })
 
-test('agent generation and local runtime workflow use package tone contracts', () => {
+test('agent generation and local runtime interactions use package tone contracts', () => {
   const generationDisplaySource = readProjectFile('apps/frontend/src/features/agent/domain/agentGenerationDisplay.ts')
   const generationCardsSource = readProjectFile('apps/frontend/src/features/agent/components/GenerationCards.tsx')
   const pinnedStatusShelfSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPinnedStatusShelf.tsx')
   const agentGeneratedFeedbackSource = readProjectFile('packages/ui/src/components/business/agent/generated/feedback/index.tsx')
   const agentPlanOverviewTaskSource = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/index.tsx')
   const agentPlanOverviewTaskCss = readProjectFile('packages/ui/src/components/business/agent/plan-overview/task/styles.css')
-  const agentWorkflowApprovalStatusSource = readProjectFile('packages/ui/src/components/business/agent/workflow-approval/status/index.ts')
-  const agentWorkflowApprovalCardSource = readProjectFile('packages/ui/src/components/business/agent/workflow-approval/card/index.tsx')
+  const agentRunInteractionApprovalStatusSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/status/index.ts')
+  const agentRunInteractionApprovalCardSource = readProjectFile('packages/ui/src/components/business/agent/run-interaction/card/index.tsx')
   const agentSemanticUiSource = readProjectFile('apps/frontend/src/features/agent/presentation/agentSemanticUi.ts')
   const localRuntimeSource = readProjectFile('apps/frontend/src/features/agent/components/localRuntime.tsx')
   const aiDraftsSource = readProjectFile('apps/frontend/src/features/agent/components/AIDraftsPage.tsx')
@@ -7751,37 +7741,37 @@ test('agent generation and local runtime workflow use package tone contracts', (
   assert.doesNotMatch(generationCardsSource, /text-destructive/)
   assert.doesNotMatch(generationCardsSource, /\b(?:ReviewCallout|ReviewStat|toneTextClass|toneSurfaceClass)\b/)
   assert.doesNotMatch(localRuntimeSource, /AgentSurfaceBlock/)
-  assert.match(localRuntimeSource, /AgentWorkflowRuntimePanel/)
-  assert.match(localRuntimeSource, /AgentWorkflowRequestCard/)
-  assert.match(localRuntimeSource, /AgentWorkflowRequestActions/)
+  assert.match(localRuntimeSource, /AgentRunInteractionRuntimePanel/)
+  assert.match(localRuntimeSource, /AgentRunInteractionRequestCard/)
+  assert.match(localRuntimeSource, /AgentRunInteractionRequestActions/)
   assert.match(localRuntimeSource, /agentRunStatusRecipe/)
-  assert.match(localRuntimeSource, /agentWorkflowActionStatusRecipe/)
-  assert.match(localRuntimeSource, /AgentWorkflowSection/)
-  assert.match(localRuntimeSource, /AgentWorkflowChoiceButton/)
-  assert.match(localRuntimeSource, /AgentWorkflowActionButton/)
-  assert.doesNotMatch(localRuntimeSource, /agentWorkflowApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
-  assert.match(agentWorkflowApprovalStatusSource, /export function agentWorkflowApprovalSectionClass/)
-  assert.match(agentWorkflowApprovalStatusSource, /export function agentWorkflowApprovalBadgeClass/)
-  assert.match(agentWorkflowApprovalStatusSource, /export function agentWorkflowApprovalInputChoiceClass/)
-  assert.match(agentWorkflowApprovalStatusSource, /toneSurfaceClass/)
-  assert.match(agentWorkflowApprovalStatusSource, /toneTextClass/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowRequestCard[\s\S]*?<AgentSurfaceBlock/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowChoiceButton[\s\S]*?<Button/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowTextInput[\s\S]*?<Input/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowStateBadge[\s\S]*?<Badge/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowStatusBadge[\s\S]*?<StatusBadge/)
-  assert.match(agentWorkflowApprovalCardSource, /AgentWorkflowMarkerDot[\s\S]*?<AppMarkerDot/)
+  assert.match(localRuntimeSource, /agentRunInteractionActionStatusRecipe/)
+  assert.match(localRuntimeSource, /AgentRunInteractionSection/)
+  assert.match(localRuntimeSource, /AgentRunInteractionChoiceButton/)
+  assert.match(localRuntimeSource, /AgentRunInteractionActionButton/)
+  assert.doesNotMatch(localRuntimeSource, /agentRunInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge|InputChoice|InputItem|InputRail|InputBadge|InputAnswer|RejectAction)Class/)
+  assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalSectionClass/)
+  assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalBadgeClass/)
+  assert.match(agentRunInteractionApprovalStatusSource, /export function agentRunInteractionApprovalInputChoiceClass/)
+  assert.match(agentRunInteractionApprovalStatusSource, /toneSurfaceClass/)
+  assert.match(agentRunInteractionApprovalStatusSource, /toneTextClass/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionRequestCard[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionChoiceButton[\s\S]*?<Button/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionTextInput[\s\S]*?<Input/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStateBadge[\s\S]*?<Badge/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionStatusBadge[\s\S]*?<StatusBadge/)
+  assert.match(agentRunInteractionApprovalCardSource, /AgentRunInteractionMarkerDot[\s\S]*?<AppMarkerDot/)
   assert.doesNotMatch(localRuntimeSource, /\b(?:AgentSurfaceBlock|AppMarkerDot|Badge|Button|Input|StatusBadge)\b/)
-  assert.match(localRuntimeSource, /\bAgentWorkflowMarkerDot\b/)
-  assert.match(localRuntimeSource, /\bAgentWorkflowTextInput\b/)
+  assert.match(localRuntimeSource, /\bAgentRunInteractionMarkerDot\b/)
+  assert.match(localRuntimeSource, /\bAgentRunInteractionTextInput\b/)
   assert.match(aiDraftsSource, /agentDraftStatusRecipe/)
   assert.match(agentDraftResultCardsSource, /agentDraftStatusRecipe/)
-  assert.match(localRuntimeSource, /<AgentWorkflowTextInput[\s\S]*?data-testid="agent-run-input-text"/)
-  assert.doesNotMatch(localRuntimeSource, /workflowActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
+  assert.match(localRuntimeSource, /<AgentRunInteractionTextInput[\s\S]*?data-testid="agent-run-input-text"/)
+  assert.doesNotMatch(localRuntimeSource, /runInteractionActionDotProps[\s\S]*?return \{ tone: 'danger' as const \}/)
   assert.doesNotMatch(localRuntimeSource, /\b(?:accentBadgeClass|accentDotClass|accentSurfaceClass|accentTextClass|toneDotClass|toneSurfaceClass|toneTextClass)\b/)
-  assert.doesNotMatch(localRuntimeSource, /function workflowApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
+  assert.doesNotMatch(localRuntimeSource, /function runInteractionApproval(?:Section|Title|Impact|Item|Rail|Badge)Class\b/)
   assert.doesNotMatch(generationCardsSource, /ms-semantic-(?:icon|badge|surface|dot)--/)
-  assert.doesNotMatch(sources, /function (?:generationJobStatusTone|draftStatusTone|workflowActionBadgeTone)\b/)
+  assert.doesNotMatch(sources, /function (?:generationJobStatusTone|draftStatusTone|runInteractionActionBadgeTone)\b/)
   assert.doesNotMatch(sources, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(localRuntimeSource, /<input\b/)
   assert.doesNotMatch(localRuntimeSource, /border-destructive\//)
@@ -7790,7 +7780,7 @@ test('agent generation and local runtime workflow use package tone contracts', (
   assert.doesNotMatch(localRuntimeSource, /bg-muted-foreground/)
   assert.doesNotMatch(localRuntimeSource, /bg-border/)
   assert.doesNotMatch(localRuntimeSource, /h-1\.5 w-1\.5 shrink-0 rounded-full/)
-  assert.doesNotMatch(localRuntimeSource, /workflowActionDotClass/)
+  assert.doesNotMatch(localRuntimeSource, /runInteractionActionDotClass/)
   assert.doesNotMatch(generationCardsSource, /rounded bg-background\/70 px-2 py-1\.5/)
   assert.doesNotMatch(generationCardsSource, /rounded-md border border-border\/80 bg-background\/70/)
   assert.doesNotMatch(generationCardsSource, /rounded border border-border\/80 bg-muted\/20/)
@@ -7825,7 +7815,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   const planOverviewSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPlanOverviewPanel.tsx')
   const agentPlanCardSource = readProjectFile('apps/frontend/src/features/agent/components/AgentPlanCard.tsx')
   const contextDiagnosticSource = readProjectFile('apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx')
-  const workflowBubbleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentWorkflowBubble.tsx')
+  const runInteractionBubbleSource = readProjectFile('apps/frontend/src/features/agent/components/AgentRunInteractionBubble.tsx')
   const activityFeedSource = readProjectFile('apps/frontend/src/features/agent/components/AgentActivityFeed.tsx')
   const activityFeedDomainSource = readProjectFile('apps/frontend/src/features/agent/domain/agentActivityFeed.ts')
   const generatedResultSource = readProjectFile('apps/frontend/src/features/agent/components/GeneratedResultCard.tsx')
@@ -7849,7 +7839,7 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
     'apps/frontend/src/features/agent/components/AgentActivityFeed.tsx',
     'apps/frontend/src/features/agent/components/ContextDiagnosticCard.tsx',
     'apps/frontend/src/features/agent/components/AgentPlanCard.tsx',
-    'apps/frontend/src/features/agent/components/AgentWorkflowBubble.tsx',
+    'apps/frontend/src/features/agent/components/AgentRunInteractionBubble.tsx',
   ].map((relativePath) => readProjectFile(relativePath)).join('\n')
     + '\n'
     + previewDrawerSource
@@ -7950,8 +7940,8 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentCss, /\.ms-agent-run-activity-item\s*\{/)
   assert.match(agentCss, /\.ms-agent-run-activity-code__content\s*\{/)
   assert.match(agentSemanticUiSource, /agentRunStatusRecipe/)
-  assert.match(agentSemanticUiSource, /agentWorkflowStatusRecipe/)
-  assert.match(agentSemanticUiSource, /agentWorkflowActionStatusRecipe/)
+  assert.match(agentSemanticUiSource, /agentRunInteractionStatusRecipe/)
+  assert.match(agentSemanticUiSource, /agentRunInteractionActionStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentDraftStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentGenerationStatusRecipe/)
   assert.match(agentSemanticUiSource, /agentToolCallStatusRecipe/)
@@ -7982,18 +7972,18 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.match(agentPerformanceSource, /agentPerformanceOperationRecipe/)
   assert.match(agentPerformanceSource, /agentPerformanceLogRecipe/)
   assert.match(agentPerformanceSource, /agentSlowDiagnosticRecipe/)
-  assert.match(debugPreviewSource, /agentWorkflowActionStatusRecipe/)
+  assert.match(debugPreviewSource, /agentRunInteractionActionStatusRecipe/)
   assert.match(contextDiagnosticSource, /agentSeverityStatusRecipe/)
   assert.match(agentRunsSource, /agentRunStatusRecipe/)
   assert.match(agentRunsSource, /agentAttentionStatusRecipe/)
   assert.match(agentPlanCardSource, /AgentPlanOverviewTaskStatusIcon/)
   assert.match(runActivitySource, /agentRunStatusRecipe/)
-  assert.match(runActivitySource, /agentWorkflowStatusRecipe/)
+  assert.match(runActivitySource, /agentRunInteractionStatusRecipe/)
   assert.match(planOverviewSource, /agentRunStatusRecipe/)
-  assert.match(planOverviewSource, /agentWorkflowStatusRecipe/)
+  assert.match(planOverviewSource, /agentRunInteractionStatusRecipe/)
   assert.doesNotMatch(`${agentRunSource}\n${agentSettingsSource}\n${agentPerformanceSource}\n${debugPreviewSource}\n${contextDiagnosticSource}`, /<StatusBadge\b[^>]*\btone=|<AgentDiagnosticStatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(agentRunSource, /function toolCallStatusTone\b/)
-  assert.doesNotMatch(`${agentConsoleSource}\n${agentDebugSource}\n${agentRunsSource}\n${runActivitySource}\n${planOverviewSource}`, /function (?:runStatusTone|workflowTone)\b/)
+  assert.doesNotMatch(`${agentConsoleSource}\n${agentDebugSource}\n${agentRunsSource}\n${runActivitySource}\n${planOverviewSource}`, /function (?:runStatusTone|runInteractionTone)\b/)
   assert.doesNotMatch(runActivitySource, /\bAgentSurfaceBlock\b/)
   assert.doesNotMatch(runActivitySource, /\bAppCodeBlock\b/)
   assert.doesNotMatch(runActivitySource, /\bReviewCallout\b/)
@@ -8060,33 +8050,33 @@ test('agent run settings and preview surfaces use package tone contracts', () =>
   assert.doesNotMatch(planOverviewSource, /rounded border border-destructive\/30 bg-destructive\/5/)
   assert.doesNotMatch(planOverviewSource, /<pre\b/)
   for (const exportName of [
-    'AgentWorkflowApprovalCard',
-    'AgentWorkflowApprovalCodeBlock',
-    'AgentWorkflowApprovalBadge',
-    'AgentWorkflowApprovalThumbnail',
-    'AgentWorkflowApprovalPreviewStack',
-    'AgentWorkflowApprovalSideEffect',
+    'AgentRunInteractionApprovalCard',
+    'AgentRunInteractionApprovalCodeBlock',
+    'AgentRunInteractionApprovalBadge',
+    'AgentRunInteractionApprovalThumbnail',
+    'AgentRunInteractionApprovalPreviewStack',
+    'AgentRunInteractionApprovalSideEffect',
   ]) {
-    assert.match(workflowBubbleSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by workflow approval details`)
+    assert.match(runInteractionBubbleSource, new RegExp(`\\b${exportName}\\b`), `${exportName} must be consumed by run interaction details`)
     assert.match(agentPackageSource, new RegExp(`export (?:const|function) ${exportName}\\b`), `${exportName} must be package-owned`)
   }
-  assert.match(agentCss, /\.ms-agent-workflow-approval-card\s*\{/)
-  assert.match(agentCss, /\.ms-agent-workflow-approval-code\s*\{/)
-  assert.match(agentCss, /\.ms-agent-workflow-approval-thumb\s*\{/)
-  assert.doesNotMatch(workflowBubbleSource, /\bAgentSurfaceBlock\b/)
-  assert.doesNotMatch(workflowBubbleSource, /\bAgentDataBlock\b/)
-  assert.doesNotMatch(workflowBubbleSource, /\bAppCodeBlock\b/)
-  assert.doesNotMatch(workflowBubbleSource, /\bBadge\b/)
-  assert.doesNotMatch(workflowBubbleSource, /\btoneTextClass\b/)
-  assert.doesNotMatch(workflowBubbleSource, /rounded border border-border\/70 bg-muted\/20/)
-  assert.doesNotMatch(workflowBubbleSource, /rounded-md border border-border\/30 bg-background\/35/)
-  assert.doesNotMatch(workflowBubbleSource, /rounded border border-border\/30/)
-  assert.doesNotMatch(workflowBubbleSource, /rounded bg-muted\/50/)
-  assert.doesNotMatch(workflowBubbleSource, /rounded-md border border-border\/30 bg-muted\/20/)
-  assert.doesNotMatch(workflowBubbleSource, /className="mt-0"/)
-  assert.doesNotMatch(workflowBubbleSource, /max-h-24 overflow-auto p-1\.5/)
-  assert.doesNotMatch(workflowBubbleSource, /line-clamp-[23]/)
-  assert.doesNotMatch(workflowBubbleSource, /<pre\b/)
+  assert.match(agentCss, /\.ms-agent-run-interaction-card\s*\{/)
+  assert.match(agentCss, /\.ms-agent-run-interaction-code\s*\{/)
+  assert.match(agentCss, /\.ms-agent-run-interaction-thumb\s*\{/)
+  assert.doesNotMatch(runInteractionBubbleSource, /\bAgentSurfaceBlock\b/)
+  assert.doesNotMatch(runInteractionBubbleSource, /\bAgentDataBlock\b/)
+  assert.doesNotMatch(runInteractionBubbleSource, /\bAppCodeBlock\b/)
+  assert.doesNotMatch(runInteractionBubbleSource, /\bBadge\b/)
+  assert.doesNotMatch(runInteractionBubbleSource, /\btoneTextClass\b/)
+  assert.doesNotMatch(runInteractionBubbleSource, /rounded border border-border\/70 bg-muted\/20/)
+  assert.doesNotMatch(runInteractionBubbleSource, /rounded-md border border-border\/30 bg-background\/35/)
+  assert.doesNotMatch(runInteractionBubbleSource, /rounded border border-border\/30/)
+  assert.doesNotMatch(runInteractionBubbleSource, /rounded bg-muted\/50/)
+  assert.doesNotMatch(runInteractionBubbleSource, /rounded-md border border-border\/30 bg-muted\/20/)
+  assert.doesNotMatch(runInteractionBubbleSource, /className="mt-0"/)
+  assert.doesNotMatch(runInteractionBubbleSource, /max-h-24 overflow-auto p-1\.5/)
+  assert.doesNotMatch(runInteractionBubbleSource, /line-clamp-[23]/)
+  assert.doesNotMatch(runInteractionBubbleSource, /<pre\b/)
   for (const exportName of [
     'AgentActivityFeedRoot',
     'AgentActivityRound',
@@ -9339,7 +9329,7 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.doesNotMatch(agentSettingsSource, /\b(?:AppStateMessage|AppKeyValue|ReviewCallout|toneTextClass)\b/)
   for (const testId of [
     'agent-settings-snapshot-impact-item',
-    'agent-settings-tool-policy-diff-item',
+    'agent-settings-tool-permissions-diff-item',
     'agent-settings-api-mode-capability-item',
     'agent-settings-model-compatibility-probe',
     'agent-settings-api-mode-migration-step',
@@ -9352,16 +9342,15 @@ test('agent admin surfaces use package structural primitives', () => {
       assert.match(agentSettingsOwnershipSource, new RegExp(`<AgentSurfaceBlock[\\s\\S]*?data-testid="${testId}"`), `${testId} must use AgentSurfaceBlock`)
     }
   }
-  assert.match(agentSettingsSource, /function ToolPolicyRow[\s\S]*?AgentSettingsToolPolicyRow/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyRow[\s\S]*?<AgentSurfaceBlock/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyRow[\s\S]*?<StatusBadge/)
+  assert.match(agentSettingsSource, /function ToolPermissionsRow[\s\S]*?AgentSettingsToolPermissionsRow/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<AgentSurfaceBlock/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsRow[\s\S]*?<StatusBadge/)
   assert.match(agentSettingsSource, /statusProps: agentSettingsStatusRecipe/)
   assert.match(agentSettingsSource, /badgeProps=\{agentSettingsApiModeBadgeRecipe\(mode\.badge\)\}/)
-  assert.match(agentSettingsSource, /trustProps=\{agentSettingsRecipe/)
   assert.doesNotMatch(agentSettingsUiSource, /<StatusBadge\b[^>]*\btone=/)
   assert.doesNotMatch(agentSettingsSource, /agentSettingsStatusTone|agentSettingsApiModeBadgeTone/)
   assert.doesNotMatch(agentSettingsSource, /\bbadgeTone=|\btrustTone=/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyRow[\s\S]{0,2200}<StatusBadge/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsRow[\s\S]{0,2200}<StatusBadge/)
   assert.match(agentSettingsSource, /\bAgentSettingsActionItemsPanel\b/)
   assert.match(agentSettingsSource, /\bAgentSettingsReadinessPanel\b/)
   assert.match(agentSettingsUiSource, /<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-action-item"/)
@@ -9371,20 +9360,20 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.match(agentSettingsUiSource, /function AgentSettingsSkillCard[\s\S]*?<AppInlineMeta/)
   assert.doesNotMatch(agentSettingsSource, /function SkillRow[\s\S]{0,2200}CheckboxField/)
   assert.doesNotMatch(agentSettingsSource, /function SkillRow[\s\S]{0,2200}AppInlineMeta/)
-  assert.match(agentSettingsSource, /function ToolPolicyDiffPreview[\s\S]*?AgentSettingsToolPolicyDiffPanel/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-policy-diff-item"/)
-  assert.doesNotMatch(agentSettingsSource, /function ToolPolicyDiffPreview[\s\S]{0,2200}<StatusBadge/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyFilterPanel[\s\S]*?onSearchChange=\{setToolPolicySearch\}/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyFilterPresetPanel[\s\S]*?onSave=\{saveToolPolicyFilterPreset\}/)
-  assert.match(agentSettingsSource, /<AgentSettingsToolPolicyBulkActionPanel[\s\S]*?actions=\{\[/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyFilterPanel[\s\S]*?<Input[\s\S]*?onChange=\{\(event\) => onSearchChange\(event\.target\.value\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyFilterPresetPanel[\s\S]*?<Button[\s\S]*?onClick=\{preset\.onSelect\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsToolPolicyBulkActionPanel[\s\S]*?actions\.map[\s\S]*?<Button[\s\S]*?onClick=\{action\.onClick\}/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-policy-filters"[\s\S]{0,1600}<Input/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-policy-filter-presets"[\s\S]{0,1800}<AgentSurfaceBlock/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-policy-bulk-actions"[\s\S]{0,1800}<Button/)
-  assert.match(agentSettingsSource, /<AgentSettingsRunPresetEditorPanel[\s\S]*?onAutoTaskGraphChange=\{\(checked\) => updateRunPreset\(activeRunPreset\.id, \{ autoTaskGraph: checked \}\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetEditorPanel[\s\S]*?<CheckboxField[\s\S]*?onCheckedChange=\{onAutoTaskGraphChange\}/)
+  assert.match(agentSettingsSource, /function ToolPermissionsDiffPreview[\s\S]*?AgentSettingsToolPermissionsDiffPanel/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsDiffPanel[\s\S]*?<AgentSurfaceBlock[\s\S]*?data-testid="agent-settings-tool-permissions-diff-item"/)
+  assert.doesNotMatch(agentSettingsSource, /function ToolPermissionsDiffPreview[\s\S]{0,2200}<StatusBadge/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPanel[\s\S]*?onSearchChange=\{setToolPermissionsSearch\}/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?onSave=\{saveToolPermissionsFilterPreset\}/)
+  assert.match(agentSettingsSource, /<AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?actions=\{\[/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPanel[\s\S]*?<Input[\s\S]*?onChange=\{\(event\) => onSearchChange\(event\.target\.value\)\}/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsFilterPresetPanel[\s\S]*?<Button[\s\S]*?onClick=\{preset\.onSelect\}/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsToolPermissionsBulkActionPanel[\s\S]*?actions\.map[\s\S]*?<Button[\s\S]*?onClick=\{action\.onClick\}/)
+  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-permissions-filters"[\s\S]{0,1600}<Input/)
+  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-permissions-filter-presets"[\s\S]{0,1800}<AgentSurfaceBlock/)
+  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-permissions-bulk-actions"[\s\S]{0,1800}<Button/)
+  assert.match(agentSettingsSource, /<AgentSettingsFormGrid columns="model" data-testid="agent-settings-config-file-limits"/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsFormGrid[\s\S]*?data-columns=\{columns\}/)
   assert.match(agentSettingsSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
   assert.match(agentSettingsSource, /function SettingsSnapshotSummary[\s\S]*?<AgentSettingsSnapshotSummaryPanel/)
   assert.match(agentSettingsSource, /function SettingsAuditTrailPanel[\s\S]*?<AgentSettingsAuditTrailPanel/)
@@ -9399,17 +9388,17 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.doesNotMatch(agentSettingsSource, /function SettingsAuditTrailPanel[\s\S]{0,2400}<AgentSurfaceBlock/)
   assert.match(agentSettingsSource, /\bAgentSettingsToggleRow\b/)
   assert.match(agentSettingsUiSource, /function AgentSettingsToggleRow[\s\S]*?<CheckboxField[\s\S]*?checked=\{checked\}[\s\S]*?onCheckedChange=\{onChange\}/)
-  assert.match(agentSettingsSource, /function ProfileRow[\s\S]*?AgentSettingsProfileCard/)
-  assert.match(agentSettingsSource, /function ProfileDiffPanel[\s\S]*?AgentSettingsProfileDiffPanel/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsProfileCard[\s\S]*?AgentSurfaceBlock/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsProfileDiffSectionView[\s\S]*?AgentSurfaceBlock/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsProfileSummaryList[\s\S]*?AgentSurfaceBlock/)
-  assert.doesNotMatch(agentSettingsSource, /function ProfileDiffSectionView\b/)
-  assert.doesNotMatch(agentSettingsSource, /function ProfileSummaryList\b/)
+  assert.match(agentSettingsSource, /function ConfigFileRow[\s\S]*?AgentSettingsConfigFileCard/)
+  assert.match(agentSettingsSource, /function ConfigFileDiffPanel[\s\S]*?AgentSettingsConfigFileDiffPanel/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileCard[\s\S]*?AgentSurfaceBlock/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileDiffSectionView[\s\S]*?AgentSurfaceBlock/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileSummaryList[\s\S]*?AgentSurfaceBlock/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileDiffSectionView\b/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileSummaryList\b/)
   assert.match(agentSettingsSource, /textModels\.slice\(0, 12\)\.map\(\(model\)[\s\S]*?<AgentSettingsModelOptionButton[\s\S]*?onSelect=\{\(\) => setSelectedModelId\(publicModelId\(model\)\)\}/)
   assert.match(agentSettingsUiSource, /function AgentSettingsModelOptionButton[\s\S]*?<AgentSurfaceBlock[\s\S]*?<Button[\s\S]*?onClick=\{onSelect\}/)
-  assert.match(agentSettingsSource, /function RunPresetRow[\s\S]*?<AgentSettingsRunPresetRow[\s\S]*?onSelect=\{\(\) => onSelect\(preset\.id\)\}/)
-  assert.match(agentSettingsUiSource, /function AgentSettingsRunPresetRow[\s\S]*?<Button[\s\S]*?onClick=\{onSelect\}/)
+  assert.match(agentSettingsSource, /function ConfigFileRow[\s\S]*?<AgentSettingsConfigFileCard/)
+  assert.match(agentSettingsUiSource, /function AgentSettingsConfigFileCard[\s\S]*?<AgentSurfaceBlock[\s\S]*?asChild[\s\S]*?<Button/)
   assert.match(agentSettingsSource, /function ConfigurationMapPanel[\s\S]*?<AgentSettingsNavigationButton[\s\S]*?onClick=\{\(\) => onJump\(section\.id\)\}/)
   assert.match(agentSettingsUiSource, /function AgentSettingsNavigationButton[\s\S]*?<AgentDataBlock[\s\S]*?asChild[\s\S]*?<Button[\s\S]*?onClick=\{onClick\}/)
   assert.match(agentSettingsSource, /function SettingsSnapshotImportScopeSelector[\s\S]*?<AgentSettingsSnapshotImportScopePanel/)
@@ -9419,7 +9408,7 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.match(agentSettingsSource, /data-testid="agent-settings-scope-boundary"[\s\S]*?<AgentSettingsScopeBadge>[\s\S]*?agents\.settings\.scope\.controlPlane/)
   assert.match(agentSettingsUiSource, /function AgentSettingsScopeBadge[\s\S]*?<AppInlineMeta/)
   assert.doesNotMatch(agentSettingsSource, /\bAppInlineMeta\b/)
-  assert.match(agentSettingsSource, /<AgentSettingsSkillBundlePanel[\s\S]*?fileInputRef=\{skillBundleFileInputRef\}/)
+  assert.match(agentSettingsSource, /<AgentSettingsPackPanel[\s\S]*?fileInputRef=\{packFileInputRef\}/)
   assert.match(agentSettingsUiSource, /<Input[\s\S]*?ref=\{fileInputRef\}[\s\S]*?type="file"/)
   assert.match(agentSettingsSource, /<AgentSettingsInput[\s\S]*?ref=\{settingsSnapshotFileInputRef\}[\s\S]*?type="file"/)
   assert.match(agentSettingsSource, /\bAgentSettingsCodeBlock\b/)
@@ -9431,12 +9420,12 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.doesNotMatch(agentSettingsSource, /rounded border border-border bg-muted\/30 px-2 py-1/)
   assert.doesNotMatch(agentSettingsSource, /rounded border border-border bg-background px-2 py-1/)
   assert.doesNotMatch(agentSettingsSource, /textModels\.slice\(0, 12\)\.map\(\(model\)[\s\S]{0,500}<button\b/)
-  assert.doesNotMatch(agentSettingsSource, /function RunPresetRow[\s\S]{0,700}<button\b/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileRow[\s\S]{0,700}<button\b/)
   assert.doesNotMatch(agentSettingsSource, /function ConfigurationMapPanel[\s\S]{0,700}<button\b/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-provider-model-id-secret-warning"[^>]+rounded-md border border-destructive\/30 bg-destructive\/10/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-base-url-secret-warning"[^>]+rounded-md border border-destructive\/30 bg-destructive\/10/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-snapshot-impact-item"[^>]+rounded border border-border bg-muted\/20/)
-  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-policy-diff-item"[^>]+rounded border border-border bg-muted\/20/)
+  assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-tool-permissions-diff-item"[^>]+rounded border border-border bg-muted\/20/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-api-mode-capability-item"[^>]+rounded border border-border bg-background/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-model-compatibility-probe"[^>]+rounded border border-border bg-muted\/20/)
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-api-mode-migration-step"[^>]+rounded border border-border bg-muted\/20/)
@@ -9447,9 +9436,9 @@ test('agent admin surfaces use package structural primitives', () => {
   assert.doesNotMatch(agentSettingsSource, /data-testid="agent-settings-action-item"[\s\S]{0,240}border-destructive\/40 bg-destructive\/10/)
   assert.doesNotMatch(agentSettingsSource, /function SkillRow[\s\S]{0,2200}<input\b[\s\S]{0,80}type="checkbox"/)
   assert.doesNotMatch(agentSettingsSource, /function SkillRow[\s\S]{0,2600}rounded bg-background px-1\.5 py-0\.5/)
-  assert.doesNotMatch(agentSettingsSource, /function ProfileRow[\s\S]{0,1200}rounded-md border p-2/)
-  assert.doesNotMatch(agentSettingsSource, /function ProfileDiffSectionView[\s\S]{0,900}rounded bg-background px-2 py-1\.5/)
-  assert.doesNotMatch(agentSettingsSource, /function ProfileSummaryList[\s\S]{0,600}rounded bg-background px-2 py-1/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileRow[\s\S]{0,1200}rounded-md border p-2/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileDiffSectionView[\s\S]{0,900}rounded bg-background px-2 py-1\.5/)
+  assert.doesNotMatch(agentSettingsSource, /function ConfigFileSummaryList[\s\S]{0,600}rounded bg-background px-2 py-1/)
 })
 
 test('agent full-page surfaces use package page shell layout', () => {

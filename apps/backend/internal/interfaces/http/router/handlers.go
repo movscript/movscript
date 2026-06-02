@@ -39,6 +39,7 @@ type handlers struct {
 	org               *handler.OrgHandler
 	orgAdmin          *handler.OrgAdminHandler
 	adminOverview     *handler.AdminOverviewHandler
+	agentTelemetry    *handler.AgentTelemetryHandler
 	ws                *wsiface.Handler
 }
 
@@ -86,6 +87,7 @@ func newHandlers(deps Dependencies) handlers {
 		org:               handler.NewOrgHandler(db, tokens),
 		orgAdmin:          handler.NewOrgAdminHandler(db),
 		adminOverview:     handler.NewAdminOverviewHandler(db),
+		agentTelemetry:    handler.NewAgentTelemetryHandler(nil),
 		ws:                wsiface.NewHandler(),
 	}
 }

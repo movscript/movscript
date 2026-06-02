@@ -6,23 +6,20 @@
   "source": "builtin",
   "resources": {
     "skills": [
-      "movscript/persona",
-      "movscript/policy/workspace",
-      "movscript/workflow/workspace",
-      "kernel/workflow/proposal_first",
-      "movscript/workflow/proposal",
-      "candidate/workflow/asset_planning",
-      "generation/workflow/visual_execution",
-      "film/expertise"
+      "movscript/orchestrator",
+      "movscript/rules/workspace",
+      "movscript/workspace",
+      "kernel/proposal_first",
+      "movscript/proposal",
+      "candidate/asset_planning",
+      "generation/visual_execution",
+      "film/storyboard"
     ],
     "tools": [
       "movscript/workspace",
       "generation",
       "candidate",
-      "knowledge"
-    ],
-    "knowledge": [
-      "storyboard"
+      "reference"
     ]
   },
   "schemas": [],
@@ -41,30 +38,27 @@
     "tool_webui",
     "candidate_asset_slot_attach",
     "candidate_keyframe_attach",
-    "knowledge_search",
-    "knowledge_get"
+    "reference_search",
+    "reference_get"
   ],
   "skills": [
-    "movscript.policy.workspace",
-    "movscript.persona.project_orchestrator",
-    "movscript.persona.production_orchestrator",
-    "film.persona.visual_director",
-    "movscript.workflow.project_progress_review",
-    "movscript.workflow.script_reading",
-    "kernel.workflow.proposal_first",
-    "movscript.workflow.project_standards_proposal",
-    "movscript.workflow.setting_proposal",
-    "movscript.workflow.asset_proposal",
-    "movscript.workflow.setting_prep",
-    "movscript.workflow.production_proposal",
-    "candidate.workflow.asset_planning",
-    "movscript.workflow.content_unit_proposal",
-    "movscript.workflow.storyboard_gap_review",
-    "generation.workflow.visual_execution",
-    "film.expertise.storyboard.director"
-  ],
-  "knowledge": [
-    "film.knowledge.storyboard"
+    "movscript.rules.workspace",
+    "movscript.orchestrator.project",
+    "movscript.orchestrator.production",
+    "film.director.visual",
+    "movscript.project_progress_review",
+    "movscript.script_reading",
+    "kernel.proposal_first",
+    "movscript.project_standards_proposal",
+    "movscript.setting_proposal",
+    "movscript.asset_proposal",
+    "movscript.setting_prep",
+    "movscript.production_proposal",
+    "candidate.asset_planning",
+    "movscript.content_unit_proposal",
+    "movscript.storyboard_gap_review",
+    "generation.visual_execution",
+    "film.storyboard.director"
   ],
   "requires": {
     "packs": {

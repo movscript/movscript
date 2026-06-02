@@ -1,10 +1,10 @@
 import { attachmentKey, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/features/agent/domain/agentCommandInput'
 import { publicModelId, publicModelLabel } from '@/shared/domain/modelDisplay'
-import { activeRunPresetFromSettings, type AgentAttachment, type AgentPermissionMode, type AgentSettings, type ChatMessage } from '@/features/agent/state/agentStore'
+import { type AgentAttachment, type AgentSettings, type ChatMessage } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 import type { Project, PublicModel, RawResource } from '@/types'
-import type { AgentClientInput, AgentManifest, AgentRunPolicy, AgentRunPolicyOverride, AgentRunPreview } from '@/shared/infrastructure/localAgentClient'
+import type { AgentClientInput, AgentManifest, AgentRuntimeLimitsOverride, AgentRunPreview } from '@/shared/infrastructure/localAgentClient'
 
 export type AgentSendRoute = 'local-runtime'
 
@@ -26,7 +26,7 @@ export interface AgentSendDraft {
     name?: string
     soul?: string
   }
-  settings: Pick<AgentSettings, 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoTaskGraph'>
+  settings: Pick<AgentSettings, 'includeProjectContext' | 'includeRecentResources'>
   contextLabels: string[]
   context: {
     project?: Pick<Project, 'ID' | 'name' | 'status' | 'description' | 'aspect_ratio' | 'visual_style' | 'project_style'>
@@ -45,7 +45,7 @@ export interface AgentSendDraft {
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
-    runPolicy?: AgentRunPolicyOverride
+    runtimeLimits?: AgentRuntimeLimitsOverride
     requestId?: string
     timeoutMs?: number
     diagnosticCommand?: boolean
@@ -74,7 +74,7 @@ export interface AgentSendDraftOptions {
   projectId?: number
   clientInput?: AgentClientInput
   agentManifest?: AgentManifest
-  runPolicy?: AgentRunPolicyOverride
+  runtimeLimits?: AgentRuntimeLimitsOverride
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
@@ -103,7 +103,7 @@ export interface AgentSendDraftPreviewDeps {
     threadId?: string
     clientInput: AgentClientInput
     agentManifest?: AgentManifest
-    policy?: AgentRunPolicyOverride
+    runtimeLimits?: AgentRuntimeLimitsOverride
   }) => Promise<AgentRunPreview>
   isLocalAgentNotFoundError: (error: unknown) => boolean
   onPreviewError?: (error: unknown) => void
@@ -141,21 +141,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
     && !input.externalTask.settledAt
     && (input.externalTask.status === 'queued' || input.externalTask.status === 'claimed')
   const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? input.externalTask?.payload : undefined
-  const activeRunPreset = activeRunPresetFromSettings(input.settings)
-  const presetRunPolicy: AgentRunPolicyOverride = {
-    approvalMode: agentPermissionModeToApprovalMode(input.settings.permissionMode),
-    maxToolCalls: activeRunPreset.maxToolCalls,
-    maxIterations: activeRunPreset.maxIterations,
-    workflow: {
-      profile: input.settings.autoTaskGraph ? 'standard' : 'compact',
-      includeMemories: true,
-      allowForcedToolCalls: input.settings.autoTaskGraph,
-    },
-  }
-  const effectiveRunPolicy: AgentRunPolicyOverride = {
-    ...presetRunPolicy,
-    ...(options.runPolicy ?? {}),
-  }
+  const effectiveRuntimeLimits = options.runtimeLimits
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined
   const text = (options.message ?? input.draftInput).trim()
   const sentAttachments = options.message === undefined
@@ -188,8 +174,6 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
           labels: input.contextLabels,
         }))
   const agentContext = buildAgentContext({
-    permissionMode: input.settings.permissionMode,
-    autoTaskGraph: input.settings.autoTaskGraph,
     project: input.currentProject,
     includeProjectContext: input.settings.includeProjectContext,
   })
@@ -209,7 +193,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
     ...(localRuntimeProjectId !== undefined ? { projectId: localRuntimeProjectId } : {}),
     clientInput,
     ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-    ...(effectiveRunPolicy ? { runPolicy: effectiveRunPolicy } : {}),
+    ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
     ...((options.requestId ?? taskRequestId) ? { requestId: options.requestId ?? taskRequestId } : {}),
     ...((options.timeoutMs ?? taskPayload?.timeoutMs) ? { timeoutMs: options.timeoutMs ?? taskPayload?.timeoutMs } : {}),
     diagnosticCommand,
@@ -228,7 +212,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
           ...(threadId ? { threadId } : {}),
           clientInput,
           ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-          ...(effectiveRunPolicy ? { policy: effectiveRunPolicy } : {}),
+          ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
         })
       } catch (error) {
         if (!threadId || !input.previewDeps.isLocalAgentNotFoundError(error)) throw error
@@ -236,7 +220,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
         localRuntime.preview = await input.previewDeps.previewRun({
           clientInput,
           ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-          ...(effectiveRunPolicy ? { policy: effectiveRunPolicy } : {}),
+          ...(effectiveRuntimeLimits ? { runtimeLimits: effectiveRuntimeLimits } : {}),
         })
       }
     } catch (error) {
@@ -263,10 +247,8 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
       id: null,
     },
     settings: {
-      permissionMode: input.settings.permissionMode,
       includeProjectContext: input.settings.includeProjectContext,
       includeRecentResources: input.settings.includeRecentResources,
-      autoTaskGraph: input.settings.autoTaskGraph,
     },
     contextLabels: input.contextLabels,
     context: {
@@ -438,21 +420,11 @@ export function buildDebugHttpRequests(options: {
   }))
 }
 
-export function agentPermissionModeToApprovalMode(permissionMode: AgentPermissionMode): AgentRunPolicy['approvalMode'] {
-  if (permissionMode === 'auto') return 'auto'
-  if (permissionMode === 'suggest') return 'auto_readonly'
-  return 'interactive'
-}
-
 function buildAgentContext(options: {
-  permissionMode: AgentPermissionMode
-  autoTaskGraph: boolean
   project: Project | null
   includeProjectContext: boolean
 }) {
-  const lines = [
-    `[Agent runtime policy] approval=${agentPermissionModeToApprovalMode(options.permissionMode)}; autoTaskGraph=${options.autoTaskGraph ? 'on' : 'off'}.`,
-  ]
+  const lines: string[] = []
   if (options.includeProjectContext && options.project) {
     lines.push(`[Current project] ${options.project.name}${options.project.status ? ` (${options.project.status})` : ''}.`)
   }
@@ -479,7 +451,7 @@ function attachmentPromptBlock(attachments: AgentAttachment[]) {
     const payload = attachment.dataUrl ? ', image_payload=data_url' : attachment.type === 'video' ? ', video_payload=metadata_only' : ''
     return `${index + 1}. ${attachment.name} (${attachment.type}, ${attachment.mimeType || 'unknown'}, ${formatBytesForPrompt(attachment.size)}, ${id}${payload})`
   })
-  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会随 runtime 输入以 data URL 传给支持 vision 的模型；视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
+  return `\n\n[用户随消息提供的附件]\n${lines.join('\n')}\n图片附件会先由本地 runtime 预处理，只有优化后的图片 payload 会进入 vision 模型上下文；视频附件只提供 resource_id 元数据，需要 agent 用本地抽帧工具读取代表帧。其他附件只提供元数据。`
 }
 
 function parseResourceMentionIds(text: string): number[] {

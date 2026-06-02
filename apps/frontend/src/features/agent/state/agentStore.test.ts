@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activeRunPresetFromSettings, appendSettingsAuditEntry, defaultAgentRunPresets, normalizeAgentSettings, useAgentStore } from './agentStore'
+import { appendSettingsAuditEntry, normalizeAgentSettings, useAgentStore } from './agentStore'
 
 test('createConversation reuses the existing frontend-only new conversation', () => {
   const userId = 'new-conversation-reuse-user'
@@ -72,15 +72,11 @@ test('normalizeAgentSettings falls back from invalid persisted base settings', (
     modelId: 'bad' as unknown as number,
     includeProjectContext: 'yes' as unknown as boolean,
     includeRecentResources: 1 as unknown as boolean,
-    autoTaskGraph: 'auto' as unknown as boolean,
-    permissionMode: 'danger' as unknown as any,
   })
 
   assert.equal(settings.modelId, null)
   assert.equal(settings.includeProjectContext, true)
   assert.equal(settings.includeRecentResources, true)
-  assert.equal(settings.autoTaskGraph, true)
-  assert.equal(settings.permissionMode, 'ask')
 })
 
 test('normalizeAgentSettings accepts numeric persisted model ids', () => {
@@ -89,83 +85,9 @@ test('normalizeAgentSettings accepts numeric persisted model ids', () => {
   assert.equal(normalizeAgentSettings({ modelId: -1 }).modelId, null)
 })
 
-test('normalizeAgentSettings restores default run presets for old persisted settings', () => {
+test('normalizeAgentSettings normalizes persisted tool permission filter presets', () => {
   const settings = normalizeAgentSettings({
-    activeRunPresetId: 'missing',
-    runPresets: [],
-  })
-  const active = activeRunPresetFromSettings(settings)
-
-  assert.equal(settings.runPresets.length >= 3, true)
-  assert.equal(settings.activeRunPresetId, 'safe-review')
-  assert.equal(active.maxToolCalls, 8)
-  assert.equal(active.maxIterations, 6)
-})
-
-test('normalizeAgentSettings preserves valid custom active run preset', () => {
-  const settings = normalizeAgentSettings({
-    activeRunPresetId: 'custom',
-    runPresets: [{
-      id: 'custom',
-      name: 'Custom',
-      description: 'Custom run policy',
-      permissionMode: 'suggest',
-      autoTaskGraph: true,
-      maxToolCalls: 33,
-      maxIterations: 17,
-      planMaxWorkers: 3,
-      planMaxTaskAttempts: 2,
-      planWorkerTimeoutMs: 30 * 60_000,
-    }],
-  })
-  const active = activeRunPresetFromSettings(settings)
-
-  assert.equal(settings.activeRunPresetId, 'custom')
-  assert.equal(active.permissionMode, 'suggest')
-  assert.equal(active.maxToolCalls, 33)
-  assert.equal(active.maxIterations, 17)
-})
-
-test('normalizeAgentSettings drops duplicate persisted run preset ids', () => {
-  const settings = normalizeAgentSettings({
-    activeRunPresetId: 'custom',
-    runPresets: [
-      {
-        id: 'custom',
-        name: 'Custom A',
-        description: 'First preset wins',
-        permissionMode: 'ask',
-        autoTaskGraph: false,
-        maxToolCalls: 11,
-        maxIterations: 7,
-        planMaxWorkers: 1,
-        planMaxTaskAttempts: 1,
-        planWorkerTimeoutMs: 5 * 60_000,
-      },
-      {
-        id: 'custom',
-        name: 'Custom B',
-        description: 'Duplicate should be dropped',
-        permissionMode: 'auto',
-        autoTaskGraph: true,
-        maxToolCalls: 99,
-        maxIterations: 99,
-        planMaxWorkers: 4,
-        planMaxTaskAttempts: 3,
-        planWorkerTimeoutMs: 60 * 60_000,
-      },
-    ],
-  })
-  const active = activeRunPresetFromSettings(settings)
-
-  assert.deepEqual(settings.runPresets.map((preset) => preset.id), ['custom'])
-  assert.equal(active.name, 'Custom A')
-  assert.equal(active.maxToolCalls, 11)
-})
-
-test('normalizeAgentSettings normalizes persisted tool policy filter presets', () => {
-  const settings = normalizeAgentSettings({
-    toolPolicyFilterPresets: [
+    toolPermissionsFilterPresets: [
       { id: 'writes', name: 'Write risk review', filter: 'write_risk', search: ' generate ' },
       { id: 'writes', name: 'Duplicate', filter: 'available', search: '' },
       { id: 'bad-filter', name: 'Bad filter', filter: 'unknown', search: '' },
@@ -173,16 +95,16 @@ test('normalizeAgentSettings normalizes persisted tool policy filter presets', (
     ],
   } as any)
 
-  assert.deepEqual(settings.toolPolicyFilterPresets.map((preset) => preset.id), ['writes', 'approval'])
-  assert.equal(settings.toolPolicyFilterPresets[0].name, 'Write risk review')
-  assert.equal(settings.toolPolicyFilterPresets[0].search, 'generate')
-  assert.equal(settings.toolPolicyFilterPresets[1].name, 'requires_approval')
-  assert.equal(settings.toolPolicyFilterPresets[1].search.length, 120)
+  assert.deepEqual(settings.toolPermissionsFilterPresets.map((preset) => preset.id), ['writes', 'approval'])
+  assert.equal(settings.toolPermissionsFilterPresets[0].name, 'Write risk review')
+  assert.equal(settings.toolPermissionsFilterPresets[0].search, 'generate')
+  assert.equal(settings.toolPermissionsFilterPresets[1].name, 'requires_approval')
+  assert.equal(settings.toolPermissionsFilterPresets[1].search.length, 120)
 })
 
-test('normalizeAgentSettings caps persisted tool policy filter presets', () => {
+test('normalizeAgentSettings caps persisted tool permission filter presets', () => {
   const settings = normalizeAgentSettings({
-    toolPolicyFilterPresets: Array.from({ length: 20 }, (_, index) => ({
+    toolPermissionsFilterPresets: Array.from({ length: 20 }, (_, index) => ({
       id: `preset-${index}`,
       name: `Preset ${index}`,
       filter: 'all',
@@ -190,8 +112,8 @@ test('normalizeAgentSettings caps persisted tool policy filter presets', () => {
     })),
   } as any)
 
-  assert.equal(settings.toolPolicyFilterPresets.length, 12)
-  assert.equal(settings.toolPolicyFilterPresets[11].id, 'preset-11')
+  assert.equal(settings.toolPermissionsFilterPresets.length, 12)
+  assert.equal(settings.toolPermissionsFilterPresets[11].id, 'preset-11')
 })
 
 test('normalizeAgentSettings normalizes and caps configuration audit trail', () => {
@@ -251,6 +173,41 @@ test('normalizeAgentSettings keeps import backups up to the settings snapshot li
   } as any).lastImportBackup, null)
 })
 
+test('normalizeAgentSettings preserves a valid config file rollback backup', () => {
+  const settings = normalizeAgentSettings({
+    lastConfigFileBackup: {
+      activeConfigFileId: 'config.default',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      configFile: {
+        schema: 'movscript.agent.config_file.v1',
+        id: 'config.default',
+        version: '1.0.0',
+        name: 'Base',
+        enabledPackIds: ['core.pack.agent', 'core.pack.agent'],
+        skillIds: ['skill.a'],
+        toolGrants: [
+          { name: 'tool_a', mode: 'allow', approval: 'on_write' },
+          { name: 'tool_b', mode: 'invalid' },
+        ],
+        limits: {
+          maxHistoryMessages: '12',
+          executionMode: 'deep',
+          allowForcedToolCalls: false,
+        },
+      },
+    },
+  } as any)
+
+  assert.equal(settings.lastConfigFileBackup?.configFile.id, 'config.default')
+  assert.equal(settings.lastConfigFileBackup?.activeConfigFileId, 'config.default')
+  assert.deepEqual(settings.lastConfigFileBackup?.configFile.enabledPackIds, ['core.pack.agent'])
+  assert.deepEqual(settings.lastConfigFileBackup?.configFile.toolGrants, [{ name: 'tool_a', mode: 'allow', approval: 'on_write' }])
+  assert.equal(settings.lastConfigFileBackup?.configFile.limits?.maxHistoryMessages, 12)
+  assert.equal(settings.lastConfigFileBackup?.configFile.limits?.executionMode, 'deep')
+  assert.equal(settings.lastConfigFileBackup?.configFile.limits?.allowForcedToolCalls, false)
+  assert.equal(normalizeAgentSettings({ lastConfigFileBackup: { configFile: { id: '', name: '' }, createdAt: 'bad' } } as any).lastConfigFileBackup, null)
+})
+
 test('normalizeAgentSettings defaults missing audit actions to settings changed', () => {
   const settings = normalizeAgentSettings({
     auditTrail: [{
@@ -269,23 +226,23 @@ test('normalizeAgentSettings defaults missing audit actions to settings changed'
 test('appendSettingsAuditEntry coalesces repeated recent configuration actions', () => {
   const first = appendSettingsAuditEntry([], {
     id: 'audit-1',
-    action: 'run_preset_updated',
-    target: 'run_preset',
-    summary: 'Updated run preset: Balanced',
+    action: 'config_file_saved',
+    target: 'config_file',
+    summary: 'Saved config file: Default',
     createdAt: '2026-01-01T00:00:00.000Z',
   })
   const second = appendSettingsAuditEntry(first, {
     id: 'audit-2',
-    action: 'run_preset_updated',
-    target: 'run_preset',
-    summary: 'Updated run preset: Balanced',
+    action: 'config_file_saved',
+    target: 'config_file',
+    summary: 'Saved config file: Default',
     createdAt: '2026-01-01T00:00:05.000Z',
   })
   const third = appendSettingsAuditEntry(second, {
     id: 'audit-3',
-    action: 'run_preset_updated',
-    target: 'run_preset',
-    summary: 'Updated run preset: Balanced',
+    action: 'config_file_saved',
+    target: 'config_file',
+    summary: 'Saved config file: Default',
     createdAt: '2026-01-01T00:00:20.000Z',
   })
 
@@ -301,7 +258,7 @@ test('appendSettingsAuditEntry preserves failed configuration operation audits',
     id: 'audit-failed',
     action: 'settings_operation_failed',
     target: 'tools',
-    summary: `Tool policy operation failed: ${'x'.repeat(300)}`,
+    summary: `Tool permissions operation failed: ${'x'.repeat(300)}`,
     createdAt: '2026-01-01T00:00:00.000Z',
   })
 
@@ -309,14 +266,4 @@ test('appendSettingsAuditEntry preserves failed configuration operation audits',
   assert.equal(result[0].action, 'settings_operation_failed')
   assert.equal(result[0].target, 'tools')
   assert.equal(result[0].summary.length, 240)
-})
-
-test('defaultAgentRunPresets returns a defensive copy of built-in run presets', () => {
-  const first = defaultAgentRunPresets()
-  first[0].name = 'Mutated'
-  const second = defaultAgentRunPresets()
-
-  assert.equal(second[0].id, 'safe-review')
-  assert.equal(second[0].name, 'Safe Review')
-  assert.equal(second.some((preset) => preset.id === 'balanced'), true)
 })

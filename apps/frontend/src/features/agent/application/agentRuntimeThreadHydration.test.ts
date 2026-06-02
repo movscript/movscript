@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildWorkflowRunsByResultMessageId } from '@/features/agent/domain/agentWorkflowRunAnchors'
+import { buildInteractionRunsByResultMessageId } from '@/features/agent/domain/agentRunInteractionAnchors'
 import { buildAgentConversationMessageItems } from '@/features/agent/domain/agentConversationThreadItems'
 import { loadRuntimeThreadProjection } from '@/features/agent/application/agentRuntimeThreadHydration'
 import type { AgentRun, AgentRuntimeSnapshotV2, AgentThread } from '@/shared/infrastructure/localAgentClient'
@@ -249,20 +249,20 @@ test('session runtime projection anchors worker confirmations after the interact
     },
     fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
-  const workflowRunsByResultMessageId = buildWorkflowRunsByResultMessageId({
+  const interactionRunsByResultMessageId = buildInteractionRunsByResultMessageId({
     messages: projection.messages,
-    workflowRuns: projection.actionableRuns,
+    interactionRuns: projection.actionableRuns,
   })
   const items = buildAgentConversationMessageItems({
     messages: projection.messages,
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId,
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId,
   })
 
   assert.deepEqual(projection.messages.map((message) => message.id), ['runtime:msg_user'])
   assert.equal(items[0]?.message.id, 'runtime:msg_user')
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns.map((run) => run.id), [])
-  assert.deepEqual(items[0]?.afterMessageWorkflowRuns.map((run) => run.id), ['run_worker'])
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns.map((run) => run.id), [])
+  assert.deepEqual(items[0]?.afterMessageInteractionRuns.map((run) => run.id), ['run_worker'])
 })
 
 test('loadRuntimeThreadProjection derives actionable runs from the authoritative snapshot', async () => {
@@ -382,8 +382,7 @@ function makeRun(input: Partial<AgentRun> & { id: string }): AgentRun {
     id: input.id,
     threadId: 'thread_1',
     status: input.status ?? 'completed',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

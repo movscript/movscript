@@ -63,8 +63,7 @@ function makeRun(input: Partial<AgentRun> & { id: string; status: AgentRun['stat
     id: input.id,
     threadId: 'thread_1',
     status: input.status,
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

@@ -1,0 +1,642 @@
+import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import { loadAgentPluginCatalog } from './loader.js'
+
+test('loads target-state tool catalog but only enabled packs grant runtime access', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const configFilesDir = join(dir, 'configFiles')
+
+  try {
+    writePluginFile(skillsDir, 'writer.skill.json', {
+      id: 'studio.writer',
+      name: 'Writer',
+      description: 'Writes scene drafts',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolGrants: ['studio.script_outline'],
+      contextBudget: { maxChars: 2500, reserveRatio: 0.25, strategy: 'fixed' },
+      instructionTemplate: 'Write in short scene beats.',
+    })
+    writePluginFile(toolsDir, 'outline.tool.json', {
+      name: 'studio.script_outline',
+      description: 'Create a script outline draft.',
+      permission: 'draft.write',
+      risk: 'draft',
+      source: 'plugin',
+      pluginId: 'test.writer',
+      inputSchema: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string' },
+        },
+      },
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+      execution: {
+        readOnly: true,
+        destructive: false,
+        concurrencySafe: true,
+        interruptBehavior: 'cancel',
+        maxResultSizeChars: 4096,
+        resultRefStrategy: 'summary_ref',
+      },
+    })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.writer',
+      name: 'Studio Writer',
+      source: 'plugin',
+      resources: {
+        skills: ['writer.skill.json'],
+        tools: ['outline.tool.json'],
+      },
+      schemas: [],
+      tools: ['studio.script_outline'],
+      skills: ['studio.writer'],
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      configFilesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinConfigFilesDir: configFilesDir,
+    })
+
+    assert.equal(catalog.skillsDir, skillsDir)
+    assert.equal(catalog.toolsDir, toolsDir)
+    const writerSkill = catalog.layeredSkills.find((skill) => skill.id === 'studio.writer')
+    const outlineTool = catalog.layeredTools.find((tool) => tool.name === 'studio.script_outline')
+    assert.ok(writerSkill)
+    assert.equal(writerSkill?.source, 'plugin')
+    assert.deepEqual(writerSkill?.contextBudget, { maxChars: 2500, reserveRatio: 0.25, strategy: 'fixed' })
+    assert.equal(outlineTool?.name, 'studio.script_outline')
+    assert.equal(outlineTool?.source, 'plugin')
+    assert.deepEqual(outlineTool?.inputSchema, {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: { type: 'string' },
+      },
+    })
+    assert.deepEqual(outlineTool?.execution, {
+      readOnly: true,
+      destructive: false,
+      concurrencySafe: true,
+      interruptBehavior: 'cancel',
+      maxResultSizeChars: 4096,
+      resultRefStrategy: 'summary_ref',
+    })
+    assert.deepEqual(catalog.registry.get('studio.script_outline')?.execution, outlineTool?.execution)
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'), false)
+    assert.ok(catalog.registry.get('studio.script_outline'))
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('enabled pack registration activates file-loaded skills and tools without configFile duplication', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-enabled-pack-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const configFilesDir = join(dir, 'configFiles')
+
+  try {
+    writePluginFile(skillsDir, 'writer.skill.json', {
+      id: 'studio.writer',
+      name: 'Writer',
+      description: 'Writes scene drafts',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolGrants: ['studio.script_outline'],
+      instructionTemplate: 'Write in short scene beats.',
+    })
+    writePluginFile(toolsDir, 'outline.tool.json', {
+      name: 'studio.script_outline',
+      description: 'Create a script outline draft.',
+      permission: 'draft.write',
+      risk: 'draft',
+      source: 'plugin',
+      pluginId: 'test.writer',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.writer',
+      name: 'Studio Writer',
+      source: 'plugin',
+      resources: {
+        skills: ['writer.skill.json'],
+        tools: ['outline.tool.json'],
+      },
+      schemas: [],
+      tools: ['studio.script_outline'],
+      skills: ['studio.writer'],
+    })
+    writePluginFile(configFilesDir, 'base.config-file.json', {
+      schema: 'movscript.agent.config_file.v1',
+      id: 'movscript.config_file.base',
+      version: '1.0.0',
+      name: 'Base',
+      enabledPackIds: ['studio.pack.writer'],
+      skillIds: [],
+      approvalDefaults: { draft: 'on_write' },
+      toolGrants: [],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      configFilesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinConfigFilesDir: configFilesDir,
+    })
+    const configFile = catalog.configFiles.find((item) => item.id === 'movscript.config_file.base')
+
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'studio.writer'))
+    assert.ok(catalog.registry.get('studio.script_outline'))
+    assert.deepEqual(configFile?.skillIds, ['studio.writer'])
+    assert.deepEqual(configFile?.approvalDefaults, { draft: 'on_write' })
+    assert.deepEqual(configFile?.toolGrants, [{ name: 'studio.script_outline', mode: 'allow', approval: 'on_write' }])
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
+    assert.deepEqual(catalog.catalogIssues, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads built-in MovScript platform catalog by default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
+  try {
+    const catalog = loadAgentPluginCatalog({
+      packsDir: join(dir, 'packs'),
+      configFilesDir: join(dir, 'configFiles'),
+    })
+
+    assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
+    assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.rules.workspace'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'draft.rules.lifecycle'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'kernel.proposal_first'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.project_standards_proposal'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'core.pack.agent'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'draft.pack.lifecycle'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.workspace'))
+    assert.ok(catalog.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_focus_get'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_project_create'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'generation_model_list'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_create'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'core_video_extract_frames'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_focus_get'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'core_video_extract_frames'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'generation_model_list'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_project_create' && grant.approval === 'always'))
+    assert.ok(catalog.registry.get('draft_create'))
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'draft_create'), true)
+    assert.equal(catalog.registry.get('movscript_project_create')?.projectScoped, false)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads built-in content unit proposal catalogs by default', () => {
+  const catalog = loadAgentPluginCatalog()
+
+  const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.workspace')
+  const draftPack = catalog.packs.find((pack) => pack.id === 'draft.pack.lifecycle')
+
+  assert.ok(movscriptPack)
+  assert.ok(draftPack?.schemas.includes('movscript.content_unit_proposal.v1'))
+  assert.equal(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'), false)
+  assert.ok(movscriptPack?.skills.includes('movscript.content_unit_proposal'))
+  assert.equal(movscriptPack?.skills.includes('movscript.content-unit-media-proposal'), false)
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_create'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'draft_apply_preview'))
+  assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
+  assert.equal(catalog.registry.get('movscript_update_proposal_node'), undefined)
+  assert.deepEqual(catalog.warnings, [])
+})
+
+test('pack loading ignores unreferenced local catalog files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-categorized-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(join(skillsDir, 'production'), 'proposal.json', {
+      skills: [{
+        id: 'studio.production_proposal',
+        name: 'Production Proposal',
+        description: 'Draft production proposals',
+        category: 'production_proposal',
+        enabled: true,
+        instruction: 'Draft production proposal nodes.',
+      }],
+    })
+    writePluginFile(join(toolsDir, 'production'), 'proposal.tool.json', {
+      name: 'studio.read_production',
+      description: 'Read production context.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.production',
+      inputSchema: {},
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+    const skill = catalog.layeredSkills.find((item) => item.id === 'studio.production_proposal')
+    const tool = catalog.layeredTools.find((item) => item.name === 'studio.read_production')
+
+    assert.equal(skill, undefined)
+    assert.equal(tool, undefined)
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads skills and tools only from pack-declared resource paths', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-resource-paths-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const configFilesDir = join(dir, 'configFiles')
+
+  try {
+    writePluginFile(join(skillsDir, 'included'), 'writer.skill.json', {
+      id: 'studio.included',
+      name: 'Included',
+      description: 'Included by pack resources.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolGrants: ['studio.included_tool'],
+      instructionTemplate: 'Included task.',
+    })
+    writePluginFile(join(skillsDir, 'ignored'), 'ignored.skill.json', {
+      id: 'studio.ignored',
+      name: 'Ignored',
+      description: 'Not included by pack resources.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolGrants: ['studio.ignored_tool'],
+      instructionTemplate: 'Ignored task.',
+    })
+    writePluginFile(join(toolsDir, 'included'), 'included.tool.json', {
+      name: 'studio.included_tool',
+      description: 'Included tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.included',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(join(toolsDir, 'ignored'), 'ignored.tool.json', {
+      name: 'studio.ignored_tool',
+      description: 'Ignored tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.ignored',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.included',
+      name: 'Included Pack',
+      source: 'plugin',
+      resources: {
+        skills: ['included'],
+        tools: ['included'],
+      },
+      schemas: [],
+      tools: ['studio.included_tool'],
+      skills: ['studio.included'],
+    })
+    writePluginFile(configFilesDir, 'base.config-file.json', {
+      schema: 'movscript.agent.config_file.v1',
+      id: 'movscript.config_file.base',
+      version: '1.0.0',
+      name: 'Base',
+      enabledPackIds: ['studio.pack.included'],
+    skillIds: [],
+      toolGrants: [],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      configFilesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinConfigFilesDir: configFilesDir,
+    })
+
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'studio.included'))
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.ignored'), false)
+    assert.ok(catalog.registry.get('studio.included_tool'))
+    assert.equal(catalog.registry.get('studio.ignored_tool'), undefined)
+    assert.equal(catalog.resourcePaths.skills['studio.included']?.endsWith(join('included', 'writer.skill.json')), true)
+    assert.equal(catalog.resourcePaths.skills['studio.ignored'], undefined)
+    assert.equal(catalog.catalogIssues.some((issue) => issue.resourceId === 'studio.pack.included'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads native layered skill instructions from pack-declared markdown files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-md-skill-'))
+  const skillsDir = join(dir, 'skills')
+  const packsDir = join(dir, 'packs')
+
+  try {
+    writePluginFile(skillsDir, 'review.skill.json', {
+      id: 'studio.review',
+      version: '1.0.0',
+      name: 'Review Task',
+      description: 'Review from Markdown.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolGrants: [],
+      instructionTemplatePath: 'review.instruction.md',
+    })
+    mkdirSync(skillsDir, { recursive: true })
+    writeFileSync(join(skillsDir, 'review.instruction.md'), 'Review from a Markdown instruction body.\n', 'utf8')
+    writePluginFile(packsDir, 'review.pack.json', {
+      id: 'studio.pack.review',
+      name: 'Review Pack',
+      source: 'plugin',
+      resources: {
+        skills: ['review.skill.json'],
+      },
+      schemas: [],
+      tools: [],
+      skills: ['studio.review'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: skillsDir,
+      packsDir,
+      builtinPacksDir: packsDir,
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'tools'),
+    })
+    const skill = catalog.layeredRegistry.skills.get('studio.review')
+
+    assert.ok(skill)
+    assert.equal(skill?.instructionTemplate, 'Review from a Markdown instruction body.')
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads Codex-style SKILL.md resources declared by packs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-codex-skill-'))
+  const skillsDir = join(dir, 'skills')
+  const packsDir = join(dir, 'packs')
+
+  try {
+    const skillDir = join(skillsDir, 'directors', 'jiangwen')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), `---
+id: studio.director.jiangwen
+name: 姜文风格导演
+description: 当用户需要姜文式黑色幽默、强人物张力和强节奏对白时使用。
+tags: [director, style]
+aliases: [姜文, 让子弹飞]
+useWhen:
+  - 姜文风格
+  - 黑色幽默
+load: on_demand
+scope: run
+conflicts: [studio.director.marvel]
+---
+
+# 姜文风格导演
+
+保持荒诞现实主义、对白压迫感和强人物博弈。
+`, 'utf8')
+    writePluginFile(packsDir, 'director.pack.json', {
+      id: 'studio.pack.directors',
+      name: 'Director Skills',
+      source: 'plugin',
+      resources: {
+        skills: ['directors/jiangwen'],
+      },
+      schemas: [],
+      tools: [],
+      skills: ['studio.director.jiangwen'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: join(dir, 'builtin-skills'),
+      packsDir,
+      builtinPacksDir: join(dir, 'builtin-packs'),
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'builtin-tools'),
+    })
+    const skill = catalog.layeredRegistry.skills.get('studio.director.jiangwen')
+
+    assert.ok(skill)
+    assert.equal(skill?.loadMode, 'on_demand')
+    assert.equal(skill?.activationScope, 'run')
+    assert.deepEqual(skill?.tags, ['director', 'style'])
+    assert.deepEqual(skill?.aliases, ['姜文', '让子弹飞'])
+    assert.deepEqual(skill?.useWhen, ['姜文风格', '黑色幽默'])
+    assert.deepEqual(skill?.triggers, [{ kind: 'keyword', any: ['姜文风格导演', '姜文', '让子弹飞', '姜文风格', '黑色幽默'] }])
+    assert.deepEqual(skill?.conflicts, ['studio.director.marvel'])
+    assert.match(skill?.instructionTemplate ?? '', /荒诞现实主义/)
+    assert.equal((skill?.metadata as Record<string, unknown> | undefined)?.codexSkill, true)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('indexes standalone local Codex-style SKILL.md files without enabling them by default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-standalone-codex-skill-'))
+  const skillsDir = join(dir, 'skills')
+
+  try {
+    const skillDir = join(skillsDir, 'action-director')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), `---
+name: 武术指导
+description: 当动作戏、打斗调度、威亚、节奏和安全边界需要专业设计时使用。
+aliases: [武指, 动作指导]
+---
+
+# 武术指导
+
+拆解动作节拍、空间关系、危险动作替代方案和镜头可拍性。
+`, 'utf8')
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: join(dir, 'builtin-skills'),
+      packsDir: join(dir, 'packs'),
+      builtinPacksDir: join(dir, 'builtin-packs'),
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'builtin-tools'),
+    })
+    const skill = catalog.layeredSkills.find((item) => item.name === '武术指导')
+
+    assert.ok(skill)
+    assert.equal(skill?.id, 'codex.skill.武术指导')
+    assert.equal(skill?.loadMode, 'on_demand')
+    assert.equal(catalog.configFiles.some((configFile) => configFile.skillIds.includes(skill!.id)), false)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('catalog loading does not expose tools outside pack-declared resource paths', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-catalog-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(skillsDir, 'all.json', {
+      skills: [
+        {
+          id: 'studio.alpha',
+          name: 'Alpha',
+          description: 'Alpha skill',
+          enabled: true,
+          instruction: 'Alpha instruction.',
+        },
+        {
+          id: 'studio.beta',
+          name: 'Beta',
+          description: 'Beta skill',
+          enabled: true,
+          instruction: 'Beta instruction.',
+        },
+      ],
+    })
+    writePluginFile(toolsDir, 'alpha.tool.json', {
+      name: 'studio.alpha_tool',
+      description: 'Alpha tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.alpha',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(toolsDir, 'beta.tool.json', {
+      name: 'studio.beta_tool',
+      description: 'Beta tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.beta',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.alpha'), false)
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.beta'), false)
+    assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), false)
+    assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('local packs default their tools to local source', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-local-tool-source-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const builtinSkillsDir = join(dir, 'builtin-skills')
+  const builtinToolsDir = join(dir, 'builtin-tools')
+  const builtinPacksDir = join(dir, 'builtin-packs')
+  const configFilesDir = join(dir, 'config-files')
+  const builtinConfigFilesDir = join(dir, 'builtin-config-files')
+
+  try {
+    writePluginFile(toolsDir, 'local.tool.json', {
+      name: 'studio.local_preview',
+      description: 'Preview local project context.',
+      permission: 'project.read',
+      risk: 'read',
+      inputSchema: {},
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(packsDir, 'local.pack.json', {
+      id: 'studio.pack.local',
+      name: 'Local Pack',
+      source: 'local',
+      resources: {
+        tools: ['local.tool.json'],
+      },
+      schemas: [],
+      tools: ['studio.local_preview'],
+      skills: [],
+      reference: ['reference://studio/local-guide'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      configFilesDir,
+      builtinSkillsDir,
+      builtinToolsDir,
+      builtinPacksDir,
+      builtinConfigFilesDir,
+    })
+
+    assert.equal(catalog.layeredTools.find((tool) => tool.name === 'studio.local_preview')?.source, 'local')
+    assert.equal(catalog.registry.get('studio.local_preview')?.source, 'local')
+    assert.deepEqual(catalog.packs.find((pack) => pack.id === 'studio.pack.local')?.reference, ['reference://studio/local-guide'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+function writePluginFile(dir: string, filename: string, value: unknown): void {
+  const filePath = join(dir, filename)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}

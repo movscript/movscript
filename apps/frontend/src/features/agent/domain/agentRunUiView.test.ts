@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentPermissionLabel } from '@/features/agent/domain/agentToolDisplay'
-import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
+import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
@@ -64,14 +64,14 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
     title: 'Agent catalog refreshed',
     summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_script_locate=available/granted.',
     data: {
-      skillIds: ['movscript.workflow.script_reading'],
+      skillIds: ['movscript.script_reading'],
       availableToolNames: ['core_skill_update', 'movscript_script_locate'],
       manifest: {
         id: 'test.core-only',
         version: '0.1.0',
         name: 'Core only',
-        profileId: 'movscript.profile.default',
-        profileVersion: '1.0.0',
+        configFileId: 'movscript.config_file.base',
+        configFileVersion: '1.0.0',
         toolCount: 2,
         tools: [
           { name: 'core_skill_update', mode: 'allow', approval: 'never' },
@@ -203,7 +203,7 @@ test('agentTraceView explains ledger updates as impact', () => {
       eventType: 'context.ledger_updated',
       retrievedCount: 3,
       artifactRefCount: 2,
-      refs: [{ type: 'knowledge', id: 'k1', title: 'rule', source: 'knowledge', evidence: 'runtime_state' }],
+      refs: [{ type: 'reference', id: 'k1', title: 'rule', source: 'reference', evidence: 'runtime_state' }],
     },
   }))
   assert.equal(view.category, 'impact')
@@ -408,7 +408,6 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
   assert.equal(approvalImpactLabel({ toolName: 'draft_apply', permission: 'draft.apply', risk: 'write', preview: undefined }), '批准后会把草稿变更应用到当前项目。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
-  assert.equal(agentPermissionModeLabel('suggest'), '建议后确认')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
   assert.equal(toolApprovalLabel('on_write'), '写入时审批')
   assert.equal(toolGrantModeLabel('allow'), '允许')

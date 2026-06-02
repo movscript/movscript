@@ -32,7 +32,7 @@ export * from "./work";
 export * from "./composer";
 export * from "./message";
 export * from "./mode";
-export * from "./workflow-approval";
+export * from "./run-interaction";
 export * from "./generated";
 export * from "./settings";
 export * from "./performance";

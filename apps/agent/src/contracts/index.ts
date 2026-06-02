@@ -1,1 +1,1 @@
-export * from './runtimeContract.js'
+export * from './runtime/runtimeContract.js'

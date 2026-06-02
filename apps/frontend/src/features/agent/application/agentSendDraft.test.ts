@@ -19,7 +19,7 @@ const labels: AgentSendDraftHttpLabels = {
   fetchFinalThread: 'Fetch final thread',
 }
 
-test('buildLocalAgentSendDraft binds composer input, attachments, runtime policy, and existing thread', async () => {
+test('buildLocalAgentSendDraft binds composer input, attachments, and existing thread', async () => {
   const draft = await buildLocalAgentSendDraft({
     draftInput: 'Render this @[resource:42]',
     attachments: [],
@@ -46,18 +46,13 @@ test('buildLocalAgentSendDraft binds composer input, attachments, runtime policy
   assert.equal(draft.localRuntime?.threadId, 'thread_1')
   assert.equal(draft.localRuntime?.clientInput?.message, 'Render this @[resource:42]')
   assert.equal(draft.localRuntime?.clientInput?.uiSnapshot?.project?.id, 101)
-  assert.equal(draft.localRuntime?.runPolicy?.approvalMode, 'interactive')
-  assert.deepEqual(draft.localRuntime?.runPolicy?.workflow, {
-    profile: 'standard',
-    includeMemories: true,
-    allowForcedToolCalls: true,
-  })
+  assert.equal(draft.localRuntime?.runtimeLimits, undefined)
   assert.equal(draft.model.runtimeModelId, 'gpt-test')
   assert.equal(draft.httpRequests.some((request) => request.id === 'local-get-thread'), true)
   assert.equal(draft.httpRequests.some((request) => request.id === 'local-create-thread'), false)
 })
 
-test('buildLocalAgentSendDraft resolves image attachments to data URLs before runtime input', async () => {
+test('buildLocalAgentSendDraft resolves image attachments to runtime input data URLs', async () => {
   const draft = await buildLocalAgentSendDraft({
     draftInput: 'Describe this image',
     attachments: [],
@@ -77,7 +72,8 @@ test('buildLocalAgentSendDraft resolves image attachments to data URLs before ru
   })
 
   assert.equal(draft.localRuntime?.clientInput?.attachments?.[0]?.dataUrl, 'data:image/png;base64,AAAA')
-  assert.match(draft.outbound.enrichedUserContent, /data URL/)
+  assert.match(draft.outbound.enrichedUserContent, /runtime 预处理/)
+  assert.doesNotMatch(draft.outbound.enrichedUserContent, /data:image\/png/)
 })
 
 test('buildLocalAgentSendDraft keeps video attachments metadata-only for local frame extraction', async () => {
@@ -135,17 +131,27 @@ test('buildLocalAgentSendDraft uses external task payload when the composer has 
   assert.equal(draft.localRuntime?.projectId, 202)
   assert.equal(draft.localRuntime?.requestId, 'page_request')
   assert.equal(draft.localRuntime?.timeoutMs, 30_000)
-  assert.equal(draft.localRuntime?.runPolicy?.maxToolCalls, 11)
-  assert.equal(draft.localRuntime?.runPolicy?.maxIterations, 5)
+  assert.equal(draft.localRuntime?.runtimeLimits, undefined)
 })
 
-test('buildLocalAgentSendDraft maps disabled auto task graph to compact workflow policy', async () => {
+test('buildLocalAgentSendDraft preserves explicit runtime limits overrides', async () => {
   const draft = await buildLocalAgentSendDraft({
+    options: {
+      runtimeLimits: {
+        approvalMode: 'interactive',
+        maxToolCalls: 12,
+        execution: {
+          mode: 'compact',
+          includeMemories: false,
+          allowForcedToolCalls: false,
+        },
+      },
+    },
     draftInput: 'Small request',
     attachments: [],
     composerAttachments: [],
     resourceAttachmentIndex: new Map(),
-    settings: settings({ autoTaskGraph: false }),
+    settings: settings(),
     currentProject: null,
     conversationMessages: [],
     systemPrompt: '',
@@ -157,9 +163,11 @@ test('buildLocalAgentSendDraft maps disabled auto task graph to compact workflow
     httpLabels: labels,
   })
 
-  assert.deepEqual(draft.localRuntime?.runPolicy?.workflow, {
-    profile: 'compact',
-    includeMemories: true,
+  assert.equal(draft.localRuntime?.runtimeLimits?.approvalMode, 'interactive')
+  assert.equal(draft.localRuntime?.runtimeLimits?.maxToolCalls, 12)
+  assert.deepEqual(draft.localRuntime?.runtimeLimits?.execution, {
+    mode: 'compact',
+    includeMemories: false,
     allowForcedToolCalls: false,
   })
 })
@@ -267,27 +275,13 @@ function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {
     modelId: 7,
     includeProjectContext: true,
     includeRecentResources: false,
-    autoTaskGraph: true,
-    permissionMode: 'ask',
     planMaxWorkers: 2,
     planMaxTaskAttempts: 2,
     planWorkerTimeoutMs: 60_000,
-    activeRunPresetId: 'preset_1',
-    runPresets: [{
-      id: 'preset_1',
-      name: 'Preset',
-      description: '',
-      permissionMode: 'ask',
-      autoTaskGraph: true,
-      maxToolCalls: 11,
-      maxIterations: 5,
-      planMaxWorkers: 2,
-      planMaxTaskAttempts: 2,
-      planWorkerTimeoutMs: 60_000,
-    }],
-    toolPolicyFilterPresets: [],
+    toolPermissionsFilterPresets: [],
     auditTrail: [],
     lastImportBackup: null,
+    lastConfigFileBackup: null,
     ...overrides,
   }
 }

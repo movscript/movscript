@@ -31,7 +31,7 @@
   ],
   "retrievedRefs": [
     {
-      "type": "knowledge",
+      "type": "reference",
       "id": "storyboard.rhythm.basic",
       "title": "分镜节奏基础"
     }
@@ -53,7 +53,7 @@
       ],
       "retrievedRefs": [
         {
-          "type": "knowledge",
+          "type": "reference",
           "id": "storyboard.rhythm.basic",
           "title": "分镜节奏基础"
         }

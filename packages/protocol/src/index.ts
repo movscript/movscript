@@ -2,8 +2,144 @@ export const AGENT_PROTOCOL_VERSION = 'movscript.agent.protocol.v1'
 export const AGENT_RUNTIME_SNAPSHOT_V2_SCHEMA = 'movscript.agent.runtime-snapshot.v2'
 export const AGENT_RUNTIME_EVENT_V2_SCHEMA = 'movscript.agent.runtime-event.v2'
 export const EVENT_STATE_DEBUG_V1_SCHEMA = 'movscript.agent.event-state-debug.v1'
+export const MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript.media.artifacts.v1'
+export const MEDIA_PROVIDER_CONTRACT_V1_SCHEMA = 'movscript.media.provider_contract.v1'
 
 export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue }
+
+export type MediaTimingSource = 'tts_timing' | 'forced_align' | 'stt' | 'manual'
+export type MediaPipelineCapability = 'audio_tts' | 'audio_transcribe' | 'subtitle_align' | 'render_video'
+export type SubtitleFormat = 'srt' | 'vtt' | 'ass' | 'json'
+export type AudioFormat = 'mp3' | 'wav' | 'aac' | 'opus' | 'flac'
+export type RenderOutputFormat = 'mp4' | 'mov' | 'webm'
+export type RenderAspectRatio = '9:16' | '16:9' | '1:1' | '4:5'
+export type MediaProviderFeature =
+  | 'streaming'
+  | 'ssml'
+  | 'word_timestamps'
+  | 'phoneme_timestamps'
+  | 'viseme_timestamps'
+  | 'voice_clone'
+  | 'voice_design'
+  | 'multi_speaker'
+  | 'emotion_control'
+  | 'speed_control'
+  | 'pitch_control'
+  | 'forced_alignment'
+  | 'burn_in_subtitles'
+
+export interface MediaProviderParamDef {
+  key: string
+  label?: string
+  type: 'string' | 'number' | 'boolean' | 'select'
+  default?: JSONValue
+  options?: Array<string | number | boolean>
+  min?: number
+  max?: number
+  step?: number
+}
+
+export interface MediaModelContract {
+  modelId: string
+  displayName: string
+  features: MediaProviderFeature[]
+  supportedLanguages?: string[]
+  supportedFormats?: string[]
+  supportedParams: MediaProviderParamDef[]
+}
+
+export interface MediaCapabilityContract {
+  capability: MediaPipelineCapability
+  models: MediaModelContract[]
+}
+
+export interface MediaProviderContractV1 {
+  schema: typeof MEDIA_PROVIDER_CONTRACT_V1_SCHEMA
+  schemaVersion: 1
+  schemaUrl: 'https://movscript.dev/schemas/media-provider-contract-v1.schema.json'
+  provider: string
+  displayName?: string
+  capabilities: MediaCapabilityContract[]
+}
+
+export interface TimedTextUnit {
+  id: string
+  startMs: number
+  endMs: number
+  text: string
+  confidence?: number
+  speaker?: string
+}
+
+export interface TimingMetadata {
+  source: MediaTimingSource
+  provider?: string
+  language?: string
+  durationMs: number
+  segments: TimedTextUnit[]
+  words?: TimedTextUnit[]
+  characters?: TimedTextUnit[]
+}
+
+export interface VoiceoverResourceRef {
+  resourceId: number
+  text: string
+  voice: string
+  language: string
+  durationMs: number
+  provider: string
+  model?: string
+  audioFormat?: AudioFormat
+  timingSource?: MediaTimingSource
+}
+
+export interface SubtitleResourceRef {
+  resourceId: number
+  format: SubtitleFormat
+  source: MediaTimingSource
+  language: string
+  relatedAudioResourceId: number
+  confidence?: number
+  styleId?: string
+}
+
+export interface RenderClipRef {
+  resourceId: number
+  startMs: number
+  endMs: number
+  trimStartMs?: number
+  trimEndMs?: number
+}
+
+export interface SubtitleStyleRef {
+  styleId?: string
+  font?: string
+  position?: 'bottom' | 'middle' | 'top'
+  safeMarginPx?: number
+  burnIn?: boolean
+}
+
+export interface RenderRecipe {
+  aspectRatio: RenderAspectRatio
+  resolution: string
+  clips: RenderClipRef[]
+  voiceoverResourceId: number
+  subtitleResourceId?: number
+  bgmResourceId?: number
+  subtitleStyle?: SubtitleStyleRef
+  outputFormat: RenderOutputFormat
+}
+
+export interface MediaArtifactsV1 {
+  schema: typeof MEDIA_ARTIFACTS_V1_SCHEMA
+  schemaVersion: 1
+  schemaUrl: 'https://movscript.dev/schemas/media-artifacts-v1.schema.json'
+  projectId?: number
+  voiceover: VoiceoverResourceRef
+  timing: TimingMetadata
+  subtitles?: SubtitleResourceRef[]
+  renderRecipe?: RenderRecipe
+}
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
@@ -16,7 +152,7 @@ export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_re
 export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
-export type AgentWorkflowProfile = 'standard' | 'compact' | 'deep'
+export type AgentRunExecutionMode = 'standard' | 'compact' | 'deep'
 export type AgentDraftKind =
   | 'setting_proposal'
   | 'asset_proposal'
@@ -27,6 +163,21 @@ export type AgentDraftKind =
 export type AgentToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
 export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
 export type AgentToolGrantMode = 'allow' | 'deny'
+export type AgentToolApprovalDefaults = Partial<Record<AgentToolRiskLevel | 'default', AgentToolApprovalMode>>
+export interface AgentConfigFileLimits {
+  maxToolCalls?: number
+  maxIterations?: number
+  executionMode?: AgentRunExecutionMode
+  allowForcedToolCalls?: boolean
+  maxActiveTriggeredSkills?: number
+  systemPromptCharLimit?: number
+  contextWindowCharLimit?: number
+  maxRetrievedContextChars?: number
+  maxReferenceCharsPerRun?: number
+  maxReferenceChunksPerRun?: number
+  maxHistoryMessages?: number
+  maxThreadSummaryChars?: number
+}
 
 export interface MCPResource {
   uri: string
@@ -220,26 +371,30 @@ export interface AgentManifest {
 
 export interface AgentCatalogSkill {
   id: string
-  kind?: 'persona' | 'workflow' | 'policy' | 'expertise'
   name: string
   description: string
   version?: string
-  category?: string
-  categories?: string[]
   enabled: boolean
   priority?: number
   instruction: string
   instructionTemplate?: string
   loadMode?: 'core' | 'on_demand' | 'manual'
+  source?: 'builtin' | 'local' | 'plugin' | 'team' | 'mcp'
   activationScope?: 'turn' | 'run' | 'thread'
   tags?: string[]
   aliases?: string[]
   useWhen?: string[]
+  triggers?: JSONValue[]
   dependencies?: string[]
   conflicts?: string[]
-  toolRefs?: string[]
+  toolGrants?: string[]
   schemaRefs?: string[]
   tokenEstimate?: number
+  contextBudget?: {
+    maxChars?: number
+    reserveRatio?: number
+    strategy?: 'fixed' | 'proportional' | 'opportunistic'
+  }
   outputContract?: string
   toolHints?: string[]
   runtime?: AgentSkillRuntimeExplanation
@@ -247,8 +402,7 @@ export interface AgentCatalogSkill {
 }
 
 export interface AgentSkillRuntimeExplanation {
-  profileEnabled: boolean
-  profileRole: 'persona' | 'workflow' | 'policy' | 'expertise' | 'none'
+  configEnabled: boolean
   loadMode: 'core' | 'on_demand' | 'manual'
   defaultActivation: 'always' | 'triggered' | 'manual' | 'disabled'
   contextBehavior: 'base_context' | 'on_demand' | 'manual' | 'excluded'
@@ -258,16 +412,15 @@ export interface AgentSkillRuntimeExplanation {
   reason: string
 }
 
-export interface AgentCatalogProfile {
-  schema: 'movscript.agent.profile.v1'
+export interface AgentCatalogConfigFile {
+  schema: 'movscript.agent.config_file.v1'
   id: string
   version: string
   name: string
   description?: string
-  enabledPacks: string[]
-  persona: string | null
-  enabledWorkflows: string[]
-  enabledPolicies: string[]
+  enabledPackIds: string[]
+  skillIds: string[]
+  approvalDefaults?: AgentToolApprovalDefaults
   toolGrants: Array<{
     name: string
     mode: AgentToolGrantMode
@@ -279,13 +432,101 @@ export interface AgentCatalogProfile {
     platformModelId?: string
     routes?: unknown[]
   }
-  limits?: Record<string, number>
+  limits?: AgentConfigFileLimits
   metadata?: Record<string, JSONValue>
+}
+
+export interface AgentCatalogPack {
+  id: string
+  version: string
+  name: string
+  description?: string
+  source: 'builtin' | 'local' | 'plugin' | 'team' | 'mcp'
+  schemas: string[]
+  tools: string[]
+  skills: string[]
+  reference?: string[]
+  requires?: {
+    packs?: Record<string, string>
+    schemas?: Record<string, string>
+    tools?: Record<string, string>
+    skills?: Record<string, string>
+  }
+  conflicts?: string[]
+  pluginId?: string
+  mcpServerId?: string
+}
+
+export interface AgentRunConfigurationSnapshot {
+  schema: 'movscript.agent.run-configuration-snapshot.v1'
+  capturedAt: string
+  catalogSnapshot: {
+    id: string
+    version: string | null
+  }
+  activeConfigFileId: string
+  runtimeLimits: AgentRuntimeLimits
+  activeAgentManifest: AgentManifest
+  toolPermissionOverridesByConfigFile: Record<string, Array<{
+    name: string
+    mode: AgentToolGrantMode
+    approval?: AgentToolApprovalMode
+  }>>
+  configFiles: AgentCatalogConfigFile[]
+  packs: AgentCatalogPack[]
+  skills: Array<{
+    id: string
+    name: string
+    description: string
+    version?: string
+    enabled: boolean
+    priority?: number
+    instructionTemplate: string
+    loadMode?: AgentCatalogSkill['loadMode']
+    source?: AgentCatalogSkill['source']
+    activationScope?: AgentCatalogSkill['activationScope']
+    tags?: string[]
+    aliases?: string[]
+    useWhen?: string[]
+    triggers?: JSONValue[]
+    dependencies?: string[]
+    conflicts?: string[]
+    toolGrants?: string[]
+    schemaRefs?: string[]
+    tokenEstimate?: number
+    contextBudget?: AgentCatalogSkill['contextBudget']
+    outputContract?: string
+    toolHints?: string[]
+    metadata?: Record<string, JSONValue>
+  }>
+  tools: Array<{
+    name: string
+    description: string
+    permission: string
+    risk: AgentToolRiskLevel | string
+    source?: 'runtime' | 'local' | 'plugin' | 'mcp'
+    category?: string
+    categories?: string[]
+    defaults: {
+      grant: AgentToolGrantMode
+      approval: AgentToolApprovalMode
+      timeoutMs?: number
+    }
+    execution?: AgentToolExecutionMetadata
+    projectScoped: boolean
+    capability?: string
+    pluginId?: string
+    mcpServerId?: string
+    errorCodes?: string[]
+    requiresSkills?: string[]
+  }>
+  pluginCatalog: AgentPluginCatalogInfo | null
+  warnings: string[]
 }
 
 export interface ResolvedAgentSkill extends AgentCatalogSkill {
   resolvedPriority: number
-  activationReason: 'profile' | 'trigger' | 'default'
+  activationReason: 'trigger' | 'default'
   compiledInstruction: string
   warnings: string[]
 }
@@ -301,7 +542,7 @@ export type ToolUnavailableReason =
   | 'approval_required'
   | 'schema_invalid'
   | 'wrong_run_role'
-  | 'workflow_scope'
+  | 'skill_scope'
 
 export type AgentToolInterruptBehavior = 'cancel' | 'block'
 export type AgentToolResultRefStrategy = 'inline' | 'summary_ref' | 'auto'
@@ -320,7 +561,7 @@ export interface AgentDebugTool {
   description?: string
   inputSchema?: JSONValue
   outputSchema?: JSONValue
-  source: 'mcp' | 'runtime' | 'plugin'
+  source: 'mcp' | 'runtime' | 'local' | 'plugin'
   category?: string
   categories?: string[]
   registered: boolean
@@ -347,7 +588,7 @@ export interface AgentDebugTool {
 
 export interface AgentToolRuntimeExplanation {
   registered: boolean
-  source: 'mcp' | 'runtime' | 'plugin'
+  source: 'mcp' | 'runtime' | 'local' | 'plugin'
   grantMode: 'allow' | 'deny' | 'none'
   grantSource: 'manifest' | 'skill' | 'none'
   approval: AgentToolApprovalMode
@@ -371,7 +612,7 @@ export interface AgentRegisteredTool {
   description: string
   permission: string
   risk: AgentToolRiskLevel | string
-  source?: 'runtime' | 'plugin' | 'mcp'
+  source?: 'runtime' | 'local' | 'plugin' | 'mcp'
   category?: string
   categories?: string[]
   inputSchema?: JSONValue
@@ -389,7 +630,7 @@ export interface AgentPluginCatalogInfo {
   skillCount: number
   toolCount: number
   metadata?: Record<string, unknown>
-  skillPlugins?: Array<{
+  packPlugins?: Array<{
     pluginId: string
     path: string
   }>
@@ -404,7 +645,7 @@ export interface AgentMCPStatus {
 }
 
 export interface AgentCapabilitiesResponse {
-  defaultAgentManifest: AgentManifest
+  activeAgentManifest: AgentManifest
   updates?: unknown
   pluginCatalog?: AgentPluginCatalogInfo
   mcp: AgentMCPStatus
@@ -419,8 +660,10 @@ export interface AgentInspectResponse {
   tools: MCPTool[]
   registeredTools: AgentRegisteredTool[]
   skills: AgentCatalogSkill[]
-  profiles: AgentCatalogProfile[]
-  defaultAgentManifest: AgentManifest
+  packs: AgentCatalogPack[]
+  configFiles: AgentCatalogConfigFile[]
+  activeConfigFileId: string | null
+  activeAgentManifest: AgentManifest
   pluginCatalog?: AgentPluginCatalogInfo
 }
 
@@ -694,7 +937,7 @@ export interface AgentRun {
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
-  policy: AgentRunPolicy
+  runtimeLimits: AgentRuntimeLimits
   metadata?: Record<string, JSONValue>
   createdAt: string
   updatedAt: string
@@ -744,6 +987,7 @@ export interface AgentClientAttachmentRef {
   size?: number
   resourceId?: number
   dataUrl?: string
+  vision?: Record<string, JSONValue>
 }
 
 export interface AgentClientResourceRef {
@@ -1101,22 +1345,22 @@ export interface AgentRunInput {
   createdAt: string
 }
 
-export interface AgentRunPolicy {
+export interface AgentRuntimeLimits {
   approvalMode: 'interactive' | 'auto_readonly' | 'auto'
   sandboxMode?: boolean
   maxToolCalls: number
   maxIterations: number
   allowNetwork: boolean
   allowFileBytes: boolean
-  workflow?: AgentWorkflowConfig
+  execution?: AgentRunExecutionConfig
   costLimit?: {
     currency: string
     amount: number
   }
 }
 
-export interface AgentWorkflowConfig {
-  profile: AgentWorkflowProfile
+export interface AgentRunExecutionConfig {
+  mode: AgentRunExecutionMode
   includeMemories?: boolean
   allowForcedToolCalls?: boolean
 }
@@ -1233,7 +1477,7 @@ export interface CompiledPromptPreview {
   messages: Array<{ role: string; content: string }>
   debugParts: Array<{
     id: string
-    kind: 'soul' | 'skill' | 'context' | 'policy' | 'tool'
+    kind: 'instruction' | 'skill' | 'context' | 'tool'
     title: string
     content: string
   }>
@@ -1266,19 +1510,17 @@ export interface AgentRunDebugTrace {
   promptPartIds: string[]
   model?: AgentManifest['model']
   layerTrace?: {
-    profileId: string
-    profileVersion: string
-    profileLayers: Array<{ source: string; id: string; version: string }>
-    personaId?: string
-    policyIds: string[]
-    workflowIds: string[]
+    configFileId: string
+    configFileVersion: string
+    configFileLayers: Array<{ source: string; id: string; version: string }>
+    skillIds: string[]
     intentSignals?: Array<{
       intent: string
       source: string
       confidence: string
       evidence: string
     }>
-    workflowTriggers?: Array<{
+    triggerTraces?: Array<{
       id: string
       matched: boolean
       matchedTriggerKind?: string
@@ -1299,7 +1541,7 @@ export interface AgentRunPreview {
   context?: AgentDebugContextPanel
   skills?: ResolvedAgentSkill[]
   tools?: ResolvedToolCatalog
-  policy?: AgentRunPolicy
+  runtimeLimits?: AgentRuntimeLimits
   promptPreview?: CompiledPromptPreview
   debug?: AgentRunDebugTrace
   toolCalls: ToolCall[]
@@ -1320,7 +1562,7 @@ export const AGENT_TRACE_EVENT_KINDS = [
   'skill',
   'tool_catalog',
   'prompt',
-  'policy',
+  'permission',
   'reasoning',
   'tool_call',
   'model_call',
@@ -1472,7 +1714,6 @@ export interface AgentRuntimeStatusMessage {
 export interface AgentChatMessageMeta {
   modelId?: number | null
   agentName?: string
-  permissionMode?: 'ask' | 'suggest' | 'auto'
   contextLabels?: string[]
   runtimeMessage?: AgentRuntimeMessageRef
   runtimeInput?: AgentRuntimeInputRef
@@ -1517,7 +1758,6 @@ export interface AgentContextDiagnostic {
   skills: Array<{
     id: string
     name: string
-    category?: string
     activationReason?: string
     resolvedPriority?: number
   }>

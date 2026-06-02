@@ -128,7 +128,10 @@ import { AgentRunGenerationArtifacts } from '@/features/agent/components/AgentRu
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { LocalAgentInputRequestCard } from '@/features/agent/components/localRuntime'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/features/agent/domain/agentPlanUi'
-import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/features/agent/domain/agentRunUi'
+import { buildApprovalImpactSummary, type AgentApprovalImpactSummary } from '@/features/agent/domain/agent-run-page/approvalImpact'
+import { buildRunConfigurationSnapshotView, type AgentRunConfigurationSnapshotView } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
+import { fallbackToolCallSummaries, formatAgentTraceRawJSON, searchTextToken, toolCallSearchText, toolCallSummariesFromUnknown, type AgentToolCallSummary } from '@/features/agent/domain/agent-run-page/toolCallSummaries'
+import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/features/agent/domain/agentRunUi'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/features/agent/domain/agentTraceDebugData'
 import { agentToolCallStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
@@ -147,6 +150,7 @@ const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
   'readinessChecklist',
   'runtimeSummary',
+  'roundContextUpdates',
   'modelCallContexts',
   'promptDetails',
   'contextMutations',
@@ -196,11 +200,12 @@ const EMPTY_RUNTIME_SUMMARY: AgentRunRuntimeSummary = {
     blockedToolNames: [],
     approvalRequiredToolNames: [],
     deniedToolNames: [],
-    policyGateBlockedToolNames: [],
+    permissionGateBlockedToolNames: [],
     pendingApprovalToolNames: [],
   },
   context: {
     contextMutationCount: 0,
+    roundContextUpdateCount: 0,
   },
 }
 
@@ -217,9 +222,10 @@ type AgentModelCallSummary = AgentTraceDebugView['modelCalls'][number]
 type AgentRunRuntimeSummary = AgentTraceDebugView['runtimeSummary']
 type AgentSkillTraceSummary = AgentTraceDebugView['skillTimeline']
 type AgentContextMutationView = AgentTraceDebugView['contextMutations'][number]
+type AgentRoundContextUpdateView = AgentTraceDebugView['roundContextUpdates'][number]
 type AgentPromptDebugDetail = AgentTraceDebugView['promptDetails'][number]
 type AgentTraceEventView = ReturnType<typeof agentTraceView>
-type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & Pick<AgentPromptDebugDetail, 'runtimeSkillState' | 'contextLedgerState'>
+type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & Partial<Pick<AgentPromptDebugDetail, 'budgetDecisions' | 'runtimeSkillState' | 'contextLedgerState'>>
 type AgentTraceEventDisplayView = Omit<AgentTraceEventView, 'promptDetail'> & { promptDetail?: AgentPromptDetailDisplay }
 type AgentTraceViewMode = 'debug' | 'runtime' | 'timeline' | 'tools' | 'skills'
 
@@ -231,20 +237,6 @@ interface AgentDebugHotspot {
   tone: 'danger' | 'warning' | 'neutral'
   summary?: string
   meta: string[]
-}
-
-interface AgentToolCallSummary {
-  eventId: string
-  toolName?: string
-  title: string
-  status: AgentTraceEvent['status']
-  statusLabel: string
-  source?: string
-  sandboxed?: boolean
-  durationMs?: number
-  summary?: string
-  argsPreview?: string
-  dataPreview?: string
 }
 
 export default function AIAgentRunPage() {
@@ -344,10 +336,16 @@ export default function AIAgentRunPage() {
   const debugViewEvents = debugViewQuery.data?.events ?? events
   const runtimeSummary = debugViewQuery.data?.runtimeSummary ?? EMPTY_RUNTIME_SUMMARY
   const skillTraceSummary = debugViewQuery.data?.skillTimeline ?? EMPTY_SKILL_TRACE_SUMMARY
+  const promptDetails = debugViewQuery.data?.promptDetails ?? []
+  const approvalImpactSummary = useMemo(
+    () => buildApprovalImpactSummary(runQuery.data, debugViewEvents),
+    [debugViewEvents, runQuery.data],
+  )
   const modelCallSummaries = (debugViewQuery.data?.modelCalls ?? []) as AgentModelCallSummary[]
   const modelCallContexts = debugViewQuery.data?.modelCallContexts ?? []
   const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
   const contextMutations = debugViewQuery.data?.contextMutations ?? []
+  const roundContextUpdates = debugViewQuery.data?.roundContextUpdates ?? []
   const debugHotspots = useMemo(
     () => buildDebugHotspots({
       events: debugViewEvents,
@@ -393,6 +391,7 @@ export default function AIAgentRunPage() {
   const debugFieldGuide = debugViewQuery.data?.fieldGuide ?? []
   const runTerminalAt = runQuery.data?.completedAt ?? runQuery.data?.failedAt ?? runQuery.data?.cancelledAt
   const runDuration = formatAgentRunDuration(runQuery.data?.createdAt, runTerminalAt)
+  const runConfigurationSnapshot = useMemo(() => buildRunConfigurationSnapshotView(runQuery.data), [runQuery.data])
 
   useEffect(() => {
     currentRunIdRef.current = runId
@@ -769,6 +768,79 @@ export default function AIAgentRunPage() {
                   </AgentRunSummaryBullets>
                 </AgentRunSummaryCard>
               )}
+              {runConfigurationSnapshot && (
+                <AgentRunSidebarSurface data-testid="agent-run-configuration-snapshot">
+                  <AgentRunSectionEyebrow>配置快照</AgentRunSectionEyebrow>
+                  <AgentRunCallout tone="neutral" compact>
+                    本次运行使用创建时捕获的配置快照；后续设置变更不会追溯修改这里的事实。
+                  </AgentRunCallout>
+                  <AgentRunInfoItem label="捕获时间" value={formatAgentRunTimestamp(runConfigurationSnapshot.capturedAt)} title={runConfigurationSnapshot.capturedAt} />
+                  <AgentRunInfoItem label="Catalog" value={runConfigurationSnapshot.catalogSnapshotLabel} />
+                  <AgentRunInfoItem label="插件目录" value={runConfigurationSnapshot.pluginCatalogLabel} />
+                  <AgentRunInfoItem label="配置文件" value={runConfigurationSnapshot.configFileName} title={runConfigurationSnapshot.configFileId} />
+                  <AgentRunInfoItem label="配置版本" value={runConfigurationSnapshot.configFileVersion} />
+                  <AgentRunInfoItem label="模型" value={runConfigurationSnapshot.modelLabel} />
+                  <AgentRunInfoItem label="配置文件 Skills" value={String(runConfigurationSnapshot.configSkillCount)} />
+                  <AgentRunInfoItem label="实际激活 Skills" value={String(runConfigurationSnapshot.actualSkillIds.length)} />
+                  <AgentRunInfoItem label="配置文件授权工具" value={String(runConfigurationSnapshot.grantedToolCount)} />
+                  <AgentRunInfoItem label="本次有效工具" value={String(runConfigurationSnapshot.effectiveToolCount)} />
+                  <AgentRunInfoItem label="Prompt 工具" value={String(runConfigurationSnapshot.visibleToolNames.length)} />
+                  <AgentRunSummaryBadgeList data-testid="agent-run-configuration-counts">
+                    <AgentRunPageBadge variant="outline">Packs {runConfigurationSnapshot.enabledPackCount}</AgentRunPageBadge>
+                    <AgentRunPageBadge variant="outline">Catalog Skills {runConfigurationSnapshot.catalogSkillCount}</AgentRunPageBadge>
+                    <AgentRunPageBadge variant="outline">Catalog Tools {runConfigurationSnapshot.catalogToolCount}</AgentRunPageBadge>
+                  </AgentRunSummaryBadgeList>
+                  {runConfigurationSnapshot.limitItems.length > 0 && (
+                    <AgentRunSummaryBadgeList data-testid="agent-run-configuration-limits">
+                      {runConfigurationSnapshot.limitItems.slice(0, 8).map((item) => <AgentRunPageBadge key={item} variant="outline">{item}</AgentRunPageBadge>)}
+                    </AgentRunSummaryBadgeList>
+                  )}
+                  {runConfigurationSnapshot.runtimeLimitItems.length > 0 && (
+                    <AgentRunSummaryBadgeList data-testid="agent-run-configuration-runtime-limits">
+                      {runConfigurationSnapshot.runtimeLimitItems.slice(0, 8).map((item) => <AgentRunPageBadge key={item} variant="outline">{item}</AgentRunPageBadge>)}
+                    </AgentRunSummaryBadgeList>
+                  )}
+                  {runConfigurationSnapshot.approvalDefaultItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="默认审批" value={runConfigurationSnapshot.approvalDefaultItems.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.packNames.length > 0 && (
+                    <AgentRunTraceDetailLine label="启用能力包" value={runConfigurationSnapshot.packNames.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.packDetails.length > 0 && (
+                    <AgentRunTraceDetailLine label="能力包来源" value={runConfigurationSnapshot.packDetails.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.skillIds.length > 0 && (
+                    <AgentRunTraceDetailLine label="配置文件 Skills" value={runConfigurationSnapshot.skillIds.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.actualSkillIds.length > 0 && (
+                    <AgentRunTraceDetailLine label="实际激活 Skills" value={runConfigurationSnapshot.actualSkillIds.slice(0, 8).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.omittedSkillIds.length > 0 && (
+                    <AgentRunTraceDetailLine label="配置文件未进入 Skills" value={runConfigurationSnapshot.omittedSkillIds.slice(0, 8).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.omittedConfigSkillItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="未进入原因" value={runConfigurationSnapshot.omittedConfigSkillItems.slice(0, 6).join('；')} />
+                  )}
+                  {runConfigurationSnapshot.skillInstructionItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="Skill instruction" value={runConfigurationSnapshot.skillInstructionItems.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.toolNames.length > 0 && (
+                    <AgentRunTraceDetailLine label="配置文件授权工具" value={runConfigurationSnapshot.toolNames.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.configFileToolGrantItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="配置文件授权规则" value={runConfigurationSnapshot.configFileToolGrantItems.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.toolPermissionOverrideItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="配置文件权限覆盖" value={runConfigurationSnapshot.toolPermissionOverrideItems.slice(0, 6).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.visibleToolNames.length > 0 && (
+                    <AgentRunTraceDetailLine label="Prompt 工具" value={runConfigurationSnapshot.visibleToolNames.slice(0, 8).join(', ')} />
+                  )}
+                  {runConfigurationSnapshot.toolGrantItems.length > 0 && (
+                    <AgentRunTraceDetailLine label="本次有效工具权限" value={runConfigurationSnapshot.toolGrantItems.slice(0, 6).join(', ')} />
+                  )}
+                </AgentRunSidebarSurface>
+              )}
               {(runQuery.data.pendingInputRequests ?? []).filter((request) => request.status === 'pending').length > 0 && (
                 <AgentRunCallout data-testid="agent-run-pending-input" tone="warning" compact>
                   <AgentRunToneText tone="warning">待输入</AgentRunToneText>
@@ -1115,7 +1187,15 @@ export default function AIAgentRunPage() {
               <SkillTracePanel summary={skillTraceSummary} onFocusEvent={focusTraceEvent} />
             )}
             {traceViewMode === 'runtime' && (
-              <RunRuntimeSummaryPanel summary={runtimeSummary} onFocusEvent={focusTraceEvent} />
+              <>
+                <RunRuntimeSummaryPanel
+                  summary={runtimeSummary}
+                  promptDetails={promptDetails}
+                  approvalImpactSummary={approvalImpactSummary}
+                  onFocusEvent={focusTraceEvent}
+                />
+                {roundContextUpdates.length > 0 && <RoundContextUpdatesPanel updates={roundContextUpdates} onFocusEvent={focusTraceEvent} />}
+              </>
             )}
             {traceViewMode === 'tools' && (
               <ToolCallProcessPanel
@@ -1178,6 +1258,9 @@ export default function AIAgentRunPage() {
             )}
             {traceViewMode === 'timeline' && contextMutations.length > 0 && (
               <ContextMutationPanel mutations={contextMutations} onFocusEvent={focusTraceEvent} />
+            )}
+            {traceViewMode === 'timeline' && roundContextUpdates.length > 0 && (
+              <RoundContextUpdatesPanel updates={roundContextUpdates} onFocusEvent={focusTraceEvent} />
             )}
             {traceViewMode === 'timeline' && modelCallSummaries.length > 0 && (
               <ModelCallSummaryPanel summaries={modelCallSummaries} contexts={modelCallContexts} events={debugViewEvents} onFocusEvent={focusTraceEvent} />
@@ -1481,88 +1564,13 @@ function mergePromptDebugDetail(view: AgentTraceEventView, debugDetail?: AgentPr
   if (!view.promptDetail || !debugDetail) return view
   return {
     ...view,
-    promptDetail: {
-      ...view.promptDetail,
-      ...(debugDetail.runtimeSkillState ? { runtimeSkillState: debugDetail.runtimeSkillState } : {}),
-      ...(debugDetail.contextLedgerState ? { contextLedgerState: debugDetail.contextLedgerState } : {}),
-    },
+	    promptDetail: {
+	      ...view.promptDetail,
+	      budgetDecisions: debugDetail.budgetDecisions,
+	      ...(debugDetail.runtimeSkillState ? { runtimeSkillState: debugDetail.runtimeSkillState } : {}),
+	      ...(debugDetail.contextLedgerState ? { contextLedgerState: debugDetail.contextLedgerState } : {}),
+	    },
   }
-}
-
-function fallbackToolCallSummaries(events: AgentTraceEvent[]): AgentToolCallSummary[] {
-  return events.flatMap((event): AgentToolCallSummary[] => {
-    if (event.kind !== 'tool_call') return []
-    const view = agentTraceView(event)
-    const detail = view.toolDetail
-    const data = isRecord(event.data) ? event.data : undefined
-    const durationMs = traceEventDurationMs(event, data)
-    return [{
-      eventId: event.id,
-      ...(event.toolName ? { toolName: event.toolName } : {}),
-      title: view.title,
-      status: event.status,
-      statusLabel: traceEventStatusLabel(event.status),
-      ...(detail?.source ? { source: detail.source } : typeof data?.source === 'string' ? { source: data.source } : {}),
-      ...(detail?.sandboxed ? { sandboxed: detail.sandboxed === '是' } : typeof data?.sandboxed === 'boolean' ? { sandboxed: data.sandboxed } : {}),
-      ...(durationMs !== undefined ? { durationMs } : {}),
-      ...(view.summary ? { summary: view.summary } : {}),
-      ...(detail?.args !== undefined ? { argsPreview: formatAgentTraceRawJSON(detail.args) } : {}),
-      ...(data?.result !== undefined ? { dataPreview: formatAgentTraceRawJSON(data.result) } : {}),
-    }]
-  })
-}
-
-function toolCallSummariesFromUnknown(value: unknown): AgentToolCallSummary[] | undefined {
-  if (!Array.isArray(value)) return undefined
-  return value.flatMap((item): AgentToolCallSummary[] => {
-    if (!isRecord(item)) return []
-    const eventId = typeof item.eventId === 'string' ? item.eventId : ''
-    const title = typeof item.title === 'string' ? item.title : ''
-    const status = isTraceEventStatus(item.status) ? item.status : undefined
-    const statusLabel = typeof item.statusLabel === 'string' ? item.statusLabel : undefined
-    if (!eventId || !title || !status || !statusLabel) return []
-    return [{
-      eventId,
-      ...(typeof item.toolName === 'string' ? { toolName: item.toolName } : {}),
-      title,
-      status,
-      statusLabel,
-      ...(typeof item.source === 'string' ? { source: item.source } : {}),
-      ...(typeof item.sandboxed === 'boolean' ? { sandboxed: item.sandboxed } : {}),
-      ...(typeof item.durationMs === 'number' && Number.isFinite(item.durationMs) ? { durationMs: item.durationMs } : {}),
-      ...(typeof item.summary === 'string' ? { summary: item.summary } : {}),
-      ...(typeof item.argsPreview === 'string' ? { argsPreview: item.argsPreview } : {}),
-      ...(typeof item.dataPreview === 'string' ? { dataPreview: item.dataPreview } : {}),
-    }]
-  })
-}
-
-function isTraceEventStatus(value: unknown): value is AgentTraceEvent['status'] {
-  return value === 'started' || value === 'completed' || value === 'blocked' || value === 'failed' || value === 'info'
-}
-
-function toolCallSearchText(toolCall: AgentToolCallSummary): string {
-  return [
-    toolCall.eventId,
-    toolCall.toolName,
-    toolCall.title,
-    toolCall.status,
-    toolCall.statusLabel,
-    toolCall.source,
-    toolCall.sandboxed === undefined ? undefined : toolCall.sandboxed ? '沙箱 sandboxed yes true' : '非沙箱 sandboxed no false',
-    toolCall.durationMs === undefined ? undefined : `${toolCall.durationMs}ms`,
-    toolCall.summary,
-    toolCall.argsPreview,
-    toolCall.dataPreview,
-    toolCall.toolName ? agentToolNameLabel(toolCall.toolName) : undefined,
-  ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
-}
-
-function searchTextToken(value: unknown): string | undefined {
-  if (typeof value !== 'string' && typeof value !== 'number') return undefined
-  const text = String(value).trim()
-  if (!text) return undefined
-  return text.length > 2000 ? text.slice(0, 2000) : text
 }
 
 function formatAgentRunTimestamp(value: string | undefined): string {
@@ -1945,8 +1953,23 @@ function ToolCallPreviewBlock({ title, value }: { title: string; value: string }
   )
 }
 
-function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRuntimeSummary; onFocusEvent: (eventId: string) => void }) {
+function RunRuntimeSummaryPanel({
+  summary,
+  promptDetails,
+  approvalImpactSummary,
+  onFocusEvent,
+}: {
+  summary: AgentRunRuntimeSummary
+  promptDetails: AgentPromptDebugDetail[]
+  approvalImpactSummary: AgentApprovalImpactSummary
+  onFocusEvent: (eventId: string) => void
+}) {
   const skillContextProjection = summary.skills.contextProjection ?? []
+  const promptBudgetDetail = summary.context.promptEventId
+    ? promptDetails.find((detail) => detail.eventId === summary.context.promptEventId) ?? promptDetails[promptDetails.length - 1]
+    : promptDetails[promptDetails.length - 1]
+  const promptBudgetDecisions = promptBudgetDetail?.budgetDecisions ?? []
+  const promptEventId = summary.context.promptEventId ?? promptBudgetDetail?.eventId
   return (
     <AgentRunDebugSection data-testid="agent-run-runtime-summary">
       <AgentRunDebugPanel variant="subtle">
@@ -1974,8 +1997,11 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
           <DebugCoverageMetric label="已调用工具" value={String(summary.tools.usedToolNames.length)} />
           <DebugCoverageMetric label="待审批工具" value={String(summary.tools.pendingApprovalToolNames.length)} />
           <DebugCoverageMetric label="审批要求" value={String(summary.tools.approvalRequiredToolNames.length)} />
-          <DebugCoverageMetric label="策略拒绝" value={String(summary.tools.deniedToolNames.length)} />
-          <DebugCoverageMetric label="Policy 阻塞" value={String(summary.tools.policyGateBlockedToolNames.length)} />
+          <DebugCoverageMetric label="审批请求" value={String(approvalImpactSummary.requestedCount)} />
+          <DebugCoverageMetric label="已批准" value={String(approvalImpactSummary.approvedCount)} />
+          <DebugCoverageMetric label="已拒绝" value={String(approvalImpactSummary.rejectedCount)} />
+          <DebugCoverageMetric label="权限拒绝" value={String(summary.tools.deniedToolNames.length)} />
+          <DebugCoverageMetric label="权限阻塞" value={String(summary.tools.permissionGateBlockedToolNames.length)} />
           <DebugCoverageMetric label="上下文变动" value={String(summary.context.contextMutationCount)} />
         </AgentRunDebugMetricGrid>
       </AgentRunDebugPanel>
@@ -2002,7 +2028,7 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
                     </AgentRunPageBadge>
                   </AgentRunDebugHeader>
                   <AgentRunDebugTags>
-                    {skill.activationReason && <AgentRunPageBadge variant="outline">激活 {skill.activationReason}</AgentRunPageBadge>}
+                    {skill.activationReason && <AgentRunPageBadge variant="outline">{runtimeSkillActivationLabel(skill.activationReason)}</AgentRunPageBadge>}
                     {skill.contextBehavior && <AgentRunPageBadge variant="outline">上下文 {skill.contextBehavior}</AgentRunPageBadge>}
                     {skill.promptLayer && <AgentRunPageBadge variant="outline">{skill.promptLayer}</AgentRunPageBadge>}
                     {skill.renderedChars && <AgentRunPageBadge variant="outline">{skill.renderedChars} chars</AgentRunPageBadge>}
@@ -2028,7 +2054,6 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
                     <AgentRunPageBadge variant="soft">{skillOmissionStageLabel(skill.stage)}</AgentRunPageBadge>
                   </AgentRunDebugHeader>
                   <AgentRunDebugTags>
-                    {skill.kind && <AgentRunPageBadge variant="outline">{skill.kind}</AgentRunPageBadge>}
                     {skill.triggerReason && <AgentRunPageBadge variant="outline">{skill.triggerReason}</AgentRunPageBadge>}
                     {skill.inactiveDependencyIds.map((id) => <AgentRunPageBadge key={`inactive-${id}`} variant="outline">依赖未激活 {id}</AgentRunPageBadge>)}
                     {skill.missingDependencyIds.map((id) => <AgentRunPageBadge key={`missing-${id}`} variant="outline">依赖缺失 {id}</AgentRunPageBadge>)}
@@ -2063,8 +2088,8 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
           <RuntimeNameList label="失败" names={summary.tools.failedToolNames} tone="warning" />
           <RuntimeNameList label="阻塞" names={summary.tools.blockedToolNames} tone="warning" />
           <RuntimeNameList label="需要审批" names={summary.tools.approvalRequiredToolNames} tone="warning" />
-          <RuntimeNameList label="策略拒绝" names={summary.tools.deniedToolNames} tone="warning" />
-          <RuntimeNameList label="Policy gate 阻塞" names={summary.tools.policyGateBlockedToolNames} tone="warning" />
+          <RuntimeNameList label="权限拒绝" names={summary.tools.deniedToolNames} tone="warning" />
+          <RuntimeNameList label="权限门禁阻塞" names={summary.tools.permissionGateBlockedToolNames} tone="warning" />
           <RuntimeNameList label="待审批" names={summary.tools.pendingApprovalToolNames} />
           {summary.tools.availableToolNames.length === 0 && summary.tools.usedToolNames.length === 0 && (
             <AgentRunDebugMutedNote>已加载 trace 中还没有 prompt 工具清单或工具调用。</AgentRunDebugMutedNote>
@@ -2072,21 +2097,80 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
         </AgentRunDebugPanel>
       </AgentRunDebugSplit>
 
+      <AgentRunDebugPanel data-testid="agent-run-runtime-approval-impact">
+        <AgentRunDebugHeader>
+          <AgentRunDebugHeaderCopy>
+            <AgentRunDebugTitle>Approval Impact</AgentRunDebugTitle>
+            <AgentRunDebugDescription>用户审批如何暂停、继续或阻止这次运行中的工具调用</AgentRunDebugDescription>
+          </AgentRunDebugHeaderCopy>
+          <AgentRunPageBadge variant={approvalImpactSummary.pendingCount > 0 ? 'soft' : 'outline'}>
+            待处理 {approvalImpactSummary.pendingCount}
+          </AgentRunPageBadge>
+        </AgentRunDebugHeader>
+        <AgentRunDebugMetricGrid>
+          <DebugCoverageMetric label="审批请求" value={String(approvalImpactSummary.requestedCount)} />
+          <DebugCoverageMetric label="待处理" value={String(approvalImpactSummary.pendingCount)} />
+          <DebugCoverageMetric label="已批准" value={String(approvalImpactSummary.approvedCount)} />
+          <DebugCoverageMetric label="已拒绝" value={String(approvalImpactSummary.rejectedCount)} />
+        </AgentRunDebugMetricGrid>
+        {approvalImpactSummary.items.length > 0 ? (
+          <AgentRunDebugList data-testid="agent-run-runtime-approval-impact-list">
+            {approvalImpactSummary.items.slice(0, 8).map((approval) => (
+              <AgentRunDebugStatusNote key={approval.id} data-testid="agent-run-runtime-approval-impact-item">
+                <AgentRunDebugHeader>
+                  <AgentRunDebugHeaderCopy>
+                    <AgentRunDebugTitle>{agentToolNameLabel(approval.toolName)}</AgentRunDebugTitle>
+                    <AgentRunDebugDescription>{approval.toolName}</AgentRunDebugDescription>
+                  </AgentRunDebugHeaderCopy>
+                  <AgentRunDebugTags>
+                    <AgentRunPageBadge variant={approval.status === 'pending' ? 'soft' : 'outline'}>{approval.statusLabel}</AgentRunPageBadge>
+                    {approval.risk && <AgentRunPageBadge variant="outline">风险 {approvalRiskLabel(approval.risk)}</AgentRunPageBadge>}
+                    {approval.permission && <AgentRunPageBadge variant="outline">权限 {approvalPermissionLabel(approval.permission)}</AgentRunPageBadge>}
+                  </AgentRunDebugTags>
+                </AgentRunDebugHeader>
+                <AgentRunTraceDetailLine label="影响" value={approval.impact} />
+                {approval.reason && <AgentRunTraceDetailLine label="原因" value={redactAgentTraceDebugText(approval.reason)} />}
+                {approval.createdAt && <AgentRunTraceDetailLine label="请求时间" value={formatAgentRunTimestamp(approval.createdAt)} />}
+                {approval.resolvedAt && <AgentRunTraceDetailLine label="处理时间" value={formatAgentRunTimestamp(approval.resolvedAt)} />}
+                {approval.eventIds[0] && (
+                  <AgentRunDebugActions>
+                    <AgentRunDebugActionButton type="button" variant="ghost" onClick={() => onFocusEvent(approval.eventIds[0]!)}>
+                      定位审批事件
+                    </AgentRunDebugActionButton>
+                  </AgentRunDebugActions>
+                )}
+              </AgentRunDebugStatusNote>
+            ))}
+          </AgentRunDebugList>
+        ) : (
+          <AgentRunDebugMutedNote>已加载 trace 中还没有审批请求；本次运行没有因用户审批暂停。</AgentRunDebugMutedNote>
+        )}
+      </AgentRunDebugPanel>
+
       <AgentRunDebugPanel data-testid="agent-run-runtime-context">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
             <AgentRunDebugTitle>Context</AgentRunDebugTitle>
             <AgentRunDebugDescription>模型上下文是从 transcript 和 runtime state 投影出来的预算视图</AgentRunDebugDescription>
           </AgentRunDebugHeaderCopy>
-          {summary.context.promptEventId && (
-            <AgentRunDebugActionButton variant="ghost" onClick={() => onFocusEvent(summary.context.promptEventId!)}>
+          {promptEventId && (
+            <AgentRunDebugActionButton variant="ghost" onClick={() => onFocusEvent(promptEventId)}>
               定位 Prompt
             </AgentRunDebugActionButton>
           )}
         </AgentRunDebugHeader>
         <AgentRunDebugMetricGrid>
           <DebugCoverageMetric label="上下文变动" value={String(summary.context.contextMutationCount)} />
-          <DebugCoverageMetric label="Prompt 事件" value={summary.context.promptEventId ?? '-'} />
+          <DebugCoverageMetric label="Round 更新" value={String(summary.context.roundContextUpdateCount)} />
+          <DebugCoverageMetric label="Prompt 事件" value={promptEventId ?? '-'} />
+          {promptBudgetDetail?.totalChars && <DebugCoverageMetric label="Prompt 字符" value={promptBudgetDetail.totalChars} />}
+          <DebugCoverageMetric label="Prompt 预算裁剪" value={String(promptBudgetDecisions.length)} />
+          {summary.context.latestRoundContextUpdate && (
+            <>
+              <DebugCoverageMetric label="最近轮次" value={summary.context.latestRoundContextUpdate.roundLabel ?? String(summary.context.latestRoundContextUpdate.roundIndex ?? '-')} />
+              <DebugCoverageMetric label="投影消息" value={summary.context.latestRoundContextUpdate.messageCount ?? '-'} />
+            </>
+          )}
           {summary.context.historyProjection && (
             <>
               <DebugCoverageMetric label="历史保留" value={`${summary.context.historyProjection.retainedCount}/${summary.context.historyProjection.inputCount}`} />
@@ -2099,6 +2183,13 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
             <>
               <DebugCoverageMetric label="Tool loop" value={String(projectionNumber(summary.context.toolLoopProjection, 'messageCount'))} />
               <DebugCoverageMetric label="Tool loop 字符" value={String(projectionNumber(summary.context.toolLoopProjection, 'chars'))} />
+            </>
+          )}
+          {summary.context.historicalVisualProjection && (
+            <>
+              <DebugCoverageMetric label="历史图片候选" value={String(projectionNumber(summary.context.historicalVisualProjection, 'candidateCount'))} />
+              <DebugCoverageMetric label="历史图片内联" value={String(projectionNumber(summary.context.historicalVisualProjection, 'includedInlineImageCount'))} />
+              <DebugCoverageMetric label="历史图片元数据" value={String(projectionNumber(summary.context.historicalVisualProjection, 'metadataOnlyCount'))} />
             </>
           )}
           {summary.context.attachmentProjection && (
@@ -2128,10 +2219,84 @@ function RunRuntimeSummaryPanel({ summary, onFocusEvent }: { summary: AgentRunRu
             ))}
           </AgentRunDebugList>
         )}
+        {promptBudgetDecisions.length > 0 && (
+          <AgentRunDebugList data-testid="agent-run-runtime-prompt-budget-decisions">
+            {promptBudgetDecisions.slice(0, 8).map((decision, index) => (
+              <AgentRunDebugStatusNote key={`${decision.partId}:${decision.action}:${index}`} data-testid="agent-run-runtime-prompt-budget-decision">
+                <AgentRunDebugHeader>
+                  <AgentRunDebugHeaderCopy>
+                    <AgentRunDebugTitle>{promptBudgetDecisionActionLabel(decision.action)}</AgentRunDebugTitle>
+                    <AgentRunDebugDescription>{[decision.stage, decision.partId].filter(Boolean).join(' / ') || 'prompt_budget'}</AgentRunDebugDescription>
+                  </AgentRunDebugHeaderCopy>
+                  <AgentRunDebugTags>
+                    {decision.originalChars && <AgentRunPageBadge variant="outline">原始 {decision.originalChars} 字符</AgentRunPageBadge>}
+                    {decision.renderedChars && <AgentRunPageBadge variant="outline">进入 {decision.renderedChars} 字符</AgentRunPageBadge>}
+                  </AgentRunDebugTags>
+                </AgentRunDebugHeader>
+                {decision.reason && <AgentRunTraceDetailLine label="原因" value={redactAgentTraceDebugText(decision.reason)} />}
+              </AgentRunDebugStatusNote>
+            ))}
+          </AgentRunDebugList>
+        )}
         <RuntimeProjectionDecisionList title="Tool loop 投影" projection={summary.context.toolLoopProjection} testId="agent-run-runtime-tool-loop-projection" />
+        <RuntimeProjectionDecisionList title="历史图片投影" projection={summary.context.historicalVisualProjection} testId="agent-run-runtime-historical-visual-projection" />
         <RuntimeProjectionDecisionList title="附件投影" projection={summary.context.attachmentProjection} testId="agent-run-runtime-attachment-projection" />
       </AgentRunDebugPanel>
     </AgentRunDebugSection>
+  )
+}
+
+function RoundContextUpdatesPanel({ updates, onFocusEvent }: { updates: AgentRoundContextUpdateView[]; onFocusEvent: (eventId: string) => void }) {
+  return (
+    <AgentRunDebugPanel data-testid="agent-run-round-context-updates" variant="subtle">
+      <AgentRunDebugHeader>
+        <AgentRunDebugHeaderCopy>
+          <AgentRunDebugTitle>Round 上下文更新</AgentRunDebugTitle>
+          <AgentRunDebugDescription>每轮模型调用前的历史、tool loop、历史图片和当前附件投影</AgentRunDebugDescription>
+        </AgentRunDebugHeaderCopy>
+        <AgentRunPageBadge variant="outline">{updates.length} 轮</AgentRunPageBadge>
+      </AgentRunDebugHeader>
+      <AgentRunDebugList>
+        {updates.slice(0, 8).map((update) => (
+          <AgentRunTraceContextGroup key={update.eventId} data-testid="agent-run-round-context-update-item" variant="card">
+            <AgentRunTraceContextGroupLabel>
+              {update.roundLabel ?? update.title}
+            </AgentRunTraceContextGroupLabel>
+            <AgentRunTraceEventMeta>
+              {update.messageCount && <AgentRunTraceEventMetaItem>{update.messageCount} 条消息</AgentRunTraceEventMetaItem>}
+              {update.systemMessageCount && <AgentRunTraceEventMetaItem>{update.systemMessageCount} 条系统消息</AgentRunTraceEventMetaItem>}
+              {update.promptChars && <AgentRunTraceEventMetaItem>{update.promptChars} 字符</AgentRunTraceEventMetaItem>}
+              {update.historicalVisualProjection && <AgentRunTraceEventMetaItem>历史图片 {String(projectionNumber(update.historicalVisualProjection, 'includedInlineImageCount'))}/{String(projectionNumber(update.historicalVisualProjection, 'candidateCount'))}</AgentRunTraceEventMetaItem>}
+              {update.attachmentProjection && <AgentRunTraceEventMetaItem>当前内联图 {String(projectionNumber(update.attachmentProjection, 'inlineImageCount'))}</AgentRunTraceEventMetaItem>}
+            </AgentRunTraceEventMeta>
+            <AgentRunTraceContextGroupItems>
+              {update.historyProjection && (
+                <AgentRunTraceContextRow>
+                  <AgentRunTraceContextKey>历史</AgentRunTraceContextKey>
+                  <AgentRunTraceContextValue>保留 {update.historyProjection.retainedCount}/{update.historyProjection.inputCount}，压缩 {update.historyProjection.compactedCount}，过滤 {update.historyProjection.filteredCount}</AgentRunTraceContextValue>
+                </AgentRunTraceContextRow>
+              )}
+              {update.historicalVisualProjection && (
+                <AgentRunTraceContextRow>
+                  <AgentRunTraceContextKey>历史图片</AgentRunTraceContextKey>
+                  <AgentRunTraceContextValue>候选 {String(projectionNumber(update.historicalVisualProjection, 'candidateCount'))}，内联 {String(projectionNumber(update.historicalVisualProjection, 'includedInlineImageCount'))}，元数据 {String(projectionNumber(update.historicalVisualProjection, 'metadataOnlyCount'))}，丢弃 {String(projectionNumber(update.historicalVisualProjection, 'droppedCount'))}</AgentRunTraceContextValue>
+                </AgentRunTraceContextRow>
+              )}
+            </AgentRunTraceContextGroupItems>
+            <RuntimeProjectionDecisionList title="历史图片决策" projection={update.historicalVisualProjection} testId="agent-run-round-context-historical-visual-decisions" />
+            <RuntimeProjectionDecisionList title="当前附件决策" projection={update.attachmentProjection} testId="agent-run-round-context-attachment-decisions" />
+            <AgentRunTraceEventActionButton
+              type="button"
+              aria-label={`定位上下文更新事件 ${update.eventId}`}
+              onClick={() => onFocusEvent(update.eventId)}
+            >
+              定位
+            </AgentRunTraceEventActionButton>
+          </AgentRunTraceContextGroup>
+        ))}
+      </AgentRunDebugList>
+      {updates.length > 8 && <AgentRunTraceStateMessage>还有 {updates.length - 8} 轮上下文更新，请复制调试包查看完整列表。</AgentRunTraceStateMessage>}
+    </AgentRunDebugPanel>
   )
 }
 
@@ -2177,6 +2342,14 @@ function historyProjectionActionLabel(action: string): string {
   if (action === 'compact') return '历史压缩'
   if (action === 'drop') return '历史过滤'
   if (action === 'retain') return '摘要保留'
+  return action
+}
+
+function promptBudgetDecisionActionLabel(action: string): string {
+  if (action === 'drop') return 'Prompt 丢弃'
+  if (action === 'compact') return 'Prompt 压缩'
+  if (action === 'truncate') return 'Prompt 截断'
+  if (action === 'retain') return 'Prompt 保留'
   return action
 }
 
@@ -2759,6 +2932,7 @@ function ModelCallRelatedItems({
 }
 
 function PromptDetail({ detail }: { detail: AgentPromptDetailDisplay }) {
+  const budgetDecisions = detail.budgetDecisions ?? []
   return (
     <AgentRunDebugStack>
       <AgentRunDebugPanel variant="card">
@@ -2837,6 +3011,26 @@ function PromptDetail({ detail }: { detail: AgentPromptDetailDisplay }) {
               </AgentRunTraceContextGroup>
             ))}
           </AgentRunTraceContextGroups>
+        </AgentRunDebugPanel>
+      )}
+      {budgetDecisions.length > 0 && (
+        <AgentRunDebugPanel data-testid="agent-run-prompt-budget-decisions" variant="card">
+          <AgentRunSectionEyebrow>预算裁剪</AgentRunSectionEyebrow>
+          <AgentRunTraceContextGroupItems>
+            {budgetDecisions.map((decision, index) => (
+              <AgentRunTraceContextRow key={`${decision.partId}:${decision.action}:${index}`}>
+                <AgentRunTraceContextKey>{promptBudgetDecisionActionLabel(decision.action)}</AgentRunTraceContextKey>
+                <AgentRunTraceContextValue>
+                  {[
+                    decision.stage,
+                    decision.partId,
+                    decision.originalChars && decision.renderedChars ? `${decision.originalChars} -> ${decision.renderedChars} 字符` : decision.originalChars ? `原始 ${decision.originalChars} 字符` : decision.renderedChars ? `进入 ${decision.renderedChars} 字符` : undefined,
+                    decision.reason ? redactAgentTraceDebugText(decision.reason) : undefined,
+                  ].filter(Boolean).join(' / ')}
+                </AgentRunTraceContextValue>
+              </AgentRunTraceContextRow>
+            ))}
+          </AgentRunTraceContextGroupItems>
         </AgentRunDebugPanel>
       )}
       {detail.parts.length > 0 && (
@@ -3131,12 +3325,10 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
   )
 }
 
-function formatAgentTraceRawJSON(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
+function runtimeSkillActivationLabel(reason: string): string {
+  if (reason === 'trigger') return '触发加载'
+  if (reason === 'default') return '配置文件加载'
+  return `加载 ${reason}`
 }
 
 function buildRunSummary(

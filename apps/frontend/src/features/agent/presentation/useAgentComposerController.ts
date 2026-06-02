@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { DragEvent, RefObject } from 'react'
+import type { ClipboardEvent, DragEvent, RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/infrastructure/api'
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/features/agent/domain/agentAttachments'
@@ -38,6 +38,8 @@ export function useAgentComposerController({
   const updateConversationDraft = useAgentStore((s) => s.updateConversationDraft)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadingFileNames, setUploadingFileNames] = useState<string[]>([])
+  const [uploadedFileCount, setUploadedFileCount] = useState(0)
   const [draggingFiles, setDraggingFiles] = useState(false)
   const input = draft.input
   const attachments = draft.attachments
@@ -115,28 +117,32 @@ export function useAgentComposerController({
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files)
     if (list.length === 0) return
-    const pending = await Promise.all(list.map(async (file) => {
-      const kind = attachmentKind(file.type, file.name)
-      const previewUrl = (kind === 'image' || kind === 'video') ? createObjectUrl(file) : undefined
-      return {
-        id: `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        name: file.name,
-        type: kind,
-        mimeType: file.type || 'application/octet-stream',
-        size: file.size,
-        previewUrl,
-        ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
-      } satisfies AgentAttachment
-    }))
-    const currentAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
-    updateDraft({ attachments: [...currentAttachments, ...pending] })
+    let pending: AgentAttachment[] = []
     setUploading(true)
+    setUploadingFileNames(list.map((file, index) => file.name || `clipboard-${index + 1}`))
+    setUploadedFileCount(0)
     try {
+      pending = await Promise.all(list.map(async (file) => {
+        const kind = attachmentKind(file.type, file.name)
+        const previewUrl = (kind === 'image' || kind === 'video') ? createObjectUrl(file) : undefined
+        return {
+          id: `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name || 'clipboard-file',
+          type: kind,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          previewUrl,
+          ...(kind === 'image' ? { dataUrl: await fileToDataURL(file) } : {}),
+        } satisfies AgentAttachment
+      }))
+      const currentAttachments = useAgentStore.getState().getConversationDraft(userId, conversationId).attachments
+      updateDraft({ attachments: [...currentAttachments, ...pending] })
       const uploaded: AgentAttachment[] = []
       for (const [index, file] of list.entries()) {
         const fd = new FormData()
         fd.append('file', file)
         const { data } = await api.post('/resources/upload', fd)
+        setUploadedFileCount(index + 1)
         uploaded.push({
           ...attachmentFromResource(data as RawResource),
           id: pending[index]?.id ?? `res-${(data as RawResource).ID}`,
@@ -160,6 +166,8 @@ export function useAgentComposerController({
       throw e
     } finally {
       setUploading(false)
+      setUploadingFileNames([])
+      setUploadedFileCount(0)
       if (fileRef.current) fileRef.current.value = ''
     }
   }
@@ -179,6 +187,37 @@ export function useAgentComposerController({
 
   function hasFileDrop(event: DragEvent) {
     return dataTransferTypes(event).includes('Files') || event.dataTransfer.files.length > 0
+  }
+
+  function clipboardFiles(event: ClipboardEvent): File[] {
+    const directFiles = Array.from(event.clipboardData.files)
+    if (directFiles.length > 0) return directFiles.map(normalizeClipboardFile)
+
+    return Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file)
+      .map(normalizeClipboardFile)
+  }
+
+  function normalizeClipboardFile(file: File, index: number): File {
+    if (file.name.trim()) return file
+    return new File([file], `clipboard-${Date.now().toString(36)}-${index + 1}${extensionForMime(file.type)}`, {
+      type: file.type || 'application/octet-stream',
+      lastModified: file.lastModified,
+    })
+  }
+
+  function extensionForMime(mimeType: string) {
+    if (mimeType === 'image/png') return '.png'
+    if (mimeType === 'image/jpeg') return '.jpg'
+    if (mimeType === 'image/webp') return '.webp'
+    if (mimeType === 'image/gif') return '.gif'
+    if (mimeType === 'video/mp4') return '.mp4'
+    if (mimeType === 'audio/mpeg') return '.mp3'
+    if (mimeType === 'audio/wav') return '.wav'
+    if (mimeType.startsWith('text/')) return '.txt'
+    return ''
   }
 
   function hasResourceDrop(event: DragEvent) {
@@ -260,6 +299,14 @@ export function useAgentComposerController({
     await addResourceFromDrop(event)
   }
 
+  async function handleComposerPaste(event: ClipboardEvent) {
+    const files = clipboardFiles(event)
+    if (files.length === 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    await uploadFiles(files)
+  }
+
   function updateMentionState(value: string, caret: number) {
     const before = value.slice(0, caret)
     const match = before.match(RESOURCE_MENTION_TRIGGER_RE)
@@ -328,11 +375,14 @@ export function useAgentComposerController({
     mentionResults,
     resourceAttachmentIndex,
     uploading,
+    uploadedFileCount,
+    uploadingFileNames,
     addMentionTrigger,
     handleComposerDragEnter,
     handleComposerDragLeave,
     handleComposerDragOver,
     handleComposerDrop,
+    handleComposerPaste,
     insertResourceMention,
     removeAttachment,
     revokeAttachmentPreviewUrls,

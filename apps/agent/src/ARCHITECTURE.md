@@ -7,59 +7,76 @@ This directory is the active namespace for the agent architecture.
 | Layer | Owns | Must Not Own |
 | --- | --- | --- |
 | `application/` | Agent use cases, run/thread lifecycle facade, resume flows | Model provider details, raw HTTP routing, domain entity algorithms |
-| `orchestration/` | Agent loop/graph, model turn -> policy -> tool execution control flow | Tool business logic, persistence implementation |
-| `state/` | Run/thread types, factories, trace builders, stores | LLM decisions, tool execution side effects |
-| `context/` | Current UI/project/selection context shaping and prompt context text | Project writes, model calls |
-| `tools/` | Tool registry, permissions, policy gates, runtime/MCP tool execution | Agent run lifecycle, domain-specific proposals |
-| `drafts/` | Local draft lifecycle, apply preview, backend apply client boundary | LLM planning, tool authorization |
-| `memory/` | Memory store and memory manager | Prompt compilation policy, formal project writes |
-| `manifest/` | Resolved run manifest snapshots, skill metadata, plugin catalog | User-facing permission concepts, runtime execution decisions |
-| `model/` | Model config and model client adapter | Tool policy, domain state machines |
-| `contracts/` | Extension contracts used by domain-specific agents | Hardcoded domain branches inside core runtime |
-| `domains/` | Domain modules such as production orchestration | Generic agent loop, HTTP server wiring |
-| `ports/` | Runtime-facing interfaces that connect orchestration, domains, and adapters | Concrete business implementations or external transport details |
-| `adapters/` | External adapter boundaries such as HTTP and MCP | Core business rules |
+| `orchestration/` | Agent loop/graph, model turn -> permission gates -> tool execution control flow, split by graph/model/tools | Tool business logic, persistence implementation |
+| `state/` | Run/thread types, task graph projection, subagent helpers, trace builders, stores | LLM decisions, tool execution side effects |
+| `context/` | Current UI/project/selection context shaping, prompt context text, command/input normalization, runtime context extraction | Project writes, model calls |
+| `tools/` | Tool registry, permissions, permission gates, runtime/MCP tool execution, runtime tool handlers split by registry/permissions/catalog/calls/handlers | Agent run lifecycle, draft persistence |
+| `drafts/` | Local draft lifecycle, proposal creation, apply preview, runtime draft normalization, backend apply client boundary | LLM planning, tool authorization |
+| `memory/` | Memory store, memory types, and memory manager | Prompt compilation rules, formal project writes |
+| `catalog/` | Manifest defaults, catalog loading/reload, registry state/types, inspect views, validation | Runtime execution decisions, model/tool side effects |
+| `model/` | Model config, model client adapter, model router, provider schema projection | Tool permission rules, domain state machines |
+| `reference/` | Reference loading, storage, search, and manager facade | Runtime run orchestration, prompt assembly rules |
+| `files/` | Agent file refs, edit primitives, file-system facade, and providers | Draft lifecycle decisions, tool authorization |
+| `generation/` | Generation job events, backend error normalization, and retry repair | Runtime work scheduling, MCP transport ownership |
+| `media/` | Image preprocessing and video-frame extraction helpers | Backend route handling, draft persistence |
+| `configFiles/` | Config-file merge and resolution helpers | Catalog loading, runtime skill activation |
+| `telemetry/` | Runtime telemetry registry and exporters | Business decisions or route parsing |
+| `updates/` | Agent update policy evaluation | Catalog/runtime mutation execution |
+| `messages/` | User/model/tool communication shapes and message formatting helpers | Trace storage, persistence, model transport |
+| `trace/` | Compact observability projections and trace debug views | Context storage, large payload retention, thread mutation |
+| `shared/` | Cross-layer JSON/value primitives and protocol DTO types | Runtime state ownership, domain behavior, adapter logic |
+| `server/` | HTTP composition, request helpers, route groups, runtime DTO projection, SSE streams, split by core/protocol/routes/streams | Application use case logic, orchestration decisions |
+| `bootstrap/` | Process startup composition helpers, split by entrypoint surface such as `server/` | Request handling, runtime use case decisions |
+| `cli/` | CLI command implementation and local command parsing | Long-running server composition, HTTP route ownership |
+| `contracts/` | Extension contracts used by domain-specific agents, split by contract surface such as `runtime/` | Hardcoded domain branches inside core runtime |
+| `ports/` | Runtime-facing interfaces split by capability, such as draft/files/media/project/runtime/tools | Concrete business implementations or external transport details |
+| `adapters/` | External adapter boundaries split by capability, such as draft/files/media/project/MCP | Core business rules |
 
 ## Rules
 
 1. New agent code should import through these top-level layer folders whenever possible.
 2. Move implementation one slice at a time with tests.
-3. `server.ts` remains the composition root. It wires adapters, stores, contracts, and runtimes.
+3. `server.ts` and `cli.ts` remain thin executable shims. Server composition lives in `server/server.ts`; CLI command behavior lives in `cli/cli.ts`.
 4. Domain behavior enters the core agent through tools and contracts, not through manifest-id conditionals in the runtime.
-5. Runtime tool handlers implement interfaces from `ports/`; domain handlers must not import `application/` or `orchestration/` directly.
-6. There is one active orchestration engine: `orchestration/agentGraph`.
+5. Runtime tool handlers live in `tools/handlers/` and implement interfaces from `ports/`; they must not import `application/` or `orchestration/` directly.
+6. There is one active orchestration engine: `orchestration/graph/runner/agentGraph`.
 7. Public run creation has one path: `/threads/{id}/runs` through `AgentRuntimeRouter`. Do not reintroduce public `/runs`, `/runs/tool`, or `/context` compatibility endpoints.
-8. Agent capability expansion flows through skills, not direct tool self-loading: a run may activate skills, but tools still require catalog/profile/manifest authorization and the final `applyToolPolicy` gate.
+8. Agent capability expansion flows through skills, not direct tool self-loading: a run may activate skills, but tools still require catalog/config-file/manifest authorization and the final `applyToolPermissions` gate.
 9. Orchestration calls external tools through `ExternalToolGatewayPort`; it must not initialize MCP or translate MCP tool names directly.
 10. Draft apply flows call backend writes/previews through draft ports. Application/domain code must not branch on backend transport errors such as HTTP client classes.
-11. `orchestration/agentGraph.ts` is the graph runner, not the owner of model transport, tool policy, execute-turn aggregation, trace payload formatting, or result DTO shaping.
-12. Graph contracts live in `orchestration/agentGraphTypes.ts`; graph helpers should import `AgentGraphInput` and `AgentGraphTraceInput` from that module instead of depending on the runner.
+11. `orchestration/graph/runner/agentGraph.ts` is the graph runner, not the owner of model transport, tool permission, execute-turn aggregation, trace payload formatting, or result DTO shaping.
+12. Graph contracts live in `orchestration/graph/types/agentGraphTypes.ts`; graph helpers should import `AgentGraphInput` and `AgentGraphTraceInput` from that module instead of depending on the runner.
 13. Trace events are observability records, not context storage. They should carry ids, refs, hashes, counts, status, and short summaries by default.
 14. Full context and payload bodies belong behind versioned context records, explicit evidence lookup, or external blobs. Do not put prompt bodies, tool results, model messages/tools, HTTP bodies, or assistant content directly into ordinary trace events.
 
 ## Agent Graph Boundary
 
-`orchestration/agentGraph.ts` should stay a thin state-machine file. Its job is to wire the LangGraph states and route between model, policy, and execute nodes.
+`orchestration/graph/runner/agentGraph.ts` should stay a thin state-machine file. Its job is to wire the LangGraph states and route between model, permission, and execute nodes.
 
 Detailed behavior belongs in focused helpers:
 
-- `agentGraphModelInput.ts`, `agentGraphModelTurnContext.ts`, and `agentGraphModelCall.ts` prepare prompts and call the reasoning model.
-- `agentGraphPolicyTurn.ts` applies tool policy, user-input pauses, approvals, and skill activation repair.
-- `agentGraphExecuteTurn.ts` executes approved tool turns, handles catalog refresh, queues default draft apply calls, and resolves remaining approvals.
-- `agentGraphResult.ts` shapes the final graph result and assistant-content fallback.
-- `agentGraphTypes.ts` owns shared graph input/trace contracts.
+- `orchestration/model/graph/input/agentGraphModelInput.ts`, `orchestration/model/graph/context/agentGraphModelTurnContext.ts`, and `orchestration/model/graph/call/agentGraphModelCall.ts` prepare prompts and call the reasoning model.
+- `orchestration/model/permissions/turn/agentGraphPermissionTurn.ts` applies tool permissions, user-input pauses, approvals, and skill activation repair.
+- `orchestration/graph/execution/agentGraphExecuteTurn.ts` executes approved tool turns, handles catalog refresh, queues default draft apply calls, and resolves remaining approvals.
+- `orchestration/graph/result/agentGraphResult.ts` shapes the final graph result and assistant-content fallback.
+- `orchestration/graph/types/agentGraphTypes.ts` owns shared graph input/trace contracts.
 
-New graph behavior should extend one of these helpers or add a similarly focused helper. Do not grow the graph runner with model-provider calls, direct `applyToolPolicy` calls, tool execution loops, or domain-specific fallback logic.
+New graph behavior should extend one of these helpers or add a similarly focused helper. Do not grow the graph runner with model-provider calls, direct `applyToolPermissions` calls, tool execution loops, or domain-specific fallback logic.
 
 ## Runtime Tool Boundaries
 
-Runtime tools are split into three responsibilities:
+Runtime tools are split into layered responsibilities:
 
-- `orchestration/toolExecutor.ts` owns policy interception, runtime handler lookup, and fallback to `ExternalToolGatewayPort`.
-- `domains/*/*ToolHandler.ts` owns domain-specific runtime tool behavior and only talks to injected ports.
-- `adapters/*` owns concrete MCP/backend transport calls and transport-specific error normalization.
+- `orchestration/tools/execution/toolExecutor.ts` owns permission interception, runtime handler lookup, and fallback to `ExternalToolGatewayPort`.
+- `tools/registry/` owns registered tool definitions, names, execution metadata, and risk defaults.
+- `tools/permissions/` owns authorization, approval, sandbox, and unavailable-reason decisions.
+- `orchestration/tools/rules/` owns graph-local execution rules such as default draft apply queueing and concurrency.
+- `tools/catalog/` owns capability and visible-tool projections from catalog/config-file/runtime context.
+- `tools/calls/` owns normalized tool-call input and rollback metadata records.
+- `tools/handlers/` owns runtime tool behavior and only talks to injected ports.
+- `adapters/{draft,files,media,project,mcp}/` owns concrete MCP/backend transport calls and transport-specific error normalization.
 
-This keeps new tools from adding `if (toolName === ...)` branches in orchestration. Add a domain handler for runtime behavior, or add an external gateway adapter for transport fallback behavior.
+This keeps new tools from adding `if (toolName === ...)` branches in orchestration. Add a tool handler for runtime behavior, or add an external gateway adapter for transport fallback behavior.
 
 Draft apply has two separate boundaries:
 
@@ -68,13 +85,57 @@ Draft apply has two separate boundaries:
 
 Both boundaries return transport-neutral results to application/domain code. Backend HTTP error details are normalized inside adapters before crossing into these layers.
 
+## Catalog and Skill Boundaries
+
+`catalog/` separates durable catalog concerns from runtime activation:
+
+- `catalog/manifest/` owns current-agent manifest defaults and normalization.
+- `catalog/loading/` owns file/plugin catalog loading, reload staging, MCP virtual packs, and pack install/remove.
+- `catalog/registry/` owns catalog registry types, registry construction, and persisted catalog state.
+- `catalog/inspect/` owns public catalog inspect views and catalog issue blocking rules.
+- `catalog/validation/` owns linter and layering invariants.
+
+`skills/` owns runtime skill selection and prompt composition over the catalog:
+
+- `skills/activation/` owns active-skill state, active-skill views, and trigger evaluation.
+- `skills/resolution/` owns intent detection and runtime layer resolution.
+- `skills/prompt/` owns prompt composition for selected skills.
+
+`model/` keeps runtime model concerns separated by role:
+
+- `model/client/` owns provider/gateway calls and model response normalization.
+- `model/config/` owns persisted runtime model config and model content helpers.
+- `model/router/` owns capability routing over configured models.
+- `model/schema/` owns provider-specific tool schema projection.
+
+`drafts/` keeps local draft state separate from backend apply behavior:
+
+- `drafts/store/` owns persisted local draft records and validation.
+- `drafts/apply/` owns local apply preview/review helpers.
+- `drafts/proposal/` owns proposal draft creation and proposal snapshot normalization.
+- `drafts/runtime/` owns runtime draft input/content normalization.
+- `drafts/adapters/` owns backend and MCP apply clients.
+
+`memory/` is split into `memory/store/`, `memory/manager/`, and `memory/shared/` so persistence, write rules, and shared memory DTOs do not grow in one flat namespace.
+
+Supporting runtime modules follow the same split:
+
+- `reference/loading/`, `reference/store/`, `reference/search/`, `reference/manager/`, and `reference/shared/` separate file loading, storage, query ranking, facade behavior, and DTOs.
+- `files/core/` owns canonical refs, edit primitives, and the file-system facade; `files/providers/` owns concrete file providers.
+- `generation/events/`, `generation/errors/`, and `generation/repair/` separate lifecycle projection, backend error normalization, and retry repair.
+- `media/image/` and `media/video/` keep image preprocessing and video frame extraction independent.
+- `configFiles/merge/` and `configFiles/resolution/` keep config-file composition separate from catalog config file lookup.
+- `telemetry/runtime/` owns the in-memory telemetry registry; `telemetry/exporters/` owns OTLP/Prometheus projection.
+- `updates/policy/` owns update decision policy without applying updates directly.
+- `shared/types.ts` and `shared/jsonValue.ts` are the root cross-layer primitives. More specific shared DTOs stay inside their owning layer, such as `state/shared/`, `memory/shared/`, and `reference/shared/`.
+
 ## Context, Trace, and Message Domains
 
 The agent runtime separates three concepts that are easy to conflate:
 
-- `contextManager/` currently owns the canonical context ledger and model-turn context bundle. If this moves under `domains/context/`, move the implementation and delete the old entrypoint rather than keeping two import paths. Context records are versioned refs and support mutation semantics: append, amend, and delete.
-- `domains/trace/` owns compact observability projections. Trace data records what happened and how to find supporting evidence; it must not become the default storage location for large payloads.
-- `domains/message/` owns user/model/tool communication shapes. Messages may be rendered into prompts or thread history, but trace records should reference message ids and content hashes rather than duplicate message content.
+- `context/ledger/`, `context/prompt/`, `context/tool-result/`, `context/diagnostics/`, `context/command/`, `context/input/`, and `context/runtime/` own canonical context records, model-turn prompt assembly, tool-result projection, local context diagnostics, command parsing, client/run input normalization, and runtime context extraction. Context records are versioned refs and support mutation semantics: append, amend, and delete.
+- `trace/` owns compact observability projections. Trace data records what happened and how to find supporting evidence; it must not become the default storage location for large payloads.
+- `messages/` owns user/model/tool communication shapes. Messages may be rendered into prompts or thread history, but trace records should reference message ids and content hashes rather than duplicate message content.
 
 The default data shape for cross-domain links is a ref:
 
@@ -82,21 +143,21 @@ The default data shape for cross-domain links is a ref:
 - Payload links use hashes such as `bodyHash`, `resultHash`, `contentHash`, and character counts.
 - Debug drilldown uses the run debug ledger and evidence lookup APIs to resolve selected refs.
 
-Exceptions must be explicit and narrow. If a caller needs the full body of an HTTP exchange, a tool result, or a prompt snapshot, add a dedicated evidence/blob path with a retention policy instead of expanding the trace event schema.
+Exceptions must be explicit and narrow. If a caller needs the full body of an HTTP exchange, a tool result, or a prompt snapshot, add a dedicated evidence/blob path with retention rules instead of expanding the trace event schema.
 
 ## Runtime Router and Thread Runtime
 
-`application/runtimeRouter.ts` is the process-wide application router. It is the only facade that the HTTP server and UI-facing entrypoints should call directly, and it should stay a composition boundary over focused runtime bridges.
+`application/router/runtimeRouter.ts` is the process-wide application router. It is the only facade that the HTTP server and UI-facing entrypoints should call directly, and it should stay a composition boundary over focused runtime bridges. Runtime use cases live in application sublayers such as `run/`, `thread/`, `taskgraph/`, `catalog/`, `work/`, `stream/`, `draft/`, `memory/`, `read/`, `graph/`, `local-command/`, and `shared/`; new runtime modules should join the matching sublayer instead of growing the application root.
 
-`server.ts` should stay an HTTP composition root, not the owner of runtime protocol projections. Runtime snapshot DTO mapping lives in `serverRuntimeProtocol.ts`; SSE subscription and event streaming lives in `serverRuntimeStreams.ts`.
+`src/server.ts` and `src/cli.ts` are thin executable shims. HTTP implementation lives in `server/server.ts`, which should stay a composition root rather than the owner of runtime protocol projections. CLI command behavior lives in `cli/cli.ts`. Runtime snapshot DTO mapping lives in `server/protocol/runtimeProtocol.ts`; SSE subscription and event streaming lives in `server/streams/runtimeStreams.ts`; shared HTTP helpers live in `server/core/http.ts`.
 
-HTTP route groups with non-trivial request parsing, persistence calls, or telemetry phases should move behind focused server route modules. Model configuration endpoints live in `serverModelConfigRoutes.ts`; new route groups should follow that pattern instead of growing `createAgentRequestListener`.
+HTTP route groups with non-trivial request parsing, persistence calls, or telemetry phases should move behind focused server route modules. Model configuration endpoints live in `server/routes/modelConfigRoutes.ts`; new route groups should follow that pattern instead of growing `createAgentRequestListener`.
 
 A user-visible thread owns its runtime state through persisted `AgentThread` and `AgentRun` records, plus the `/threads/{id}/runtime` projection. Thread recovery must start from these persisted records rather than from in-memory promises or controllers.
 
-Runtime visibility rules are shared application policy, not router-private helpers. Thread snapshots and stream replay both use `runtimeRunVisibility.ts` to decide when worker-run approvals or input requests should display on another thread. Thread snapshot run selection lives in `runtimeThreadSnapshotSelection.ts`, and thread/session snapshot assembly lives behind `runtimeSnapshotBridge.ts`.
+Runtime visibility rules are shared application rules, not router-private helpers. Thread snapshots and stream replay both use `run/runtimeRunVisibility.ts` to decide when worker-run approvals or input requests should display on another thread. Thread snapshot run selection lives in `thread/runtimeThreadSnapshotSelection.ts`, and thread/session snapshot assembly lives behind `read/runtimeSnapshotBridge.ts`.
 
-Runtime facade methods should delegate behavior to bridges instead of owning workflow decisions inline. Plan update side effects live behind `runtimePlanToolsBridge.ts`; thread deletion active-run guards live behind `runtimeThreadOperationsBridge.ts`.
+Runtime facade methods should delegate behavior to bridges instead of owning orchestration decisions inline. Plan update side effects live behind `taskgraph/runtimePlanToolsBridge.ts`; thread deletion active-run guards live behind `thread/runtimeThreadOperationsBridge.ts`.
 
 All user-triggered execution, including diagnostic single-tool runs, enters through `/threads/{id}/runs`. Diagnostic tool execution may pass a `toolCall` on that route, but external callers must not bypass the thread route or call lower-level runtime creation routes directly.
 
@@ -111,6 +172,10 @@ Startup recovery follows this contract:
 
 Runtime works are execution objects that can outlive one tool call and can be observed, waited on, or cancelled.
 
+- `runtime-work/core/` owns protocol-facing runtime work types and terminal status helpers.
+- `runtime-work/manager/` owns provider dispatch, observation, waiting, cancellation, and manager tests.
+- `runtime-work/store/` owns in-memory and agent-store-backed runtime work persistence adapters.
+- `runtime-work/providers/` owns concrete runtime work providers such as generation jobs and subagent runs.
 - Ordinary synchronous tool calls return their final result or error immediately and should not be wrapped as runtime works.
 - `generation_job` is an external async runtime work backed by the MovScript backend job handle. It is managed through the `core_work_start/get/list/wait/cancel` tools.
 - `core_work_start` is submit-only: it creates the work and returns the work handle, but it does not wait for backend completion or imply success. When a `continuationPolicy` is present, the runtime monitors the work in the background and schedules a continuation when the policy is satisfied. Use `core_work_wait/get/list` only for explicit inspection or blocking waits.
@@ -122,7 +187,7 @@ Runtime works are execution objects that can outlive one tool call and can be ob
 Continuation wakeups are centralized through `RuntimeWakeCoordinator`; callers enqueue lifecycle signals there instead of directly deciding whether to resume a thread.
 
 - Wake events are persisted in the store and drained per scope so duplicate active signals coalesce and a thread/run has one wake decision loop at a time.
-- Runtime work providers, `RuntimeWorkManager`, `RuntimeWakeCoordinator`, and observe-failure traces are composed behind `runtimeWorkCoordinatorBridge.ts`; `runtimeRouter.ts` should not create or observe runtime work directly.
+- Runtime work providers, `RuntimeWorkManager`, `RuntimeWakeCoordinator`, and observe-failure traces are composed behind `work/bridge/runtimeWorksBridge.ts`; `runtimeRouter.ts` should not create or observe runtime work directly.
 - The drain loop owns the runtime decision: if queued wake events or runnable continuations exist, drain and advance; if no tool call, no wake event, and no final output exists, the runtime remains waiting; if no tool call, no wake event, and final output exists, the run is allowed to finish.
 - `workStarted` registers continuation policy for async work. It does not synchronously poll external providers from the tool bridge; observation ticks are scheduled by the wake coordinator and re-enter as queued `work.observed` events.
 - `workObserved` observes non-terminal work through the provider, evaluates work completion, and advances the parent thread when the continuation is ready and unblocked.

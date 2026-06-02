@@ -90,13 +90,17 @@ export async function mockGenerationAppShell(page: Page, kind: GenerationMediaKi
 
   await page.route('http://127.0.0.1:28765/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/health') {
+    if (url.pathname === '/livez') {
+      await fulfillJSON(route, { ok: true })
+      return
+    }
+    if (url.pathname === '/runtime/compat' || url.pathname === '/health') {
       await fulfillJSON(route, {
         ok: true,
         service: 'movscript-agent',
         mode: 'e2e',
         mcpEndpoint: 'http://127.0.0.1:29999/mcp',
-        runtime: { apiVersion: 1, features: ['generation-monitoring'], endpoints: [] },
+        runtime: { apiVersion: 1, features: ['model-config', 'runtime-capabilities', 'generation-monitoring'], endpoints: ['/livez', '/runtime/compat'] },
       })
       return
     }
@@ -106,13 +110,13 @@ export async function mockGenerationAppShell(page: Page, kind: GenerationMediaKi
         resources: [],
         tools: [],
         registeredTools: [],
-        defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+        activeAgentManifest: DEFAULT_AGENT_MANIFEST,
       })
       return
     }
     if (url.pathname === '/capabilities') {
       await fulfillJSON(route, {
-        defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+        activeAgentManifest: DEFAULT_AGENT_MANIFEST,
         mcp: { connected: true, resources: [], tools: [] },
         registry: [],
         resolvedTools: { discovered: [], available: [], blocked: [], byName: {} },

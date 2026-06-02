@@ -1,16 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { defaultAgentRunPresets, normalizeAgentSettings } from '@/features/agent/state/agentStore'
 import type { PublicModel } from '@/types'
-import type { AgentCatalogProfile, AgentCatalogSkill } from '@/shared/infrastructure/localAgentClient'
+import type { AgentCatalogConfigFile, AgentCatalogSkill } from '@/shared/infrastructure/localAgentClient'
 import {
   AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL,
   AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION,
   type AgentSettingsSnapshot,
   buildSettingsSnapshot,
   parseSettingsSnapshot,
-  resolveSnapshotRunPresetImport,
   validateSettingsSnapshotReferences,
 } from '@/features/agent/domain/agentSettingsSnapshot'
 
@@ -24,8 +22,7 @@ function settingsSnapshotFixture(patch: Partial<AgentSettingsSnapshot>): AgentSe
   }
 }
 
-test('buildSettingsSnapshot exports model, policies, and run presets', () => {
-  const runPresets = defaultAgentRunPresets()
+test('buildSettingsSnapshot exports model, config files, defaults and config-file-scoped tool overrides', () => {
   const snapshot = buildSettingsSnapshot({
     config: {
       configured: true,
@@ -42,25 +39,40 @@ test('buildSettingsSnapshot exports model, policies, and run presets', () => {
       updatedAt: '2026-05-18T00:00:00.000Z',
       capabilities: [],
     },
-    profileId: 'default',
-    skillPolicy: [{ id: 'skill-a', enabled: true }],
-    toolPolicy: [{ name: 'tool-a', mode: 'allow', approval: 'on_write' }],
-    activeRunPresetId: 'balanced',
-    runPresets,
+    configFileId: 'base',
+    configFiles: [configFileFixture({
+      id: 'base',
+      skillIds: ['skill-a'],
+      approvalDefaults: { write: 'on_write' },
+      toolGrants: [{ name: 'tool-a', mode: 'allow', approval: 'on_write' }],
+      limits: { maxHistoryMessages: 16, maxToolCalls: 9, maxIterations: 4, executionMode: 'compact', allowForcedToolCalls: false },
+    })],
+    skillConfig: [{ id: 'skill-a', enabled: true }],
+    toolPermissionOverrides: [{
+      configFileId: 'base',
+      toolGrants: [{ name: 'tool-a', mode: 'allow', approval: 'on_write' }],
+    }],
   })
 
   assert.equal(snapshot.schema, 'movscript.agent.settings.snapshot.v1')
   assert.equal(snapshot.schemaVersion, AGENT_SETTINGS_SNAPSHOT_SCHEMA_VERSION)
   assert.equal(snapshot.schemaUrl, AGENT_SETTINGS_SNAPSHOT_SCHEMA_URL)
-  assert.equal(snapshot.modelConfig?.model, 'gpt-test')
-  assert.equal(snapshot.defaultProfileId, 'default')
-  assert.equal(snapshot.skillPolicy?.[0].id, 'skill-a')
-  assert.equal(snapshot.toolPolicy?.[0].approval, 'on_write')
-  assert.equal(snapshot.runPresets?.length, runPresets.length)
+  assert.equal(snapshot.model?.model, 'gpt-test')
+  assert.equal(snapshot.activeConfigFileId, 'base')
+  assert.equal(snapshot.configFiles?.[0].id, 'base')
+  assert.equal(snapshot.configFiles?.[0].approvalDefaults?.write, 'on_write')
+  assert.equal(snapshot.runtimeLimits?.maxHistoryMessages, 16)
+  assert.equal(snapshot.runtimeLimits?.maxToolCalls, 9)
+  assert.equal(snapshot.runtimeLimits?.executionMode, 'compact')
+  assert.equal(snapshot.runtimeLimits?.allowForcedToolCalls, false)
+  assert.equal(parseSettingsSnapshot(JSON.stringify(snapshot)).runtimeLimits?.executionMode, 'compact')
+  assert.deepEqual(snapshot.skillConfig?.[0], { id: 'skill-a', enabled: true })
+  assert.equal(snapshot.toolPermissionOverrides?.[0].configFileId, 'base')
+  assert.equal(snapshot.toolPermissionOverrides?.[0].toolGrants[0]?.approval, 'on_write')
 })
 
-test('buildSettingsSnapshot strips sensitive model base URL credentials', () => {
-  const snapshot = buildSettingsSnapshot({
+test('buildSettingsSnapshot strips sensitive model URL credentials and omits secret model ids', () => {
+  const urlSnapshot = buildSettingsSnapshot({
     config: {
       configured: true,
       model: 'gpt-test',
@@ -74,18 +86,14 @@ test('buildSettingsSnapshot strips sensitive model base URL credentials', () => 
       credentialStatus: { required: true, configured: true, sourceEnv: [], acceptedEnv: [] },
       capabilities: [],
     },
-    profileId: '',
-    skillPolicy: [],
-    toolPolicy: [],
-    activeRunPresetId: 'balanced',
-    runPresets: defaultAgentRunPresets(),
+    configFileId: '',
+    configFiles: [],
+    skillConfig: [],
+    toolPermissionOverrides: [],
   })
+  assert.equal(urlSnapshot.model?.baseURL, 'https://api.openai.com/v1?project=demo')
 
-  assert.equal(snapshot.modelConfig?.baseURL, 'https://api.openai.com/v1?project=demo')
-})
-
-test('buildSettingsSnapshot omits direct provider model config when model id contains secrets', () => {
-  const snapshot = buildSettingsSnapshot({
+  const secretModelSnapshot = buildSettingsSnapshot({
     config: {
       configured: true,
       model: 'sk-proj-exampleSecretValue123456789',
@@ -98,364 +106,157 @@ test('buildSettingsSnapshot omits direct provider model config when model id con
       credentialStatus: { required: true, configured: true, sourceEnv: [], acceptedEnv: [] },
       capabilities: [],
     },
-    profileId: '',
-    skillPolicy: [],
-    toolPolicy: [],
-    activeRunPresetId: 'balanced',
-    runPresets: defaultAgentRunPresets(),
+    configFileId: '',
+    configFiles: [],
+    skillConfig: [],
+    toolPermissionOverrides: [],
   })
-
-  assert.equal(snapshot.modelConfig, undefined)
+  assert.equal(secretModelSnapshot.model, undefined)
 })
 
-test('parseSettingsSnapshot rejects duplicate run preset ids', () => {
-  const preset = defaultAgentRunPresets()[0]
-  const text = JSON.stringify({
+test('parseSettingsSnapshot validates duplicate ids and unsupported fields', () => {
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      skillConfig: [
+        { id: 'skill-a', enabled: true },
+        { id: 'skill-a', enabled: false },
+      ],
+    })),
+    /skillConfig 2 id is duplicated/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      toolPermissionOverrides: [
+        { configFileId: 'base', toolGrants: [] },
+        { configFileId: 'base', toolGrants: [] },
+      ],
+    })),
+    /toolPermissionOverrides 2 configFileId is duplicated/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      toolPermissionOverrides: [{
+        configFileId: 'base',
+        toolGrants: [
+          { name: 'tool-a', mode: 'allow' },
+          { name: 'tool-a', mode: 'deny' },
+        ],
+      }],
+    })),
+    /toolPermissionOverrides 1 toolGrants 2 name is duplicated/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      toolPermissionOverrides: [{ configFileId: 'base', toolGrants: [{ name: 'tool-a', mode: 'allow', unknown: true }] }],
+    })),
+    /toolPermissionOverrides 1 toolGrants 1\.unknown is not supported/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      modelConfig: { model: 'gpt-test' },
+    })),
+    /agent settings snapshot\.modelConfig is not supported/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      toolPermissions: [],
+    })),
+    /agent settings snapshot\.toolPermissions is not supported/,
+  )
+})
+
+test('parseSettingsSnapshot accepts full config files and rejects invalid model data', () => {
+  const configFile = configFileFixture({
+    id: 'config-file-exported',
+    skillIds: ['skill-a'],
+    toolGrants: [{ name: 'tool-a', mode: 'allow', approval: 'always' }],
+    metadata: { managed: true },
+  })
+
+  const snapshot = parseSettingsSnapshot(JSON.stringify({
     schema: 'movscript.agent.settings.snapshot.v1',
-    runPresets: [preset, { ...preset }],
-  })
+    activeConfigFileId: 'config-file-exported',
+    configFiles: [configFile],
+  }))
+  assert.equal(snapshot.configFiles?.[0].id, 'config-file-exported')
+  assert.equal(snapshot.configFiles?.[0].metadata?.managed, true)
 
   assert.throws(
-    () => parseSettingsSnapshot(text),
-    /runPresets 2 id is duplicated/,
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      model: { model: 'gpt-test', useForChat: false, useForPlanner: false },
+    })),
+    /model must enable at least one route/,
+  )
+
+  assert.throws(
+    () => parseSettingsSnapshot(JSON.stringify({
+      schema: 'movscript.agent.settings.snapshot.v1',
+      model: { model: 'gpt-test', baseURL: 'https://user:pass@api.openai.com/v1' },
+    })),
+    /model\.baseURL must not include secret URL credentials/,
   )
 })
 
-test('parseSettingsSnapshot rejects duplicate skill policy ids', () => {
-  const text = JSON.stringify({
-    schema: 'movscript.agent.settings.snapshot.v1',
-    skillPolicy: [
-      { id: 'skill-a', enabled: true },
-      { id: 'skill-a', enabled: false },
-    ],
-  })
-
-  assert.throws(
-    () => parseSettingsSnapshot(text),
-    /skillPolicy 2 id is duplicated/,
-  )
-})
-
-test('parseSettingsSnapshot rejects duplicate tool policy names', () => {
-  const text = JSON.stringify({
-    schema: 'movscript.agent.settings.snapshot.v1',
-    toolPolicy: [
-      { name: 'tool-a', mode: 'allow' },
-      { name: 'tool-a', mode: 'deny' },
-    ],
-  })
-
-  assert.throws(
-    () => parseSettingsSnapshot(text),
-    /toolPolicy 2 name is duplicated/,
-  )
-})
-
-test('parseSettingsSnapshot rejects unsupported fields for the v1 schema', () => {
-  const preset = defaultAgentRunPresets()[0]
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      unknown: true,
-    })),
-    /agent settings snapshot\.unknown is not supported/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: { model: 'gpt-test', unknown: true },
-    })),
-    /modelConfig\.unknown is not supported/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      skillPolicy: [{ id: 'skill-a', enabled: true, unknown: true }],
-    })),
-    /skillPolicy 1\.unknown is not supported/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      toolPolicy: [{ name: 'tool-a', mode: 'allow', unknown: true }],
-    })),
-    /toolPolicy 1\.unknown is not supported/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      runPresets: [{ ...preset, unknown: true }],
-    })),
-    /runPresets 1\.unknown is not supported/,
-  )
-})
-
-test('parseSettingsSnapshot rejects unsupported schema version metadata', () => {
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      schemaVersion: 2,
-    })),
-    /unsupported agent settings snapshot schemaVersion/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      schemaUrl: 'https://example.test/agent-settings-snapshot-v1.schema.json',
-    })),
-    /unsupported agent settings snapshot schemaUrl/,
-  )
-})
-
-test('parseSettingsSnapshot rejects model configs with all routes disabled', () => {
-  const text = JSON.stringify({
-    schema: 'movscript.agent.settings.snapshot.v1',
-    modelConfig: {
-      model: 'gpt-test',
-      useForChat: false,
-      useForPlanner: false,
-    },
-  })
-
-  assert.throws(
-    () => parseSettingsSnapshot(text),
-    /modelConfig must enable at least one route/,
-  )
-})
-
-test('parseSettingsSnapshot rejects invalid model config field types', () => {
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: null,
-    })),
-    /modelConfig must be an object/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        model: 'gpt-test',
-        modelConfigId: '7',
-      },
-    })),
-    /modelConfig\.modelConfigId must be a positive integer/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        model: 'gpt-test',
-        baseURL: '',
-      },
-    })),
-    /modelConfig\.baseURL must be a non-empty string/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        model: 'gpt-test',
-        useForChat: 'yes',
-      },
-    })),
-    /modelConfig\.useForChat must be boolean/,
-  )
-})
-
-test('parseSettingsSnapshot rejects model base URLs with secret URL credentials', () => {
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        model: 'gpt-test',
-        baseURL: 'https://user:pass@api.openai.com/v1?project=demo',
-      },
-    })),
-    /modelConfig\.baseURL must not include secret URL credentials/,
-  )
-})
-
-test('parseSettingsSnapshot rejects direct provider model ids with embedded secrets', () => {
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        apiKind: 'openai_responses',
-        model: 'sk-proj-exampleSecretValue123456789',
-      },
-    })),
-    /modelConfig\.model must not include API keys/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      modelConfig: {
-        apiKind: 'anthropic_messages',
-        model: 'authorization: Bearer direct-secret-token',
-      },
-    })),
-    /modelConfig\.model must not include API keys/,
-  )
-})
-
-test('parseSettingsSnapshot rejects invalid top-level reference field types', () => {
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      defaultProfileId: 7,
-    })),
-    /defaultProfileId must be a non-empty string/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      activeRunPresetId: '',
-    })),
-    /activeRunPresetId must be a non-empty string/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      exportedAt: 'not-a-date',
-    })),
-    /exportedAt must be a valid date string/,
-  )
-})
-
-test('parseSettingsSnapshot rejects run preset limits outside supported UI ranges', () => {
-  const preset = defaultAgentRunPresets()[0]
-  const text = JSON.stringify({
-    schema: 'movscript.agent.settings.snapshot.v1',
-    runPresets: [{
-      ...preset,
-      maxToolCalls: 201,
-    }],
-  })
-
-  assert.throws(
-    () => parseSettingsSnapshot(text),
-    /maxToolCalls must be an integer from 1 to 200/,
-  )
-})
-
-test('parseSettingsSnapshot rejects invalid run preset metadata field types', () => {
-  const preset = defaultAgentRunPresets()[0]
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      runPresets: [{ ...preset, name: '' }],
-    })),
-    /runPresets 1 name must be a non-empty string/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      runPresets: [{ ...preset, description: 7 }],
-    })),
-    /runPresets 1 description must be a string/,
-  )
-
-  assert.throws(
-    () => parseSettingsSnapshot(JSON.stringify({
-      schema: 'movscript.agent.settings.snapshot.v1',
-      runPresets: [{ ...preset, autoTaskGraph: 'yes' }],
-    })),
-    /runPresets 1 autoTaskGraph must be boolean/,
-  )
-})
-
-test('parseSettingsSnapshot rejects unsupported run preset planner options', () => {
-  const preset = defaultAgentRunPresets()[0]
-  const text = JSON.stringify({
-    schema: 'movscript.agent.settings.snapshot.v1',
-    runPresets: [{
-      ...preset,
-      planWorkerTimeoutMs: 7 * 60_000,
-    }],
-  })
-
-  assert.throws(
-    () => parseSettingsSnapshot(text),
-    /planWorkerTimeoutMs must be one of/,
-  )
-})
-
-test('validateSettingsSnapshotReferences rejects missing catalog references before import', () => {
+test('validateSettingsSnapshotReferences validates config-file-scoped tool overrides', () => {
   const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
-    defaultProfileId: 'missing-profile',
-    skillPolicy: [{ id: 'missing-skill', enabled: true }],
-    toolPolicy: [{ name: 'missing-tool', mode: 'allow' }],
+    activeConfigFileId: 'missing-config-file',
+    skillConfig: [{ id: 'missing-skill', enabled: true }],
+    toolPermissionOverrides: [{ configFileId: 'missing-config-file', toolGrants: [{ name: 'missing-tool', mode: 'allow' }] }],
   }), {
-    profiles: [profileFixture()],
-    currentProfile: profileFixture(),
+    configFiles: [configFileFixture()],
+    currentConfigFile: configFileFixture(),
     skills: [skillFixture('known-skill')],
   })
 
-  assert.match(issues.map((issue) => issue.message).join('\n'), /profile missing-profile not found/)
-  assert.match(issues.map((issue) => issue.message).join('\n'), /skill missing-skill not found/)
-  assert.match(issues.map((issue) => issue.message).join('\n'), /tool policy requires an available default profile/)
+  const message = issues.map((issue) => issue.message).join('\n')
+  assert.match(message, /config file missing-config-file not found/)
+  assert.match(message, /skill missing-skill not found/)
+  assert.match(message, /tool permission overrides reference missing config file missing-config-file/)
 })
 
-test('validateSettingsSnapshotReferences rejects missing backend model references', () => {
+test('validateSettingsSnapshotReferences accepts imported config files before they exist in the catalog', () => {
   const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
-    modelConfig: {
-      model: 'model_config:404',
-      modelConfigId: 404,
-      apiKind: 'openai_chat_completions',
-    },
+    activeConfigFileId: 'imported-config-file',
+    configFiles: [configFileFixture({
+      id: 'imported-config-file',
+      skillIds: ['known-skill'],
+      toolGrants: [{ name: 'write-tool', mode: 'allow', approval: 'always' }],
+    })],
+    toolPermissionOverrides: [{ configFileId: 'imported-config-file', toolGrants: [{ name: 'write-tool', mode: 'deny', approval: 'always' }] }],
   }), {
-    textModels: [modelFixture(7)],
-    profiles: [profileFixture()],
-    currentProfile: profileFixture(),
-    skills: [],
-  })
-
-  assert.match(issues.map((issue) => issue.message).join('\n'), /model model_config:404 not found/)
-})
-
-test('validateSettingsSnapshotReferences allows direct API model ids outside backend model catalog', () => {
-  const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
-    modelConfig: {
-      model: 'gpt-5.2',
-      apiKind: 'openai_responses',
-    },
-  }), {
-    textModels: [],
-    profiles: [profileFixture()],
-    currentProfile: profileFixture(),
-    skills: [],
+    configFiles: [configFileFixture()],
+    currentConfigFile: configFileFixture(),
+    skills: [skillFixture('known-skill')],
   })
 
   assert.deepEqual(issues, [])
 })
 
-test('validateSettingsSnapshotReferences rejects unsafe skill and tool policy changes', () => {
+test('validateSettingsSnapshotReferences rejects unsafe skill and tool override changes', () => {
   const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
-    skillPolicy: [
+    skillConfig: [
       { id: 'core-skill', enabled: false },
       { id: 'dependent-skill', enabled: true },
     ],
-    toolPolicy: [{ name: 'write-tool', mode: 'allow', approval: 'never' }],
+    toolPermissionOverrides: [{ configFileId: 'config-file-default', toolGrants: [{ name: 'write-tool', mode: 'allow', approval: 'never' }] }],
   }), {
-    profiles: [profileFixture()],
-    currentProfile: profileFixture({
+    configFiles: [configFileFixture({
+      id: 'config-file-default',
       toolGrants: [{ name: 'write-tool', mode: 'allow', approval: 'always' }],
-    }),
+    })],
+    currentConfigFile: configFileFixture(),
     skills: [
       skillFixture('core-skill', { loadMode: 'core' }),
       skillFixture('dependency-skill', { enabled: false }),
@@ -469,36 +270,21 @@ test('validateSettingsSnapshotReferences rejects unsafe skill and tool policy ch
   assert.match(message, /tool write-tool approval cannot be weaker/)
 })
 
-test('resolveSnapshotRunPresetImport falls back to first imported preset when active id is missing', () => {
-  const runPresets = defaultAgentRunPresets()
-  const imported = [{ ...runPresets[0], id: 'imported-safe', permissionMode: 'suggest' as const, planMaxWorkers: 3 }]
-  const patch = resolveSnapshotRunPresetImport(settingsSnapshotFixture({
-    activeRunPresetId: 'missing',
-    runPresets: imported,
-  }), normalizeAgentSettings({
-    activeRunPresetId: 'balanced',
-    runPresets,
-  }))
+test('validateSettingsSnapshotReferences rejects missing backend model references', () => {
+  const issues = validateSettingsSnapshotReferences(settingsSnapshotFixture({
+    model: {
+      model: 'model_config:404',
+      platformModelId: '404',
+      apiKind: 'openai_chat_completions',
+    },
+  }), {
+    textModels: [modelFixture(7)],
+    configFiles: [configFileFixture()],
+    currentConfigFile: configFileFixture(),
+    skills: [],
+  })
 
-  assert.equal(patch?.activeRunPresetId, 'imported-safe')
-  assert.equal(patch?.permissionMode, 'suggest')
-  assert.equal(patch?.planMaxWorkers, 3)
-  assert.deepEqual(patch?.runPresets, imported)
-})
-
-test('resolveSnapshotRunPresetImport syncs settings from current presets when only active id is imported', () => {
-  const runPresets = defaultAgentRunPresets()
-  const patch = resolveSnapshotRunPresetImport(settingsSnapshotFixture({
-    activeRunPresetId: 'deep-work',
-  }), normalizeAgentSettings({
-    activeRunPresetId: 'balanced',
-    runPresets,
-  }))
-
-  assert.equal(patch?.activeRunPresetId, 'deep-work')
-  assert.equal(patch?.permissionMode, 'suggest')
-  assert.equal(patch?.planMaxWorkers, 3)
-  assert.equal('runPresets' in (patch ?? {}), false)
+  assert.match(issues.map((issue) => issue.message).join('\n'), /model model_config:404 not found/)
 })
 
 function skillFixture(id: string, patch: Partial<AgentCatalogSkill> = {}): AgentCatalogSkill {
@@ -524,16 +310,14 @@ function modelFixture(id: number, patch: Partial<PublicModel> = {}): PublicModel
   }
 }
 
-function profileFixture(patch: Partial<AgentCatalogProfile> = {}): AgentCatalogProfile {
+function configFileFixture(patch: Partial<AgentCatalogConfigFile> = {}): AgentCatalogConfigFile {
   return {
-    schema: 'movscript.agent.profile.v1',
-    id: 'profile-default',
+    schema: 'movscript.agent.config_file.v1',
+    id: 'config-file-default',
     version: '1.0.0',
-    name: 'Default',
-    enabledPacks: [],
-    persona: null,
-    enabledWorkflows: [],
-    enabledPolicies: [],
+    name: 'Base',
+    enabledPackIds: [],
+    skillIds: [],
     toolGrants: [],
     ...patch,
   }

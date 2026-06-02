@@ -68,6 +68,7 @@ export function AgentMentionEditor({
   onSubmit,
   onEscape,
   onAcceptMention,
+  onPaste,
 }: {
   editorRef: React.RefObject<HTMLDivElement>
   disabled?: boolean
@@ -77,6 +78,7 @@ export function AgentMentionEditor({
   onSubmit: () => void
   onEscape: () => void
   onAcceptMention: () => boolean
+  onPaste?: (event: React.ClipboardEvent<HTMLDivElement>) => void
 }) {
   function syncFromEditor() {
     const editor = editorRef.current
@@ -118,6 +120,8 @@ export function AgentMentionEditor({
         }
       }}
       onPaste={(event) => {
+        onPaste?.(event)
+        if (event.defaultPrevented) return
         event.preventDefault()
         const text = event.clipboardData.getData('text/plain')
         document.execCommand('insertText', false, text)

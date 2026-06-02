@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.dev/schemas/media-artifacts-v1.schema.json",
+  "title": "Movscript media artifacts v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "schemaVersion", "schemaUrl", "voiceover", "timing"],
+  "properties": {
+    "schema": { "const": "movscript.media.artifacts.v1" },
+    "schemaVersion": { "const": 1 },
+    "schemaUrl": { "const": "https://movscript.dev/schemas/media-artifacts-v1.schema.json" },
+    "projectId": { "type": "number", "minimum": 1 },
+    "voiceover": { "$ref": "#/$defs/voiceoverResource" },
+    "timing": { "$ref": "#/$defs/timingMetadata" },
+    "subtitles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/subtitleResource" }
+    },
+    "renderRecipe": { "$ref": "#/$defs/renderRecipe" }
+  },
+  "$defs": {
+    "resourceId": {
+      "type": "number",
+      "minimum": 1
+    },
+    "timeMs": {
+      "type": "number",
+      "minimum": 0
+    },
+    "timedTextUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "startMs", "endMs", "text"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "startMs": { "$ref": "#/$defs/timeMs" },
+        "endMs": { "$ref": "#/$defs/timeMs" },
+        "text": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "speaker": { "type": "string" }
+      }
+    },
+    "timingMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "durationMs", "segments"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["tts_timing", "forced_align", "stt", "manual"]
+        },
+        "provider": { "type": "string" },
+        "language": { "type": "string", "minLength": 2 },
+        "durationMs": { "$ref": "#/$defs/timeMs" },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/timedTextUnit" }
+        },
+        "words": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/timedTextUnit" }
+        },
+        "characters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/timedTextUnit" }
+        }
+      }
+    },
+    "voiceoverResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resourceId", "text", "voice", "language", "durationMs", "provider"],
+      "properties": {
+        "resourceId": { "$ref": "#/$defs/resourceId" },
+        "text": { "type": "string", "minLength": 1 },
+        "voice": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 2 },
+        "durationMs": { "$ref": "#/$defs/timeMs" },
+        "provider": { "type": "string", "minLength": 1 },
+        "model": { "type": "string" },
+        "audioFormat": { "type": "string", "enum": ["mp3", "wav", "aac", "opus", "flac"] },
+        "timingSource": {
+          "type": "string",
+          "enum": ["tts_timing", "forced_align", "stt", "manual"]
+        }
+      }
+    },
+    "subtitleResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resourceId", "format", "source", "language", "relatedAudioResourceId"],
+      "properties": {
+        "resourceId": { "$ref": "#/$defs/resourceId" },
+        "format": { "type": "string", "enum": ["srt", "vtt", "ass", "json"] },
+        "source": {
+          "type": "string",
+          "enum": ["tts_timing", "forced_align", "stt", "manual"]
+        },
+        "language": { "type": "string", "minLength": 2 },
+        "relatedAudioResourceId": { "$ref": "#/$defs/resourceId" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "styleId": { "type": "string" }
+      }
+    },
+    "renderRecipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aspectRatio", "resolution", "clips", "voiceoverResourceId", "outputFormat"],
+      "properties": {
+        "aspectRatio": { "type": "string", "enum": ["9:16", "16:9", "1:1", "4:5"] },
+        "resolution": { "type": "string", "pattern": "^[1-9][0-9]*x[1-9][0-9]*$" },
+        "clips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resourceId", "startMs", "endMs"],
+            "properties": {
+              "resourceId": { "$ref": "#/$defs/resourceId" },
+              "startMs": { "$ref": "#/$defs/timeMs" },
+              "endMs": { "$ref": "#/$defs/timeMs" },
+              "trimStartMs": { "$ref": "#/$defs/timeMs" },
+              "trimEndMs": { "$ref": "#/$defs/timeMs" }
+            }
+          }
+        },
+        "voiceoverResourceId": { "$ref": "#/$defs/resourceId" },
+        "subtitleResourceId": { "$ref": "#/$defs/resourceId" },
+        "bgmResourceId": { "$ref": "#/$defs/resourceId" },
+        "subtitleStyle": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "styleId": { "type": "string" },
+            "font": { "type": "string" },
+            "position": { "type": "string", "enum": ["bottom", "middle", "top"] },
+            "safeMarginPx": { "type": "number", "minimum": 0 },
+            "burnIn": { "type": "boolean" }
+          }
+        },
+        "outputFormat": { "type": "string", "enum": ["mp4", "mov", "webm"] }
+      }
+    }
+  }
+}

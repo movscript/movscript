@@ -44,11 +44,11 @@ import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agen
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
-import { localAgentApprovalDetails } from '@/features/agent/components/AgentWorkflowBubble'
+import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/presentation/agentMessageRenderMemo'
 import { useAgentMessagePresentationModel } from '@/features/agent/presentation/useAgentMessagePresentationModel'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { AgentInputAnswer } from '@/features/agent/domain/agentWorkflowInteraction'
+import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: ThinkingBubbleState }) {
@@ -113,8 +113,8 @@ export function GenerationProgressBubble({ state }: { state: GenerationProgressS
 interface MessageBubbleProps {
   msg: ChatMessage
   projectId?: number
-  liveWorkflowRun?: AgentRun | null
-  liveWorkflowEvents?: ChatRunActivityEvent[]
+  liveInteractionRun?: AgentRun | null
+  liveInteractionEvents?: ChatRunActivityEvent[]
   approvingLocalRun?: boolean
   onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
   onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
@@ -124,8 +124,8 @@ interface MessageBubbleProps {
 export const MessageBubble = React.memo(function MessageBubble({
   msg,
   projectId,
-  liveWorkflowRun,
-  liveWorkflowEvents = [],
+  liveInteractionRun,
+  liveInteractionEvents = [],
   approvingLocalRun = false,
   onApproveLocalRun,
   onRejectLocalRun,
@@ -166,12 +166,12 @@ export const MessageBubble = React.memo(function MessageBubble({
     hasResultSection,
     hasDiagnosticSection,
   } = presentation
-  const activityFeedRun = !isUser ? liveWorkflowRun ?? null : null
+  const activityFeedRun = !isUser ? liveInteractionRun ?? null : null
   const hasActivityContent = useMemo(() => !isUser && (
     activityFeedRun
-      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveWorkflowEvents)
+      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveInteractionEvents)
       : !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
-  ), [activityFeedRun, isUser, liveWorkflowEvents, localRunActivity])
+  ), [activityFeedRun, isUser, liveInteractionEvents, localRunActivity])
   const hasMessageBody = isUser
     ? !!displayContent.trim() || compactAttachments.length > 0
     : hasActivityContent
@@ -249,7 +249,7 @@ export const MessageBubble = React.memo(function MessageBubble({
         <AgentActivityFeedView
           activity={activityFeedRun ? undefined : localRunActivity}
           run={activityFeedRun}
-          events={activityFeedRun ? liveWorkflowEvents : undefined}
+          events={activityFeedRun ? liveInteractionEvents : undefined}
           className={displayContent || planRevision ? 'mb-2' : undefined}
           approving={approvingLocalRun}
           onApprove={activityFeedRun && onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
@@ -314,8 +314,8 @@ export const MessageBubble = React.memo(function MessageBubble({
 function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
   return prev.msg === next.msg
     && prev.projectId === next.projectId
-    && prev.liveWorkflowRun === next.liveWorkflowRun
-    && shallowReferenceArrayEqual(prev.liveWorkflowEvents, next.liveWorkflowEvents)
+    && prev.liveInteractionRun === next.liveInteractionRun
+    && shallowReferenceArrayEqual(prev.liveInteractionEvents, next.liveInteractionEvents)
     && prev.approvingLocalRun === next.approvingLocalRun
     && prev.onApproveLocalRun === next.onApproveLocalRun
     && prev.onRejectLocalRun === next.onRejectLocalRun

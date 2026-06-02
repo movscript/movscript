@@ -54,7 +54,6 @@ import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
-import AIAgentPerformancePage from './pages/agent/AIAgentPerformancePage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
@@ -68,6 +67,7 @@ import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurf
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
+import { installAgentTelemetryReporter } from './features/agent/state/agentTelemetryReporter'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { useAgentStore } from './features/agent/state/agentStore'
 import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
@@ -805,6 +805,7 @@ export default function App() {
 
   useEffect(() => {
     installAgentPerformanceObservers()
+    installAgentTelemetryReporter()
   }, [])
 
   if (!settingsHydrated) {
@@ -922,8 +923,6 @@ export default function App() {
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
               <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
-              <Route path={ROUTES.agentSettingsManagement} element={<AIAgentSettingsPage />} />
-              <Route path={ROUTES.agentPerformance} element={<AIAgentPerformancePage />} />
               <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />

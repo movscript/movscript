@@ -1,16 +1,17 @@
-import type { AgentDraftStore } from '../../drafts/draftStore.js'
-import type { AgentFileSystem } from '../../files/agentFileSystem.js'
-import type { MemoryManager } from '../../memory/memoryManager.js'
-import type { KnowledgeManager } from '../../knowledge/knowledgeManager.js'
-import type { AgentRun, JSONValue, ToolCall } from '../../state/types.js'
-import type { ToolRegistry } from '../../tools/toolRegistry.js'
-import type { RuntimeModelChatMessage } from '../../model/modelConfig.js'
-import type { DraftApplyPort } from '../draft/draftApplyPort.js'
-import type { DraftApplyPreviewPort } from '../draft/draftApplyPreviewPort.js'
-import type { DraftProposalSnapshotHydrationPort } from '../draft/proposalSnapshotHydrationPort.js'
-import type { CoreResourceFilePort } from '../core/resourceFilePort.js'
-import type { CoreVideoFrameExtractionPort } from '../core/videoFrameExtractionPort.js'
-import type { MovscriptProjectStandardsPort } from '../movscript/projectStandardsPort.js'
+import type { AgentDraftStore } from '../../drafts/store/draftStore.js'
+import type { AgentFileSystem } from '../../files/core/system/agentFileSystem.js'
+import type { MemoryManager } from '../../memory/manager/memoryManager.js'
+import type { ReferenceManager } from '../../reference/manager/referenceManager.js'
+import type { AgentRun, JSONValue, ToolCall } from '../../state/shared/types.js'
+import type { ToolRegistry } from '../../tools/registry/core/toolRegistry.js'
+import type { RuntimeModelChatMessage } from '../../model/config/modelConfig.js'
+import type { DraftApplyPort } from '../draft/apply/draftApplyPort.js'
+import type { DraftApplyPreviewPort } from '../draft/preview/draftApplyPreviewPort.js'
+import type { DraftProposalSnapshotHydrationPort } from '../draft/hydration/proposalSnapshotHydrationPort.js'
+import type { CoreImageProcessingPort } from '../media/imageProcessingPort.js'
+import type { CoreResourceFilePort } from '../files/resourceFilePort.js'
+import type { CoreVideoFrameExtractionPort } from '../media/videoFrameExtractionPort.js'
+import type { ProjectStandardsPort } from '../project/projectStandardsPort.js'
 
 export interface RuntimeToolHandlerResult {
   result: JSONValue
@@ -26,12 +27,13 @@ export interface RuntimeToolHandlerContext {
   draftApplyPreviewPort: DraftApplyPreviewPort
   proposalSnapshotHydrationPort: DraftProposalSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
+  imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: MovscriptProjectStandardsPort
+  projectStandardsPort: ProjectStandardsPort
   fileSystem: AgentFileSystem
   registry: ToolRegistry
   memoryManager?: MemoryManager
-  knowledgeManager?: KnowledgeManager
+  referenceManager?: ReferenceManager
   catalogManager?: AgentCatalogToolManager
   sandboxMode: boolean
   signal?: AbortSignal

@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `core.pack.agent`, `tools/core/`, `skills/core/` |
 | Draft | 本地审阅 draft CRUD、preview 和 apply 工具；preview 内置 validation | `draft.pack.lifecycle`, `tools/draft/` |
-| MovScript | 当前任务 focus、项目读取和可审阅 proposal workflows | `movscript.pack.workspace`, `tools/movscript/workspace/`, `skills/movscript/` |
+| MovScript | 当前任务 focus、项目读取和可审阅 proposal Skills | `movscript.pack.workspace`, `tools/movscript/workspace/`, `skills/movscript/` |
 | Candidate | 候选写入与候选规划 | `tools/candidate/`, `skills/candidate/` |
 | Generation | 模型发现、provider-level generation job contract 和视觉生成执行 | `tools/generation/`, `skills/generation/` |
 
@@ -27,19 +27,17 @@
 
 | 层 | 拥有 | 不拥有 |
 | --- | --- | --- |
-| Schema | Draft payload 形状、prompt summary、examples、validation target | Tool 选择、workflow 顺序、运行时激活 |
+| Schema | Draft payload 形状、prompt summary、examples、validation target | Tool 选择、Skill 顺序、运行时激活 |
 | Tool | 一个可执行动作、input schema、permission、risk、默认 approval | 何时使用动作、业务流程、draft schema 说明文本 |
-| Skill Persona | 稳定角色、沟通姿态、始终成立的行为倾向 | Workflow 步骤、tool 参数、schema 细节 |
-| Skill Policy | 跨任务 guardrails、审批/写入边界、平台概念 | 有序任务流、tool catalog 归属 |
-| Skill Workflow | 某一任务类型的 runbook：trigger、boundary、allowed tools、process、output | Persona 文本、复制 tool schemas、越界正式写入 |
+| Skill | 可加载 instruction：稳定行为倾向、跨任务规则、任务 runbook 或专业知识 | 复制 tool schemas、越界正式写入、承担 pack/config file 的注册职责 |
 | Pack | 可发布的 schema/tool/skill id 注册单元；linter 校验所列资源存在，并校验包含的 skills 的 tool/schema refs 被此 pack 或其 required packs 覆盖 | Prompt 内容、业务流程文本、tool 参数说明 |
-| Profile | 运行时绑定：enabled packs、persona、limits，以及可选的收窄 overrides | Skill bodies、schema bodies、tool descriptions、重复的 workflow/policy/tool 清单 |
+| Config File | 运行时绑定：enabled packs、skills、limits，以及可选的收窄 overrides | Skill bodies、schema bodies、tool descriptions、重复的 skill/tool 清单 |
 
-运行时可用性由 pack 驱动。Tool 和 skill 文件会加载进 catalog 用于发现，但只有被已启用 pack 注册后，才对默认运行时可用。loader 会从 `profile.enabledPacks` 推导 candidate workflows、policies 和 tool grants；显式的 `enabledWorkflows`、`enabledPolicies` 和 `toolGrants` 只是兼容性的收窄字段。
+运行时可用性由 pack 驱动。Tool 和 skill 文件会加载进 catalog 用于发现，但只有被已启用 pack 注册后，才对运行时可用。loader 会从 `configFile.enabledPackIds` 推导候选 skills 和 tool grants；`configFile.skillIds` 和 `toolGrants` 是配置文件的显式选择。
 
-## Workflow 类别
+## Skill 编写模式
 
-每个 workflow skill 都应严格写成以下类别之一。
+Skill 的用途不进入系统分类。系统只读取 manifest 里的加载方式、触发条件、依赖/冲突、tool grants 和 instruction 内容；下面只是给 Skill 作者维护边界时使用的编写模式。
 
 | 类别 | 可创建 Drafts | 可创建生成任务 | 可写正式实体 | 典型工具 |
 | --- | --- | --- | --- | --- |
@@ -48,102 +46,94 @@
 | Review / Selection | 否，除非记录本地 notes | 否 | 否 | focus、read drafts/resources |
 | Apply / Formal Write | 否，audit drafts 除外 | 否 | 是，需要审批或 UI apply | backend write/apply tools |
 
-不要在一个 workflow 中混合 planning 和 generation。Planning workflow 可以准备 prompt candidates 和验收标准。Generation workflow 可以提交并监控任务。Review workflow 可以比较输出。正式写入或绑定必须显式发生，并受审批控制。
+不要在同一个业务 runbook 中混合 planning 和 generation。Planning instruction 可以准备 prompt candidates 和验收标准。Generation instruction 可以提交并监控任务。Review instruction 可以比较输出。正式写入或绑定必须显式发生，并受审批控制。
 
-## Workflow 模板
+## Skill 模板
 
-Catalog 资源目录采用 pack-first 结构。`skills/` 或 `tools/` 下的第一层文件夹应匹配拥有该资源的产品层；`skills/` 下的 kind 文件夹控制 prompt 注入语义。
+Catalog 资源目录采用 pack-first 结构。`skills/` 或 `tools/` 下的第一层文件夹应匹配拥有该资源的产品层。`skills/` 下的子目录只是作者维护和检索信号，不是系统必须理解的 Skill 类型。
 
 ```text
 skills/
   core/
-    persona/
+    base/
       default/
-        default.persona.json
-        default.persona.md
-    policy/
+        skill.json
+        instruction.md
+    rules/
       runtime/
-        skill.policy.json
+        skill.json
         instruction.md
   draft/
-    policy/
+    rules/
       lifecycle/
-        skill.policy.json
-        instruction.md
-    workflow/
-      lifecycle/
-        skill.workflow.json
+        skill.json
         instruction.md
   candidate/
-    workflow/
-      asset_planning/
-        skill.workflow.json
-        instruction.md
+    asset_planning/
+      skill.json
+      instruction.md
   generation/
-    workflow/
-      visual_execution/
-        skill.workflow.json
-        instruction.md
+    visual_execution/
+      skill.json
+      instruction.md
   movscript/
-    persona/
-      movscript-personas.persona.json
-    policy/
+    orchestrator/
+      skill.json
+    rules/
       workspace/
-        skill.policy.json
+        skill.json
         instruction.md
-    workflow/
-      proposal/
-        project/
-          project_standards_proposal/
-            skill.workflow.json
-            instruction.md
+    proposal/
+      project/
+        project_standards_proposal/
+          skill.json
+          instruction.md
 tools/
   core/
   draft/
   candidate/
   generation/
-  knowledge/
+  reference/
   movscript/
     workspace/
 ```
 
-每个 pack 都应拥有一个 policy skill，用来表达该能力层的跨任务 guardrails：
+需要跨任务生效的规则应写成普通 Skill，并由 pack/config file 显式启用；系统不需要知道这条 Skill 的说明用途：
 
 ```text
 skills/
   core/
-    policy/
+    rules/
       runtime/
-        skill.policy.json
+        skill.json
         instruction.md
   draft/
-    policy/
+    rules/
       lifecycle/
-        skill.policy.json
+        skill.json
         instruction.md
   movscript/
-    policy/
+    rules/
       workspace/
-        skill.policy.json
+        skill.json
         instruction.md
 ```
 
-Workflow skills 仍应保持每个 workflow 一个目录：
+业务 runbook 仍应保持一项职责一个目录：
 
 ```text
 skills/
   movscript/
-    workflow/
-      proposal/
-        production/
-          production_proposal/
-            skill.workflow.json
-            instruction.md
+    proposal/
+      production/
+        production_proposal/
+          skill.json
+          instruction.md
 ```
 
-运行时行为来自 enabled packs 中注册的 skill ids；目录名只是归属和维护信号，不是传给模型的语义输入。
+运行时行为来自 enabled packs 中注册的 skill ids、skill manifest 的加载方式/触发条件、tool grants 和 instruction；目录名只是归属和维护信号，不是传给模型的语义输入。
 
-非平凡 workflow Markdown 文件使用这个结构：
+非平凡业务 instruction 使用这个结构：
 
 ```md
 目标：
@@ -155,7 +145,7 @@ skills/
 输出：
 绝不：
 ```
-只有当边界可以从 profile 和 tool grants 中显然看出时，才允许短 workflow。如果 workflow 提到生成媒体、正式实体、审批或审阅状态，必须显式写出边界。
+只有当边界可以从 configFile 和 tool grants 中显然看出时，才允许短 Skill。如果 task 提到生成媒体、正式实体、审批或审阅状态，必须显式写出边界。
 
 ## 边界规则
 

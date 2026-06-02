@@ -20,7 +20,7 @@ function baseRun(patch: Partial<AgentRun> = {}): AgentRun {
     createdAt: '2026-05-09T08:00:00.000Z',
     updatedAt: '2026-05-09T08:00:10.000Z',
     completedAt: '2026-05-09T08:00:10.000Z',
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    runtimeLimits: { maxToolCalls: 10, maxIterations: 6 },
     steps: [],
     ...patch,
   } as AgentRun

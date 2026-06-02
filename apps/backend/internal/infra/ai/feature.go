@@ -9,5 +9,9 @@ const (
 	CapabilityVideo     = "video"      // text-to-video
 	CapabilityVideoI2V  = "video_i2v"  // image-to-video (requires image input)
 	CapabilityVideoV2V  = "video_v2v"  // video-to-video (requires video input)
-	CapabilityAudio     = "audio"      // text-to-audio
+	CapabilityAudio     = "audio"      // legacy broad audio capability
+	CapabilityAudioTTS  = "audio_tts"  // text-to-speech voiceover
+	CapabilityAudioSTT  = "audio_transcribe"
+	CapabilitySubAlign  = "subtitle_align"
+	CapabilityRender    = "render_video"
 )

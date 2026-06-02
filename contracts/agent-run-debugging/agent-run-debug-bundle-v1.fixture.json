@@ -5,6 +5,8 @@
   "capabilities": [
     "runSummary",
     "readinessChecklist",
+    "runtimeSummary",
+    "roundContextUpdates",
     "modelCallContexts",
     "promptDetails",
     "contextMutations",
@@ -37,8 +39,8 @@
     "pendingInputs": 0
   },
   "trace": {
-    "loaded": 5,
-    "total": 5,
+    "loaded": 6,
+    "total": 6,
     "hasMore": false
   },
   "fieldGuide": [
@@ -64,7 +66,7 @@
     }
   ],
   "coverage": {
-    "loadedLabel": "5 / 5",
+    "loadedLabel": "6 / 6",
     "hasUnloadedTrace": false,
     "modelCallsLabel": "1",
     "promptDetailsLabel": "1",
@@ -181,6 +183,169 @@
       ]
     }
   ],
+  "runtimeSummary": {
+    "skills": {
+      "activeSkillIds": [],
+      "loadedSkillIds": [],
+      "unloadedSkillIds": [],
+      "availableSkillIds": [],
+      "contextProjection": [],
+      "omissions": []
+    },
+    "tools": {
+      "availableToolNames": [
+        "read_context"
+      ],
+      "usedToolNames": [
+        "read_context"
+      ],
+      "failedToolNames": [],
+      "blockedToolNames": [],
+      "approvalRequiredToolNames": [],
+      "deniedToolNames": [],
+      "permissionGateBlockedToolNames": [],
+      "pendingApprovalToolNames": [],
+      "sourceEventId": "evt_prompt"
+    },
+    "context": {
+      "promptEventId": "evt_prompt",
+      "contextMutationCount": 1,
+      "roundContextUpdateCount": 1,
+      "latestRoundContextUpdate": {
+        "eventId": "evt_round_context_update",
+        "title": "Round 1: context projection updated",
+        "roundIndex": 1,
+        "messageCount": "4",
+        "systemMessageCount": "1",
+        "promptChars": "160",
+        "contextBundle": {
+          "kind": "context_bundle",
+          "label": "ctxb_fixture",
+          "id": "ctxb_fixture",
+          "hash": "sha256:context"
+        },
+        "historyProjection": {
+          "inputCount": 3,
+          "retainedCount": 2,
+          "compactedCount": 1,
+          "filteredCount": 0,
+          "summaryChars": 24,
+          "decisions": [
+            {
+              "action": "compact",
+              "stage": "history",
+              "reason": "预算压缩"
+            }
+          ]
+        },
+        "historicalVisualProjection": {
+          "candidateCount": 2,
+          "selectedCount": 1,
+          "includedInlineImageCount": 1,
+          "metadataOnlyCount": 0,
+          "droppedCount": 1,
+          "decisions": [
+            {
+              "action": "retain",
+              "stage": "historical_visual_context",
+              "reason": "从历史图片资源重建视觉输入"
+            }
+          ]
+        },
+        "attachmentProjection": {
+          "attachmentCount": 0,
+          "inlineImageCount": 0,
+          "metadataOnlyCount": 0,
+          "decisions": []
+        }
+      },
+      "latestMutationReason": "reference refreshed",
+      "historyProjection": {
+        "inputCount": 3,
+        "retainedCount": 2,
+        "compactedCount": 1,
+        "filteredCount": 0,
+        "summaryChars": 24,
+        "decisions": [
+          {
+            "action": "compact",
+            "stage": "history",
+            "reason": "预算压缩"
+          }
+        ]
+      },
+      "historicalVisualProjection": {
+        "candidateCount": 2,
+        "selectedCount": 1,
+        "includedInlineImageCount": 1,
+        "metadataOnlyCount": 0,
+        "droppedCount": 1,
+        "decisions": [
+          {
+            "action": "retain",
+            "stage": "historical_visual_context",
+            "reason": "从历史图片资源重建视觉输入"
+          }
+        ]
+      },
+      "attachmentProjection": {
+        "attachmentCount": 0,
+        "inlineImageCount": 0,
+        "metadataOnlyCount": 0,
+        "decisions": []
+      }
+    }
+  },
+  "roundContextUpdates": [
+    {
+      "eventId": "evt_round_context_update",
+      "title": "Round 1: context projection updated",
+      "roundIndex": 1,
+      "messageCount": "4",
+      "systemMessageCount": "1",
+      "promptChars": "160",
+      "contextBundle": {
+        "kind": "context_bundle",
+        "label": "ctxb_fixture",
+        "id": "ctxb_fixture",
+        "hash": "sha256:context"
+      },
+      "historyProjection": {
+        "inputCount": 3,
+        "retainedCount": 2,
+        "compactedCount": 1,
+        "filteredCount": 0,
+        "summaryChars": 24,
+        "decisions": [
+          {
+            "action": "compact",
+            "stage": "history",
+            "reason": "预算压缩"
+          }
+        ]
+      },
+      "historicalVisualProjection": {
+        "candidateCount": 2,
+        "selectedCount": 1,
+        "includedInlineImageCount": 1,
+        "metadataOnlyCount": 0,
+        "droppedCount": 1,
+        "decisions": [
+          {
+            "action": "retain",
+            "stage": "historical_visual_context",
+            "reason": "从历史图片资源重建视觉输入"
+          }
+        ]
+      },
+      "attachmentProjection": {
+        "attachmentCount": 0,
+        "inlineImageCount": 0,
+        "metadataOnlyCount": 0,
+        "decisions": []
+      }
+    }
+  ],
   "promptDetails": [
     {
       "eventId": "evt_prompt",
@@ -242,30 +407,30 @@
       "amended": 1,
       "deleted": 0,
       "affectedContextKeys": [
-        "knowledge:storyboard.rhythm.basic:sha256:old",
-        "knowledge:storyboard.rhythm.basic:sha256:new"
+        "reference:storyboard.rhythm.basic:sha256:old",
+        "reference:storyboard.rhythm.basic:sha256:new"
       ],
       "appendedContextKeys": [
-        "knowledge:storyboard.rhythm.basic:sha256:old"
+        "reference:storyboard.rhythm.basic:sha256:old"
       ],
       "amendedContextKeys": [
-        "knowledge:storyboard.rhythm.basic:sha256:old",
-        "knowledge:storyboard.rhythm.basic:sha256:new"
+        "reference:storyboard.rhythm.basic:sha256:old",
+        "reference:storyboard.rhythm.basic:sha256:new"
       ],
       "deletedContextKeys": [],
       "latest": {
         "id": "ctx_mut_amend_fixture",
         "type": "amend",
         "createdAt": "2026-05-16T08:00:02.500Z",
-        "reason": "knowledge refreshed"
+        "reason": "reference refreshed"
       },
       "refs": [
         {
           "kind": "context",
-          "label": "knowledge:storyboard.rhythm.basic",
-          "key": "knowledge:storyboard.rhythm.basic:sha256:new",
+          "label": "reference:storyboard.rhythm.basic",
+          "key": "reference:storyboard.rhythm.basic:sha256:new",
           "id": "storyboard.rhythm.basic",
-          "type": "knowledge",
+          "type": "reference",
           "hash": "sha256:new"
         }
       ]
@@ -304,6 +469,47 @@
       "status": "completed",
       "title": "Prompt context assembled",
       "createdAt": "2026-05-16T08:00:01.000Z"
+    },
+    {
+      "id": "evt_round_context_update",
+      "runId": "run_debug_fixture",
+      "kind": "context",
+      "status": "completed",
+      "title": "Round 1: context projection updated",
+      "roundIndex": 1,
+      "createdAt": "2026-05-16T08:00:01.500Z",
+      "data": {
+        "eventType": "context.round_projection_updated",
+        "contextBundleId": "ctxb_fixture",
+        "contextBundleRef": {
+          "id": "ctxb_fixture",
+          "promptHash": "sha256:context"
+        },
+        "roundIndex": 1,
+        "messageCount": 4,
+        "systemMessageCount": 1,
+        "promptChars": 160,
+        "historicalVisualProjection": {
+          "candidateCount": 2,
+          "selectedCount": 1,
+          "includedInlineImageCount": 1,
+          "metadataOnlyCount": 0,
+          "droppedCount": 1,
+          "decisions": [
+            {
+              "action": "retain",
+              "stage": "historical_visual_context",
+              "reason": "从历史图片资源重建视觉输入"
+            }
+          ]
+        },
+        "attachmentProjection": {
+          "attachmentCount": 0,
+          "inlineImageCount": 0,
+          "metadataOnlyCount": 0,
+          "decisions": []
+        }
+      }
     },
     {
       "id": "evt_model_request",

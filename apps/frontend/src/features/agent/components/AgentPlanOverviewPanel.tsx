@@ -58,7 +58,7 @@ import { isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, inputTypeLabel, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
-import { agentRunStatusRecipe, agentWorkflowStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { localAgentApprovalImpactText, localAgentApprovalPermissionText, localAgentApprovalRiskText } from '@/features/agent/components/localRuntime'
 import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
@@ -362,7 +362,7 @@ export function AgentPlanOverviewPanel({
                   {artifact.sourceTaskStatus && <AgentPlanOverviewMetaText>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</AgentPlanOverviewMetaText>}
                   {artifact.subagentName && <AgentPlanOverviewMetaText data-truncate="true">子 agent {artifact.subagentName}</AgentPlanOverviewMetaText>}
                   {artifact.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {artifact.toolName}</AgentPlanOverviewMetaText>}
-                  {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">策略 {artifact.policy}</AgentPlanOverviewMetaText>}
+                  {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">回滚规则 {artifact.policy}</AgentPlanOverviewMetaText>}
                 </AgentPlanOverviewMetaRow>
               </AgentPlanOverviewItemCard>
             ))}
@@ -373,8 +373,8 @@ export function AgentPlanOverviewPanel({
         <AgentPlanOverviewList>
           {taskViews.map((view) => {
             const task = view.task
-            const taskWorkflowStatus = task.status === 'done' ? 'completed' : task.status === 'failed' || task.status === 'cancelled' ? 'failed' : 'in_progress'
-            const taskStatusRecipe = agentWorkflowStatusRecipe(taskWorkflowStatus)
+            const taskRunInteractionStatus = task.status === 'done' ? 'completed' : task.status === 'failed' || task.status === 'cancelled' ? 'failed' : 'in_progress'
+            const taskStatusRecipe = agentRunInteractionStatusRecipe(taskRunInteractionStatus)
             const workerStatusRecipe = view.worker ? agentRunStatusRecipe(view.worker.status) : undefined
             return (
               <AgentPlanOverviewTaskCard id={`agent-taskGraph-task-${task.id}`} key={task.id}>
@@ -599,14 +599,14 @@ export function AgentPlanOverviewPanel({
                     <AgentPlanOverviewDisclosure>
                       <AgentPlanOverviewDisclosureSummary>
                         <ClipboardCheck size={10} />
-                        <span>{t('agents.chat.workflow.pendingActionCount', { count: view.pendingInputs.length + view.pendingApprovals.length })}</span>
+                        <span>{t('agents.chat.task.pendingActionCount', { count: view.pendingInputs.length + view.pendingApprovals.length })}</span>
                       </AgentPlanOverviewDisclosureSummary>
                       <AgentPlanOverviewDisclosureBody>
                         {view.pendingInputs.map((input) => (
                           <AgentPlanOverviewItemCard key={input.id}>
                             <AgentPlanOverviewItemHeader>
                               <AgentPlanOverviewItemTitle>{input.title}</AgentPlanOverviewItemTitle>
-                              <AgentPlanOverviewMetaText>{workflowInputTypeLabel(input.inputType, t)}</AgentPlanOverviewMetaText>
+                              <AgentPlanOverviewMetaText>{runInteractionInputTypeLabel(input.inputType, t)}</AgentPlanOverviewMetaText>
                             </AgentPlanOverviewItemHeader>
                             <AgentPlanOverviewText>{input.question}</AgentPlanOverviewText>
                             {input.choiceLabels.length > 0 && (
@@ -627,7 +627,7 @@ export function AgentPlanOverviewPanel({
                             <AgentPlanOverviewText>{approval.reason}</AgentPlanOverviewText>
                             {approval.permission && <AgentPlanOverviewText>{t('agents.chat.panel.runtime.permission')}: {localAgentApprovalPermissionText(approval.permission, t)}</AgentPlanOverviewText>}
                             <AgentPlanOverviewText>
-                              {t('agents.chat.workflow.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                              {t('agents.chat.task.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
                             </AgentPlanOverviewText>
                           </AgentPlanOverviewItemCard>
                         ))}
@@ -693,7 +693,7 @@ export function AgentPlanOverviewPanel({
                               {artifact.sourceTaskId && <AgentPlanOverviewMetaText data-truncate="true">来源任务 {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</AgentPlanOverviewMetaText>}
                               {artifact.sourceTaskStatus && <AgentPlanOverviewMetaText>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</AgentPlanOverviewMetaText>}
                               {artifact.toolName && <AgentPlanOverviewMetaText data-truncate="true">工具 {artifact.toolName}</AgentPlanOverviewMetaText>}
-                              {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">策略 {artifact.policy}</AgentPlanOverviewMetaText>}
+                              {artifact.policy && <AgentPlanOverviewMetaText data-truncate="true">回滚规则 {artifact.policy}</AgentPlanOverviewMetaText>}
                             </AgentPlanOverviewMetaRow>
                             {artifact.metadata && <ActivityJSONBlock label="元数据" value={artifact.metadata} />}
                           </AgentPlanOverviewItemCard>
@@ -711,14 +711,14 @@ export function AgentPlanOverviewPanel({
   )
 }
 
-function workflowInputTypeLabel(type: string, t: ReturnType<typeof useTranslation>['t']): string {
+function runInteractionInputTypeLabel(type: string, t: ReturnType<typeof useTranslation>['t']): string {
   switch (type) {
     case 'choice':
-      return t('agents.chat.workflow.inputTypeChoice')
+      return t('agents.chat.task.inputTypeChoice')
     case 'text':
-      return t('agents.chat.workflow.inputTypeText')
+      return t('agents.chat.task.inputTypeText')
     case 'confirmation':
-      return t('agents.chat.workflow.inputTypeConfirmation')
+      return t('agents.chat.task.inputTypeConfirmation')
     default:
       return inputTypeLabel(type)
   }

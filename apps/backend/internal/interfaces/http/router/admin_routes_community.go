@@ -110,6 +110,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/debug/model-runtime-health", h.debug.ModelRuntimeHealth)
 	admin.GET("/debug/health-settings", h.debug.GetHealthSettings)
 	admin.PUT("/debug/health-settings", h.debug.UpdateHealthSettings)
+	admin.GET("/debug/agent-telemetry", h.agentTelemetry.Snapshot)
 	admin.GET("/debug/jobs/:id", h.debug.GetJob)
 	admin.POST("/debug/jobs/:id/cancel", h.jobs.AdminCancel)
 	admin.POST("/debug/jobs/:id/retry", h.jobs.AdminRetry)

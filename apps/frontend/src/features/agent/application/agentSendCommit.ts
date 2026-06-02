@@ -113,7 +113,6 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
     meta: {
       modelId: draft.model.id,
       agentName: deps.labels.localRuntime,
-      permissionMode: draft.settings.permissionMode,
       contextLabels: draft.contextLabels,
       runtimeInput: {
         status: 'pending',
@@ -189,7 +188,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       projectId: draft.localRuntime?.projectId,
     }, {
       ...(draft.localRuntime?.agentManifest ? { agentManifest: draft.localRuntime.agentManifest } : {}),
-      ...(draft.localRuntime?.runPolicy ? { runPolicy: draft.localRuntime.runPolicy } : {}),
+      ...(draft.localRuntime?.runtimeLimits ? { runtimeLimits: draft.localRuntime.runtimeLimits } : {}),
       ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
       pollMs: 120,
       signal: sendController.signal,
@@ -228,7 +227,6 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localUserMessageId, {
           modelId: draft.model.id,
           agentName: deps.labels.localRuntime,
-          permissionMode: draft.settings.permissionMode,
           contextLabels: draft.contextLabels,
           runtimeInput: {
             threadId: sourceMessage.threadId,
@@ -357,7 +355,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       setConversationRuntime: deps.setConversationRuntime,
       notifyRunSettled: notifyAgentPanelRunSettled,
       toastError: deps.toastError,
-      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter @movscript/agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${errorMessage}`,
+      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter @movscript/agent dev\`\n存活检查：\`${localAgentClient.baseURL}/livez\`\n兼容检查：\`${localAgentClient.baseURL}/runtime/compat\`\n\n错误：${errorMessage}`,
     })
   } finally {
     if (deps.activeSendAbortControllerRef.current === sendController) {

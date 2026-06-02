@@ -166,13 +166,53 @@ export type ElectronShotCutResult = {
   code?: string
 }
 
+export type ElectronAgentRuntimeTransportKind = 'http' | 'unix-socket' | 'named-pipe' | 'websocket'
+
+export type ElectronAgentRuntimeEnsureInput = {
+  baseURL?: string
+  transportKind?: ElectronAgentRuntimeTransportKind
+  socketPath?: string
+}
+
 export type ElectronAgentRuntimeStatus = {
   ok: boolean
   running: boolean
   managed: boolean
   started: boolean
   baseURL: string
+  transportKind?: ElectronAgentRuntimeTransportKind
+  endpoint?: string
+  socketPath?: string
   pid?: number
+  error?: string
+}
+
+export type ElectronAgentRuntimeRequestInput = ElectronAgentRuntimeEnsureInput & {
+  path: string
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+}
+
+export type ElectronAgentRuntimeResponse = {
+  status: number
+  statusText?: string
+  headers: Record<string, string>
+  body: string
+}
+
+export type ElectronAgentRuntimeStreamInput = ElectronAgentRuntimeRequestInput & {
+  streamId: string
+}
+
+export type ElectronAgentRuntimeStreamCloseInput = {
+  streamId: string
+}
+
+export type ElectronAgentRuntimeStreamMessage = {
+  streamId: string
+  kind: 'message' | 'error' | 'end'
+  data?: string
   error?: string
 }
 
@@ -218,7 +258,11 @@ export type ElectronAPI = {
   agentBrowserReload?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
   agentBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
   onAgentBrowserState?: (handler: (state: ElectronAgentBrowserState) => void) => () => void
-  ensureAgentRuntime?: (input?: { baseURL?: string }) => Promise<ElectronAgentRuntimeStatus>
+  ensureAgentRuntime?: (input?: ElectronAgentRuntimeEnsureInput) => Promise<ElectronAgentRuntimeStatus>
+  agentRuntimeRequest?: (input: ElectronAgentRuntimeRequestInput) => Promise<ElectronAgentRuntimeResponse>
+  agentRuntimeOpenEventStream?: (input: ElectronAgentRuntimeStreamInput) => Promise<ElectronAgentRuntimeResponse>
+  agentRuntimeCloseEventStream?: (input: ElectronAgentRuntimeStreamCloseInput) => Promise<void>
+  onAgentRuntimeStreamMessage?: (handler: (message: ElectronAgentRuntimeStreamMessage) => void) => () => void
   clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
   exportTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
   getVideoClipStatus?: () => Promise<ElectronVideoClipStatus>

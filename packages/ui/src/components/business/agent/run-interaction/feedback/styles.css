@@ -1,0 +1,14 @@
+.ms-agent-run-interaction-preview-stack {
+  margin-top: 4px;
+}
+
+.ms-agent-run-interaction-preview-stack > * + * {
+  margin-top: 4px;
+}
+
+.ms-agent-run-interaction-side-effect {
+  padding: 6px;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-body);
+}

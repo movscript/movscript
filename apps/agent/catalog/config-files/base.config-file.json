@@ -1,0 +1,89 @@
+{
+  "schema": "movscript.agent.config_file.v1",
+  "id": "movscript.config_file.base",
+  "version": "1.0.0",
+  "name": "MovScript Base Config File",
+  "description": "基础 MovScript Agent 配置文件，显式启用 core、draft 和 MovScript capability packs。",
+  "enabledPackIds": [
+    "core.pack.agent",
+    "draft.pack.lifecycle",
+    "movscript.pack.workspace"
+  ],
+  "skillIds": [
+    "core.base.default",
+    "core.rules.runtime",
+    "core.memory_access",
+    "core.subagent_planning",
+    "draft.lifecycle_support",
+    "movscript.project_progress_review",
+    "movscript.script_reading",
+    "kernel.proposal_first",
+    "movscript.project_standards_proposal",
+    "movscript.setting_proposal",
+    "movscript.asset_proposal",
+    "movscript.setting_prep",
+    "movscript.production_proposal",
+    "candidate.asset_planning",
+    "movscript.content_unit_proposal",
+    "movscript.storyboard_gap_review",
+    "generation.visual_execution"
+  ],
+  "toolGrants": [
+    { "name": "movscript_focus_get", "mode": "allow", "approval": "never" },
+    { "name": "movscript_project_list", "mode": "allow", "approval": "never" },
+    { "name": "movscript_project_standards_get", "mode": "allow", "approval": "never" },
+    { "name": "movscript_script_locate", "mode": "allow", "approval": "never" },
+    { "name": "movscript_creative_reference_query", "mode": "allow", "approval": "never" },
+    { "name": "movscript_asset_slot_query", "mode": "allow", "approval": "never" },
+    { "name": "movscript_production_context_query", "mode": "allow", "approval": "never" },
+    { "name": "generation_model_list", "mode": "allow", "approval": "never" },
+    { "name": "tool_comfyui", "mode": "allow", "approval": "always" },
+    { "name": "tool_webui", "mode": "allow", "approval": "always" },
+    { "name": "candidate_asset_slot_attach", "mode": "allow", "approval": "never" },
+    { "name": "candidate_keyframe_attach", "mode": "allow", "approval": "never" },
+    { "name": "reference_search", "mode": "allow", "approval": "never" },
+    { "name": "reference_get", "mode": "allow", "approval": "never" },
+    { "name": "core_file_read", "mode": "allow", "approval": "never" },
+    { "name": "core_file_search", "mode": "allow", "approval": "never" },
+    { "name": "core_file_edit", "mode": "allow", "approval": "never" },
+    { "name": "core_image_inspect", "mode": "allow", "approval": "never" },
+    { "name": "core_image_preprocess", "mode": "allow", "approval": "never" },
+    { "name": "core_image_crop", "mode": "allow", "approval": "never" },
+    { "name": "core_image_tile", "mode": "allow", "approval": "never" },
+    { "name": "draft_model_get", "mode": "allow", "approval": "never" },
+    { "name": "draft_create", "mode": "allow", "approval": "never" },
+    { "name": "draft_apply_preview", "mode": "allow", "approval": "never" },
+    { "name": "draft_apply", "mode": "allow", "approval": "on_write" },
+    { "name": "core_memory_search", "mode": "allow", "approval": "never" },
+    { "name": "core_memory_get", "mode": "allow", "approval": "never" },
+    { "name": "core_memory_create", "mode": "allow", "approval": "never" },
+    { "name": "core_memory_delete", "mode": "allow", "approval": "never" },
+    { "name": "core_catalog_inspect", "mode": "allow", "approval": "never" },
+    { "name": "core_skill_update", "mode": "allow", "approval": "never" },
+    { "name": "core_update_plan", "mode": "allow", "approval": "never" },
+    { "name": "core_work_start", "mode": "allow", "approval": "always" },
+    { "name": "core_work_get", "mode": "allow", "approval": "never" },
+    { "name": "core_work_list", "mode": "allow", "approval": "never" },
+    { "name": "core_work_wait", "mode": "allow", "approval": "never" },
+    { "name": "core_work_cancel", "mode": "allow", "approval": "always" },
+    { "name": "core_user_input_request", "mode": "allow", "approval": "never" }
+  ],
+  "limits": {
+    "maxActiveTriggeredSkills": 2,
+    "systemPromptCharLimit": 32000,
+    "contextWindowCharLimit": 96000,
+    "maxRetrievedContextChars": 24000,
+    "maxReferenceCharsPerRun": 8000,
+    "maxReferenceChunksPerRun": 3,
+    "maxHistoryMessages": 6,
+    "maxThreadSummaryChars": 4000
+  },
+  "metadata": {
+    "promptOptions": {
+      "projectStandards": {
+        "mode": "required_for_project_work"
+      },
+      "finalSourceBlock": true
+    }
+  }
+}

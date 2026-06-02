@@ -164,10 +164,8 @@ function draft(): AgentSendDraft {
     model: { id: 1 },
     agent: { id: null },
     settings: {
-      permissionMode: 'ask',
       includeProjectContext: true,
       includeRecentResources: false,
-      autoTaskGraph: false,
     },
     contextLabels: [],
     context: { recentResources: [] },

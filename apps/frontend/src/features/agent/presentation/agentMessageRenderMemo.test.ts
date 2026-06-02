@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  agentConversationMessageItemHasWorkflowRuns,
+  agentConversationMessageItemHasInteractionRuns,
   agentConversationMessageItemsEqual,
-  agentConversationMessageItemUsesLiveWorkflowState,
+  agentConversationMessageItemUsesLiveRunInteractionState,
   shallowReferenceArrayEqual,
 } from './agentMessageRenderMemo.ts'
 import type { AgentConversationMessageItem } from '@/features/agent/domain/agentConversationThreadItems'
@@ -11,9 +11,9 @@ import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 function messageItem(overrides: Partial<AgentConversationMessageItem> = {}): AgentConversationMessageItem {
   return {
-    beforeMessageWorkflowRuns: [],
-    afterMessageWorkflowRuns: [],
-    liveWorkflowRuns: null,
+    beforeMessageInteractionRuns: [],
+    afterMessageInteractionRuns: [],
+    liveInteractionRuns: null,
     message: {
       id: 'message-1',
       role: 'assistant',
@@ -25,7 +25,7 @@ function messageItem(overrides: Partial<AgentConversationMessageItem> = {}): Age
   }
 }
 
-test('agent message render memo treats rebuilt empty workflow arrays as equal', () => {
+test('agent message render memo treats rebuilt empty run interaction arrays as equal', () => {
   const message = messageItem().message
   assert.equal(agentConversationMessageItemsEqual(
     messageItem({ message }),
@@ -40,11 +40,11 @@ test('agent message render memo detects changed message identity', () => {
   ), false)
 })
 
-test('agent message render memo detects live workflow state only when mounted item needs it', () => {
+test('agent message render memo detects live run interaction state only when mounted item needs it', () => {
   const run = { id: 'run-1' } as AgentRun
-  assert.equal(agentConversationMessageItemUsesLiveWorkflowState(messageItem()), false)
-  assert.equal(agentConversationMessageItemUsesLiveWorkflowState(messageItem({ liveWorkflowRuns: [run] })), true)
-  assert.equal(agentConversationMessageItemHasWorkflowRuns(messageItem({ beforeMessageWorkflowRuns: [run] })), true)
+  assert.equal(agentConversationMessageItemUsesLiveRunInteractionState(messageItem()), false)
+  assert.equal(agentConversationMessageItemUsesLiveRunInteractionState(messageItem({ liveInteractionRuns: [run] })), true)
+  assert.equal(agentConversationMessageItemHasInteractionRuns(messageItem({ beforeMessageInteractionRuns: [run] })), true)
 })
 
 test('shallowReferenceArrayEqual compares array items by reference', () => {

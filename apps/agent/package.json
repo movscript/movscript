@@ -12,19 +12,18 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
     "test:context-management": "node ../../scripts/run-node-tests.mjs --suite context-management && pnpm run typecheck",
-    "test:model-capability-contract": "node ../../scripts/run-node-tests.mjs --suite model-capability-contract && node --import tsx --test \"src/orchestration/toolExecutor.test.ts\"",
+    "test:model-capability-contract": "node ../../scripts/run-node-tests.mjs --suite model-capability-contract && node --import tsx --test \"src/orchestration/tools/toolExecutor.test.ts\"",
     "dev": "node scripts/dev-watch.mjs"
   },
   "testSuites": {
     "context-management": [
       "src/context/**/*.test.ts",
-      "src/contextManager/**/*.test.ts",
-      "src/application/runtimeLocalDiagnosticCommand.test.ts",
-      "src/application/runtimeRunExecutionContext.test.ts"
+      "src/application/local-command/runtimeLocalDiagnosticCommand.test.ts",
+      "src/application/run/runtimeRunExecutionContext.test.ts"
     ],
     "model-capability-contract": {
       "patterns": [
-        "src/catalog/layering.test.ts"
+        "src/catalog/validation/layering.test.ts"
       ],
       "testNamePattern": "asset candidate preparation is separated from generation execution|visual generation prompt exposes backend generation validation error codes"
     }
@@ -37,6 +36,7 @@
     "@movscript/drafts": "workspace:*",
     "openai": "^6.38.0",
     "prom-client": "^15.1.3",
+    "sharp": "^0.34.3",
     "zod": "^4.4.2"
   },
   "devDependencies": {

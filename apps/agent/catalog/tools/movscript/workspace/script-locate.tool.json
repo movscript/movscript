@@ -83,7 +83,7 @@
     "approval": "never"
   },
   "requiresSkills": [
-    "movscript.workflow.script_reading"
+    "movscript.script_reading"
   ],
   "source": "runtime"
 }

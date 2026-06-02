@@ -2,6 +2,88 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentThread } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRuntimeTransport } from '@/shared/infrastructure/agentRuntimeTransport'
+
+test('local agent client delegates requests through the runtime transport', async () => {
+  const requests: string[] = []
+  const transport: AgentRuntimeTransport = {
+    kind: 'unix-socket',
+    endpointLabel: 'unix:/tmp/movscript-agent.sock',
+    request: async (path, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${path}`)
+      return jsonResponse({
+        ok: true,
+        service: 'movscript-agent',
+        mode: 'runtime',
+        mcpEndpoint: 'http://127.0.0.1:28766/mcp',
+      })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  const client = new LocalAgentClient(transport)
+
+  const health = await client.health()
+
+  assert.equal(client.baseURL, 'unix:/tmp/movscript-agent.sock')
+  assert.equal(client.transportKind, 'unix-socket')
+  assert.equal(health.ok, true)
+  assert.deepEqual(requests, ['GET /runtime/compat'])
+})
+
+test('local agent client passes transport metadata when asking Electron to start runtime', async () => {
+  const requests: string[] = []
+  let started = false
+  const transport: AgentRuntimeTransport = {
+    kind: 'unix-socket',
+    endpointLabel: 'unix:/tmp/movscript-agent.sock',
+    socketPath: '/tmp/movscript-agent.sock',
+    request: async (path, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${path}`)
+      if (!started) return new Response('missing', { status: 404 })
+      return jsonResponse({
+        ok: true,
+        service: 'movscript-agent',
+        mode: 'runtime',
+        mcpEndpoint: 'http://127.0.0.1:28766/mcp',
+      })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  const ensureInputs: unknown[] = []
+  const runtimeGlobal = globalThis as typeof globalThis & { window?: unknown }
+  const originalWindow = runtimeGlobal.window
+  ;(runtimeGlobal as Record<string, unknown>).window = {
+    api: {
+      ensureAgentRuntime: async (input: unknown) => {
+        ensureInputs.push(input)
+        started = true
+        return { ok: true, running: true, managed: true, started: true, baseURL: 'unix:/tmp/movscript-agent.sock' }
+      },
+    },
+  }
+
+  try {
+    const health = await new LocalAgentClient(transport).ensureRunning()
+
+    assert.equal(health.ok, true)
+    assert.deepEqual(ensureInputs, [{
+      baseURL: 'unix:/tmp/movscript-agent.sock',
+      transportKind: 'unix-socket',
+      socketPath: '/tmp/movscript-agent.sock',
+    }])
+    assert.deepEqual(requests, [
+      'GET /runtime/compat',
+      'GET /health',
+      'GET /runtime/compat',
+    ])
+  } finally {
+    ;(runtimeGlobal as Record<string, unknown>).window = originalWindow
+  }
+})
 
 test('runMessageStream reports when a saved thread id is reused', async () => {
   const requests: string[] = []
@@ -280,7 +362,7 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
     assert.equal(runBodies[0]?.message, 'continue')
     assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_stream')
-    assert.equal(runBodies[0]?.activeRunPolicy, 'new_run')
+    assert.equal(runBodies[0]?.activeRunMode, 'new_run')
     assert.deepEqual(sourceMessages, [{ messageId: 'msg_stream', runId: 'run_stream' }])
   })
 })
@@ -592,8 +674,7 @@ function runFixture(id: string, threadId: string, status: AgentRun['status']): A
     id,
     threadId,
     status,
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 10,
       maxIterations: 6,
       allowNetwork: false,

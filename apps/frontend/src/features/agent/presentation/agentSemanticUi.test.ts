@@ -16,8 +16,8 @@ import {
   agentSlowDiagnosticRecipe,
   agentTestResultRecipe,
   agentToolCallStatusRecipe,
-  agentWorkflowActionStatusRecipe,
-  agentWorkflowStatusRecipe,
+  agentRunInteractionActionStatusRecipe,
+  agentRunInteractionStatusRecipe,
 } from './agentSemanticUi'
 
 test('agent run statuses map to UI semantic recipes', () => {
@@ -28,21 +28,21 @@ test('agent run statuses map to UI semantic recipes', () => {
   assert.deepEqual(agentRunStatusRecipe('in_progress'), { intent: 'neutral', emphasis: 'soft' })
 })
 
-test('agent workflow statuses map to UI semantic recipes', () => {
-  assert.deepEqual(agentWorkflowStatusRecipe('completed'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowStatusRecipe('done'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowStatusRecipe('running'), { intent: 'info', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowStatusRecipe('blocked'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowStatusRecipe('cancelled'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
+test('agent run interaction statuses map to UI semantic recipes', () => {
+  assert.deepEqual(agentRunInteractionStatusRecipe('completed'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionStatusRecipe('done'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionStatusRecipe('running'), { intent: 'info', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionStatusRecipe('blocked'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionStatusRecipe('cancelled'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
 })
 
-test('agent workflow action statuses map to UI semantic recipes', () => {
-  assert.deepEqual(agentWorkflowActionStatusRecipe('approved'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowActionStatusRecipe('answered'), { intent: 'success', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowActionStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowActionStatusRecipe('pending'), { intent: 'warning', emphasis: 'soft' })
-  assert.deepEqual(agentWorkflowActionStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
+test('agent run interaction action statuses map to UI semantic recipes', () => {
+  assert.deepEqual(agentRunInteractionActionStatusRecipe('approved'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionActionStatusRecipe('answered'), { intent: 'success', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionActionStatusRecipe('rejected'), { intent: 'danger', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionActionStatusRecipe('pending'), { intent: 'warning', emphasis: 'soft' })
+  assert.deepEqual(agentRunInteractionActionStatusRecipe('unknown'), { intent: 'neutral', emphasis: 'soft' })
 })
 
 test('agent draft statuses map to UI semantic recipes', () => {

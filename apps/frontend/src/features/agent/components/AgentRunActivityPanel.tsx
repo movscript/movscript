@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, ChevronRight, Route, Workflow } from 'lucide-react'
+import { Bot, ChevronRight, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -30,12 +30,12 @@ import { agentTimelineSummary, buildAgentRunTimeline } from '@/features/agent/do
 import { formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
-import { agentRunStatusRecipe, agentWorkflowStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { AgentInputAnswer } from '@/features/agent/domain/agentWorkflowInteraction'
+import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 function formatActivityTime(value: string | undefined, locale: string) {
@@ -104,7 +104,7 @@ export function RunActivityPanel({
       open={defaultOpen}
       className={className}
       title={title}
-      icon={<Workflow size={12} />}
+      icon={<Route size={12} />}
       action={runId && (
         <AgentRunActivityDetailButton
           type="button"
@@ -132,7 +132,7 @@ export function RunActivityPanel({
           这次运行没有记录工具调用或交互。
         </AgentRunActivityEmpty>
       ) : timeline.items.map((item) => {
-        const itemStatusRecipe = agentWorkflowStatusRecipe(item.status)
+        const itemStatusRecipe = agentRunInteractionStatusRecipe(item.status)
         return (
           <AgentRunActivityItem key={item.id}>
             <AgentRunActivityItemRow>
@@ -263,7 +263,7 @@ export function LiveRunActivityBubble({
   const { t } = useTranslation()
   if (!run && events.length === 0) return null
   const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
-  const runStatusText = workflowRunStatusLabel(run?.status ?? 'in_progress', t)
+  const runStatusText = interactionRunStatusLabel(run?.status ?? 'in_progress', t)
   const feed = buildAgentActivityFeed({ run, events })
   return (
     <div className="space-y-1">
@@ -325,22 +325,22 @@ function latestModelRetryStatus(events: ChatRunActivityEvent[]): string | undefi
   return `模型请求重试中${attemptLabel}${delayLabel}`
 }
 
-function workflowRunStatusLabel(status: AgentRun['status'], t: ReturnType<typeof useTranslation>['t']): string {
+function interactionRunStatusLabel(status: AgentRun['status'], t: ReturnType<typeof useTranslation>['t']): string {
   switch (status) {
     case 'queued':
-      return t('agents.chat.workflow.runQueued')
+      return t('agents.chat.task.runQueued')
     case 'in_progress':
-      return t('agents.chat.workflow.runInProgress')
+      return t('agents.chat.task.runInProgress')
     case 'requires_action':
-      return t('agents.chat.workflow.runRequiresAction')
+      return t('agents.chat.task.runRequiresAction')
     case 'completed':
-      return t('agents.chat.workflow.runCompleted')
+      return t('agents.chat.task.runCompleted')
     case 'completed_with_warnings':
-      return t('agents.chat.workflow.runCompletedWithWarnings')
+      return t('agents.chat.task.runCompletedWithWarnings')
     case 'failed':
-      return t('agents.chat.workflow.runFailed')
+      return t('agents.chat.task.runFailed')
     case 'cancelled':
-      return t('agents.chat.workflow.cancelled')
+      return t('agents.chat.task.cancelled')
     default:
       return runStatusLabel(status)
   }

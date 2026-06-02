@@ -11,7 +11,7 @@ function runWithResults(results: unknown[]): AgentRun {
     status: 'completed',
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    runtimeLimits: { maxToolCalls: 10, maxIterations: 6 },
     steps: results.map((result, index) => ({
       id: `step_${index}`,
       runId: 'run_1',
@@ -31,7 +31,7 @@ function runWithToolResults(steps: Array<{ toolName: string; result: unknown }>)
     status: 'completed',
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    runtimeLimits: { maxToolCalls: 10, maxIterations: 6 },
     steps: steps.map((step, index) => ({
       id: `step_${index}`,
       runId: 'run_1',
@@ -321,7 +321,7 @@ test('generationValidationErrorsFromRun extracts backend validation details from
     status: 'failed',
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    runtimeLimits: { maxToolCalls: 10, maxIterations: 6 },
     steps: [{
       id: 'step_error',
       runId: 'run_1',
@@ -357,7 +357,7 @@ test('generationValidationErrorsFromRun extracts input count details from failed
     status: 'failed',
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    runtimeLimits: { maxToolCalls: 10, maxIterations: 6 },
     steps: [{
       id: 'step_input',
       runId: 'run_1',

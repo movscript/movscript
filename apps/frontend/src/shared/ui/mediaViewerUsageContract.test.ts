@@ -73,7 +73,7 @@ test('tool page input previews and outputs use shared media primitives', () => {
   assert.doesNotMatch(source, /<img/)
 })
 
-test('workflow run results use MediaViewer for generated media outputs', () => {
+test('canvas run results use MediaViewer for generated media outputs', () => {
   const source = readFileSync(resolve('src/features/canvas/ui/CanvasWorkflowPanels.tsx'), 'utf8')
 
   assert.match(source, /import \{ MediaViewer \}/)
@@ -142,7 +142,7 @@ test('resource file and temporary image previews use shared image primitives', (
   const fileImageSource = readFileSync(resolve('src/shared/ui/ResourceFileImage.tsx'), 'utf8')
   const fileUrlSource = readFileSync(resolve('src/shared/ui/resourceFileUrl.ts'), 'utf8')
   const previewDrawerSource = readFileSync(resolve('src/shared/ui/PreviewDrawer.tsx'), 'utf8')
-  const agentWorkflowSource = readFileSync(resolve('src/features/agent/components/AgentWorkflowBubble.tsx'), 'utf8')
+  const agentRunInteractionSource = readFileSync(resolve('src/features/agent/components/AgentRunInteractionBubble.tsx'), 'utf8')
   const keyframeEditorSource = readFileSync(resolve('src/features/content/components/ContentWorkbenchKeyframeEditor.tsx'), 'utf8')
   const scenePreviewSource = readFileSync(resolve('src/features/content/components/ContentWorkbenchScenePreview.tsx'), 'utf8')
   const projectStandardsSource = readFileSync(resolve('src/features/project-standards/components/ProjectStandardsPage.tsx'), 'utf8')
@@ -154,7 +154,7 @@ test('resource file and temporary image previews use shared image primitives', (
 
   for (const source of [
     previewDrawerSource,
-    agentWorkflowSource,
+    agentRunInteractionSource,
     keyframeEditorSource,
     scenePreviewSource,
     projectStandardsSource,

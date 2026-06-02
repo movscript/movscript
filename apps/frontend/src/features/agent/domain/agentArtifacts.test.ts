@@ -15,7 +15,7 @@ test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
     status: 'completed',
     createdAt: '2026-05-17T00:00:00.000Z',
     updatedAt: '2026-05-17T00:00:01.000Z',
-    policy: { approvalMode: 'interactive', maxToolCalls: 10, maxIterations: 6, allowNetwork: false, allowFileBytes: false },
+    runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 10, maxIterations: 6, allowNetwork: false, allowFileBytes: false },
     steps: [{
       id: 'step_1',
       runId: 'run_1',

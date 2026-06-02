@@ -1,6 +1,6 @@
 {
   "name": "core_catalog_inspect",
-  "description": "只读查看当前 run 使用的 agent catalog snapshot，包括 profile、enabled packs、skills、tools 和可用性摘要。",
+  "description": "只读查看当前 run 使用的 agent catalog snapshot，包括配置文件、enabled packs、skills、tools 和可用性摘要。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -12,14 +12,13 @@
           "pack",
           "skill",
           "tool",
-          "profile",
-          "knowledge"
+          "config"
         ],
         "description": "要查看的 catalog 视图。默认 summary。"
       },
       "id": {
         "type": "string",
-        "description": "pack id、skill id、tool name、profile id 或 knowledge collection id。summary 可省略，其它 view 必填。"
+        "description": "pack id、skill id、tool name 或配置文件 id。summary 可省略，其它 view 必填。"
       },
       "includeInstruction": {
         "type": "boolean",
@@ -45,8 +44,7 @@
               "pack",
               "skill",
               "tool",
-              "profile",
-              "knowledge"
+              "config"
             ]
           },
           "id": {
@@ -69,5 +67,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "按需读取当前 run 的 agent catalog snapshot 中的 pack、skill、tool、profile 和 knowledge 详情，不会安装、启用或 reload catalog。"
+  "capability": "按需读取当前 run 的 agent catalog snapshot 中的 pack、skill、tool 和配置文件详情，不会安装、启用或 reload catalog。"
 }

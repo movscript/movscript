@@ -6,10 +6,10 @@
   "source": "builtin",
   "resources": {
     "skills": [
-      "core/persona/default",
-      "core/policy/runtime",
-      "core/workflow/memory_access",
-      "core/workflow/subagent_planning"
+      "core/base/default",
+      "core/rules/runtime",
+      "core/memory_access",
+      "core/subagent_planning"
     ],
     "tools": [
       "core"
@@ -24,6 +24,10 @@
     "core_file_read",
     "core_file_search",
     "core_file_edit",
+    "core_image_inspect",
+    "core_image_preprocess",
+    "core_image_crop",
+    "core_image_tile",
     "core_video_extract_frames",
     "core_catalog_inspect",
     "core_skill_update",
@@ -36,9 +40,9 @@
     "core_user_input_request"
   ],
   "skills": [
-    "core.persona.default",
-    "core.policy.runtime",
-    "core.workflow.memory_access",
-    "core.workflow.subagent_planning"
+    "core.base.default",
+    "core.rules.runtime",
+    "core.memory_access",
+    "core.subagent_planning"
   ]
 }

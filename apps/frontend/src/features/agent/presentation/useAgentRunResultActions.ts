@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { assistantResultPayloadForRun } from '@/features/agent/domain/agentMessageViewModel'
-import { upsertWorkflowRunSnapshot } from '@/features/agent/domain/agentWorkflowInteraction'
+import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import { formatLocalAgentAssistantContent } from '@/features/agent/domain/localAgentResult'
 import { localAgentClient, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from '@/shared/infrastructure/localAgentClient'
 import { appendAssistantRunResultMessage, type AgentConversationMessageStore } from '@movscript/conversation'
@@ -40,7 +40,7 @@ export function useAgentRunResultActions({
       pollMs: 1000,
       onRunUpdate: (nextRun) => {
         setConversationRun(conversationId, nextRun, { approving: true, loading: true })
-        setSubmittedInteractionRuns((current) => current.some((run) => run.id === nextRun.id) ? upsertWorkflowRunSnapshot(current, nextRun) : current)
+        setSubmittedInteractionRuns((current) => current.some((run) => run.id === nextRun.id) ? upsertInteractionRunSnapshot(current, nextRun) : current)
       },
       onRuntimeEvent: (event) => {
         recordLiveTraceEvent(event)

@@ -110,10 +110,8 @@ function draft(model: Partial<AgentSendDraft['model']> = {}): AgentSendDraft {
     model: { id: 1, ...model },
     agent: { id: null },
     settings: {
-      permissionMode: 'ask',
       includeProjectContext: true,
       includeRecentResources: false,
-      autoTaskGraph: false,
     },
     contextLabels: [],
     context: { recentResources: [] },

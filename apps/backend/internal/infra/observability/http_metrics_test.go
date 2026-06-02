@@ -68,12 +68,18 @@ func TestHTTPMetricsPrometheusText(t *testing.T) {
 		Status:  http.StatusBadGateway,
 		Latency: 75 * time.Millisecond,
 	})
+	DefaultAgentClientMetrics().RecordOperation(AgentClientOperationSample{
+		Kind:     "send",
+		Status:   "success",
+		Duration: 25 * time.Millisecond,
+	})
 
 	text := metrics.PrometheusText()
 	for _, want := range []string{
 		`movscript_http_requests_total{method="POST",route="/v1/chat/completions",status="502",status_class="5xx"} 1`,
 		`movscript_http_request_duration_milliseconds_bucket{method="POST",route="/v1/chat/completions",le="+Inf"} 1`,
 		`movscript_http_route_errors_total{method="POST",route="/v1/chat/completions"} 1`,
+		`movscript_agent_client_operations_total{kind="send",status="success"}`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("Prometheus text missing %q in:\n%s", want, text)

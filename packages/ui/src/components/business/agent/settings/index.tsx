@@ -47,13 +47,13 @@ export type AgentSettingsActionItem = AgentSettingsStatusItem & {
   onQuickFix?: () => void;
 };
 
-export type AgentSettingsProfileSummaryItem = {
+export type AgentSettingsConfigFileSummaryItem = {
   id: string;
   label: ReactNode;
   value: ReactNode;
 };
 
-export type AgentSettingsProfileDiffSection = {
+export type AgentSettingsConfigFileDiffSection = {
   id: string;
   label: ReactNode;
   lines: ReactNode[];
@@ -65,7 +65,7 @@ export type AgentSettingsSkillMetaItem = {
   label: ReactNode;
 };
 
-export type AgentSettingsToolPolicyDiffItem = {
+export type AgentSettingsToolPermissionsDiffItem = {
   id: string;
   name: ReactNode;
   beforeLabel: ReactNode;
@@ -74,21 +74,21 @@ export type AgentSettingsToolPolicyDiffItem = {
   statusProps: AgentSettingsStatusProps;
 };
 
-export type AgentSettingsToolPolicyMode = "allow" | "deny";
-export type AgentSettingsToolPolicyApproval = "never" | "on_write" | "always";
+export type AgentSettingsToolPermissionsMode = "allow" | "deny";
+export type AgentSettingsToolPermissionsApproval = "never" | "on_write" | "always";
 
-export type AgentSettingsToolPolicyMetaItem = {
+export type AgentSettingsToolPermissionsMetaItem = {
   id: string;
   label: ReactNode;
   tone?: AgentSettingsStatusTone;
 };
 
-export type AgentSettingsToolPolicyFilterOption = {
+export type AgentSettingsToolPermissionsFilterOption = {
   value: string;
   label: ReactNode;
 };
 
-export type AgentSettingsToolPolicyFilterPresetItem = {
+export type AgentSettingsToolPermissionsFilterPresetItem = {
   id: string;
   name: ReactNode;
   title?: string;
@@ -96,30 +96,14 @@ export type AgentSettingsToolPolicyFilterPresetItem = {
   onDelete: () => void;
 };
 
-export type AgentSettingsToolPolicyBulkActionItem = {
+export type AgentSettingsToolPermissionsBulkActionItem = {
   id: string;
   label: ReactNode;
   disabled?: boolean;
   onClick: () => void;
 };
 
-export type AgentSettingsRunPresetMetaItem = {
-  id: string;
-  label: ReactNode;
-};
-
-export type AgentSettingsRunPresetSelectOption = {
-  value: string;
-  label: ReactNode;
-};
-
-export type AgentSettingsRunPresetPolicyItem = {
-  id: string;
-  label: ReactNode;
-  value: ReactNode;
-};
-
-export type AgentSettingsSkillBundlePluginItem = {
+export type AgentSettingsPackPluginItem = {
   id: string;
   path: ReactNode;
   actionLabel: ReactNode;
@@ -861,7 +845,7 @@ export function AgentSettingsActionFeedback({ children }: { children: ReactNode 
   );
 }
 
-export function AgentSettingsProfileCard({
+export function AgentSettingsConfigFileCard({
   name,
   idLabel,
   description,
@@ -880,76 +864,195 @@ export function AgentSettingsProfileCard({
   previewLabel?: ReactNode;
   current?: boolean;
   preview?: boolean;
-  summaryItems: AgentSettingsProfileSummaryItem[];
+  summaryItems: AgentSettingsConfigFileSummaryItem[];
 }) {
   return (
     <AgentSurfaceBlock
       variant="subtle"
       data-current={current ? "true" : undefined}
       data-preview={preview ? "true" : undefined}
-      className="agent-settings-profile-card"
+      className="agent-settings-config-file-card"
     >
-      <div className="agent-settings-profile-card__header">
+      <div className="agent-settings-config-file-card__header">
         <div className="agent-settings-item-body">
-          <div className="agent-settings-profile-card__title-row">
-            <p className="agent-settings-profile-card__title">{name}</p>
+          <div className="agent-settings-config-file-card__title-row">
+            <p className="agent-settings-config-file-card__title">{name}</p>
             {current && currentLabel ? <StatusBadge intent="success" emphasis="soft">{currentLabel}</StatusBadge> : null}
             {preview && previewLabel ? <Badge>{previewLabel}</Badge> : null}
             <Badge variant="outline">{versionLabel}</Badge>
           </div>
-          <p className="agent-settings-profile-card__id">{idLabel}</p>
+          <p className="agent-settings-config-file-card__id">{idLabel}</p>
         </div>
       </div>
-      {description ? <p className="agent-settings-profile-card__description">{description}</p> : null}
-      <div className="agent-settings-profile-card__summary-grid">
+      {description ? <p className="agent-settings-config-file-card__description">{description}</p> : null}
+      <div className="agent-settings-config-file-card__summary-grid">
         {summaryItems.map((item) => (
-          <AgentSettingsProfileSummaryList key={item.id} item={item} />
+          <AgentSettingsConfigFileSummaryList key={item.id} item={item} />
         ))}
       </div>
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentSettingsProfileSummaryList({ item }: { item: AgentSettingsProfileSummaryItem }) {
+export function AgentSettingsConfigFileEditor({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-settings-config-file-editor", className)} {...props} />;
+}
+
+export function AgentSettingsConfigFileBrowser({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <aside className={cn("agent-settings-config-file-browser", className)} {...props} />;
+}
+
+export function AgentSettingsConfigFileEditorPane({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  return <section className={cn("agent-settings-config-file-editor-pane", className)} {...props} />;
+}
+
+export function AgentSettingsConfigFileList({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agent-settings-config-file-list", className)} {...props} />;
+}
+
+export function AgentSettingsConfigFileListButton({
+  name,
+  idLabel,
+  description,
+  versionLabel,
+  currentLabel,
+  selectedLabel,
+  current = false,
+  selected = false,
+  summaryLabel,
+  onSelect,
+}: {
+  name: ReactNode;
+  idLabel: ReactNode;
+  description?: ReactNode;
+  versionLabel: ReactNode;
+  currentLabel?: ReactNode;
+  selectedLabel?: ReactNode;
+  current?: boolean;
+  selected?: boolean;
+  summaryLabel?: ReactNode;
+  onSelect: () => void;
+}) {
   return (
-    <AgentSurfaceBlock variant="card" className="agent-settings-profile-summary">
-      <p className="agent-settings-profile-summary__label">{item.label}</p>
-      <p className="agent-settings-profile-summary__value">{item.value}</p>
+    <AgentSurfaceBlock
+      asChild
+      variant="subtle"
+      data-current={current ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
+      className="agent-settings-config-file-list-item"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className="agent-settings-config-file-list-item__button"
+      >
+        <span className="agent-settings-config-file-list-item__header">
+          <span className="agent-settings-config-file-list-item__title">{name}</span>
+          <span className="agent-settings-config-file-list-item__badges">
+            {current && currentLabel ? <StatusBadge intent="success" emphasis="soft">{currentLabel}</StatusBadge> : null}
+            {selected && selectedLabel ? <Badge variant="soft">{selectedLabel}</Badge> : null}
+            <Badge variant="outline">{versionLabel}</Badge>
+          </span>
+        </span>
+        <span className="agent-settings-config-file-list-item__id">{idLabel}</span>
+        {description ? <span className="agent-settings-config-file-list-item__description">{description}</span> : null}
+        {summaryLabel ? <span className="agent-settings-config-file-list-item__summary">{summaryLabel}</span> : null}
+      </Button>
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentSettingsProfileDiffPanel({
+export function AgentSettingsConfigFileEditorHeader({
+  title,
+  description,
+  badges,
+  actions,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  badges?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="agent-settings-config-file-editor-header">
+      <div className="agent-settings-item-body">
+        <div className="agent-settings-config-file-editor-header__title-row">
+          <h2 className="agent-settings-config-file-editor-header__title">{title}</h2>
+          {badges ? <span className="agent-settings-config-file-editor-header__badges">{badges}</span> : null}
+        </div>
+        {description ? <p className="agent-settings-config-file-editor-header__description">{description}</p> : null}
+      </div>
+      {actions ? <div className="agent-settings-config-file-editor-header__actions">{actions}</div> : null}
+    </div>
+  );
+}
+
+export function AgentSettingsConfigFileEditorSection({
+  title,
+  description,
+  children,
+  className,
+  ...props
+}: HTMLAttributes<HTMLElement> & {
+  title: ReactNode;
+  description?: ReactNode;
+}) {
+  return (
+    <AgentSurfaceBlock asChild variant="card" className={cn("agent-settings-config-file-editor-section", className)}>
+      <section {...props}>
+        <div className="agent-settings-config-file-editor-section__header">
+          <p className="agent-settings-config-file-editor-section__title">{title}</p>
+          {description ? <p className="agent-settings-config-file-editor-section__description">{description}</p> : null}
+        </div>
+        <div className="agent-settings-config-file-editor-section__body">{children}</div>
+      </section>
+    </AgentSurfaceBlock>
+  );
+}
+
+export function AgentSettingsConfigFileSummaryList({ item }: { item: AgentSettingsConfigFileSummaryItem }) {
+  return (
+    <AgentSurfaceBlock variant="card" className="agent-settings-config-file-summary">
+      <p className="agent-settings-config-file-summary__label">{item.label}</p>
+      <p className="agent-settings-config-file-summary__value">{item.value}</p>
+    </AgentSurfaceBlock>
+  );
+}
+
+export function AgentSettingsConfigFileDiffPanel({
   title,
   sections,
 }: {
   title: ReactNode;
-  sections: AgentSettingsProfileDiffSection[];
+  sections: AgentSettingsConfigFileDiffSection[];
 }) {
   return (
     <AgentDataBlock>
       <p className="agent-settings-item-title">{title}</p>
       <div className="agent-settings-grid agent-settings-grid--two">
         {sections.map((section) => (
-          <AgentSettingsProfileDiffSectionView key={section.id} section={section} />
+          <AgentSettingsConfigFileDiffSectionView key={section.id} section={section} />
         ))}
       </div>
     </AgentDataBlock>
   );
 }
 
-export function AgentSettingsProfileDiffSectionView({ section }: { section: AgentSettingsProfileDiffSection }) {
+export function AgentSettingsConfigFileDiffSectionView({ section }: { section: AgentSettingsConfigFileDiffSection }) {
   return (
-    <AgentSurfaceBlock variant="card" className="agent-settings-profile-diff-section">
-      <p className="agent-settings-profile-diff-section__label">{section.label}</p>
+    <AgentSurfaceBlock variant="card" className="agent-settings-config-file-diff-section">
+      <p className="agent-settings-config-file-diff-section__label">{section.label}</p>
       {section.lines.length > 0 ? (
-        <div className="agent-settings-profile-diff-section__lines">
+        <div className="agent-settings-config-file-diff-section__lines">
           {section.lines.map((line, index) => (
             <p key={index}>{line}</p>
           ))}
         </div>
       ) : (
-        <p className="agent-settings-profile-diff-section__empty">{section.emptyLabel}</p>
+        <p className="agent-settings-config-file-diff-section__empty">{section.emptyLabel}</p>
       )}
     </AgentSurfaceBlock>
   );
@@ -962,12 +1065,9 @@ export function AgentSettingsSkillCard({
   enabled,
   enabledLabel,
   disabledLabel,
-  kindLabel,
   loadModeLabel,
   versionLabel,
   sourceLabel,
-  trustLabel,
-  trustProps,
   priorityLabel,
   draftEnabled,
   draftDisabled,
@@ -975,7 +1075,15 @@ export function AgentSettingsSkillCard({
   draftHelp,
   draftLocked = false,
   onDraftChange,
+  instructionLabel,
+  instructionHelp,
+  instructionValue,
+  instructionDisabled,
+  onInstructionChange,
   metaItems,
+  compact = false,
+  selected = false,
+  onSelect,
 }: {
   name: ReactNode;
   idLabel: ReactNode;
@@ -983,12 +1091,9 @@ export function AgentSettingsSkillCard({
   enabled: boolean;
   enabledLabel: ReactNode;
   disabledLabel: ReactNode;
-  kindLabel: ReactNode;
   loadModeLabel: ReactNode;
   versionLabel?: ReactNode;
   sourceLabel: ReactNode;
-  trustLabel: ReactNode;
-  trustProps: AgentSettingsStatusProps;
   priorityLabel?: ReactNode;
   draftEnabled?: boolean;
   draftDisabled?: boolean;
@@ -996,27 +1101,46 @@ export function AgentSettingsSkillCard({
   draftHelp?: ReactNode;
   draftLocked?: boolean;
   onDraftChange?: (enabled: boolean) => void;
+  instructionLabel?: ReactNode;
+  instructionHelp?: ReactNode;
+  instructionValue?: string;
+  instructionDisabled?: boolean;
+  onInstructionChange?: (value: string) => void;
   metaItems?: AgentSettingsSkillMetaItem[];
+  compact?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   return (
-    <AgentDataBlock className="agent-settings-skill-card">
+    <AgentDataBlock
+      className="agent-settings-skill-card"
+      data-compact={compact ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={onSelect ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      } : undefined}
+    >
       <div className="agent-settings-skill-card__header">
         <div className="agent-settings-item-body">
           <div className="agent-settings-skill-card__title-row">
             <p className="agent-settings-skill-card__title">{name}</p>
             <StatusBadge {...agentSettingsBooleanStatusRecipe(enabled)}>{enabled ? enabledLabel : disabledLabel}</StatusBadge>
-            <Badge>{kindLabel}</Badge>
             <Badge variant="outline">{loadModeLabel}</Badge>
             {versionLabel ? <Badge variant="outline">{versionLabel}</Badge> : null}
             <Badge variant="outline">{sourceLabel}</Badge>
-            <StatusBadge {...trustProps}>{trustLabel}</StatusBadge>
           </div>
           <p className="agent-settings-skill-card__id">{idLabel}</p>
         </div>
         {priorityLabel ? <span className="agent-settings-skill-card__priority">{priorityLabel}</span> : null}
       </div>
-      {description ? <p className="agent-settings-skill-card__description">{description}</p> : null}
-      {typeof draftEnabled === "boolean" && onDraftChange ? (
+      {!compact && description ? <p className="agent-settings-skill-card__description">{description}</p> : null}
+      {!compact && typeof draftEnabled === "boolean" && onDraftChange ? (
         <AgentSurfaceBlock variant="card" className="agent-settings-skill-card__draft">
           <CheckboxField
             checked={draftEnabled}
@@ -1025,14 +1149,26 @@ export function AgentSettingsSkillCard({
             controlSize="sm"
             className={cn("agent-settings-skill-card__toggle", draftLocked ? "agent-settings-skill-card__toggle--locked" : undefined)}
           >
-            <span className="agent-settings-item-body">
+            <span className="agent-settings-skill-card__draft-copy">
               {draftTitle ? <span className="agent-settings-skill-card__draft-title">{draftTitle}</span> : null}
               {draftHelp ? <span className="agent-settings-skill-card__draft-help">{draftHelp}</span> : null}
             </span>
           </CheckboxField>
         </AgentSurfaceBlock>
       ) : null}
-      {metaItems && metaItems.length > 0 ? (
+      {!compact && instructionValue !== undefined && onInstructionChange ? (
+        <label className="agent-settings-skill-card__instruction">
+          {instructionLabel ? <span className="agent-settings-skill-card__draft-title">{instructionLabel}</span> : null}
+          {instructionHelp ? <span className="agent-settings-skill-card__draft-help">{instructionHelp}</span> : null}
+          <Textarea
+            value={instructionValue}
+            disabled={instructionDisabled}
+            onChange={(event) => onInstructionChange(event.target.value)}
+            data-testid="agent-settings-skill-instruction-editor"
+          />
+        </label>
+      ) : null}
+      {!compact && metaItems && metaItems.length > 0 ? (
         <div className="agent-settings-skill-card__meta">
           {metaItems.map((item) => (
             <AppInlineMeta key={item.id}>{item.label}</AppInlineMeta>
@@ -1043,7 +1179,7 @@ export function AgentSettingsSkillCard({
   );
 }
 
-export function AgentSettingsToolPolicyDiffPanel({
+export function AgentSettingsToolPermissionsDiffPanel({
   title,
   summary,
   copyLabel,
@@ -1060,27 +1196,27 @@ export function AgentSettingsToolPolicyDiffPanel({
   copied?: boolean;
   copyIcon?: ReactNode;
   onCopy: () => void;
-  items: AgentSettingsToolPolicyDiffItem[];
+  items: AgentSettingsToolPermissionsDiffItem[];
 }) {
   if (items.length === 0) return null;
   return (
-    <AgentSurfaceBlock data-testid="agent-settings-tool-policy-diff" className="agent-settings-tool-policy-diff">
-      <div className="agent-settings-tool-policy-diff__header">
+    <AgentSurfaceBlock data-testid="agent-settings-tool-permissions-diff" className="agent-settings-tool-permissions-diff">
+      <div className="agent-settings-tool-permissions-diff__header">
         <span className="agent-settings-item-body">
           <span className="agent-settings-item-title">{title}</span>
           <span className="agent-settings-item-detail">{summary}</span>
         </span>
-        <Button type="button" size="sm" variant="outline" onClick={onCopy} data-testid="agent-settings-copy-tool-policy-diff">
+        <Button type="button" size="sm" variant="outline" onClick={onCopy} data-testid="agent-settings-copy-tool-permissions-diff">
           {copyIcon}
           {copied ? copiedLabel : copyLabel}
         </Button>
       </div>
-      <div className="agent-settings-tool-policy-diff__list">
+      <div className="agent-settings-tool-permissions-diff__list">
         {items.slice(0, 8).map((item) => (
-          <AgentSurfaceBlock key={item.id} data-testid="agent-settings-tool-policy-diff-item" variant="subtle" className="agent-settings-tool-policy-diff__item">
+          <AgentSurfaceBlock key={item.id} data-testid="agent-settings-tool-permissions-diff-item" variant="subtle" className="agent-settings-tool-permissions-diff__item">
             <span className="agent-settings-item-body">
-              <span className="agent-settings-tool-policy-diff__name">{item.name}</span>
-              <span className="agent-settings-tool-policy-diff__value">
+              <span className="agent-settings-tool-permissions-diff__name">{item.name}</span>
+              <span className="agent-settings-tool-permissions-diff__value">
                 {item.beforeLabel} {"->"} {item.afterLabel}
               </span>
             </span>
@@ -1094,7 +1230,7 @@ export function AgentSettingsToolPolicyDiffPanel({
   );
 }
 
-export function AgentSettingsToolPolicyRow({
+export function AgentSettingsToolPermissionsRow({
   name,
   sourceLabel,
   permissionLabel,
@@ -1103,8 +1239,8 @@ export function AgentSettingsToolPolicyRow({
   available,
   availableLabel,
   blockedLabel,
-  profileGranted,
-  profileGrantedLabel,
+  configFileGranted,
+  configFileGrantedLabel,
   requiresApproval,
   description,
   draft,
@@ -1119,6 +1255,9 @@ export function AgentSettingsToolPolicyRow({
   onModeChange,
   onApprovalChange,
   metaItems,
+  compact = false,
+  selected = false,
+  onSelect,
 }: {
   name: ReactNode;
   sourceLabel: ReactNode;
@@ -1128,13 +1267,13 @@ export function AgentSettingsToolPolicyRow({
   available: boolean;
   availableLabel: ReactNode;
   blockedLabel: ReactNode;
-  profileGranted?: boolean;
-  profileGrantedLabel?: ReactNode;
+  configFileGranted?: boolean;
+  configFileGrantedLabel?: ReactNode;
   requiresApproval?: boolean;
   description?: ReactNode;
   draft?: {
-    mode: AgentSettingsToolPolicyMode;
-    approval: AgentSettingsToolPolicyApproval;
+    mode: AgentSettingsToolPermissionsMode;
+    approval: AgentSettingsToolPermissionsApproval;
     canAllow: boolean;
   };
   modeLabel: ReactNode;
@@ -1145,35 +1284,49 @@ export function AgentSettingsToolPolicyRow({
   approvalOnWriteLabel: ReactNode;
   approvalAlwaysLabel: ReactNode;
   allowDisabledHelp?: ReactNode;
-  onModeChange?: (mode: AgentSettingsToolPolicyMode) => void;
-  onApprovalChange?: (approval: AgentSettingsToolPolicyApproval) => void;
-  metaItems: AgentSettingsToolPolicyMetaItem[];
+  onModeChange?: (mode: AgentSettingsToolPermissionsMode) => void;
+  onApprovalChange?: (approval: AgentSettingsToolPermissionsApproval) => void;
+  metaItems: AgentSettingsToolPermissionsMetaItem[];
+  compact?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   return (
     <AgentSurfaceBlock
       variant="subtle"
-      className={cn("agent-settings-tool-policy-row", !available ? toneSurfaceClass("warning") : undefined)}
+      className={cn("agent-settings-tool-permissions-row", !available ? toneSurfaceClass("warning") : undefined)}
+      data-compact={compact ? "true" : undefined}
+      data-selected={selected ? "true" : undefined}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect}
+      onKeyDown={onSelect ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      } : undefined}
     >
-      <div className="agent-settings-tool-policy-row__header">
+      <div className="agent-settings-tool-permissions-row__header">
         <div className="agent-settings-item-body">
-          <div className="agent-settings-tool-policy-row__title-row">
-            <p className="agent-settings-tool-policy-row__title">{name}</p>
+          <div className="agent-settings-tool-permissions-row__title-row">
+            <p className="agent-settings-tool-permissions-row__title">{name}</p>
             <StatusBadge {...agentSettingsAvailabilityStatusRecipe(available)}>{available ? availableLabel : blockedLabel}</StatusBadge>
-            {profileGranted && profileGrantedLabel ? <Badge>{profileGrantedLabel}</Badge> : null}
+            {configFileGranted && configFileGrantedLabel ? <Badge>{configFileGrantedLabel}</Badge> : null}
           </div>
-          <p className="agent-settings-tool-policy-row__meta-line">
+          <p className="agent-settings-tool-permissions-row__meta-line">
             {sourceLabel} / {permissionLabel} / {riskLabel}
           </p>
         </div>
         <StatusBadge {...agentSettingsApprovalStatusRecipe(Boolean(requiresApproval))}>{approvalStatusLabel}</StatusBadge>
       </div>
-      {description ? <p className="agent-settings-tool-policy-row__description">{description}</p> : null}
-      {draft ? (
-        <div className="agent-settings-tool-policy-row__controls">
+      {!compact && description ? <p className="agent-settings-tool-permissions-row__description">{description}</p> : null}
+      {!compact && draft ? (
+        <div className="agent-settings-tool-permissions-row__controls">
           <div>
-            <label className="agent-settings-tool-policy-row__field-label">{modeLabel}</label>
-            <Select value={draft.mode} onValueChange={(value) => onModeChange?.(value as AgentSettingsToolPolicyMode)}>
-              <SelectTrigger className="agent-settings-tool-policy-row__select">
+            <label className="agent-settings-tool-permissions-row__field-label">{modeLabel}</label>
+            <Select value={draft.mode} onValueChange={(value) => onModeChange?.(value as AgentSettingsToolPermissionsMode)}>
+              <SelectTrigger className="agent-settings-tool-permissions-row__select">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1182,13 +1335,13 @@ export function AgentSettingsToolPolicyRow({
               </SelectContent>
             </Select>
             {!draft.canAllow && allowDisabledHelp ? (
-              <p className="agent-settings-tool-policy-row__help">{allowDisabledHelp}</p>
+              <p className="agent-settings-tool-permissions-row__help">{allowDisabledHelp}</p>
             ) : null}
           </div>
           <div>
-            <label className="agent-settings-tool-policy-row__field-label">{approvalLabel}</label>
-            <Select value={draft.approval} onValueChange={(value) => onApprovalChange?.(value as AgentSettingsToolPolicyApproval)}>
-              <SelectTrigger className="agent-settings-tool-policy-row__select">
+            <label className="agent-settings-tool-permissions-row__field-label">{approvalLabel}</label>
+            <Select value={draft.approval} onValueChange={(value) => onApprovalChange?.(value as AgentSettingsToolPermissionsApproval)}>
+              <SelectTrigger className="agent-settings-tool-permissions-row__select">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1200,8 +1353,8 @@ export function AgentSettingsToolPolicyRow({
           </div>
         </div>
       ) : null}
-      {metaItems.length > 0 ? (
-        <div className="agent-settings-tool-policy-row__meta">
+      {!compact && metaItems.length > 0 ? (
+        <div className="agent-settings-tool-permissions-row__meta">
           {metaItems.map((item) => (
             <AppInlineMeta key={item.id} className={item.tone === "warning" ? toneTextClass("warning") : undefined}>
               {item.label}
@@ -1213,254 +1366,7 @@ export function AgentSettingsToolPolicyRow({
   );
 }
 
-export function AgentSettingsRunPresetRow({
-  name,
-  description,
-  active,
-  activeIcon,
-  metaItems,
-  onSelect,
-}: {
-  name: ReactNode;
-  description?: ReactNode;
-  active: boolean;
-  activeIcon?: ReactNode;
-  metaItems: AgentSettingsRunPresetMetaItem[];
-  onSelect: () => void;
-}) {
-  return (
-    <AgentSurfaceBlock
-      asChild
-      variant="card"
-      className={cn("agent-settings-run-preset-row", active ? "agent-settings-run-preset-row--active" : undefined)}
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onSelect}
-        className="agent-settings-run-preset-row__button"
-      >
-        <div className="agent-settings-run-preset-row__header">
-          <div className="agent-settings-item-body">
-            <p className="agent-settings-run-preset-row__title">{name}</p>
-            {description ? <p className="agent-settings-run-preset-row__description">{description}</p> : null}
-          </div>
-          {active ? (
-            <span className="agent-settings-run-preset-row__active-icon">
-              {activeIcon ?? <CheckIcon size={14} />}
-            </span>
-          ) : null}
-        </div>
-        {metaItems.length > 0 ? (
-          <div className="agent-settings-run-preset-row__meta">
-            {metaItems.map((item) => (
-              <AppInlineMeta key={item.id}>{item.label}</AppInlineMeta>
-            ))}
-          </div>
-        ) : null}
-      </Button>
-    </AgentSurfaceBlock>
-  );
-}
-
-export function AgentSettingsRunPresetEditorPanel({
-  title,
-  nameLabel,
-  nameValue,
-  onNameChange,
-  descriptionLabel,
-  descriptionValue,
-  onDescriptionChange,
-  maxToolCallsLabel,
-  maxToolCallsValue,
-  onMaxToolCallsChange,
-  maxIterationsLabel,
-  maxIterationsValue,
-  onMaxIterationsChange,
-  permissionModeLabel,
-  permissionModeValue,
-  permissionModeOptions,
-  onPermissionModeChange,
-  planWorkersLabel,
-  planWorkersValue,
-  planWorkerOptions,
-  onPlanWorkersChange,
-  planAttemptsLabel,
-  planAttemptsValue,
-  planAttemptOptions,
-  onPlanAttemptsChange,
-  planTimeoutLabel,
-  planTimeoutValue,
-  planTimeoutOptions,
-  onPlanTimeoutChange,
-  autoTaskGraphLabel,
-  autoTaskGraphChecked,
-  onAutoTaskGraphChange,
-}: {
-  title: ReactNode;
-  nameLabel: ReactNode;
-  nameValue: string;
-  onNameChange: (value: string) => void;
-  descriptionLabel: ReactNode;
-  descriptionValue: string;
-  onDescriptionChange: (value: string) => void;
-  maxToolCallsLabel: ReactNode;
-  maxToolCallsValue: number;
-  onMaxToolCallsChange: (value: number) => void;
-  maxIterationsLabel: ReactNode;
-  maxIterationsValue: number;
-  onMaxIterationsChange: (value: number) => void;
-  permissionModeLabel: ReactNode;
-  permissionModeValue: string;
-  permissionModeOptions: AgentSettingsRunPresetSelectOption[];
-  onPermissionModeChange: (value: string) => void;
-  planWorkersLabel: ReactNode;
-  planWorkersValue: string;
-  planWorkerOptions: AgentSettingsRunPresetSelectOption[];
-  onPlanWorkersChange: (value: string) => void;
-  planAttemptsLabel: ReactNode;
-  planAttemptsValue: string;
-  planAttemptOptions: AgentSettingsRunPresetSelectOption[];
-  onPlanAttemptsChange: (value: string) => void;
-  planTimeoutLabel: ReactNode;
-  planTimeoutValue: string;
-  planTimeoutOptions: AgentSettingsRunPresetSelectOption[];
-  onPlanTimeoutChange: (value: string) => void;
-  autoTaskGraphLabel: ReactNode;
-  autoTaskGraphChecked: boolean;
-  onAutoTaskGraphChange: (checked: boolean) => void;
-}) {
-  return (
-    <AgentDataBlock data-testid="agent-run-preset-editor">
-      <p className="agent-settings-item-title">{title}</p>
-      <div className="agent-settings-run-preset-editor__grid">
-        <label className="agent-settings-run-preset-editor__field agent-settings-run-preset-editor__field--wide">
-          <span className="agent-settings-run-preset-editor__field-label">{nameLabel}</span>
-          <Input
-            value={nameValue}
-            onChange={(event) => onNameChange(event.target.value)}
-            className="agent-settings-run-preset-editor__input"
-          />
-        </label>
-        <label className="agent-settings-run-preset-editor__field agent-settings-run-preset-editor__field--wide">
-          <span className="agent-settings-run-preset-editor__field-label">{descriptionLabel}</span>
-          <Input
-            value={descriptionValue}
-            onChange={(event) => onDescriptionChange(event.target.value)}
-            className="agent-settings-run-preset-editor__input"
-          />
-        </label>
-        <label className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{maxToolCallsLabel}</span>
-          <Input
-            type="number"
-            min={1}
-            max={200}
-            value={maxToolCallsValue}
-            onChange={(event) => onMaxToolCallsChange(Number(event.target.value))}
-            className="agent-settings-run-preset-editor__input"
-          />
-        </label>
-        <label className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{maxIterationsLabel}</span>
-          <Input
-            type="number"
-            min={1}
-            max={200}
-            value={maxIterationsValue}
-            onChange={(event) => onMaxIterationsChange(Number(event.target.value))}
-            className="agent-settings-run-preset-editor__input"
-          />
-        </label>
-        <div className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{permissionModeLabel}</span>
-          <Select value={permissionModeValue} onValueChange={onPermissionModeChange}>
-            <SelectTrigger className="agent-settings-run-preset-editor__select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {permissionModeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{planWorkersLabel}</span>
-          <Select value={planWorkersValue} onValueChange={onPlanWorkersChange}>
-            <SelectTrigger className="agent-settings-run-preset-editor__select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {planWorkerOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{planAttemptsLabel}</span>
-          <Select value={planAttemptsValue} onValueChange={onPlanAttemptsChange}>
-            <SelectTrigger className="agent-settings-run-preset-editor__select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {planAttemptOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="agent-settings-run-preset-editor__field">
-          <span className="agent-settings-run-preset-editor__field-label">{planTimeoutLabel}</span>
-          <Select value={planTimeoutValue} onValueChange={onPlanTimeoutChange}>
-            <SelectTrigger className="agent-settings-run-preset-editor__select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {planTimeoutOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <AgentSurfaceBlock asChild className="agent-settings-run-preset-editor__checkbox-frame">
-          <CheckboxField
-            checked={autoTaskGraphChecked}
-            onCheckedChange={onAutoTaskGraphChange}
-            controlSize="sm"
-            variant="subtle"
-            className="agent-settings-run-preset-editor__checkbox"
-          >
-            {autoTaskGraphLabel}
-          </CheckboxField>
-        </AgentSurfaceBlock>
-      </div>
-    </AgentDataBlock>
-  );
-}
-
-export function AgentSettingsRunPresetEffectivePolicyPanel({
-  title,
-  items,
-}: {
-  title: ReactNode;
-  items: AgentSettingsRunPresetPolicyItem[];
-}) {
-  return (
-    <AgentSurfaceBlock data-testid="agent-run-preset-effective-policy" className="agent-settings-run-preset-policy">
-      <p className="agent-settings-item-title">{title}</p>
-      <div className="agent-settings-run-preset-policy__grid">
-        {items.map((item) => (
-          <AppKeyValue key={item.id} label={item.label} value={item.value} />
-        ))}
-      </div>
-    </AgentSurfaceBlock>
-  );
-}
-
-export function AgentSettingsToolPolicyFilterPanel({
+export function AgentSettingsToolPermissionsFilterPanel({
   searchValue,
   onSearchChange,
   searchPlaceholder,
@@ -1474,20 +1380,20 @@ export function AgentSettingsToolPolicyFilterPanel({
   searchPlaceholder?: string;
   filterValue: string;
   onFilterChange: (value: string) => void;
-  filterOptions: AgentSettingsToolPolicyFilterOption[];
+  filterOptions: AgentSettingsToolPermissionsFilterOption[];
   summary: ReactNode;
 }) {
   return (
-    <AgentSurfaceBlock data-testid="agent-settings-tool-policy-filters" className="agent-settings-tool-policy-filter">
+    <AgentSurfaceBlock data-testid="agent-settings-tool-permissions-filters" className="agent-settings-tool-permissions-filter">
       <Input
         value={searchValue}
         onChange={(event) => onSearchChange(event.target.value)}
         placeholder={searchPlaceholder}
-        className="agent-settings-tool-policy-filter__search"
-        data-testid="agent-settings-tool-policy-search"
+        className="agent-settings-tool-permissions-filter__search"
+        data-testid="agent-settings-tool-permissions-search"
       />
       <Select value={filterValue} onValueChange={onFilterChange}>
-        <SelectTrigger className="agent-settings-tool-policy-filter__select" data-testid="agent-settings-tool-policy-filter">
+        <SelectTrigger className="agent-settings-tool-permissions-filter__select" data-testid="agent-settings-tool-permissions-filter">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1496,14 +1402,14 @@ export function AgentSettingsToolPolicyFilterPanel({
           ))}
         </SelectContent>
       </Select>
-      <div className="agent-settings-tool-policy-filter__summary" data-testid="agent-settings-tool-policy-filter-summary">
+      <div className="agent-settings-tool-permissions-filter__summary" data-testid="agent-settings-tool-permissions-filter-summary">
         {summary}
       </div>
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentSettingsToolPolicyFilterPresetPanel({
+export function AgentSettingsToolPermissionsFilterPresetPanel({
   title,
   saveLabel,
   saveIcon,
@@ -1519,34 +1425,34 @@ export function AgentSettingsToolPolicyFilterPresetPanel({
   saveIcon?: ReactNode;
   help: ReactNode;
   emptyLabel: ReactNode;
-  presets: AgentSettingsToolPolicyFilterPresetItem[];
+  presets: AgentSettingsToolPermissionsFilterPresetItem[];
   deleteLabel: string;
   deleteIcon?: ReactNode;
   onSave: () => void;
 }) {
   return (
-    <AgentSurfaceBlock data-testid="agent-settings-tool-policy-filter-presets" className="agent-settings-tool-policy-presets">
-      <div className="agent-settings-tool-policy-presets__header">
-        <span className="agent-settings-tool-policy-presets__title">{title}</span>
+    <AgentSurfaceBlock data-testid="agent-settings-tool-permissions-filter-presets" className="agent-settings-tool-permissions-presets">
+      <div className="agent-settings-tool-permissions-presets__header">
+        <span className="agent-settings-tool-permissions-presets__title">{title}</span>
         <Button type="button" size="sm" variant="outline" onClick={onSave}>
           {saveIcon}
           {saveLabel}
         </Button>
-        <span className="agent-settings-tool-policy-presets__help">{help}</span>
+        <span className="agent-settings-tool-permissions-presets__help">{help}</span>
       </div>
       {presets.length > 0 ? (
-        <div className="agent-settings-tool-policy-presets__list">
+        <div className="agent-settings-tool-permissions-presets__list">
           {presets.map((preset) => (
-            <AgentSurfaceBlock key={preset.id} variant="subtle" className="agent-settings-tool-policy-presets__item">
+            <AgentSurfaceBlock key={preset.id} variant="subtle" className="agent-settings-tool-permissions-presets__item">
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="agent-settings-tool-policy-presets__select"
+                className="agent-settings-tool-permissions-presets__select"
                 title={preset.title}
                 onClick={preset.onSelect}
               >
-                <span className="agent-settings-tool-policy-presets__select-label">{preset.name}</span>
+                <span className="agent-settings-tool-permissions-presets__select-label">{preset.name}</span>
               </Button>
               <Button type="button" size="icon" variant="ghost" aria-label={deleteLabel} onClick={preset.onDelete}>
                 {deleteIcon ?? <XIcon size={14} />}
@@ -1555,35 +1461,35 @@ export function AgentSettingsToolPolicyFilterPresetPanel({
           ))}
         </div>
       ) : (
-        <p className="agent-settings-tool-policy-presets__empty">{emptyLabel}</p>
+        <p className="agent-settings-tool-permissions-presets__empty">{emptyLabel}</p>
       )}
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentSettingsToolPolicyBulkActionPanel({
+export function AgentSettingsToolPermissionsBulkActionPanel({
   title,
   help,
   actions,
 }: {
   title: ReactNode;
   help: ReactNode;
-  actions: AgentSettingsToolPolicyBulkActionItem[];
+  actions: AgentSettingsToolPermissionsBulkActionItem[];
 }) {
   return (
-    <AgentSurfaceBlock data-testid="agent-settings-tool-policy-bulk-actions" className="agent-settings-tool-policy-bulk">
-      <span className="agent-settings-tool-policy-bulk__title">{title}</span>
+    <AgentSurfaceBlock data-testid="agent-settings-tool-permissions-bulk-actions" className="agent-settings-tool-permissions-bulk">
+      <span className="agent-settings-tool-permissions-bulk__title">{title}</span>
       {actions.map((action) => (
         <Button key={action.id} type="button" size="sm" variant="outline" onClick={action.onClick} disabled={action.disabled}>
           {action.label}
         </Button>
       ))}
-      <span className="agent-settings-tool-policy-bulk__help">{help}</span>
+      <span className="agent-settings-tool-permissions-bulk__help">{help}</span>
     </AgentSurfaceBlock>
   );
 }
 
-export function AgentSettingsSkillBundlePanel({
+export function AgentSettingsPackPanel({
   title,
   description,
   fileInputRef,
@@ -1636,7 +1542,7 @@ export function AgentSettingsSkillBundlePanel({
   installError?: ReactNode;
   installResult?: ReactNode;
   installedTitle: ReactNode;
-  installedPlugins: AgentSettingsSkillBundlePluginItem[];
+  installedPlugins: AgentSettingsPackPluginItem[];
   uninstallLabel: ReactNode;
   uninstallValue: string;
   onUninstallValueChange: (value: string) => void;
@@ -1655,18 +1561,18 @@ export function AgentSettingsSkillBundlePanel({
   }
 
   return (
-    <AgentDataBlock className="agent-settings-skill-bundle">
-      <div className="agent-settings-skill-bundle__header">
+    <AgentDataBlock className="agent-settings-pack">
+      <div className="agent-settings-pack__header">
         <div className="agent-settings-item-body">
           <p className="agent-settings-item-title">{title}</p>
           <p className="agent-settings-item-detail">{description}</p>
         </div>
-        <div className="agent-settings-skill-bundle__actions">
+        <div className="agent-settings-pack__actions">
           <Input
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
-            className="agent-settings-skill-bundle__file-input"
+            className="agent-settings-pack__file-input"
             onChange={handleFileChange}
           />
           <Button type="button" size="sm" variant="outline" onClick={onLoadFile}>
@@ -1678,39 +1584,39 @@ export function AgentSettingsSkillBundlePanel({
           </Button>
         </div>
       </div>
-      {fileLoadedLabel ? <p className="agent-settings-skill-bundle__message">{fileLoadedLabel}</p> : null}
+      {fileLoadedLabel ? <p className="agent-settings-pack__message">{fileLoadedLabel}</p> : null}
       <Textarea
         value={textValue}
         onChange={(event) => onTextChange(event.target.value)}
         placeholder={placeholder}
-        className="agent-settings-skill-bundle__textarea"
+        className="agent-settings-pack__textarea"
       />
       {draftSummary ? (
-        <p data-testid="agent-settings-skill-bundle-draft-summary" className="agent-settings-skill-bundle__message">
+        <p data-testid="agent-settings-pack-draft-summary" className="agent-settings-pack__message">
           {draftSummary}
         </p>
       ) : null}
       {!installError && draftError ? (
-        <div className="agent-settings-skill-bundle__feedback" data-testid="agent-settings-skill-bundle-draft-error">
+        <div className="agent-settings-pack__feedback" data-testid="agent-settings-pack-draft-error">
           <AppInlineError>{draftError}</AppInlineError>
         </div>
       ) : null}
       {installError ? (
-        <div className="agent-settings-skill-bundle__feedback">
+        <div className="agent-settings-pack__feedback">
           <AppInlineError>{installError}</AppInlineError>
         </div>
       ) : null}
-      {installResult ? <p className="agent-settings-skill-bundle__message">{installResult}</p> : null}
-      <div className="agent-settings-skill-bundle__uninstall">
+      {installResult ? <p className="agent-settings-pack__message">{installResult}</p> : null}
+      <div className="agent-settings-pack__uninstall">
         {installedPlugins.length > 0 ? (
-          <div className="agent-settings-skill-bundle__installed">
-            <p className="agent-settings-skill-bundle__installed-title">{installedTitle}</p>
-            <div className="agent-settings-skill-bundle__installed-list">
+          <div className="agent-settings-pack__installed">
+            <p className="agent-settings-pack__installed-title">{installedTitle}</p>
+            <div className="agent-settings-pack__installed-list">
               {installedPlugins.map((plugin) => (
-                <AgentSurfaceBlock key={plugin.id} variant="card" className="agent-settings-skill-bundle__installed-item">
+                <AgentSurfaceBlock key={plugin.id} variant="card" className="agent-settings-pack__installed-item">
                   <div className="agent-settings-item-body">
-                    <p className="agent-settings-skill-bundle__plugin-id">{plugin.id}</p>
-                    <p className="agent-settings-skill-bundle__plugin-path">{plugin.path}</p>
+                    <p className="agent-settings-pack__plugin-id">{plugin.id}</p>
+                    <p className="agent-settings-pack__plugin-path">{plugin.path}</p>
                   </div>
                   <Button
                     type="button"
@@ -1719,7 +1625,7 @@ export function AgentSettingsSkillBundlePanel({
                     intent={plugin.actionIntent ?? "neutral"}
                     onClick={plugin.onAction}
                     disabled={plugin.disabled}
-                    data-testid="agent-settings-installed-skill-bundle-uninstall"
+                    data-testid="agent-settings-installed-pack-uninstall"
                   >
                     {plugin.actionIcon}
                     {plugin.actionLabel}
@@ -1729,14 +1635,14 @@ export function AgentSettingsSkillBundlePanel({
             </div>
           </div>
         ) : null}
-        <div className="agent-settings-skill-bundle__uninstall-row">
-          <label className="agent-settings-skill-bundle__uninstall-field">
-            <span className="agent-settings-skill-bundle__field-label">{uninstallLabel}</span>
+        <div className="agent-settings-pack__uninstall-row">
+          <label className="agent-settings-pack__uninstall-field">
+            <span className="agent-settings-pack__field-label">{uninstallLabel}</span>
             <Input
               value={uninstallValue}
               onChange={(event) => onUninstallValueChange(event.target.value)}
               placeholder={uninstallPlaceholder}
-              className="agent-settings-skill-bundle__uninstall-input"
+              className="agent-settings-pack__uninstall-input"
             />
           </label>
           <Button type="button" size="sm" variant="outline" onClick={onUninstall} disabled={uninstallDisabled}>
@@ -1744,18 +1650,18 @@ export function AgentSettingsSkillBundlePanel({
             {uninstallActionLabel}
           </Button>
         </div>
-        <p className="agent-settings-skill-bundle__help">{uninstallHelp}</p>
+        <p className="agent-settings-pack__help">{uninstallHelp}</p>
         {uninstallInputError ? (
-          <div className="agent-settings-skill-bundle__feedback" data-testid="agent-settings-uninstall-plugin-id-error">
+          <div className="agent-settings-pack__feedback" data-testid="agent-settings-uninstall-plugin-id-error">
             <AppInlineError>{uninstallInputError}</AppInlineError>
           </div>
         ) : null}
         {uninstallError ? (
-          <div className="agent-settings-skill-bundle__feedback">
+          <div className="agent-settings-pack__feedback">
             <AppInlineError>{uninstallError}</AppInlineError>
           </div>
         ) : null}
-        {uninstallResult ? <p className="agent-settings-skill-bundle__message">{uninstallResult}</p> : null}
+        {uninstallResult ? <p className="agent-settings-pack__message">{uninstallResult}</p> : null}
       </div>
     </AgentDataBlock>
   );

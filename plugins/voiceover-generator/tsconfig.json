@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/plugin-sdk": ["../../packages/plugin-sdk/src/index.ts"]
+    },
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

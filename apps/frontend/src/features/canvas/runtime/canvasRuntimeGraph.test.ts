@@ -130,6 +130,46 @@ test('canvas node output preserves audio resource port type', () => {
   })
 })
 
+test('canvas node output maps plugin multi-port resource outputs', () => {
+  const node = {
+    id: 'voiceover',
+    type: 'plugin_card',
+    position: { x: 0, y: 0 },
+    data: {
+      outputPorts: [
+        { id: 'audio', type: 'audio' },
+        { id: 'subtitles', type: 'text' },
+        { id: 'timing', type: 'json' },
+      ],
+      pluginResultData: {
+        output_resource_ids: [91, 92, 93],
+        outputs: {
+          audio: {
+            type: 'audio',
+            resource_id: 91,
+            resource: { ID: 91, owner_id: 1, type: 'audio', name: 'voice.wav', url: '/resources/91/file', size: 1, mime_type: 'audio/wav' },
+          },
+          subtitles: {
+            type: 'text',
+            resource_id: 92,
+            resource: { ID: 92, owner_id: 1, type: 'text', name: 'voice.srt', url: '/resources/92/file', size: 1, mime_type: 'text/plain' },
+          },
+          timing: {
+            type: 'json',
+            resource_id: 93,
+            json: { duration: 1.2 },
+            resource: { ID: 93, owner_id: 1, type: 'text', name: 'voice.timing.json', url: '/resources/93/file', size: 1, mime_type: 'application/json' },
+          },
+        },
+      },
+    },
+  }
+
+  assert.equal(canvasNodeOutputValue(node, 'out:audio')?.resource_id, 91)
+  assert.equal(canvasNodeOutputValue(node, 'out:subtitles')?.resource_id, 92)
+  assert.deepEqual(canvasNodeOutputValue(node, 'out:timing')?.json, { duration: 1.2 })
+})
+
 test('runtime resource ids include connected plugin generated resources', () => {
   const nodes = [
     {

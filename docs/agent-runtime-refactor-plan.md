@@ -7,7 +7,7 @@ MovScript agent does not need to copy Claude Code's command runtime wholesale. T
 - tool contract: execution semantics, permission decision, validation, result shaping
 - context contract: transcript as source of truth, model context as a budgeted projection
 - skill contract: discover, activate, explain why active, explain why omitted
-- console contract: show ownership and runtime effect separately instead of mixing profile grants, catalog discovery, and current availability
+- console contract: show ownership and runtime effect separately instead of mixing config file grants, catalog discovery, and current availability
 
 Every refactor phase should start by rereading the matching Claude Code implementation and documenting the specific behavior being copied, adapted, or rejected.
 
@@ -152,10 +152,10 @@ Remaining work:
 
 Status: catalog-level runtime explanation baseline landed; per-run prompt/context projection baseline landed; skill-triggered tool grants now flow through the normal tool policy pipeline; dependency/conflict/trigger omission projection landed.
 
-Current pack/profile/skill layering is useful, but the UI must distinguish:
+Current pack/config-file/skill layering is useful, but the UI must distinguish:
 
 - installed skill
-- enabled by profile
+- enabled by config file
 - loaded in current run
 - suggested by trigger
 - omitted by conflict/dependency/budget
@@ -165,7 +165,7 @@ The runtime should expose an explanation object so the frontend does not infer t
 Current implementation:
 
 - `/inspect` skill catalog entries now include `runtime`, an `AgentSkillRuntimeExplanation` owned by the agent backend.
-- The explanation currently covers profile role, profile-enabled state, load mode, default activation, context behavior, dependencies, conflicts, linked tool grants, and a human-readable reason.
+- The explanation currently covers config file role, config-file-enabled state, load mode, default activation, context behavior, dependencies, conflicts, linked tool grants, and a human-readable reason.
 - The settings UI's Skill management map now uses this backend explanation for Runtime counts and row metadata instead of recomputing runtime behavior from catalog fields.
 - Prompt composition now emits `skillContextProjection` per active skill, including activation reason, context behavior, prompt part id, prompt inclusion state, rendered chars, and budget omission reason/stage when the skill is dropped.
 - The run debug Runtime tab now renders that projection so a specific run can answer whether a skill entered the prompt or was omitted by the budget ledger.
@@ -181,7 +181,7 @@ Claude Code recheck:
 
 Adaptation decision:
 
-- MovScript should not copy Claude Code's `SkillTool` directly, because MovScript already has profile, pack, workflow, policy, and active skill state as first-class domain concepts.
+- MovScript should not copy Claude Code's `SkillTool` directly, because MovScript already has config files, packs, policies, and active skill state as first-class domain concepts.
 - MovScript should copy the boundary: the backend explains why a skill is installed, selected, loadable, active, omitted, or tool-linked; the frontend renders those explanations and does not reverse-engineer runtime behavior.
 
 Remaining work:
@@ -195,13 +195,13 @@ Status: management-map slices, explicit Catalog / Policy / Runtime view switches
 The Agent settings/debug console should become three separate views:
 
 - Catalog: what exists and where it came from
-- Policy: what the active profile grants or denies
+- Policy: what the active config file grants or denies
 - Runtime: what is available now and why
 
 For tools, the row should show:
 
 - source and registration
-- profile grant
+- config file grant
 - approval policy
 - runtime availability
 - read/write/destructive traits
@@ -220,15 +220,15 @@ For skills, the row should show:
 Current implementation:
 
 - Tool rows now prefer `tool.runtime` for grant mode, approval reason, execution traits, and runtime reason.
-- Tool management map policy counts now show both Profile grants and what the runtime actually sees as allowed/denied/not granted.
-- Skill rows and the Skill management map use backend `skill.runtime` for activation, context behavior, profile role, and linked tool grants.
-- The settings UI now has explicit `agent-settings-skill-catalog-section`, `agent-settings-skill-policy-section`, `agent-settings-skill-runtime-section`, `agent-settings-tool-catalog-section`, `agent-settings-tool-policy-section`, and `agent-settings-tool-runtime-section` anchors. This separates install/source/governance, profile policy editing, and runtime availability/effect inside the existing settings page.
+- Tool management map policy counts now show both config file grants and what the runtime actually sees as allowed/denied/not granted.
+- Skill rows and the Skill management map use backend `skill.runtime` for activation, context behavior, config file role, and linked tool grants.
+- The settings UI now has explicit `agent-settings-skill-catalog-section`, `agent-settings-skill-policy-section`, `agent-settings-skill-runtime-section`, `agent-settings-tool-catalog-section`, `agent-settings-tool-policy-section`, and `agent-settings-tool-runtime-section` anchors. This separates install/source/governance, config file policy editing, and runtime availability/effect inside the existing settings page.
 - The settings UI now puts both Skill and Tool management behind explicit Catalog / Policy / Runtime view switches. Runtime is the default view, and jumps from action items switch Skills/Tools to Policy so users land on the editable policy surface when fixing issues.
-- The settings UI now puts the same three layers into clickable management overview cards, ordered Runtime / Policy / Catalog. The current layer is highlighted and each card switches directly to its section, so users can distinguish live runtime state from editable profile policy and install/source catalog data without scanning unrelated controls.
+- The settings UI now puts the same three layers into clickable management overview cards, ordered Runtime / Policy / Catalog. The current layer is highlighted and each card switches directly to its section, so users can distinguish live runtime state from editable config file policy and install/source catalog data without scanning unrelated controls.
 - The settings UI now exposes direct management routes for the layered views: `/agent/settings/skills/runtime`, `/agent/settings/skills/policy`, `/agent/settings/skills/catalog`, `/agent/settings/tools/runtime`, `/agent/settings/tools/policy`, and `/agent/settings/tools/catalog`. URL navigation selects the matching layer and scrolls to the relevant Skills or Tools panel; in-page layer switches keep the URL in sync.
 - The settings Configuration Map now includes explicit Skills / Tools management shortcuts for Runtime, Policy, and Catalog. Users can jump directly to the right ownership layer without first opening a mixed management panel.
-- Management routes now render as focused views: `/agent/settings/skills/*` hides unrelated model/profile/tool/snapshot settings and shows only the Skills management panel plus essential runtime/action/readiness sidebars; `/agent/settings/tools/*` does the same for Tools. The full mixed settings page remains available at `/agent/settings`.
-- The settings Runtime layer now includes read-only Skill and Tool lists, separate from the Policy editing lists. Skill rows show backend-owned runtime activation/context/profile-role/tool-link metadata; Tool rows show availability, Profile grant, approval reason, execution traits, interrupt behavior, and result context strategy without exposing edit controls. This makes "what can run now and why" visible without mixing it with "what should the Profile grant."
+- Management routes now render as focused views: `/agent/settings/skills/*` hides unrelated model/config-file/tool/snapshot settings and shows only the Skills management panel plus essential runtime/action/readiness sidebars; `/agent/settings/tools/*` does the same for Tools. The full mixed settings page remains available at `/agent/settings`.
+- The settings Runtime layer now includes read-only Skill and Tool lists, separate from the Policy editing lists. Skill rows show backend-owned runtime activation/context/config-file-role/tool-link metadata; Tool rows show availability, config file grant, approval reason, execution traits, interrupt behavior, and result context strategy without exposing edit controls. This makes "what can run now and why" visible without mixing it with "what should the config file grant."
 - The run page now has a dedicated Runtime tab backed by `runtimeSummary`, with separate panels for per-run skill state, prompt/tool state, and context projection state. This makes the actual run behavior visible without asking users to infer it from static settings.
 - The debug workbench now links directly to the Runtime tab and includes context mutation count as a first-class debug metric.
 - The Runtime tab now distinguishes pending approvals from policy-derived approval requirements and strategy denials, so users can see whether a tool is waiting on them or blocked by policy.

@@ -1,0 +1,16 @@
+{
+  "name": "@movscript/plugin-voiceover-generator",
+  "version": "1.0.0",
+  "description": "Movscript mock voiceover generation plugin for validating audio and subtitle flows",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../apps/movcli/bin/movcli.mjs build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@movscript/plugin-sdk": "workspace:*",
+    "@movscript/cli": "workspace:*",
+    "typescript": "^5.8.0"
+  }
+}

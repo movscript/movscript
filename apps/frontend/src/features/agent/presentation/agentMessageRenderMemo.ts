@@ -6,19 +6,19 @@ export function agentConversationMessageItemsEqual(
 ) {
   return prev.message === next.message
     && prev.showMessage === next.showMessage
-    && shallowReferenceArrayEqual(prev.beforeMessageWorkflowRuns, next.beforeMessageWorkflowRuns)
-    && shallowReferenceArrayEqual(prev.afterMessageWorkflowRuns, next.afterMessageWorkflowRuns)
-    && shallowReferenceArrayEqual(prev.liveWorkflowRuns, next.liveWorkflowRuns)
+    && shallowReferenceArrayEqual(prev.beforeMessageInteractionRuns, next.beforeMessageInteractionRuns)
+    && shallowReferenceArrayEqual(prev.afterMessageInteractionRuns, next.afterMessageInteractionRuns)
+    && shallowReferenceArrayEqual(prev.liveInteractionRuns, next.liveInteractionRuns)
 }
 
-export function agentConversationMessageItemUsesLiveWorkflowState(item: AgentConversationMessageItem) {
-  return !!item.liveWorkflowRuns?.length
+export function agentConversationMessageItemUsesLiveRunInteractionState(item: AgentConversationMessageItem) {
+  return !!item.liveInteractionRuns?.length
 }
 
-export function agentConversationMessageItemHasWorkflowRuns(item: AgentConversationMessageItem) {
-  return !!item.liveWorkflowRuns?.length
-    || item.beforeMessageWorkflowRuns.length > 0
-    || item.afterMessageWorkflowRuns.length > 0
+export function agentConversationMessageItemHasInteractionRuns(item: AgentConversationMessageItem) {
+  return !!item.liveInteractionRuns?.length
+    || item.beforeMessageInteractionRuns.length > 0
+    || item.afterMessageInteractionRuns.length > 0
 }
 
 export function shallowReferenceArrayEqual<T>(

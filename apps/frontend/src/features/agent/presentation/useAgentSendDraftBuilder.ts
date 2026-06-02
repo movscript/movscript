@@ -7,7 +7,7 @@ import {
   localAgentClient,
   type AgentClientInput,
   type AgentManifest,
-  type AgentRunPolicyOverride,
+  type AgentRuntimeLimitsOverride,
 } from '@/shared/infrastructure/localAgentClient'
 import { blobToDataURL, loadResourceFileBlob } from '@/shared/ui/resourceBlob'
 import type { AgentAttachment, AgentSettings, ChatMessage } from '@/features/agent/state/agentStore'
@@ -22,7 +22,7 @@ export interface BuildAgentSendDraftOptions {
   projectId?: number
   clientInput?: AgentClientInput
   agentManifest?: AgentManifest
-  runPolicy?: AgentRunPolicyOverride
+  runtimeLimits?: AgentRuntimeLimitsOverride
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean

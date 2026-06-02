@@ -37,6 +37,7 @@ func TestNewRegistersCoreRoutes(t *testing.T) {
 		"GET /api/v1/resources",
 		"POST /api/v1/resources/upload",
 		"GET /api/v1/jobs",
+		"POST /api/v1/agent/telemetry",
 		"GET /api/v1/canvases",
 		"GET /api/v1/projects",
 		"GET /api/v1/projects/:id/scripts",

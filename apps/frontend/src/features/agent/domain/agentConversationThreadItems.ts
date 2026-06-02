@@ -1,11 +1,11 @@
-import { isWorkflowAnswerEchoMessage, workflowRunFromActivity } from '@/features/agent/domain/agentWorkflowInteraction'
+import { isRunInteractionAnswerEchoMessage, runInteractionFromActivity } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 export interface AgentConversationMessageItem {
-  beforeMessageWorkflowRuns: AgentRun[]
-  afterMessageWorkflowRuns: AgentRun[]
-  liveWorkflowRuns: AgentRun[] | null
+  beforeMessageInteractionRuns: AgentRun[]
+  afterMessageInteractionRuns: AgentRun[]
+  liveInteractionRuns: AgentRun[] | null
   message: ChatMessage
   showMessage: boolean
 }
@@ -32,37 +32,37 @@ export interface AgentPendingRuntimeInputQueueItem {
 
 export function buildAgentConversationMessageItems({
   messages,
-  workflowAnswerEchoes,
-  workflowRunsByResultMessageId,
-  suppressedWorkflowRunIds = new Set(),
+  runInteractionAnswerEchoes,
+  interactionRunsByResultMessageId,
+  suppressedInteractionRunIds = new Set(),
 }: {
   messages: ChatMessage[]
-  workflowAnswerEchoes: Set<string>
-  workflowRunsByResultMessageId: Map<string, AgentRun[]>
-  suppressedWorkflowRunIds?: Set<string>
+  runInteractionAnswerEchoes: Set<string>
+  interactionRunsByResultMessageId: Map<string, AgentRun[]>
+  suppressedInteractionRunIds?: Set<string>
 }): AgentConversationMessageItem[] {
   return messages.flatMap((message) => {
-    if (isWorkflowAnswerEchoMessage(message, workflowAnswerEchoes)) return []
+    if (isRunInteractionAnswerEchoMessage(message, runInteractionAnswerEchoes)) return []
     if (message.meta?.planRevision) return []
-    const mappedWorkflowRuns = workflowRunsByResultMessageId.get(message.id) ?? null
-    const liveWorkflowRuns = mappedWorkflowRuns
-      ?.filter((run) => !suppressedWorkflowRunIds.has(run.id)) ?? null
-    const historicalWorkflowRun = mappedWorkflowRuns || message.role === 'assistant' ? null : workflowRunFromActivity(message.meta?.localRunActivity)
-    const visibleHistoricalWorkflowRun = historicalWorkflowRun
-      && !suppressedWorkflowRunIds.has(historicalWorkflowRun.id)
-      ? historicalWorkflowRun
+    const mappedInteractionRuns = interactionRunsByResultMessageId.get(message.id) ?? null
+    const liveInteractionRuns = mappedInteractionRuns
+      ?.filter((run) => !suppressedInteractionRunIds.has(run.id)) ?? null
+    const historicalInteractionRun = mappedInteractionRuns || message.role === 'assistant' ? null : runInteractionFromActivity(message.meta?.localRunActivity)
+    const visibleHistoricalInteractionRun = historicalInteractionRun
+      && !suppressedInteractionRunIds.has(historicalInteractionRun.id)
+      ? historicalInteractionRun
       : null
-    const workflowRuns = liveWorkflowRuns ?? (visibleHistoricalWorkflowRun ? [visibleHistoricalWorkflowRun] : [])
-    const beforeMessageWorkflowRuns: AgentRun[] = []
-    const afterMessageWorkflowRuns: AgentRun[] = []
-    for (const run of workflowRuns) {
-      if (workflowRunBelongsAfterMessage(run, message)) afterMessageWorkflowRuns.push(run)
-      else beforeMessageWorkflowRuns.push(run)
+    const interactionRuns = liveInteractionRuns ?? (visibleHistoricalInteractionRun ? [visibleHistoricalInteractionRun] : [])
+    const beforeMessageInteractionRuns: AgentRun[] = []
+    const afterMessageInteractionRuns: AgentRun[] = []
+    for (const run of interactionRuns) {
+      if (interactionRunBelongsAfterMessage(run, message)) afterMessageInteractionRuns.push(run)
+      else beforeMessageInteractionRuns.push(run)
     }
     return [{
-      beforeMessageWorkflowRuns,
-      afterMessageWorkflowRuns,
-      liveWorkflowRuns,
+      beforeMessageInteractionRuns,
+      afterMessageInteractionRuns,
+      liveInteractionRuns,
       message,
       showMessage: true,
     }]
@@ -71,9 +71,9 @@ export function buildAgentConversationMessageItems({
 
 export function buildAgentConversationThreadItems(input: {
   messages: ChatMessage[]
-  workflowAnswerEchoes: Set<string>
-  workflowRunsByResultMessageId: Map<string, AgentRun[]>
-  suppressedWorkflowRunIds?: Set<string>
+  runInteractionAnswerEchoes: Set<string>
+  interactionRunsByResultMessageId: Map<string, AgentRun[]>
+  suppressedInteractionRunIds?: Set<string>
 }): AgentConversationThreadItem[] {
   const messageItems = buildAgentConversationMessageItems(input)
   const groupsByRunId = new Map<string, Extract<AgentConversationThreadItem, { type: 'run_group' }>>()
@@ -120,7 +120,7 @@ export function buildAgentConversationThreadItems(input: {
   return threadItems.filter((item) => item.type === 'message' || item.items.length > 0)
 }
 
-function workflowRunBelongsAfterMessage(run: AgentRun, message: ChatMessage): boolean {
+function interactionRunBelongsAfterMessage(run: AgentRun, message: ChatMessage): boolean {
   return message.role === 'user'
 }
 

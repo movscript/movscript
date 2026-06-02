@@ -1,0 +1,65 @@
+目标：
+为单个 production 基于当前 snapshot 产出或编辑一个本地 production_proposal draft。不要创建正式 production 实体。
+
+Draft schema：{{schema:movscript.production_proposal.v1.id}}
+
+{{schema:movscript.production_proposal.v1}}
+
+模型契约：
+- 字段含义、seed 策略、review route 和 apply 边界应以 runtime draft model contract 为准。
+- 当前运行环境若提供 draft model MCP 工具，创建或编辑 draft 前必须先读取该模型契约。
+- 如果 draft model MCP 工具尚不可用，临时使用上方 schema、当前 focus 和已读 project 层对象；不要把本 skill 中的字段描述当成长期唯一字段源。
+
+输入：
+- 当前 focus 中的 project、production、selected segment 或 scene moment。
+- 用户提出的 production 编排、情绪段、场景时刻、设定引用或表达条目变更。
+- 可选的已有 project references；没有素材准备也可以继续制作编排。
+- 如果用户目标必须依赖不存在的 project 层 creative reference，先切换到 setting_proposal draft 梳理这些上游对象。
+- 切换到上游 proposal 后，不要同时继续 production_proposal；等上游 draft 预览/写入成功，或把失败原因交还用户处理后，再恢复 production。
+
+边界：
+- 此 Skill 只维护 production 层 proposal draft。
+- Production proposal 的 seed 必须是 snapshot：把当前 production、绑定剧本 brief、项目剧本库和现有编排作为只读依据，draft 本身就是可编辑 snapshot 底稿。
+- 不创建正式 production 实体，不修改 project 层 creative reference 或 asset slot 定义。
+- 缺少“必须引用”的 project 层设定资料时先创建或更新 setting_proposal draft；缺少制作项、镜头、关键帧或素材需求时交接 content_unit_proposal / asset_proposal，不要在 production_proposal 里补。
+- 每个 retained 或新增的 scene_moment 都必须在节点内写入可追溯上下文：优先用 `creative_references: [{ id, role }]` 绑定已有 project 设定。只在最终回复里说“已检查到对象存在”不算绑定。
+- 生成或保留 scene_moment 前先判定上下文归属：已有可复用设定就绑定 `creative_references`；缺少必须复用的设定就停止 production draft 写入并交接 setting_proposal；不需要设定时必须在 `impact_notes` 说明原因。
+- scene_moment 的具体表达写入 `writing_expressions`，类型只能是 `dialogue`、`action`、`narration`、`subtitle`、`visual`。
+
+上下文缺失回退：
+- 缺项目级制作标准时，先交接 project_standards_proposal。
+- 缺必须引用的人物、地点、道具、世界规则或 creative reference 时，先交接 setting_proposal。
+- 缺必须引用的素材需求、asset slot、归属或复用边界时，先交接 asset_proposal。
+- 缺制作项节拍、转场、音乐节拍、生成单元结构或下游制作颗粒时，交接 content_unit_proposal。对白、动作、旁白、屏幕文字和镜头描述的写作表达仍属于 production_proposal 的 `writing_expressions`。
+- 缺关键帧、镜头、图片、视频输出或生成约束时，交接 visual_generation；若缺生成前的内容单元结构，先交接 content_unit_proposal。
+- 不要写 action/operation 形态草稿；production proposal 只接受 snapshot 形态，删除靠省略节点完成。
+
+允许的工具：
+- Focus：{{tool:movscript_focus_get}}
+- Draft 模型：{{tool:draft_model_get}}
+- Draft：{{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
+- Project 设定和素材槽查询：{{tool:movscript_creative_reference_query}} {{tool:movscript_asset_slot_query}}
+- 缺少目标时询问：{{tool:core_user_input_request}}
+
+流程：
+1. 确认 focus，必要时询问 projectId 或 productionId。
+2. 获取 production_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
+3. 使用 draft model 返回的 snapshot seed；如需要剧本正文，再调用项目剧本读取工具，不要自行假设当前剧本/brief。
+4. 先检查 production proposal 需要引用的 project 层对象是否已存在；可通过 draft model seed 确认，也可调用 `movscript_creative_reference_query` / `movscript_asset_slot_query` 查询。无法确认 id 存在时不得绑定；如果不存在，停止 production draft 写入，按缺口类型转去创建/更新对应 project 层 draft，并在输出中说明 production 将在其通过 review 或成功写入后继续。不要基于尚未应用的 setting_proposal / asset_proposal 内容继续编写 production draft。
+5. 如果当前会话已有 production_proposal draftId，先读取它；否则创建 production_proposal draft，source/target 记录 production 锚点，并把 MCP 返回的 seed/modelRef 作为 draft_create.seed 传入。
+6. 修改现有 draft 前必须先用 `core_file_read` 读取 `agent://draft/{draftId}/content`；通过真实文件局部编辑 segments、scene moments，以及每个 scene moment 下的 `creative_references`/`writing_expressions`。Production draft 不创建 project 层设定、asset slots、content units 或 keyframes；已有设定只用 `{ "id": number, "role"?: string }` 引用，不写 `action`。
+7. 运行 `draft_apply_preview`，用同一次调用完成 validation 和 preview apply。
+8. 如果出现 validation 或后端错误，编辑具体文本片段并再次 preview；无法判断修复方案时询问用户，不要继续下游 production 内容。
+
+校验：
+- Production proposal 只能写 production 层的 segment、scene_moment、scene_moment 设定引用和 scene_moment 表达条目。
+- 新增已绑定引用必须能追溯到已有 project 数据；必须引用但不存在的设定资料要进入 setting_proposal，必须引用但不存在的素材需求要进入 asset_proposal，而不是在 production_proposal 里临时创造。
+- Validate 或 preview apply 出现 `SCENE_MOMENT_WITHOUT_CONTEXT` 时，必须编辑对应 scene_moment，添加已有 creative reference reuse，或在 `impact_notes` 说明为什么当前情节无需设定引用后再次 preview。
+- 不确定 segment 或 scene moment 范围时，应询问用户。
+
+输出：
+回复 draftId、projectId、productionId、最近一次 preview apply 的 ok/stage、segments 和 scene moments 数量，以及未解决缺口。
+
+绝不：
+- 绝不把 draft 说成正式 production 已变更。
+- 绝不在 production_proposal 中新增 project 层定义。

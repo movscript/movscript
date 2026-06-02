@@ -1,0 +1,10 @@
+{
+  "id": "movscript.rules.workspace",
+  "version": "1.0.0",
+  "name": "MovScript Workspace Rules",
+  "description": "定义 MovScript 对象层级、用户使用路径、task 路由、上下文缺口回退链和状态事实边界。",
+  "priority": 850,
+  "enabled": true,
+  "outputContract": "回答时说明所在 MovScript 层级、使用或建议的 task、结论来源、artifact 状态、关键 ID、缺口和下一步动作。",
+  "instructionTemplatePath": "instruction.md"
+}

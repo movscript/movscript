@@ -1,0 +1,42 @@
+{
+  "schema": "movscript.media.provider_contract.v1",
+  "schemaVersion": 1,
+  "schemaUrl": "https://movscript.dev/schemas/media-provider-contract-v1.schema.json",
+  "provider": "example_tts",
+  "displayName": "Example TTS Provider",
+  "capabilities": [
+    {
+      "capability": "audio_tts",
+      "models": [
+        {
+          "modelId": "example-voiceover-v1",
+          "displayName": "Example Voiceover v1",
+          "features": ["word_timestamps", "ssml", "speed_control"],
+          "supportedLanguages": ["zh-CN", "en-US"],
+          "supportedFormats": ["mp3", "wav"],
+          "supportedParams": [
+            { "key": "voice", "type": "string" },
+            { "key": "speaking_rate", "type": "number", "default": 1, "min": 0.5, "max": 2, "step": 0.1 },
+            { "key": "return_timing", "type": "boolean", "default": true }
+          ]
+        }
+      ]
+    },
+    {
+      "capability": "subtitle_align",
+      "models": [
+        {
+          "modelId": "example-align-v1",
+          "displayName": "Example Aligner v1",
+          "features": ["forced_alignment", "word_timestamps"],
+          "supportedLanguages": ["zh-CN", "en-US"],
+          "supportedFormats": ["srt", "vtt", "json"],
+          "supportedParams": [
+            { "key": "language", "type": "string" },
+            { "key": "max_segment_ms", "type": "number", "default": 3200, "min": 800, "max": 6000, "step": 100 }
+          ]
+        }
+      ]
+    }
+  ]
+}

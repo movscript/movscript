@@ -398,21 +398,21 @@
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-profile-card {
+.agent-settings-config-file-card {
   padding: var(--ms-space-2);
 }
 
-.agent-settings-profile-card[data-current="true"] {
+.agent-settings-config-file-card[data-current="true"] {
   border-color: color-mix(in srgb, var(--ms-color-primary) 36%, var(--ms-color-border));
   background: color-mix(in srgb, var(--ms-color-muted) 40%, transparent);
 }
 
-.agent-settings-profile-card[data-preview="true"] {
+.agent-settings-config-file-card[data-preview="true"] {
   border-color: color-mix(in srgb, var(--ms-color-primary) 42%, transparent);
   background: color-mix(in srgb, var(--ms-color-primary) 8%, transparent);
 }
 
-.agent-settings-profile-card__header {
+.agent-settings-config-file-card__header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -420,7 +420,7 @@
   gap: var(--ms-space-2);
 }
 
-.agent-settings-profile-card__title-row {
+.agent-settings-config-file-card__title-row {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -428,7 +428,7 @@
   gap: 6px;
 }
 
-.agent-settings-profile-card__title {
+.agent-settings-config-file-card__title {
   margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
@@ -439,7 +439,7 @@
   white-space: nowrap;
 }
 
-.agent-settings-profile-card__id {
+.agent-settings-config-file-card__id {
   margin: 2px 0 0;
   overflow: hidden;
   color: var(--ms-color-muted-foreground);
@@ -449,7 +449,7 @@
   white-space: nowrap;
 }
 
-.agent-settings-profile-card__description {
+.agent-settings-config-file-card__description {
   display: -webkit-box;
   margin: var(--ms-space-1) 0 0;
   overflow: hidden;
@@ -460,7 +460,7 @@
   -webkit-line-clamp: 2;
 }
 
-.agent-settings-profile-card__summary-grid {
+.agent-settings-config-file-card__summary-grid {
   display: grid;
   gap: var(--ms-space-2);
   margin-top: var(--ms-space-2);
@@ -469,44 +469,225 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-profile-summary,
-.agent-settings-profile-diff-section {
+.agent-settings-config-file-editor {
+  display: grid;
+  gap: var(--ms-space-3);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .agent-settings-config-file-editor {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  }
+}
+
+.agent-settings-config-file-browser,
+.agent-settings-config-file-editor-pane {
+  min-width: 0;
+  display: grid;
+  gap: var(--ms-space-3);
+}
+
+.agent-settings-config-file-browser {
+  align-content: start;
+}
+
+@media (min-width: 960px) {
+  .agent-settings-config-file-browser {
+    position: sticky;
+    top: var(--ms-space-3);
+  }
+}
+
+.agent-settings-config-file-list {
+  display: grid;
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-config-file-list-item {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.agent-settings-config-file-list-item[data-current="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-success) 34%, var(--ms-color-border));
+}
+
+.agent-settings-config-file-list-item[data-selected="true"] {
+  border-color: color-mix(in srgb, var(--ms-color-primary) 44%, var(--ms-color-border));
+  background: color-mix(in srgb, var(--ms-color-primary) 7%, transparent);
+}
+
+.agent-settings-config-file-list-item__button {
+  display: grid;
+  width: 100%;
+  height: auto;
+  justify-items: stretch;
+  gap: 4px;
+  padding: var(--ms-space-2);
+  text-align: left;
+  white-space: normal;
+}
+
+.agent-settings-config-file-list-item__header {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.agent-settings-config-file-list-item__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: var(--ms-leading-label);
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.agent-settings-config-file-list-item__badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.agent-settings-config-file-list-item__id,
+.agent-settings-config-file-list-item__description,
+.agent-settings-config-file-list-item__summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  text-overflow: ellipsis;
+}
+
+.agent-settings-config-file-list-item__id,
+.agent-settings-config-file-list-item__summary {
+  white-space: nowrap;
+}
+
+.agent-settings-config-file-list-item__description {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.agent-settings-config-file-editor-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ms-space-2);
+  border-bottom: 1px solid var(--ms-color-border);
+  padding-bottom: var(--ms-space-3);
+}
+
+.agent-settings-config-file-editor-header__title-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-config-file-editor-header__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.agent-settings-config-file-editor-header__description {
+  margin: 4px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-settings-config-file-editor-header__badges,
+.agent-settings-config-file-editor-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-1);
+}
+
+.agent-settings-config-file-editor-header__actions {
+  gap: var(--ms-space-2);
+}
+
+.agent-settings-config-file-editor-section {
+  min-width: 0;
+  padding: var(--ms-space-3);
+}
+
+.agent-settings-config-file-editor-section__header {
+  margin-bottom: var(--ms-space-3);
+}
+
+.agent-settings-config-file-editor-section__title {
+  margin: 0;
+  color: var(--ms-color-foreground);
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: var(--ms-leading-label);
+}
+
+.agent-settings-config-file-editor-section__description {
+  margin: 4px 0 0;
+  color: var(--ms-color-muted-foreground);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
+}
+
+.agent-settings-config-file-editor-section__body {
+  display: grid;
+  gap: var(--ms-space-3);
+}
+
+.agent-settings-config-file-summary,
+.agent-settings-config-file-diff-section {
   min-width: 0;
   padding: var(--ms-space-1) var(--ms-space-2);
 }
 
-.agent-settings-profile-summary__label,
-.agent-settings-profile-diff-section__label {
+.agent-settings-config-file-summary__label,
+.agent-settings-config-file-diff-section__label {
   margin: 0;
   color: var(--ms-color-foreground);
   font-weight: 500;
 }
 
-.agent-settings-profile-summary__value {
+.agent-settings-config-file-summary__value {
   margin: 2px 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-settings-profile-diff-section {
+.agent-settings-config-file-diff-section {
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-profile-diff-section__lines {
+.agent-settings-config-file-diff-section__lines {
   display: grid;
   gap: 2px;
   margin-top: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
 }
 
-.agent-settings-profile-diff-section__lines p,
-.agent-settings-profile-diff-section__empty {
+.agent-settings-config-file-diff-section__lines p,
+.agent-settings-config-file-diff-section__empty {
   margin: 0;
 }
 
-.agent-settings-profile-diff-section__empty {
+.agent-settings-config-file-diff-section__empty {
   margin-top: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
 }
@@ -580,7 +761,7 @@
 }
 
 .agent-settings-skill-card__toggle {
-  align-items: flex-start;
+  align-items: center;
   cursor: pointer;
   font-size: var(--ms-text-caption);
   line-height: var(--ms-leading-caption);
@@ -591,14 +772,41 @@
   opacity: 0.7;
 }
 
+.agent-settings-skill-card__draft-copy {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .agent-settings-skill-card__draft-title {
-  display: block;
+  display: inline;
   color: var(--ms-color-foreground);
-  font-weight: 500;
+  font-size: var(--ms-text-label);
+  font-weight: 600;
+  line-height: var(--ms-leading-label);
 }
 
 .agent-settings-skill-card__draft-help {
-  display: block;
+  display: inline;
+  min-width: 0;
+  font-size: var(--ms-text-tiny);
+  line-height: var(--ms-leading-tiny);
+  overflow-wrap: anywhere;
+}
+
+.agent-settings-skill-card__instruction {
+  display: grid;
+  gap: var(--ms-space-1);
+  margin-top: var(--ms-space-2);
+}
+
+.agent-settings-skill-card__instruction textarea {
+  min-height: 128px;
+  font-family: var(--ms-font-mono);
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-leading-caption);
 }
 
 .agent-settings-skill-card__meta {
@@ -610,29 +818,29 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-tool-policy-diff {
+.agent-settings-tool-permissions-diff {
   padding: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-diff__header,
-.agent-settings-tool-policy-diff__item {
+.agent-settings-tool-permissions-diff__header,
+.agent-settings-tool-permissions-diff__item {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-diff__list {
+.agent-settings-tool-permissions-diff__list {
   display: grid;
   gap: 6px;
   margin-top: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-diff__item {
+.agent-settings-tool-permissions-diff__item {
   padding: 6px var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-diff__name {
+.agent-settings-tool-permissions-diff__name {
   display: block;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
@@ -640,7 +848,7 @@
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-tool-policy-diff__value {
+.agent-settings-tool-permissions-diff__value {
   display: block;
   margin-top: 2px;
   color: var(--ms-color-muted-foreground);
@@ -648,11 +856,11 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-tool-policy-row {
+.agent-settings-tool-permissions-row {
   padding: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-row__header {
+.agent-settings-tool-permissions-row__header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -660,7 +868,7 @@
   gap: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-row__title-row {
+.agent-settings-tool-permissions-row__title-row {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
@@ -668,7 +876,7 @@
   gap: 6px;
 }
 
-.agent-settings-tool-policy-row__title {
+.agent-settings-tool-permissions-row__title {
   margin: 0;
   overflow: hidden;
   color: var(--ms-color-foreground);
@@ -679,14 +887,14 @@
   white-space: nowrap;
 }
 
-.agent-settings-tool-policy-row__meta-line,
-.agent-settings-tool-policy-row__description,
-.agent-settings-tool-policy-row__help,
-.agent-settings-tool-policy-row__meta {
+.agent-settings-tool-permissions-row__meta-line,
+.agent-settings-tool-permissions-row__description,
+.agent-settings-tool-permissions-row__help,
+.agent-settings-tool-permissions-row__meta {
   color: var(--ms-color-muted-foreground);
 }
 
-.agent-settings-tool-policy-row__meta-line {
+.agent-settings-tool-permissions-row__meta-line {
   margin: 2px 0 0;
   overflow: hidden;
   font-size: var(--ms-text-tiny);
@@ -695,7 +903,7 @@
   white-space: nowrap;
 }
 
-.agent-settings-tool-policy-row__description {
+.agent-settings-tool-permissions-row__description {
   display: -webkit-box;
   margin: var(--ms-space-1) 0 0;
   overflow: hidden;
@@ -705,13 +913,13 @@
   -webkit-line-clamp: 2;
 }
 
-.agent-settings-tool-policy-row__controls {
+.agent-settings-tool-permissions-row__controls {
   display: grid;
   gap: var(--ms-space-2);
   margin-top: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-row__field-label {
+.agent-settings-tool-permissions-row__field-label {
   display: block;
   margin-bottom: var(--ms-space-1);
   color: var(--ms-color-muted-foreground);
@@ -720,19 +928,19 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-tool-policy-row__select {
+.agent-settings-tool-permissions-row__select {
   height: 28px;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.agent-settings-tool-policy-row__help {
+.agent-settings-tool-permissions-row__help {
   margin: var(--ms-space-1) 0 0;
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-tool-policy-row__meta {
+.agent-settings-tool-permissions-row__meta {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ms-space-1);
@@ -741,133 +949,7 @@
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-run-preset-row {
-  overflow: hidden;
-}
-
-.agent-settings-run-preset-row--active {
-  border-color: var(--ms-color-primary);
-  background: color-mix(in srgb, var(--ms-color-muted) 50%, transparent);
-}
-
-.agent-settings-run-preset-row:not(.agent-settings-run-preset-row--active):hover {
-  background: color-mix(in srgb, var(--ms-color-muted) 30%, transparent);
-}
-
-.agent-settings-run-preset-row__button {
-  height: auto;
-  width: 100%;
-  justify-content: flex-start;
-  padding: var(--ms-space-2);
-  text-align: left;
-}
-
-.agent-settings-run-preset-row__button .ms-button__content {
-  display: block;
-  width: 100%;
-  text-align: left;
-}
-
-.agent-settings-run-preset-row__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ms-space-2);
-}
-
-.agent-settings-run-preset-row__title {
-  margin: 0;
-  overflow: hidden;
-  color: var(--ms-color-foreground);
-  font-size: var(--ms-text-label);
-  font-weight: 500;
-  line-height: var(--ms-leading-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-settings-run-preset-row__description {
-  display: -webkit-box;
-  margin: 2px 0 0;
-  overflow: hidden;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.agent-settings-run-preset-row__active-icon {
-  flex-shrink: 0;
-  color: var(--ms-color-primary);
-}
-
-.agent-settings-run-preset-row__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ms-space-1);
-  margin-top: var(--ms-space-2);
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  line-height: var(--ms-leading-tiny);
-}
-
-.agent-settings-run-preset-editor__grid {
-  display: grid;
-  gap: var(--ms-space-2);
-  margin-top: var(--ms-space-2);
-}
-
-.agent-settings-run-preset-editor__field {
-  display: grid;
-  gap: var(--ms-space-1);
-}
-
-.agent-settings-run-preset-editor__field-label {
-  display: block;
-  color: var(--ms-color-muted-foreground);
-  font-size: var(--ms-text-tiny);
-  font-weight: 500;
-  line-height: var(--ms-leading-tiny);
-}
-
-.agent-settings-run-preset-editor__input,
-.agent-settings-run-preset-editor__select {
-  height: 28px;
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-}
-
-.agent-settings-run-preset-editor__checkbox-frame {
-  display: flex;
-  min-height: 28px;
-  align-items: center;
-  gap: var(--ms-space-2);
-  padding-inline: var(--ms-space-2);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-}
-
-.agent-settings-run-preset-editor__checkbox {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  padding: 0;
-}
-
-.agent-settings-run-preset-policy {
-  padding: var(--ms-space-2);
-}
-
-.agent-settings-run-preset-policy__grid {
-  display: grid;
-  gap: var(--ms-space-2);
-  margin-top: var(--ms-space-2);
-  font-size: var(--ms-text-label);
-  line-height: var(--ms-leading-label);
-}
-
-.agent-settings-skill-bundle__header {
+.agent-settings-pack__header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -875,46 +957,46 @@
   gap: var(--ms-space-2);
 }
 
-.agent-settings-skill-bundle__actions {
+.agent-settings-pack__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ms-space-2);
 }
 
-.agent-settings-skill-bundle__file-input {
+.agent-settings-pack__file-input {
   display: none;
 }
 
-.agent-settings-skill-bundle__textarea {
+.agent-settings-pack__textarea {
   min-height: 6rem;
   margin-top: var(--ms-space-2);
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.agent-settings-skill-bundle__message,
-.agent-settings-skill-bundle__help {
+.agent-settings-pack__message,
+.agent-settings-pack__help {
   margin: var(--ms-space-2) 0 0;
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-caption);
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-skill-bundle__feedback {
+.agent-settings-pack__feedback {
   margin-top: var(--ms-space-2);
 }
 
-.agent-settings-skill-bundle__uninstall {
+.agent-settings-pack__uninstall {
   margin-top: var(--ms-space-3);
   border-top: 1px solid var(--ms-color-border);
   padding-top: var(--ms-space-3);
 }
 
-.agent-settings-skill-bundle__installed {
+.agent-settings-pack__installed {
   margin-bottom: var(--ms-space-3);
 }
 
-.agent-settings-skill-bundle__installed-title {
+.agent-settings-pack__installed-title {
   margin: 0 0 6px;
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
@@ -922,12 +1004,12 @@
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-skill-bundle__installed-list {
+.agent-settings-pack__installed-list {
   display: grid;
   gap: 6px;
 }
 
-.agent-settings-skill-bundle__installed-item {
+.agent-settings-pack__installed-item {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -936,40 +1018,40 @@
   padding: 6px var(--ms-space-2);
 }
 
-.agent-settings-skill-bundle__plugin-id,
-.agent-settings-skill-bundle__plugin-path {
+.agent-settings-pack__plugin-id,
+.agent-settings-pack__plugin-path {
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-settings-skill-bundle__plugin-id {
+.agent-settings-pack__plugin-id {
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
   font-weight: 500;
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-skill-bundle__plugin-path {
+.agent-settings-pack__plugin-path {
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-skill-bundle__uninstall-row {
+.agent-settings-pack__uninstall-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--ms-space-2);
 }
 
-.agent-settings-skill-bundle__uninstall-field {
+.agent-settings-pack__uninstall-field {
   min-width: 14rem;
   flex: 1;
 }
 
-.agent-settings-skill-bundle__field-label {
+.agent-settings-pack__field-label {
   display: block;
   margin-bottom: var(--ms-space-1);
   color: var(--ms-color-foreground);
@@ -978,26 +1060,26 @@
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-skill-bundle__uninstall-input {
+.agent-settings-pack__uninstall-input {
   height: 28px;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.agent-settings-tool-policy-filter {
+.agent-settings-tool-permissions-filter {
   display: grid;
   gap: var(--ms-space-2);
   padding: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-filter__search,
-.agent-settings-tool-policy-filter__select {
+.agent-settings-tool-permissions-filter__search,
+.agent-settings-tool-permissions-filter__select {
   height: 28px;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
-.agent-settings-tool-policy-filter__summary {
+.agent-settings-tool-permissions-filter__summary {
   display: flex;
   align-items: center;
   color: var(--ms-color-muted-foreground);
@@ -1005,60 +1087,60 @@
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-tool-policy-presets {
+.agent-settings-tool-permissions-presets {
   padding: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-presets__header {
+.agent-settings-tool-permissions-presets__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-presets__title {
+.agent-settings-tool-permissions-presets__title {
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
   font-weight: 500;
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-tool-policy-presets__help,
-.agent-settings-tool-policy-presets__empty {
+.agent-settings-tool-permissions-presets__help,
+.agent-settings-tool-permissions-presets__empty {
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
 }
 
-.agent-settings-tool-policy-presets__empty {
+.agent-settings-tool-permissions-presets__empty {
   margin: var(--ms-space-2) 0 0;
 }
 
-.agent-settings-tool-policy-presets__list {
+.agent-settings-tool-permissions-presets__list {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ms-space-2);
   margin-top: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-presets__item {
+.agent-settings-tool-permissions-presets__item {
   display: flex;
   align-items: center;
   gap: var(--ms-space-1);
   padding: var(--ms-space-1);
 }
 
-.agent-settings-tool-policy-presets__select {
+.agent-settings-tool-permissions-presets__select {
   max-width: 260px;
 }
 
-.agent-settings-tool-policy-presets__select-label {
+.agent-settings-tool-permissions-presets__select-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.agent-settings-tool-policy-bulk {
+.agent-settings-tool-permissions-bulk {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1066,14 +1148,14 @@
   padding: var(--ms-space-2);
 }
 
-.agent-settings-tool-policy-bulk__title {
+.agent-settings-tool-permissions-bulk__title {
   color: var(--ms-color-foreground);
   font-size: var(--ms-text-caption);
   font-weight: 500;
   line-height: var(--ms-leading-caption);
 }
 
-.agent-settings-tool-policy-bulk__help {
+.agent-settings-tool-permissions-bulk__help {
   color: var(--ms-color-muted-foreground);
   font-size: var(--ms-text-tiny);
   line-height: var(--ms-leading-tiny);
@@ -1387,20 +1469,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .agent-settings-profile-card__summary-grid {
+  .agent-settings-config-file-card__summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .agent-settings-tool-policy-row__controls {
+  .agent-settings-tool-permissions-row__controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .agent-settings-run-preset-editor__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .agent-settings-run-preset-editor__field--wide {
-    grid-column: span 2;
   }
 
   .agent-settings-snapshot-import__scope-grid,
@@ -1408,22 +1482,11 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .agent-settings-run-preset-policy__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .agent-settings-tool-policy-filter {
+  .agent-settings-tool-permissions-filter {
     grid-template-columns: minmax(0, 1fr) 220px auto;
   }
 
   .agent-settings-grid--three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .agent-settings-run-preset-editor__grid,
-  .agent-settings-run-preset-policy__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

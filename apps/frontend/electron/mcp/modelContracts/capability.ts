@@ -9,6 +9,10 @@ export function normalizeModelCapabilityAlias(value: string | undefined): string
     case 'video_i2v':
     case 'video_v2v':
     case 'audio':
+    case 'audio_tts':
+    case 'audio_transcribe':
+    case 'subtitle_align':
+    case 'render_video':
       return normalized
     case 'text_to_image':
     case 'image_generation':
@@ -36,6 +40,23 @@ export function normalizeModelCapabilityAlias(value: string | undefined): string
     case 'text_generation':
     case 'prompt_to_text':
       return 'text'
+    case 'tts':
+    case 'text_to_speech':
+    case 'voiceover':
+    case 'voiceover_generation':
+      return 'audio_tts'
+    case 'speech_to_text':
+    case 'stt':
+    case 'transcription':
+      return 'audio_transcribe'
+    case 'forced_alignment':
+    case 'subtitle_alignment':
+    case 'align_subtitles':
+      return 'subtitle_align'
+    case 'video_render':
+    case 'ffmpeg_render':
+    case 'render':
+      return 'render_video'
     default:
       return undefined
   }

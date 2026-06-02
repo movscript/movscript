@@ -458,7 +458,7 @@ export const assetProposalSchema = {
           negative_prompt: { type: 'string' },
           aspect_ratio: { type: 'string' },
           duration: { type: 'number' },
-          model_capability: { enum: ['image', 'image_edit', 'video', 'video_i2v'] },
+          model_capability: { enum: ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v', 'audio_tts', 'audio_transcribe', 'subtitle_align', 'render_video'] },
           input_resource_ids: { type: 'array', items: { type: 'number' } },
           references: { type: 'array' },
           acceptance_criteria: { type: 'array', items: { type: 'string' } },

@@ -104,6 +104,11 @@ export function canvasNodeOutputValue(
   }
 
   const data = node.data as Partial<CanvasNodeData>
+  if (node.type === 'plugin_card') {
+    const pluginOutput = pluginPortOutputValueFromUnknown(data.pluginResultData, port, input.resourceById)
+    if (pluginOutput) return pluginOutput
+  }
+
   const resourceId = data.resource?.ID
     ?? (data.resourceId ? input.resourceById?.get(data.resourceId)?.ID : undefined)
     ?? data.resourceId
@@ -172,6 +177,46 @@ export function outputResourceFromUnknown(value: unknown, resourceId?: number): 
     const id = positiveInteger((candidate as { ID?: unknown; id?: unknown }).ID ?? (candidate as { id?: unknown }).id)
     if (resourceId && id !== resourceId) continue
     return candidate as RawResource
+  }
+  return undefined
+}
+
+function pluginPortOutputValueFromUnknown(
+  value: unknown,
+  portId: string,
+  resourceById: Map<number, RawResource> | undefined,
+): CanvasPortValue | undefined {
+  if (!isRecord(value) || !isRecord(value.outputs)) return undefined
+  const candidate = value.outputs[portId]
+  if (!isRecord(candidate)) return undefined
+
+  const type = typeof candidate.type === 'string' ? candidate.type as CanvasPortType : undefined
+  const resourceId = positiveInteger(candidate.resource_id ?? candidate.resourceId)
+  const resource = outputResourceFromUnknown(candidate, resourceId) ?? (resourceId ? resourceById?.get(resourceId) : undefined)
+  if (type === 'json') {
+    return {
+      type,
+      ...(resourceId ? { resource_id: resourceId } : {}),
+      ...(resource ? { resource } : {}),
+      json: candidate.json ?? candidate.value ?? candidate.data,
+    }
+  }
+  if (type === 'number' && typeof candidate.number === 'number') return { type, number: candidate.number }
+  if (type === 'boolean' && typeof candidate.boolean === 'boolean') return { type, boolean: candidate.boolean }
+  if (type === 'text') {
+    return {
+      type,
+      ...(resourceId ? { resource_id: resourceId } : {}),
+      ...(resource ? { resource } : {}),
+      ...(typeof candidate.text === 'string' ? { text: candidate.text } : {}),
+    }
+  }
+  if (type && MEDIA_PORT_TYPES.has(type)) {
+    return {
+      type,
+      ...(resourceId ? { resource_id: resourceId } : {}),
+      ...(resource ? { resource } : {}),
+    }
   }
   return undefined
 }

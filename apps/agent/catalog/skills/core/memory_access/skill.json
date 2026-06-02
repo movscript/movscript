@@ -1,0 +1,31 @@
+{
+  "id": "core.memory_access",
+  "version": "1.0.0",
+  "name": "Memory Access",
+  "description": "按需读取、创建或删除当前项目内的本地 agent memory。",
+  "priority": 930,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "memory",
+        "remember",
+        "记忆",
+        "记住",
+        "默认",
+        "偏好"
+      ]
+    }
+  ],
+  "toolScope": "intersect",
+  "outputContract": "说明使用或变更了哪些 memoryId、kind、projectId，以及该内容是记忆上下文还是新写入的偏好。",
+  "instructionTemplatePath": "instruction.md",
+  "toolGrants": [
+    "core_memory_search",
+    "core_memory_get",
+    "core_memory_create",
+    "core_memory_delete",
+    "core_user_input_request"
+  ]
+}

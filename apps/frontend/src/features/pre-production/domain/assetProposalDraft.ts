@@ -18,7 +18,7 @@ export interface AssetProposalCandidateTaskGraph {
   negative_prompt?: string
   aspect_ratio?: string
   duration?: number
-  model_capability?: 'image' | 'image_edit' | 'video' | 'video_i2v'
+  model_capability?: 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v' | 'audio_tts' | 'audio_transcribe' | 'subtitle_align' | 'render_video'
   input_resource_ids: number[]
   rationale?: string
   acceptance_criteria: string[]

@@ -1,6 +1,6 @@
-import { validateDraft, type AgentDraftStore } from '../../drafts/draftStore.js'
-import type { JSONValue } from '../../types.js'
-import { buildAgentFileRef, parseAgentFileRef } from '../agentFileRef.js'
+import { validateDraft, type AgentDraftStore } from '../../drafts/store/draftStore.js'
+import type { JSONValue } from '../../shared/protocol/types.js'
+import { buildAgentFileRef, parseAgentFileRef } from '../core/ref/agentFileRef.js'
 import {
   applyAgentFileEdits,
   contentRevision,
@@ -10,8 +10,8 @@ import {
   type AgentFileReadResult,
   type AgentFileSearchMatch,
   type AgentFileSearchResult,
-} from '../agentFileEdit.js'
-import type { AgentFileProvider } from '../agentFileSystem.js'
+} from '../core/edit/agentFileEdit.js'
+import type { AgentFileProvider } from '../core/system/agentFileSystem.js'
 
 export function draftContentFileRef(draftId: string): string {
   return buildAgentFileRef({ provider: 'draft', id: draftId, path: '/content' })

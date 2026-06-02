@@ -99,12 +99,12 @@ export function buildAgentChatViewLayoutProps({
       planActionBusy,
       planDispatchSettings,
       projectId: currentProject?.ID,
-      showLocalWorkflow: presentation.showLocalWorkflow,
+      showLocalRunInteraction: presentation.showLocalRunInteraction,
       thinkingState: presentation.thinkingState,
       threadRef: presentation.threadRef,
-      workflowAnswerEchoes: presentation.workflowAnswerEchoes,
-      workflowRunsByResultMessageId: presentation.workflowRunsByResultMessageId,
-      workflowRunsWithoutResultMessage: presentation.workflowRunsWithoutResultMessage,
+      runInteractionAnswerEchoes: presentation.runInteractionAnswerEchoes,
+      interactionRunsByResultMessageId: presentation.interactionRunsByResultMessageId,
+      interactionRunsWithoutResultMessage: presentation.interactionRunsWithoutResultMessage,
       onAcceptPlanReview: interaction.acceptPlanTaskReview,
       onAnswerLocalRunInput: interaction.answerLocalRunInput,
       onApproveLocalRun: interaction.approveLocalRun,
@@ -138,6 +138,8 @@ export function buildAgentChatViewLayoutProps({
       pendingRuntimeInputQueue: presentation.pendingRuntimeInputQueue,
       stoppingLocalRun: presentation.stoppingLocalRun,
       uploading: composer.uploading,
+      uploadedFileCount: composer.uploadedFileCount,
+      uploadingFileNames: composer.uploadingFileNames,
       onAcceptMention: () => {
         if (composer.mentionRange && composer.mentionResults.length > 0) {
           composer.insertResourceMention(composer.mentionResults[0])
@@ -149,6 +151,7 @@ export function buildAgentChatViewLayoutProps({
       onComposerDragLeave: composer.handleComposerDragLeave,
       onComposerDragOver: composer.handleComposerDragOver,
       onComposerDrop: composer.handleComposerDrop,
+      onComposerPaste: composer.handleComposerPaste,
       onDebugBeforeSendChange: runtime.setDebugBeforeSend,
       onInputChange: (value: string) => updateDraft({ input: value }),
       onMentionEscape: () => composer.setMentionRange(null),

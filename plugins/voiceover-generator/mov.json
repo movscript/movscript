@@ -1,0 +1,88 @@
+{
+  "schema": "movscript.plugin.v1",
+  "id": "com.movscript.voiceover-generator",
+  "name": "语音生成器",
+  "version": "1.0.0",
+  "description": "用于打通配音、字幕和时间轴资源链路的本地 mock 语音生成器。",
+  "author": "Movscript",
+  "homepage": "https://github.com/migua/movscript",
+  "permissions": ["resource.write"],
+  "main": "src/index.ts",
+  "hasCompile": true,
+  "contributes": {
+    "canvasNodes": [
+      {
+        "type": "com.movscript.voiceover-generator.voiceover_generator",
+        "title": "语音生成器",
+        "description": "把文本转换为可上传的 mock 音频，并输出字幕与 timing JSON。",
+        "category": "ai",
+        "icon": "audio",
+        "inputs": [
+          {
+            "id": "prompt",
+            "label": "配音文本",
+            "type": "text",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "audio",
+            "label": "配音音频",
+            "type": "audio"
+          },
+          {
+            "id": "subtitles",
+            "label": "字幕",
+            "type": "text"
+          },
+          {
+            "id": "timing",
+            "label": "时间轴",
+            "type": "json"
+          }
+        ],
+        "defaultData": {
+          "source": "ai",
+          "label": "语音生成器",
+          "outputType": "audio"
+        }
+      }
+    ]
+  },
+  "inputSchema": {
+    "type": "object",
+    "required": ["prompt"],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "配音文本",
+        "description": "要生成配音和字幕的文本"
+      },
+      "voice_id": {
+        "type": "string",
+        "title": "音色",
+        "description": "mock 音色标识，用于验证参数透传",
+        "default": "mock-narrator"
+      },
+      "language": {
+        "type": "string",
+        "title": "语言",
+        "enum": ["zh-CN", "en-US", "ja-JP"],
+        "default": "zh-CN"
+      },
+      "speed": {
+        "type": "number",
+        "title": "语速",
+        "description": "1 为正常语速",
+        "default": 1
+      },
+      "subtitle_format": {
+        "type": "string",
+        "title": "字幕格式",
+        "enum": ["srt"],
+        "default": "srt"
+      }
+    }
+  }
+}

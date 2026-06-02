@@ -16,8 +16,7 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
     blockedReason: input.blockedReason,
     pendingInputRequests: input.pendingInputRequests,
     pendingApprovals: input.pendingApprovals,
-    policy: {
-      approvalMode: 'auto',
+    runtimeLimits: { approvalMode: 'auto',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

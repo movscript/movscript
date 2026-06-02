@@ -1,14 +1,110 @@
 import { DEFAULT_MCP_ENDPOINT, MIN_AGENT_RUNTIME_API_VERSION } from './config'
 import { describeAgentRuntimeFetchError } from './fetchError'
 import type { AgentRuntimeHealthCheck } from './healthTypes'
+import { resolveAgentRuntimeControlTransport, type AgentRuntimeControlTransport } from './transport'
 
 const AGENT_RUNTIME_HEALTH_FETCH_TIMEOUT_MS = 3_000
 
-export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
+export async function getAgentRuntimeHealth(input: string | AgentRuntimeControlTransport): Promise<AgentRuntimeHealthCheck> {
+  const transport = resolveAgentRuntimeControlTransport(input)
+  const endpointLabel = transport.endpointLabel
   const startedAt = Date.now()
+  let liveRes: Response
+  try {
+    liveRes = await fetchAgentRuntimeWithTimeout(transport, '/livez')
+  } catch (error) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'fetch-failed',
+      error: describeAgentRuntimeFetchError(error),
+    }
+  }
+  const livezMs = Date.now() - startedAt
+  if (liveRes.status === 404) return getLegacyAgentRuntimeHealth(transport, startedAt, livezMs)
+  if (!liveRes.ok) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'livez-non-200',
+      error: `GET ${endpointLabel}/livez returned HTTP ${liveRes.status}`,
+    }
+  }
+  if (liveRes.status !== 204) {
+    let liveBody: { ok?: unknown }
+    try {
+      liveBody = await liveRes.json() as typeof liveBody
+    } catch (error) {
+      return {
+        ok: false,
+        compatible: false,
+        reason: 'livez-body-not-ok',
+        error: `GET ${endpointLabel}/livez returned invalid JSON: ${describeAgentRuntimeFetchError(error)}`,
+      }
+    }
+    if (liveBody.ok !== true) {
+      return {
+        ok: false,
+        compatible: false,
+        reason: 'livez-body-not-ok',
+        error: `GET ${endpointLabel}/livez body did not report ok=true`,
+      }
+    }
+  }
+
+  const compatStartedAt = Date.now()
+  let compatRes: Response
+  try {
+    compatRes = await fetchAgentRuntimeWithTimeout(transport, '/runtime/compat')
+  } catch (error) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'compat-fetch-failed',
+      error: `GET ${endpointLabel}/runtime/compat failed: ${describeAgentRuntimeFetchError(error)}`,
+    }
+  }
+  if (compatRes.status === 404) return getLegacyAgentRuntimeHealth(transport, startedAt, livezMs)
+  if (!compatRes.ok) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'compat-non-200',
+      error: `GET ${endpointLabel}/runtime/compat returned HTTP ${compatRes.status}`,
+    }
+  }
+  let compat: { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
+  try {
+    compat = await compatRes.json() as typeof compat
+  } catch (error) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'compat-invalid-json',
+      error: `GET ${endpointLabel}/runtime/compat returned invalid JSON: ${describeAgentRuntimeFetchError(error)}`,
+    }
+  }
+  const compatMs = Date.now() - compatStartedAt
+  const totalMs = Date.now() - startedAt
+  if (totalMs > 250) {
+    console.info(`[agent] runtime health probe slow livezMs=${livezMs} compatMs=${compatMs} totalMs=${totalMs} endpoint=${endpointLabel}`)
+  }
+  if (compat.ok !== true) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'health-body-not-ok',
+      error: `GET ${endpointLabel}/runtime/compat body did not report ok=true`,
+    }
+  }
+  return validateAgentRuntimeCompatibility(endpointLabel, compat, compat)
+}
+
+async function getLegacyAgentRuntimeHealth(transport: AgentRuntimeControlTransport, startedAt: number, livezMs = 0): Promise<AgentRuntimeHealthCheck> {
+  const endpointLabel = transport.endpointLabel
   let res: Response
   try {
-    res = await fetchAgentRuntimeWithTimeout(`${baseURL}/health`)
+    res = await fetchAgentRuntimeWithTimeout(transport, '/health')
   } catch (error) {
     return {
       ok: false,
@@ -23,7 +119,7 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
       ok: false,
       compatible: false,
       reason: 'health-non-200',
-      error: `GET ${baseURL}/health returned HTTP ${res.status}`,
+      error: `GET ${endpointLabel}/health returned HTTP ${res.status}`,
     }
   }
   let body: { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
@@ -34,7 +130,7 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
       ok: false,
       compatible: false,
       reason: 'health-non-200',
-      error: `GET ${baseURL}/health returned invalid JSON: ${describeAgentRuntimeFetchError(error)}`,
+      error: `GET ${endpointLabel}/health returned invalid JSON: ${describeAgentRuntimeFetchError(error)}`,
     }
   }
   const healthBodyMs = Date.now() - startedAt
@@ -43,7 +139,7 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
       ok: false,
       compatible: false,
       reason: 'health-body-not-ok',
-      error: `GET ${baseURL}/health body did not report ok=true`,
+      error: `GET ${endpointLabel}/health body did not report ok=true`,
     }
   }
   const healthMs = Date.now() - startedAt
@@ -53,13 +149,13 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
     const capabilitiesStartedAt = Date.now()
     let capabilityRes: Response
     try {
-      capabilityRes = await fetchAgentRuntimeWithTimeout(`${baseURL}/runtime/capabilities`)
+      capabilityRes = await fetchAgentRuntimeWithTimeout(transport, '/runtime/capabilities')
     } catch (error) {
       return {
         ok: true,
         compatible: false,
         reason: 'capabilities-fetch-failed',
-        error: `GET ${baseURL}/runtime/capabilities failed: ${describeAgentRuntimeFetchError(error)}`,
+        error: `GET ${endpointLabel}/runtime/capabilities failed: ${describeAgentRuntimeFetchError(error)}`,
       }
     }
     if (!capabilityRes.ok) {
@@ -67,7 +163,7 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
         ok: true,
         compatible: false,
         reason: 'capabilities-non-200',
-        error: `GET ${baseURL}/runtime/capabilities returned HTTP ${capabilityRes.status}`,
+        error: `GET ${endpointLabel}/runtime/capabilities returned HTTP ${capabilityRes.status}`,
       }
     }
     capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
@@ -75,8 +171,16 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
   }
   const totalMs = Date.now() - startedAt
   if (totalMs > 250) {
-    console.info(`[agent] runtime health probe slow healthHeadersMs=${healthHeadersMs} healthBodyMs=${healthBodyMs} healthMs=${healthMs} capabilitiesMs=${capabilitiesMs} totalMs=${totalMs} baseURL=${baseURL}`)
+    console.info(`[agent] runtime health probe slow livezMs=${livezMs} healthHeadersMs=${healthHeadersMs} healthBodyMs=${healthBodyMs} healthMs=${healthMs} capabilitiesMs=${capabilitiesMs} totalMs=${totalMs} endpoint=${endpointLabel}`)
   }
+  return validateAgentRuntimeCompatibility(endpointLabel, capabilities, body)
+}
+
+function validateAgentRuntimeCompatibility(
+  baseURL: string,
+  capabilities: { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown },
+  body: { runtime?: { apiVersion?: unknown; features?: unknown } },
+): AgentRuntimeHealthCheck {
   const runtime = capabilities.runtime ?? body.runtime
   const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
   const features = Array.isArray(runtime?.features) ? runtime.features : []
@@ -123,13 +227,14 @@ export async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRunti
   return { ok: true, compatible: true, apiVersion, mcpEndpoint }
 }
 
-async function fetchAgentRuntimeWithTimeout(url: string): Promise<Response> {
+async function fetchAgentRuntimeWithTimeout(transport: AgentRuntimeControlTransport, path: string): Promise<Response> {
+  const label = `${transport.endpointLabel}${path}`
   const controller = new AbortController()
   const timeout = setTimeout(() => {
-    if (!controller.signal.aborted) controller.abort(createAgentRuntimeTimeoutError(url))
+    if (!controller.signal.aborted) controller.abort(createAgentRuntimeTimeoutError(label))
   }, AGENT_RUNTIME_HEALTH_FETCH_TIMEOUT_MS)
   try {
-    return await fetch(url, { signal: controller.signal })
+    return await transport.request(path, { signal: controller.signal })
   } finally {
     clearTimeout(timeout)
   }

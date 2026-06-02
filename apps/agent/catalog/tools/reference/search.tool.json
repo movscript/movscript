@@ -1,0 +1,55 @@
+{
+  "name": "reference_search",
+  "description": "搜索可用参考源，按图片、视频或文本返回标准化参考结果。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": ["image", "video", "text"]
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["external_resource", "shot_library", "local_reference"]
+        }
+      },
+      "source": {
+        "type": "string",
+        "enum": ["external_resource", "shot_library", "local_reference"]
+      },
+      "method": {
+        "type": "string",
+        "enum": ["keyword", "semantic", "native"]
+      },
+      "domain": {
+        "type": "string"
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "limit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 20
+      }
+    }
+  },
+  "permission": "reference.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "统一搜索外部资源、镜头库和本地文本参考，返回 image、video 或 text 类型的标准化参考结果。"
+}

@@ -13,6 +13,10 @@ const (
 	CapabilityVideo     = "video"
 	CapabilityVideoI2V  = "video_i2v"
 	CapabilityVideoV2V  = "video_v2v"
+	CapabilityAudioTTS  = "audio_tts"
+	CapabilityAudioSTT  = "audio_transcribe"
+	CapabilitySubAlign  = "subtitle_align"
+	CapabilityRender    = "render_video"
 )
 
 type ModelConfigInput struct {

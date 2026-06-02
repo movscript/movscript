@@ -5,32 +5,32 @@ import { buildAgentConversationMessageItems, buildAgentConversationThreadItems, 
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
-test('buildAgentConversationMessageItems filters workflow answer echoes', () => {
+test('buildAgentConversationMessageItems filters run interaction answer echoes', () => {
   const items = buildAgentConversationMessageItems({
     messages: [
       message({ id: 'echo', role: 'user', content: '回答：选择方向\n选择：A' }),
       message({ id: 'assistant', role: 'assistant', content: 'done' }),
     ],
-    workflowAnswerEchoes: new Set(['回答：选择方向\n选择：A']),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(['回答：选择方向\n选择：A']),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.deepEqual(items.map((item) => item.message.id), ['assistant'])
 })
 
-test('buildAgentConversationMessageItems prefers live workflow runs before result messages', () => {
+test('buildAgentConversationMessageItems prefers live run interaction runs before result messages', () => {
   const liveRun = run({ id: 'run_live' })
   const items = buildAgentConversationMessageItems({
     messages: [message({ id: 'assistant', role: 'assistant', content: 'done' })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
   })
 
-  assert.equal(items[0]?.liveWorkflowRuns?.[0]?.id, 'run_live')
-  assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_live')
+  assert.equal(items[0]?.liveInteractionRuns?.[0]?.id, 'run_live')
+  assert.equal(items[0]?.beforeMessageInteractionRuns[0]?.id, 'run_live')
 })
 
-test('buildAgentConversationMessageItems suppresses mapped workflow runs reserved for live activity', () => {
+test('buildAgentConversationMessageItems suppresses mapped run interaction runs reserved for live activity', () => {
   const liveRun = run({ id: 'run_live' })
   const items = buildAgentConversationMessageItems({
     messages: [message({
@@ -39,17 +39,17 @@ test('buildAgentConversationMessageItems suppresses mapped workflow runs reserve
       content: 'done',
       meta: { localRunActivity: runActivity('run_live') },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
-    suppressedWorkflowRunIds: new Set(['run_live']),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
+    suppressedInteractionRunIds: new Set(['run_live']),
   })
 
-  assert.deepEqual(items[0]?.liveWorkflowRuns, [])
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.deepEqual(items[0]?.liveInteractionRuns, [])
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems suppresses historical workflow fallback for runs reserved for live activity', () => {
+test('buildAgentConversationMessageItems suppresses historical run interaction fallback for runs reserved for live activity', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({
       id: 'assistant',
@@ -57,13 +57,13 @@ test('buildAgentConversationMessageItems suppresses historical workflow fallback
       content: 'done',
       meta: { localRunActivity: runActivity('run_live') },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
-    suppressedWorkflowRunIds: new Set(['run_live']),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
+    suppressedInteractionRunIds: new Set(['run_live']),
   })
 
-  assert.equal(items[0]?.liveWorkflowRuns, null)
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.equal(items[0]?.liveInteractionRuns, null)
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 
@@ -96,8 +96,8 @@ test('buildAgentConversationMessageItems hides plan revision messages from the c
       }),
       message({ id: 'assistant', role: 'assistant', content: 'done' }),
     ],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.deepEqual(items.map((item) => item.message.id), ['assistant'])
@@ -130,12 +130,12 @@ test('buildAgentConversationMessageItems keeps historical requires-action messag
         },
       },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
-  assert.equal(items[0]?.liveWorkflowRuns, null)
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.equal(items[0]?.liveInteractionRuns, null)
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 
@@ -167,15 +167,15 @@ test('buildAgentConversationMessageItems keeps synthetic requires-action placeho
         },
       },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems puts source-message fallback workflow cards after the user message', () => {
+test('buildAgentConversationMessageItems puts source-message fallback run interaction cards after the user message', () => {
   const liveRun = run({ id: 'run_live' })
   const items = buildAgentConversationMessageItems({
     messages: [message({
@@ -184,12 +184,12 @@ test('buildAgentConversationMessageItems puts source-message fallback workflow c
       content: 'Start work',
       meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_live' } },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map([['trigger', [liveRun]]]),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([['trigger', [liveRun]]]),
   })
 
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
-  assert.equal(items[0]?.afterMessageWorkflowRuns[0]?.id, 'run_live')
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
+  assert.equal(items[0]?.afterMessageInteractionRuns[0]?.id, 'run_live')
   assert.equal(items[0]?.showMessage, true)
 })
 
@@ -221,8 +221,8 @@ test('buildAgentConversationMessageItems keeps substantive assistant content for
         },
       },
     })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.equal(items[0]?.showMessage, true)
@@ -259,8 +259,8 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
       }),
     ],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.equal(items[0]?.type, 'message')
@@ -301,8 +301,8 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
   ]
   const threadItems = buildAgentConversationThreadItems({
     messages,
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
   const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
 
@@ -323,7 +323,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
   }])
 })
 
-test('buildAgentConversationThreadItems filters pending local workflow input answer drafts', () => {
+test('buildAgentConversationThreadItems filters pending local run interaction input answer drafts', () => {
   const items = buildAgentConversationThreadItems({
     messages: [
       message({
@@ -343,8 +343,8 @@ test('buildAgentConversationThreadItems filters pending local workflow input ans
         },
       }),
     ],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.deepEqual(items.flatMap((item) => item.type === 'message'
@@ -352,7 +352,7 @@ test('buildAgentConversationThreadItems filters pending local workflow input ans
     : item.items.map((messageItem) => messageItem.message.id)), ['trigger'])
 })
 
-test('buildAgentConversationThreadItems filters accepted workflow input answer echoes', () => {
+test('buildAgentConversationThreadItems filters accepted run interaction input answer echoes', () => {
   const items = buildAgentConversationThreadItems({
     messages: [
       message({
@@ -373,8 +373,8 @@ test('buildAgentConversationThreadItems filters accepted workflow input answer e
         },
       }),
     ],
-    workflowAnswerEchoes: new Set(['[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好']),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(['[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好']),
+    interactionRunsByResultMessageId: new Map(),
   })
 
   assert.deepEqual(items.flatMap((item) => item.type === 'message'
@@ -396,8 +396,8 @@ test('buildAgentConversationThreadItems keeps new trigger messages pending until
   ]
   const threadItems = buildAgentConversationThreadItems({
     messages,
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
   })
   const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
 
@@ -452,8 +452,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'requires_action',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

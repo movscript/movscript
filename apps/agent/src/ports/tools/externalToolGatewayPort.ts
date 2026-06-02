@@ -1,4 +1,4 @@
-import type { JSONValue } from '../../state/types.js'
+import type { JSONValue } from '../../state/shared/types.js'
 
 export interface ExternalToolGatewayPort {
   executeTool(

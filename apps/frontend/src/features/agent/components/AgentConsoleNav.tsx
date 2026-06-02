@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Blocks, ClipboardList, FileSearch, Gauge, ListTree, Settings, Terminal } from 'lucide-react'
+import { BarChart3, Blocks, ClipboardList, FileSearch, ListTree, Settings, Terminal } from 'lucide-react'
 import {
   AgentConsoleNavItem,
   AgentConsoleNavLinkWrapper,
@@ -20,14 +20,14 @@ const agentConsoleSections = [
   },
   {
     to: ROUTES.agentSettings,
-    label: '模型与能力配置',
-    description: '模型、运行策略、Profile、Skills、Tools',
+    label: '配置文件与能力设置',
+    description: '配置文件、已安装能力、Skills、Tools、模型与运行限制',
     icon: Settings,
   },
   {
     to: ROUTES.plugins,
-    label: '插件',
-    description: '应用插件、Agent Skills 与工具扩展',
+    label: 'Pack / 插件市场',
+    description: 'Pack 安装来源、应用插件与工具扩展',
     icon: Blocks,
   },
   {
@@ -35,12 +35,6 @@ const agentConsoleSections = [
     label: '运行记录',
     description: 'Run 列表与 trace 入口',
     icon: ListTree,
-  },
-  {
-    to: ROUTES.agentPerformance,
-    label: '性能监控',
-    description: 'Metrics、Timeline、慢操作诊断',
-    icon: Gauge,
   },
   {
     to: ROUTES.agentDebug,
@@ -86,7 +80,7 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
               业务审阅仍在各业务页面完成
             </AgentConsoleNavMeta>
             <AgentConsoleNavMeta>
-              控制台只负责配置、插件、状态、运行、诊断和索引
+              控制台只负责配置文件、已安装能力、工具权限、运行、诊断和索引
             </AgentConsoleNavMeta>
           </AgentConsoleNavMetaRow>
         )}

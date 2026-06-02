@@ -18,6 +18,8 @@
     "readinessChecklist",
     "modelCalls",
     "modelCallContexts",
+    "runtimeSummary",
+    "roundContextUpdates",
     "promptDetails",
     "contextMutations",
     "messageWrites",
@@ -89,6 +91,15 @@
         "$ref": "#/$defs/modelCallContext"
       }
     },
+    "runtimeSummary": {
+      "$ref": "#/$defs/runtimeSummary"
+    },
+    "roundContextUpdates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/roundContextUpdate"
+      }
+    },
     "promptDetails": {
       "type": "array",
       "items": {
@@ -138,6 +149,8 @@
       "enum": [
         "runSummary",
         "readinessChecklist",
+        "runtimeSummary",
+        "roundContextUpdates",
         "modelCallContexts",
         "promptDetails",
         "contextMutations",
@@ -181,7 +194,7 @@
             "skill",
             "tool_catalog",
             "prompt",
-            "policy",
+            "permission",
             "reasoning",
             "tool_call",
             "model_call",
@@ -670,6 +683,253 @@
         }
       }
     },
+    "runtimeSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "skills",
+        "tools",
+        "context"
+      ],
+      "properties": {
+        "skills": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "activeSkillIds",
+            "loadedSkillIds",
+            "unloadedSkillIds",
+            "availableSkillIds",
+            "contextProjection",
+            "omissions"
+          ],
+          "properties": {
+            "activeSkillIds": {
+              "$ref": "#/$defs/stringList"
+            },
+            "loadedSkillIds": {
+              "$ref": "#/$defs/stringList"
+            },
+            "unloadedSkillIds": {
+              "$ref": "#/$defs/stringList"
+            },
+            "availableSkillIds": {
+              "$ref": "#/$defs/stringList"
+            },
+            "contextProjection": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "omissions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "sourceEventId": {
+              "type": "string"
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "availableToolNames",
+            "usedToolNames",
+            "failedToolNames",
+            "blockedToolNames",
+            "approvalRequiredToolNames",
+            "deniedToolNames",
+            "permissionGateBlockedToolNames",
+            "pendingApprovalToolNames"
+          ],
+          "properties": {
+            "availableToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "usedToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "failedToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "blockedToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "approvalRequiredToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "deniedToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "permissionGateBlockedToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "pendingApprovalToolNames": {
+              "$ref": "#/$defs/stringList"
+            },
+            "blockedToolCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sourceEventId": {
+              "type": "string"
+            }
+          }
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "contextMutationCount",
+            "roundContextUpdateCount"
+          ],
+          "properties": {
+            "promptEventId": {
+              "type": "string"
+            },
+            "contextMutationCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "roundContextUpdateCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "latestRoundContextUpdate": {
+              "$ref": "#/$defs/roundContextUpdate"
+            },
+            "latestMutationReason": {
+              "type": "string"
+            },
+            "historyProjection": {
+              "$ref": "#/$defs/historyProjection"
+            },
+            "toolLoopProjection": {
+              "$ref": "#/$defs/genericProjection"
+            },
+            "historicalVisualProjection": {
+              "$ref": "#/$defs/genericProjection"
+            },
+            "attachmentProjection": {
+              "$ref": "#/$defs/genericProjection"
+            }
+          }
+        }
+      }
+    },
+    "roundContextUpdate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId",
+        "title"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "roundId": {
+          "type": "string"
+        },
+        "roundIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "roundLabel": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "string"
+        },
+        "systemMessageCount": {
+          "type": "string"
+        },
+        "promptChars": {
+          "type": "string"
+        },
+        "contextBundle": {
+          "$ref": "#/$defs/traceRef"
+        },
+        "historyProjection": {
+          "$ref": "#/$defs/historyProjection"
+        },
+        "toolLoopProjection": {
+          "$ref": "#/$defs/genericProjection"
+        },
+        "historicalVisualProjection": {
+          "$ref": "#/$defs/genericProjection"
+        },
+        "attachmentProjection": {
+          "$ref": "#/$defs/genericProjection"
+        }
+      }
+    },
+    "historyProjection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "inputCount",
+        "retainedCount",
+        "compactedCount",
+        "filteredCount",
+        "summaryChars",
+        "decisions"
+      ],
+      "properties": {
+        "inputCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retainedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compactedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filteredCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summaryChars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "genericProjection": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "decisions"
+      ],
+      "properties": {
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
     "promptDetail": {
       "type": "object",
       "additionalProperties": true,
@@ -1062,7 +1322,7 @@
             "skill",
             "tool_catalog",
             "prompt",
-            "policy",
+            "permission",
             "reasoning",
             "tool_call",
             "model_call",

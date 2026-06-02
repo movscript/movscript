@@ -1,0 +1,87 @@
+import {
+  attachRuntimeThreadContextSummaryToRun,
+} from '../../../../../context/prompt/summary/runtimeThreadContextSummary.js'
+import { parseAgentCommand, type AgentCommandRuntime } from '../../../../../context/command/commandRouter.js'
+import {
+  normalizeClientInput,
+  type NormalizedClientInput,
+} from '../../../../../context/input/client/normalizeClientInput.js'
+import type { AgentStore } from '../../../../../state/store/core/store.js'
+import type {
+  AgentMessage,
+  AgentRun,
+  AgentThread,
+  AgentTraceEvent,
+  AgentTraceEventKind,
+} from '../../../../../state/shared/types.js'
+import type { AgentRunRoundInfo } from '../../../../../state/run/core/round/runRound.js'
+import {
+  resolveRunExecutionInput,
+  type ResolvedRunExecutionInput,
+} from '../../../input/execution/runExecutionInput.js'
+import { summarizeUserMessageTrace } from '../../../../../trace/summaries/interaction/messages/messageTrace.js'
+import { createRuntimeMessage } from '../../../../shared/message/runtimeMessageFactory.js'
+import { requireRuntimeThread } from '../../../../shared/store/runtimeStoreLookup.js'
+
+export interface RuntimeRunExecutionContext {
+  thread: AgentThread
+  executionInput: ResolvedRunExecutionInput
+  userMessage: string
+  lastUser: AgentMessage
+  command: AgentCommandRuntime
+  clientInput?: NormalizedClientInput
+}
+
+export interface RuntimeRunExecutionContextTraceInput {
+  kind: AgentTraceEventKind
+  title: string
+  summary?: string
+  status: AgentTraceEvent['status']
+  round?: AgentRunRoundInfo
+  data?: unknown
+}
+
+export function loadRuntimeRunExecutionContext(input: {
+  store: Pick<AgentStore, 'getThread' | 'updateRun'>
+  run: AgentRun
+  setupRound: AgentRunRoundInfo
+  recordTrace: (run: AgentRun, trace: RuntimeRunExecutionContextTraceInput) => void
+}): RuntimeRunExecutionContext {
+  const thread = requireRuntimeThread(input.store, input.run.threadId)
+  const executionInput = resolveRunExecutionInput(input.run, thread)
+  const userMessage = executionInput.userMessage
+  const lastUser = executionInput.sourceUser
+    ? { ...executionInput.sourceUser, content: userMessage }
+    : createRuntimeMessage({ threadId: thread.id, role: 'user', content: userMessage })
+  const command = parseAgentCommand(userMessage)
+  const clientInput = normalizeClientInput(input.run.metadata?.clientInput ?? thread.metadata?.lastClientInput)
+  attachRuntimeThreadContextSummaryToRun({ thread, run: input.run })
+
+  input.recordTrace(input.run, {
+    kind: 'message',
+    title: 'User message loaded',
+    summary: `User message loaded (${userMessage.length} chars).`,
+    status: 'completed',
+    round: input.setupRound,
+    data: {
+      ...summarizeUserMessageTrace({
+        messageId: lastUser.id,
+        content: userMessage,
+        source: input.run.input ? 'run_input' : executionInput.sourceUser ? 'thread_message' : 'synthetic',
+      }),
+      runInputFrozen: Boolean(input.run.input),
+      hasClientInput: Boolean(clientInput),
+      attachmentCount: clientInput?.attachments.length ?? 0,
+    },
+  })
+  input.store.updateRun(input.run)
+
+  return {
+    thread,
+    executionInput,
+    userMessage,
+    lastUser,
+    command,
+    ...(clientInput ? { clientInput } : {}),
+  }
+}

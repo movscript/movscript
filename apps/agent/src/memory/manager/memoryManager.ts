@@ -1,0 +1,183 @@
+import type { AgentRun, AgentMessage, ToolCallOutcome } from '../../state/shared/types.js'
+import { isValidMemoryProjectId, type AgentMemory, type AgentMemoryKind, type CreateMemoryInput } from '../shared/types.js'
+import type { AgentMemoryStore } from '../store/in-memory/memoryStore.js'
+
+export interface RelevantMemoryContext {
+  projectId?: number
+  query?: string
+  limit?: number
+}
+
+export interface MemoryExtractionInput {
+  run: AgentRun
+  userMessage: AgentMessage
+  projectId?: number
+  toolResults: ToolCallOutcome[]
+  warnings: string[]
+}
+
+export interface MemorySearchInput {
+  projectId?: number
+  kind?: AgentMemoryKind
+  query?: string
+  limit?: number
+}
+
+export interface MemoryListInput {
+  projectId?: number
+  kind?: AgentMemoryKind
+  limit?: number
+}
+
+export interface MemoryLookupInput {
+  projectId?: number
+  id: string
+}
+
+export class MemoryManager {
+  constructor(private readonly store: AgentMemoryStore) {}
+
+  loadRelevantMemories(context: RelevantMemoryContext): AgentMemory[] {
+    if (!hasProjectScope(context)) return []
+    return this.searchMemories({
+      projectId: context.projectId,
+      query: context.query,
+      limit: context.limit ?? 6,
+    })
+  }
+
+  searchMemories(query: MemorySearchInput): AgentMemory[] {
+    if (!hasProjectScope(query)) return []
+    return rankMemories(this.store.listMemories({
+      projectId: query.projectId,
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.query ? { query: query.query } : {}),
+      ...(query.limit ? { limit: query.limit } : {}),
+    }), query).slice(0, clampLimit(query.limit))
+  }
+
+  listMemorySummaries(query: MemoryListInput): Array<Pick<AgentMemory, 'id' | 'projectId' | 'title' | 'kind' | 'updatedAt'>> {
+    if (!hasProjectScope(query)) return []
+    return this.store.listMemories({
+      projectId: query.projectId,
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.limit ? { limit: query.limit } : {}),
+    }).map((memory) => ({
+      id: memory.id,
+      projectId: memory.projectId,
+      title: memory.title,
+      kind: memory.kind,
+      updatedAt: memory.updatedAt,
+    }))
+  }
+
+  getMemory(query: MemoryLookupInput): AgentMemory | undefined {
+    if (!hasProjectScope(query)) return undefined
+    const memory = this.store.getMemory(query.id)
+    if (!memory || memory.projectId !== query.projectId) return undefined
+    return memory
+  }
+
+  createMemory(input: CreateMemoryInput): AgentMemory {
+    return this.store.createMemory(input)
+  }
+
+  deleteMemory(input: MemoryLookupInput): boolean {
+    const memory = this.getMemory(input)
+    if (!memory) return false
+    return this.store.deleteMemory(memory.id)
+  }
+
+  extractAndWriteMemories(input: MemoryExtractionInput): AgentMemory[] {
+    if (!hasProjectScope(input)) return []
+    const writes: CreateMemoryInput[] = []
+    const preference = extractPreference(input.userMessage.content)
+    if (preference) {
+      writes.push({
+        projectId: input.projectId,
+        title: buildMemoryTitle('preference', preference),
+        kind: 'preference',
+        content: preference,
+        ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
+        sourceRunId: input.run.id,
+        sourceMessageId: input.userMessage.id,
+      })
+    }
+
+    return writes
+      .filter((memory) => memory.title.trim().length > 0 && memory.content.trim().length > 0)
+      .map((memory) => this.store.createMemory(memory))
+  }
+}
+
+function hasProjectScope<T extends { projectId?: number }>(input: T): input is T & { projectId: number } {
+  return isValidMemoryProjectId(input.projectId)
+}
+
+function rankMemories(memories: AgentMemory[], query: MemorySearchInput): AgentMemory[] {
+  const terms = tokenize(query.query)
+  return memories
+    .map((memory) => ({ memory, score: scoreMemory(memory, terms, query) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.memory.updatedAt.localeCompare(a.memory.updatedAt))
+    .map((item) => item.memory)
+}
+
+function scoreMemory(memory: AgentMemory, terms: string[], query: MemorySearchInput): number {
+  let score = 1
+  if (query.kind && memory.kind === query.kind) score += 2
+  if (memory.projectId === query.projectId) score += 1
+  if (terms.length === 0) return score
+  const haystack = `${memory.title}\n${memory.content}`.toLowerCase()
+  const matches = terms.filter((term) => haystack.includes(term)).length
+  return matches > 0 ? score + matches * 3 : 0
+}
+
+function tokenize(input: string | undefined): string[] {
+  if (!input) return []
+  const normalized = input.toLowerCase()
+  const terms = normalized.split(/[^\p{L}\p{N}_-]+/u).filter((term) => term.length >= 2)
+  const cjkTerms = Array.from(normalized.matchAll(/[\p{Script=Han}]{2,}/gu))
+    .flatMap((match) => cjkNgrams(match[0]))
+  return Array.from(new Set([...terms, ...cjkTerms])).slice(0, 32)
+}
+
+function cjkNgrams(input: string): string[] {
+  const grams: string[] = []
+  for (let size = 2; size <= Math.min(6, input.length); size += 1) {
+    for (let index = 0; index <= input.length - size; index += 1) {
+      grams.push(input.slice(index, index + size))
+    }
+  }
+  return grams
+}
+
+function clampLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) return 8
+  return Math.max(1, Math.min(25, Math.floor(limit)))
+}
+
+function extractPreference(message: string): string | undefined {
+  if (!/\b(remember|from now on|always|prefer|preference|default)\b/i.test(message)
+    && !/(记住|以后.{0,12}(默认|都|总是|一直)|默认.{0,8}(用|为|是)|偏好)/.test(message)) return undefined
+  return message.trim()
+}
+
+function buildMemoryTitle(kind: AgentMemoryKind, content: string): string {
+  const prefixMap: Record<AgentMemoryKind, string> = {
+    preference: '偏好',
+    fact: '事实',
+    item_ref: '引用',
+    entity_ref: '引用',
+    draft: '草稿',
+    decision: '决策',
+    warning: '警告',
+  }
+  return `${prefixMap[kind]}：${truncate(content, 24)}`
+}
+
+function truncate(value: string, limit: number): string {
+  const text = value.trim()
+  if (text.length <= limit) return text
+  return `${text.slice(0, limit - 1)}…`
+}

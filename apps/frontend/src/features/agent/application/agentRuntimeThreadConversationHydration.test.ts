@@ -113,7 +113,7 @@ test('hydrateRuntimeThreadConversation keeps active current runs loading for liv
   assert.equal(calls.includes('runLoading:run_active:true'), true)
 })
 
-test('hydrateRuntimeThreadConversation restores all interaction runs for workflow cards', async () => {
+test('hydrateRuntimeThreadConversation restores all interaction runs for run interaction cards', async () => {
   const calls: string[] = []
   const pendingA = run({
     id: 'run_pending_a',
@@ -331,8 +331,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'completed',
-    policy: {
-      approvalMode: 'interactive',
+    runtimeLimits: { approvalMode: 'interactive',
       maxToolCalls: 20,
       maxIterations: 8,
       allowNetwork: false,

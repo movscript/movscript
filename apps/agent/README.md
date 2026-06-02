@@ -2,7 +2,7 @@
 
 `movscript-agent` is the local MovScript agent service. It is intentionally separate from the Electron frontend and the Go backend.
 
-The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, manifest policy, approval gates, sandbox interception, local candidate/draft state, and optional model calls.
+The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, active config file manifests, approval gates, sandbox interception, local candidate/draft state, and optional model calls.
 
 ## Development
 
@@ -25,10 +25,11 @@ Default agent endpoint:
 http://127.0.0.1:28765
 ```
 
-Health check:
+Liveness and compatibility checks:
 
 ```bash
-curl http://127.0.0.1:28765/health
+curl http://127.0.0.1:28765/livez
+curl http://127.0.0.1:28765/runtime/compat
 ```
 
 Observability endpoints:
@@ -59,14 +60,17 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/health` | Server health and plugin catalog metadata. |
+| `GET` | `/livez` | Minimal liveness probe for the HTTP runtime. |
+| `GET` | `/runtime/compat` | Lightweight runtime compatibility handshake: API version, feature flags, and MCP endpoint. |
+| `GET` | `/health` | Legacy lightweight health response. Prefer `/livez` and `/runtime/compat` for new callers. |
+| `GET` | `/runtime/capabilities` | Server capability metadata, plugin catalog summary, paths, update state, and backend apply status. |
 | `GET` | `/metrics` | Prometheus-compatible metrics for agent operations and trace spans. |
 | `GET` | `/runtime/telemetry` | Recent in-memory runtime telemetry snapshot: operations, spans, metrics, logs, retention metadata. |
 | `GET` | `/inspect` | MCP resources/tools plus registered agent tools and skills. |
 | `GET` | `/capabilities` | Agent capabilities, optionally for a project. |
 | `GET` | `/tools` | Registered tool metadata. |
 | `GET` | `/skills` | Loaded skill catalog. |
-| `GET` | `/agent-manifest/default` | Legacy built-in/default manifest. |
+| `GET` | `/agent-manifest/active` | Current active config file manifest. |
 | `POST` | `/draft` | Create a local draft/candidate artifact. |
 | `GET` | `/drafts` | List local draft/candidate artifacts. |
 | `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
@@ -95,6 +99,6 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 The agent service reads local JSON metadata from skills and tools directories at startup.
 It also ships a built-in MovScript catalog in `apps/agent/catalog/skills` and `apps/agent/catalog/tools`.
 
-Skills and tools are file-defined resources. A resource is scanned into the catalog when its file is valid, but it becomes runtime-available only when a pack lists it and the active profile enables that pack. Profiles should normally choose packs, persona, and limits; workflows, policies, and tool grants are derived from enabled packs. Profile `enabledWorkflows`, `enabledPolicies`, and `toolGrants` remain as compatibility narrowing fields, not as the primary extension mechanism.
+Skills and tools are file-defined resources. A resource is scanned into the catalog when its file is valid, but it becomes runtime-available only when a pack lists it and the active config file enables that pack. Config files choose packs, skills, tool grants, approval defaults, and limits. Skill loading behavior, trigger metadata, and tool grants are derived from enabled packs, the active config file, and skill definitions.
 
 Installed plugin tools are also merged into the agent tool registry for schema discovery. Non-runtime plugin or MCP tools still require a matching MCP tool before execution can succeed.
