@@ -101,6 +101,23 @@ test('createRuntimeConversation stores explicit conversation titles', () => {
   assert.equal(useAgentSessionStore.getState().conversationRuntimes.thread_titled?.title, '上下文')
 })
 
+test('setActiveConversation ignores duplicate active conversation ids', () => {
+  useAgentSessionStore.setState({
+    activeConversationIdsByUser: { user_1: 'conv_1' },
+    workspacesByUser: {},
+    localThreadIdsByConversation: {},
+    sessionIdsByConversation: {},
+    conversationRuntimes: {},
+    pageTasks: {},
+    standaloneTasks: {},
+  })
+
+  const before = useAgentSessionStore.getState().activeConversationIdsByUser
+  useAgentSessionStore.getState().setActiveConversation('user_1', 'conv_1')
+
+  assert.equal(useAgentSessionStore.getState().activeConversationIdsByUser, before)
+})
+
 test('pageTaskStatusFromRuntime settles explicit panel payload statuses', () => {
   assert.equal(pageTaskStatusFromRuntime({ status: 'completed' }, 'running'), 'completed')
   assert.equal(pageTaskStatusFromRuntime({ status: 'error' }, 'running'), 'error')

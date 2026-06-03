@@ -20,7 +20,13 @@ import {
 import {
   type ThinkingBubbleState,
 } from '@/features/agent/presentation/agentThinkingBubbleState'
-import { buildAgentConversationThreadItems, type AgentConversationMessageItem } from '@/features/agent/domain/agentConversationThreadItems'
+import {
+  buildAgentConversationThreadItems,
+  runIdsWithActivityMessages,
+  splitRunGroupItemsForLiveBlocks,
+  type AgentConversationMessageItem,
+} from '@/features/agent/domain/agentConversationThreadItems'
+import { visibleAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import {
   AGENT_THREAD_RENDER_WINDOW_INITIAL_SIZE,
   buildAgentThreadRenderWindow,
@@ -117,7 +123,7 @@ export function AgentConversationThreadSection({
     plan: currentPlan,
     generationProgressStates,
     planSnapshot: activePlanSnapshot,
-  }) && (pinnedStatusExpanded ?? true), [activePlanSnapshot, currentPlan, generationProgressStates, pinnedStatusExpanded])
+  }), [activePlanSnapshot, currentPlan, generationProgressStates])
   const activeRunId = activeRun?.id
   const suppressedInteractionRunIds = useMemo(() => activeRunId
     && activeRun?.status !== 'requires_action'
@@ -130,13 +136,23 @@ export function AgentConversationThreadSection({
     interactionRunsByResultMessageId,
     suppressedInteractionRunIds,
   }), [messages, suppressedInteractionRunIds, runInteractionAnswerEchoes, interactionRunsByResultMessageId])
+  const anchoredInteractionRunIds = useMemo(() => new Set(Array.from(interactionRunsByResultMessageId.values())
+    .flat()
+    .map((run) => run.id)), [interactionRunsByResultMessageId])
+  const activityMessageRunIds = useMemo(() => runIdsWithActivityMessages(messages), [messages])
   const embeddedInteractionRunIds = useMemo(() => interactionRunIdsEmbeddedInAssistantMessages(messages), [messages])
+  const hiddenActivityActionItemIds = useMemo(
+    () => standaloneInteractionActionItemIds(threadItems),
+    [threadItems],
+  )
   const liveActivityEventsByRunId = useMemo(() => liveActivityEventsByRunIdFromBlocks(conversationBlocks), [conversationBlocks])
   const renderableConversationBlocks = useMemo(() => conversationBlocks.filter((block) => {
     if (block.type !== 'live_run_activity') return true
     const runId = normalizeRunId(block.run?.id)
-    return !runId || !embeddedInteractionRunIds.has(runId)
-  }), [conversationBlocks, embeddedInteractionRunIds])
+    if (!runId) return true
+    if (activityMessageRunIds.has(runId)) return false
+    return !(block.run?.status === 'requires_action' && anchoredInteractionRunIds.has(runId))
+  }), [activityMessageRunIds, anchoredInteractionRunIds, conversationBlocks])
   const threadWindow = useMemo(() => buildAgentThreadRenderWindow({
     items: threadItems,
     visibleCount: visibleThreadItemCount,
@@ -182,6 +198,7 @@ export function AgentConversationThreadSection({
           onApprove={(approvalIds) => block.run && onApproveLocalRun(block.run.id, approvalIds)}
           onReject={(approvalIds) => block.run && onRejectLocalRun(block.run.id, approvalIds)}
           onAnswerInput={(requestId, answer) => block.run && onAnswerLocalRunInput(block.run.id, requestId, answer)}
+          hiddenActionItemIds={hiddenActivityActionItemIds}
         />
       )
     }
@@ -232,7 +249,7 @@ export function AgentConversationThreadSection({
                 item={threadItem.item}
                 projectId={projectId}
                 approvingLocalRun={approvingLocalRun}
-                embeddedInteractionRunIds={embeddedInteractionRunIds}
+                hiddenActivityActionItemIds={hiddenActivityActionItemIds}
                 liveActivityEventsByRunId={liveActivityEventsByRunId}
                 onApproveLocalRun={onApproveLocalRun}
                 onRejectLocalRun={onRejectLocalRun}
@@ -240,6 +257,11 @@ export function AgentConversationThreadSection({
               />
             )
           }
+          const activeRunGroupSplit = activeRunId === threadItem.runId
+            ? splitRunGroupItemsForLiveBlocks(threadItem.items)
+            : null
+          const beforeLiveBlocks = activeRunGroupSplit?.beforeLiveBlocks ?? threadItem.items
+          const afterLiveBlocks = activeRunGroupSplit?.afterLiveBlocks ?? []
           return (
             <div
               key={threadItem.id}
@@ -247,13 +269,13 @@ export function AgentConversationThreadSection({
               data-has-user={threadItem.items.some((item) => item.message.role === 'user') ? 'true' : undefined}
               data-agent-run-group-id={threadItem.runId}
             >
-              {threadItem.items.map((item) => (
+              {beforeLiveBlocks.map((item) => (
                 <ThreadMessageBubble
                   key={item.message.id}
                   item={item}
                   projectId={projectId}
                   approvingLocalRun={approvingLocalRun}
-                  embeddedInteractionRunIds={embeddedInteractionRunIds}
+                  hiddenActivityActionItemIds={hiddenActivityActionItemIds}
                   liveActivityEventsByRunId={liveActivityEventsByRunId}
                   onApproveLocalRun={onApproveLocalRun}
                   onRejectLocalRun={onRejectLocalRun}
@@ -261,6 +283,19 @@ export function AgentConversationThreadSection({
                 />
               ))}
               {activeRunId === threadItem.runId && renderableConversationBlocks.map(renderConversationBlock)}
+              {afterLiveBlocks.map((item) => (
+                <ThreadMessageBubble
+                  key={item.message.id}
+                  item={item}
+                  projectId={projectId}
+                  approvingLocalRun={approvingLocalRun}
+                  hiddenActivityActionItemIds={hiddenActivityActionItemIds}
+                  liveActivityEventsByRunId={liveActivityEventsByRunId}
+                  onApproveLocalRun={onApproveLocalRun}
+                  onRejectLocalRun={onRejectLocalRun}
+                  onAnswerLocalRunInput={onAnswerLocalRunInput}
+                />
+              ))}
             </div>
           )
         })}
@@ -287,6 +322,7 @@ export function AgentConversationThreadSection({
                 onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
                 onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
                 onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
+                hiddenActionItemIds={hiddenActivityActionItemIds}
               />
             )
           })}
@@ -313,7 +349,7 @@ interface ThreadMessageBubbleProps {
   item: AgentConversationMessageItem
   projectId?: number
   approvingLocalRun: boolean
-  embeddedInteractionRunIds: Set<string>
+  hiddenActivityActionItemIds: Set<string>
   liveActivityEventsByRunId: Map<string, ChatRunActivityEvent[]>
   onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
   onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
@@ -324,23 +360,19 @@ const ThreadMessageBubble = React.memo(function ThreadMessageBubble({
   item,
   projectId,
   approvingLocalRun,
-  embeddedInteractionRunIds,
+  hiddenActivityActionItemIds,
   liveActivityEventsByRunId,
   onApproveLocalRun,
   onRejectLocalRun,
   onAnswerLocalRunInput,
 }: ThreadMessageBubbleProps) {
   const { afterMessageInteractionRuns, beforeMessageInteractionRuns, liveInteractionRuns, message, showMessage } = item
-  const interactionRuns = liveInteractionRuns ?? [...beforeMessageInteractionRuns, ...afterMessageInteractionRuns]
   const canInteractWithInteractionRun = !!liveInteractionRuns?.length
-  const embeddedInteractionRun = liveInteractionRuns?.find((run) => interactionRunEmbedsInMessage(run, message)) ?? null
-  const beforeInteractionRunIds = new Set(beforeMessageInteractionRuns.map((run) => run.id))
-  const beforeInteractionRuns = liveInteractionRuns
-    ? interactionRuns.filter((run) => run.id !== embeddedInteractionRun?.id && !embeddedInteractionRunIds.has(run.id) && beforeInteractionRunIds.has(run.id))
-    : beforeMessageInteractionRuns
-  const afterInteractionRuns = liveInteractionRuns
-    ? interactionRuns.filter((run) => run.id !== embeddedInteractionRun?.id && !embeddedInteractionRunIds.has(run.id) && !beforeInteractionRunIds.has(run.id))
-    : afterMessageInteractionRuns
+  const {
+    afterInteractionRuns,
+    beforeInteractionRuns,
+    embeddedInteractionRun,
+  } = renderedInteractionRunsForMessageItem(item)
   const renderInteractionRun = (interactionRun: AgentRun) => (
     <LocalAgentRunInteractionBubble
       key={`run-interaction-${interactionRun.id}-${message.id}`}
@@ -364,6 +396,7 @@ const ThreadMessageBubble = React.memo(function ThreadMessageBubble({
           onApproveLocalRun={onApproveLocalRun}
           onRejectLocalRun={onRejectLocalRun}
           onAnswerLocalRunInput={onAnswerLocalRunInput}
+          hiddenActivityActionItemIds={hiddenActivityActionItemIds}
         />
       )}
       {afterInteractionRuns.map(renderInteractionRun)}
@@ -382,26 +415,72 @@ function areThreadMessageBubblePropsEqual(
   return agentConversationMessageItemsEqual(prev.item, next.item)
     && prev.projectId === next.projectId
     && (!comparesRunInteractionActions || prev.approvingLocalRun === next.approvingLocalRun)
-    && (!comparesLiveRunInteractionState || prev.embeddedInteractionRunIds === next.embeddedInteractionRunIds)
+    && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
     && (!comparesLiveRunInteractionState || prev.liveActivityEventsByRunId === next.liveActivityEventsByRunId)
     && (!comparesRunInteractionActions || prev.onApproveLocalRun === next.onApproveLocalRun)
     && (!comparesRunInteractionActions || prev.onRejectLocalRun === next.onRejectLocalRun)
     && (!comparesRunInteractionActions || prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput)
 }
 
+function renderedInteractionRunsForMessageItem(
+  item: AgentConversationMessageItem,
+): {
+  beforeInteractionRuns: AgentRun[]
+  afterInteractionRuns: AgentRun[]
+  embeddedInteractionRun: AgentRun | null
+} {
+  const { afterMessageInteractionRuns, beforeMessageInteractionRuns, liveInteractionRuns, message } = item
+  const interactionRuns = liveInteractionRuns ?? [...beforeMessageInteractionRuns, ...afterMessageInteractionRuns]
+  const embeddedInteractionRun = liveInteractionRuns?.find((run) => interactionRunEmbedsInMessage(run, message)) ?? null
+  const beforeInteractionRunIds = new Set(beforeMessageInteractionRuns.map((run) => run.id))
+  if (liveInteractionRuns) {
+    return {
+      embeddedInteractionRun,
+      beforeInteractionRuns: interactionRuns.filter((run) => (
+        run.id !== embeddedInteractionRun?.id
+        && beforeInteractionRunIds.has(run.id)
+      )),
+      afterInteractionRuns: interactionRuns.filter((run) => (
+        run.id !== embeddedInteractionRun?.id
+        && !beforeInteractionRunIds.has(run.id)
+      )),
+    }
+  }
+  return {
+    embeddedInteractionRun,
+    beforeInteractionRuns: beforeMessageInteractionRuns,
+    afterInteractionRuns: afterMessageInteractionRuns,
+  }
+}
+
+function standaloneInteractionActionItemIds(
+  threadItems: ReturnType<typeof buildAgentConversationThreadItems>,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const threadItem of threadItems) {
+    const messageItems = threadItem.type === 'message' ? [threadItem.item] : threadItem.items
+    for (const item of messageItems) {
+      const { beforeInteractionRuns, afterInteractionRuns } = renderedInteractionRunsForMessageItem(item)
+      for (const run of [...beforeInteractionRuns, ...afterInteractionRuns]) collectInteractionActionItemIds(run, ids)
+    }
+  }
+  return ids
+}
+
+function collectInteractionActionItemIds(run: AgentRun, ids: Set<string>) {
+  for (const approval of run.pendingApprovals ?? []) ids.add(`approval-${approval.id}`)
+  for (const request of run.pendingInputRequests ?? []) ids.add(`input-${request.id}`)
+}
+
 function interactionRunEmbedsInMessage(run: AgentRun, message: ChatMessage): boolean {
-  if (message.role !== 'assistant') return false
-  const runId = normalizeRunId(message.meta?.runtimeMessage?.runId)
-    ?? normalizeRunId(message.meta?.localRunActivity?.runId)
+  const runId = visibleAssistantRelatedRunId(message)
   return runId === run.id
 }
 
 function interactionRunIdsEmbeddedInAssistantMessages(messages: ChatMessage[]): Set<string> {
   const runIds = new Set<string>()
   for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const runId = normalizeRunId(message.meta?.runtimeMessage?.runId)
-      ?? normalizeRunId(message.meta?.localRunActivity?.runId)
+    const runId = visibleAssistantRelatedRunId(message)
     if (runId) runIds.add(runId)
   }
   return runIds

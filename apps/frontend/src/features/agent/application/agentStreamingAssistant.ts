@@ -3,6 +3,7 @@ import { performanceNow, recordAgentPerformanceMetric } from '@/features/agent/s
 
 export interface StreamingAssistantTurnInput {
   currentMessageId?: string | null
+  currentRunId?: string | null
   turns: Map<number, string>
   runId: string
   text: string
@@ -17,9 +18,10 @@ export interface StreamingAssistantTurnProjection {
 
 export function projectStreamingAssistantTurn(input: StreamingAssistantTurnInput): StreamingAssistantTurnProjection | null {
   if (!input.text.trim()) return null
-  const messageId = input.currentMessageId ?? `stream-${input.runId}`
+  const sameRun = !input.currentRunId || input.currentRunId === input.runId
+  const messageId = sameRun && input.currentMessageId ? input.currentMessageId : `stream-${input.runId}`
   const turnKey = typeof input.roundIndex === 'number' ? input.roundIndex : 0
-  const turns = new Map(input.turns)
+  const turns = sameRun ? new Map(input.turns) : new Map<number, string>()
   turns.set(turnKey, input.text)
   const text = Array.from(turns.entries())
     .sort(([left], [right]) => left - right)
@@ -33,6 +35,7 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
   const [streamingAssistantMessageId, setStreamingAssistantMessageId] = useState<string | null>(null)
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
   const messageIdRef = useRef<string | null>(null)
+  const runIdRef = useRef<string | null>(null)
   const textRef = useRef('')
   const displayedTextRef = useRef('')
   const turnsRef = useRef<Map<number, string>>(new Map())
@@ -49,6 +52,7 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
     recordStreamingAssistantBufferStats(statsRef.current)
     if (settledRunId) settledRunIdsRef.current.add(settledRunId)
     messageIdRef.current = null
+    runIdRef.current = null
     textRef.current = ''
     displayedTextRef.current = ''
     turnsRef.current = new Map()
@@ -61,6 +65,7 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
     if (settledRunIdsRef.current.has(runId)) return
     const projection = projectStreamingAssistantTurn({
       currentMessageId: messageIdRef.current,
+      currentRunId: runIdRef.current,
       turns: turnsRef.current,
       runId,
       text,
@@ -68,6 +73,7 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
     })
     if (!projection) return
     messageIdRef.current = projection.messageId
+    runIdRef.current = runId
     textRef.current = projection.text
     turnsRef.current = projection.turns
     recordStreamingAssistantUpdate(statsRef.current, projection.text)

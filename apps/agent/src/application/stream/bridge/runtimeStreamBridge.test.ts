@@ -118,6 +118,38 @@ test('createRuntimeStreamBridge forwards displayed worker run events to the inte
   ])
 })
 
+test('createRuntimeStreamBridge forwards traces recorded after a run is terminal to thread subscribers', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun({ status: 'completed' })
+  store.createRun(run)
+  const threadEvents: AgentInternalThreadSignal[] = []
+  const bridge = createBridge(store)
+
+  bridge.subscribeThreadStream('thread_1', (event) => threadEvents.push(event))
+  bridge.recordTraceEvent(run, {
+    kind: 'tool_call',
+    title: 'Runtime work observed: generation_job',
+    status: 'completed',
+    toolName: 'core_work_wait',
+    data: {
+      runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
+      generation: {
+        jobId: 42,
+        status: 'finished',
+        stage: 'completed',
+        terminal: true,
+        progress: 100,
+      },
+    },
+  })
+
+  const traceEvent = threadEvents.at(-1)
+  assert.equal(traceEvent?.type, 'trace')
+  assert.equal(traceEvent?.threadId, 'thread_1')
+  assert.equal(traceEvent?.event.title, 'Runtime work observed: generation_job')
+  assert.equal((traceEvent?.event.data as { generation?: { terminal?: boolean } } | undefined)?.generation?.terminal, true)
+})
+
 test('createRuntimeStreamBridge replays and forwards run stream events to session subscribers', () => {
   const store = new InMemoryAgentStore()
   const rootRun = makeRun({ id: 'run_root', sessionId: 'session_1', threadId: 'thread_root', status: 'completed' })

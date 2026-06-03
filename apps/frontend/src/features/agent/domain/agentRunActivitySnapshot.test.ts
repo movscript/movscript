@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildRunActivitySnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildRunActivitySnapshot preserves all live model rounds and totals token usage', () => {
@@ -60,6 +61,24 @@ test('buildRunActivitySnapshot merges live events into a historical activity wit
   })
 })
 
+test('buildRunActivitySnapshot does not merge live events from a different run', () => {
+  const snapshot = buildRunActivitySnapshot({
+    activity: activity({
+      runId: 'run_1',
+      events: [
+        modelEvent('req_1', 'Model HTTP request sent', 1, 'started', '2026-05-22T01:00:00.000Z', { runId: 'run_1' }),
+      ],
+    }),
+    events: [
+      modelEvent('req_2', 'Model HTTP request sent', 2, 'started', '2026-05-22T01:00:02.000Z', { runId: 'run_2' }),
+      modelEvent('local_setup', 'Local runtime setup', 0, 'info', '2026-05-22T01:00:03.000Z'),
+    ],
+  })
+
+  assert.deepEqual(snapshot?.activity.events.map((event) => event.id), ['req_1', 'local_setup'])
+  assert.deepEqual(snapshot?.rounds.map((round) => round.index), [1])
+})
+
 test('buildRunActivitySnapshot normalizes event order and replaces volatile duplicates', () => {
   const snapshot = buildRunActivitySnapshot({
     events: [
@@ -77,6 +96,62 @@ test('buildRunActivitySnapshot normalizes event order and replaces volatile dupl
   ])
 })
 
+test('buildRunActivitySnapshot keeps historical feed activity compact when a full run is also available', () => {
+  const snapshot = buildRunActivitySnapshot({
+    activity: activity({
+      runId: 'run_test',
+      steps: [{
+        id: 'safe_step',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'core_work_start',
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+      approvals: [{
+        id: 'safe_approval',
+        runId: 'run_test',
+        toolName: 'generation_job_create',
+        reason: 'Needs confirmation',
+        status: 'approved',
+        createdAt: '2026-05-22T01:00:00.000Z',
+        updatedAt: '2026-05-22T01:00:01.000Z',
+      }],
+      events: [{
+        id: 'safe_trace',
+        runId: 'run_test',
+        kind: 'tool_call',
+        title: 'Generation progress',
+        status: 'completed',
+        toolName: 'generation_job_create',
+        data: {
+          generation: {
+            jobId: 123,
+            status: 'succeeded',
+            terminal: true,
+            outputResourceId: 456,
+          },
+        },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+    }),
+    run: runWithDetailedActivity(),
+  })
+
+  assert.equal(JSON.stringify(snapshot?.activity).includes('SECRET_'), false)
+  assert.equal(snapshot?.activity.steps[0]?.args, undefined)
+  assert.equal(snapshot?.activity.steps[0]?.result, undefined)
+  assert.equal(snapshot?.activity.approvals?.[0]?.args, undefined)
+  assert.equal(snapshot?.activity.approvals?.[0]?.preview, undefined)
+  assert.deepEqual(snapshot?.activity.events[0]?.data, {
+    generation: {
+      jobId: 123,
+      status: 'succeeded',
+      terminal: true,
+      outputResourceId: 456,
+    },
+  })
+})
+
 function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
   return {
     runId: 'run_test',
@@ -87,6 +162,54 @@ function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
     steps: [],
     events: [],
     ...overrides,
+  }
+}
+
+function runWithDetailedActivity(): AgentRun {
+  return {
+    id: 'run_test',
+    threadId: 'thread_test',
+    status: 'completed',
+    runtimeLimits: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    pendingApprovals: [{
+      id: 'approval_secret',
+      runId: 'run_test',
+      toolName: 'generation_job_create',
+      reason: 'Needs confirmation',
+      status: 'approved',
+      args: { secret: 'SECRET_APPROVAL_ARGS_SHOULD_NOT_BE_IN_FEED' },
+      preview: { secret: 'SECRET_APPROVAL_PREVIEW_SHOULD_NOT_BE_IN_FEED' },
+      createdAt: '2026-05-22T01:00:00.000Z',
+      updatedAt: '2026-05-22T01:00:01.000Z',
+    }],
+    createdAt: '2026-05-22T01:00:00.000Z',
+    updatedAt: '2026-05-22T01:00:02.000Z',
+    steps: [{
+      id: 'step_secret',
+      runId: 'run_test',
+      type: 'tool_call',
+      status: 'completed',
+      toolName: 'core_work_start',
+      args: { secret: 'SECRET_TOOL_ARGS_SHOULD_NOT_BE_IN_FEED' },
+      result: { secret: 'SECRET_TOOL_RESULT_SHOULD_NOT_BE_IN_FEED' },
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }],
+    traceEvents: [{
+      id: 'trace_secret',
+      runId: 'run_test',
+      kind: 'tool_call',
+      title: 'Tool call completed',
+      status: 'completed',
+      toolName: 'core_work_start',
+      data: { secret: 'SECRET_TRACE_DATA_SHOULD_NOT_BE_IN_FEED' },
+      createdAt: '2026-05-22T01:00:01.000Z',
+    }],
   }
 }
 

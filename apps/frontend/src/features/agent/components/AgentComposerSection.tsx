@@ -126,7 +126,7 @@ export function AgentComposerSection({
 
   useEffect(() => {
     if (!mentionMenuOpen) {
-      setMentionMenuPosition(null)
+      setMentionMenuPosition((current) => current === null ? current : null)
       return
     }
 
@@ -140,12 +140,22 @@ export function AgentComposerSection({
       const width = Math.min(Math.max(rect.width, 360), window.innerWidth - viewportPadding * 2)
       const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding)
 
-      setMentionMenuPosition({
+      const nextPosition = {
         bottom: Math.max(viewportPadding, window.innerHeight - rect.top + gap),
         left,
         maxHeight: Math.min(360, availableAbove),
         width,
-      })
+      }
+
+      setMentionMenuPosition((current) => (
+        current
+          && current.bottom === nextPosition.bottom
+          && current.left === nextPosition.left
+          && current.maxHeight === nextPosition.maxHeight
+          && current.width === nextPosition.width
+          ? current
+          : nextPosition
+      ))
     }
 
     updateMentionMenuPosition()
@@ -156,7 +166,7 @@ export function AgentComposerSection({
       window.removeEventListener('resize', updateMentionMenuPosition)
       window.removeEventListener('scroll', updateMentionMenuPosition, true)
     }
-  }, [inputRef, mentionMenuOpen, mentionResults])
+  }, [inputRef, mentionMenuOpen])
 
   const mentionMenuPortalTarget = typeof document === 'undefined' ? null : document.body
   const mentionMenu = mentionMenuOpen && mentionMenuPosition && mentionMenuPortalTarget ? createPortal(

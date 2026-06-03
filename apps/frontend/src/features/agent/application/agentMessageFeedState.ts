@@ -11,6 +11,7 @@ export interface AgentMessageFeedState {
   snapshotRevision: number
   lastRevision: number
   needsReset: boolean
+  postResetMessageIds: string[]
 }
 
 export const EMPTY_AGENT_MESSAGE_FEED_STATE: AgentMessageFeedState = {
@@ -19,6 +20,7 @@ export const EMPTY_AGENT_MESSAGE_FEED_STATE: AgentMessageFeedState = {
   snapshotRevision: 0,
   lastRevision: 0,
   needsReset: false,
+  postResetMessageIds: [],
 }
 
 export function replaceMessageFeedPage(page: AgentFeedMessagePage): AgentMessageFeedState {
@@ -29,6 +31,7 @@ export function replaceMessageFeedPage(page: AgentFeedMessagePage): AgentMessage
     snapshotRevision: page.snapshotRevision,
     lastRevision: page.snapshotRevision,
     needsReset: false,
+    postResetMessageIds: [],
   }
 }
 
@@ -41,6 +44,27 @@ export function mergeMessageFeedPage(state: AgentMessageFeedState, page: AgentFe
     snapshotRevision: Math.max(state.snapshotRevision, page.snapshotRevision),
     lastRevision: Math.max(state.lastRevision, page.snapshotRevision),
     needsReset: false,
+    postResetMessageIds: [],
+  }
+}
+
+export function mergeMessageFeedResetPage(state: AgentMessageFeedState, page: AgentFeedMessagePage): AgentMessageFeedState {
+  const postResetMessageIds = new Set(state.postResetMessageIds)
+  const concurrentMessages = state.messages.filter((message) => (
+    postResetMessageIds.has(message.id)
+    && message.revision > page.snapshotRevision
+  ))
+  const concurrentRevision = concurrentMessages.reduce((max, message) => Math.max(max, message.revision), 0)
+  return {
+    ...replaceMessageFeedPage({
+      ...page,
+      messages: [...page.messages, ...concurrentMessages],
+      snapshotRevision: Math.max(page.snapshotRevision, concurrentRevision),
+    }),
+    snapshotRevision: page.snapshotRevision,
+    lastRevision: Math.max(state.lastRevision, page.snapshotRevision, concurrentRevision),
+    needsReset: false,
+    postResetMessageIds: [],
   }
 }
 
@@ -50,6 +74,7 @@ export function applyMessageFeedEvent(state: AgentMessageFeedState, event: Agent
       ...state,
       needsReset: true,
       lastRevision: Math.max(state.lastRevision, event.revision),
+      postResetMessageIds: [],
     }
   }
   if (!event.message) return state
@@ -64,15 +89,35 @@ export function applyMessageFeedEvent(state: AgentMessageFeedState, event: Agent
     ...state,
     messages: sortFeedMessages(dedupeFeedMessages([...state.messages.filter((message) => message.id !== event.message?.id), event.message])),
     lastRevision: Math.max(state.lastRevision, event.revision),
-    needsReset: false,
+    needsReset: state.needsReset,
+    postResetMessageIds: state.needsReset
+      ? uniqueStrings([...state.postResetMessageIds, event.message.id])
+      : state.postResetMessageIds,
   }
 }
 
 export function sortFeedMessages(messages: AgentFeedMessage[]): AgentFeedMessage[] {
   return [...messages].sort((left, right) => {
-    if (left.cursor === right.cursor) return 0
-    return left.cursor < right.cursor ? -1 : 1
+    const cursorOrder = compareFeedMessageCursor(left.cursor, right.cursor)
+    if (cursorOrder !== 0) return cursorOrder
+    return left.id.localeCompare(right.id)
   })
+}
+
+function compareFeedMessageCursor(left: string, right: string): number {
+  const leftParts = parseFeedMessageCursor(left)
+  const rightParts = parseFeedMessageCursor(right)
+  if (leftParts.time !== rightParts.time) return leftParts.time < rightParts.time ? -1 : 1
+  if (leftParts.id === rightParts.id) return 0
+  return leftParts.id < rightParts.id ? -1 : 1
+}
+
+function parseFeedMessageCursor(cursor: string): { time: number; id: string } {
+  const [time, ...rest] = cursor.split(':')
+  return {
+    time: Number(time) || 0,
+    id: decodeURIComponent(rest.join(':')),
+  }
 }
 
 function dedupeFeedMessages(messages: AgentFeedMessage[]): AgentFeedMessage[] {
@@ -82,4 +127,8 @@ function dedupeFeedMessages(messages: AgentFeedMessage[]): AgentFeedMessage[] {
     if (!previous || message.revision >= previous.revision) byId.set(message.id, message)
   }
   return [...byId.values()]
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
 }

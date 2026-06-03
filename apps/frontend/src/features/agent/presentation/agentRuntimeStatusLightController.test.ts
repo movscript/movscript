@@ -10,7 +10,7 @@ import {
 import type { AgentRuntimeEventV2, AgentRuntimeSnapshotV2 } from '@/shared/infrastructure/localAgentClient'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 
-test('runtime status light controller shares one session stream across owners', async () => {
+test('runtime status light controller shares one thread stream across owners', async () => {
   const client = new FakeRuntimeStatusLightClient()
   const statuses: Record<string, AgentRuntimeStatusLight> = {}
   const cleared: string[] = []
@@ -33,23 +33,23 @@ test('runtime status light controller shares one session stream across owners', 
   controller.setOwnerTargets('header', [{ conversationId: 'conv_1', sessionId: 'session_1', threadId: 'thread_1' }])
   await settle()
 
-  assert.equal(client.sessionStreams.length, 1)
-  assert.equal(client.sessionRuntimeCalls, 1)
-  assert.equal(statuses['session:session_1']?.state, 'stopped')
+  assert.equal(client.threadStreams.length, 1)
+  assert.equal(client.threadRuntimeCalls, 1)
+  assert.equal(statuses['thread:thread_1']?.state, 'stopped')
 
   controller.clearOwnerTargets('page')
   await settle()
 
-  assert.equal(client.sessionStreams.length, 1)
-  const sharedSessionStream = client.sessionStreams[0]
-  assert.ok(sharedSessionStream)
-  assert.equal(sharedSessionStream.signal?.aborted, false)
+  assert.equal(client.threadStreams.length, 1)
+  const sharedThreadStream = client.threadStreams[0]
+  assert.ok(sharedThreadStream)
+  assert.equal(sharedThreadStream.signal?.aborted, false)
 
   controller.clearOwnerTargets('header')
   await settle()
 
-  assert.equal(sharedSessionStream.signal?.aborted, true)
-  assert.deepEqual(cleared, ['session:session_1'])
+  assert.equal(sharedThreadStream.signal?.aborted, true)
+  assert.deepEqual(cleared, ['thread:thread_1'])
 })
 
 test('runtime status light controller debounces stream-triggered refreshes', async () => {
@@ -78,14 +78,39 @@ test('runtime status light controller debounces stream-triggered refreshes', asy
   controller.stopAll()
 })
 
-test('runtime status light target helpers prefer sessions and produce stable signatures', () => {
-  assert.equal(runtimeStatusLightTargetKey({ conversationId: 'conv_1', sessionId: ' session_1 ', threadId: 'thread_1' }), 'session:session_1')
+test('runtime status light target helpers prefer threads and fall back to sessions', () => {
+  assert.equal(runtimeStatusLightTargetKey({ conversationId: 'conv_1', sessionId: ' session_1 ', threadId: ' thread_1 ' }), 'thread:thread_1')
   assert.equal(runtimeStatusLightTargetKey({ conversationId: 'conv_1', threadId: ' thread_1 ' }), 'thread:thread_1')
+  assert.equal(runtimeStatusLightTargetKey({ conversationId: 'conv_1', sessionId: ' session_1 ' }), 'session:session_1')
   assert.equal(runtimeStatusLightTargetKey({ conversationId: 'conv_1' }), undefined)
   assert.equal(runtimeStatusLightTargetsSignature([
     { conversationId: 'conv_1', sessionId: 'session_1', threadId: 'thread_1' },
     { conversationId: 'conv_2' },
-  ]), 'conv_1:session:session_1|conv_2:none')
+  ]), 'conv_1:thread:thread_1|conv_2:none')
+})
+
+test('runtime status light controller falls back to session streams when no thread is known', async () => {
+  const client = new FakeRuntimeStatusLightClient()
+  const statuses: Record<string, AgentRuntimeStatusLight> = {}
+  const controller = new AgentRuntimeStatusLightController({
+    client,
+    refreshDebounceMs: 1,
+    shouldRefresh: () => true,
+    sink: {
+      setTargetStatusLight: (targetKey, statusLight) => {
+        statuses[targetKey] = statusLight
+      },
+      clearTargetStatusLight: () => undefined,
+    },
+  })
+
+  controller.setOwnerTargets('page', [{ conversationId: 'conv_1', sessionId: 'session_1' }])
+  await settle()
+
+  assert.equal(client.sessionStreams.length, 1)
+  assert.equal(client.sessionRuntimeCalls, 1)
+  assert.equal(statuses['session:session_1']?.state, 'stopped')
+  controller.stopAll()
 })
 
 class FakeRuntimeStatusLightClient implements AgentRuntimeStatusLightClient {

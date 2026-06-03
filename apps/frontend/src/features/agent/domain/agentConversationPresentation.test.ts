@@ -45,8 +45,21 @@ test('buildAgentConversationPresentation keeps streaming content while preservin
   })
 
   assert.equal(presentation.hasStreamingAssistantContent, true)
-  assert.deepEqual(presentation.blocks.map((block) => block.type), ['assistant_stream', 'live_run_activity'])
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity', 'assistant_stream'])
   assert.equal(presentation.liveBlock?.type, 'live_run_activity')
+})
+
+test('buildAgentConversationPresentation keeps thinking above streaming text when run details are not available yet', () => {
+  const presentation = buildAgentConversationPresentation({
+    streamingAssistantMessageId: 'stream-run_1',
+    streamingAssistantText: '正在回答',
+    loading: true,
+    activeRun: null,
+    visibleActivityEvents: [],
+    generationProgressState: null,
+  })
+
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['thinking', 'assistant_stream'])
 })
 
 test('buildAgentConversationPresentation keeps generation progress out of the message timeline', () => {
@@ -107,6 +120,32 @@ test('buildAgentConversationPresentation keeps run activity visible while a run 
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
+})
+
+test('buildAgentConversationPresentation bridges a terminal run until its activity message is visible', () => {
+  const presentation = buildAgentConversationPresentation({
+    streamingAssistantText: '',
+    loading: false,
+    activeRun: { ...baseRun, status: 'completed' },
+    activeRunHasActivityMessage: false,
+    visibleActivityEvents: [],
+    generationProgressState: null,
+  })
+
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
+})
+
+test('buildAgentConversationPresentation hides terminal run activity after its activity message is visible', () => {
+  const presentation = buildAgentConversationPresentation({
+    streamingAssistantText: '',
+    loading: false,
+    activeRun: { ...baseRun, status: 'completed' },
+    activeRunHasActivityMessage: true,
+    visibleActivityEvents: [],
+    generationProgressState: null,
+  })
+
+  assert.deepEqual(presentation.blocks.map((block) => block.type), [])
 })
 
 test('buildAgentConversationPresentation falls back to thinking when busy without run details', () => {

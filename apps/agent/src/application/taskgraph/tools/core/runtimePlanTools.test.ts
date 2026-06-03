@@ -49,6 +49,7 @@ test('updateRuntimePlan upserts current plan and appends immutable revisions', (
   assert.equal(saved.planRevisions?.[0].snapshot.items[1].status, 'in_progress')
   assert.equal(saved.planRevisions?.[1].snapshot.items[1].status, 'completed')
   assert.equal(saved.messages.at(-1)?.metadata?.kind, 'plan_revision')
+  assert.equal(saved.messages.at(-1)?.metadata?.promptHistory, 'exclude')
 })
 
 test('updateRuntimePlan rejects more than one in_progress item', () => {

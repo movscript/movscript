@@ -9,6 +9,7 @@ import type { AgentRun, AgentThread, AgentTraceEvent, CancelRunInput, CreateRunI
 import { createRuntimeWorksBridge, type RuntimeWorksBridge } from '../bridge/runtimeWorksBridge.js'
 import type { RuntimeScheduler } from '../scheduler/runtimeScheduler.js'
 import { RuntimeWakeCoordinator, type RuntimeWakeResult } from '../wake/runtimeWakeCoordinator.js'
+import { summarizeRuntimeWorkTrace } from '../../../trace/summaries/tool/call/toolTrace.js'
 
 export interface RuntimeWorkCoordinatorBridge {
   works: RuntimeWorksBridge
@@ -78,7 +79,21 @@ async function observeRuntimeWork(input: {
   const { work } = input
   if (isTerminalRuntimeWorkStatus(work.status)) return work
   try {
-    return await input.workManager.observe(work.id)
+    const observed = await input.workManager.observe(work.id)
+    const run = input.store.getRun(observed.runId)
+    if (run) {
+      input.recordTrace(run, {
+        kind: 'tool_call',
+        title: `Runtime work observed: ${observed.kind}`,
+        summary: observed.externalHandle
+          ? `${observed.externalHandle.type} ${String(observed.externalHandle.id)} is ${observed.status}.`
+          : `Work ${observed.id} is ${observed.status}.`,
+        status: observed.status === 'failed' ? 'failed' : observed.status === 'completed' ? 'completed' : 'info',
+        toolName: 'core_work_wait',
+        data: summarizeRuntimeWorkTrace({ toolName: 'core_work_wait', work: observed }),
+      })
+    }
+    return observed
   } catch (error) {
     const run = input.store.getRun(work.runId)
     if (run) {

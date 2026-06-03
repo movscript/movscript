@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/features/agent/domain/agentGenerationDisplay'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { buildPlanOverviewStats, buildPlanTaskViews } from '@/features/agent/domain/agentPlanUi'
+import { resolveAgentPinnedStatusView, type AgentPinnedStatusView } from '@/features/agent/domain/agentPinnedStatusView'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/shared/infrastructure/localAgentClient'
 
@@ -46,7 +47,6 @@ export interface AgentPinnedStatusShelfProps {
 }
 
 const ACTIVE_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
-type PinnedStatusView = 'generation' | 'subagent' | 'plan'
 
 export function AgentPinnedStatusShelf({
   defaultExpanded = true,
@@ -79,7 +79,12 @@ export function AgentPinnedStatusShelf({
     { id: 'subagent' as const, label: t('agents.chat.pinnedStatus.tabs.worker'), count: workerViews.length },
     { id: 'plan' as const, label: t('agents.chat.pinnedStatus.tabs.plan'), count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
   ]
-  const [activeView, setActiveView] = useState<PinnedStatusView>(hasGeneration ? 'generation' : hasSubagents ? 'subagent' : hasPlan ? 'plan' : 'generation')
+  const [selectedView, setSelectedView] = useState<AgentPinnedStatusView | undefined>(undefined)
+  const activeView = resolveAgentPinnedStatusView(selectedView, {
+    hasGeneration,
+    hasSubagents,
+    hasPlan,
+  })
   const [collapsed, setCollapsed] = useState(!defaultExpanded)
   const isExpanded = expanded ?? !collapsed
   const setExpanded = (nextExpanded: boolean) => {
@@ -117,9 +122,9 @@ export function AgentPinnedStatusShelf({
             <AgentPinnedStatusHeaderCopy>
               <AgentPinnedStatusTitleRow>
                 <span>{t('agents.chat.pinnedStatus.title')}</span>
-                {isExpanded && activeCount > 0 && <AgentPinnedStatusActiveCount>{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</AgentPinnedStatusActiveCount>}
+                {activeCount > 0 && <AgentPinnedStatusActiveCount>{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</AgentPinnedStatusActiveCount>}
               </AgentPinnedStatusTitleRow>
-              {isExpanded && (
+              {(hasGeneration || planStats || workerViews.length > 0 || hasThreadPlan) && (
                 <AgentPinnedStatusSummaryRow>
                   {hasGeneration && <span>{t('agents.chat.pinnedStatus.generationTasksCount', { count: liveGenerationStates.length || generationProgressStates.length })}</span>}
                   {planStats && <span>{t('agents.chat.pinnedStatus.planProgress', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>}
@@ -138,7 +143,7 @@ export function AgentPinnedStatusShelf({
                       count={view.count}
                       onClick={(event) => {
                         event.stopPropagation()
-                        setActiveView(view.id)
+                        setSelectedView(view.id)
                       }}
                     >
                       {view.label}

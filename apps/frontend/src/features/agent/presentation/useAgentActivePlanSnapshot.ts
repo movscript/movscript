@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
 import { localAgentClient, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/localAgentClient'
@@ -33,6 +33,17 @@ export function useAgentActivePlanSnapshot({
     refetchInterval: (query) => shouldPollPlanSnapshot(query.state.data, activeRun) ? 1500 : false,
   })
 
+  const terminalSnapshotRefreshKeyRef = useRef<string | null>(null)
+  const terminalSnapshotRefreshKey = enabled && activeRun && isTerminalRunStatus(activeRun.status)
+    ? `${taskGraphId}:${activeRun.id}:${activeRun.status}:${activeRun.updatedAt}`
+    : null
+  useEffect(() => {
+    if (!terminalSnapshotRefreshKey) return
+    if (terminalSnapshotRefreshKeyRef.current === terminalSnapshotRefreshKey) return
+    terminalSnapshotRefreshKeyRef.current = terminalSnapshotRefreshKey
+    void query.refetch()
+  }, [query, terminalSnapshotRefreshKey])
+
   useEffect(() => {
     if (!enabled || !taskGraphId) return
     const controller = new AbortController()
@@ -53,6 +64,10 @@ export function useAgentActivePlanSnapshot({
   }, [enabled, queryClient, queryKey, taskGraphId])
 
   return query
+}
+
+function isTerminalRunStatus(status: AgentRun['status']): boolean {
+  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function applyPlanRuntimeEvent(

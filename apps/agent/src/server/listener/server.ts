@@ -619,7 +619,18 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
       if (messagesMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'message body')
-        writeJSON(res, 201, context.runtimeRouter.addMessage(messagesMatch[1], body))
+        if (body.role !== undefined && body.role !== 'user') {
+          throw new AgentHTTPError(400, 'thread message role must be user')
+        }
+        if (body.runId !== undefined || body.metadata !== undefined) {
+          throw new AgentHTTPError(400, 'thread message runtime fields are not accepted')
+        }
+        writeJSON(res, 201, context.runtimeRouter.addMessage(messagesMatch[1], {
+          ...(typeof body.id === 'string' && body.id.trim() ? { id: body.id.trim() } : {}),
+          role: 'user',
+          content: body.content,
+          ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
+        }))
         return
       }
 
@@ -757,8 +768,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           const updatedThread = context.runtimeRouter.getThread(threadRunMatch[1])
           const initialUserMessageId = run.input?.sourceMessageId
             ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
-          const message = updatedThread?.messages.find((item) => item.id === initialUserMessageId)
-            ?? updatedThread?.messages.at(-1)
+          const message = toolRunResponseMessage(updatedThread, initialUserMessageId)
           telemetry.markPhase(requestOperationId, 'response_write_start', {
             status: 201,
             threadId: threadRunMatch[1],
@@ -1164,6 +1174,15 @@ export function startAgentServer(context = createAgentServerContext()): Server {
     logAgentServerStartup(context)
   })
   return server
+}
+
+function toolRunResponseMessage(thread: { messages: Array<{ id: string; role: string }> } | undefined, initialUserMessageId?: string) {
+  if (!thread) return undefined
+  if (initialUserMessageId) {
+    const explicit = thread.messages.find((message) => message.id === initialUserMessageId)
+    if (explicit) return explicit
+  }
+  return [...thread.messages].reverse().find((message) => message.role === 'user')
 }
 
 if (isMainModule()) {

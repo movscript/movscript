@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildAgentConversationMessageItems, buildAgentConversationThreadItems, buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentConversationThreadItems'
+import {
+  buildAgentConversationMessageItems,
+  buildAgentConversationThreadItems,
+  buildPendingRuntimeInputQueueItems,
+  runIdsWithActivityMessages,
+  runtimeInputDisplayStatus,
+  splitRunGroupItemsForLiveBlocks,
+} from '@/features/agent/domain/agentConversationThreadItems'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
@@ -67,7 +74,7 @@ test('buildAgentConversationMessageItems suppresses historical run interaction f
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems hides plan revision messages from the chat timeline', () => {
+test('buildAgentConversationMessageItems hides UI-only assistant anchors from the chat timeline', () => {
   const items = buildAgentConversationMessageItems({
     messages: [
       message({
@@ -91,6 +98,40 @@ test('buildAgentConversationMessageItems hides plan revision messages from the c
               updatedAt: '2026-05-19T00:00:00.000Z',
             },
             createdAt: '2026-05-19T00:00:00.000Z',
+          },
+        },
+      }),
+      message({
+        id: 'runtime_status_message',
+        role: 'assistant',
+        content: '异步任务已提交。',
+        meta: {
+          runtimeStatus: {
+            kind: 'async_work_handoff',
+            title: '异步任务已提交',
+            detail: '异步任务已提交。',
+            workId: 'work_1',
+          },
+        },
+      }),
+      message({
+        id: 'diagnostic_message',
+        role: 'assistant',
+        content: '',
+        meta: {
+          contextDiagnostic: {
+            schema: 'movscript.local_context_diagnostic.v1',
+            modelGatewayCalled: false,
+            messages: [],
+            debugParts: [],
+            tools: {
+              available: [],
+              blocked: [],
+              discoveredCount: 0,
+              modelTools: [],
+            },
+            skills: [],
+            warnings: [],
           },
         },
       }),
@@ -193,6 +234,76 @@ test('buildAgentConversationMessageItems puts source-message fallback run intera
   assert.equal(items[0]?.showMessage, true)
 })
 
+test('buildAgentConversationMessageItems honors display anchor placement before a user message', () => {
+  const liveRun = run({
+    id: 'run_live',
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_live',
+      toolName: 'generation_job_create',
+      reason: 'Needs confirmation',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+      displayAnchor: {
+        threadId: 'thread_1',
+        messageId: 'trigger',
+        runId: 'run_live',
+        placement: 'before',
+        reason: 'run_source_message',
+      },
+    }],
+  })
+  const items = buildAgentConversationMessageItems({
+    messages: [message({
+      id: 'trigger',
+      role: 'user',
+      content: 'Start work',
+      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_live' } },
+    })],
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([['trigger', [liveRun]]]),
+  })
+
+  assert.equal(items[0]?.beforeMessageInteractionRuns[0]?.id, 'run_live')
+  assert.deepEqual(items[0]?.afterMessageInteractionRuns, [])
+})
+
+test('buildAgentConversationMessageItems honors display anchor placement after an assistant message', () => {
+  const liveRun = run({
+    id: 'run_live',
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_live',
+      toolName: 'generation_job_create',
+      reason: 'Needs confirmation',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+      displayAnchor: {
+        threadId: 'thread_1',
+        messageId: 'assistant_runtime',
+        runId: 'run_live',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+    }],
+  })
+  const items = buildAgentConversationMessageItems({
+    messages: [message({
+      id: 'assistant_local',
+      role: 'assistant',
+      content: 'Ready',
+      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'assistant_runtime', runId: 'run_live' } },
+    })],
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map([['assistant_local', [liveRun]]]),
+  })
+
+  assert.deepEqual(items[0]?.beforeMessageInteractionRuns, [])
+  assert.equal(items[0]?.afterMessageInteractionRuns[0]?.id, 'run_live')
+})
+
 test('buildAgentConversationMessageItems keeps substantive assistant content for requires-action runs', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({
@@ -273,6 +384,50 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
   ])
 })
 
+test('splitRunGroupItemsForLiveBlocks keeps assistant output after live activity', () => {
+  const threadItems = buildAgentConversationThreadItems({
+    messages: [
+      message({
+        id: 'trigger',
+        role: 'user',
+        content: 'Start work',
+        timestamp: 1,
+        meta: {
+          runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', status: 'accepted' },
+        },
+      }),
+      message({
+        id: 'supplement',
+        role: 'user',
+        content: 'Add this constraint',
+        timestamp: 2,
+        meta: {
+          runtimeMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', status: 'accepted' },
+        },
+      }),
+      message({
+        id: 'assistant_stream',
+        role: 'assistant',
+        content: 'Working',
+        timestamp: 3,
+        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+      }),
+    ],
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
+  })
+  const group = threadItems.find((item) => item.type === 'run_group')
+  assert.equal(group?.type, 'run_group')
+  if (group?.type !== 'run_group') return
+
+  const split = splitRunGroupItemsForLiveBlocks(group.items)
+
+  assert.deepEqual(split.beforeLiveBlocks.map((item) => item.message.id), ['supplement'])
+  assert.deepEqual(split.afterLiveBlocks.map((item) => item.message.id), ['assistant_stream'])
+})
+
 test('buildAgentConversationThreadItems keeps pending runtime inputs in the composer queue until accepted', () => {
   const messages = [
     message({
@@ -321,6 +476,33 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
     runId: 'run_1',
     content: 'Add this once the run accepts it',
   }])
+})
+
+test('runtime input pending status is treated as accepted once runtime assigns a message id', () => {
+  const messages = [
+    message({
+      id: 'supplement',
+      role: 'user',
+      content: 'Use this extra constraint',
+      timestamp: 2,
+      meta: {
+        runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1' },
+        runtimeInput: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1', status: 'pending' },
+      },
+    }),
+  ]
+  const threadItems = buildAgentConversationThreadItems({
+    messages,
+    runInteractionAnswerEchoes: new Set(),
+    interactionRunsByResultMessageId: new Map(),
+  })
+  const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
+
+  assert.equal(runtimeInputDisplayStatus(messages[0]!), 'accepted')
+  assert.deepEqual(pendingQueue, [])
+  assert.deepEqual(threadItems.flatMap((item) => item.type === 'message'
+    ? [item.item.message.id]
+    : item.items.map((messageItem) => messageItem.message.id)), ['supplement'])
 })
 
 test('buildAgentConversationThreadItems filters pending local run interaction input answer workspaces', () => {
@@ -411,6 +593,57 @@ test('buildAgentConversationThreadItems keeps new trigger messages pending until
     runId: undefined,
     content: 'Start work',
   }])
+})
+
+test('runIdsWithActivityMessages only treats assistant messages with activity snapshots as embedded activity', () => {
+  const runIds = runIdsWithActivityMessages([
+    message({
+      id: 'assistant_final_without_activity',
+      role: 'assistant',
+      content: 'Final text',
+      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_final', runId: 'run_1' } },
+    }),
+    message({
+      id: 'assistant_with_activity',
+      role: 'assistant',
+      content: 'Activity attached',
+      meta: {
+        runtimeMessage: { threadId: 'thread_1', messageId: 'msg_final_2', runId: 'run_2' },
+        localRunActivity: {
+          runId: 'run_2',
+          threadId: 'thread_1',
+          status: 'completed',
+          createdAt: '2026-05-19T00:00:00.000Z',
+          updatedAt: '2026-05-19T00:00:01.000Z',
+          steps: [],
+          events: [],
+        },
+      },
+    }),
+    message({
+      id: 'assistant_ui_only_with_activity',
+      role: 'assistant',
+      content: 'UI-only activity anchor',
+      meta: {
+        runtimeStatus: {
+          kind: 'async_work_handoff',
+          title: '异步任务已提交',
+          detail: '任务正在后台运行。',
+        },
+        localRunActivity: {
+          runId: 'run_3',
+          threadId: 'thread_1',
+          status: 'completed',
+          createdAt: '2026-05-19T00:00:00.000Z',
+          updatedAt: '2026-05-19T00:00:01.000Z',
+          steps: [],
+          events: [],
+        },
+      },
+    }),
+  ])
+
+  assert.deepEqual([...runIds], ['run_2'])
 })
 
 function runActivity(runId: string): NonNullable<ChatMessage['meta']>['localRunActivity'] {

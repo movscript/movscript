@@ -214,6 +214,50 @@ test('deleteAllThreads clears all persisted session history records', () => {
   assert.deepEqual(store.listRunTraceEvents('run_2'), [])
 })
 
+test('thread summaries count only visible transcript messages', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread({
+    ...buildThread('thread_1'),
+    messages: [
+      {
+        id: 'user_1',
+        threadId: 'thread_1',
+        role: 'user',
+        content: 'Start',
+        createdAt: '2026-05-06T00:00:01.000Z',
+      },
+      {
+        id: 'status_1',
+        threadId: 'thread_1',
+        role: 'assistant',
+        content: 'Generating image',
+        metadata: { kind: 'runtime_status', promptHistory: 'exclude' },
+        createdAt: '2026-05-06T00:00:02.000Z',
+      },
+      {
+        id: 'assistant_1',
+        threadId: 'thread_1',
+        role: 'assistant',
+        content: 'Done',
+        createdAt: '2026-05-06T00:00:03.000Z',
+      },
+      {
+        id: 'plan_1',
+        threadId: 'thread_1',
+        role: 'assistant',
+        content: 'Plan updated',
+        metadata: { kind: 'plan_revision', promptHistory: 'exclude' },
+        createdAt: '2026-05-06T00:00:04.000Z',
+      },
+    ],
+  })
+
+  const summary = store.listThreadSummaries()[0]
+
+  assert.equal(summary?.messageCount, 2)
+  assert.equal(summary?.lastMessageAt, '2026-05-06T00:00:03.000Z')
+})
+
 function buildThread(id: string): AgentThread {
   return {
     id,

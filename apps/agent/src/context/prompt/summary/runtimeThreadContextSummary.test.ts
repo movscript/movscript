@@ -55,6 +55,40 @@ test('applyRuntimeThreadContextSummary respects run summary size limit', () => {
   assert.equal(summary.recentRunRefs[0]?.summary, '123…')
 })
 
+test('applyRuntimeThreadContextSummary does not persist UI-only assistant content', () => {
+  const thread = makeThread()
+  const run = makeRun({ assistantMessageId: 'msg_status' })
+  thread.messages.push({
+    id: 'msg_user',
+    threadId: thread.id,
+    role: 'user',
+    content: 'Start generation',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  }, {
+    id: 'msg_status',
+    threadId: thread.id,
+    role: 'assistant',
+    content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
+    runId: run.id,
+    metadata: {
+      kind: 'runtime_status',
+      promptHistory: 'exclude',
+      runtimeStatus: { kind: 'async_work_handoff', title: 'handoff', detail: 'SECRET_TOOL_RESULT_BODY' },
+    },
+    createdAt: '2026-01-01T00:00:01.000Z',
+  })
+
+  const summary = applyRuntimeThreadContextSummary({
+    thread,
+    run,
+    now: '2026-01-01T00:00:02.000Z',
+  })
+
+  assert.equal(summary.recentRunRefs[0]?.summary, 'completed')
+  assert.equal(JSON.stringify(thread.metadata?.threadContextSummary).includes('SECRET_TOOL_RESULT_BODY'), false)
+  assert.equal(JSON.stringify(run.metadata?.threadContextSummary).includes('SECRET_TOOL_RESULT_BODY'), false)
+})
+
 test('attachRuntimeThreadContextSummaryToRun copies normalized thread summary into run metadata', () => {
   const thread = makeThread()
   const sourceRun = makeRun({ assistantMessageId: 'msg_assistant' })

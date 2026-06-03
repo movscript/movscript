@@ -62,8 +62,15 @@ function normalizeRunActivity(input: RunActivitySnapshotInput): ChatRunActivity 
     events: normalizeEvents(base.events ?? []),
   }
   if (!input.events?.length || base.events === input.events) return normalizedBase
-  const merged = mergeRunActivityEvents(normalizedBase, input.events, { runtimeLimit: Number.POSITIVE_INFINITY })
+  const scopedEvents = input.events.filter((event) => activityEventBelongsToRun(event, normalizedBase.runId))
+  if (scopedEvents.length === 0) return normalizedBase
+  const merged = mergeRunActivityEvents(normalizedBase, scopedEvents, { runtimeLimit: Number.POSITIVE_INFINITY })
   return { ...merged, events: normalizeEvents(merged.events) }
+}
+
+function activityEventBelongsToRun(event: ChatRunActivityEvent, runId: string): boolean {
+  const eventRunId = typeof event.runId === 'string' && event.runId.trim() ? event.runId.trim() : undefined
+  return !eventRunId || eventRunId === runId
 }
 
 function activityFromEvents(events: ChatRunActivityEvent[]): ChatRunActivity | undefined {

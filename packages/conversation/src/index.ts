@@ -133,6 +133,7 @@ export interface AgentRunTimelineToolExecution {
   id: string
   toolName: string
   decisionOrder?: number
+  activityOrder?: number
   createdAt: string
   completedAt?: string
   roundIndex?: number
@@ -635,11 +636,14 @@ function timelineToolExecutions(
     eventsByStep.set(event.stepId, events)
   }
 
-  const executions: AgentRunTimelineToolExecution[] = (activity.steps ?? [])
+  const steps = activity.steps ?? []
+  const events = activity.events ?? []
+  const executions: AgentRunTimelineToolExecution[] = steps
     .filter((step) => step.type === 'tool_call' && typeof step.toolName === 'string' && step.toolName.trim())
-    .map((step) => ({
+    .map((step, stepIndex) => ({
       id: `step-${step.id}`,
       toolName: step.toolName!,
+      activityOrder: stepIndex,
       createdAt: step.createdAt,
       ...(step.completedAt ? { completedAt: step.completedAt } : {}),
       ...(step.roundIndex !== undefined ? { roundIndex: step.roundIndex } : {}),
@@ -650,13 +654,14 @@ function timelineToolExecutions(
       approvals: [],
     }))
 
-  const coveredStepIds = new Set((activity.steps ?? []).map((step) => step.id))
-  for (const event of activity.events ?? []) {
+  const coveredStepIds = new Set(steps.map((step) => step.id))
+  for (const event of events) {
     if (event.kind !== 'tool_call' || !event.toolName || event.title === 'Model tool call delta') continue
     if (event.stepId && coveredStepIds.has(event.stepId)) continue
     executions.push({
       id: `event-${event.id}`,
       toolName: event.toolName,
+      activityOrder: steps.length + events.findIndex((candidate) => candidate.id === event.id),
       createdAt: event.createdAt,
       ...(event.completedAt ? { completedAt: event.completedAt } : {}),
       ...(event.roundIndex !== undefined ? { roundIndex: event.roundIndex } : {}),
@@ -667,7 +672,8 @@ function timelineToolExecutions(
     })
   }
 
-  for (const approval of [...(activity.approvals ?? [])].sort(compareTimelineApprovals)) {
+  const approvals = [...(activity.approvals ?? [])].sort(compareTimelineApprovals)
+  for (const [approvalIndex, approval] of approvals.entries()) {
     const match = findTimelineApprovalExecution(executions, approval)
     if (match) {
       match.approvals.push(approval)
@@ -677,6 +683,7 @@ function timelineToolExecutions(
     executions.push({
       id: `approval-${approval.id}`,
       toolName: approval.toolName,
+      activityOrder: steps.length + events.length + approvalIndex,
       createdAt: approval.createdAt,
       approvals: [approval],
       events: [],
@@ -893,6 +900,7 @@ function compareTimelineDecisions(left: AgentRunTimelineDecision, right: AgentRu
 function compareTimelineToolExecutions(left: AgentRunTimelineToolExecution, right: AgentRunTimelineToolExecution): number {
   return (left.roundIndex ?? Number.MAX_SAFE_INTEGER) - (right.roundIndex ?? Number.MAX_SAFE_INTEGER)
     || (left.decisionOrder ?? Number.MAX_SAFE_INTEGER) - (right.decisionOrder ?? Number.MAX_SAFE_INTEGER)
+    || (left.activityOrder ?? Number.MAX_SAFE_INTEGER) - (right.activityOrder ?? Number.MAX_SAFE_INTEGER)
     || timelineTime(left.createdAt) - timelineTime(right.createdAt)
     || left.id.localeCompare(right.id)
 }

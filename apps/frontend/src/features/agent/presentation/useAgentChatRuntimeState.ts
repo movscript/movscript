@@ -9,10 +9,12 @@ import { useAgentConversationRunReset } from '@/features/agent/presentation/useA
 const STREAMING_ASSISTANT_FLUSH_MS = 50
 
 interface UseAgentChatRuntimeStateInput {
+  activeRunId?: string | null
   conversationId: string
 }
 
 export function useAgentChatRuntimeState({
+  activeRunId,
   conversationId,
 }: UseAgentChatRuntimeStateInput) {
   const [debugBeforeSend, setDebugBeforeSend] = useState(false)
@@ -43,8 +45,10 @@ export function useAgentChatRuntimeState({
   } = useAgentLiveRunActivity()
 
   useAgentConversationRunReset({
+    activeRunId,
     conversationId,
     resetLiveRunActivity,
+    resetStreamingAssistant,
     setSubmittedInteractionRuns,
   })
 

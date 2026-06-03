@@ -15,6 +15,7 @@ export interface AgentConversationPresentationInput {
   loading?: boolean
   buildingSendWorkspace?: boolean
   hasPendingAssistantState?: boolean
+  activeRunHasActivityMessage?: boolean
   activeRun: AgentRun | null
   visibleActivityEvents: ChatRunActivityEvent[]
   generationProgressStates?: GenerationProgressState[]
@@ -31,15 +32,15 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
   const hasStreamingAssistantContent = !!input.streamingAssistantMessageId || !!input.streamingAssistantText.trim()
   const blocks: AgentConversationBlock[] = []
   const streamingText = input.streamingAssistantText.trim()
-  if (streamingText) {
-    blocks.push({ id: 'assistant-stream', type: 'assistant_stream', content: input.streamingAssistantText })
-  }
 
   const blockedByWorkspace = !!input.pendingSendWorkspace
   const runIsNonTerminal = !!input.activeRun && !isTerminalAgentRunStatus(input.activeRun.status)
+  const terminalRunNeedsResultBridge = !!input.activeRun
+    && isTerminalAgentRunStatus(input.activeRun.status)
+    && !input.activeRunHasActivityMessage
   const busy = !!input.loading || !!input.buildingSendWorkspace
   const showLiveRunActivity = !blockedByWorkspace
-    && (busy || runIsNonTerminal)
+    && (busy || runIsNonTerminal || terminalRunNeedsResultBridge)
     && (input.visibleActivityEvents.length > 0 || !!input.activeRun)
   if (showLiveRunActivity) {
     const block: AgentConversationBlock = {
@@ -51,12 +52,16 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
     blocks.push(block)
   }
 
-  const showThinking = blocks.length === 0
+  const showThinking = !showLiveRunActivity
     && (busy || !!input.hasPendingAssistantState)
     && !blockedByWorkspace
   if (showThinking) {
     const block: AgentConversationBlock = { id: 'thinking', type: 'thinking' }
     blocks.push(block)
+  }
+
+  if (streamingText) {
+    blocks.push({ id: 'assistant-stream', type: 'assistant_stream', content: input.streamingAssistantText })
   }
 
   return {

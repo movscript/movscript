@@ -1,6 +1,7 @@
 import { useAgentActivePlanSnapshot } from '@/features/agent/presentation/useAgentActivePlanSnapshot'
 import { useAgentChatDerivedState, type UseAgentChatDerivedStateOptions } from '@/features/agent/presentation/useAgentChatDerivedState'
 import { useAgentConversationAutoScroll } from '@/features/agent/presentation/useAgentConversationAutoScroll'
+import { visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 interface UseAgentChatPresentationStateInput extends Omit<UseAgentChatDerivedStateOptions, 'activePlanSnapshot' | 'run'> {
@@ -37,7 +38,7 @@ export function useAgentChatPresentationState({
     hasPendingAssistantState: !!derivedInput.pendingAssistantState,
     hasStreamingAssistantContent: derived.hasStreamingAssistantContent,
     loading: derived.loading,
-    messageCount: derivedInput.messages.length,
+    messageCount: visibleTranscriptChatMessages(derivedInput.messages).length,
     streamingAssistantText: derivedInput.streamingAssistantText,
     visibleActivityEventCount: derivedInput.visibleActivityEvents.length,
   })

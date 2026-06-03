@@ -173,6 +173,7 @@ test('applyRuntimeRunCompletion emits runtime status message for async work hand
 
   assert.match(assistant.content, /你可以继续发送消息/)
   assert.equal(assistant.metadata?.kind, 'runtime_status')
+  assert.equal(assistant.metadata?.promptHistory, 'exclude')
   assert.equal((assistant.metadata?.runtimeStatus as any)?.kind, 'async_work_handoff')
   assert.equal((assistant.metadata?.runtimeStatus as any)?.workId, 'work_1')
   assert.equal((assistant.metadata?.runtimeStatus as any)?.workKind, 'generation_job')

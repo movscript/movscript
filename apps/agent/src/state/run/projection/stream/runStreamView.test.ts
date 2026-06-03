@@ -96,6 +96,30 @@ test('assistant message lookup prefers explicit assistant id then falls back to 
   assert.equal(assistantMessageForRun(undefined, run), undefined)
 })
 
+test('assistant message lookup skips UI-only assistant anchors', () => {
+  const status = message('msg_status', 'assistant', '任务正在后台运行。', {
+    metadata: {
+      kind: 'runtime_status',
+      promptHistory: 'exclude',
+      runtimeStatus: { kind: 'async_work_handoff', title: '异步任务已提交', detail: '任务正在后台运行。' },
+    },
+  })
+  const final = message('msg_final', 'assistant', '完成。')
+  const thread = buildThread([status, final])
+  const run = { ...buildRun(), assistantMessageId: 'msg_status' }
+
+  assert.equal(assistantMessageForRun(thread, run), final)
+  assert.equal(assistantMessageFromTraceEvent(thread, {
+    id: 'trace_1',
+    runId: 'run_1',
+    kind: 'assistant',
+    title: 'Assistant message created',
+    status: 'completed',
+    data: { messageId: 'msg_status' },
+    createdAt: '2026-05-16T00:00:01.000Z',
+  }), undefined)
+})
+
 function buildRun(): AgentRun {
   return {
     id: 'run_1',
@@ -146,7 +170,7 @@ function buildThread(messages: AgentMessage[]): AgentThread {
   }
 }
 
-function message(id: string, role: AgentMessage['role'], content: string): AgentMessage {
+function message(id: string, role: AgentMessage['role'], content: string, overrides: Partial<AgentMessage> = {}): AgentMessage {
   return {
     id,
     threadId: 'thread_1',
@@ -154,5 +178,6 @@ function message(id: string, role: AgentMessage['role'], content: string): Agent
     content,
     runId: 'run_1',
     createdAt: '2026-05-16T00:00:01.000Z',
+    ...overrides,
   }
 }

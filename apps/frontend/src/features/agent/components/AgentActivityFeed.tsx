@@ -58,6 +58,7 @@ export function AgentActivityFeedView({
   onReject,
   onAnswerInput,
   approvalDetails,
+  hiddenActionItemIds,
 }: {
   activity?: ChatRunActivity
   run?: AgentRun | null
@@ -68,9 +69,10 @@ export function AgentActivityFeedView({
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
   approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
+  hiddenActionItemIds?: Set<string>
 }) {
   const [expandedDebugItems, setExpandedDebugItems] = useState<Set<string>>(() => new Set())
-  const feed = useMemo(() => buildAgentActivityFeed({ activity, run, events }), [activity, events, run])
+  const feed = useMemo(() => buildAgentActivityFeed({ activity, run, events, hiddenActionItemIds }), [activity, events, hiddenActionItemIds, run])
   if (!feed || (feed.items.length === 0 && feed.rounds.length === 0)) return null
   const rounds = feed.rounds.length ? feed.rounds : [{ id: 'all', label: '活动', status: 'tool_calls' as const, items: feed.items }]
   const totalsLine = feedTotalsLine(feed)

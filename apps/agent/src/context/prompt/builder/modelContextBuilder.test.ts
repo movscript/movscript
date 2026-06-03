@@ -117,6 +117,56 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
 })
 
+test('buildContext filters UI-only runtime assistant history as a final prompt boundary', () => {
+  const built = buildContext({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    runtimeLimits: { approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [
+      {
+        id: 'msg_status',
+        threadId: 'thread_1',
+        role: 'assistant',
+        content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
+        metadata: {
+          kind: 'runtime_status',
+          promptHistory: 'exclude',
+          runtimeStatus: { kind: 'async_work_handoff', title: 'handoff', detail: 'SECRET_TOOL_RESULT_BODY' },
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'msg_answer',
+        threadId: 'thread_1',
+        role: 'assistant',
+        content: '正常答复',
+        createdAt: '2026-01-01T00:00:01.000Z',
+      },
+    ],
+    userMessage: '继续',
+  })
+  const messageText = built.messages.map((message) => runtimeModelContentText(message.content)).join('\n')
+
+  assert.doesNotMatch(messageText, /SECRET_TOOL_RESULT_BODY/)
+  assert.match(messageText, /正常答复/)
+})
+
 test('buildContext attaches client image data URLs as model image parts', () => {
   const built = buildContext({
     manifest: DEFAULT_AGENT_MANIFEST,

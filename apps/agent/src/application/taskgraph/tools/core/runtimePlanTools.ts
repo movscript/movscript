@@ -91,6 +91,7 @@ export function updateRuntimePlan(input: {
     runId: input.run.id,
     metadata: {
       kind: 'plan_revision',
+      promptHistory: 'exclude',
       planRevision: revision as unknown as JSONValue,
     },
   })

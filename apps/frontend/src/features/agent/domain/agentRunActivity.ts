@@ -1,7 +1,7 @@
 import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import { isRecord } from '@/shared/domain/jsonValue'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-import { runtimeTraceFromEvent } from '@movscript/event-state'
+import { runtimeRunIdFromEvent, runtimeTraceFromEvent } from '@movscript/event-state'
 
 export interface LiveRunPendingAssistantState {
   status: 'thinking' | 'preparing_tool_call' | 'calling_tool'
@@ -109,6 +109,7 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
       || trace.kind === 'input')
     .map((trace) => ({
       id: trace.id,
+      runId: trace.runId,
       kind: trace.kind,
       title: trace.title,
       status: trace.status,
@@ -153,7 +154,7 @@ export function projectLiveRunRuntimeTraceEvent(event: AgentRuntimeEventV2): Liv
   const trace = runtimeTraceFromEvent(event)
   if (!trace) return null
   if (!isLiveRunActivityTraceKind(trace.kind)) return null
-  const activityEvent = chatRunActivityEventFromTrace(trace)
+  const activityEvent = chatRunActivityEventFromTrace(trace, event)
   const pendingAssistantState = pendingAssistantStateFromTrace(activityEvent)
   return {
     activityEvent,
@@ -172,9 +173,12 @@ export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRu
   return { ...activity, events: Number.isFinite(limit) ? mergedEvents.slice(-limit) : mergedEvents }
 }
 
-function chatRunActivityEventFromTrace(trace: AgentTraceEvent): ChatRunActivityEvent {
+function chatRunActivityEventFromTrace(trace: AgentTraceEvent, event?: AgentRuntimeEventV2): ChatRunActivityEvent {
+  const runId = trace.runId || (event ? runtimeRunIdFromEvent(event) : undefined)
   return {
     id: trace.id,
+    ...(runId ? { runId } : {}),
+    ...(event?.causality?.threadId ? { threadId: event.causality.threadId } : {}),
     kind: trace.kind,
     title: trace.title,
     status: trace.status,

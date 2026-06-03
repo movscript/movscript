@@ -3,6 +3,7 @@ import {
   AGENT_PROTOCOL_VERSION,
   AGENT_RUNTIME_EVENT_V2_SCHEMA,
   AGENT_RUNTIME_SNAPSHOT_V2_SCHEMA,
+  isAgentPromptExcludedAssistantMessage,
 } from '@movscript/protocol'
 import type {
   EventStateDebugReportV1,
@@ -173,9 +174,15 @@ export class EventStateStore {
 
   getConversationView(threadId: string): AgentConversationProjection {
     const thread = this.entities.threads.get(threadId)
-    const messages = [...this.entities.messages.values()]
+    const threadMessages = [...this.entities.messages.values()]
       .filter((message) => message.threadId === threadId && (message.role === 'user' || message.role === 'assistant'))
-    const finalAssistantRunIds = new Set(messages.filter((message) => message.role === 'assistant' && message.runId).map((message) => message.runId as string))
+    const messages = threadMessages.filter((message) => !isNonTranscriptAssistantMessage(message))
+    const finalAssistantRunIds = new Set(threadMessages.flatMap((message) => {
+      if (message.role !== 'assistant' || !message.runId) return []
+      if (isNonTranscriptAssistantMessage(message)) return []
+      const run = this.entities.runs.get(message.runId)
+      return run?.assistantMessageId === message.id ? [message.runId] : []
+    }))
     const progressMessages = [...this.entities.assistantProgresses.values()]
       .filter((progress) => {
         const run = this.entities.runs.get(progress.runId)
@@ -491,6 +498,10 @@ function isValidScope(scope: AgentRuntimeScopeRef | undefined): scope is AgentRu
 
 function scopeKey(scope: AgentRuntimeScopeRef): string {
   return scope.type + ':' + scope.id
+}
+
+function isNonTranscriptAssistantMessage(message: AgentMessage): boolean {
+  return isAgentPromptExcludedAssistantMessage(message)
 }
 
 function entityTypeForKind(kind: string): AgentRuntimeEventEntityV2['type'] | undefined {

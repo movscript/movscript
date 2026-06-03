@@ -263,12 +263,15 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         })
       },
 
-      setActiveConversation: (userId, conversationId) => set((state) => ({
-        activeConversationIdsByUser: {
-          ...(state.activeConversationIdsByUser ?? {}),
-          [userId]: conversationId,
-        },
-      })),
+      setActiveConversation: (userId, conversationId) => set((state) => {
+        if (activeConversationIdForUser(state, userId) === conversationId) return {}
+        return {
+          activeConversationIdsByUser: {
+            ...(state.activeConversationIdsByUser ?? {}),
+            [userId]: conversationId,
+          },
+        }
+      }),
 
       getActiveConversationId: (userId) => activeConversationIdForUser(get(), userId),
 

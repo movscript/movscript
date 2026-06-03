@@ -1,10 +1,11 @@
+import { isAgentVisibleAssistantMessage } from '@movscript/protocol'
 import i18n from '@/i18n'
 import type { AgentRun, AgentThread } from '@/shared/infrastructure/localAgentClient'
 
 export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<AgentThread, 'messages'>) {
   const t = i18n.t.bind(i18n)
-  const assistant = thread.messages.find((item) => item.id === run.assistantMessageId)
-    ?? [...thread.messages].reverse().find((item) => item.role === 'assistant' && item.runId === run.id)
+  const assistant = thread.messages.find((item) => item.id === run.assistantMessageId && isVisibleAssistantMessage(item))
+    ?? [...thread.messages].reverse().find((item) => isVisibleAssistantMessage(item) && item.runId === run.id)
   const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
   const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
   const content = assistant?.content
@@ -26,4 +27,8 @@ export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<Age
   const missing = run.warnings.filter((warning) => !content.includes(warning))
   if (missing.length === 0) return content
   return `${content}\n\n${t('agents.chat.task.warnings')}:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
+}
+
+function isVisibleAssistantMessage(message: Pick<AgentThread['messages'][number], 'role' | 'metadata'>): boolean {
+  return isAgentVisibleAssistantMessage(message)
 }

@@ -11,6 +11,7 @@ import { AgentComposerSection } from '@/features/agent/components/AgentComposerS
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { latestVisibleTranscriptChatMessage, visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
 import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
@@ -28,7 +29,8 @@ export function AgentChatPanelLayout({
   thread,
 }: AgentChatViewLayoutProps & { host?: AgentChatHost }) {
   const { t, i18n } = useTranslation()
-  const conversationStarted = thread.messages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
+  const visibleMessages = useMemo(() => visibleTranscriptChatMessages(thread.messages), [thread.messages])
+  const conversationStarted = visibleMessages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
   const emptyConversation = !conversationStarted
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
@@ -180,7 +182,7 @@ export function AgentChatPanelLayout({
           </div>
         ) : historyItems.map((item) => {
           if (item.type === 'conversation') {
-            const lastMessage = item.conversation.messages[item.conversation.messages.length - 1]?.content.trim()
+            const lastMessage = latestVisibleTranscriptChatMessage(item.conversation.messages)?.content.trim()
             return (
               <div key={item.id} className="group relative">
                 <AgentConversationItem

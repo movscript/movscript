@@ -4,12 +4,16 @@ export const AGENT_MESSAGE_FEED_LOCAL_EVENT = 'movscript:agent-message-feed-loca
 
 export function notifyAgentMessageFeedAcceptedSource(message: AgentMessage, run: AgentRun): void {
   if (typeof window === 'undefined') return
+  const feedMessage = feedMessageFromAcceptedSource(message, run)
+  if (!feedMessage) return
   window.dispatchEvent(new CustomEvent<AgentFeedMessage>(AGENT_MESSAGE_FEED_LOCAL_EVENT, {
-    detail: feedMessageFromAcceptedSource(message, run),
+    detail: feedMessage,
   }))
 }
 
-function feedMessageFromAcceptedSource(message: AgentMessage, run: AgentRun): AgentFeedMessage {
+export function feedMessageFromAcceptedSource(message: AgentMessage, run: AgentRun): AgentFeedMessage | undefined {
+  if (message.role !== 'user') return undefined
+  if (message.threadId !== run.threadId) return undefined
   const id = `message:${message.id}`
   const createdAt = message.createdAt
   const revision = Math.max(Date.parse(createdAt) || 0, Date.parse(run.updatedAt) || 0)
@@ -17,14 +21,14 @@ function feedMessageFromAcceptedSource(message: AgentMessage, run: AgentRun): Ag
     id,
     ...(run.sessionId ? { sessionId: run.sessionId } : {}),
     threadId: message.threadId,
-    role: message.role === 'assistant' ? 'assistant' : message.role === 'user' ? 'user' : 'system',
+    role: 'user',
     kind: 'text',
     content: message.content,
     status: feedStatusFromRun(run),
     createdAt,
     updatedAt: run.updatedAt || createdAt,
     revision,
-    cursor: `${Date.parse(createdAt) || 0}:${encodeURIComponent(id)}`,
+    cursor: acceptedSourceFeedCursor(createdAt, id),
     runtimeRefs: {
       ...(run.sessionId ? { sessionId: run.sessionId } : {}),
       threadId: message.threadId,
@@ -32,6 +36,19 @@ function feedMessageFromAcceptedSource(message: AgentMessage, run: AgentRun): Ag
       runId: run.id,
     },
   }
+}
+
+export function acceptedSourceFeedCursor(createdAt: string, id: string): string {
+  return `${Date.parse(createdAt) || 0}:10:${encodeURIComponent(id)}`
+}
+
+export function isAcceptedSourceFeedMessage(message: AgentFeedMessage | undefined): message is AgentFeedMessage {
+  if (!message) return false
+  if (message.role !== 'user' || message.kind !== 'text') return false
+  const messageId = message.runtimeRefs?.messageId
+  const runId = message.runtimeRefs?.runId
+  if (!messageId || !runId) return false
+  return message.id === `message:${messageId}`
 }
 
 function feedStatusFromRun(run: AgentRun): AgentFeedMessage['status'] {

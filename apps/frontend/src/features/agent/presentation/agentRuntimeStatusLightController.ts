@@ -210,10 +210,10 @@ export function createAgentRuntimeStatusLightController(
 }
 
 export function runtimeStatusLightTargetKey(target: AgentRuntimeStatusLightWatchTarget): string | undefined {
-  const sessionId = target.sessionId?.trim()
-  if (sessionId) return `session:${sessionId}`
   const threadId = target.threadId?.trim()
   if (threadId) return `thread:${threadId}`
+  const sessionId = target.sessionId?.trim()
+  if (sessionId) return `session:${sessionId}`
   return undefined
 }
 
@@ -224,10 +224,10 @@ export function runtimeStatusLightTargetsSignature(targets: AgentRuntimeStatusLi
 }
 
 function runtimeWatchRefFromTarget(target: AgentRuntimeStatusLightWatchTarget): RuntimeWatchRef[] {
-  const sessionId = target.sessionId?.trim()
-  if (sessionId) return [{ targetKey: `session:${sessionId}`, kind: 'session', id: sessionId }]
   const threadId = target.threadId?.trim()
   if (threadId) return [{ targetKey: `thread:${threadId}`, kind: 'thread', id: threadId }]
+  const sessionId = target.sessionId?.trim()
+  if (sessionId) return [{ targetKey: `session:${sessionId}`, kind: 'session', id: sessionId }]
   return []
 }
 

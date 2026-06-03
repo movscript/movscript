@@ -1,15 +1,18 @@
 import type {
   AgentAttachment,
+  AgentChatMessageMeta,
   AgentFeedMessage,
   AgentFeedMessagePage,
   AgentFeedMessageStatus,
   AgentRunActivity,
 } from '@movscript/protocol'
+import { isAgentVisibleAssistantMessage } from '@movscript/protocol'
 import type {
   AgentInternalThreadSignal,
   AgentMessage,
   AgentRun,
   AgentSession,
+  AgentTraceEvent,
   AgentThread,
 } from '../../state/shared/types.js'
 
@@ -104,6 +107,7 @@ export function feedMessageFromRuntimeMessage(message: AgentMessage, thread?: Pi
   const createdAt = message.createdAt
   const updatedAt = latestTimestamp(createdAt, run?.updatedAt)
   const attachments = attachmentsFromClientInput(message.clientInput)
+  const meta = feedMetaFromRuntimeMessage(message)
   return withCursor({
     id: feedRuntimeMessageId(message, run),
     ...(thread?.sessionId || run?.sessionId ? { sessionId: thread?.sessionId ?? run?.sessionId } : {}),
@@ -112,7 +116,8 @@ export function feedMessageFromRuntimeMessage(message: AgentMessage, thread?: Pi
     kind: 'text',
     content: message.content,
     ...(attachments ? { attachments } : {}),
-    ...(message.role === 'assistant' && run ? { activity: compactRunActivity(run) } : {}),
+    ...(meta ? { meta } : {}),
+    ...(shouldAttachRunActivityToFeedMessage(message, run) ? { activity: compactRunActivity(run) } : {}),
     ...(run ? { status: feedStatusFromRun(run) } : {}),
     createdAt,
     updatedAt,
@@ -124,6 +129,26 @@ export function feedMessageFromRuntimeMessage(message: AgentMessage, thread?: Pi
       ...(run?.id ?? message.runId ? { runId: run?.id ?? message.runId } : {}),
     },
   })
+}
+
+function shouldAttachRunActivityToFeedMessage(message: AgentMessage, run?: AgentRun): run is AgentRun {
+  return isFinalAssistantFeedMessage(message, run)
+}
+
+function feedMetaFromRuntimeMessage(message: AgentMessage): AgentChatMessageMeta | undefined {
+  const metadata = isRecord(message.metadata) ? message.metadata : undefined
+  if (!metadata) return undefined
+  const meta: AgentChatMessageMeta = {}
+  if (isRecord(metadata.runtimeStatus)) {
+    meta.runtimeStatus = metadata.runtimeStatus as unknown as AgentChatMessageMeta['runtimeStatus']
+  }
+  if (isRecord(metadata.contextDiagnostic)) {
+    meta.contextDiagnostic = metadata.contextDiagnostic as unknown as AgentChatMessageMeta['contextDiagnostic']
+  }
+  if (isRecord(metadata.planRevision)) {
+    meta.planRevision = metadata.planRevision as unknown as AgentChatMessageMeta['planRevision']
+  }
+  return Object.keys(meta).length > 0 ? meta : undefined
 }
 
 function compactRunActivity(run: AgentRun): AgentRunActivity {
@@ -147,8 +172,6 @@ function compactRunActivity(run: AgentRun): AgentRunActivity {
             ...(approval.displayThreadId ? { displayThreadId: approval.displayThreadId } : {}),
             ...(approval.displayAnchor ? { displayAnchor: approval.displayAnchor } : {}),
             toolName: approval.toolName,
-            ...(approval.args ? { args: approval.args } : {}),
-            ...(approval.preview !== undefined ? { preview: approval.preview } : {}),
             reason: approval.reason,
             ...(approval.risk ? { risk: approval.risk } : {}),
             ...(approval.permission ? { permission: approval.permission } : {}),
@@ -193,8 +216,6 @@ function compactRunActivity(run: AgentRun): AgentRunActivity {
         ...(step.roundSource ? { roundSource: step.roundSource } : {}),
         ...(step.title ? { title: step.title } : {}),
         ...(step.toolName ? { toolName: step.toolName } : {}),
-        ...(step.args ? { args: step.args } : {}),
-        ...(step.result !== undefined ? { result: step.result } : {}),
         ...(step.error ? { error: step.error } : {}),
         ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
         ...(typeof step.durationMs === 'number' ? { durationMs: step.durationMs } : {}),
@@ -214,24 +235,75 @@ function compactRunActivity(run: AgentRun): AgentRunActivity {
         || trace.kind === 'run'
         || trace.kind === 'approval'
         || trace.kind === 'input')
-      .map((trace) => ({
-        id: trace.id,
-        kind: trace.kind,
-        title: trace.title,
-        status: trace.status,
-        ...(trace.roundId ? { roundId: trace.roundId } : {}),
-        ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
-        ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
-        ...(trace.roundSource ? { roundSource: trace.roundSource } : {}),
-        ...(trace.summary ? { summary: trace.summary } : {}),
-        ...(trace.toolName ? { toolName: trace.toolName } : {}),
-        ...(trace.stepId ? { stepId: trace.stepId } : {}),
-        ...(trace.data !== undefined ? { data: trace.data } : {}),
-        ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
-        createdAt: trace.createdAt,
-        ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
-      })),
+      .map((trace) => compactRunActivityEvent(trace, run)),
   }
+}
+
+function compactRunActivityEvent(
+  trace: AgentTraceEvent,
+  run: AgentRun,
+): AgentRunActivity['events'][number] {
+  const data = compactFeedTraceData(trace.data)
+  return {
+    id: trace.id,
+    runId: trace.runId,
+    threadId: run.threadId,
+    kind: trace.kind,
+    title: trace.title,
+    status: trace.status,
+    ...(trace.roundId ? { roundId: trace.roundId } : {}),
+    ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
+    ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
+    ...(trace.roundSource ? { roundSource: trace.roundSource } : {}),
+    ...(trace.summary ? { summary: trace.summary } : {}),
+    ...(trace.toolName ? { toolName: trace.toolName } : {}),
+    ...(trace.stepId ? { stepId: trace.stepId } : {}),
+    ...(data !== undefined ? { data } : {}),
+    ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
+    createdAt: trace.createdAt,
+    ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
+  }
+}
+
+function compactFeedTraceData(data: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(data)) return undefined
+  const generation = compactGenerationTraceData(data.generation)
+  if (!generation) return undefined
+  return { generation }
+}
+
+function compactGenerationTraceData(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined
+  const generation: Record<string, unknown> = {}
+  for (const key of [
+    'jobId',
+    'jobType',
+    'providerName',
+    'modelDisplay',
+    'modelIdentifier',
+    'modelConfigId',
+    'status',
+    'stage',
+    'progress',
+    'terminal',
+    'outputResourceId',
+    'output_resource_id',
+    'message',
+  ]) {
+    const item = value[key]
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') generation[key] = item
+  }
+  const outputResourceIds = primitiveArray(value.outputResourceIds) ?? primitiveArray(value.output_resource_ids)
+  if (outputResourceIds?.length) generation.outputResourceIds = outputResourceIds
+  return Object.keys(generation).length > 0 ? generation : undefined
+}
+
+function primitiveArray(value: unknown): Array<string | number | boolean> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item): item is string | number | boolean => (
+    typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+  ))
+  return values.length > 0 ? values : undefined
 }
 
 export function normalizeMessageFeedLimit(value: unknown): number {
@@ -255,12 +327,21 @@ export function compareMessageCursor(left: string, right: string): number {
 function withCursor(message: Omit<AgentFeedMessage, 'cursor'>): AgentFeedMessage {
   return {
     ...message,
-    cursor: messageCursor(message.createdAt, message.id),
+    cursor: messageCursor(message),
   }
 }
 
-function messageCursor(createdAt: string, id: string): string {
-  return `${Date.parse(createdAt) || 0}:${encodeURIComponent(id)}`
+function messageCursor(message: Omit<AgentFeedMessage, 'cursor'>): string {
+  return `${Date.parse(message.createdAt) || 0}:${messageCursorRank(message)}:${encodeURIComponent(message.id)}`
+}
+
+function messageCursorRank(message: Omit<AgentFeedMessage, 'cursor'>): string {
+  if (message.role === 'system') return '00'
+  if (message.role === 'user') return '10'
+  if (message.role === 'assistant' && message.id.startsWith('message:')) return '20'
+  if (message.role === 'assistant') return '30'
+  if (message.role === 'tool') return '40'
+  return '50'
 }
 
 function parseMessageCursor(cursor: string): { time: number; id: string } {
@@ -272,12 +353,18 @@ function parseMessageCursor(cursor: string): { time: number; id: string } {
 }
 
 function feedRuntimeMessageId(message: AgentMessage, run?: AgentRun): string {
-  if (message.role === 'assistant' && run?.id) return feedAssistantRunMessageId(run.id)
+  if (isFinalAssistantFeedMessage(message, run)) return feedAssistantRunMessageId(run.id)
   return `message:${message.id}`
 }
 
 function feedAssistantRunMessageId(runId: string): string {
   return `assistant:${runId}`
+}
+
+function isFinalAssistantFeedMessage(message: AgentMessage, run?: AgentRun): run is AgentRun {
+  return isAgentVisibleAssistantMessage(message)
+    && !!run
+    && run.assistantMessageId === message.id
 }
 
 function feedStatusFromRun(run: AgentRun): AgentFeedMessageStatus {

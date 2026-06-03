@@ -18,6 +18,7 @@ test('projectStreamingAssistantTurn creates a stable streaming message id per ru
 test('projectStreamingAssistantTurn keeps the first message id and merges round text in order', () => {
   const first = projectStreamingAssistantTurn({
     currentMessageId: null,
+    currentRunId: null,
     turns: new Map(),
     runId: 'run_1',
     text: 'Second round',
@@ -27,14 +28,37 @@ test('projectStreamingAssistantTurn keeps the first message id and merges round 
 
   const second = projectStreamingAssistantTurn({
     currentMessageId: first.messageId,
+    currentRunId: 'run_1',
     turns: first.turns,
-    runId: 'run_2',
+    runId: 'run_1',
     text: 'First round',
     roundIndex: 0,
   })
 
   assert.equal(second?.messageId, 'stream-run_1')
   assert.equal(second?.text, 'First round\n\nSecond round')
+})
+
+test('projectStreamingAssistantTurn starts a fresh stream when the run changes', () => {
+  const first = projectStreamingAssistantTurn({
+    currentMessageId: null,
+    currentRunId: null,
+    turns: new Map(),
+    runId: 'run_1',
+    text: 'Old run text',
+  })
+  assert.ok(first)
+
+  const second = projectStreamingAssistantTurn({
+    currentMessageId: first.messageId,
+    currentRunId: 'run_1',
+    turns: first.turns,
+    runId: 'run_2',
+    text: 'New run text',
+  })
+
+  assert.equal(second?.messageId, 'stream-run_2')
+  assert.equal(second?.text, 'New run text')
 })
 
 test('projectStreamingAssistantTurn ignores blank progress chunks', () => {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { buildPromptMemoryIndex, buildThreadContextSummary, compactPromptHistory, filterPromptHistory, filterPromptMemories, normalizeThreadContextSummary } from './promptHygiene.js'
+import { buildPromptMemoryIndex, buildThreadContextSummary, compactPromptHistory, filterPromptHistory, filterPromptMemories, isPromptHistoryMessage, normalizeThreadContextSummary } from './promptHygiene.js'
 
 test('prompt hygiene filters runtime failure messages and memories from future model context', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
@@ -20,6 +20,107 @@ test('prompt hygiene filters runtime failure messages and memories from future m
 
   assert.deepEqual(history.map((message) => message.content), ['继续', '正常回复'])
   assert.deepEqual(memories.map((memory) => memory.title), ['偏好：镜头更稳'])
+})
+
+test('prompt hygiene omits UI-only runtime assistant messages from future model context', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const history = filterPromptHistory([
+    { id: 'u1', threadId: 't', role: 'user', content: '生成一张图', createdAt },
+    {
+      id: 'a_status',
+      threadId: 't',
+      role: 'assistant',
+      content: 'generation_job work work_1已提交，当前状态：running，输出资源 #42。',
+      runId: 'run_1',
+      metadata: {
+        kind: 'runtime_status',
+        runtimeStatus: {
+          kind: 'async_work_handoff',
+          title: '异步任务已提交',
+          detail: 'generation_job work work_1已提交。',
+          workId: 'work_1',
+        },
+      },
+      createdAt,
+    },
+    {
+      id: 'a_activity',
+      threadId: 't',
+      role: 'assistant',
+      content: '查看模型；提交异步任务。',
+      runId: 'run_1',
+      metadata: {
+        localRunActivity: {
+          runId: 'run_1',
+          threadId: 't',
+          status: 'completed',
+          createdAt,
+          updatedAt: createdAt,
+          steps: [{
+            id: 'step_1',
+            type: 'tool_call',
+            status: 'completed',
+            toolName: 'core_work_start',
+            result: { work: { id: 'work_1', status: 'running' } },
+            createdAt,
+          }],
+          events: [],
+        },
+      },
+      createdAt,
+    },
+    { id: 'a_text', threadId: 't', role: 'assistant', content: '我会继续跟进这个生成任务。', runId: 'run_1', createdAt },
+  ])
+
+  assert.deepEqual(history.map((message) => message.id), ['u1', 'a_text'])
+})
+
+test('compactPromptHistory does not summarize omitted runtime assistant messages back into prompt', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const compacted = compactPromptHistory([
+    { id: 'u1', threadId: 't', role: 'user', content: '开始', createdAt },
+    {
+      id: 'a_status',
+      threadId: 't',
+      role: 'assistant',
+      content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
+      metadata: { kind: 'runtime_status', runtimeStatus: { kind: 'async_work_handoff', title: 'handoff', detail: 'SECRET_TOOL_RESULT_BODY' } },
+      createdAt,
+    },
+    { id: 'a1', threadId: 't', role: 'assistant', content: '普通答复', createdAt },
+  ], 1)
+
+  assert.deepEqual(compacted.messages.map((message) => message.id), ['a1'])
+  assert.equal(compacted.filteredCount, 1)
+  assert.equal((compacted.summary ?? '').includes('SECRET_TOOL_RESULT_BODY'), false)
+})
+
+test('isPromptHistoryMessage keeps user runtime input as transcript but drops assistant activity/status', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  assert.equal(isPromptHistoryMessage({
+    id: 'u_runtime',
+    threadId: 't',
+    role: 'user',
+    content: '补充需求',
+    metadata: { kind: 'runtime_input', targetRunId: 'run_1', status: 'accepted' },
+    createdAt,
+  }), true)
+  assert.equal(isPromptHistoryMessage({
+    id: 'a_plan',
+    threadId: 't',
+    role: 'assistant',
+    content: '计划已更新',
+    metadata: { kind: 'plan_revision', planRevision: { id: 'plan_1' } },
+    createdAt,
+  }), false)
+  assert.equal(isPromptHistoryMessage({
+    id: 'a_explicit',
+    threadId: 't',
+    role: 'assistant',
+    content: 'UI-only status',
+    metadata: { promptHistory: 'exclude' },
+    createdAt,
+  }), false)
 })
 
 test('prompt memory index keeps ids and titles but drops memory content', () => {
@@ -113,6 +214,52 @@ test('thread context summary keeps refs and prompt compaction renders persisted 
   assert.match(compacted.summary ?? '', /reference#storyboard.rhythm.basic/)
   assert.match(compacted.summary ?? '', /Summary provenance: strategy=deterministic/)
   assert.equal((compacted.summary ?? '').includes('已参考分镜节奏基础，生成方案摘要。'.repeat(20)), false)
+})
+
+test('thread context summary does not reintroduce UI-only runtime assistant content', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const messages = [
+    { id: 'u1', threadId: 't', role: 'user' as const, content: '生成一张图', createdAt },
+    {
+      id: 'a_status',
+      threadId: 't',
+      role: 'assistant' as const,
+      content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
+      runId: 'run_1',
+      metadata: {
+        kind: 'runtime_status',
+        promptHistory: 'exclude',
+        runtimeStatus: {
+          kind: 'async_work_handoff',
+          title: '异步任务已提交',
+          detail: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
+        },
+      },
+      createdAt,
+    },
+  ]
+  const summary = buildThreadContextSummary({
+    threadId: 't',
+    messages,
+    run: {
+      id: 'run_1',
+      threadId: 't',
+      status: 'completed',
+      runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+      assistantMessageId: 'a_status',
+      createdAt,
+      updatedAt: createdAt,
+      completedAt: createdAt,
+      steps: [],
+    },
+    now: createdAt,
+  })
+
+  const compacted = compactPromptHistory(messages, 1, summary)
+
+  assert.equal(summary.recentRunRefs[0]?.summary, 'completed')
+  assert.equal(JSON.stringify(summary).includes('SECRET_TOOL_RESULT_BODY'), false)
+  assert.equal((compacted.summary ?? '').includes('SECRET_TOOL_RESULT_BODY'), false)
 })
 
 test('thread context summary ignores non-plain persisted and ledger records', () => {

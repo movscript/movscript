@@ -140,7 +140,11 @@ export class RuntimeWakeCoordinator {
         const observed = await this.handleThreadOpened(event.threadId)
         observedWorks.push(...observed)
         for (const work of observed) {
-          if (isTerminalRuntimeWorkStatus(work.status)) this.enqueue({ type: 'work.observed', work })
+          if (isTerminalRuntimeWorkStatus(work.status)) {
+            this.enqueue({ type: 'work.observed', work })
+          } else {
+            this.scheduleWorkObservation(work)
+          }
         }
         this.consumeWakeEvent(processing)
         continue

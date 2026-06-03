@@ -2,6 +2,7 @@ import { useMemo, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui'
 import { conversationDisplayTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
@@ -32,10 +33,11 @@ export function AgentConversationTabs({
 
   const mappedConversations: AgentConversationTabItem[] = useMemo(() => conversations.map((item) => {
     const runtimeStatusLight = runtimeStatusLights?.[item.id]
+    const visibleMessageCount = visibleTranscriptChatMessages(item.messages).length
     return {
       id: item.id,
       title: conversationDisplayTitle(item, t),
-      messageCount: item.messages.length > 0 ? item.messages.length : undefined,
+      messageCount: visibleMessageCount > 0 ? visibleMessageCount : undefined,
       runtimeState: runtimeStatusLight?.state,
       runtimeDetail: runtimeStatusLight?.detail,
     }

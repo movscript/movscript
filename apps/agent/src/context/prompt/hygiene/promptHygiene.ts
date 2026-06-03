@@ -2,6 +2,7 @@ import type { AgentMemory } from '../../../memory/shared/types.js'
 import type { AgentMessage, AgentRun } from '../../../state/shared/types.js'
 import type { ContextRef, FactRecord } from '../../ledger/shared/contextLedgerTypes.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
+import { isAgentPromptExcludedAssistantMessage } from '@movscript/protocol'
 
 const DEFAULT_MAX_PROMPT_HISTORY_MESSAGES = 6
 const MAX_SUMMARY_ITEM_CHARS = 180
@@ -19,7 +20,15 @@ const RUNTIME_FAILURE_PATTERNS = [
 ]
 
 export function filterPromptHistory(messages: AgentMessage[]): AgentMessage[] {
-  return messages.filter((message) => !isRuntimeFailureAssistantMessage(message))
+  return messages.filter(isPromptHistoryMessage)
+}
+
+export function isPromptHistoryMessage(message: AgentMessage): boolean {
+  if (message.role === 'system') return false
+  if (messagePromptHistoryMode(message) === 'exclude') return false
+  if (isRuntimeFailureAssistantMessage(message)) return false
+  if (isRuntimeInternalAssistantMessage(message)) return false
+  return true
 }
 
 export interface CompactedPromptHistory {
@@ -142,7 +151,7 @@ function buildPromptHistoryProjectionDecisions(input: {
     decisions.push({
       action: 'drop',
       stage: 'runtime_failure_filter',
-      reason: 'Runtime failure assistant messages are omitted from prompt history.',
+      reason: 'Runtime failure and UI-only runtime assistant messages are omitted from prompt history.',
       messageCount: input.filteredCount,
       retainedCount: input.retainedCount,
       summaryChars: input.summaryChars,
@@ -185,9 +194,7 @@ export function buildThreadContextSummary(input: {
 }): ThreadContextSummary {
   const now = input.now ?? new Date().toISOString()
   const previous = input.previous
-  const assistant = input.run.assistantMessageId
-    ? input.messages.find((message) => message.id === input.run.assistantMessageId)
-    : [...input.messages].reverse().find((message) => message.runId === input.run.id && message.role === 'assistant')
+  const assistant = summaryAssistantMessageForRun(input.messages, input.run)
   const user = [...input.messages].reverse().find((message) => message.runId !== input.run.id && message.role === 'user')
     ?? [...input.messages].reverse().find((message) => message.role === 'user')
   const ledger = normalizeLedger(input.run.metadata?.contextLedger)
@@ -287,6 +294,30 @@ export function isRuntimeFailureText(text: string): boolean {
 
 function isRuntimeFailureAssistantMessage(message: AgentMessage): boolean {
   return message.role === 'assistant' && isRuntimeFailureText(message.content)
+}
+
+function isRuntimeInternalAssistantMessage(message: AgentMessage): boolean {
+  return isAgentPromptExcludedAssistantMessage(message)
+}
+
+function summaryAssistantMessageForRun(messages: AgentMessage[], run: AgentRun): AgentMessage | undefined {
+  const assistantForRun = (message: AgentMessage): boolean => {
+    return message.role === 'assistant'
+      && message.runId === run.id
+      && isPromptHistoryMessage(message)
+  }
+  if (run.assistantMessageId) {
+    const explicit = messages.find((message) => message.id === run.assistantMessageId)
+    if (explicit && assistantForRun(explicit)) return explicit
+  }
+  return [...messages].reverse().find(assistantForRun)
+}
+
+function messagePromptHistoryMode(message: AgentMessage): 'include' | 'exclude' | undefined {
+  const metadata = isRecord(message.metadata) ? message.metadata : undefined
+  if (!metadata) return undefined
+  if (metadata.promptHistory === 'include' || metadata.promptHistory === 'exclude') return metadata.promptHistory
+  return undefined
 }
 
 function renderThreadContinuitySummary(messages: AgentMessage[]): string {

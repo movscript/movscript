@@ -42,8 +42,11 @@ import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWork
 import { AgentPlanRevisionCard } from '@/features/agent/components/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
+import { visibleAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { runtimeInputDisplayStatus } from '@/features/agent/domain/agentConversationThreadItems'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
+import { RunActivityTitleBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/presentation/agentMessageRenderMemo'
 import { useAgentMessagePresentationModel } from '@/features/agent/presentation/useAgentMessagePresentationModel'
@@ -119,6 +122,7 @@ interface MessageBubbleProps {
   onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
   onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
   onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  hiddenActivityActionItemIds?: Set<string>
 }
 
 export const MessageBubble = React.memo(function MessageBubble({
@@ -130,6 +134,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   onApproveLocalRun,
   onRejectLocalRun,
   onAnswerLocalRunInput,
+  hiddenActivityActionItemIds,
 }: MessageBubbleProps) {
   const { t, i18n } = useTranslation()
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
@@ -139,15 +144,16 @@ export const MessageBubble = React.memo(function MessageBubble({
   const time = useMemo(() => new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }), [locale, msg.timestamp])
   const presentation = useAgentMessagePresentationModel(msg)
   const runtimeInput = msg.meta?.runtimeInput
+  const runtimeRunId = visibleAssistantRuntimeMessageRunId(msg)
   const planRevision = msg.meta?.planRevision
-  const runtimeInputStatus = runtimeInput?.status
-  const runtimeInputLabel = runtimeInput?.status === 'pending'
-    ? '等待送达运行中任务'
-    : runtimeInput?.status === 'accepted'
-      ? '已进入运行中任务'
-      : runtimeInput?.status === 'consumed'
+  const runtimeInputStatus = runtimeInputDisplayStatus(msg)
+  const runtimeInputLabel = runtimeInputStatus === 'pending'
+    ? '正在同步到运行中对话'
+    : runtimeInputStatus === 'accepted'
+      ? '已加入运行中对话'
+      : runtimeInputStatus === 'consumed'
         ? '已被模型读取'
-        : runtimeInput?.status === 'failed' ? '送达失败' : undefined
+        : runtimeInputStatus === 'failed' ? '同步失败' : undefined
   const {
     contextDiagnostic,
     contextLabels,
@@ -169,9 +175,9 @@ export const MessageBubble = React.memo(function MessageBubble({
   const activityFeedRun = !isUser ? liveInteractionRun ?? null : null
   const hasActivityContent = useMemo(() => !isUser && (
     activityFeedRun
-      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveInteractionEvents)
-      : !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
-  ), [activityFeedRun, isUser, liveInteractionEvents, localRunActivity])
+      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveInteractionEvents, hiddenActivityActionItemIds)
+      : !!localRunActivity && runActivityHasVisibleContent(localRunActivity, undefined, undefined, hiddenActivityActionItemIds)
+  ), [activityFeedRun, hiddenActivityActionItemIds, isUser, liveInteractionEvents, localRunActivity])
   const hasMessageBody = isUser
     ? !!displayContent.trim() || compactAttachments.length > 0
     : hasActivityContent
@@ -210,7 +216,7 @@ export const MessageBubble = React.memo(function MessageBubble({
       data-agent-message-id={msg.id}
       data-agent-runtime-thread-id={msg.meta?.runtimeMessage?.threadId}
       data-agent-runtime-message-id={msg.meta?.runtimeMessage?.messageId}
-      data-agent-runtime-run-id={msg.meta?.runtimeMessage?.runId}
+      data-agent-runtime-run-id={runtimeRunId}
       head={assistantHeadLabel ? <AgentMessageHeadLabel>{assistantHeadLabel}</AgentMessageHeadLabel> : undefined}
       actions={isUser ? (
         <Button
@@ -245,17 +251,25 @@ export const MessageBubble = React.memo(function MessageBubble({
         </AgentChatFooterBadges>
       )}
     >
-      {!isUser && hasActivityContent && (
+      {!isUser && hasActivityContent && activityFeedRun && (
         <AgentActivityFeedView
-          activity={activityFeedRun ? undefined : localRunActivity}
+          activity={undefined}
           run={activityFeedRun}
-          events={activityFeedRun ? liveInteractionEvents : undefined}
+          events={liveInteractionEvents}
           className={displayContent || planRevision ? 'mb-2' : undefined}
           approving={approvingLocalRun}
-          onApprove={activityFeedRun && onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
-          onReject={activityFeedRun && onRejectLocalRun ? (approvalIds) => onRejectLocalRun(activityFeedRun.id, approvalIds) : undefined}
-          onAnswerInput={activityFeedRun && onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(activityFeedRun.id, requestId, answer) : undefined}
+          onApprove={onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
+          onReject={onRejectLocalRun ? (approvalIds) => onRejectLocalRun(activityFeedRun.id, approvalIds) : undefined}
+          onAnswerInput={onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(activityFeedRun.id, requestId, answer) : undefined}
           approvalDetails={localAgentApprovalDetails}
+          hiddenActionItemIds={hiddenActivityActionItemIds}
+        />
+      )}
+      {!isUser && hasActivityContent && !activityFeedRun && localRunActivity && (
+        <RunActivityTitleBubble
+          activity={localRunActivity}
+          title="运行过程"
+          className={displayContent || planRevision ? 'mb-2' : undefined}
         />
       )}
       {planRevision
@@ -320,10 +334,16 @@ function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbl
     && prev.onApproveLocalRun === next.onApproveLocalRun
     && prev.onRejectLocalRun === next.onRejectLocalRun
     && prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput
+    && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
 }
 
-function runActivityHasVisibleContent(activity?: NonNullable<ChatMessage['meta']>['localRunActivity'], run?: AgentRun | null, events?: ChatRunActivityEvent[]): boolean {
-  const feed = buildAgentActivityFeed({ activity, run, events })
+function runActivityHasVisibleContent(
+  activity?: NonNullable<ChatMessage['meta']>['localRunActivity'],
+  run?: AgentRun | null,
+  events?: ChatRunActivityEvent[],
+  hiddenActionItemIds?: Set<string>,
+): boolean {
+  const feed = buildAgentActivityFeed({ activity, run, events, hiddenActionItemIds })
   return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
 }
 

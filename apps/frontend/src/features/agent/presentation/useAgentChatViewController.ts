@@ -62,16 +62,19 @@ export function useAgentChatViewController({
   const messageFeed = useAgentMessageFeed({
     localSessionId: store.localSessionId,
     localThreadId: store.localThreadId,
+    requireThread: true,
   })
   const effectiveConversation = useMemo(() => {
     return { ...conv, messages: messageFeed.messages }
   }, [conv, messageFeed.messages])
-  const runtime = useAgentChatRuntimeState({
-    conversationId: conv.id,
-  })
   const taskGraph = useAgentPlanDispatchSettings({
     settings: store.settings,
     updateSettings: store.updateSettings,
+  })
+  const activeLocalRun = store.conversationRuntime?.run ?? null
+  const runtime = useAgentChatRuntimeState({
+    activeRunId: activeLocalRun?.id,
+    conversationId: conv.id,
   })
   const composer = useAgentChatComposerState({
     userId,
@@ -83,7 +86,6 @@ export function useAgentChatViewController({
     inputRef: runtime.inputRef,
   })
 
-  const activeLocalRun = store.conversationRuntime?.run ?? null
   const loading = store.conversationRuntime?.loading ?? false
   const buildingSendWorkspace = store.conversationRuntime?.building ?? false
 

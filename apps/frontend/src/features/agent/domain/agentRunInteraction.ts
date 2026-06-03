@@ -1,6 +1,7 @@
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 import type { JSONValue } from '@movscript/protocol'
+import { isVisibleTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 
 export type AgentInputAnswer = { choiceIds?: string[]; text?: string }
 export type AgentPendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
@@ -75,6 +76,7 @@ export function runInteractionAnswerEchoesForMessages(messages: ChatMessage[], i
     for (const echo of inputAnswerEchoesFromRun(run)) echoes.add(echo)
   }
   for (const message of messages) {
+    if (!isVisibleTranscriptChatMessage(message)) continue
     const run = runInteractionFromActivity(message.meta?.localRunActivity)
     if (!run) continue
     for (const echo of inputAnswerEchoesFromRun(run)) echoes.add(echo)

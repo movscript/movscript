@@ -158,6 +158,42 @@ test('buildAgentActivityFeed renders generation work details from args and resul
   ])
 })
 
+test('buildAgentActivityFeed keeps recorded tool order when async work timestamps are earlier', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      steps: [{
+        id: 'step_models',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'generation_model_list',
+        createdAt: '2026-05-22T01:00:02.000Z',
+      }, {
+        id: 'step_work',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'core_work_start',
+        args: {
+          kind: 'generation_job',
+          request: { output_type: 'image', model_id: 'gpt-image-2' },
+        },
+        result: { workId: 'work_1' },
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => {
+    if (item.type === 'line') return item.text
+    if (item.type === 'block' || item.type === 'decision') return item.title
+    return item.id
+  }), [
+    '已读取数据：查看生成模型',
+    '提交异步任务',
+  ])
+})
+
 test('buildAgentActivityFeed does not duplicate work status traces as task cards', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
@@ -659,6 +695,37 @@ test('buildAgentActivityFeed keeps approvals inline with tool results', () => {
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
     'approval-approval_1',
+    '写入素材候选',
+  ])
+})
+
+test('buildAgentActivityFeed hides action items already rendered by standalone interaction cards', () => {
+  const feed = buildAgentActivityFeed({
+    hiddenActionItemIds: new Set(['approval-approval_1']),
+    activity: activity({
+      steps: [{
+        id: 'step_candidate',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'candidate_asset_slot_attach',
+        args: { asset_slot_id: 9, resource_id: 88 },
+        result: { message: 'candidate created' },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+      approvals: [{
+        id: 'approval_1',
+        toolName: 'candidate_asset_slot_attach',
+        reason: '需要确认写入素材候选',
+        permission: 'asset_candidate.write',
+        risk: 'write',
+        status: 'approved',
+        createdAt: '2026-05-22T01:00:00.000Z',
+        updatedAt: '2026-05-22T01:00:00.000Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
     '写入素材候选',
   ])
 })

@@ -39,6 +39,12 @@ export const AGENT_TELEMETRY_REPORTABLE_METRICS = [
   'frontend_agent_stream_flush_total',
   'frontend_agent_stream_text_chars',
   'frontend_agent_stream_update_total',
+  'frontend_agent_message_history_page_duration_ms',
+  'frontend_agent_message_history_page_messages',
+  'frontend_agent_message_history_page_payload_bytes',
+  'frontend_agent_thread_restore_duration_ms',
+  'frontend_agent_thread_restore_message_count',
+  'frontend_agent_thread_restore_payload_bytes',
   'frontend_storage_operation_duration_ms',
   'frontend_storage_payload_bytes',
   'frontend_web_vital_fcp_ms',
@@ -1424,6 +1430,7 @@ export interface AgentFeedMessage {
   kind: AgentFeedMessageKind
   content: string
   attachments?: AgentAttachment[]
+  meta?: AgentChatMessageMeta
   activity?: AgentRunActivity
   status?: AgentFeedMessageStatus
   createdAt: string
@@ -1900,6 +1907,49 @@ export interface AgentChatMessageMeta {
   planRevision?: AgentPlanRevision
 }
 
+export function isAgentUiOnlyAssistantMetadata(metadata: unknown): boolean {
+  if (!isAgentMetadataRecord(metadata)) return false
+  if (metadata.promptHistory === 'exclude') return true
+  if (metadata.kind === 'runtime_status' || metadata.kind === 'runtime_activity' || metadata.kind === 'plan_revision') return true
+  return isAgentMetadataRecord(metadata.runtimeStatus)
+    || isAgentMetadataRecord(metadata.planRevision)
+    || isAgentMetadataRecord(metadata.contextDiagnostic)
+}
+
+export function isAgentPromptExcludedAssistantMetadata(metadata: unknown): boolean {
+  if (isAgentUiOnlyAssistantMetadata(metadata)) return true
+  if (!isAgentMetadataRecord(metadata)) return false
+  return isAgentMetadataRecord(metadata.localRunActivity)
+}
+
+export function isAgentNonTranscriptAssistantMetadata(metadata: unknown): boolean {
+  return isAgentPromptExcludedAssistantMetadata(metadata)
+}
+
+export function isAgentUiOnlyAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
+  return message.role === 'assistant' && isAgentUiOnlyAssistantMetadata(message.metadata)
+}
+
+export function isAgentPromptExcludedAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
+  return message.role === 'assistant' && isAgentPromptExcludedAssistantMetadata(message.metadata)
+}
+
+export function isAgentVisibleAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
+  return message.role === 'assistant' && !isAgentUiOnlyAssistantMetadata(message.metadata)
+}
+
+export function isAgentChatUiOnlyAssistantMessage(message: Pick<AgentChatMessage, 'role' | 'meta'>): boolean {
+  return message.role === 'assistant' && isAgentUiOnlyAssistantMetadata(message.meta)
+}
+
+export function isAgentChatVisibleAssistantMessage(message: Pick<AgentChatMessage, 'role' | 'meta'>): boolean {
+  return message.role === 'assistant' && !isAgentUiOnlyAssistantMetadata(message.meta)
+}
+
+function isAgentMetadataRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 export interface AgentContextDiagnostic {
   schema: 'movscript.local_context_diagnostic.v1'
   command?: Record<string, unknown>
@@ -2127,6 +2177,8 @@ export interface AgentRunActivityStep {
 
 export interface AgentRunActivityEvent {
   id: string
+  runId?: string
+  threadId?: string
   kind: string
   title: string
   summary?: string

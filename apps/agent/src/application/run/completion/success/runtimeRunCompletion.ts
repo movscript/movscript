@@ -83,6 +83,7 @@ export function applyRuntimeRunCompletion(input: {
       ? {
         metadata: {
           kind: 'runtime_status',
+          promptHistory: 'exclude',
           runtimeStatus: runtimeStatus as unknown as JSONValue,
         },
       }

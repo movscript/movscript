@@ -1,14 +1,13 @@
 import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import type { Conversation } from '@/features/agent/state/agentStore'
-import type { AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
+import type { AgentThread, AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 
 type TranslationFn = (key: string, options?: Record<string, unknown>) => string
 
 export function conversationFromRuntimeThreadSummary(thread: AgentThreadSummary, t: TranslationFn): Conversation {
   const createdAt = Date.parse(thread.createdAt)
   const updatedAt = Date.parse(thread.updatedAt)
-  const runtimeTitle = thread.metadata?.frontendTitle
-  const title = typeof runtimeTitle === 'string' && runtimeTitle.trim() ? runtimeTitle.trim() : localThreadTitle(thread, t)
+  const title = runtimeThreadConversationTitle(thread, t)
   return {
     id: thread.id,
     title,
@@ -19,4 +18,9 @@ export function conversationFromRuntimeThreadSummary(thread: AgentThreadSummary,
     createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
     updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
   }
+}
+
+export function runtimeThreadConversationTitle(thread: Pick<AgentThreadSummary | AgentThread, 'id' | 'title' | 'metadata'>, t: TranslationFn) {
+  const runtimeTitle = thread.metadata?.frontendTitle
+  return typeof runtimeTitle === 'string' && runtimeTitle.trim() ? runtimeTitle.trim() : localThreadTitle(thread, t)
 }

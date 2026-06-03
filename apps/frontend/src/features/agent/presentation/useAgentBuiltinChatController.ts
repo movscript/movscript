@@ -3,12 +3,32 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AGENT_PANEL_WORKSPACE_EVENT, AGENT_PANEL_NEW_CONVERSATION_EVENT, consumeAgentPanelWorkspace, consumeAgentPanelNewConversation, type AgentPanelWorkspacePayload, type AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
 import { activateConversationForPanelWorkspace, consumeQueuedPanelWorkspaces } from '@/features/agent/application/agentPanelWorkspaceIntake'
-import { runtimeThreadSummaryFromThread, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { runtimeThreadSummaryFromThread, startSharedProvisionalConversation, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadResult } from '@/features/agent/application/agentRuntimeThreadRestore'
-import { localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { runtimeThreadConversationTitle } from '@/features/agent/presentation/agentRuntimeThreadConversation'
+import {
+  agentConversationOpenRecordsEqual,
+  mergeAgentConversationOpenState,
+  openAgentConversationIds,
+  readAgentActiveConversationId,
+  readAgentConversationOpenState,
+  removeAgentConversationOpenRecords,
+  reorderAgentConversationOpenState,
+  setAgentConversationOpen,
+  writeAgentActiveConversationId,
+  writeAgentConversationOpenState,
+  type AgentConversationOpenRecord,
+} from '@/features/agent/presentation/agentConversationOpenOrder'
 import { conversationFromRuntimeThreadSummary } from '@/features/agent/presentation/agentRuntimeThreadConversation'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  beginAgentPerformanceOperation,
+  finishAgentPerformanceOperation,
+  markAgentPerformancePhase,
+  performanceNow,
+  recordAgentPerformanceMetric,
+} from '@/features/agent/state/agentPerformanceStore'
 import { localAgentClient, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 
 export interface UseAgentBuiltinChatControllerOptions {
@@ -31,6 +51,7 @@ export function useAgentBuiltinChatController({
   const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
   const conversationRuntimes = useAgentSessionStore((s) => s.conversationRuntimes)
+  const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
   const getActiveConversationId = useAgentSessionStore((s) => s.getActiveConversationId)
   const createRuntimeConversation = useAgentSessionStore((s) => s.createRuntimeConversation)
   const removeRuntimeConversation = useAgentSessionStore((s) => s.removeRuntimeConversation)
@@ -45,6 +66,7 @@ export function useAgentBuiltinChatController({
   const clearConversationRuntimeState = useAgentSessionStore((s) => s.clearConversationRuntimeState)
   const {
     data: runtimeThreads = [],
+    isLoading: runtimeThreadsLoading,
     refetch: refetchRuntimeThreads,
   } = useQuery<AgentThreadSummary[]>({
     queryKey: ['local-agent-threads', localAgentClient.baseURL, 'builtin-chat-controller'],
@@ -62,18 +84,66 @@ export function useAgentBuiltinChatController({
       return title ? { ...conversation, title } : conversation
     })
   }, [conversationRuntimes, runtimeThreads, t])
-  const openConversations = useMemo(
+  const rawOpenConversations = useMemo(
     () => conversations.filter((conversation) => conversation.archived !== true),
     [conversations],
   )
+  const availableConversationIds = useMemo(() => rawOpenConversations.map((conversation) => conversation.id), [rawOpenConversations])
+  const [conversationOpenState, setConversationOpenState] = useState<AgentConversationOpenRecord[]>(() => readAgentConversationOpenState(userId))
+  useEffect(() => {
+    setConversationOpenState(readAgentConversationOpenState(userId))
+  }, [userId])
+  useEffect(() => {
+    if (runtimeThreadsLoading) return
+    setConversationOpenState((current) => {
+      let merged = mergeAgentConversationOpenState(current, availableConversationIds, { defaultOpen: false })
+      const activeConversationExplicitlyClosed = merged.some((record) => record.id === activeConversationId && record.open === false)
+      if (activeConversationId && availableConversationIds.includes(activeConversationId) && !activeConversationExplicitlyClosed) {
+        merged = setAgentConversationOpen(merged, [activeConversationId], true)
+      }
+      if (agentConversationOpenRecordsEqual(current, merged)) return current
+      writeAgentConversationOpenState(userId, merged)
+      return merged
+    })
+  }, [activeConversationId, availableConversationIds, runtimeThreadsLoading, userId])
+  const openConversationIds = useMemo(() => openAgentConversationIds(conversationOpenState), [conversationOpenState])
+  const openConversations = useMemo(() => {
+    const openIds = new Set(openConversationIds)
+    const orderIndex = new Map(conversationOpenState.map((record, index) => [record.id, index]))
+    const sourceIndex = new Map(rawOpenConversations.map((conversation, index) => [conversation.id, index]))
+    return rawOpenConversations.filter((conversation) => openIds.has(conversation.id)).sort((a, b) => {
+      const aOrder = orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder || (sourceIndex.get(a.id) ?? 0) - (sourceIndex.get(b.id) ?? 0)
+    })
+  }, [conversationOpenState, openConversationIds, rawOpenConversations])
   const archivedConversations = useMemo(
     () => conversations
       .filter((conversation) => conversation.archived === true)
       .sort((a, b) => b.updatedAt - a.updatedAt),
     [conversations],
   )
-  const activeConversationId = getActiveConversationId(userId)
   const activeConversation = openConversations.find((conversation) => conversation.id === activeConversationId) ?? null
+  const setActiveConversationAndPersist = useCallback((targetUserId: string, conversationId: string | null) => {
+    setActiveConversation(targetUserId, conversationId)
+    writeAgentActiveConversationId(targetUserId, conversationId)
+  }, [setActiveConversation])
+  useEffect(() => {
+    if (runtimeThreadsLoading) return
+    if (activeConversationId) {
+      if (openConversationIds.includes(activeConversationId)) {
+        writeAgentActiveConversationId(userId, activeConversationId)
+      }
+      return
+    }
+    const savedActiveConversationId = readAgentActiveConversationId(userId)
+    const restoredConversationId = savedActiveConversationId && openConversationIds.includes(savedActiveConversationId)
+      ? savedActiveConversationId
+      : openConversationIds[0] ?? null
+    if (restoredConversationId !== activeConversationId) {
+      setActiveConversationAndPersist(userId, restoredConversationId)
+    }
+  }, [activeConversationId, openConversationIds, runtimeThreadsLoading, setActiveConversationAndPersist, userId])
   const restoringThreadsRef = useRef(new Map<string, Promise<RestoreRuntimeThreadResult>>())
   const [startupStatus, setStartupStatus] = useState<AgentBuiltinChatStartupStatus>(null)
   const activeTask = useMemo(() => {
@@ -84,17 +154,52 @@ export function useAgentBuiltinChatController({
     return ordered(activeTasks).at(-1) ?? ordered(tasks).at(-1) ?? null
   }, [activeConversation?.id, pageTasks])
 
+  const threadIdForConversation = useCallback((conversationId: string) => {
+    const sessionState = useAgentSessionStore.getState()
+    return sessionState.localThreadIdsByConversation[conversationId]
+      ?? sessionState.conversationRuntimes[conversationId]?.threadId
+      ?? (conversationId.startsWith('thread_') ? conversationId : undefined)
+  }, [])
+
+  const updateConversationTitleAndPersist = useCallback((targetUserId: string, conversationId: string, title: string) => {
+    updateConversationTitle(targetUserId, conversationId, title)
+    const trimmed = title.trim()
+    const threadId = threadIdForConversation(conversationId)
+    if (!trimmed || !threadId) return
+    void localAgentClient.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
+      .then((thread) => upsertCachedLocalAgentThread(queryClient, runtimeThreadSummaryFromThread(thread)))
+      .catch((error) => {
+        console.error('[agent] failed to persist runtime conversation title', error)
+      })
+  }, [queryClient, threadIdForConversation, updateConversationTitle])
+
   const createProvisionalRuntimeConversation = useCallback(async (input: { title?: string; projectId?: number } = {}) => {
+    const operationId = beginAgentPerformanceOperation({
+      kind: 'conversation_create',
+      meta: {
+        hasTitle: Boolean(input.title?.trim()),
+        ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+      },
+    })
+    markAgentPerformancePhase(operationId, 'conversation_create_start')
     setStartupStatus('creating')
     try {
-      await localAgentClient.ensureRunning()
-      const thread = await localAgentClient.startProvisionalConversation({
+      markAgentPerformancePhase(operationId, 'provisional_thread_start')
+      const thread = await startSharedProvisionalConversation({
         ...(input.title?.trim() ? { title: input.title.trim() } : {}),
         ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+      })
+      markAgentPerformancePhase(operationId, 'provisional_thread_done', {
+        details: {
+          threadId: thread.id,
+          messageCount: thread.messages?.length ?? 0,
+          hasSessionId: Boolean(thread.sessionId),
+        },
       })
       const createdAt = Date.parse(thread.createdAt)
       const updatedAt = Date.parse(thread.updatedAt)
       const threadSummary = runtimeThreadSummaryFromThread(thread)
+      markAgentPerformancePhase(operationId, 'runtime_conversation_create_start')
       const conversationId = createRuntimeConversation(userId, {
         threadId: thread.id,
         ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
@@ -102,9 +207,19 @@ export function useAgentBuiltinChatController({
         createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
         updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
       })
+      markAgentPerformancePhase(operationId, 'runtime_conversation_create_done', {
+        details: { conversationId },
+      })
       upsertCachedLocalAgentThread(queryClient, threadSummary)
+      markAgentPerformancePhase(operationId, 'runtime_thread_cache_upserted')
       setLocalThreadId(conversationId, thread.id)
       if (thread.sessionId) setConversationSessionId(conversationId, thread.sessionId)
+      setConversationOpenState((current) => {
+        const next = setAgentConversationOpen(current, [conversationId], true)
+        writeAgentConversationOpenState(userId, next)
+        return next
+      })
+      writeAgentActiveConversationId(userId, conversationId)
       setConversationRuntime(conversationId, {
         ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
         threadId: thread.id,
@@ -113,8 +228,20 @@ export function useAgentBuiltinChatController({
         error: undefined,
       })
       setAgentPanelOpen(true)
+      markAgentPerformancePhase(operationId, 'conversation_panel_opened')
       void refetchRuntimeThreads()
+      markAgentPerformancePhase(operationId, 'runtime_threads_refetch_queued')
+      finishAgentPerformanceOperation(operationId, 'success', {
+        conversationId,
+        threadId: thread.id,
+        messageCount: thread.messages?.length ?? 0,
+      })
       return conversationId
+    } catch (error) {
+      finishAgentPerformanceOperation(operationId, 'error', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
     } finally {
       setStartupStatus(null)
       onStartupSettled?.()
@@ -130,13 +257,26 @@ export function useAgentBuiltinChatController({
   const handleRestoreLocalThread = useCallback(async (threadId: string) => {
     const normalizedThreadId = threadId.trim()
     if (!normalizedThreadId) return
+    const operationId = beginAgentPerformanceOperation({
+      kind: 'conversation_open',
+      meta: { source: 'restore_thread', threadId: normalizedThreadId },
+    })
     const pendingRestore = restoringThreadsRef.current.get(normalizedThreadId)
     if (pendingRestore) {
+      markAgentPerformancePhase(operationId, 'conversation_restore_deduped_pending')
       await pendingRestore
+      finishAgentPerformanceOperation(operationId, 'success', { threadId: normalizedThreadId, deduped: true })
       return
     }
+    markAgentPerformancePhase(operationId, 'conversation_restore_start')
     setStartupStatus('restoring')
     const sessionState = useAgentSessionStore.getState()
+    markAgentPerformancePhase(operationId, 'conversation_restore_session_state_ready', {
+      details: {
+        mappedThreadCount: Object.keys(sessionState.localThreadIdsByConversation).length,
+        runtimeConversationCount: Object.keys(sessionState.conversationRuntimes).length,
+      },
+    })
     const restorePromise = restoreRuntimeThreadConversation(normalizedThreadId, {
       userId,
       conversations,
@@ -146,12 +286,41 @@ export function useAgentBuiltinChatController({
         sessionIdsByConversation: sessionState.sessionIdsByConversation,
         conversationRuntimes: sessionState.conversationRuntimes,
       },
-      titleForThread: (thread) => localThreadTitle(thread, t),
-      loadThread: (id) => localAgentClient.getThread(id),
+      titleForThread: (thread) => runtimeThreadConversationTitle(thread, t),
+      loadThread: async (id) => {
+        markAgentPerformancePhase(operationId, 'conversation_thread_fetch_start')
+        const startedAt = performanceNow()
+        const thread = await localAgentClient.getThread(id)
+        const durationMs = Math.max(0, performanceNow() - startedAt)
+        const messageCount = thread.messages?.length ?? 0
+        const payloadBytes = jsonByteLength(thread)
+        recordAgentPerformanceMetric({
+          name: 'frontend_agent_thread_restore_duration_ms',
+          value: durationMs,
+          unit: 'ms',
+          labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread', status: 'success' },
+        })
+        recordAgentPerformanceMetric({
+          name: 'frontend_agent_thread_restore_message_count',
+          value: messageCount,
+          unit: 'count',
+          labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread', status: 'success' },
+        })
+        recordAgentPerformanceMetric({
+          name: 'frontend_agent_thread_restore_payload_bytes',
+          value: payloadBytes,
+          unit: 'bytes',
+          labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread', status: 'success' },
+        })
+        markAgentPerformancePhase(operationId, 'conversation_thread_fetch_done', {
+          details: { threadId: thread.id, messageCount, payloadBytes, durationMs },
+        })
+        return thread
+      },
       createRuntimeConversation,
-      setActiveConversation,
+      setActiveConversation: setActiveConversationAndPersist,
       unarchiveConversation: () => undefined,
-      updateConversationTitle,
+      updateConversationTitle: updateConversationTitleAndPersist,
       setLocalThreadId,
       setConversationSessionId,
       setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
@@ -165,31 +334,47 @@ export function useAgentBuiltinChatController({
       onStartupSettled?.()
     })
     restoringThreadsRef.current.set(normalizedThreadId, restorePromise)
-    const result = await restorePromise
-    void refetchRuntimeThreads()
-    archiveDuplicateRuntimeConversations(userId, result.conversationId, result.threadId)
+    try {
+      const result = await restorePromise
+      markAgentPerformancePhase(operationId, 'conversation_restore_resolved', {
+        details: {
+          conversationId: result.conversationId,
+          threadId: result.threadId,
+          reusedExistingConversation: result.reusedExistingConversation,
+          restoredMessageCount: result.restoredMessageCount,
+        },
+      })
+      void refetchRuntimeThreads()
+      markAgentPerformancePhase(operationId, 'runtime_threads_refetch_queued')
+      archiveDuplicateRuntimeConversations(userId, result.conversationId, result.threadId)
+      finishAgentPerformanceOperation(operationId, 'success', {
+        conversationId: result.conversationId,
+        threadId: result.threadId,
+        reusedExistingConversation: result.reusedExistingConversation,
+        restoredMessageCount: result.restoredMessageCount,
+      })
+    } catch (error) {
+      finishAgentPerformanceOperation(operationId, 'error', {
+        threadId: normalizedThreadId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
   }, [
     conversations,
     createRuntimeConversation,
     onStartupSettled,
     refetchRuntimeThreads,
-    setActiveConversation,
+    setActiveConversationAndPersist,
     setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
     setConversationSessionId,
     setLocalThreadId,
     t,
-    updateConversationTitle,
+    updateConversationTitleAndPersist,
     userId,
     runtimeThreads,
   ])
-
-  const threadIdForConversation = useCallback((conversationId: string) => {
-    const sessionState = useAgentSessionStore.getState()
-    return sessionState.localThreadIdsByConversation[conversationId]
-      ?? sessionState.conversationRuntimes[conversationId]?.threadId
-      ?? (conversationId.startsWith('thread_') ? conversationId : undefined)
-  }, [])
 
   const getActiveRuntimeConversationId = useCallback((targetUserId: string) => {
     const activeId = getActiveConversationId(targetUserId)
@@ -225,19 +410,37 @@ export function useAgentBuiltinChatController({
   const patchConversationArchiveState = useCallback(async (conversationId: string, archived: boolean) => {
     const runtimeThreadId = threadIdForConversation(conversationId)
     if (!runtimeThreadId) {
-      if (archived) setActiveConversation(userId, null)
+      if (archived) {
+        setConversationOpenState((current) => {
+          const next = setAgentConversationOpen(current, [conversationId], false)
+          writeAgentConversationOpenState(userId, next)
+          return next
+        })
+        setActiveConversationAndPersist(userId, null)
+      }
       return
     }
-    patchCachedRuntimeThreads([runtimeThreadId], { archived })
     if (archived) {
+      setConversationOpenState((current) => {
+        const next = setAgentConversationOpen(current, [conversationId], false)
+        writeAgentConversationOpenState(userId, next)
+        return next
+      })
       const nextActiveConversationId = activeConversationAfterArchive(new Set([conversationId]))
-      setActiveConversation(userId, nextActiveConversationId)
+      setActiveConversationAndPersist(userId, nextActiveConversationId)
       if (!nextActiveConversationId) setAgentPanelOpen(false)
+      return
     }
+    setConversationOpenState((current) => {
+      const next = setAgentConversationOpen(current, [conversationId], true)
+      writeAgentConversationOpenState(userId, next)
+      return next
+    })
+    patchCachedRuntimeThreads([runtimeThreadId], { archived })
     await localAgentClient.updateThread(runtimeThreadId, { archived })
+    if (!archived) setActiveConversationAndPersist(userId, conversationId)
     void refetchRuntimeThreads()
-    if (!archived) setActiveConversation(userId, conversationId)
-  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, refetchRuntimeThreads, setActiveConversation, setAgentPanelOpen, threadIdForConversation, userId])
+  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, setActiveConversationAndPersist, setAgentPanelOpen, threadIdForConversation, userId])
 
   const handleArchiveConversation = useCallback((id: string) => {
     void patchConversationArchiveState(id, true).catch((error) => {
@@ -248,23 +451,19 @@ export function useAgentBuiltinChatController({
 
   const handleArchiveConversations = useCallback((ids: string[]) => {
     void (async () => {
-      const runtimeIds: string[] = []
-      for (const id of ids) {
-        const runtimeThreadId = threadIdForConversation(id)
-        if (runtimeThreadId) runtimeIds.push(runtimeThreadId)
-      }
-      patchCachedRuntimeThreads(runtimeIds, { archived: true })
+      setConversationOpenState((current) => {
+        const next = setAgentConversationOpen(current, ids, false)
+        writeAgentConversationOpenState(userId, next)
+        return next
+      })
       const archivedIdSet = new Set(ids)
       const nextActiveConversationId = activeConversationAfterArchive(archivedIdSet)
-      setActiveConversation(userId, nextActiveConversationId)
+      setActiveConversationAndPersist(userId, nextActiveConversationId)
       if (!nextActiveConversationId) setAgentPanelOpen(false)
-      await Promise.all(runtimeIds.map((threadId) => localAgentClient.updateThread(threadId, { archived: true })))
-      if (runtimeIds.length > 0) void refetchRuntimeThreads()
     })().catch((error) => {
-      void refetchRuntimeThreads()
       console.error('[agent] failed to archive runtime conversations', error)
     })
-  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, refetchRuntimeThreads, setActiveConversation, setAgentPanelOpen, threadIdForConversation, userId])
+  }, [activeConversationAfterArchive, setActiveConversationAndPersist, setAgentPanelOpen, userId])
 
   const cleanupDeletedRuntimeConversations = useCallback((conversationId: string, deletedThreadIds: Iterable<string>) => {
     const deletedThreadIdSet = new Set(deletedThreadIds)
@@ -280,6 +479,11 @@ export function useAgentBuiltinChatController({
       removeRuntimeConversation(userId, id)
       clearConversationRuntimeState(id)
     }
+    setConversationOpenState((current) => {
+      const next = removeAgentConversationOpenRecords(current, idsToRemove)
+      writeAgentConversationOpenState(userId, next)
+      return next
+    })
   }, [clearConversationRuntimeState, removeRuntimeConversation, userId])
 
   const handleDeleteConversation = useCallback((id: string) => {
@@ -299,13 +503,45 @@ export function useAgentBuiltinChatController({
   }, [cleanupDeletedRuntimeConversations, clearConversationRuntimeState, refetchRuntimeThreads, removeRuntimeConversation, threadIdForConversation, userId])
 
   const handleSelectConversation = useCallback((id: string) => {
+    const operationId = beginAgentPerformanceOperation({
+      kind: 'conversation_open',
+      conversationId: id,
+      meta: { source: 'select_conversation' },
+    })
     void (async () => {
-      await patchConversationArchiveState(id, false)
-      setActiveConversation(userId, id)
+      try {
+        markAgentPerformancePhase(operationId, 'conversation_select_start')
+        markAgentPerformancePhase(operationId, 'conversation_archive_patch_start')
+        await patchConversationArchiveState(id, false)
+        markAgentPerformancePhase(operationId, 'conversation_archive_patch_done')
+        setConversationOpenState((current) => {
+          const next = setAgentConversationOpen(current, [id], true)
+          writeAgentConversationOpenState(userId, next)
+          return next
+        })
+        setActiveConversationAndPersist(userId, id)
+        markAgentPerformancePhase(operationId, 'conversation_active_set')
+        finishAgentPerformanceOperation(operationId, 'success', { conversationId: id })
+      } catch (error) {
+        finishAgentPerformanceOperation(operationId, 'error', {
+          conversationId: id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
     })().catch((error) => {
       console.error('[agent] failed to restore runtime conversation', error)
     })
-  }, [patchConversationArchiveState, setActiveConversation, userId])
+  }, [patchConversationArchiveState, setActiveConversationAndPersist, userId])
+
+  const handleReorderConversation = useCallback((draggedId: string, targetId: string, position: 'before' | 'after') => {
+    setConversationOpenState((current) => {
+      const merged = mergeAgentConversationOpenState(current, availableConversationIds)
+      const reordered = reorderAgentConversationOpenState(merged, draggedId, targetId, position)
+      writeAgentConversationOpenState(userId, reordered)
+      return reordered
+    })
+  }, [availableConversationIds, userId])
 
   useEffect(() => {
     if (!pendingThreadIdToOpen?.trim()) return
@@ -317,8 +553,8 @@ export function useAgentBuiltinChatController({
       userId,
       createConversationForWorkspace: createConversationForPanelWorkspace,
       getActiveConversationId: getActiveRuntimeConversationId,
-      setActiveConversation,
-      updateConversationTitle,
+      setActiveConversation: setActiveConversationAndPersist,
+      updateConversationTitle: updateConversationTitleAndPersist,
       attachPageTaskConversation,
     })
       .then((conversationIds) => {
@@ -327,7 +563,7 @@ export function useAgentBuiltinChatController({
       .catch((error) => {
         console.error('[agent] failed to consume queued panel workspaces', error)
       })
-  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversation, updateConversationTitle, userId])
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversationAndPersist, updateConversationTitleAndPersist, userId])
 
   useEffect(() => {
     function handleWorkspace(event: Event) {
@@ -336,8 +572,8 @@ export function useAgentBuiltinChatController({
         userId,
         createConversationForWorkspace: createConversationForPanelWorkspace,
         getActiveConversationId: getActiveRuntimeConversationId,
-        setActiveConversation,
-        updateConversationTitle,
+        setActiveConversation: setActiveConversationAndPersist,
+        updateConversationTitle: updateConversationTitleAndPersist,
         attachPageTaskConversation,
       })
         .catch((error) => {
@@ -348,7 +584,7 @@ export function useAgentBuiltinChatController({
 
     window.addEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
     return () => window.removeEventListener(AGENT_PANEL_WORKSPACE_EVENT, handleWorkspace)
-  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversation, updateConversationTitle, userId])
+  }, [attachPageTaskConversation, createConversationForPanelWorkspace, getActiveRuntimeConversationId, onStartupSettled, setActiveConversationAndPersist, updateConversationTitleAndPersist, userId])
 
   useEffect(() => {
     function createFromPayload(payload: AgentPanelNewConversationPayload | undefined) {
@@ -379,12 +615,12 @@ export function useAgentBuiltinChatController({
     archivedConversations,
     conversations: openConversations,
     startupStatus,
-    clearActiveConversation: () => setActiveConversation(userId, null),
+    clearActiveConversation: () => setActiveConversationAndPersist(userId, null),
     archiveConversation: handleArchiveConversation,
     archiveConversations: handleArchiveConversations,
     deleteConversation: handleDeleteConversation,
     newConversation: handleNewConversation,
-    reorderConversation: () => undefined,
+    reorderConversation: handleReorderConversation,
     restoreLocalThread: handleRestoreLocalThread,
     selectConversation: handleSelectConversation,
   }
@@ -394,4 +630,10 @@ function archiveDuplicateRuntimeConversations(userId: string, keepConversationId
   void userId
   void keepConversationId
   void threadId
+}
+
+function jsonByteLength(value: unknown): number {
+  const json = JSON.stringify(value)
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(json).byteLength
+  return json.length
 }

@@ -1,6 +1,16 @@
 import type { AgentTelemetryMetricUnit } from '@movscript/protocol'
 
-export type AgentPerformanceOperationKind = 'send' | 'send_preview_confirm' | 'approval' | 'rejection' | 'input_answer' | 'runtime_input' | 'external_task'
+export type AgentPerformanceOperationKind =
+  | 'send'
+  | 'send_preview_confirm'
+  | 'approval'
+  | 'rejection'
+  | 'input_answer'
+  | 'runtime_input'
+  | 'external_task'
+  | 'conversation_create'
+  | 'conversation_open'
+  | 'message_history_load'
 export type AgentPerformanceOperationStatus = 'running' | 'success' | 'error' | 'cancelled'
 export type AgentPerformanceLogLevel = 'info' | 'warning' | 'error'
 
@@ -79,6 +89,9 @@ const SLOW_OPERATION_THRESHOLDS_MS: Record<AgentPerformanceOperationKind, number
   input_answer: 600,
   runtime_input: 600,
   external_task: 1_000,
+  conversation_create: 800,
+  conversation_open: 800,
+  message_history_load: 600,
 }
 
 let observerInstalled = false
@@ -527,6 +540,9 @@ export function operationKindLabel(kind: AgentPerformanceOperationKind): string 
     case 'input_answer': return '输入回答'
     case 'runtime_input': return '运行时输入'
     case 'external_task': return '外部任务'
+    case 'conversation_create': return '新建会话'
+    case 'conversation_open': return '打开会话'
+    case 'message_history_load': return '读取历史消息'
     default: return kind
   }
 }
@@ -589,6 +605,28 @@ export function phaseLabel(name: string): string {
     followup_stream_done: 'Follow-up Run 完成',
     final_thread_loaded: '最终 Thread 已读取',
     assistant_result_appended: '助手结果已写入',
+    conversation_create_start: '新建会话开始',
+    provisional_thread_start: '创建临时 Thread 开始',
+    provisional_thread_done: '创建临时 Thread 完成',
+    runtime_conversation_create_start: '创建前端会话状态开始',
+    runtime_conversation_create_done: '创建前端会话状态完成',
+    runtime_thread_cache_upserted: 'Thread 缓存已更新',
+    conversation_panel_opened: '会话面板已打开',
+    runtime_threads_refetch_queued: 'Thread 列表刷新已排队',
+    conversation_restore_start: '恢复会话开始',
+    conversation_restore_deduped_pending: '复用进行中的恢复',
+    conversation_restore_session_state_ready: '会话映射状态已读取',
+    conversation_thread_fetch_start: 'Thread 读取开始',
+    conversation_thread_fetch_done: 'Thread 读取完成',
+    conversation_restore_resolved: '恢复结果已解析',
+    conversation_select_start: '选择会话开始',
+    conversation_archive_patch_start: '归档状态更新开始',
+    conversation_archive_patch_done: '归档状态更新完成',
+    conversation_active_set: '活动会话已切换',
+    message_history_request_start: '历史消息请求开始',
+    message_history_request_done: '历史消息请求完成',
+    message_history_state_replace_queued: '历史消息替换已排队',
+    message_history_state_merge_queued: '历史消息合并已排队',
   }
   return labels[name] ?? name.replace(/_/g, ' ')
 }

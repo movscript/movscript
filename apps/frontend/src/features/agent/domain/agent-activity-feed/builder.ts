@@ -20,6 +20,7 @@ export function buildAgentActivityFeed(input: {
   activity?: ChatRunActivity
   run?: AgentRun | null
   events?: ChatRunActivityEvent[]
+  hiddenActionItemIds?: Set<string>
 }): AgentActivityFeed | undefined {
   const snapshot = buildRunActivitySnapshot(input)
   if (!snapshot) return undefined
@@ -27,7 +28,10 @@ export function buildAgentActivityFeed(input: {
   const timeline = buildAgentRunTimeline(activity)
 
   const itemIndex = buildActivityItemIndex(activity)
-  const rounds = buildTimelineActivityRounds(timeline, snapshot.rounds, itemIndex)
+  const rounds = filterHiddenActionItems(
+    buildTimelineActivityRounds(timeline, snapshot.rounds, itemIndex),
+    input.hiddenActionItemIds,
+  )
   const items = rounds.flatMap((round) => round.items)
 
   return {
@@ -39,6 +43,16 @@ export function buildAgentActivityFeed(input: {
     totals: snapshot.totals,
     activity,
   }
+}
+
+function filterHiddenActionItems(rounds: AgentActivityRound[], hiddenActionItemIds: Set<string> | undefined): AgentActivityRound[] {
+  if (!hiddenActionItemIds || hiddenActionItemIds.size === 0) return rounds
+  return rounds
+    .map((round) => ({
+      ...round,
+      items: round.items.filter((item) => !hiddenActionItemIds.has(item.id)),
+    }))
+    .filter((round) => round.items.length > 0 || round.status === 'failed')
 }
 
 interface ActivityItemIndex {

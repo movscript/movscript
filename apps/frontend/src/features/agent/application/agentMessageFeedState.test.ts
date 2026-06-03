@@ -4,6 +4,7 @@ import {
   EMPTY_AGENT_MESSAGE_FEED_STATE,
   applyMessageFeedEvent,
   mergeMessageFeedPage,
+  mergeMessageFeedResetPage,
   replaceMessageFeedPage,
 } from '@/features/agent/application/agentMessageFeedState'
 import type { AgentFeedMessage, AgentFeedMessagePage } from '@/shared/infrastructure/localAgentClient'
@@ -48,6 +49,82 @@ test('message feed state applies created and updated events as upserts', () => {
 
   assert.deepEqual(updated.messages.map((item) => `${item.id}:${item.content}:${item.revision}`), ['assistant:run_1:Hello:2'])
   assert.equal(updated.lastRevision, 2)
+})
+
+test('message feed state reset reload drops pre-reset stale messages even when their revisions are newer than the snapshot', () => {
+  const current = {
+    ...replaceMessageFeedPage(page([
+      message({ id: 'message:old_run', cursor: '1:message%3Aold_run', content: 'Old run', revision: 1 }),
+      message({ id: 'assistant:run_live', cursor: '5:assistant%3Arun_live', content: 'Live stream', revision: 5 }),
+    ], { snapshotRevision: 1 })),
+    needsReset: true,
+    lastRevision: 5,
+    postResetMessageIds: [],
+  }
+
+  const merged = mergeMessageFeedResetPage(current, page([
+    message({ id: 'message:final', cursor: '3:message%3Afinal', content: 'Final', revision: 3 }),
+  ], { snapshotRevision: 4 }))
+
+  assert.deepEqual(merged.messages.map((item) => item.id), [
+    'message:final',
+  ])
+  assert.equal(merged.needsReset, false)
+  assert.deepEqual(merged.postResetMessageIds, [])
+  assert.equal(merged.snapshotRevision, 4)
+  assert.equal(merged.lastRevision, 5)
+})
+
+test('message feed state reset reload keeps only streams that arrived after reset was requested', () => {
+  const current = replaceMessageFeedPage(page([
+    message({ id: 'message:old_run', cursor: '1:message%3Aold_run', content: 'Old run', revision: 1 }),
+  ], { snapshotRevision: 1 }))
+  const reset = applyMessageFeedEvent(current, {
+    type: 'messages.reset_required',
+    revision: 2,
+    reason: 'gap',
+  })
+  const concurrent = applyMessageFeedEvent(reset, {
+    type: 'message.updated',
+    revision: 5,
+    message: message({ id: 'assistant:run_live', cursor: '5:assistant%3Arun_live', content: 'Live stream', revision: 5 }),
+  })
+  const merged = mergeMessageFeedResetPage(concurrent, page([
+    message({ id: 'message:final', cursor: '3:message%3Afinal', content: 'Final', revision: 3 }),
+  ], { snapshotRevision: 4 }))
+
+  assert.equal(concurrent.needsReset, true)
+  assert.deepEqual(concurrent.postResetMessageIds, ['assistant:run_live'])
+  assert.deepEqual(merged.messages.map((item) => item.id), [
+    'message:final',
+    'assistant:run_live',
+  ])
+  assert.equal(merged.needsReset, false)
+  assert.deepEqual(merged.postResetMessageIds, [])
+  assert.equal(merged.lastRevision, 5)
+})
+
+test('message feed state sorts timestamp cursors numerically', () => {
+  const state = replaceMessageFeedPage(page([
+    message({ id: 'message:old', cursor: '999:message%3Aold', content: 'Old', revision: 1 }),
+    message({ id: 'message:new', cursor: '1000:message%3Anew', content: 'New', revision: 2 }),
+  ], { snapshotRevision: 2 }))
+
+  assert.deepEqual(state.messages.map((item) => item.id), ['message:old', 'message:new'])
+})
+
+test('message feed state honors semantic cursor ranks for same-timestamp feed messages', () => {
+  const state = replaceMessageFeedPage(page([
+    message({ id: 'assistant:run_1', cursor: '1000:30:assistant%3Arun_1', content: 'Final', revision: 3 }),
+    message({ id: 'message:msg_status', cursor: '1000:20:message%3Amsg_status', content: 'Status', revision: 2 }),
+    message({ id: 'message:msg_user', role: 'user', cursor: '1000:10:message%3Amsg_user', content: 'User', revision: 1 }),
+  ], { snapshotRevision: 3 }))
+
+  assert.deepEqual(state.messages.map((item) => item.id), [
+    'message:msg_user',
+    'message:msg_status',
+    'assistant:run_1',
+  ])
 })
 
 test('message feed state ignores stale updates and records reset requests', () => {

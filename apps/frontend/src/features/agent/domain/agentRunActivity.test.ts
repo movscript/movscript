@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunRuntimeTraceEvent } from '@/features/agent/domain/agentRunActivity'
+import { AGENT_PROTOCOL_VERSION, AGENT_RUNTIME_EVENT_V2_SCHEMA } from '@movscript/protocol'
 import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
@@ -64,6 +65,35 @@ test('compactRunActivity preserves top-level step and trace durations', () => {
 
   assert.equal(activity.steps[0]?.durationMs, 1250)
   assert.equal(activity.events[0]?.durationMs, 1250)
+  assert.equal(activity.events[0]?.runId, 'run_1')
+})
+
+test('projectLiveRunRuntimeTraceEvent preserves run and thread scope', () => {
+  const projected = projectLiveRunRuntimeTraceEvent({
+    schema: AGENT_RUNTIME_EVENT_V2_SCHEMA,
+    protocolVersion: AGENT_PROTOCOL_VERSION,
+    id: 'event_1',
+    scope: { type: 'thread', id: 'thread_1' },
+    ordinal: 1,
+    cursor: 'cursor_1',
+    emittedAt: '2026-05-19T00:00:00.000Z',
+    kind: 'trace.upserted',
+    causality: { threadId: 'thread_1', runId: 'run_1', traceId: 'trace_1' },
+    entity: {
+      type: 'trace',
+      value: {
+        id: 'trace_1',
+        runId: 'run_1',
+        kind: 'tool_call',
+        title: 'Tool',
+        status: 'started',
+        createdAt: '2026-05-19T00:00:00.000Z',
+      },
+    },
+  })
+
+  assert.equal(projected?.activityEvent.runId, 'run_1')
+  assert.equal(projected?.activityEvent.threadId, 'thread_1')
 })
 
 test('compactRunActivity preserves approval and input request state', () => {
@@ -135,6 +165,37 @@ test('projectLiveRunRuntimeTraceEvent maps visible trace events and pending assi
     status: 'calling_tool',
     toolName: 'movscript_read_context',
   })
+})
+
+test('projectLiveRunRuntimeTraceEvent preserves generation completion trace data for pinned status', () => {
+  const event = runtimeTraceEvent({
+    id: 'trace_generation_done',
+    runId: 'run_background',
+    kind: 'tool_call',
+    title: 'Runtime work observed: generation_job',
+    status: 'completed',
+    toolName: 'core_work_wait',
+    createdAt: '2026-05-17T00:00:00.000Z',
+    completedAt: '2026-05-17T00:00:01.000Z',
+    data: {
+      runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'completed' },
+      generation: {
+        jobId: 42,
+        status: 'finished',
+        stage: 'completed',
+        progress: 100,
+        terminal: true,
+        outputResourceId: 420,
+      },
+    },
+  })
+
+  const projected = projectLiveRunRuntimeTraceEvent(event)
+
+  assert.equal(projected?.activityEvent.runId, 'run_background')
+  assert.equal(projected?.activityEvent.status, 'completed')
+  assert.equal((projected?.activityEvent.data as { generation?: { terminal?: boolean; outputResourceId?: number } } | undefined)?.generation?.terminal, true)
+  assert.equal((projected?.activityEvent.data as { generation?: { terminal?: boolean; outputResourceId?: number } } | undefined)?.generation?.outputResourceId, 420)
 })
 
 test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model tool-call deltas', () => {

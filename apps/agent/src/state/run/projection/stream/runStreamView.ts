@@ -1,3 +1,4 @@
+import { isAgentVisibleAssistantMessage } from '@movscript/protocol'
 import { isRecord } from '../../../../shared/json/jsonValue.js'
 import type { AgentMessage, AgentRun, AgentInternalRunSignal, AgentInternalRunSignalRun, AgentThread, AgentTraceEvent } from '../../../shared/types.js'
 
@@ -24,16 +25,24 @@ export function assistantMessageFromTraceEvent(thread: AgentThread | undefined, 
   const data = isRecord(event.data) ? event.data : undefined
   const messageId = typeof data?.messageId === 'string' ? data.messageId : undefined
   if (!messageId) return undefined
-  return thread.messages.find((message) => message.id === messageId && message.role === 'assistant')
+  return thread.messages.find(isVisibleAssistantMessageForId(messageId))
 }
 
 export function assistantMessageForRun(thread: AgentThread | undefined, run: AgentRun): AgentMessage | undefined {
   if (!thread) return undefined
   if (run.assistantMessageId) {
-    const message = thread.messages.find((item) => item.id === run.assistantMessageId && item.role === 'assistant')
+    const message = thread.messages.find(isVisibleAssistantMessageForId(run.assistantMessageId))
     if (message) return message
   }
-  return [...thread.messages].reverse().find((message) => message.role === 'assistant' && message.runId === run.id)
+  return [...thread.messages].reverse().find((message) => isVisibleAssistantMessage(message) && message.runId === run.id)
+}
+
+function isVisibleAssistantMessageForId(messageId: string): (message: AgentMessage) => boolean {
+  return (message) => message.id === messageId && isVisibleAssistantMessage(message)
+}
+
+function isVisibleAssistantMessage(message: AgentMessage): boolean {
+  return isAgentVisibleAssistantMessage(message)
 }
 
 export function toStreamRun(run: AgentRun): AgentInternalRunSignalRun {

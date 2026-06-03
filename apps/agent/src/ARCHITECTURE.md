@@ -137,6 +137,23 @@ The agent runtime separates three concepts that are easy to conflate:
 - `trace/` owns compact observability projections. Trace data records what happened and how to find supporting evidence; it must not become the default storage location for large payloads.
 - `messages/` owns user/model/tool communication shapes. Messages may be rendered into prompts or thread history, but trace records should reference message ids and content hashes rather than duplicate message content.
 
+Conversation state has four separate projections and new code must keep their boundaries explicit:
+
+- Transcript messages are durable natural-language conversation turns in `thread.messages`. They are the only message records eligible for routine prompt history. User text and final assistant answers belong here; tool-call bodies, tool results, reasoning streams, activity cards, approvals, and async-work status payloads do not. If a UI-only assistant record must be stored as a message anchor, its metadata must set `promptHistory: "exclude"` and the prompt hygiene layer must drop it before compaction.
+- Run activity is operational state for one run. Tool calls/results, model rounds, reasoning, approvals, input requests, async-work lifecycle events, and debug traces belong to `AgentRun.steps`, `AgentRun.traceEvents`, pending interaction records, debug evidence, or tool-result storage. They are UI/debug material, not transcript history.
+- Message feed is the UI projection. Server protocol code may attach compact run activity to an `AgentFeedMessage` as a display anchor, but that attachment does not make the activity part of the transcript or model context.
+- Message feed activity is a compact display summary. It must not carry raw tool args, tool results, approval args/previews, model request/response bodies, or arbitrary trace `data`; keep those behind debug/evidence APIs. The narrow exception is whitelisted generation progress metadata needed by the pinned generation status.
+- Model context is built from prompt-safe transcript history, current-run tool-loop history, thread summaries, context ledger refs, runtime state, and the current user input. Old run tool results can re-enter a later prompt only through explicit refs/summaries/context records, never by leaking UI activity or status messages through `thread.messages`.
+
+Assistant metadata boundaries are centralized in `@movscript/protocol`:
+
+- UI-only assistant anchors are display/control records such as runtime status, runtime activity, plan revision display records, diagnostics, and explicit `promptHistory: "exclude"` anchors. They must not terminate a streaming final assistant response.
+- UI-only assistant anchors may remain in raw message/feed state so pinned status, plan state, and diagnostics can read their metadata, but thread item builders must filter them from the chat timeline.
+- Prompt-excluded assistant metadata includes UI-only anchors plus local run activity snapshots. This broader boundary is used before prompt compaction so operational payloads cannot return through model history.
+- Frontend feed messages may carry `localRunActivity` as a compact process snapshot alongside a real final assistant answer. That snapshot is not enough by itself to classify the assistant answer as UI-only.
+
+Prompt history must pass through `context/prompt/hygiene/promptHygiene.ts`. Prompt-excluded assistant messages are filtered before compaction so their content cannot return through a summary. New UI-only message kinds should prefer the explicit `promptHistory: "exclude"` metadata over implicit filtering by kind.
+
 The default data shape for cross-domain links is a ref:
 
 - Context links use `contextBundleId`, `contextBundleRef`, and context ref keys.

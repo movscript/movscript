@@ -55,6 +55,32 @@ test('formatLocalAgentAssistantContent falls back to current run assistant by ru
   )
 })
 
+test('formatLocalAgentAssistantContent skips UI-only assistant anchors', () => {
+  const status = makeMessage({
+    id: 'msg_status',
+    role: 'assistant',
+    content: '任务正在后台运行。',
+    runId: 'run_current',
+    metadata: {
+      kind: 'runtime_status',
+      promptHistory: 'exclude',
+      runtimeStatus: { kind: 'async_work_handoff', title: '异步任务已提交', detail: '任务正在后台运行。' },
+    },
+  })
+  const currentAssistant = makeMessage({
+    id: 'msg_current_assistant',
+    role: 'assistant',
+    content: 'current run result',
+    runId: 'run_current',
+  })
+  const currentRun = makeRun({ id: 'run_current', status: 'completed', assistantMessageId: 'msg_status' })
+
+  assert.equal(
+    formatLocalAgentAssistantContent(currentRun, makeThread({ messages: [status, currentAssistant] })),
+    currentAssistant.content,
+  )
+})
+
 const NOW = '2026-05-18T00:00:00.000Z'
 
 function makeRun(input: Partial<AgentRun> & { id: string; status: AgentRun['status'] }): AgentRun {
@@ -85,13 +111,14 @@ function makeThread(input: { messages: AgentMessage[] }): AgentThread {
   }
 }
 
-function makeMessage(input: Pick<AgentMessage, 'id' | 'role' | 'content'> & { runId?: string }): AgentMessage {
+function makeMessage(input: Pick<AgentMessage, 'id' | 'role' | 'content'> & Partial<Pick<AgentMessage, 'metadata' | 'runId'>>): AgentMessage {
   return {
     id: input.id,
     threadId: 'thread_1',
     role: input.role,
     content: input.content,
     ...(input.runId ? { runId: input.runId } : {}),
+    ...(input.metadata ? { metadata: input.metadata } : {}),
     createdAt: NOW,
   }
 }

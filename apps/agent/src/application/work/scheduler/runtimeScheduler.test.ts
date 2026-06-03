@@ -43,6 +43,111 @@ test('RuntimeScheduler creates and readies work continuations', () => {
   assert.deepEqual(ready?.nextInput?.workResults, ['work_1'])
 })
 
+test('RuntimeScheduler creates one continuation per grouped any_completed work', () => {
+  const store = new InMemoryAgentStore()
+  const now = '2026-05-21T00:00:00.000Z'
+  const scheduler = new RuntimeScheduler({
+    store,
+    now: () => now,
+    runControl: {
+      approveRun: () => {
+        throw new Error('approval is not part of this scenario')
+      },
+      rejectRun: () => {
+        throw new Error('rejection is not part of this scenario')
+      },
+    },
+  })
+  const first = makeWork({
+    id: 'work_1',
+    status: 'waiting',
+    continuationPolicy: { mode: 'any_completed', groupId: 'batch_1' },
+  })
+  const second = makeWork({
+    id: 'work_2',
+    status: 'waiting',
+    continuationPolicy: { mode: 'any_completed', groupId: 'batch_1' },
+  })
+  store.createRuntimeWork(first)
+  store.createRuntimeWork(second)
+
+  scheduler.dispatch({ type: 'work.started', work: first })
+  scheduler.dispatch({ type: 'work.started', work: second })
+
+  assert.deepEqual(store.listRuntimeContinuations({ runId: 'run_1' }).map((item) => item.id).sort(), [
+    'continuation_batch_1_work_1',
+    'continuation_batch_1_work_2',
+  ])
+
+  const completedFirst = { ...first, status: 'completed' as const, result: { assetId: 'asset_1' }, completedAt: now, updatedAt: now }
+  store.updateRuntimeWork(completedFirst)
+  scheduler.dispatch({ type: 'work.observed', work: completedFirst })
+
+  assert.equal(store.getRuntimeContinuation('continuation_batch_1_work_1')?.status, 'ready')
+  assert.equal(store.getRuntimeContinuation('continuation_batch_1_work_2')?.status, 'waiting')
+
+  store.updateRuntimeContinuation({
+    ...store.getRuntimeContinuation('continuation_batch_1_work_1')!,
+    status: 'consumed',
+    consumedAt: now,
+    updatedAt: now,
+  })
+  const completedSecond = { ...second, status: 'completed' as const, result: { assetId: 'asset_2' }, completedAt: now, updatedAt: now }
+  store.updateRuntimeWork(completedSecond)
+  scheduler.dispatch({ type: 'work.observed', work: completedSecond })
+
+  assert.equal(store.getRuntimeContinuation('continuation_batch_1_work_1')?.status, 'consumed')
+  assert.equal(store.getRuntimeContinuation('continuation_batch_1_work_2')?.status, 'ready')
+  assert.deepEqual(store.getRuntimeContinuation('continuation_batch_1_work_2')?.nextInput?.workResults, ['work_2'])
+})
+
+test('RuntimeScheduler keeps all_completed waiting when grouped work fails', () => {
+  const store = new InMemoryAgentStore()
+  const now = '2026-05-21T00:00:00.000Z'
+  const scheduler = new RuntimeScheduler({
+    store,
+    now: () => now,
+    runControl: {
+      approveRun: () => {
+        throw new Error('approval is not part of this scenario')
+      },
+      rejectRun: () => {
+        throw new Error('rejection is not part of this scenario')
+      },
+    },
+  })
+  const first = makeWork({
+    id: 'work_1',
+    status: 'waiting',
+    continuationPolicy: { mode: 'all_completed', groupId: 'batch_all' },
+  })
+  const second = makeWork({
+    id: 'work_2',
+    status: 'waiting',
+    continuationPolicy: { mode: 'all_completed', groupId: 'batch_all' },
+  })
+  store.createRuntimeWork(first)
+  store.createRuntimeWork(second)
+
+  scheduler.dispatch({ type: 'work.started', work: first })
+  scheduler.dispatch({ type: 'work.started', work: second })
+
+  const failedFirst = { ...first, status: 'failed' as const, error: 'backend failed', completedAt: now, updatedAt: now }
+  const completedSecond = { ...second, status: 'completed' as const, result: { assetId: 'asset_2' }, completedAt: now, updatedAt: now }
+  store.updateRuntimeWork(failedFirst)
+  store.updateRuntimeWork(completedSecond)
+  scheduler.dispatch({ type: 'work.observed', work: failedFirst })
+  scheduler.dispatch({ type: 'work.observed', work: completedSecond })
+
+  const continuation = store.getRuntimeContinuation('continuation_batch_all')
+  assert.equal(continuation?.status, 'waiting')
+  assert.deepEqual(continuation?.trigger, {
+    type: 'work_completed',
+    workIds: ['work_1', 'work_2'],
+    mode: 'all',
+  })
+})
+
 test('RuntimeScheduler advances ready continuations when thread is unblocked', () => {
   const store = new InMemoryAgentStore()
   const now = '2026-05-21T00:00:00.000Z'

@@ -89,6 +89,31 @@ test('run interaction echo helpers hide user answer echoes restored from run act
   assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), true)
 })
 
+test('run interaction echo helpers ignore UI-only activity anchors', () => {
+  const message: ChatMessage = {
+    id: 'msg_echo',
+    role: 'user',
+    content: '回答：选择方向\n选择：A',
+    timestamp: 1,
+  }
+  const messages: ChatMessage[] = [{
+    ...messageWithAnsweredInput(),
+    id: 'assistant_ui_only_anchor',
+    meta: {
+      ...messageWithAnsweredInput().meta,
+      runtimeStatus: {
+        kind: 'async_work_handoff',
+        title: '异步任务已提交',
+        detail: '任务正在后台运行。',
+      },
+    },
+  }]
+
+  const echoes = runInteractionAnswerEchoesForMessages(messages, [])
+
+  assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), false)
+})
+
 test('run interaction echo helpers hide accepted runtime input answer echoes', () => {
   const message: ChatMessage = {
     id: 'msg_echo',

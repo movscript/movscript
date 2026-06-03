@@ -187,7 +187,7 @@ export class RuntimeScheduler {
     const ready = continuation.trigger.mode === 'any'
       ? works.some((work) => work.status === 'completed')
       : works.length === continuation.trigger.workIds.length
-        && works.every((work) => work.status === 'completed' || isTerminalRuntimeWorkStatus(work.status))
+        && allContinuationWorksReady(works)
     if (!ready) return []
     const now = this.input.now()
     const next: RuntimeContinuation = {
@@ -224,7 +224,15 @@ function continuationBackendAuth(auth: RunBackendAuth | undefined): Pick<CreateR
 
 function continuationIdForWork(work: RuntimeWork): string {
   const groupId = work.continuationPolicy?.groupId?.trim()
+  if (groupId && work.continuationPolicy?.mode === 'any_completed') return `continuation_${groupId}_${work.id}`
   return `continuation_${groupId || work.id}`
+}
+
+function allContinuationWorksReady(works: RuntimeWork[]): boolean {
+  const requiresEveryWorkCompleted = works.some((work) => work.continuationPolicy?.mode === 'all_completed')
+  return requiresEveryWorkCompleted
+    ? works.every((work) => work.status === 'completed')
+    : works.every((work) => work.status === 'completed' || isTerminalRuntimeWorkStatus(work.status))
 }
 
 function continuationMessage(continuation: RuntimeContinuation, works: RuntimeWork[]): string {

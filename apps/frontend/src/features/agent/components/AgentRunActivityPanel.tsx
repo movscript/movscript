@@ -252,6 +252,7 @@ export function LiveRunActivityBubble({
   onApprove,
   onReject,
   onAnswerInput,
+  hiddenActionItemIds,
 }: {
   run: AgentRun | null
   events: ChatRunActivityEvent[]
@@ -259,12 +260,13 @@ export function LiveRunActivityBubble({
   onApprove?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
+  hiddenActionItemIds?: Set<string>
 }) {
   const { t } = useTranslation()
   if (!run && events.length === 0) return null
   const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
   const runStatusText = interactionRunStatusLabel(run?.status ?? 'in_progress', t)
-  const feed = buildAgentActivityFeed({ run, events })
+  const feed = buildAgentActivityFeed({ run, events, hiddenActionItemIds })
   return (
     <div className="space-y-1">
       <AgentActivityStatusText run={run} events={events} fallback={statusLabel ?? runStatusText} />
@@ -288,6 +290,7 @@ export function LiveRunActivityBubble({
             onApprove={onApprove}
             onReject={onReject}
             onAnswerInput={onAnswerInput}
+            hiddenActionItemIds={hiddenActionItemIds}
           />
         </AgentChatMessage>
       )}

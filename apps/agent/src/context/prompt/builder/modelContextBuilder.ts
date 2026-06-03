@@ -28,6 +28,7 @@ import {
 import { fitPromptPartsToBudget, renderPromptBudgetParts } from '../budget/contextBudgeter.js'
 import type { ContextBudgetDecision, FitPromptPartsResult } from '../budget/contextBudgeter.js'
 import { resolveRuntimeToolParameters } from './model-context-builder/toolSchemas.js'
+import { isPromptHistoryMessage } from '../hygiene/promptHygiene.js'
 
 export interface ContextBuilderInput {
   manifest: AgentManifest
@@ -282,9 +283,10 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     content: runtimeModelTextContent(`## ${part.title}\n${part.content}`),
   }))
 
+  const promptHistory = input.history.filter(isPromptHistoryMessage)
   const messages: RuntimeModelChatMessage[] = [
     ...systemMessages,
-    ...input.history.map((msg): RuntimeModelChatMessage => ({ role: msg.role as RuntimeModelChatMessage['role'], content: runtimeModelTextContent(msg.content) })),
+    ...promptHistory.map((msg): RuntimeModelChatMessage => ({ role: msg.role as RuntimeModelChatMessage['role'], content: runtimeModelTextContent(msg.content) })),
     { role: 'user', content: runtimeUserContentParts(input.userMessage, input.clientInput) },
   ]
   const budgetLedger = fittedPrompt.budgetLedger

@@ -467,6 +467,55 @@ test('legacy direct run endpoints are not public runtime entrypoints', async () 
   assert.deepEqual(calls, [])
 })
 
+test('thread message endpoint only accepts user transcript messages', async () => {
+  const calls: Array<{ threadId: string; input: Record<string, unknown> }> = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      addMessage: (threadId: string, input: Record<string, unknown>) => {
+        calls.push({ threadId, input })
+        return {
+          id: input.id ?? 'msg_user',
+          threadId,
+          role: 'user',
+          content: input.content,
+          createdAt: '2026-05-19T00:00:00.000Z',
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const assistant = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
+    role: 'assistant',
+    content: 'Runtime status',
+  }))
+  const runtimeFields = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
+    role: 'user',
+    content: 'Hi',
+    runId: 'run_1',
+    metadata: { kind: 'runtime_status' },
+  }))
+  const user = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
+    id: ' local_msg_1 ',
+    content: 'Hi',
+    clientInput: { visibleMessage: 'Hi' },
+  }))
+
+  assert.equal(assistant.statusCode, 400)
+  assert.equal(JSON.parse(assistant.body).error, 'thread message role must be user')
+  assert.equal(runtimeFields.statusCode, 400)
+  assert.equal(JSON.parse(runtimeFields.body).error, 'thread message runtime fields are not accepted')
+  assert.equal(user.statusCode, 201)
+  assert.deepEqual(calls, [{
+    threadId: 'thread_1',
+    input: {
+      id: 'local_msg_1',
+      role: 'user',
+      content: 'Hi',
+      clientInput: { visibleMessage: 'Hi' },
+    },
+  }])
+})
+
 test('thread run endpoint appends a user message with the client message id and creates a run bound to that message', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
@@ -569,6 +618,35 @@ test('thread run endpoint can force one diagnostic tool call without exposing a 
       role: 'worker',
     },
   }])
+})
+
+test('thread tool run response falls back to the latest user transcript message', async () => {
+  const messages = [
+    { id: 'msg_user', threadId: 'thread_1', role: 'user', content: 'Run movscript_focus_get', createdAt: '2026-05-19T00:00:00.000Z' },
+    { id: 'msg_assistant', threadId: 'thread_1', role: 'assistant', content: 'Previous answer', createdAt: '2026-05-19T00:00:01.000Z' },
+    {
+      id: 'msg_status',
+      threadId: 'thread_1',
+      role: 'assistant',
+      content: 'Generating image',
+      metadata: { kind: 'runtime_status', promptHistory: 'exclude' },
+      createdAt: '2026-05-19T00:00:02.000Z',
+    },
+  ]
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:02.000Z', messages }),
+      createToolRun: (input: Record<string, unknown>) => ({ id: 'run_tool', threadId: input.threadId, status: 'queued' }),
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
+    message: 'Run movscript_focus_get',
+    toolCall: { name: 'movscript_focus_get', args: {} },
+  }))
+
+  assert.equal(response.statusCode, 201)
+  assert.equal(JSON.parse(response.body).message.id, 'msg_user')
 })
 
 test('thread run endpoint appends runtime input to an active run instead of creating a parallel run', async () => {
@@ -1165,7 +1243,7 @@ test('thread message stream emits created and updated message feed events', asyn
           type: 'assistant_message',
           threadId,
           runId: 'run_1',
-          run: { id: 'run_1', threadId, sessionId: 'session_1', status: 'completed', createdAt: '2026-05-19T00:00:01.000Z', updatedAt: '2026-05-19T00:00:03.000Z' },
+          run: { id: 'run_1', threadId, sessionId: 'session_1', status: 'completed', assistantMessageId: 'msg_assistant', createdAt: '2026-05-19T00:00:01.000Z', updatedAt: '2026-05-19T00:00:03.000Z' },
           message: { id: 'msg_assistant', threadId, role: 'assistant', content: 'Hello', runId: 'run_1', createdAt: '2026-05-19T00:00:03.000Z' },
         })
         return () => calls.push(`unsubscribe:${threadId}`)

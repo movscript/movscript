@@ -66,6 +66,33 @@ test('buildAgentRunTimeline orders rounds, decisions, tools, approvals, then res
   assert.equal(write?.step?.id, 'step_write')
 })
 
+test('buildAgentRunTimeline falls back to recorded step order when timestamps are unstable', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    steps: [{
+      id: 'step_models',
+      type: 'tool_call',
+      status: 'completed',
+      roundIndex: 1,
+      toolName: 'generation_model_list',
+      createdAt: '2026-05-22T01:00:02.000Z',
+      completedAt: '2026-05-22T01:00:02.100Z',
+    }, {
+      id: 'step_work',
+      type: 'tool_call',
+      status: 'completed',
+      roundIndex: 1,
+      toolName: 'core_work_start',
+      createdAt: '2026-05-22T01:00:01.000Z',
+      completedAt: '2026-05-22T01:00:01.100Z',
+    }],
+  }))
+
+  assert.deepEqual(timeline.rounds[0]?.toolExecutions.map((tool) => tool.toolName), [
+    'generation_model_list',
+    'core_work_start',
+  ])
+})
+
 test('buildAgentRunTimeline keeps approval-only tools as executions before results exist', () => {
   const timeline = buildAgentRunTimeline(activity({
     approvals: [{

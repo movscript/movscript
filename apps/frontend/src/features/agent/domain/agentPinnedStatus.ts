@@ -17,16 +17,15 @@ export function generationProgressStatesForPinnedStatus(input: {
 }
 
 function latestHistoricalGenerationProgressStates(messages: ChatMessage[]): GenerationProgressState[] {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
+  const states: GenerationProgressState[] = []
+  for (const message of messages) {
     if (message.role === 'user') continue
     const generationJobs = message.meta?.generationJobs ?? []
-    if (generationJobs.length > 0) return generationJobs
+    states.push(...generationJobs)
     const activityEvents = message.meta?.localRunActivity?.events ?? []
-    const states = generationProgressListFromEvents(activityEvents)
-    if (states.length > 0) return states
+    states.push(...generationProgressListFromEvents(activityEvents))
   }
-  return []
+  return mergeGenerationProgressStates(states)
 }
 
 function mergeGenerationProgressStates(states: GenerationProgressState[]): GenerationProgressState[] {

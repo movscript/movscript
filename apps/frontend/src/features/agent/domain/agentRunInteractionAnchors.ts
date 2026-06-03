@@ -1,3 +1,4 @@
+import { isUiOnlyAssistantChatMessage, isVisibleAssistantChatMessage, visibleAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
@@ -14,8 +15,8 @@ export function buildInteractionRunsByResultMessageId({
   const messagesById = buildRunInteractionAnchorMessagesById(messages)
 
   for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const runId = runInteractionAnchorRunId(message)
+    if (!isVisibleAssistantChatMessage(message)) continue
+    const runId = visibleAssistantRelatedRunId(message)
     const interactionRun = runId ? interactionRunById.get(runId) : undefined
     if (!interactionRun || insertedRunIds.has(interactionRun.id)) continue
     insertInteractionRun(runsByMessageId, insertedRunIds, message.id, interactionRun)
@@ -40,6 +41,7 @@ export function buildInteractionRunsByResultMessageId({
 function buildRunInteractionAnchorMessagesById(messages: ChatMessage[]): Map<string, ChatMessage> {
   const byId = new Map<string, ChatMessage>()
   for (const message of messages) {
+    if (isUiOnlyAssistantChatMessage(message)) continue
     byId.set(message.id, message)
     const runtimeMessageId = message.meta?.runtimeMessage?.messageId?.trim()
     if (runtimeMessageId) byId.set(runtimeMessageId, message)
@@ -59,11 +61,6 @@ function runInteractionDisplayAnchorMessageId(interactionRun: AgentRun): string 
   return undefined
 }
 
-function runInteractionAnchorRunId(message: ChatMessage): string | undefined {
-  return normalizeRunId(message.meta?.localRunActivity?.runId)
-    ?? normalizeRunId(message.meta?.runtimeMessage?.runId)
-}
-
 function insertInteractionRun(
   runsByMessageId: Map<string, AgentRun[]>,
   insertedRunIds: Set<string>,
@@ -74,8 +71,4 @@ function insertInteractionRun(
   const runs = runsByMessageId.get(messageId) ?? []
   runs.push(interactionRun)
   runsByMessageId.set(messageId, runs)
-}
-
-function normalizeRunId(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

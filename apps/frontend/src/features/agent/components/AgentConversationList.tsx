@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type { AgentConversationListItem } from '@movscript/ui'
 import { AgentConversationListPanel } from '@movscript/ui'
 import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
+import { latestVisibleTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 import { localAgentClient, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
@@ -54,7 +55,7 @@ export function ConversationList({
   const mappedConversations: AgentConversationListItem[] = useMemo(() => conversations.map((conv) => ({
     id: conv.id,
     title: conversationDisplayTitle(conv, t),
-    description: conv.messages[conv.messages.length - 1]?.content.slice(0, 54) ?? '',
+    description: latestVisibleTranscriptChatMessage(conv.messages)?.content.slice(0, 54) ?? '',
     meta: formatAgentDate(conv.updatedAt, locale),
     onClick: () => onSelect(conv.id),
     onArchive: () => onArchive(conv.id),
@@ -76,7 +77,7 @@ export function ConversationList({
     ...archivedConversations.map((conv) => ({
       id: conv.id,
       title: conversationDisplayTitle(conv, t),
-      description: conv.messages[conv.messages.length - 1]?.content.slice(0, 54) || t('agents.chat.archivedConversation'),
+      description: latestVisibleTranscriptChatMessage(conv.messages)?.content.slice(0, 54) || t('agents.chat.archivedConversation'),
       meta: formatAgentDate(conv.updatedAt, locale),
       onClick: () => onSelect(conv.id),
       onDelete: () => onDelete(conv.id),

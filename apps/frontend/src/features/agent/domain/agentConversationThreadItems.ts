@@ -1,4 +1,9 @@
 import { isRunInteractionAnswerEchoMessage, runInteractionFromActivity } from '@/features/agent/domain/agentRunInteraction'
+import {
+  isUiOnlyAssistantChatMessage,
+  visibleAssistantActivityRunId,
+  visibleAssistantRelatedRunId,
+} from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
@@ -30,6 +35,16 @@ export interface AgentPendingRuntimeInputQueueItem {
   timestamp: number
 }
 
+export function splitRunGroupItemsForLiveBlocks(items: AgentConversationMessageItem[]): {
+  beforeLiveBlocks: AgentConversationMessageItem[]
+  afterLiveBlocks: AgentConversationMessageItem[]
+} {
+  return {
+    beforeLiveBlocks: items.filter((item) => item.message.role === 'user'),
+    afterLiveBlocks: items.filter((item) => item.message.role !== 'user'),
+  }
+}
+
 export function buildAgentConversationMessageItems({
   messages,
   runInteractionAnswerEchoes,
@@ -43,7 +58,7 @@ export function buildAgentConversationMessageItems({
 }): AgentConversationMessageItem[] {
   return messages.flatMap((message) => {
     if (isRunInteractionAnswerEchoMessage(message, runInteractionAnswerEchoes)) return []
-    if (message.meta?.planRevision) return []
+    if (isUiOnlyAssistantChatMessage(message)) return []
     const mappedInteractionRuns = interactionRunsByResultMessageId.get(message.id) ?? null
     const liveInteractionRuns = mappedInteractionRuns
       ?.filter((run) => !suppressedInteractionRunIds.has(run.id)) ?? null
@@ -121,12 +136,33 @@ export function buildAgentConversationThreadItems(input: {
 }
 
 function interactionRunBelongsAfterMessage(run: AgentRun, message: ChatMessage): boolean {
+  const placement = runInteractionAnchorPlacement(run, message)
+  if (placement === 'before') return false
+  if (placement === 'after') return true
   return message.role === 'user'
+}
+
+function runInteractionAnchorPlacement(run: AgentRun, message: ChatMessage): 'before' | 'after' | undefined {
+  const messageIds = new Set([
+    message.id,
+    normalizeRunId(message.meta?.runtimeMessage?.messageId),
+  ].filter((id): id is string => Boolean(id)))
+  for (const approval of run.pendingApprovals ?? []) {
+    const anchor = approval.displayAnchor
+    if (anchor?.placement !== 'before' && anchor?.placement !== 'after') continue
+    if (typeof anchor.messageId === 'string' && messageIds.has(anchor.messageId.trim())) return anchor.placement
+  }
+  for (const request of run.pendingInputRequests ?? []) {
+    const anchor = request.displayAnchor
+    if (anchor?.placement !== 'before' && anchor?.placement !== 'after') continue
+    if (typeof anchor.messageId === 'string' && messageIds.has(anchor.messageId.trim())) return anchor.placement
+  }
+  return undefined
 }
 
 export function buildPendingRuntimeInputQueueItems(messages: ChatMessage[]): AgentPendingRuntimeInputQueueItem[] {
   return messages
-    .filter(isPendingRuntimeInputMessage)
+    .filter(runtimeInputIsWaitingForDelivery)
     .map((message) => ({
       id: message.id,
       ...(message.meta?.runtimeInput?.runId?.trim() ? { runId: message.meta.runtimeInput.runId.trim() } : {}),
@@ -135,18 +171,42 @@ export function buildPendingRuntimeInputQueueItems(messages: ChatMessage[]): Age
     }))
 }
 
-function isPendingRuntimeInputMessage(message: ChatMessage): boolean {
+export function runtimeInputDisplayStatus(message: Pick<ChatMessage, 'meta'>): NonNullable<NonNullable<ChatMessage['meta']>['runtimeInput']>['status'] | undefined {
+  const runtimeInput = message.meta?.runtimeInput
+  if (!runtimeInput) return undefined
+  if (
+    runtimeInput.status === 'pending'
+    && (runtimeInput.messageId?.trim() || message.meta?.runtimeMessage?.messageId?.trim())
+  ) {
+    return 'accepted'
+  }
+  return runtimeInput.status
+}
+
+export function runtimeInputIsWaitingForDelivery(message: ChatMessage): boolean {
   return message.role === 'user'
-    && message.meta?.runtimeInput?.status === 'pending'
-    && !message.meta.runtimeMessage?.messageId
+    && runtimeInputDisplayStatus(message) === 'pending'
+    && !message.meta?.runtimeMessage?.messageId
+}
+
+export function runIdsWithActivityMessages(messages: ChatMessage[]): Set<string> {
+  const runIds = new Set<string>()
+  for (const message of messages) {
+    const runId = visibleAssistantActivityRunId(message)
+    if (runId) runIds.add(runId)
+  }
+  return runIds
+}
+
+function isPendingRuntimeInputMessage(message: ChatMessage): boolean {
+  return runtimeInputIsWaitingForDelivery(message)
 }
 
 function runGroupIdForMessage(message: ChatMessage): string | undefined {
   if (message.role === 'user') {
     return userMessageRunId(message)
   }
-  return normalizeRunId(message.meta?.runtimeMessage?.runId)
-    ?? normalizeRunId(message.meta?.localRunActivity?.runId)
+  return visibleAssistantRelatedRunId(message)
 }
 
 function userMessageRunId(message: ChatMessage): string | undefined {
