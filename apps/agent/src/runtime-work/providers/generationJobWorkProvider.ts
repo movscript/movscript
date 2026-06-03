@@ -3,12 +3,12 @@ import { callMCPToolWithGenerationRepair } from '../../generation/repair/generat
 import type { JSONValue } from '../../state/shared/types.js'
 import { cloneJSONValue, isJSONRecord, isJSONValue, isRecord } from '../../shared/json/jsonValue.js'
 import type { RuntimeWorkProvider } from '../core/runtimeWorkProvider.js'
-import type { RuntimeWork, RuntimeWorkStartInput, RuntimeWorkStatus } from '../core/runtimeWork.js'
+import { type RuntimeWork, type RuntimeWorkStartInput, type RuntimeWorkStatus } from '../core/runtimeWork.js'
 
 export class GenerationJobWorkProvider implements RuntimeWorkProvider {
   readonly kind = 'generation_job' as const
 
-  constructor(private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>) {}
+  constructor(private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>) { }
 
   async start(input: RuntimeWorkStartInput): Promise<RuntimeWork> {
     await this.mcpClient.initialize({ signal: input.signal })

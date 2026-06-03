@@ -195,6 +195,7 @@ export type ElectronAgentRuntimeEnsureInput = {
   socketPath?: string
   workspaceDir?: string
   sessionId?: string
+  source?: string
 }
 
 export type ElectronAgentRuntimeStatus = {

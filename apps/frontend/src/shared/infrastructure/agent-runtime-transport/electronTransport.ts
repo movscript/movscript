@@ -21,6 +21,7 @@ export class ElectronAgentRuntimeTransport implements AgentRuntimeTransport {
     const api = resolveElectronAgentRuntimeAPI()
     const response = await api.agentRuntimeRequest({
       ...this.input,
+      source: this.input.source ?? `request:${path}`,
       path,
       method: init.method,
       headers: normalizeHeaders(init.headers),
@@ -40,6 +41,7 @@ export class ElectronAgentRuntimeTransport implements AgentRuntimeTransport {
     const stream = new ElectronAgentRuntimeEventStream(streamId, () => api.agentRuntimeCloseEventStream({ streamId }))
     const response = await api.agentRuntimeOpenEventStream({
       ...this.input,
+      source: this.input.source ?? `event-stream:${path}`,
       streamId,
       path,
       method: init.method,

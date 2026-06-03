@@ -194,6 +194,55 @@ test('RuntimeWakeCoordinator keeps polling unfinished work observed when a threa
   assert.equal(store.getRuntimeContinuation('continuation_work_generation')?.status, 'consumed')
 })
 
+test('RuntimeWakeCoordinator observes started async work without an explicit wait call', async () => {
+  const store = new InMemoryAgentStore()
+  const now = '2026-05-21T00:00:00.000Z'
+  let observeCount = 0
+  store.createRun(makeRun({ id: 'run_1', threadId: 'thread_1', status: 'in_progress' }))
+  const work = makeWork({
+    id: 'work_generation',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job',
+    status: 'waiting',
+    externalHandle: { provider: 'movscript', type: 'generation_job', id: 42 },
+  })
+  work.pollIntervalMs = 50
+  store.createRuntimeWork(work)
+  const scheduler = new RuntimeScheduler({
+    store,
+    now: () => now,
+    runControl: {
+      approveRun: () => {
+        throw new Error('approval is not part of this scenario')
+      },
+      rejectRun: () => {
+        throw new Error('rejection is not part of this scenario')
+      },
+    },
+    continueRun: () => {
+      throw new Error('work without continuationPolicy should not advance')
+    },
+  })
+  const wake = new RuntimeWakeCoordinator({
+    store,
+    scheduler,
+    observeWork: async (targetWork) => {
+      observeCount += 1
+      const observed = { ...targetWork, status: 'completed' as const, result: { assetId: 'asset_1' }, completedAt: now, updatedAt: now }
+      store.updateRuntimeWork(observed)
+      return observed
+    },
+    now: () => now,
+  })
+
+  wake.workStarted(work)
+  await waitFor(() => store.getRuntimeWork('work_generation')?.status === 'completed')
+
+  assert.equal(observeCount, 1)
+  assert.equal(store.listRuntimeContinuations({ runId: 'run_1' }).length, 0)
+})
+
 test('RuntimeWakeCoordinator requeues processing wake events during startup drain', async () => {
   const store = new InMemoryAgentStore()
   const now = '2026-05-21T00:00:00.000Z'

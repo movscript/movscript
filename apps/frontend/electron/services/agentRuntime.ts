@@ -36,6 +36,7 @@ installAgentLogTimestamps('main')
 let proc: ChildProcess | null = null
 const sessionProcs = new Map<string, ChildProcess>()
 let startPromise: Promise<AgentRuntimeStatus> | null = null
+const sessionEnsurePromises = new Map<string, Promise<AgentRuntimeStatus>>()
 const sessionStartPromises = new Map<string, Promise<AgentRuntimeStatus>>()
 let backendAPIBaseURL = normalizeBackendAPIBaseURL(
   process.env.MOVSCRIPT_BACKEND_API_BASE_URL
@@ -60,13 +61,13 @@ export interface AgentRuntimeStatus {
   error?: string
 }
 
-export async function ensureAgentRuntimeRunning(input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string } = {}): Promise<AgentRuntimeStatus> {
+export async function ensureAgentRuntimeRunning(input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string } = {}): Promise<AgentRuntimeStatus> {
   const session = resolveAgentRuntimeSession(input)
   if (session) return ensureSessionAgentRuntimeRunning(input, session)
   const startedAt = Date.now()
   const { baseURL, transport } = resolveRuntimeTransport(input)
   const policy = readAgentRuntimeLaunchPolicy()
-  console.info(`[agent] ensure runtime start transport=${transport.kind} endpoint=${transport.endpointLabel} policy=${policy}`)
+  console.info(`[agent] ensure runtime start transport=${transport.kind} endpoint=${transport.endpointLabel} policy=${policy} source=${input.source ?? '-'}`)
   const health = await getAgentRuntimeHealth(transport)
   console.info(`[agent] ensure runtime initial health ${summarizeHealthCheck(health)} elapsed=${Date.now() - startedAt}ms`)
   if (health.ok && health.compatible) {
@@ -120,7 +121,21 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string; trans
 }
 
 async function ensureSessionAgentRuntimeRunning(
-  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string },
+  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string },
+  session: NonNullable<ReturnType<typeof resolveAgentRuntimeSession>>,
+): Promise<AgentRuntimeStatus> {
+  const key = agentRuntimeSessionKey(session)
+  const pending = sessionEnsurePromises.get(key)
+  if (pending) return pending
+  const promise = ensureSessionAgentRuntimeRunningOnce(input, session).finally(() => {
+    sessionEnsurePromises.delete(key)
+  })
+  sessionEnsurePromises.set(key, promise)
+  return promise
+}
+
+async function ensureSessionAgentRuntimeRunningOnce(
+  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string },
   session: NonNullable<ReturnType<typeof resolveAgentRuntimeSession>>,
 ): Promise<AgentRuntimeStatus> {
   const key = agentRuntimeSessionKey(session)
@@ -128,7 +143,7 @@ async function ensureSessionAgentRuntimeRunning(
   const startedAt = Date.now()
   const { baseURL, transport } = resolveRuntimeTransport(inputWithSessionTransport)
   const policy = readAgentRuntimeLaunchPolicy()
-  console.info(`[agent] ensure session runtime start workspace=${session.workspaceDir} session=${session.sessionId} endpoint=${transport.endpointLabel} policy=${policy}`)
+  console.info(`[agent] ensure session runtime start workspace=${session.workspaceDir} session=${session.sessionId} endpoint=${transport.endpointLabel} policy=${policy} source=${input.source ?? '-'}`)
   const health = isAgentRuntimeSessionReusable(session)
     ? await getAgentRuntimeHealth(transport)
     : { ok: false, compatible: false, error: 'session runtime metadata is missing, stale, or dead' }

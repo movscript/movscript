@@ -72,6 +72,47 @@ test('RuntimeWorkManager completes generation job works from backend status alia
   assert.equal(wait.completed[0]?.status, 'completed')
 })
 
+test('RuntimeWorkManager rejects generation job starts without a returned job id', async () => {
+  const manager = new RuntimeWorkManager({
+    providers: [new GenerationJobWorkProvider({
+      initialize: async () => ({}),
+      callTool: async () => ({ data: { status: 'queued', terminal: false } }) as JSONValue,
+    })],
+  })
+
+  await assert.rejects(
+    () => manager.start({
+      threadId: 'thread_1',
+      runId: 'run_1',
+      kind: 'generation_job',
+      request: generationImageRequest({ prompt: 'make image' }),
+    }),
+    /valid jobId/,
+  )
+})
+
+test('RuntimeWorkManager rejects non-terminal generation job starts without an observe tool', async () => {
+  const manager = new RuntimeWorkManager({
+    providers: [new GenerationJobWorkProvider({
+      initialize: async () => ({}),
+      callTool: async () => ({ data: { jobId: 44, status: 'queued', terminal: false } }) as JSONValue,
+    })],
+  })
+
+  await assert.rejects(
+    () => manager.start({
+      threadId: 'thread_1',
+      runId: 'run_1',
+      kind: 'generation_job',
+      request: {
+        tool: 'generation_image_generate',
+        args: { prompt: 'make image' },
+      },
+    }),
+    /observe tool/,
+  )
+})
+
 test('RuntimeWorkManager reports that generation provider works do not support cancel without a provider cancel interface', async () => {
   const manager = new RuntimeWorkManager({
     providers: [new GenerationJobWorkProvider({

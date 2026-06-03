@@ -30,7 +30,7 @@ export async function agentRuntimeOpenEventStream(input: ElectronAgentRuntimeStr
       body: request.body,
       signal: controller.signal,
     })
-    console.info(`[agent] runtime stream open stream=${input.streamId} path=${request.path} session=${input.sessionId ?? '-'} workspace=${input.workspaceDir ?? '-'} endpoint=${transport.endpointLabel} status=${stream.status}`)
+    console.info(`[agent] runtime stream open stream=${input.streamId} path=${request.path} session=${input.sessionId ?? '-'} workspace=${input.workspaceDir ?? '-'} endpoint=${transport.endpointLabel} status=${stream.status} source=${input.source ?? '-'}`)
     const response = {
       status: stream.status,
       statusText: stream.statusText,
@@ -41,7 +41,7 @@ export async function agentRuntimeOpenEventStream(input: ElectronAgentRuntimeStr
     return { response, stream, status: stream.status }
   } catch (error) {
     runtimeStreamControllers.delete(input.streamId)
-    console.info(`[agent] runtime stream open failed stream=${input.streamId} path=${request.path} session=${input.sessionId ?? '-'} workspace=${input.workspaceDir ?? '-'} endpoint=${transport.endpointLabel} error=${error instanceof Error ? error.message : String(error)}`)
+    console.info(`[agent] runtime stream open failed stream=${input.streamId} path=${request.path} session=${input.sessionId ?? '-'} workspace=${input.workspaceDir ?? '-'} endpoint=${transport.endpointLabel} source=${input.source ?? '-'} error=${error instanceof Error ? error.message : String(error)}`)
     throw error
   }
 }

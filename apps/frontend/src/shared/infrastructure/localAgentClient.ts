@@ -333,12 +333,18 @@ export class LocalAgentClient {
         ...(this.transport.socketPath ? { socketPath: this.transport.socketPath } : {}),
         ...(this.workspaceDir ? { workspaceDir: this.workspaceDir } : {}),
         ...(this.sessionId ? { sessionId: this.sessionId } : {}),
+        source: this.ensureSourceLabel(),
       })
       if (!status.ok) {
         throw new Error(status.error || `failed to start agent at ${this.baseURL}`)
       }
       return this.health()
     }
+  }
+
+  private ensureSourceLabel(): string {
+    const scope = this.sessionId ? `session:${this.sessionId}` : 'global'
+    return `${scope} ${firstExternalStackFrame(new Error().stack) ?? 'unknown'}`
   }
 
   listSessions(): Promise<{ sessions: AgentSessionSummary[] }> {
@@ -1314,4 +1320,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object'
     && value !== null
     && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+}
+
+function firstExternalStackFrame(stack: string | undefined): string | undefined {
+  if (!stack) return undefined
+  return stack
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line && !line.includes('localAgentClient.ts') && !line.startsWith('Error'))
+    ?.slice(0, 220)
 }

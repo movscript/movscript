@@ -180,6 +180,8 @@ export class RuntimeWakeCoordinator {
     this.input.scheduler.dispatch({ type: 'work.started', work })
     if (isTerminalRuntimeWorkStatus(work.status)) {
       this.enqueue({ type: 'work.observed', work })
+    } else {
+      this.scheduleWorkObservation(work, { immediate: true })
     }
     return []
   }
@@ -224,12 +226,12 @@ export class RuntimeWakeCoordinator {
     return await this.input.observeWork?.(work)
   }
 
-  private scheduleWorkObservation(work: RuntimeWork): void {
+  private scheduleWorkObservation(work: RuntimeWork, input: { immediate?: boolean } = {}): void {
     if (!shouldAutoObserveWork(work) || this.observationTimers.has(work.id)) return
     const timer = setTimeout(() => {
       this.observationTimers.delete(work.id)
       this.workObserved(work)
-    }, workObservationDelayMs(work))
+    }, input.immediate ? 0 : workObservationDelayMs(work))
     timer.unref?.()
     this.observationTimers.set(work.id, timer)
   }
@@ -341,8 +343,7 @@ function shouldAutoObserveWork(work: RuntimeWork): boolean {
   return work.mode === 'async'
     && !isTerminalRuntimeWorkStatus(work.status)
     && !!work.externalHandle
-    && work.continuationPolicy?.mode !== undefined
-    && work.continuationPolicy.mode !== 'none'
+    && work.continuationPolicy?.mode !== 'none'
 }
 
 function workObservationDelayMs(work: RuntimeWork): number {
