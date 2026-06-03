@@ -103,6 +103,6 @@ export async function restoreRuntimeThreadConversation(
     conversationId,
     threadId: thread.id,
     reusedExistingConversation: false,
-    restoredMessageCount: 0,
+    restoredMessageCount: thread.messages.length,
   }
 }

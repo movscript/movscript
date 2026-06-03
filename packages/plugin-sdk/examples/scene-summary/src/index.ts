@@ -1,20 +1,20 @@
-import type { MovRuntime, ToolResult } from '@movscript/plugin-sdk'
+import type { MovPluginHost, PluginRunResult } from '@movscript/plugin-sdk'
 
 interface Args {
   project_id: number
   language?: string
 }
 
-export async function run(mov: MovRuntime, args: Args): Promise<ToolResult> {
+export async function run(host: MovPluginHost, args: Args): Promise<PluginRunResult> {
   const { project_id, language = 'zh' } = args
 
   // Fetch all scenes for the project
-  const scenes = await mov.mcp.listScenes(project_id) as Array<{
+  const scenes = await host.api.get<Array<{
     ID: number
     title?: string
     description?: string
     order?: number
-  }>
+  }>>(`/projects/${project_id}/scenes`)
 
   if (!scenes || scenes.length === 0) {
     return {

@@ -1,4 +1,4 @@
-import { DEFAULT_MCP_ENDPOINT, MIN_AGENT_RUNTIME_API_VERSION } from './config'
+import { MIN_AGENT_RUNTIME_API_VERSION } from './config'
 import { describeAgentRuntimeFetchError } from './fetchError'
 import type { AgentRuntimeHealthCheck } from './healthTypes'
 import { resolveAgentRuntimeControlTransport, type AgentRuntimeControlTransport } from './transport'
@@ -145,7 +145,7 @@ async function getLegacyAgentRuntimeHealth(transport: AgentRuntimeControlTranspo
   const healthMs = Date.now() - startedAt
   let capabilities: { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown } = body
   let capabilitiesMs = 0
-  if (!body.runtime || typeof body.mcpEndpoint !== 'string') {
+  if (!body.runtime) {
     const capabilitiesStartedAt = Date.now()
     let capabilityRes: Response
     try {
@@ -204,27 +204,12 @@ function validateAgentRuntimeCompatibility(
       error: `runtime features ${JSON.stringify(features)} missing model-config and/or runtime-capabilities`,
     }
   }
-  const expectedMcpEndpoint = (process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT).replace(/\/+$/, '')
-  if (mcpEndpoint && mcpEndpoint !== expectedMcpEndpoint) {
-    return {
-      ok: true,
-      compatible: false,
-      apiVersion,
-      mcpEndpoint,
-      reason: 'mcp-endpoint-mismatch',
-      error: `Agent runtime is bound to ${mcpEndpoint} but expected ${expectedMcpEndpoint}. Restart the agent after MCP changes.`,
-    }
+  return {
+    ok: true,
+    compatible: true,
+    apiVersion,
+    ...(mcpEndpoint ? { mcpEndpoint } : {}),
   }
-  if (!mcpEndpoint) {
-    return {
-      ok: true,
-      compatible: false,
-      apiVersion,
-      reason: 'mcp-endpoint-missing',
-      error: 'Agent runtime did not report its MCP endpoint.',
-    }
-  }
-  return { ok: true, compatible: true, apiVersion, mcpEndpoint }
 }
 
 async function fetchAgentRuntimeWithTimeout(transport: AgentRuntimeControlTransport, path: string): Promise<Response> {

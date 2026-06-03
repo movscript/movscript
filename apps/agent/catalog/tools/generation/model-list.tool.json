@@ -1,196 +1,37 @@
 {
   "name": "generation_model_list",
-  "description": "列出某个 runtime capability 可用的模型。文生图用 image，图生图用 image_edit，文生视频用 video，图生视频用 video_i2v，视频生视频用 video_v2v，配音用 audio_tts，转写用 audio_transcribe，字幕对齐用 subtitle_align，渲染用 render_video。结果包含 public model_id，以及 contract_version 1 的 model_contracts，其中包括 capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema 规则数量；input_requirements 对应该次查询的 capability。创建任务时使用所选 contract 的 model_id。生成前使用此工具选择有效模型，并且只询问该模型要求的字段。",
+  "description": "List enabled generation models for a runtime capability. Use image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, and video_v2v for video-to-video. The result includes public model_id values and model_contracts so the agent can choose valid provider parameters before starting generation work.",
+  "permission": "generation.model.read",
+  "risk": "read",
+  "source": "mcp",
+  "capability": "generation.model.list",
+  "projectScoped": false,
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "capability": {
-        "type": "string"
-      },
-      "provider_variants": {
-        "type": "boolean",
-        "description": "为 true 时，包含 provider 专用模型变体。"
-      },
-      "include_provider_variants": {
-        "type": "boolean",
-        "description": "provider_variants 的别名。"
-      }
+      "capability": { "type": "string" },
+      "provider_variants": { "type": "boolean" },
+      "include_provider_variants": { "type": "boolean" }
     }
   },
   "outputSchema": {
     "type": "object",
     "additionalProperties": true,
-    "required": [
-      "count",
-      "queries",
-      "model_contracts",
-      "models"
-    ],
+    "required": ["count", "queries", "model_contracts", "models"],
     "properties": {
-      "count": {
-        "type": "number"
-      },
-      "queries": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "model_contracts": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "additionalProperties": true,
-          "required": [
-            "contract_version",
-            "model_id",
-            "capabilities",
-            "input_requirements",
-            "supported_param_keys",
-            "supported_params"
-          ],
-          "properties": {
-            "contract_version": {
-              "type": "number",
-              "const": 1
-            },
-            "model_id": {
-              "type": "string",
-              "description": "传给异步 generation_job runtime work request 的公开模型 ID。"
-            },
-            "display_name": {
-              "type": "string"
-            },
-            "short_name": {
-              "type": "string"
-            },
-            "logical_model_id": {
-              "type": "string",
-              "description": "model_id 的兼容别名。"
-            },
-            "capabilities": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "accepts_image_input": {
-              "type": "boolean"
-            },
-            "input_requirements": {
-              "type": "object",
-              "required": [
-                "image",
-                "video"
-              ],
-              "properties": {
-                "image": {
-                  "type": "object",
-                  "required": [
-                    "min",
-                    "max"
-                  ],
-                  "properties": {
-                    "min": {
-                      "type": "number"
-                    },
-                    "max": {
-                      "type": "number"
-                    }
-                  }
-                },
-                "video": {
-                  "type": "object",
-                  "required": [
-                    "min",
-                    "max"
-                  ],
-                  "properties": {
-                    "min": {
-                      "type": "number"
-                    },
-                    "max": {
-                      "type": "number"
-                    }
-                  }
-                }
-              }
-            },
-            "supported_param_keys": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "supported_params": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": true,
-                "required": [
-                  "key"
-                ],
-                "properties": {
-                  "key": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "select",
-                      "number",
-                      "boolean",
-                      "string"
-                    ]
-                  },
-                  "options": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "conflicts_with": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "conditional_enum": {
-                    "type": "array"
-                  },
-                  "conditional_const": {
-                    "type": "array"
-                  },
-                  "requires_value": {
-                    "type": "array"
-                  }
-                }
-              }
-            },
-            "params_schema_loaded": {
-              "type": "boolean"
-            },
-            "params_schema_rule_count": {
-              "type": "number"
-            }
-          }
-        }
-      },
-      "models": {
-        "type": "array"
-      }
+      "count": { "type": "number" },
+      "queries": { "type": "array", "items": { "type": "string" } },
+      "model_contracts": { "type": "array" },
+      "models": { "type": "array" }
     }
   },
-  "permission": "generation.read",
-  "risk": "read",
-  "projectScoped": false,
-  "defaults": {
-    "grant": "allow",
-    "approval": "never"
-  },
-  "source": "runtime"
+  "defaults": { "grant": "allow", "approval": "never" },
+  "execution": {
+    "readOnly": true,
+    "destructive": false,
+    "concurrencySafe": true,
+    "interruptBehavior": "block",
+    "resultRefStrategy": "summary_ref"
+  }
 }

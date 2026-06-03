@@ -1,9 +1,8 @@
 import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
 import type { AgentRuntimeContractResolver } from '../../../contracts/runtime/runtimeContract.js'
-import type { JSONValue } from '../../../shared/protocol/types.js'
 import { buildLocalDiagnosticCommand } from '../../../context/diagnostics/commands/localDiagnosticCommands.js'
 import { applyRuntimeThreadContextSummary } from '../../../context/prompt/summary/runtimeThreadContextSummary.js'
-import type { SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
+import type { SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
 import type { AgentMemory } from '../../../memory/shared/types.js'
 import { projectRunOntoThread } from '../../../state/run/projection/thread/runProjection.js'
 import { buildRunRound, type AgentRunRoundInfo } from '../../../state/run/core/round/runRound.js'
@@ -11,6 +10,7 @@ import { applyRunCompletion } from '../../../state/run/status/lifecycle/runStatu
 import { completeRunStep } from '../../../state/run/status/trace/runTrace.js'
 import type { AgentStore } from '../../../state/store/core/store.js'
 import type {
+  AgentContextDiagnosticRecord,
   AgentDebugContextPanel,
   AgentMessage,
   AgentRun,
@@ -19,11 +19,13 @@ import type {
   AgentThread,
   AgentTraceEvent,
   AgentTraceEventKind,
+  JSONValue,
   ResolvedAgentSkill,
   ResolvedToolCatalog,
 } from '../../../state/shared/types.js'
 import type { AgentCommandRuntime } from '../../../context/command/commandRouter.js'
 import { createRuntimeMessage } from '../../shared/message/runtimeMessageFactory.js'
+import { makeId } from '../../../shared/runtime/runtimeIdentity.js'
 import { appendThreadMessage } from '../../../messages/thread/threadMessage.js'
 import { summarizeAgentCommandTrace } from '../../../trace/summaries/command/commandTrace.js'
 import { formatAssistantMessageTraceSummary, summarizeAssistantMessageTrace } from '../../../trace/summaries/interaction/messages/messageTrace.js'
@@ -60,7 +62,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
-}): AgentMessage {
+}): AgentMessage | undefined {
   const localRound = buildRunRound(1, 'Runtime command', 'runtime_rule')
   input.recordTrace(input.run, {
     kind: 'run',
@@ -92,45 +94,81 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
     ...(input.memoryStorePath ? { memoryStorePath: input.memoryStorePath } : {}),
     contractResolver: input.contractResolver,
   })
-  const assistantMetadata = input.command.name === 'context' && localDiagnostic.metadata
-    ? { contextDiagnostic: localDiagnostic.metadata as unknown as JSONValue }
-    : undefined
-  const assistant = createRuntimeMessage({
-    threadId: input.thread.id,
-    role: 'assistant',
-    content: localDiagnostic.content || '（无内容）',
-    runId: input.run.id,
-    ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
-  })
-  appendThreadMessage({ thread: input.thread, message: assistant })
+  const isContextDiagnostic = input.command.name === 'context' && localDiagnostic.metadata
+  let assistant: AgentMessage | undefined
+  const step = input.createStep(input.run, isContextDiagnostic ? 'tool_call' : 'message', finalRound)
 
-  const step = input.createStep(input.run, 'message', finalRound)
-  completeRunStep(step, {
-    completedAt: input.now(),
-    result: {
-      messageId: assistant.id,
-      localCommand: input.command.name,
-      ...(localDiagnostic.metadata ? { diagnostic: localDiagnostic.metadata } : {}),
-    },
-  })
-  input.recordTrace(input.run, {
-    kind: 'assistant',
-    title: 'Assistant message created',
-    summary: formatAssistantMessageTraceSummary(assistant.content),
-    status: 'completed',
-    round: finalRound,
-    stepId: step.id,
-    data: summarizeAssistantMessageTrace({
-      messageId: assistant.id,
-      content: assistant.content,
-      source: 'runtime_rule',
-    }),
-  })
+  if (isContextDiagnostic) {
+    const diagnostic = localDiagnostic.metadata as unknown as AgentContextDiagnosticRecord['diagnostic']
+    const createdAt = input.now()
+    const contextDiagnostic: AgentContextDiagnosticRecord = {
+      id: makeId('ctx'),
+      threadId: input.thread.id,
+      runId: input.run.id,
+      command: input.command.rawName ?? '/' + input.command.name,
+      content: localDiagnostic.content || '（无内容）',
+      diagnostic,
+      createdAt,
+    }
+    input.thread.contextDiagnostics = [
+      ...(input.thread.contextDiagnostics ?? []),
+      contextDiagnostic,
+    ].slice(-20)
+    completeRunStep(step, {
+      completedAt: createdAt,
+      result: {
+        contextDiagnosticId: contextDiagnostic.id,
+        localCommand: input.command.name,
+        diagnostic: diagnostic as unknown as JSONValue,
+      },
+    })
+    input.recordTrace(input.run, {
+      kind: 'context',
+      title: 'Context diagnostic recorded',
+      summary: 'Runtime context diagnostic recorded without creating a transcript message.',
+      status: 'completed',
+      round: finalRound,
+      stepId: step.id,
+      data: {
+        contextDiagnosticId: contextDiagnostic.id,
+        modelGatewayCalled: false,
+      },
+    })
+  } else {
+    assistant = createRuntimeMessage({
+      threadId: input.thread.id,
+      role: 'assistant',
+      content: localDiagnostic.content || '（无内容）',
+      runId: input.run.id,
+    })
+    appendThreadMessage({ thread: input.thread, message: assistant })
+    completeRunStep(step, {
+      completedAt: input.now(),
+      result: {
+        messageId: assistant.id,
+        localCommand: input.command.name,
+        ...(localDiagnostic.metadata ? { diagnostic: localDiagnostic.metadata } : {}),
+      },
+    })
+    input.recordTrace(input.run, {
+      kind: 'assistant',
+      title: 'Assistant message created',
+      summary: formatAssistantMessageTraceSummary(assistant.content),
+      status: 'completed',
+      round: finalRound,
+      stepId: step.id,
+      data: summarizeAssistantMessageTrace({
+        messageId: assistant.id,
+        content: assistant.content,
+        source: 'runtime_rule',
+      }),
+    })
+  }
 
   const completedAt = input.now()
   applyRunCompletion(input.run, {
     now: completedAt,
-    assistantMessageId: assistant.id,
+    ...(assistant ? { assistantMessageId: assistant.id } : {}),
     warnings: input.warnings,
     metadataPatch: {
       memoryIds: input.memories.map((memory) => memory.id),
@@ -150,7 +188,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
   applyRuntimeThreadContextSummary({ thread: input.thread, run: input.run, now: input.now() })
   input.store.updateThread(input.thread)
   input.store.updateRun(input.run)
-  input.emitAssistantMessage(input.run, assistant)
+  if (assistant) input.emitAssistantMessage(input.run, assistant)
   input.emitRunSnapshot(input.run, { done: true })
   return assistant
 }

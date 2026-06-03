@@ -8,7 +8,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultRuntimeToolHandlerRegistry,
   createDefaultVideoFrameExtractionPort,
@@ -210,7 +209,6 @@ function buildGraphInput(input: {
     workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort({ initialize: async () => null, callTool: async () => null }),
     resourceFilePort: createDefaultResourceFilePort({ initialize: async () => null }),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false }) }),
-    projectStandardsPort: createDefaultProjectStandardsPort({ async getProject(): Promise<any> { return { performed: false } } }),
     registry,
     runtimeToolHandlers: createRuntimeToolHandlerRegistry([{
       toolNames: [toolName],

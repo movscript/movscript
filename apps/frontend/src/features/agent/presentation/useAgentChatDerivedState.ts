@@ -1,10 +1,6 @@
 import { useMemo } from 'react'
 import { buildAgentConversationPresentation } from '@/features/agent/domain/agentConversationPresentation'
-import {
-  isUiOnlyAssistantChatMessage,
-  visibleAssistantActivityRunId,
-  visibleAssistantRuntimeMessageRunId,
-} from '@/features/agent/domain/agentMessageBoundaries'
+import { transcriptAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import { buildPendingRuntimeInputQueueItems } from '@/features/agent/domain/agentConversationThreadItems'
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/features/agent/domain/agentRunControl'
@@ -13,7 +9,7 @@ import { getThinkingBubbleState, type ThinkingBubbleState } from '@/features/age
 import { useAgentChatRunInteractionState } from '@/features/agent/presentation/useAgentChatRunInteractionState'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
-import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface UseAgentChatDerivedStateOptions {
@@ -33,6 +29,7 @@ export interface UseAgentChatDerivedStateOptions {
   streamingAssistantMessageId?: string | null
   streamingAssistantText: string
   submittedInteractionRuns: AgentRun[]
+  timelineItems: AgentTimelineItem[]
   uploading: boolean
   visibleActivityEvents: ChatRunActivityEvent[]
 }
@@ -54,6 +51,7 @@ export function useAgentChatDerivedState({
   streamingAssistantMessageId,
   streamingAssistantText,
   submittedInteractionRuns,
+  timelineItems,
   uploading,
   visibleActivityEvents,
 }: UseAgentChatDerivedStateOptions) {
@@ -70,13 +68,14 @@ export function useAgentChatDerivedState({
   const generationProgressStates = useMemo(() => generationProgressStatesForPinnedStatus({
     messages,
     run: activeLocalRun,
+    timelineItems,
     visibleActivityEvents: generationProgressActivityEvents,
-  }), [activeLocalRun, generationProgressActivityEvents, messages])
+  }), [activeLocalRun, generationProgressActivityEvents, messages, timelineItems])
   const generationProgressState = generationProgressStates.at(-1) ?? null
   const pendingRuntimeInputQueue = useMemo(() => buildPendingRuntimeInputQueueItems(messages), [messages])
   const activeRunHasActivityMessage = useMemo(() => activeLocalRun
-    ? agentMessagesContainRunActivity(messages, activeLocalRun.id)
-    : false, [activeLocalRun, messages])
+    ? agentTimelineItemsContainRunActivity(timelineItems, activeLocalRun.id)
+    : false, [activeLocalRun, timelineItems])
   const visibleStreamingAssistantText = useMemo(() => {
     const streamingRunId = streamingAssistantMessageId ? runIdFromStreamingAssistantMessageId(streamingAssistantMessageId) : undefined
     if (!streamingRunId) return streamingAssistantText
@@ -93,14 +92,10 @@ export function useAgentChatDerivedState({
     activeRunHasActivityMessage,
     activeRun: activeLocalRun,
     visibleActivityEvents: activeRunVisibleActivityEvents,
-    generationProgressStates,
-    generationProgressState,
   }), [
     activeLocalRun,
     activeRunHasActivityMessage,
     buildingSendWorkspace,
-    generationProgressState,
-    generationProgressStates,
     inputBlockingLoading,
     pendingAssistantState,
     pendingSendWorkspace,
@@ -114,6 +109,7 @@ export function useAgentChatDerivedState({
     messages,
     run: activeLocalRun,
     submittedInteractionRuns,
+    timelineItems,
   })
   const canSend = (
     runInteractionState.answeringPendingInput
@@ -153,13 +149,13 @@ function runIdFromStreamingAssistantMessageId(messageId: string): string | undef
   return messageId.startsWith('stream-') ? messageId.slice('stream-'.length) : undefined
 }
 
-export function agentMessagesContainRunActivity(messages: ChatMessage[], runId: string): boolean {
-  return messages.some((message) => visibleAssistantActivityRunId(message) === runId)
+export function agentTimelineItemsContainRunActivity(timelineItems: AgentTimelineItem[], runId: string): boolean {
+  const normalizedRunId = normalizeRunId(runId)
+  return timelineItems.some((item) => normalizeRunId(item.activity?.runId) === normalizedRunId)
 }
 
 export function assistantMessageCompletesStreamingRun(message: ChatMessage, runId: string): boolean {
-  if (isUiOnlyAssistantChatMessage(message)) return false
-  return visibleAssistantRuntimeMessageRunId(message) === normalizeRunId(runId)
+  return transcriptAssistantRuntimeMessageRunId(message) === normalizeRunId(runId)
 }
 
 export function filterActivityEventsForRun(events: ChatRunActivityEvent[], runId: string | undefined): ChatRunActivityEvent[] {

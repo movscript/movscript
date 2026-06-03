@@ -13,8 +13,8 @@ movscript/
 ├── apps/backend/          Go API server、数据库模型、AI adapters、任务 worker
 ├── apps/frontend/         Electron + Vite + React 桌面应用
 ├── apps/admin/            凭据、模型、路由和用户管理后台
-├── apps/agent/            本地 Agent 服务
-├── apps/movcli/           插件脚手架与打包 CLI
+├── apps/agent/            会话级 Agent runtime
+├── apps/cli/              插件脚手架与打包 CLI
 ├── packages/              共享 SDK、UI、tokens 和领域包
 ├── plugins/               第一方插件示例
 ├── contracts/             机器可读 API 与 schema 契约
@@ -53,14 +53,14 @@ http://localhost:8766/admin
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 docker compose up -d db
-pnpm --filter movscript-backend dev
+pnpm --filter @movscript/backend dev
 ```
 
 再另开一个终端启动桌面前端：
 
 ```bash
 cp apps/frontend/.env.example apps/frontend/.env
-pnpm --filter movscript-frontend dev
+pnpm --filter @movscript/desktop dev
 ```
 
 后端健康检查：
@@ -77,11 +77,26 @@ docker compose --profile observability up --build
 
 Grafana 默认地址为 `http://localhost:3002`。Prometheus 会自动抓取后端 `/metrics`，包含 HTTP 路由指标、镜头向量指标、Agent 前端关键阶段、Agent 网络耗时、Web Vitals、前端错误和隐私安全的 telemetry 采集健康指标。同一个 profile 还会自动加载 Prometheus 告警规则，覆盖后端可用性、HTTP 延迟/错误、Agent telemetry 拒收、Agent runtime 延迟/失败、前端错误和 Web Vitals 阈值。
 
-开发 Agent 流程时启动本地 Agent：
+开发 Agent 流程时，用隔离的调试 workspace 启动桌面端：
 
 ```bash
-pnpm --filter movscript-agent dev
+pnpm --filter @movscript/desktop dev:agent-workspace
 ```
+
+默认会把调试会话放在仓库的 `.movscript-dev/.movscript/agent/sessions/YYYY/MM/DD/...`。如果某次调试需要完全隔离，可以指定自己的 workspace：
+
+```bash
+MOVSCRIPT_AGENT_WORKSPACE_DIR=/tmp/movscript-agent-debug pnpm --filter @movscript/desktop dev:agent-workspace
+```
+
+CLI 可以读取同一个 workspace 的会话列表，并且不会启动 agent 进程：
+
+```bash
+pnpm --filter @movscript/cli build
+node apps/cli/dist/index.js agent sessions --workspace /tmp/movscript-agent-debug
+```
+
+Web UI 应该连接桌面端拥有的 session runtime。正常开发时，不再单独启动一个 standalone agent 服务。
 
 ## 常用命令
 
@@ -89,7 +104,7 @@ pnpm --filter movscript-agent dev
 pnpm run test
 pnpm run build
 pnpm run typecheck
-pnpm --filter movscript-backend test
+pnpm --filter @movscript/backend test
 pnpm --filter "./plugins/*" build
 ```
 

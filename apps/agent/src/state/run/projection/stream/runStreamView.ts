@@ -1,4 +1,4 @@
-import { isAgentVisibleAssistantMessage } from '@movscript/protocol'
+import { isAgentTranscriptAssistantMessage } from '@movscript/protocol'
 import { isRecord } from '../../../../shared/json/jsonValue.js'
 import type { AgentMessage, AgentRun, AgentInternalRunSignal, AgentInternalRunSignalRun, AgentThread, AgentTraceEvent } from '../../../shared/types.js'
 
@@ -25,24 +25,24 @@ export function assistantMessageFromTraceEvent(thread: AgentThread | undefined, 
   const data = isRecord(event.data) ? event.data : undefined
   const messageId = typeof data?.messageId === 'string' ? data.messageId : undefined
   if (!messageId) return undefined
-  return thread.messages.find(isVisibleAssistantMessageForId(messageId))
+  return thread.messages.find(isTranscriptAssistantMessageForId(messageId))
 }
 
 export function assistantMessageForRun(thread: AgentThread | undefined, run: AgentRun): AgentMessage | undefined {
   if (!thread) return undefined
   if (run.assistantMessageId) {
-    const message = thread.messages.find(isVisibleAssistantMessageForId(run.assistantMessageId))
+    const message = thread.messages.find(isTranscriptAssistantMessageForId(run.assistantMessageId))
     if (message) return message
   }
-  return [...thread.messages].reverse().find((message) => isVisibleAssistantMessage(message) && message.runId === run.id)
+  return [...thread.messages].reverse().find((message) => isTranscriptAssistantMessage(message) && message.runId === run.id)
 }
 
-function isVisibleAssistantMessageForId(messageId: string): (message: AgentMessage) => boolean {
-  return (message) => message.id === messageId && isVisibleAssistantMessage(message)
+function isTranscriptAssistantMessageForId(messageId: string): (message: AgentMessage) => boolean {
+  return (message) => message.id === messageId && isTranscriptAssistantMessage(message)
 }
 
-function isVisibleAssistantMessage(message: AgentMessage): boolean {
-  return isAgentVisibleAssistantMessage(message)
+function isTranscriptAssistantMessage(message: AgentMessage): boolean {
+  return isAgentTranscriptAssistantMessage(message)
 }
 
 export function toStreamRun(run: AgentRun): AgentInternalRunSignalRun {

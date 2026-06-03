@@ -2,8 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../../shared/protocol/types.js'
 import { isJSONValue, isRecord } from '../../shared/json/jsonValue.js'
-import { atomicWriteJSON, resolveAgentStatePath } from '../../state/store/file/fileStore.js'
-import { WORKSPACE_KIND_VALUES, type WorkspaceKindValue } from '@movscript/workspaces'
+import { atomicWriteJSON, resolveAgentRuntimeDataDir } from '../../state/store/file/fileStore.js'
 import type { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
 
 export { validateWorkspace } from './workspace-store/validation.js'
@@ -12,7 +11,7 @@ export { validateWorkspace } from './workspace-store/validation.js'
 // used to pass proposed changes to the UI for preview, revision, approval, or
 // rejection. It is not a formal backend domain entity until a separate apply
 // flow writes accepted content to backend APIs.
-export type AgentWorkspaceKind = WorkspaceKindValue
+export type AgentWorkspaceKind = string
 // Kept for wire compatibility with older clients. The local workspace itself now
 // remains a mutable work copy; apply/reject outcomes are recorded in metadata.
 export type AgentWorkspaceStatus = 'workspace' | 'accepted' | 'rejected' | 'applied' | 'superseded'
@@ -87,6 +86,7 @@ export interface ListAgentWorkspacesQuery {
   pageRoute?: string
   pageEntityType?: string
   pageEntityId?: number | string
+  current?: boolean
   limit?: number
 }
 
@@ -151,6 +151,8 @@ export class InMemoryAgentWorkspaceStore implements AgentWorkspaceStore {
     const workspaceId = makeWorkspaceId()
     const metadata = normalizeMetadata(input.metadata)
     const seed = normalizeWorkspaceSeed(input.seed)
+    const source = normalizeWorkspaceSource(input.source)
+    const target = normalizeWorkspaceTarget(input.target)
     const workspace: AgentWorkspace = {
       id: workspaceId,
       filePath: this.getWorkspaceFilePath(workspaceId),
@@ -159,14 +161,15 @@ export class InMemoryAgentWorkspaceStore implements AgentWorkspaceStore {
       title: normalizeTitle(input.title),
       content: typeof input.content === 'string' ? input.content : '',
       status: 'workspace',
-      ...(normalizeWorkspaceSource(input.source) ? { source: normalizeWorkspaceSource(input.source) } : {}),
-      ...(normalizeWorkspaceTarget(input.target) ? { target: normalizeWorkspaceTarget(input.target) } : {}),
+      ...(source ? { source } : {}),
+      ...(target ? { target } : {}),
       ...(input.createdByRunId ? { createdByRunId: input.createdByRunId } : {}),
       ...(input.createdByThreadId ? { createdByThreadId: input.createdByThreadId } : {}),
-      ...(metadata || seed ? { metadata: { ...(metadata ?? {}), ...(seed ? { seed } : {}) } } : {}),
+      metadata: { ...(metadata ?? {}), ...(seed ? { seed } : {}), currentWorkspace: true, currentWorkspaceOpenedAt: now },
       createdAt: now,
       updatedAt: now,
     }
+    this.deactivateCurrentWorkspaces(workspaceThreadId(workspace), workspace.id, now)
     this.workspaces.set(workspace.id, clone(workspace))
     return clone(workspace)
   }
@@ -257,6 +260,22 @@ export class InMemoryAgentWorkspaceStore implements AgentWorkspaceStore {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, limit)
       .map((workspace) => clone(workspace))
+  }
+
+  private deactivateCurrentWorkspaces(threadId: string | undefined, nextWorkspaceId: string, now: string): void {
+    for (const [id, workspace] of this.workspaces) {
+      if (id === nextWorkspaceId || workspace.metadata?.currentWorkspace !== true) continue
+      if (threadId !== undefined && workspaceThreadId(workspace) !== threadId) continue
+      this.workspaces.set(id, clone({
+        ...workspace,
+        metadata: {
+          ...(workspace.metadata ?? {}),
+          currentWorkspace: false,
+          supersededByWorkspaceId: nextWorkspaceId,
+        },
+        updatedAt: now,
+      }))
+    }
   }
 
   protected loadWorkspaces(workspaces: AgentWorkspace[]): void {
@@ -495,10 +514,9 @@ function fileSizeSafe(filePath: string): number | undefined {
   }
 }
 
-export function resolveAgentWorkspacePath(statePath = resolveAgentStatePath()): string {
+export function resolveAgentWorkspacePath(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
   if (process.env.MOVSCRIPT_AGENT_WORKSPACE_PATH) return process.env.MOVSCRIPT_AGENT_WORKSPACE_PATH
-  if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.workspaces.json')
-  return join(statePath, 'workspaces.json')
+  return join(runtimeDataDir, 'workspaces.json')
 }
 
 function contentFilePath(indexFilePath: string, workspaceId: string): string {
@@ -548,10 +566,9 @@ function countOccurrences(text: string, needle: string): number {
 }
 
 export function normalizeWorkspaceKind(value: unknown): AgentWorkspaceKind {
-  if (typeof value !== 'string') return 'project_standards_workspace'
+  if (typeof value !== 'string') return 'workspace'
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
-  if ((WORKSPACE_KIND_VALUES as readonly string[]).includes(normalized)) return normalized as AgentWorkspaceKind
-  return 'project_standards_workspace'
+  return normalized || 'workspace'
 }
 
 export function normalizeWorkspaceStatus(value: unknown): AgentWorkspaceStatus | undefined {
@@ -638,6 +655,7 @@ function matchesWorkspaceQuery(workspace: AgentWorkspace, query: ListAgentWorksp
     if (workspace.projectId !== query.projectId) return false
   }
   if (query.kind && workspace.kind !== query.kind) return false
+  if (query.current !== undefined && workspace.metadata?.currentWorkspace !== query.current) return false
   if (query.status && workspace.status !== query.status) return false
   if (query.statuses && query.statuses.length > 0 && !query.statuses.includes(workspace.status)) return false
   if (query.threadId && workspace.createdByThreadId !== query.threadId && workspace.source?.threadId !== query.threadId) return false
@@ -650,6 +668,11 @@ function matchesWorkspaceQuery(workspace: AgentWorkspace, query: ListAgentWorksp
   if (query.pageEntityType && workspace.source?.pageEntityType !== query.pageEntityType) return false
   if (query.pageEntityId !== undefined && workspace.source?.pageEntityId !== query.pageEntityId) return false
   return true
+}
+
+function workspaceThreadId(workspace: AgentWorkspace): string | undefined {
+  return workspace.createdByThreadId
+    ?? (typeof workspace.source?.threadId === 'string' && workspace.source.threadId.trim() ? workspace.source.threadId.trim() : undefined)
 }
 
 function isValidWorkspaceProjectId(value: unknown): value is number {

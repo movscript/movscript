@@ -25,7 +25,7 @@ test('source boundary classifies backend and mcp project refs as verified facts'
     source: 'backend',
     evidence: 'verified',
   })
-  assert.deepEqual(sourceBoundaryForContextRef({ type: 'production', id: '7' }, 'mcp'), {
+  assert.deepEqual(sourceBoundaryForContextRef({ type: 'project', id: '13' }, 'mcp'), {
     source: 'mcp',
     evidence: 'verified',
   })

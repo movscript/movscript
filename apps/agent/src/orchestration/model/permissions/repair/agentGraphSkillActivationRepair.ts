@@ -3,13 +3,6 @@ import type { BlockedToolCall } from '../../../../tools/permissions/evaluation/t
 import type { ToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import type { AgentGraphMakeId } from '../../../graph/input/agentGraphInputRequests.js'
 
-const TOOL_SKILL_ACTIVATION_REPAIRS: Record<string, { skillId: string; reason: string }> = {
-  movscript_script_locate: {
-    skillId: 'movscript.script_reading',
-    reason: '读取项目剧本需要加载剧本读取 skill。',
-  },
-}
-
 export function buildSkillActivationRepairCalls(blockedToolCalls: BlockedToolCall[], input: {
   capabilities: ResolvedToolCatalog
   skills: ResolvedAgentSkill[]
@@ -30,10 +23,6 @@ export function buildSkillActivationRepairCalls(blockedToolCalls: BlockedToolCal
       load.push(skillId)
       reasons.push(`工具 ${blocked.call.name} 需要加载 ${skillId}。`)
     }
-    const repair = TOOL_SKILL_ACTIVATION_REPAIRS[blocked.call.name]
-    if (!repair || activeSkillIds.has(repair.skillId) || load.includes(repair.skillId)) continue
-    load.push(repair.skillId)
-    reasons.push(repair.reason)
   }
 
   if (load.length === 0) return []

@@ -22,9 +22,11 @@ export function AgentConversationTabsPanel({
   onSelectConversation,
   conversationTabsLabel,
   closeConversationLabel,
+  renameConversationLabel,
 }: AgentConversationTabsPanelProps) {
   const [draggingConversationId, setDraggingConversationId] = React.useState<string | null>(null);
   const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null);
+  const [editingConversationId, setEditingConversationId] = React.useState<string | null>(null);
 
   function clearDragState() {
     setDraggingConversationId(null);
@@ -44,12 +46,15 @@ export function AgentConversationTabsPanel({
           item={item}
           isActive={item.id === activeConversationId}
           isDragging={draggingConversationId === item.id}
+          isEditing={editingConversationId === item.id}
           dropPosition={dropTarget?.conversationId === item.id ? dropTarget.position : undefined}
           tabLabel={item.runtimeState ? `${item.title}，Runtime ${item.runtimeState}` : item.title}
           conversationTabsLabel={conversationTabsLabel}
           closeConversationLabel={closeConversationLabel}
+          renameConversationLabel={renameConversationLabel}
           onCloseConversation={onCloseConversation}
           onCloseTabContextMenu={onCloseTabContextMenu}
+          onEditingChange={(editing) => setEditingConversationId(editing ? item.id : null)}
           onOpenKeyboardMenu={onOpenKeyboardMenu}
           onOpenMenu={onOpenMenu}
           onSelectConversation={onSelectConversation}

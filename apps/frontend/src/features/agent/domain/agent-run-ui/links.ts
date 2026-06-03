@@ -1,4 +1,5 @@
 import type { AgentRun, AgentTraceEvent } from '@/shared/infrastructure/localAgentClient'
+import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {
   if (!hash?.startsWith('#event-')) return undefined
@@ -27,9 +28,5 @@ export function buildTraceEventLink(input: {
 }
 
 export function canCancelWorkerRun(run: Pick<AgentRun, 'role' | 'status'> | undefined): boolean {
-  return run?.role === 'worker' && !isTerminalRunStatus(run.status)
-}
-
-function isTerminalRunStatus(status: AgentRun['status']): boolean {
-  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
+  return run?.role === 'worker' && !isTerminalAgentRunStatus(run.status)
 }

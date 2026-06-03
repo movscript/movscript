@@ -52,7 +52,6 @@ export interface ContextSelector {
   selectedKind?: WorkspaceKind[]
   selectedScope?: WorkspaceScope[]
   workspaceStatus?: ('proposed' | 'confirmed' | 'superseded')[]
-  hasProductionId?: boolean
   hasProjectId?: boolean
   custom?: Record<string, string | string[] | boolean>
 }
@@ -178,7 +177,6 @@ export interface UIContext {
   selectedId?: string | number
   workspaceStatus?: 'proposed' | 'confirmed' | 'superseded'
   projectId?: number
-  productionId?: number
   [k: string]: unknown
 }
 

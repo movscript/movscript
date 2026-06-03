@@ -156,7 +156,7 @@ export function buildGenerationAppBootstrapScenario(
   const conversation: Conversation = {
     id: CONVERSATION_ID,
     title: '生成监控',
-    messages: [userMessage, assistantMessage],
+    transcriptMessages: [userMessage, assistantMessage],
     createdAt: Date.parse('2026-05-09T11:59:40.000Z'),
     updatedAt: Date.parse('2026-05-09T12:00:25.000Z'),
   }

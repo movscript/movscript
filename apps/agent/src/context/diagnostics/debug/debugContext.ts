@@ -18,11 +18,6 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
   const snapshot = isRecord(parsed) && isRecord(parsed.focus) ? parsed.focus : isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot) && isRecord(snapshot.project) ? snapshot.project : undefined
   const projectId = isValidAgentProjectId(project?.id) ? project.id : isValidAgentProjectId(project?.ID) ? project.ID : undefined
-  const productionId = isRecord(snapshot) && isValidAgentEntityId(snapshot.productionId)
-    ? snapshot.productionId
-    : isRecord(snapshot) && isValidAgentEntityId(snapshot.currentProductionId)
-      ? snapshot.currentProductionId
-      : undefined
   const route = isRecord(snapshot) && isRecord(snapshot.route) ? snapshot.route : undefined
   const user = isRecord(snapshot) && isRecord(snapshot.user) ? snapshot.user : undefined
   const selection = isRecord(snapshot) && isRecord(snapshot.selection) ? snapshot.selection : undefined
@@ -34,7 +29,6 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
       : undefined
   const ui = clientInput?.uiSnapshot
   const uiProject = ui?.project
-  const uiProductionId = isValidAgentEntityId(ui?.productionId) ? ui.productionId : undefined
   const uiSelection = ui?.selection
   const mergedProjectId = isValidAgentProjectId(projectId)
     ? projectId
@@ -60,7 +54,6 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
         ...(typeof project?.project_style === 'string' ? { project_style: project.project_style } : typeof uiProject?.project_style === 'string' ? { project_style: uiProject.project_style } : {}),
       },
     } : {}),
-    ...(isValidAgentEntityId(productionId) ? { productionId } : isValidAgentEntityId(uiProductionId) ? { productionId: uiProductionId } : {}),
     ...(user && isValidAgentEntityId(user.id) && typeof user.username === 'string' ? { user: { id: user.id, username: user.username, ...(typeof user.systemRole === 'string' ? { systemRole: user.systemRole } : {}) } } : {}),
     ...(selection && typeof selection.entityType === 'string' && isValidAgentReferenceId(selection.entityId) ? {
       selection: { entityType: selection.entityType, entityId: selection.entityId, ...(typeof selection.label === 'string' ? { label: selection.label } : {}) },

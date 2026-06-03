@@ -3,7 +3,6 @@ import { isRecord } from '../../shared/json/jsonValue.js'
 
 export interface AgentContext {
   currentProjectId?: number
-  currentProductionId?: number
 }
 
 export function isValidAgentEntityId(value: unknown): value is number {
@@ -21,7 +20,6 @@ export function isValidAgentReferenceId(value: unknown): value is number | strin
 export function extractAgentContext(result: JSONValue): AgentContext {
   return {
     currentProjectId: extractCurrentProjectId(result),
-    currentProductionId: extractCurrentProductionId(result),
   }
 }
 
@@ -33,15 +31,6 @@ export function extractCurrentProjectId(result: JSONValue): number | undefined {
   const project = isRecord(snapshot.project) ? snapshot.project : undefined
   const projectId = project?.id ?? project?.ID ?? snapshot.projectId ?? snapshot.currentProjectId
   return isValidAgentProjectId(projectId) ? projectId : undefined
-}
-
-export function extractCurrentProductionId(result: JSONValue): number | undefined {
-  const parsed = parseToolResult(result)
-  if (!isRecord(parsed)) return undefined
-
-  const snapshot = isRecord(parsed.focus) ? parsed.focus : isRecord(parsed.snapshot) ? parsed.snapshot : parsed
-  const productionId = snapshot.productionId ?? snapshot.currentProductionId
-  return isValidAgentEntityId(productionId) ? productionId : undefined
 }
 
 export function extractFocusTimings(result: JSONValue): { totalMs?: number; focusMs?: number } | undefined {

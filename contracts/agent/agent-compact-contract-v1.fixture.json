@@ -20,12 +20,12 @@
     }
   },
   "supported_param_keys": [
-    "workspace",
     "frames",
     "image_count",
     "resolution",
     "return_last_frame",
-    "sequential_image_generation"
+    "sequential_image_generation",
+    "workspace"
   ],
   "supported_params": [
     {

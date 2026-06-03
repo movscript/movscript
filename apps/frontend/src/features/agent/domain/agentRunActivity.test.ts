@@ -14,7 +14,7 @@ test('liveTraceEventKey ignores non-plain live tool call payloads', () => {
     id: 'trace_event_1',
     kind: 'tool_call',
     title: 'Model tool call delta',
-    status: 'running',
+    status: 'started',
     data: {
       stream: {
         toolCall: new RuntimeToolCall(),

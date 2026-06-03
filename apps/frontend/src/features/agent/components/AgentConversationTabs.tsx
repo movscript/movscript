@@ -2,7 +2,7 @@ import { useMemo, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AgentConversationTabsPanel, type AgentConversationTabItem } from '@movscript/ui'
 import { conversationDisplayTitle } from '@/features/agent/presentation/agentConversationLabels'
-import { visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
+import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
@@ -13,6 +13,7 @@ export interface AgentConversationTabsProps {
   onCloseTabContextMenu: () => void
   onOpenKeyboardMenu: (event: KeyboardEvent, conversationId: string) => void
   onOpenMenu: (event: MouseEvent, conversationId: string) => void
+  onRenameConversation: (id: string, title: string) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
   runtimeStatusLights?: Partial<Record<string, AgentRuntimeStatusLight>>
@@ -25,6 +26,7 @@ export function AgentConversationTabs({
   onCloseTabContextMenu,
   onOpenKeyboardMenu,
   onOpenMenu,
+  onRenameConversation,
   onReorderConversation,
   onSelectConversation,
   runtimeStatusLights,
@@ -33,15 +35,16 @@ export function AgentConversationTabs({
 
   const mappedConversations: AgentConversationTabItem[] = useMemo(() => conversations.map((item) => {
     const runtimeStatusLight = runtimeStatusLights?.[item.id]
-    const visibleMessageCount = visibleTranscriptChatMessages(item.messages).length
+    const visibleMessageCount = transcriptMessageCount(item)
     return {
       id: item.id,
       title: conversationDisplayTitle(item, t),
       messageCount: visibleMessageCount > 0 ? visibleMessageCount : undefined,
       runtimeState: runtimeStatusLight?.state,
       runtimeDetail: runtimeStatusLight?.detail,
+      onRename: (title: string) => onRenameConversation(item.id, title),
     }
-  }), [conversations, runtimeStatusLights, t])
+  }), [conversations, onRenameConversation, runtimeStatusLights, t])
 
   return (
     <AgentConversationTabsPanel
@@ -56,6 +59,7 @@ export function AgentConversationTabs({
       conversationTabsLabel={t('agents.chat.conversationTabs')}
       archiveConversationLabel={t('agents.chat.archiveConversation')}
       closeConversationLabel={t('agents.chat.closeConversation')}
+      renameConversationLabel={t('agents.chat.renameConversation')}
     />
   )
 }

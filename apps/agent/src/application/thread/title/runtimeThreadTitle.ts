@@ -28,7 +28,7 @@ export async function ensureRuntimeThreadTitle(input: {
   const thread = input.getThread?.(input.thread.id) ?? input.thread
   if (!shouldGenerateThreadTitle(thread, userMessage)) return undefined
   if (!userMessage) return undefined
-  markThreadTitleGenerationPending(thread, input.now())
+  markThreadTitleGenerationPending(thread, input.now(), userMessage)
   input.updateThread(thread)
 
   try {

@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
+import { dirname, isAbsolute, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveAgentCatalogPackStoreDirs } from '@movscript/agent-runtime'
 import {
   DEFAULT_AGENT_MANIFEST,
   type AgentManifest,
   type AgentToolGrant,
 } from '../../manifest/agentManifest.js'
-import { resolveAgentStatePath } from '../../../state/store/file/fileStore.js'
+import { resolveAgentRuntimeDataDir } from '../../../state/store/file/fileStore.js'
 import {
   DEFAULT_TOOL_REGISTRY,
   StaticToolRegistry,
@@ -253,9 +254,16 @@ function enabledPackToolGrants(
   packs: CapabilityPack[],
 ): AgentToolGrant[] {
   const packsById = new Map(packs.map((pack) => [pack.id, pack]))
-  const enabledPackIds = new Set(configFiles.flatMap((configFile) => Array.from(collectEnabledPackClosure(configFile.enabledPackIds, packsById))))
+  const enabledPackIds = enabledPackIdsFromConfig(configFiles, packsById)
   const enabledToolNames = new Set(Array.from(enabledPackIds).flatMap((packId) => packsById.get(packId)?.tools ?? []))
   return grants.filter((grant) => enabledToolNames.has(grant.name))
+}
+
+function enabledPackIdsFromConfig(
+  configFiles: AgentConfigFile[],
+  packsById: Map<string, CapabilityPack>,
+): Set<string> {
+  return new Set(configFiles.flatMap((configFile) => Array.from(collectEnabledPackClosure(configFile.enabledPackIds, packsById))))
 }
 
 function collectEnabledPackClosure(packIds: string[], packsById: Map<string, CapabilityPack>): Set<string> {
@@ -284,12 +292,12 @@ function approvalRank(value?: AgentToolGrant['approval']): number {
   return 0
 }
 
-export function resolveAgentSkillsDir(statePath = resolveAgentStatePath()): string {
-  return process.env.MOVSCRIPT_AGENT_SKILLS_DIR || join(dirname(statePath), 'skills')
+export function resolveAgentSkillsDir(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
+  return resolveAgentCatalogPackStoreDirs({ dataDir: runtimeDataDir, env: process.env }).skillsDir
 }
 
-export function resolveAgentToolsDir(statePath = resolveAgentStatePath()): string {
-  return process.env.MOVSCRIPT_AGENT_TOOLS_DIR || join(dirname(statePath), 'tools')
+export function resolveAgentToolsDir(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
+  return resolveAgentCatalogPackStoreDirs({ dataDir: runtimeDataDir, env: process.env }).toolsDir
 }
 
 export function resolveBuiltinAgentSkillsDir(): string {
@@ -300,16 +308,16 @@ export function resolveBuiltinAgentToolsDir(): string {
   return resolveCatalogDir('tools')
 }
 
-export function resolveAgentPacksDir(statePath = resolveAgentStatePath()): string {
-  return process.env.MOVSCRIPT_AGENT_PACKS_DIR || join(dirname(statePath), 'packs')
+export function resolveAgentPacksDir(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
+  return resolveAgentCatalogPackStoreDirs({ dataDir: runtimeDataDir, env: process.env }).packsDir
 }
 
 export function resolveBuiltinAgentPacksDir(): string {
   return resolveCatalogDir('packs')
 }
 
-export function resolveAgentConfigFilesDir(statePath = resolveAgentStatePath()): string {
-  return process.env.MOVSCRIPT_AGENT_CONFIG_FILES_DIR || join(dirname(statePath), 'config-files')
+export function resolveAgentConfigFilesDir(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
+  return resolveAgentCatalogPackStoreDirs({ dataDir: runtimeDataDir, env: process.env }).configFilesDir
 }
 
 export function resolveBuiltinAgentConfigFilesDir(): string {
@@ -857,7 +865,6 @@ function normalizeContextSelector(input: Record<string, unknown>): ContextSelect
     ...(stringArray(input.selectedScope).length > 0 ? { selectedScope: stringArray(input.selectedScope) as never } : {}),
     ...(stringArray(input.workspaceStatus).length > 0 ? { workspaceStatus: stringArray(input.workspaceStatus).filter((item) => item === 'proposed' || item === 'confirmed' || item === 'superseded') as never } : {}),
     ...(typeof input.hasProjectId === 'boolean' ? { hasProjectId: input.hasProjectId } : {}),
-    ...(typeof input.hasProductionId === 'boolean' ? { hasProductionId: input.hasProductionId } : {}),
   }
 }
 
@@ -927,7 +934,11 @@ function dedupeConfigFiles(configFiles: AgentConfigFile[]): AgentConfigFile[] {
 
 function dedupeLayeredSkills(skills: SkillDefinition[]): SkillDefinition[] {
   const byId = new Map<string, SkillDefinition>()
-  for (const skill of skills) byId.set(skill.id, skill)
+  for (const skill of skills) {
+    const existing = byId.get(skill.id)
+    if (existing && existing.sourcePath && existing.sourcePath === skill.sourcePath && existing.source !== 'local' && skill.source === 'local') continue
+    byId.set(skill.id, skill)
+  }
   return Array.from(byId.values())
 }
 

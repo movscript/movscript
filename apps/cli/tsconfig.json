@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/agent-runtime": ["../../packages/agent-runtime/src/index.ts"]
+    },
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}

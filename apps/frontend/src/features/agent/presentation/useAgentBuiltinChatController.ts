@@ -3,9 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AGENT_PANEL_WORKSPACE_EVENT, AGENT_PANEL_NEW_CONVERSATION_EVENT, consumeAgentPanelWorkspace, consumeAgentPanelNewConversation, type AgentPanelWorkspacePayload, type AgentPanelNewConversationPayload } from '@/features/agent/application/agentPanelBridge'
 import { activateConversationForPanelWorkspace, consumeQueuedPanelWorkspaces } from '@/features/agent/application/agentPanelWorkspaceIntake'
-import { runtimeThreadSummaryFromThread, startSharedProvisionalConversation, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
+import { listRuntimeSessionSummariesFromWorkspace, listRuntimeThreadSummariesFromWorkspace, runtimeThreadSummaryFromThread, startSharedProvisionalConversation, upsertCachedLocalAgentThread } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadResult } from '@/features/agent/application/agentRuntimeThreadRestore'
-import { runtimeThreadConversationTitle } from '@/features/agent/presentation/agentRuntimeThreadConversation'
 import {
   agentConversationOpenRecordsEqual,
   mergeAgentConversationOpenState,
@@ -19,7 +18,7 @@ import {
   writeAgentConversationOpenState,
   type AgentConversationOpenRecord,
 } from '@/features/agent/presentation/agentConversationOpenOrder'
-import { conversationFromRuntimeThreadSummary } from '@/features/agent/presentation/agentRuntimeThreadConversation'
+import { conversationFromRuntimeSessionSummary } from '@/features/agent/presentation/agentRuntimeThreadConversation'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import {
@@ -29,11 +28,14 @@ import {
   performanceNow,
   recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
-import { localAgentClient, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentSessionSummary, type AgentThread, type AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
+
+const RESTORE_THREAD_MESSAGE_PAGE_SIZE = 50
 
 export interface UseAgentBuiltinChatControllerOptions {
   userId: string
   pendingThreadIdToOpen?: string | null
+  pendingThreadSessionIdToOpen?: string | null
   onPendingThreadHandled?: (threadId: string) => void
   onStartupSettled?: () => void
 }
@@ -43,6 +45,7 @@ export type AgentBuiltinChatStartupStatus = 'creating' | 'restoring' | null
 export function useAgentBuiltinChatController({
   userId,
   pendingThreadIdToOpen,
+  pendingThreadSessionIdToOpen,
   onPendingThreadHandled,
   onStartupSettled,
 }: UseAgentBuiltinChatControllerOptions) {
@@ -66,24 +69,33 @@ export function useAgentBuiltinChatController({
   const clearConversationRuntimeState = useAgentSessionStore((s) => s.clearConversationRuntimeState)
   const {
     data: runtimeThreads = [],
-    isLoading: runtimeThreadsLoading,
     refetch: refetchRuntimeThreads,
   } = useQuery<AgentThreadSummary[]>({
     queryKey: ['local-agent-threads', localAgentClient.baseURL, 'builtin-chat-controller'],
     queryFn: async () => {
-      await localAgentClient.ensureRunning()
-      return localAgentClient.listThreads({ includeProvisional: true }).then((result) => result.threads)
+      return listRuntimeThreadSummariesFromWorkspace({ includeProvisional: true })
+    },
+    retry: false,
+  })
+  const {
+    data: runtimeSessions = [],
+    isLoading: runtimeSessionsLoading,
+    refetch: refetchRuntimeSessions,
+  } = useQuery<AgentSessionSummary[]>({
+    queryKey: ['local-agent-sessions', localAgentClient.baseURL, 'builtin-chat-controller'],
+    queryFn: async () => {
+      return listRuntimeSessionSummariesFromWorkspace()
     },
     retry: false,
   })
 
   const conversations = useMemo(() => {
-    return runtimeThreads.map((thread) => {
-      const conversation = conversationFromRuntimeThreadSummary(thread, t)
+    return runtimeSessions.map((session) => {
+      const conversation = conversationFromRuntimeSessionSummary(session, t)
       const title = conversationRuntimes[conversation.id]?.title?.trim()
       return title ? { ...conversation, title } : conversation
     })
-  }, [conversationRuntimes, runtimeThreads, t])
+  }, [conversationRuntimes, runtimeSessions, t])
   const rawOpenConversations = useMemo(
     () => conversations.filter((conversation) => conversation.archived !== true),
     [conversations],
@@ -94,7 +106,7 @@ export function useAgentBuiltinChatController({
     setConversationOpenState(readAgentConversationOpenState(userId))
   }, [userId])
   useEffect(() => {
-    if (runtimeThreadsLoading) return
+    if (runtimeSessionsLoading) return
     setConversationOpenState((current) => {
       let merged = mergeAgentConversationOpenState(current, availableConversationIds, { defaultOpen: false })
       const activeConversationExplicitlyClosed = merged.some((record) => record.id === activeConversationId && record.open === false)
@@ -105,7 +117,7 @@ export function useAgentBuiltinChatController({
       writeAgentConversationOpenState(userId, merged)
       return merged
     })
-  }, [activeConversationId, availableConversationIds, runtimeThreadsLoading, userId])
+  }, [activeConversationId, availableConversationIds, runtimeSessionsLoading, userId])
   const openConversationIds = useMemo(() => openAgentConversationIds(conversationOpenState), [conversationOpenState])
   const openConversations = useMemo(() => {
     const openIds = new Set(openConversationIds)
@@ -129,7 +141,7 @@ export function useAgentBuiltinChatController({
     writeAgentActiveConversationId(targetUserId, conversationId)
   }, [setActiveConversation])
   useEffect(() => {
-    if (runtimeThreadsLoading) return
+    if (runtimeSessionsLoading) return
     if (activeConversationId) {
       if (openConversationIds.includes(activeConversationId)) {
         writeAgentActiveConversationId(userId, activeConversationId)
@@ -143,7 +155,7 @@ export function useAgentBuiltinChatController({
     if (restoredConversationId !== activeConversationId) {
       setActiveConversationAndPersist(userId, restoredConversationId)
     }
-  }, [activeConversationId, openConversationIds, runtimeThreadsLoading, setActiveConversationAndPersist, userId])
+  }, [activeConversationId, openConversationIds, runtimeSessionsLoading, setActiveConversationAndPersist, userId])
   const restoringThreadsRef = useRef(new Map<string, Promise<RestoreRuntimeThreadResult>>())
   const [startupStatus, setStartupStatus] = useState<AgentBuiltinChatStartupStatus>(null)
   const activeTask = useMemo(() => {
@@ -161,17 +173,26 @@ export function useAgentBuiltinChatController({
       ?? (conversationId.startsWith('thread_') ? conversationId : undefined)
   }, [])
 
+  const runtimeClientForConversation = useCallback((conversationId: string) => {
+    const sessionState = useAgentSessionStore.getState()
+    const sessionId = sessionState.sessionIdsByConversation[conversationId]
+      ?? sessionState.conversationRuntimes[conversationId]?.sessionId
+    return sessionId?.trim()
+      ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+      : localAgentClient
+  }, [])
+
   const updateConversationTitleAndPersist = useCallback((targetUserId: string, conversationId: string, title: string) => {
     updateConversationTitle(targetUserId, conversationId, title)
     const trimmed = title.trim()
     const threadId = threadIdForConversation(conversationId)
     if (!trimmed || !threadId) return
-    void localAgentClient.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
+    void runtimeClientForConversation(conversationId).updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
       .then((thread) => upsertCachedLocalAgentThread(queryClient, runtimeThreadSummaryFromThread(thread)))
       .catch((error) => {
         console.error('[agent] failed to persist runtime conversation title', error)
       })
-  }, [queryClient, threadIdForConversation, updateConversationTitle])
+  }, [queryClient, runtimeClientForConversation, threadIdForConversation, updateConversationTitle])
 
   const createProvisionalRuntimeConversation = useCallback(async (input: { title?: string; projectId?: number } = {}) => {
     const operationId = beginAgentPerformanceOperation({
@@ -189,16 +210,16 @@ export function useAgentBuiltinChatController({
         ...(input.title?.trim() ? { title: input.title.trim() } : {}),
         ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
       })
+      const threadSummary = runtimeThreadSummaryFromThread(thread)
       markAgentPerformancePhase(operationId, 'provisional_thread_done', {
         details: {
           threadId: thread.id,
-          messageCount: thread.messages?.length ?? 0,
+          messageCount: threadSummary.messageCount,
           hasSessionId: Boolean(thread.sessionId),
         },
       })
       const createdAt = Date.parse(thread.createdAt)
       const updatedAt = Date.parse(thread.updatedAt)
-      const threadSummary = runtimeThreadSummaryFromThread(thread)
       markAgentPerformancePhase(operationId, 'runtime_conversation_create_start')
       const conversationId = createRuntimeConversation(userId, {
         threadId: thread.id,
@@ -230,11 +251,12 @@ export function useAgentBuiltinChatController({
       setAgentPanelOpen(true)
       markAgentPerformancePhase(operationId, 'conversation_panel_opened')
       void refetchRuntimeThreads()
+      void refetchRuntimeSessions()
       markAgentPerformancePhase(operationId, 'runtime_threads_refetch_queued')
       finishAgentPerformanceOperation(operationId, 'success', {
         conversationId,
         threadId: thread.id,
-        messageCount: thread.messages?.length ?? 0,
+        messageCount: threadSummary.messageCount,
       })
       return conversationId
     } catch (error) {
@@ -246,7 +268,7 @@ export function useAgentBuiltinChatController({
       setStartupStatus(null)
       onStartupSettled?.()
     }
-  }, [createRuntimeConversation, onStartupSettled, queryClient, refetchRuntimeThreads, setAgentPanelOpen, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
+  }, [createRuntimeConversation, onStartupSettled, queryClient, refetchRuntimeSessions, refetchRuntimeThreads, setAgentPanelOpen, setConversationRuntime, setConversationSessionId, setLocalThreadId, t, userId])
 
   const handleNewConversation = useCallback(() => {
     void createProvisionalRuntimeConversation().catch((error) => {
@@ -254,12 +276,13 @@ export function useAgentBuiltinChatController({
     })
   }, [createProvisionalRuntimeConversation])
 
-  const handleRestoreLocalThread = useCallback(async (threadId: string) => {
+  const handleRestoreLocalThread = useCallback(async (threadId: string, restoreSessionId?: string) => {
     const normalizedThreadId = threadId.trim()
+    const normalizedRestoreSessionId = restoreSessionId?.trim()
     if (!normalizedThreadId) return
     const operationId = beginAgentPerformanceOperation({
       kind: 'conversation_open',
-      meta: { source: 'restore_thread', threadId: normalizedThreadId },
+      meta: { source: 'restore_thread', threadId: normalizedThreadId, sessionId: normalizedRestoreSessionId },
     })
     const pendingRestore = restoringThreadsRef.current.get(normalizedThreadId)
     if (pendingRestore) {
@@ -280,19 +303,101 @@ export function useAgentBuiltinChatController({
     const restorePromise = restoreRuntimeThreadConversation(normalizedThreadId, {
       userId,
       conversations,
-      getConversations: () => runtimeThreads.map((thread) => conversationFromRuntimeThreadSummary(thread, t)),
+      getConversations: () => runtimeSessions.map((session) => conversationFromRuntimeSessionSummary(session, t)),
       sessionState: {
         localThreadIdsByConversation: sessionState.localThreadIdsByConversation,
         sessionIdsByConversation: sessionState.sessionIdsByConversation,
         conversationRuntimes: sessionState.conversationRuntimes,
       },
-      titleForThread: (thread) => runtimeThreadConversationTitle(thread, t),
+      titleForThread: (thread) => {
+        const sessionTitle = runtimeSessions.find((session) => session.id === thread.sessionId)?.title?.trim()
+        return sessionTitle || t('agents.chat.newConversation')
+      },
       loadThread: async (id) => {
         markAgentPerformancePhase(operationId, 'conversation_thread_fetch_start')
         const startedAt = performanceNow()
-        const thread = await localAgentClient.getThread(id)
+        const threadSummary = runtimeThreads.find((thread) => thread.id === id)
+        const sessionId = normalizedRestoreSessionId || threadSummary?.sessionId
+        const runtimeClient = sessionId?.trim()
+          ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+          : localAgentClient
+        if (sessionId?.trim()) {
+          markAgentPerformancePhase(operationId, 'conversation_session_runtime_ensure_start', {
+            details: { sessionId: sessionId.trim() },
+          })
+          await runtimeClient.ensureRunning()
+          markAgentPerformancePhase(operationId, 'conversation_session_runtime_ensure_done', {
+            details: { sessionId: sessionId.trim() },
+          })
+        }
+        if (threadSummary) {
+          const shell = runtimeThreadShellFromSummary(threadSummary)
+          const shellDurationMs = Math.max(0, performanceNow() - startedAt)
+          const shellPayloadBytes = jsonByteLength(shell)
+          recordAgentPerformanceMetric({
+            name: 'frontend_agent_thread_restore_duration_ms',
+            value: shellDurationMs,
+            unit: 'ms',
+            labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread_shell', status: 'success' },
+          })
+          recordAgentPerformanceMetric({
+            name: 'frontend_agent_thread_restore_payload_bytes',
+            value: shellPayloadBytes,
+            unit: 'bytes',
+            labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread_shell', status: 'success' },
+          })
+          markAgentPerformancePhase(operationId, 'conversation_thread_fetch_done', {
+            details: { threadId: shell.id, messageCount: threadSummary.messageCount, payloadBytes: shellPayloadBytes, durationMs: shellDurationMs, source: 'summary' },
+          })
+
+          try {
+            const messagesStartedAt = performanceNow()
+            const page = await runtimeClient.listThreadMessages(id, { limit: RESTORE_THREAD_MESSAGE_PAGE_SIZE, direction: 'desc' })
+            const messagesDurationMs = Math.max(0, performanceNow() - messagesStartedAt)
+            const messagesPayloadBytes = jsonByteLength(page)
+            recordAgentPerformanceMetric({
+              name: 'frontend_agent_thread_restore_duration_ms',
+              value: messagesDurationMs,
+              unit: 'ms',
+              labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread_messages', status: 'success' },
+            })
+            recordAgentPerformanceMetric({
+              name: 'frontend_agent_thread_restore_message_count',
+              value: page.messages.length,
+              unit: 'count',
+              labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread_messages', status: 'success' },
+            })
+            recordAgentPerformanceMetric({
+              name: 'frontend_agent_thread_restore_payload_bytes',
+              value: messagesPayloadBytes,
+              unit: 'bytes',
+              labels: { component: 'agent_builtin_chat', kind: 'thread_restore', stage: 'load_thread_messages', status: 'success' },
+            })
+            markAgentPerformancePhase(operationId, 'conversation_thread_messages_page_done', {
+              details: {
+                threadId: shell.id,
+                messageCount: page.messages.length,
+                totalMessageCount: threadSummary.messageCount,
+                payloadBytes: messagesPayloadBytes,
+                durationMs: messagesDurationMs,
+                hasMore: page.hasMore,
+                direction: 'desc',
+                scan: page.scan,
+              },
+            })
+            return {
+              ...shell,
+              messages: [...page.messages].reverse(),
+            }
+          } catch (error) {
+            markAgentPerformancePhase(operationId, 'conversation_thread_messages_page_error', {
+              details: { threadId: shell.id, error: error instanceof Error ? error.message : String(error) },
+            })
+          }
+        }
+        const thread = await runtimeClient.getThread(id)
         const durationMs = Math.max(0, performanceNow() - startedAt)
-        const messageCount = thread.messages?.length ?? 0
+        const messageCount = runtimeThreadSummaryFromThread(thread).messageCount
         const payloadBytes = jsonByteLength(thread)
         recordAgentPerformanceMetric({
           name: 'frontend_agent_thread_restore_duration_ms',
@@ -345,6 +450,7 @@ export function useAgentBuiltinChatController({
         },
       })
       void refetchRuntimeThreads()
+      void refetchRuntimeSessions()
       markAgentPerformancePhase(operationId, 'runtime_threads_refetch_queued')
       archiveDuplicateRuntimeConversations(userId, result.conversationId, result.threadId)
       finishAgentPerformanceOperation(operationId, 'success', {
@@ -365,6 +471,7 @@ export function useAgentBuiltinChatController({
     createRuntimeConversation,
     onStartupSettled,
     refetchRuntimeThreads,
+    refetchRuntimeSessions,
     setActiveConversationAndPersist,
     setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
@@ -374,6 +481,7 @@ export function useAgentBuiltinChatController({
     updateConversationTitleAndPersist,
     userId,
     runtimeThreads,
+    runtimeSessions,
   ])
 
   const getActiveRuntimeConversationId = useCallback((targetUserId: string) => {
@@ -437,17 +545,19 @@ export function useAgentBuiltinChatController({
       return next
     })
     patchCachedRuntimeThreads([runtimeThreadId], { archived })
-    await localAgentClient.updateThread(runtimeThreadId, { archived })
+    await runtimeClientForConversation(conversationId).updateThread(runtimeThreadId, { archived })
     if (!archived) setActiveConversationAndPersist(userId, conversationId)
     void refetchRuntimeThreads()
-  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, setActiveConversationAndPersist, setAgentPanelOpen, threadIdForConversation, userId])
+    void refetchRuntimeSessions()
+  }, [activeConversationAfterArchive, patchCachedRuntimeThreads, refetchRuntimeSessions, refetchRuntimeThreads, runtimeClientForConversation, setActiveConversationAndPersist, setAgentPanelOpen, threadIdForConversation, userId])
 
   const handleArchiveConversation = useCallback((id: string) => {
     void patchConversationArchiveState(id, true).catch((error) => {
       void refetchRuntimeThreads()
+      void refetchRuntimeSessions()
       console.error('[agent] failed to archive runtime conversation', error)
     })
-  }, [patchConversationArchiveState, refetchRuntimeThreads])
+  }, [patchConversationArchiveState, refetchRuntimeSessions, refetchRuntimeThreads])
 
   const handleArchiveConversations = useCallback((ids: string[]) => {
     void (async () => {
@@ -494,13 +604,14 @@ export function useAgentBuiltinChatController({
         clearConversationRuntimeState(id)
         return
       }
-      const deletion = await localAgentClient.deleteThread(runtimeThreadId)
+      const deletion = await runtimeClientForConversation(id).deleteThread(runtimeThreadId)
       cleanupDeletedRuntimeConversations(id, [deletion.threadId])
       void refetchRuntimeThreads()
+      void refetchRuntimeSessions()
     })().catch((error) => {
       console.error('[agent] failed to delete runtime conversation', error)
     })
-  }, [cleanupDeletedRuntimeConversations, clearConversationRuntimeState, refetchRuntimeThreads, removeRuntimeConversation, threadIdForConversation, userId])
+  }, [cleanupDeletedRuntimeConversations, clearConversationRuntimeState, refetchRuntimeSessions, refetchRuntimeThreads, removeRuntimeConversation, runtimeClientForConversation, threadIdForConversation, userId])
 
   const handleSelectConversation = useCallback((id: string) => {
     const operationId = beginAgentPerformanceOperation({
@@ -543,10 +654,14 @@ export function useAgentBuiltinChatController({
     })
   }, [availableConversationIds, userId])
 
+  const handleRenameConversation = useCallback((id: string, title: string) => {
+    updateConversationTitleAndPersist(userId, id, title)
+  }, [updateConversationTitleAndPersist, userId])
+
   useEffect(() => {
     if (!pendingThreadIdToOpen?.trim()) return
-    void handleRestoreLocalThread(pendingThreadIdToOpen).finally(() => onPendingThreadHandled?.(pendingThreadIdToOpen))
-  }, [handleRestoreLocalThread, onPendingThreadHandled, pendingThreadIdToOpen])
+    void handleRestoreLocalThread(pendingThreadIdToOpen, pendingThreadSessionIdToOpen ?? undefined).finally(() => onPendingThreadHandled?.(pendingThreadIdToOpen))
+  }, [handleRestoreLocalThread, onPendingThreadHandled, pendingThreadIdToOpen, pendingThreadSessionIdToOpen])
 
   useEffect(() => {
     void consumeQueuedPanelWorkspaces(consumeAgentPanelWorkspace, {
@@ -620,6 +735,7 @@ export function useAgentBuiltinChatController({
     archiveConversations: handleArchiveConversations,
     deleteConversation: handleDeleteConversation,
     newConversation: handleNewConversation,
+    renameConversation: handleRenameConversation,
     reorderConversation: handleReorderConversation,
     restoreLocalThread: handleRestoreLocalThread,
     selectConversation: handleSelectConversation,
@@ -630,6 +746,16 @@ function archiveDuplicateRuntimeConversations(userId: string, keepConversationId
   void userId
   void keepConversationId
   void threadId
+}
+
+function runtimeThreadShellFromSummary(summary: AgentThreadSummary): AgentThread {
+  return {
+    ...summary,
+    archived: summary.archived === true,
+    createdAt: summary.createdAt,
+    updatedAt: summary.updatedAt,
+    messages: [],
+  }
 }
 
 function jsonByteLength(value: unknown): number {

@@ -1,4 +1,5 @@
 import type { AgentWorkspaceKind } from '@/shared/contracts/agentWorkspace'
+import type { ElectronAgentRuntimeSessionSummary, ElectronAgentWorkspaceConfig, ElectronAgentWorkspaceConfigSaveInput } from '@/shared/contracts/electronApi'
 import type {
   AgentApprovalRequest,
   AgentCapabilitiesResponse,
@@ -8,9 +9,9 @@ import type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
-  AgentFeedMessage,
-  AgentFeedMessagePage,
-  AgentFeedMessageStreamEvent,
+  AgentTimelineItem,
+  AgentTimelinePage,
+  AgentTimelineStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -30,6 +31,7 @@ import type {
   AgentRunTracePage,
   AgentRunTraceSummary,
   AgentRuntimeEventV2,
+  AgentRuntimeStatusRecord,
   AgentRuntimeSnapshotV2,
   AgentSession,
   AgentSessionSummary,
@@ -80,9 +82,9 @@ export type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
-  AgentFeedMessage,
-  AgentFeedMessagePage,
-  AgentFeedMessageStreamEvent,
+  AgentTimelineItem,
+  AgentTimelinePage,
+  AgentTimelineStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -102,6 +104,7 @@ export type {
   AgentRunTracePage,
   AgentRunTraceSummary,
   AgentRuntimeEventV2,
+  AgentRuntimeStatusRecord,
   AgentRuntimeSnapshotV2,
   AgentSession,
   AgentSessionSummary,
@@ -143,6 +146,21 @@ export type {
 }
 
 export type AgentToolCall = ToolCall
+export type AgentRuntimeSessionSummary = ElectronAgentRuntimeSessionSummary
+export type AgentWorkspaceRuntimeConfig = ElectronAgentWorkspaceConfig
+export type AgentWorkspaceRuntimeConfigSaveInput = ElectronAgentWorkspaceConfigSaveInput
+
+export interface AgentRuntimeSessionLease {
+  ok: boolean
+  sessionId?: string
+  leaseId: string
+  ttlMs?: number
+  expiresAt?: string
+  activeLeases?: number
+  activeStreams?: number
+  released?: boolean
+  holder?: string
+}
 
 export type AgentRuntimeLimitsOverride = Partial<Pick<AgentRuntimeLimits, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'execution'>>
 
@@ -152,18 +170,40 @@ export interface AgentThreadListQuery {
   includeProvisional?: boolean
 }
 
-export interface AgentMessageFeedQuery {
+export interface AgentTimelineQuery {
   before?: string
   limit?: number
 }
 
-export interface AgentSessionMessageFeedQuery extends AgentMessageFeedQuery {
+export interface AgentThreadMessagesQuery {
+  afterOrdinal?: number
+  limit?: number
+  direction?: 'asc' | 'desc'
+}
+
+export interface AgentThreadMessagesPage {
+  threadId: string
+  messages: AgentMessage[]
+  nextAfterOrdinal?: number
+  hasMore: boolean
+  scan: {
+    durationMs: number
+    bytesRead: number
+    totalBytes: number
+    linesRead: number
+    eventsRead: number
+    matchedEvents: number
+    malformedLines: number
+  }
+}
+
+export interface AgentSessionTimelineQuery extends AgentTimelineQuery {
   threadId?: string
 }
 
-export interface AgentMessageFeedStreamOptions {
+export interface AgentTimelineStreamOptions {
   threadId?: string
-  onMessageEvent?: (event: AgentFeedMessageStreamEvent) => void
+  onTimelineEvent?: (event: AgentTimelineStreamEvent) => void
   signal?: AbortSignal
 }
 
@@ -171,16 +211,19 @@ export interface AgentHealth {
   ok: boolean
   service: string
   mode: string
-  mcpEndpoint: string
+  mcpEndpoint?: string
   runtime?: {
     apiVersion: number
     features: string[]
     endpoints: string[]
   }
   paths?: {
-    statePath: string
+    runtimeDataDir: string
     memoryPath: string
+    runtimeLogPath: string
     workspacePath: string
+    toolResultPath: string
+    catalogStatePath: string
     modelConfigPath: string
   }
   modelConfigPath?: string
@@ -795,27 +838,6 @@ export interface AgentRunGenerationView {
   failed: number
   cancelled: number
   timeout: number
-}
-
-export interface AgentPackFile {
-  path: string
-  content: string
-}
-
-export interface AgentPackInstallResult {
-  status: 'installed'
-  pluginId: string
-  targetDir: string
-  installedFiles: string[]
-  catalog?: Record<string, unknown>
-}
-
-export interface AgentPackUninstallResult {
-  status: 'uninstalled'
-  pluginId: string
-  targetDir: string
-  removed: boolean
-  catalog?: Record<string, unknown>
 }
 
 export interface RunMessageOptions {

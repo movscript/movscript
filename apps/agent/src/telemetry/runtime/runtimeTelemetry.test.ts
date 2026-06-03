@@ -48,13 +48,13 @@ test('RuntimeTelemetryRegistry renders prometheus output through prom-client', a
     name: 'movscript_agent_storage_flush_duration_ms',
     value: 12,
     unit: 'ms',
-    labels: { component: 'state_store', kind: 'state_file', stage: 'flush', status: 'success' },
+    labels: { component: 'runtime_store', kind: 'runtime_log', stage: 'flush', status: 'success' },
   })
   telemetry.recordMetric({
     name: 'movscript_agent_storage_file_bytes',
     value: 2048,
     unit: 'bytes',
-    labels: { component: 'state_store', kind: 'state_file', stage: 'flush', status: 'success' },
+    labels: { component: 'runtime_store', kind: 'runtime_log', stage: 'flush', status: 'success' },
   })
   telemetry.recordMetric({
     name: 'movscript_agent_trace_store_operation_duration_ms',
@@ -66,8 +66,8 @@ test('RuntimeTelemetryRegistry renders prometheus output through prom-client', a
 
   assert.match(text, /movscript_agent_telemetry_info/)
   assert.match(text, /movscript_agent_telemetry_retention_limit\{kind="spans"\} 600/)
-  assert.match(text, /movscript_agent_storage_flush_duration_ms_count\{component="state_store",kind="state_file",stage="flush",status="success"\} 1/)
-  assert.match(text, /movscript_agent_storage_file_bytes\{component="state_store",kind="state_file",stage="flush",status="success"\} 2048/)
+  assert.match(text, /movscript_agent_storage_flush_duration_ms_count\{component="runtime_store",kind="runtime_log",stage="flush",status="success"\} 1/)
+  assert.match(text, /movscript_agent_storage_file_bytes\{component="runtime_store",kind="runtime_log",stage="flush",status="success"\} 2048/)
   assert.match(text, /movscript_agent_trace_store_operation_duration_ms_count\{component="trace_store",kind="trace_file",stage="append",status="success"\} 1/)
 })
 

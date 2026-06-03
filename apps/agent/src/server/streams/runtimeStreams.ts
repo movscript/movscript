@@ -8,7 +8,12 @@ import {
   runtimeEventFromThreadStream,
 } from '../protocol/runtimeProtocol.js'
 
-export function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string, telemetry?: RuntimeTelemetryRegistry): void {
+export interface RuntimeStreamLifecycleHooks {
+  onSubscribe?: () => void
+  onUnsubscribe?: () => void
+}
+
+export function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string, telemetry?: RuntimeTelemetryRegistry, hooks: RuntimeStreamLifecycleHooks = {}): void {
   if (!runtime.getRun(runId)) {
     writeJSON(res, 404, { error: 'run not found' })
     return
@@ -32,12 +37,14 @@ export function streamRunEvents(req: IncomingMessage, res: ServerResponse, runti
     closed = true
     clearInterval(heartbeat)
     unsubscribe()
+    hooks.onUnsubscribe?.()
     telemetry?.markPhase(operationId, 'stream_closed', { end })
     telemetry?.finishOperation(operationId, 'success', { end })
     if (end && !res.writableEnded) res.end()
   }
 
   let ordinal = 0
+  hooks.onSubscribe?.()
   unsubscribe = runtime.subscribeRunStream(runId, (event) => {
     if (closed || res.writableEnded) return
     const runtimeEvent = runtimeEventFromRunStream({ runtime, scope: { type: 'run', id: runId }, ordinal: ++ordinal, event })
@@ -53,7 +60,7 @@ export function streamRunEvents(req: IncomingMessage, res: ServerResponse, runti
   req.on('close', () => cleanup(false))
 }
 
-export function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, threadId: string): void {
+export function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, threadId: string, hooks: RuntimeStreamLifecycleHooks = {}): void {
   if (!runtime.getThread(threadId)) {
     writeJSON(res, 404, { error: 'thread not found' })
     return
@@ -73,10 +80,12 @@ export function streamThreadEvents(req: IncomingMessage, res: ServerResponse, ru
     closed = true
     clearInterval(heartbeat)
     unsubscribe()
+    hooks.onUnsubscribe?.()
     if (end && !res.writableEnded) res.end()
   }
 
   let ordinal = 0
+  hooks.onSubscribe?.()
   unsubscribe = runtime.subscribeThreadStream(threadId, (event) => {
     if (closed || res.writableEnded) return
     const runtimeEvent = runtimeEventFromThreadStream({ runtime, scope: { type: 'thread', id: threadId }, ordinal: ++ordinal, event })
@@ -86,7 +95,7 @@ export function streamThreadEvents(req: IncomingMessage, res: ServerResponse, ru
   req.on('close', () => cleanup(false))
 }
 
-export function streamSessionEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, sessionId: string): void {
+export function streamSessionEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, sessionId: string, hooks: RuntimeStreamLifecycleHooks = {}): void {
   if (!runtime.getSession(sessionId)) {
     writeJSON(res, 404, { error: 'session not found' })
     return
@@ -106,10 +115,12 @@ export function streamSessionEvents(req: IncomingMessage, res: ServerResponse, r
     closed = true
     clearInterval(heartbeat)
     unsubscribe()
+    hooks.onUnsubscribe?.()
     if (end && !res.writableEnded) res.end()
   }
 
   let ordinal = 0
+  hooks.onSubscribe?.()
   unsubscribe = runtime.subscribeSessionStream(sessionId, (event) => {
     if (closed || res.writableEnded) return
     const runtimeEvent = runtimeEventFromSessionStream({ runtime, scope: { type: 'session', id: sessionId }, ordinal: ++ordinal, event })
@@ -119,7 +130,7 @@ export function streamSessionEvents(req: IncomingMessage, res: ServerResponse, r
   req.on('close', () => cleanup(false))
 }
 
-export function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, taskGraphId: string): void {
+export function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, taskGraphId: string, hooks: RuntimeStreamLifecycleHooks = {}): void {
   if (!runtime.getTaskGraph(taskGraphId)) {
     writeJSON(res, 404, { error: 'taskGraph not found' })
     return
@@ -141,10 +152,12 @@ export function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runt
     closed = true
     clearInterval(heartbeat)
     unsubscribe()
+    hooks.onUnsubscribe?.()
     if (end && !res.writableEnded) res.end()
   }
 
   let ordinal = 0
+  hooks.onSubscribe?.()
   unsubscribe = runtime.subscribePlanStream(taskGraphId, (event) => {
     if (closed || res.writableEnded) return
     const runtimeEvent = runtimeEventFromPlanStream({ scope: { type: 'plan', id: taskGraphId }, ordinal: ++ordinal, event })

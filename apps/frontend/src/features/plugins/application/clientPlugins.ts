@@ -1,8 +1,10 @@
 import { api } from '@/shared/infrastructure/api'
 import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } from '@/types'
-import { createMcpTools, type McpTools } from '@/features/plugins/infrastructure/mcpTools'
-import { publicModelId } from '@/shared/domain/modelDisplay'
-import { localAgentClient, type AgentPackFile, type AgentPackInstallResult } from '@/shared/infrastructure/localAgentClient'
+import {
+  agentCatalogPackStoreClient,
+  type AgentCatalogPackFile,
+  type AgentCatalogPackInstallResult,
+} from './agentCatalogPackStoreClient'
 import { createObjectUrl, revokeObjectUrl } from '@/shared/ui/objectUrl'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -27,11 +29,20 @@ export interface ClientPluginInputSchema {
   required?: string[]
 }
 
+export interface ClientPluginAgentToolContribution {
+  id?: string
+  name?: string
+  title?: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+  outputSchema?: Record<string, unknown>
+  permissions?: string[]
+}
+
 export interface ClientPluginCanvasNodeContribution {
   type: string
   title: string
   description?: string
-  tool?: string
   inputs?: CanvasPortDef[]
   outputs?: CanvasPortDef[]
   card?: string
@@ -42,8 +53,22 @@ export interface ClientPluginCanvasNodeContribution {
 
 export interface ClientPluginContributions {
   canvasNodes?: ClientPluginCanvasNodeContribution[]
-  tools?: unknown[]
+  tools?: ClientPluginAgentToolContribution[]
   cards?: unknown[]
+  mcpServers?: Array<{
+    id: string
+    label?: string
+    endpointEnv?: string
+    builtin?: boolean
+    tools?: Array<{
+      name: string
+      description?: string
+    }>
+    resources?: Array<{
+      uri: string
+      description?: string
+    }>
+  }>
   agentSkills?: Array<{
     path: string
     id?: string
@@ -70,8 +95,6 @@ export interface ClientPluginManifest {
   inputSchema?: ClientPluginInputSchema
   contributes?: ClientPluginContributions
   hasCompile?: boolean
-  /** Inline script (legacy / simple plugins) */
-  script?: string
   /** Compiled bundle source (installed from URL, v1) */
   bundle?: string
   /** URL of the compiled JS bundle to load in iframe (webview plugins) */
@@ -80,8 +103,12 @@ export interface ClientPluginManifest {
   sourceUrl?: string
   /** Logo as data URL (extracted from .movpkg assets/) */
   logoDataUrl?: string
-  /** Result of installing bundled agent skills into the local agent catalog. */
-  agentPackInstall?: AgentPackInstallResult
+  /** Result of installing contributed agent catalog files into the shared pack store. */
+  agentCatalogPackInstall?: AgentCatalogPackInstallResult
+  /** Bundled with MovScript and maintained by the application. */
+  builtin?: boolean
+  /** Explicitly false when a plugin should be visible but not removable. */
+  uninstallable?: boolean
   installedAt?: string
 }
 
@@ -106,8 +133,12 @@ export interface GenerateMediaRequest {
   timeout_ms?: number
 }
 
-export type GenerateImageRequest = GenerateMediaRequest & {
-  job_type?: 'image' | 'image_edit'
+export interface GenerationJob {
+  id: number
+  status: string
+  error?: string
+  outputResourceIds?: number[]
+  raw?: unknown
 }
 
 export interface UploadResourceRequest {
@@ -118,19 +149,24 @@ export interface UploadResourceRequest {
   folder_id?: number
 }
 
-export interface ClientPluginRuntime {
-  get: <T = unknown>(path: string) => Promise<T>
-  post: <T = unknown>(path: string, body?: unknown) => Promise<T>
-  patch: <T = unknown>(path: string, body?: unknown) => Promise<T>
-  delete: <T = unknown>(path: string) => Promise<T>
-  models: (capability: string) => Promise<PublicModel[]>
-  modelConfigs: () => Promise<PublicModel[]>
-  resources: () => Promise<RawResource[]>
-  uploadResource: (req: UploadResourceRequest) => Promise<RawResource>
-  generateMedia: (req: GenerateMediaRequest) => Promise<unknown>
-  generateImage: (req: GenerateImageRequest) => Promise<unknown>
+export interface ClientPluginHost {
+  api: {
+    get: <T = unknown>(path: string) => Promise<T>
+    post: <T = unknown>(path: string, body?: unknown) => Promise<T>
+    patch: <T = unknown>(path: string, body?: unknown) => Promise<T>
+    delete: <T = unknown>(path: string) => Promise<T>
+  }
+  generation: {
+    models: (capability: string) => Promise<PublicModel[]>
+    modelConfigs: () => Promise<PublicModel[]>
+    submit: (req: GenerateMediaRequest) => Promise<GenerationJob>
+    getJob: (id: number | string) => Promise<GenerationJob>
+  }
+  resources: {
+    list: () => Promise<RawResource[]>
+    upload: (req: UploadResourceRequest) => Promise<RawResource>
+  }
   sleep: (ms: number) => Promise<void>
-  mcp: McpTools
 }
 
 // ── IndexedDB storage ─────────────────────────────────────────────────────────
@@ -174,6 +210,13 @@ export async function saveClientPlugin(plugin: ClientPluginManifest): Promise<vo
 }
 
 export async function removeClientPlugin(id: string): Promise<void> {
+  const existing = (await loadClientPlugins()).find((plugin) => plugin.id === id)
+  if (existing && !isClientPluginRemovable(existing)) {
+    throw new Error('plugin is managed by MovScript and cannot be removed')
+  }
+  if (existing && clientPluginContributesAgentCatalog(existing)) {
+    await agentCatalogPackStoreClient.uninstallAgentCatalogPack({ pluginId: id })
+  }
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
@@ -181,6 +224,21 @@ export async function removeClientPlugin(id: string): Promise<void> {
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
+}
+
+function clientPluginContributesAgentCatalog(plugin: ClientPluginManifest): boolean {
+  return Boolean(
+    plugin.agentCatalogPackInstall ||
+    plugin.contributes?.agentSkills?.length
+  )
+}
+
+export function isClientPluginRemovable(plugin: ClientPluginManifest): boolean {
+  return plugin.builtin !== true && plugin.uninstallable !== false
+}
+
+export function isClientPluginRunnable(plugin: ClientPluginManifest): boolean {
+  return Boolean(plugin.bundle || plugin.bundleUrl)
 }
 
 // ── Migration from localStorage ───────────────────────────────────────────────
@@ -274,32 +332,38 @@ async function installPluginFromMovpkg(file: File): Promise<ClientPluginManifest
   }
 
   if (!isClientPluginManifest(manifest)) throw new Error('invalid plugin manifest in .movpkg')
-  const agentSkillFiles = await extractMovpkgAgentSkillFiles(zip)
-  if (manifest.contributes?.agentSkills?.length && agentSkillFiles.length === 0) {
+  const agentCatalogFiles = await extractMovpkgAgentCatalogFiles(zip)
+  if (manifest.contributes?.agentSkills?.length && !agentCatalogFiles.some((file) => file.path.startsWith('agent-skills/'))) {
     throw new Error('.movpkg declares contributes.agentSkills but does not include agent-skills/ files')
   }
-  if (agentSkillFiles.length > 0) {
-    await localAgentClient.ensureRunning()
-    manifest.agentPackInstall = await localAgentClient.installAgentPack({
+  if (agentCatalogFiles.length > 0) {
+    manifest.agentCatalogPackInstall = await agentCatalogPackStoreClient.installAgentCatalogPack({
       pluginId: manifest.id,
-      files: agentSkillFiles,
+      files: agentCatalogFiles,
     })
   }
   await saveClientPlugin(manifest)
   return manifest
 }
 
-async function extractMovpkgAgentSkillFiles(zip: {
+async function extractMovpkgAgentCatalogFiles(zip: {
   forEach: (callback: (relativePath: string, file: { dir: boolean; async: (type: 'text') => Promise<string> }) => void) => void
-}): Promise<AgentPackFile[]> {
-  const pending: Array<Promise<AgentPackFile>> = []
+}): Promise<AgentCatalogPackFile[]> {
+  const pending: Array<Promise<AgentCatalogPackFile>> = []
   zip.forEach((relativePath, entry) => {
     if (entry.dir) return
-    if (!relativePath.startsWith('agent-skills/')) return
-    if (!/\.(md|json|txt)$/i.test(relativePath)) return
+    if (!isMovpkgAgentCatalogFile(relativePath)) return
     pending.push(entry.async('text').then((content) => ({ path: relativePath, content })))
   })
   return (await Promise.all(pending)).sort((left, right) => left.path.localeCompare(right.path))
+}
+
+function isMovpkgAgentCatalogFile(relativePath: string): boolean {
+  if (relativePath.startsWith('agent-skills/')) return /\.(md|json|txt)$/i.test(relativePath)
+  if (relativePath.startsWith('agent-tools/')) return /\.tool\.json$/i.test(relativePath)
+  if (relativePath.startsWith('agent-packs/')) return /\.json$/i.test(relativePath)
+  if (relativePath.startsWith('agent-config-files/')) return /\.json$/i.test(relativePath)
+  return false
 }
 
 /**
@@ -338,7 +402,6 @@ function extractBundleManifest(src: string, sourceUrl: string): ClientPluginMani
     inputSchema: raw.inputSchema as ClientPluginInputSchema | undefined,
     contributes: raw.contributes as ClientPluginContributions | undefined,
     bundle: typeof raw.bundle === 'string' ? raw.bundle : src,
-    script: typeof raw.script === 'string' ? raw.script : undefined,
     sourceUrl,
     installedAt: new Date().toISOString(),
   }
@@ -357,12 +420,12 @@ export function parseClientPluginManifest(raw: string): ClientPluginManifest {
 
 // ── Run plugin ────────────────────────────────────────────────────────────────
 
-export async function runClientPlugin(plugin: ClientPluginManifest, args: Record<string, unknown>): Promise<ClientPluginResult> {
-  const runtime = createRuntime()
-  const src = plugin.bundle ?? plugin.script ?? ''
+export async function runClientPlugin(plugin: ClientPluginManifest, args: Record<string, unknown>, options: { toolName?: string } = {}): Promise<ClientPluginResult> {
+  const host = createHost()
+  const src = plugin.bundle ?? ''
   if (!src) throw new Error('plugin has no executable script or bundle')
 
-  let runFn: (mov: ClientPluginRuntime, args: Record<string, unknown>) => Promise<ClientPluginResult>
+  let runFn: (host: ClientPluginHost, args: Record<string, unknown>) => Promise<ClientPluginResult>
 
   if (src.includes('export{') || src.includes('export {') || /export\s+\{/.test(src)) {
     // ESM bundle — use dynamic import via blob URL
@@ -370,26 +433,26 @@ export async function runClientPlugin(plugin: ClientPluginManifest, args: Record
     const url = createObjectUrl(blob)
     try {
       const mod = await import(/* @vite-ignore */ url)
-      runFn = mod.run
+      runFn = resolvePluginRunFunction(mod, options.toolName)
     } finally {
       revokeObjectUrl(url)
     }
   } else {
-    // IIFE / script bundle — execute with new Function, expects `run` in scope
-    const fn = new Function('mov', 'args', `"use strict";\n${src}\nreturn run(mov, args);`)
-    const result = await fn(runtime, args)
+    // IIFE bundle — execute with new Function, expects runAgentTool/agentTools/run in scope.
+    const fn = new Function('mov', 'args', 'toolName', `"use strict";\n${src}\nif (toolName && typeof runAgentTool === 'function') return runAgentTool(mov, { name: toolName, args });\nif (toolName && typeof agentTools !== 'undefined' && agentTools && agentTools[toolName] && typeof agentTools[toolName].run === 'function') return agentTools[toolName].run(mov, args);\nreturn run(mov, args);`)
+    const result = await fn(host, args, options.toolName)
     if (result && typeof result === 'object') return result as ClientPluginResult
     return { content: [{ type: 'text', text: String(result ?? '') }], data: result }
   }
 
   if (typeof runFn !== 'function') throw new Error('plugin pack does not export a run() function')
-  const result = await runFn(runtime, args)
+  const result = await runFn(host, args)
   if (result && typeof result === 'object') return result as ClientPluginResult
   return { content: [{ type: 'text', text: String(result ?? '') }], data: result }
 }
 
-export async function compileClientPlugin(plugin: ClientPluginManifest, args: Record<string, unknown>): Promise<CanvasExecutableSpec | undefined> {
-  const src = plugin.bundle ?? plugin.script ?? ''
+export async function compileClientPlugin(plugin: ClientPluginManifest, args: Record<string, unknown>, options: { toolName?: string } = {}): Promise<CanvasExecutableSpec | undefined> {
+  const src = plugin.bundle ?? ''
   if (!src) return undefined
 
   let compileFn: ((args: Record<string, unknown>) => CanvasExecutableSpec | Promise<CanvasExecutableSpec>) | undefined
@@ -399,13 +462,13 @@ export async function compileClientPlugin(plugin: ClientPluginManifest, args: Re
     const url = createObjectUrl(blob)
     try {
       const mod = await import(/* @vite-ignore */ url)
-      compileFn = mod.compile
+      compileFn = resolvePluginCompileFunction(mod, options.toolName)
     } finally {
       revokeObjectUrl(url)
     }
   } else {
-    const fn = new Function('args', `"use strict";\n${src}\nreturn typeof compile === 'function' ? compile(args) : undefined;`)
-    const result = await fn(args)
+    const fn = new Function('args', 'toolName', `"use strict";\n${src}\nif (toolName && typeof agentTools !== 'undefined' && agentTools && agentTools[toolName] && typeof agentTools[toolName].compile === 'function') return agentTools[toolName].compile(args);\nreturn typeof compile === 'function' ? compile(args) : undefined;`)
+    const result = await fn(args, options.toolName)
     return isCanvasExecutableSpec(result) ? result : undefined
   }
 
@@ -414,16 +477,51 @@ export async function compileClientPlugin(plugin: ClientPluginManifest, args: Re
   return isCanvasExecutableSpec(result) ? result : undefined
 }
 
+function resolvePluginRunFunction(mod: Record<string, unknown>, toolName?: string): (host: ClientPluginHost, args: Record<string, unknown>) => Promise<ClientPluginResult> {
+  if (toolName && typeof mod.runAgentTool === 'function') {
+    return (host, args) => (mod.runAgentTool as (host: ClientPluginHost, call: { name: string; args: Record<string, unknown> }) => Promise<ClientPluginResult>)(host, { name: toolName, args })
+  }
+  const agentTools = mod.agentTools
+  if (toolName && agentTools && typeof agentTools === 'object') {
+    const tool = (agentTools as Record<string, unknown>)[toolName]
+    if (tool && typeof tool === 'object' && typeof (tool as { run?: unknown }).run === 'function') {
+      return (tool as { run: (host: ClientPluginHost, args: Record<string, unknown>) => Promise<ClientPluginResult> }).run
+    }
+  }
+  return mod.run as (host: ClientPluginHost, args: Record<string, unknown>) => Promise<ClientPluginResult>
+}
+
+function resolvePluginCompileFunction(mod: Record<string, unknown>, toolName?: string): ((args: Record<string, unknown>) => CanvasExecutableSpec | Promise<CanvasExecutableSpec>) | undefined {
+  const agentTools = mod.agentTools
+  if (toolName && agentTools && typeof agentTools === 'object') {
+    const tool = (agentTools as Record<string, unknown>)[toolName]
+    if (tool && typeof tool === 'object' && typeof (tool as { compile?: unknown }).compile === 'function') {
+      return (tool as { compile: (args: Record<string, unknown>) => CanvasExecutableSpec | Promise<CanvasExecutableSpec> }).compile
+    }
+  }
+  return typeof mod.compile === 'function'
+    ? mod.compile as (args: Record<string, unknown>) => CanvasExecutableSpec | Promise<CanvasExecutableSpec>
+    : undefined
+}
+
 // ── Validation ────────────────────────────────────────────────────────────────
 
 function isClientPluginManifest(value: unknown): value is ClientPluginManifest {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<ClientPluginManifest>
+  const hasContributions = Boolean(
+    item.contributes?.agentSkills?.length ||
+    item.contributes?.mcpServers?.length ||
+    item.contributes?.canvasNodes?.length ||
+    item.contributes?.tools?.length ||
+    item.contributes?.cards?.length ||
+    item.contributes?.commands?.length
+  )
   return (
     typeof item.id === 'string' && item.id.trim().length > 0 &&
     typeof item.name === 'string' && item.name.trim().length > 0 &&
     typeof item.version === 'string' && item.version.trim().length > 0 &&
-    (typeof item.script === 'string' || typeof item.bundle === 'string' || typeof item.bundleUrl === 'string')
+    (typeof item.bundle === 'string' || typeof item.bundleUrl === 'string' || hasContributions)
   )
 }
 
@@ -435,20 +533,25 @@ function isCanvasExecutableSpec(value: unknown): value is CanvasExecutableSpec {
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
 
-function createRuntime(): ClientPluginRuntime {
+function createHost(): ClientPluginHost {
   return {
-    get: (path) => api.get(path).then((r) => r.data),
-    post: (path, body) => api.post(path, body).then((r) => r.data),
-    patch: (path, body) => api.patch(path, body).then((r) => r.data),
-    delete: (path) => api.delete(path).then((r) => r.data),
-    models: (capability) => api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data),
-    modelConfigs: () => api.get('/models?capability=image').then((r) => r.data),
-    resources: () => api.get('/resources').then((r) => r.data),
-    uploadResource: uploadResourceViaRuntime,
-    generateMedia: generateMediaViaRuntime,
-    generateImage: generateImageViaRuntime,
+    api: {
+      get: (path) => api.get(path).then((r) => r.data),
+      post: (path, body) => api.post(path, body).then((r) => r.data),
+      patch: (path, body) => api.patch(path, body).then((r) => r.data),
+      delete: (path) => api.delete(path).then((r) => r.data),
+    },
+    generation: {
+      models: (capability) => api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data),
+      modelConfigs: () => api.get('/models').then((r) => r.data),
+      submit: submitGenerationJobViaHost,
+      getJob: getGenerationJobViaHost,
+    },
+    resources: {
+      list: () => api.get('/resources').then((r) => r.data),
+      upload: uploadResourceViaRuntime,
+    },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    mcp: createMcpTools(),
   }
 }
 
@@ -474,18 +577,14 @@ function base64ToUint8Array(value: string) {
   return bytes
 }
 
-export async function generateImageViaRuntime(req: GenerateImageRequest): Promise<unknown> {
-  return generateMediaViaRuntime(req)
-}
-
-export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promise<unknown> {
+export async function submitGenerationJobViaHost(req: GenerateMediaRequest): Promise<GenerationJob> {
   const inputIDs = req.input_resource_ids ?? []
   const jobType = req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image')
   const modelId = await resolveRuntimeModelId(req, jobType)
   const title = typeof req.title === 'string' && req.title.trim()
     ? req.title.trim()
     : defaultGenerationJobTitle(jobType)
-  const created = await api.post('/jobs', {
+  const job = await api.post('/jobs', {
     model_id: modelId,
     job_type: jobType,
     feature_key: req.feature_key ?? 'client_plugin',
@@ -495,29 +594,37 @@ export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promis
     aspect_ratio: req.aspect_ratio,
     ...(req.duration !== undefined ? { duration: req.duration } : {}),
     extra_params: JSON.stringify(req.extra_params ?? {}),
-  }).then((r) => r.data as { ID: number })
+  }).then((r) => r.data)
+  return normalizeGenerationJob(job)
+}
 
-  const timeout = req.timeout_ms ?? (jobType.startsWith('video') ? 600_000 : 180_000)
-  const started = Date.now()
-  for (;;) {
-    const job = await api.get(`/jobs/${created.ID}`).then((r) => r.data as { status: string; error_msg?: string })
-    if (job.status === 'succeeded') return job
-    if (job.status === 'failed' || job.status === 'cancelled') {
-      throw new Error(job.error_msg || `generation job ${job.status}`)
-    }
-    if (Date.now() - started > timeout) throw new Error('generation job timed out')
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
+export async function getGenerationJobViaHost(id: number | string): Promise<GenerationJob> {
+  const jobId = Number(id)
+  if (!Number.isInteger(jobId) || jobId <= 0) throw new Error('generation job id is required')
+  const job = await api.get(`/jobs/${jobId}`).then((r) => r.data)
+  return normalizeGenerationJob(job)
 }
 
 async function resolveRuntimeModelId(req: GenerateMediaRequest, jobType: GenerateMediaJobType): Promise<string | undefined> {
   if (typeof req.model_id === 'string' && req.model_id.trim()) return req.model_id.trim()
-  const legacyID = Number((req as { model_config_id?: unknown }).model_config_id)
-  if (!Number.isInteger(legacyID) || legacyID <= 0) return undefined
   const capability = jobType === 'image_edit' ? 'image_edit' : jobType.startsWith('video') ? 'video' : 'image'
   const models = await api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data as PublicModel[])
-  const model = models.find((item) => item.id === legacyID)
-  return model ? publicModelId(model) : undefined
+  const model = models[0]
+  return model ? (model.model_id || model.logical_model_id) : undefined
+}
+
+function normalizeGenerationJob(value: unknown): GenerationJob {
+  const item = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const id = Number(item.ID ?? item.id)
+  return {
+    id: Number.isInteger(id) && id > 0 ? id : 0,
+    status: typeof item.status === 'string' ? item.status : 'submitted',
+    error: typeof item.error === 'string' ? item.error : typeof item.error_msg === 'string' ? item.error_msg : undefined,
+    outputResourceIds: Array.isArray(item.output_resource_ids)
+      ? item.output_resource_ids.map((entry) => Number(entry)).filter((entry) => Number.isInteger(entry) && entry > 0)
+      : undefined,
+    raw: value,
+  }
 }
 
 function defaultGenerationJobTitle(jobType: GenerateMediaJobType): string {
@@ -530,48 +637,3 @@ function defaultGenerationJobTitle(jobType: GenerateMediaJobType): string {
   }
   return `${labels[jobType]}-${Math.floor(1000 + Math.random() * 9000)}`
 }
-
-// ── Sample plugin ─────────────────────────────────────────────────────────────
-
-export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
-  schema: 'movscript.clientPlugin.v1',
-  id: 'local.ref-image-generator',
-  name: '参考生图',
-  version: '1.0.0',
-  description: '参考插件：在前端调用后端模型网关创建图像生成任务。',
-  permissions: ['model.image.generate', 'resource.read'],
-  inputSchema: {
-    type: 'object',
-    required: ['prompt'],
-    properties: {
-      prompt: { type: 'string', title: '提示词', description: '描述要生成的画面' },
-      model_id: { type: 'string', title: '模型', description: '可选。不填时自动选择可用图像模型', 'x-widget': 'model-selector', 'x-capability': 'image' },
-      reference_resource_ids: { type: 'string', title: '参考资源 ID', description: '可选。多个 ID 用英文逗号分隔' },
-      aspect_ratio: { type: 'string', title: '画幅', enum: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
-      image_size: { type: 'string', title: '尺寸', default: '1024x1024' },
-      quality: { type: 'string', title: '质量', enum: ['auto', 'standard', 'hd', 'high', 'medium', 'low'] },
-    },
-  },
-  script: `async function run(mov, args) {
-  const refIds = String(args.reference_resource_ids || '')
-    .split(',').map((s) => Number(s.trim())).filter((id) => Number.isFinite(id) && id > 0)
-  const capability = refIds.length > 0 ? 'image_edit' : 'image'
-  const models = await mov.models(capability)
-  const modelId = String(args.model_id || models[0]?.model_id || models[0]?.logical_model_id || '')
-  if (!modelId) throw new Error('没有可用的图像模型配置')
-  const job = await mov.generateImage({
-    model_id: modelId,
-    title: '参考生图-' + Math.floor(1000 + Math.random() * 9000),
-    job_type: refIds.length > 0 ? 'image_edit' : 'image',
-    feature_key: 'client_plugin.ref_image',
-    prompt: String(args.prompt || ''),
-    input_resource_ids: refIds,
-    aspect_ratio: String(args.aspect_ratio || '1:1'),
-    extra_params: {
-      image_size: args.image_size || '1024x1024',
-      ...(args.quality ? { quality: args.quality } : {}),
-    },
-  })
-  return { content: [{ type: 'text', text: '图像生成完成' }], data: job }
-}`,
-}, null, 2)

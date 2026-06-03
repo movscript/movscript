@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildAgentConversationTabRuntimeTargets } from './useAgentConversationTabRuntimeStatusLights'
+import { buildAgentConversationTabRuntimeTargets, runtimeStatusLightForTargetKeys } from './useAgentConversationTabRuntimeStatusLights'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
 test('buildAgentConversationTabRuntimeTargets prefers session anchors and keeps thread fallback', () => {
@@ -54,11 +54,28 @@ test('buildAgentConversationTabRuntimeTargets leaves unanchored conversations di
   ])
 })
 
+test('runtimeStatusLightForTargetKeys prefers non-stopped lights across session and thread targets', () => {
+  assert.equal(runtimeStatusLightForTargetKeys({
+    'session:session_1': {
+      state: 'stopped',
+      label: '停止',
+      detail: 'Runtime 当前不会自行触发新的 run。',
+    },
+    'thread:thread_1': {
+      state: 'active',
+      label: '运行',
+      detail: 'Runtime 正在触发 run 循环。',
+    },
+  }, ['session:session_1', 'thread:thread_1']).state, 'active')
+
+  assert.equal(runtimeStatusLightForTargetKeys({}, ['session:session_1']).state, 'stopped')
+})
+
 function conversation(overrides: Partial<Conversation>): Conversation {
   return {
     id: 'conv_1',
     title: 'Conversation',
-    messages: [],
+    transcriptMessages: [],
     createdAt: 1,
     updatedAt: 1,
     ...overrides,

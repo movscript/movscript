@@ -1,17 +1,17 @@
-import type { MovRuntime, ToolResult, AnyPluginManifest, PluginInputSchema, PluginWebview, ExecutableSpec } from './types'
+import type { MovPluginHost, PluginRunResult, AnyPluginManifest, PluginWebview, CanvasExecutableSpec } from './types'
 
 export function definePlugin<TArgs = Record<string, unknown>>(config: {
   manifest: AnyPluginManifest
-  run: (mov: MovRuntime, args: TArgs) => Promise<ToolResult>
-  compile?: (args: TArgs) => ExecutableSpec
+  run: (host: MovPluginHost, args: TArgs) => Promise<PluginRunResult>
+  compile?: (args: TArgs) => CanvasExecutableSpec
 }): typeof config {
   return config
 }
 
 export function defineCanvasPlugin<TArgs = Record<string, unknown>>(config: {
   manifest: AnyPluginManifest
-  compile: (args: TArgs) => ExecutableSpec
-  run?: (mov: MovRuntime, args: TArgs) => Promise<ToolResult>
+  compile: (args: TArgs) => CanvasExecutableSpec
+  run?: (host: MovPluginHost, args: TArgs) => Promise<PluginRunResult>
 }): typeof config {
   return config
 }
@@ -22,30 +22,4 @@ export function defineCanvasPlugin<TArgs = Record<string, unknown>>(config: {
  */
 export function defineWebviewPlugin(options: Omit<PluginWebview, 'schema'>): PluginWebview {
   return { schema: 'movscript.clientPlugin.webview', ...options }
-}
-
-/**
- * @deprecated Use defineWebviewPlugin for new plugins.
- * Build a PluginManifest with the run function inlined as a string.
- */
-export function inlinePlugin(options: {
-  id: string
-  name: string
-  version: string
-  description?: string
-  author?: string
-  homepage?: string
-  permissions?: string[]
-  inputSchema?: PluginInputSchema
-  contributes?: AnyPluginManifest['contributes']
-  run: (mov: MovRuntime, args: Record<string, unknown>) => Promise<ToolResult>
-  compile?: (args: Record<string, unknown>) => ExecutableSpec
-}) {
-  const { run, compile, ...rest } = options
-  return {
-    schema: 'movscript.clientPlugin.v1' as const,
-    ...rest,
-    ...(compile ? { hasCompile: true } : {}),
-    script: run.toString().replace(/^[^{]+\{/, '').replace(/\}$/, '').trim(),
-  }
 }

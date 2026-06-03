@@ -44,8 +44,6 @@ export interface ContextRef {
     | 'workspace'
     | 'tool_result'
     | 'project'
-    | 'production'
-    | 'asset_slot'
     | 'generation_job'
     | 'taskGraph'
   id: string
@@ -161,6 +159,7 @@ export interface ContextBundle {
   roundIndex?: number
   roundLabel?: string
   createdAt: string
+  promptLedgerId?: string
   promptHash: string
   messageCount: number
   toolCount: number
@@ -180,10 +179,13 @@ export interface ContextBundle {
     hash: string
     layer?: string
     contextLayer?: string
+    source?: string
+    lifecycle?: string
+    authority?: string
   }>
   promptBudget?: {
-    initialSystemChars: number
-    finalSystemChars: number
+    initialSectionPromptChars: number
+    finalSectionPromptChars: number
     decisionCount: number
     decisions: Array<{
       action: string

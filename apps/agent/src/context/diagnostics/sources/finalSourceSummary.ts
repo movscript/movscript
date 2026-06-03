@@ -38,7 +38,7 @@ function finalSourceLines(input: BuildFinalSourceSummaryInput): string[] {
   const refs = uniqueRetrievedContextRefs(records)
   const referenceRefs = refs.filter((ref) => ref.type === 'reference')
   const workspaceRefs = refs.filter((ref) => ref.type === 'workspace')
-  const projectRefs = refs.filter((ref) => ref.type === 'project' || ref.type === 'production' || ref.type === 'asset_slot')
+  const projectRefs = refs.filter((ref) => ref.type === 'project')
   const generationRefs = refs.filter((ref) => ref.type === 'generation_job')
 
   if (projectRefs.length > 0 || hasBackendTool(input.toolResults ?? [])) {
@@ -132,7 +132,6 @@ function omitLargeReferenceBodies(content: string, run: AgentRun | undefined): s
 
 function loadedReferenceBodies(run: AgentRun): Array<{ id: string; title?: string; body: string }> {
   return run.steps.flatMap((step) => {
-    if (step.toolName !== 'reference_get') return []
     const result = isRecord(step.result) ? step.result : undefined
     const id = stringField(result?.id)
     const body = stringField(result?.content)

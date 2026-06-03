@@ -1,32 +1,38 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { shouldPollPlanSnapshot } from '@/features/agent/domain/agentPlanUi'
+import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 import { localAgentClient, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 interface UseAgentActivePlanSnapshotInput {
   activeRun: AgentRun | null
   localRuntimeEnabled: boolean
   localAgentOnline: boolean
+  sessionId?: string
 }
 
 export function useAgentActivePlanSnapshot({
   activeRun,
   localRuntimeEnabled,
   localAgentOnline,
+  sessionId,
 }: UseAgentActivePlanSnapshotInput) {
   const queryClient = useQueryClient()
+  const runtimeClient = useMemo(() => sessionId?.trim()
+    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+    : localAgentClient, [sessionId])
   const taskGraphId = activeRun?.taskGraphId
   const enabled = localRuntimeEnabled && localAgentOnline && !!taskGraphId
   const queryKey = useMemo(
-    () => ['local-agent-taskGraph-snapshot', localAgentClient.baseURL, taskGraphId ?? null] as const,
-    [taskGraphId],
+    () => ['local-agent-taskGraph-snapshot', runtimeClient.baseURL, sessionId?.trim() || null, taskGraphId ?? null] as const,
+    [runtimeClient.baseURL, sessionId, taskGraphId],
   )
   const query = useQuery<AgentTaskGraphSnapshot>({
     queryKey,
     queryFn: async () => {
       if (!taskGraphId) throw new Error('active run is not attached to a task graph')
-      await localAgentClient.ensureRunning()
-      return localAgentClient.getTaskGraphSnapshot(taskGraphId)
+      await runtimeClient.ensureRunning()
+      return runtimeClient.getTaskGraphSnapshot(taskGraphId)
     },
     enabled,
     retry: false,
@@ -34,7 +40,7 @@ export function useAgentActivePlanSnapshot({
   })
 
   const terminalSnapshotRefreshKeyRef = useRef<string | null>(null)
-  const terminalSnapshotRefreshKey = enabled && activeRun && isTerminalRunStatus(activeRun.status)
+  const terminalSnapshotRefreshKey = enabled && activeRun && isTerminalAgentRunStatus(activeRun.status)
     ? `${taskGraphId}:${activeRun.id}:${activeRun.status}:${activeRun.updatedAt}`
     : null
   useEffect(() => {
@@ -47,8 +53,8 @@ export function useAgentActivePlanSnapshot({
   useEffect(() => {
     if (!enabled || !taskGraphId) return
     const controller = new AbortController()
-    void localAgentClient.ensureRunning()
-      .then(() => localAgentClient.streamPlan(taskGraphId, {
+    void runtimeClient.ensureRunning()
+      .then(() => runtimeClient.streamPlan(taskGraphId, {
         signal: controller.signal,
         onRuntimeEvent: (event) => {
           queryClient.setQueryData<AgentTaskGraphSnapshot | undefined>(
@@ -61,13 +67,9 @@ export function useAgentActivePlanSnapshot({
     return () => {
       controller.abort()
     }
-  }, [enabled, queryClient, queryKey, taskGraphId])
+  }, [enabled, queryClient, queryKey, runtimeClient, taskGraphId])
 
   return query
-}
-
-function isTerminalRunStatus(status: AgentRun['status']): boolean {
-  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function applyPlanRuntimeEvent(

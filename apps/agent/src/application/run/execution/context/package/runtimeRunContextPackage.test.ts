@@ -35,7 +35,6 @@ test('resolveRuntimeRunContextPackage extracts project context and skips memorie
       data: {
         snapshot: {
           project: { id: 42 },
-          productionId: 7,
         },
         timings: { totalMs: 8 },
       },
@@ -50,7 +49,6 @@ test('resolveRuntimeRunContextPackage extracts project context and skips memorie
   })
 
   assert.equal(result.context.currentProjectId, 42)
-  assert.equal(result.context.currentProductionId, 7)
   assert.deepEqual(result.focusTimings, { totalMs: 8, focusMs: 8 })
   assert.equal(thread.projectId, 42)
   assert.deepEqual(updatedThreads.map((item) => item.projectId), [42])

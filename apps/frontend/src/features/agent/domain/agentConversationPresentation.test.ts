@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildAgentConversationPresentation } from '@/features/agent/domain/agentConversationPresentation'
-import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 const baseRun: AgentRun = {
@@ -19,14 +18,6 @@ const baseRun: AgentRun = {
   steps: [],
 }
 
-const generationState: GenerationProgressState = {
-  jobId: 42,
-  status: 'processing',
-  stage: 'rendering',
-  progress: 40,
-  terminal: false,
-}
-
 test('buildAgentConversationPresentation keeps streaming content while preserving dynamic cards', () => {
   const presentation = buildAgentConversationPresentation({
     streamingAssistantMessageId: 'message_1',
@@ -37,11 +28,9 @@ test('buildAgentConversationPresentation keeps streaming content while preservin
       id: 'trace_1',
       kind: 'tool_call',
       title: 'Tool call',
-      status: 'in_progress',
+      status: 'started',
       createdAt: '2026-05-17T00:00:01.000Z',
     }],
-    generationProgressState: generationState,
-    generationProgressStates: [generationState],
   })
 
   assert.equal(presentation.hasStreamingAssistantContent, true)
@@ -56,7 +45,6 @@ test('buildAgentConversationPresentation keeps thinking above streaming text whe
     loading: true,
     activeRun: null,
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['thinking', 'assistant_stream'])
@@ -71,11 +59,9 @@ test('buildAgentConversationPresentation keeps generation progress out of the me
       id: 'trace_1',
       kind: 'tool_call',
       title: 'Tool call',
-      status: 'in_progress',
+      status: 'started',
       createdAt: '2026-05-17T00:00:01.000Z',
     }],
-    generationProgressState: generationState,
-    generationProgressStates: [generationState],
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
@@ -88,11 +74,6 @@ test('buildAgentConversationPresentation keeps generation-only status pinned out
     loading: true,
     activeRun: baseRun,
     visibleActivityEvents: [],
-    generationProgressState: generationState,
-    generationProgressStates: [
-      generationState,
-      { ...generationState, jobId: 43, status: 'queued', stage: 'queued', progress: 5 },
-    ],
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
@@ -104,7 +85,6 @@ test('buildAgentConversationPresentation keeps paused request activity in the th
     loading: false,
     activeRun: { ...baseRun, status: 'requires_action' },
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
@@ -116,7 +96,6 @@ test('buildAgentConversationPresentation keeps run activity visible while a run 
     loading: false,
     activeRun: { ...baseRun, status: 'in_progress' },
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
@@ -129,7 +108,6 @@ test('buildAgentConversationPresentation bridges a terminal run until its activi
     activeRun: { ...baseRun, status: 'completed' },
     activeRunHasActivityMessage: false,
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
@@ -142,7 +120,6 @@ test('buildAgentConversationPresentation hides terminal run activity after its a
     activeRun: { ...baseRun, status: 'completed' },
     activeRunHasActivityMessage: true,
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), [])
@@ -154,7 +131,6 @@ test('buildAgentConversationPresentation falls back to thinking when busy withou
     loading: true,
     activeRun: null,
     visibleActivityEvents: [],
-    generationProgressState: null,
   })
 
   assert.deepEqual(presentation.blocks.map((block) => block.type), ['thinking'])

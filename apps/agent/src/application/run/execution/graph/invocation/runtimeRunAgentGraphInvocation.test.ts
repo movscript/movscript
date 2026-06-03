@@ -34,7 +34,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -51,11 +50,6 @@ const defaultWorkspaceApplyBackend = {
 }
 const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
 const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
-const defaultProjectStandardsBackend = {
-  async getProject(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
 
 const setupRound = { roundId: 'round_0', roundIndex: 0, roundLabel: 'Setup', roundSource: 'setup' as const }
 const command: AgentCommandRuntime = {
@@ -138,7 +132,6 @@ function baseInput(
     workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
-    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     contractResolver: emptyContractResolver(),
     runtimeToolHandlers: defaultRuntimeToolHandlers,
     memoryManager,

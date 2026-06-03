@@ -1,4 +1,4 @@
-import type { ExecutableSpec, MovRuntime, ToolResult } from '@movscript/plugin-sdk'
+import type { CanvasExecutableSpec, MovPluginHost, PluginRunResult } from '@movscript/plugin-sdk'
 
 interface PluginArgs {
   prompt: string
@@ -76,7 +76,7 @@ function buildPlan(args: PluginArgs): VoiceoverPlan {
   }
 }
 
-export function compile(args: PluginArgs): ExecutableSpec {
+export function compile(args: PluginArgs): CanvasExecutableSpec {
   const plan = buildPlan(args)
   return {
     executor: 'ai_model',
@@ -94,7 +94,7 @@ export function compile(args: PluginArgs): ExecutableSpec {
   }
 }
 
-export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult> {
+export async function run(host: MovPluginHost, args: PluginArgs): Promise<PluginRunResult> {
   const plan = buildPlan(args)
   const stem = `voiceover-${Date.now()}`
   const timing = {
@@ -110,17 +110,17 @@ export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult
   }
 
   const [audio, subtitles, timingResource] = await Promise.all([
-    mov.uploadResource({
+    host.resources.upload({
       filename: `${stem}.wav`,
       mime_type: 'audio/wav',
       data_base64: bytesToBase64(generateMockWav(plan)),
     }) as Promise<UploadedResource>,
-    mov.uploadResource({
+    host.resources.upload({
       filename: `${stem}.srt`,
       mime_type: 'text/plain',
       text: segmentsToSrt(plan.segments),
     }) as Promise<UploadedResource>,
-    mov.uploadResource({
+    host.resources.upload({
       filename: `${stem}.timing.json`,
       mime_type: 'application/json',
       text: JSON.stringify(timing, null, 2),

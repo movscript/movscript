@@ -1,3 +1,4 @@
+import { isAgentRunTerminalStatus } from '@movscript/protocol'
 import { appendTraceEvent, buildVolatileTraceEvent } from '../../../../trace/run/runTrace.js'
 import { summarizeModelStreamTraceData } from '../../../../trace/summaries/model/stream/streamTrace.js'
 import {
@@ -6,15 +7,14 @@ import {
   assistantMessageFromTraceEvent,
   toStreamRun,
 } from '../../../../state/run/projection/stream/runStreamView.js'
-import {
-  isTerminalRunStatus,
-} from '../../../../state/subagent/view/subagentRunView.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
 import type { AgentRunRoundInfo } from '../../../../state/run/core/round/runRound.js'
 import type {
   AgentMessage,
+  AgentRuntimeStatusRecord,
   AgentRun,
   AgentInternalRunSignal,
+  AgentThread,
   AgentTraceEvent,
   AgentTraceEventKind,
 } from '../../../../state/shared/types.js'
@@ -137,6 +137,11 @@ export function replayRuntimeRunStream(input: {
       updatedAt: thread.updatedAt,
     })
   }
+  emitRuntimeStatusLightEvent({
+    run: streamRun,
+    thread,
+    listener: input.listener,
+  })
   const traceEvents = input.store.listRunTraceEvents(input.run.id, { limit: Number.MAX_SAFE_INTEGER })
   for (const event of traceEvents) {
     input.listener({ type: 'trace', runId: input.run.id, event })
@@ -147,7 +152,7 @@ export function replayRuntimeRunStream(input: {
   }
   const assistantMessage = assistantMessageForRun(thread, input.run)
   if (assistantMessage) input.listener({ type: 'assistant_message', runId: input.run.id, message: assistantMessage, run: streamRun })
-  if (isTerminalRunStatus(input.run.status)) input.listener({ type: 'done', run: streamRun })
+  if (isAgentRunTerminalStatus(input.run.status)) input.listener({ type: 'done', run: streamRun })
 }
 
 export function emitRuntimeRunSnapshot(input: {
@@ -173,6 +178,67 @@ export function emitRuntimeAssistantMessage(input: {
     message: input.message,
     run: toStreamRun(input.run),
   })
+}
+
+export function runtimeStatusLightRecordForRun(run: AgentRun, thread?: Pick<AgentThread, 'runtimeStatuses'>): AgentRuntimeStatusRecord {
+  const asyncHandoff = [...(thread?.runtimeStatuses ?? [])]
+    .reverse()
+    .find((status) => status.runId === run.id && status.status.kind === 'async_work_handoff')
+  const asyncHandoffStatus = asyncHandoff?.status
+  const status = asyncHandoffStatus?.kind === 'async_work_handoff' && asyncHandoffStatus.workStatus !== 'completed' && asyncHandoffStatus.workStatus !== 'failed'
+    ? {
+        state: 'waiting' as const,
+        label: '等待',
+        detail: asyncHandoffStatus.detail,
+      }
+    : runtimeStatusLightFromRunStatus(run.status)
+  const createdAt = run.updatedAt ?? run.completedAt ?? run.failedAt ?? run.createdAt
+  return {
+    id: `runtime-status-light:${run.threadId}`,
+    threadId: run.threadId,
+    runId: run.id,
+    content: status.detail,
+    status: {
+      kind: 'status_light',
+      ...status,
+    },
+    createdAt,
+  }
+}
+
+function emitRuntimeStatusLightEvent(input: {
+  run: AgentRun
+  thread?: Pick<AgentThread, 'runtimeStatuses'>
+  listener: (event: AgentInternalRunSignal) => void
+}): void {
+  input.listener({
+    type: 'runtime_status',
+    runId: input.run.id,
+    run: input.run,
+    status: runtimeStatusLightRecordForRun(input.run, input.thread),
+  })
+}
+
+function runtimeStatusLightFromRunStatus(status: AgentRun['status']): { state: 'stopped' | 'waiting' | 'active'; label: string; detail: string } {
+  if (status === 'queued' || status === 'in_progress') {
+    return {
+      state: 'active',
+      label: '运行',
+      detail: 'Runtime 正在触发 run 循环。',
+    }
+  }
+  if (status === 'requires_action') {
+    return {
+      state: 'waiting',
+      label: '等待',
+      detail: 'Runtime 正在等待外部信息或用户确认。',
+    }
+  }
+  return {
+    state: 'stopped',
+    label: '停止',
+    detail: 'Runtime 当前不会自行触发新的 run，需要新的用户输入。',
+  }
 }
 
 function emitTraceDerivedRunStreamEvents(input: {

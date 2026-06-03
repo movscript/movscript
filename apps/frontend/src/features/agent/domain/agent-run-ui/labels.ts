@@ -131,6 +131,8 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   if (previewSideEffect) return `批准后会执行预览变更：${previewSideEffect}`
 
   switch (approval.toolName) {
+    case 'generation_image_generate': return '批准后会提交图像生成任务，可能消耗生成额度。'
+    case 'generation_video_generate': return '批准后会提交视频生成任务，可能消耗生成额度。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'

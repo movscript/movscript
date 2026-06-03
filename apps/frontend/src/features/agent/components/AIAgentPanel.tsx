@@ -18,6 +18,7 @@ export function AIAgentPanel() {
     panelWidth,
     pendingPanelAction,
     pendingThreadIdToOpen,
+    pendingThreadSessionIdToOpen,
     resizeHandleProps,
     toggleOpen,
   } = useAIAgentPanelDockController()
@@ -52,6 +53,7 @@ export function AIAgentPanel() {
           onCollapse={toggleOpen}
           pendingStartupStatus={pendingPanelAction}
           pendingThreadIdToOpen={pendingThreadIdToOpen}
+          pendingThreadSessionIdToOpen={pendingThreadSessionIdToOpen}
           onPendingThreadHandled={handlePendingThreadHandled}
           onStartupSettled={handlePendingPanelActionSettled}
         />
@@ -76,6 +78,7 @@ export function AIAgentPanel() {
         host={dockLayout ? 'dock-panel' : 'floating-panel'}
         pendingStartupStatus={pendingPanelAction}
         pendingThreadIdToOpen={pendingThreadIdToOpen}
+        pendingThreadSessionIdToOpen={pendingThreadSessionIdToOpen}
         onPendingThreadHandled={handlePendingThreadHandled}
         onStartupSettled={handlePendingPanelActionSettled}
       />

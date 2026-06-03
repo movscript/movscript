@@ -19,6 +19,7 @@ import { buildAgentRun } from '../../state/run/core/creation/runFactory.js'
 import type { AgentServerContext } from '../../bootstrap/server/agentServerContext.js'
 import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
 import type { JSONValue, MCPResource, MCPTool } from '../../shared/protocol/types.js'
+import { MCPToolProviderRegistry } from '../../adapters/mcp/providers/mcpToolProviderRegistry.js'
 
 class StubMCPClient {
   async initialize(): Promise<JSONValue> {
@@ -775,8 +776,9 @@ function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerConte
     port: 0,
     mcpEndpoint: 'http://127.0.0.1:0/mcp',
     paths: {
-      statePath: '/tmp/state.json',
+      runtimeDataDir: '/tmp/movscript-agent',
       memoryPath: '/tmp/memories.json',
+      runtimeLogPath: '/tmp/runtime-log/events.jsonl',
       workspacePath: '/tmp/workspaces.json',
       toolResultPath: '/tmp/tool-results.json',
       catalogStatePath: '/tmp/catalog.json',
@@ -784,6 +786,7 @@ function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerConte
     },
     updates: buildUpdateState(),
     client: new StubMCPClient() as never,
+    toolProviderRegistry: new MCPToolProviderRegistry(),
     runtimeRouter,
     backendApplyClient: new BackendApplyClient(),
     modelConfigStore: new RuntimeModelConfigStore('/tmp/model-config.json'),

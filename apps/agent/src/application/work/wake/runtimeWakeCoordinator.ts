@@ -24,6 +24,7 @@ export class RuntimeWakeCoordinator {
     store: Pick<AgentStore,
       | 'getRun'
       | 'listRuntimeWorks'
+      | 'getRuntimeWork'
       | 'createRuntimeWakeEvent'
       | 'updateRuntimeWakeEvent'
       | 'listRuntimeWakeEvents'
@@ -125,13 +126,13 @@ export class RuntimeWakeCoordinator {
       const processing = { ...event, status: 'processing' as const, updatedAt: this.now() }
       this.input.store.updateRuntimeWakeEvent(processing)
       if (event.kind === 'work.started') {
-        const work = workFromWakeEvent(event)
+        const work = this.workFromWakeEvent(event)
         if (work) advancedRuns.push(...this.handleWorkStarted(work))
         this.consumeWakeEvent(processing)
         continue
       }
       if (event.kind === 'work.observed') {
-        const work = workFromWakeEvent(event)
+        const work = this.workFromWakeEvent(event)
         if (work) mergeWakeResult({ observedWorks, advancedRuns }, await this.handleWorkObserved(work))
         this.consumeWakeEvent(processing)
         continue
@@ -248,6 +249,15 @@ export class RuntimeWakeCoordinator {
     return this.input.store.listRuntimeWakeEvents({ threadId, status: 'queued' }).length > 0
   }
 
+  private workFromWakeEvent(event: RuntimeWakeEvent): RuntimeWork | undefined {
+    const payload = event.payload
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const work = (payload as { work?: unknown }).work
+      if (work && typeof work === 'object' && !Array.isArray(work)) return work as RuntimeWork
+    }
+    return event.workId ? this.input.store.getRuntimeWork(event.workId) : undefined
+  }
+
   private consumeWakeEvent(event: RuntimeWakeEvent): void {
     const now = this.now()
     this.input.store.updateRuntimeWakeEvent({
@@ -302,7 +312,16 @@ function wakeEntityRefs(signal: RuntimeWakeSignal): Pick<RuntimeWakeEvent, 'runI
 }
 
 function wakePayload(signal: RuntimeWakeSignal): unknown {
-  if (signal.type === 'work.started' || signal.type === 'work.observed') return { work: signal.work }
+  if (signal.type === 'work.started' || signal.type === 'work.observed') {
+    return {
+      workId: signal.work.id,
+      threadId: signal.work.threadId,
+      ...(signal.work.runId ? { runId: signal.work.runId } : {}),
+      kind: signal.work.kind,
+      status: signal.work.status,
+      updatedAt: signal.work.updatedAt,
+    }
+  }
   if (signal.type === 'run.settled') return { runId: signal.runId }
   return { threadId: signal.threadId }
 }
@@ -317,12 +336,6 @@ function consumedWakePayload(event: RuntimeWakeEvent): unknown {
   return summary
 }
 
-function workFromWakeEvent(event: RuntimeWakeEvent): RuntimeWork | undefined {
-  const payload = event.payload
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined
-  const work = (payload as { work?: unknown }).work
-  return work && typeof work === 'object' && !Array.isArray(work) ? work as RuntimeWork : undefined
-}
 
 function shouldAutoObserveWork(work: RuntimeWork): boolean {
   return work.mode === 'async'

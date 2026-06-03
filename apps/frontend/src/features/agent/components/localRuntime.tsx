@@ -31,7 +31,7 @@ import {
   AgentRunInteractionStatusBadge,
   AgentRunInteractionTextInput,
 } from '@movscript/ui'
-import { buildAgentRunTimeline, type AgentTimelineItem } from '@/features/agent/domain/agentTimeline'
+import { buildAgentRunActivityTimeline, type AgentRunActivityTimelineItem } from '@/features/agent/domain/agentRunActivityTimeline'
 import { approvalImpactLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentRunStatusRecipe, agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
@@ -44,7 +44,7 @@ export type LocalAgentApprovalRequest = NonNullable<AgentRun['pendingApprovals']
 export type LocalAgentInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number] | ChatRunActivityInputRequest
 type PendingApproval = LocalAgentApprovalRequest
 type PendingInputRequest = LocalAgentInputRequest
-type ApprovalLike = Pick<PendingApproval, 'toolName' | 'risk' | 'permission' | 'preview'>
+type ApprovalLike = Pick<PendingApproval, 'toolName' | 'risk' | 'permission'> & { preview?: unknown }
 
 export interface LocalAgentRunInteractionPanelProps {
   run: AgentRun | null
@@ -109,6 +109,8 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   if (previewSideEffect) return t('agents.chat.task.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
   switch (approval.toolName) {
+    case 'generation_image_generate':
+    case 'generation_video_generate':
     case 'generation_job_create':
       return t('agents.chat.task.approvalImpact.generationCreate')
     case 'generation_job_cancel':
@@ -283,13 +285,16 @@ export function LocalAgentApprovalRequestCard({
 
 function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
   if (approval.toolName !== 'core_work_start') return agentToolNameLabel(approval.toolName, t)
-  const args = approval.args && typeof approval.args === 'object' && !Array.isArray(approval.args)
-    ? approval.args as Record<string, unknown>
-    : undefined
+  const args = approvalArgs(approval)
   const kind = typeof args?.kind === 'string' ? args.kind : undefined
   if (kind === 'generation_job') return t('agents.chat.task.approvalOperation.generationJob', { defaultValue: '创建生成任务' })
   if (kind === 'subagent_run') return t('agents.chat.task.approvalOperation.subagentRun', { defaultValue: '启动子 agent 运行' })
   return t('agents.chat.task.approvalOperation.default', { defaultValue: '提交异步任务' })
+}
+
+function approvalArgs(approval: PendingApproval): Record<string, unknown> | undefined {
+  if (!('args' in approval) || !approval.args || typeof approval.args !== 'object' || Array.isArray(approval.args)) return undefined
+  return approval.args as Record<string, unknown>
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
@@ -323,7 +328,7 @@ export function LocalAgentRunInteractionPanel({
     ...actionApprovals.map((approval) => `approval-${approval.id}`),
     ...actionInputs.map((request) => `input-${request.id}`),
   ])
-  const actionHistory = (buildAgentRunTimeline({ run, events })?.items ?? [])
+  const actionHistory = (buildAgentRunActivityTimeline({ run, events })?.items ?? [])
     .filter((item) => (item.type === 'approval' || item.type === 'input_request') && !pendingActionItemIds.has(item.id))
   const hasSettledApprovals = actionApprovals.some((approval) => approval.status === 'approved' || approval.status === 'rejected')
   const approvalTone = pendingApprovals.length > 0
@@ -478,7 +483,7 @@ export function LocalAgentRunInteractionPanel({
   )
 }
 
-function RunInteractionActionHistoryItem({ item }: { item: AgentTimelineItem }) {
+function RunInteractionActionHistoryItem({ item }: { item: AgentRunActivityTimelineItem }) {
   const actionRecipe = agentRunInteractionActionStatusRecipe(item.status)
   return (
     <AgentRunInteractionRequestCard status={item.status}>

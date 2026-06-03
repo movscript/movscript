@@ -6,14 +6,8 @@ import type { AgentDebugContextPanel, AgentMessage, AgentRun, AgentRuntimeLimits
 import type { AgentRunRoundInfo } from '../../../state/run/core/round/runRound.js'
 import type { AgentStore } from '../../../state/store/core/store.js'
 import type { AgentMemory } from '../../../memory/shared/types.js'
-import type { SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
-import type { ToolExecutionResult } from '../../../orchestration/tools/execution/executor/toolExecutor.js'
+import type { SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
 import { applyRuntimeLocalDiagnosticCommand } from '../diagnostics/runtimeLocalDiagnosticCommand.js'
-import {
-  applyRuntimeLocalGenerationCommand,
-  isRuntimeLocalGenerationCommand,
-} from '../generation/command/runtimeLocalGenerationCommand.js'
-export { normalizeRuntimeLocalGenerationToolError } from '../generation/tool/runtimeLocalGenerationToolExecution.js'
 
 export interface RuntimeLocalCommandTraceInput {
   kind: AgentTraceEventKind
@@ -46,7 +40,6 @@ export async function applyRuntimeLocalCommandDispatch(input: {
   contractResolver: AgentRuntimeContractResolver
   now: () => string
   timestampMs: () => number
-  executeGenerationTool: (call: { name: 'core_work_start'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
   recordTrace: (run: AgentRun, trace: RuntimeLocalCommandTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
@@ -73,27 +66,6 @@ export async function applyRuntimeLocalCommandDispatch(input: {
       ...(input.memoryStorePath ? { memoryStorePath: input.memoryStorePath } : {}),
       contractResolver: input.contractResolver,
       now: input.now,
-      recordTrace: input.recordTrace,
-      createStep: input.createStep,
-      emitAssistantMessage: input.emitAssistantMessage,
-      emitRunSnapshot: input.emitRunSnapshot,
-    })
-    return true
-  }
-
-  if (isRuntimeLocalGenerationCommand(input.command)) {
-    await applyRuntimeLocalGenerationCommand({
-      store: input.store,
-      run: input.run,
-      thread: input.thread,
-      command: input.command,
-      userMessage: input.userMessage,
-      warnings: input.warnings,
-      memories: input.memories,
-      ...(input.memoryStorePath ? { memoryStorePath: input.memoryStorePath } : {}),
-      now: input.now,
-      timestampMs: input.timestampMs,
-      executeGenerationTool: input.executeGenerationTool,
       recordTrace: input.recordTrace,
       createStep: input.createStep,
       emitAssistantMessage: input.emitAssistantMessage,

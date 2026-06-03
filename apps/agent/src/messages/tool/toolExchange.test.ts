@@ -29,9 +29,7 @@ test('extractRequestedToolCallsFromAssistantContent downgrades invalid workspace
         name: 'workspace_open',
         parameters: {
           project_id: '42',
-          production_id: 7.5,
           projectId: 0,
-          productionId: Number.NaN,
           kind: 'project_standards_workspace',
         },
       },
@@ -41,8 +39,6 @@ test('extractRequestedToolCallsFromAssistantContent downgrades invalid workspace
   assert.equal(toolCalls.length, 1)
   assert.equal(toolCalls[0]?.args?.project_id, undefined)
   assert.equal(toolCalls[0]?.args?.projectId, undefined)
-  assert.equal(toolCalls[0]?.args?.production_id, undefined)
-  assert.equal(toolCalls[0]?.args?.productionId, undefined)
   assert.equal(toolCalls[0]?.args?.kind, 'note')
 })
 

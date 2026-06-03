@@ -34,6 +34,7 @@ export function useAIAgentPanelDockController() {
   const toggleOpen = useAgentPanelUiStore((state) => state.toggleOpen)
   const setDetailAgentPanelWidth = useAgentPanelUiStore((state) => state.setDetailAgentPanelWidth)
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
+  const [pendingThreadSessionIdToOpen, setPendingThreadSessionIdToOpen] = useState<string | null>(null)
   const [pendingPanelAction, setPendingPanelAction] = useState<'creating' | 'restoring' | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
@@ -83,6 +84,7 @@ export function useAIAgentPanelDockController() {
       const detail = (event as CustomEvent<AgentPanelThreadPayload>).detail
       if (!detail?.threadId?.trim()) return
       setPendingThreadIdToOpen(detail.threadId)
+      setPendingThreadSessionIdToOpen(detail.sessionId?.trim() || null)
       setPendingPanelAction('restoring')
       setOpen(true)
     }
@@ -110,6 +112,7 @@ export function useAIAgentPanelDockController() {
 
   const handlePendingThreadHandled = useCallback((threadId: string) => {
     setPendingThreadIdToOpen((current) => current === threadId ? null : current)
+    setPendingThreadSessionIdToOpen(null)
   }, [])
 
   const handlePendingPanelActionSettled = useCallback(() => {
@@ -125,6 +128,7 @@ export function useAIAgentPanelDockController() {
     panelWidth,
     pendingPanelAction,
     pendingThreadIdToOpen,
+    pendingThreadSessionIdToOpen,
     resizeHandleProps: panelResize.resizeHandleProps,
     toggleOpen,
   }

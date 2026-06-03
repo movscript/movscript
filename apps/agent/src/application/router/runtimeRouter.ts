@@ -12,6 +12,7 @@ import type { AgentMemory, MemoryQuery } from '../../memory/shared/types.js'
 import { ReferenceManager, loadAgentReferenceStore } from '../../reference/index.js'
 import type { AgentTraceQuery } from '@movscript/protocol'
 import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult } from '../../state/store/core/store.js'
+import type { RuntimeLogThreadMessagesPage } from '../../state/store/runtime-log/runtimeLogStore.js'
 import type { ToolRegistry } from '../../tools/registry/core/toolRegistry.js'
 import {
   InMemoryAgentWorkspaceStore,
@@ -168,7 +169,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultImageProcessingPort,
   createDefaultVideoFrameExtractionPort,
@@ -180,7 +180,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../ports/worksp
 import type { CoreResourceFilePort } from '../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../ports/project/projectStandardsPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../ports/runtime/runtimeToolHandlerPort.js'
 import type { ExternalToolGatewayPort } from '../../ports/tools/externalToolGatewayPort.js'
 import { InMemoryAgentToolResultStore, type AgentToolResultStore } from '../../state/store/tool-results/toolResultStore.js'
@@ -335,7 +334,6 @@ export class AgentRuntimeRouter {
   private readonly resourceFilePort: CoreResourceFilePort
   private readonly imageProcessingPort: CoreImageProcessingPort
   private readonly videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  private readonly projectStandardsPort: ProjectStandardsPort
   private readonly runtimeToolHandlers: RuntimeToolHandlerRegistry
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
@@ -354,6 +352,7 @@ export class AgentRuntimeRouter {
   private readonly catalogStateStore: AgentCatalogStateStore
   private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeRouterOptions['pluginCatalogLoader']>
   private readonly updateState?: AgentCapabilitiesResponse['updates']
+  private readonly resolveModelConfig?: AgentRuntimeRouterOptions['resolveModelConfig']
   private readonly runControllers = new RuntimeRunControllerRegistry()
   private readonly runAuth = new RuntimeRunAuthRegistry()
   private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalRunSignal>()
@@ -404,7 +403,6 @@ export class AgentRuntimeRouter {
     this.resourceFilePort = options.resourceFilePort ?? createDefaultResourceFilePort(this.mcpClient)
     this.imageProcessingPort = options.imageProcessingPort ?? createDefaultImageProcessingPort(this.backendApplyClient)
     this.videoFrameExtractionPort = options.videoFrameExtractionPort ?? createDefaultVideoFrameExtractionPort(this.backendApplyClient)
-    this.projectStandardsPort = options.projectStandardsPort ?? createDefaultProjectStandardsPort(this.backendApplyClient)
     this.runtimeToolHandlers = options.runtimeToolHandlers ?? createDefaultRuntimeToolHandlerRegistry()
     this.workspaces = createRuntimeWorkspaceOperationsBridge({
       workspaceStore: this.workspaceStore,
@@ -427,6 +425,7 @@ export class AgentRuntimeRouter {
       loadCatalogSnapshot: loadAgentPluginCatalog,
     })
     this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
+    this.resolveModelConfig = options.resolveModelConfig
     const catalogState = this.catalogStateStore.load()
     this.layeredRegistry = applyCatalogStateToLayeredRegistry(catalogInitialization.layeredRegistry, catalogState)
     this.activeAgentManifest = applyCatalogStateToActiveManifest(
@@ -562,7 +561,6 @@ export class AgentRuntimeRouter {
       resourceFilePort: this.resourceFilePort,
       imageProcessingPort: this.imageProcessingPort,
       videoFrameExtractionPort: this.videoFrameExtractionPort,
-      projectStandardsPort: this.projectStandardsPort,
       memoryStore: this.memoryStore,
       memoryManager: this.memoryManager,
       referenceManager: this.referenceManager,
@@ -571,6 +569,7 @@ export class AgentRuntimeRouter {
       toolResultStore: this.toolResultStore,
       runtimeToolHandlers: this.runtimeToolHandlers,
       updateState: this.updateState,
+      ...(this.resolveModelConfig ? { resolveModelConfig: this.resolveModelConfig } : {}),
     })
     this.runExecutionScheduler = createRuntimeRunExecutionSchedulerBridge({
       controllers: this.runControllers,
@@ -650,7 +649,6 @@ export class AgentRuntimeRouter {
     })
     this.planTools = createRuntimePlanToolsBridge({
       store: this.store,
-      emitAssistantMessage: (run, message) => this.streams.emitAssistantMessage(run, message),
       now: () => isoNow(),
     })
     this.updateTaskGraph = createRuntimeReplanBridge({
@@ -785,6 +783,44 @@ export class AgentRuntimeRouter {
 
   getThread(id: string): AgentThread | undefined {
     return this.threads.getThread(id)
+  }
+
+  listThreadMessagesPage(threadId: string, query: { afterOrdinal?: number; limit?: number; direction?: 'asc' | 'desc' } = {}): RuntimeLogThreadMessagesPage | undefined {
+    if (!this.threads.listThreadSummaries().some((thread) => thread.id === threadId)) return undefined
+    const messageStore = this.store as AgentStore & {
+      listThreadMessagesPage?: (input: { threadId: string; afterOrdinal?: number; limit?: number; direction?: 'asc' | 'desc' }) => RuntimeLogThreadMessagesPage
+    }
+    if (typeof messageStore.listThreadMessagesPage === 'function') {
+      return messageStore.listThreadMessagesPage({ threadId, ...query })
+    }
+    const thread = this.threads.getThread(threadId)
+    if (!thread) return undefined
+    const limit = clampThreadMessagePageLimit(query.limit)
+    const afterOrdinal = Math.max(0, Math.floor(query.afterOrdinal ?? 0))
+    const direction = query.direction ?? 'asc'
+    const orderedMessages = [...thread.messages].sort(compareAgentMessages)
+      .map((message, index) => ({ message, ordinal: index + 1 }))
+    const cursorMessages = orderedMessages.filter((item) => direction === 'asc'
+      ? item.ordinal > afterOrdinal
+      : afterOrdinal <= 0 || item.ordinal < afterOrdinal)
+    const directionalMessages = direction === 'desc' ? [...cursorMessages].reverse() : cursorMessages
+    const pageMessages = directionalMessages.slice(0, limit)
+    const nextAfterOrdinal = pageMessages.at(-1)?.ordinal
+    return {
+      threadId,
+      messages: pageMessages.map((item) => item.message),
+      ...(nextAfterOrdinal !== undefined ? { nextAfterOrdinal } : {}),
+      hasMore: directionalMessages.length > limit,
+      scan: {
+        durationMs: 0,
+        bytesRead: 0,
+        totalBytes: 0,
+        linesRead: 0,
+        eventsRead: 0,
+        matchedEvents: orderedMessages.length,
+        malformedLines: 0,
+      },
+    }
   }
 
   async getThreadRuntimeSnapshot(threadId: string): Promise<RuntimeThreadSnapshotV2 | undefined> {
@@ -984,6 +1020,7 @@ export class AgentRuntimeRouter {
     pageRoute?: unknown
     pageEntityType?: unknown
     pageEntityId?: unknown
+    current?: unknown
     limit?: unknown
   } = {}): AgentWorkspace[] {
     return this.workspaces.listWorkspaces(query)
@@ -1062,4 +1099,19 @@ export class AgentRuntimeRouter {
     await this.postRunRecords.flush()
   }
 
+}
+
+function compareAgentMessages(left: AgentMessage, right: AgentMessage): number {
+  const byCreatedAt = left.createdAt.localeCompare(right.createdAt)
+  if (byCreatedAt !== 0) return byCreatedAt
+  return left.id.localeCompare(right.id)
+}
+
+function clampThreadMessagePageLimit(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return 100
+  const integer = Math.floor(parsed)
+  if (integer < 1) return 1
+  if (integer > 500) return 500
+  return integer
 }

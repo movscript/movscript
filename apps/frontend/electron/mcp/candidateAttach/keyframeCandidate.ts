@@ -1,7 +1,6 @@
 import { backendPost } from '../backendClient'
 import { getRequiredPositiveIntegerAliasParam } from './candidateParams'
-import { stringValue } from '../generation'
-import { isRecord } from '../valueUtils'
+import { isRecord, stringValue } from '../valueUtils'
 import {
   existingKeyframeCandidateResourceIds,
   isGeneratedKeyframeCandidateTarget,

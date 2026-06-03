@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createAgentRuntimeTransport, ElectronAgentRuntimeTransport, HttpAgentRuntimeTransport } from './agentRuntimeTransport'
+import { createAgentRuntimeTransport, ElectronAgentRuntimeTransport } from './agentRuntimeTransport'
 import type { ElectronAPI, ElectronAgentRuntimeStreamMessage } from '@/shared/contracts/electronApi'
 
 test('Electron agent runtime transport proxies request through window api', async () => {
@@ -44,65 +44,74 @@ test('Electron agent runtime transport proxies request through window api', asyn
   })
 })
 
-test('agent runtime transport factory defaults to direct HTTP', () => {
-  const transport = createAgentRuntimeTransport({
-    baseURL: 'http://127.0.0.1:28765/',
-  })
-
-  assert.equal(transport instanceof HttpAgentRuntimeTransport, true)
-  assert.equal(transport.kind, 'http')
-  assert.equal(transport.endpointLabel, 'http://127.0.0.1:28765')
-})
-
-test('agent runtime transport factory can opt into Electron IPC', () => {
-  const transport = createAgentRuntimeTransport({
-    baseURL: 'http://127.0.0.1:28765',
-    mode: 'electron',
-  })
-
+test('agent runtime transport factory creates Electron IPC transport without direct HTTP fallback', async () => {
+  const transport = createAgentRuntimeTransport({ sessionId: 'session_1' })
   assert.equal(transport instanceof ElectronAgentRuntimeTransport, true)
-  assert.equal(transport.kind, 'http')
-  assert.equal(transport.endpointLabel, 'http://127.0.0.1:28765')
+  assert.equal(transport.kind, 'electron')
+  assert.equal(transport.endpointLabel, 'electron:agent-runtime')
+  await assert.rejects(
+    () => transport.request('/runtime/compat'),
+    /Electron agent runtime transport is not available/,
+  )
 })
 
-test('agent runtime transport factory can opt into Unix socket via Electron IPC', () => {
-  const transport = createAgentRuntimeTransport({
-    baseURL: 'http://127.0.0.1:28765',
-    mode: 'unix-socket',
-    socketPath: '/tmp/movscript-agent.sock',
+test('agent runtime transport factory defaults to Electron IPC inside desktop windows', async () => {
+  await withWindowAPI({
+    ensureAgentRuntime: async () => ({ ok: true, running: true, managed: true, started: false, baseURL: 'electron:agent-runtime', endpoint: 'electron:agent-runtime' }),
+    agentRuntimeRequest: async () => {
+      throw new Error('unexpected request')
+    },
+    agentRuntimeOpenEventStream: async () => {
+      throw new Error('unexpected stream')
+    },
+    agentRuntimeCloseEventStream: async () => undefined,
+    onAgentRuntimeStreamMessage: () => () => undefined,
+  }, async () => {
+    const transport = createAgentRuntimeTransport({
+      sessionId: 'session_1',
+    })
+
+    assert.equal(transport instanceof ElectronAgentRuntimeTransport, true)
+    assert.equal(transport.kind, 'electron')
+    assert.equal(transport.endpointLabel, 'electron:agent-runtime')
   })
-
-  assert.equal(transport instanceof ElectronAgentRuntimeTransport, true)
-  assert.equal(transport.kind, 'unix-socket')
-  assert.equal(transport.endpointLabel, 'unix:/tmp/movscript-agent.sock')
-  assert.equal(transport.socketPath, '/tmp/movscript-agent.sock')
 })
 
-test('agent runtime transport factory requires socket path for Unix socket mode', () => {
-  assert.throws(
-    () => createAgentRuntimeTransport({
-      baseURL: 'http://127.0.0.1:28765',
-      mode: 'unix-socket',
-    }),
-    /VITE_LOCAL_AGENT_SOCKET_PATH is required/,
-  )
-})
+test('agent runtime transport factory keeps session metadata on Electron IPC requests', async () => {
+  const calls: unknown[] = []
+  await withWindowAPI({
+    ensureAgentRuntime: async () => ({ ok: true, running: true, managed: true, started: false, baseURL: 'electron:agent-runtime', endpoint: 'electron:agent-runtime' }),
+    agentRuntimeRequest: async (input) => {
+      calls.push(input)
+      return {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true }),
+      }
+    },
+    agentRuntimeOpenEventStream: async () => {
+      throw new Error('unexpected stream')
+    },
+    agentRuntimeCloseEventStream: async () => undefined,
+    onAgentRuntimeStreamMessage: () => () => undefined,
+  }, async () => {
+    const transport = createAgentRuntimeTransport({
+      workspaceDir: '/tmp/movscript-workspace',
+      sessionId: 'session_1',
+    })
 
-test('agent runtime transport factory reports reserved transports explicitly', () => {
-  assert.throws(
-    () => createAgentRuntimeTransport({
-      baseURL: 'http://127.0.0.1:28765',
-      mode: 'websocket',
-    }),
-    /websocket is reserved but not implemented/,
-  )
-  assert.throws(
-    () => createAgentRuntimeTransport({
-      baseURL: 'http://127.0.0.1:28765',
-      mode: 'named-pipe',
-    }),
-    /named-pipe is reserved but not implemented/,
-  )
+    const response = await transport.request('/runtime/compat')
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(calls, [{
+      workspaceDir: '/tmp/movscript-workspace',
+      sessionId: 'session_1',
+      path: '/runtime/compat',
+      method: undefined,
+      headers: {},
+      body: undefined,
+    }])
+  })
 })
 
 test('Electron agent runtime transport exposes IPC stream messages as event stream', async () => {
@@ -133,7 +142,7 @@ test('Electron agent runtime transport exposes IPC stream messages as event stre
       }
     },
   }, async () => {
-    const stream = await new ElectronAgentRuntimeTransport().openEventStream('/threads/thread_1/stream')
+    const stream = await new ElectronAgentRuntimeTransport({ sessionId: 'session_1' }).openEventStream('/threads/thread_1/stream')
     const messages: string[] = []
     for await (const message of stream.messages()) {
       messages.push(message)
@@ -169,7 +178,7 @@ test('Electron agent runtime transport closes remote stream when aborted', async
     },
   }, async () => {
     const controller = new AbortController()
-    const stream = await new ElectronAgentRuntimeTransport().openEventStream('/threads/thread_1/stream', {
+    const stream = await new ElectronAgentRuntimeTransport({ sessionId: 'session_1' }).openEventStream('/threads/thread_1/stream', {
       signal: controller.signal,
     })
 
@@ -185,7 +194,9 @@ test('Electron agent runtime transport closes remote stream when aborted', async
   })
 })
 
-async function withWindowAPI(api: Pick<ElectronAPI, 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage'>, run: () => Promise<void>): Promise<void> {
+type TestElectronAgentRuntimeAPI = Pick<ElectronAPI, 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage'> & Partial<Pick<ElectronAPI, 'ensureAgentRuntime'>>
+
+async function withWindowAPI(api: TestElectronAgentRuntimeAPI, run: () => Promise<void>): Promise<void> {
   const runtimeGlobal = globalThis as typeof globalThis & { window?: unknown }
   const originalWindow = runtimeGlobal.window
   ;(runtimeGlobal as Record<string, unknown>).window = { api }

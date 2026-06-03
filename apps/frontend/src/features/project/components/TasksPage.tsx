@@ -169,6 +169,7 @@ interface WorkItemMetadata {
   agent_request_id?: string
   agent_thread_id?: string
   agent_run_id?: string
+  agent_session_id?: string
   agent_status?: string
   agent_published_at?: string
   agent_completed_at?: string
@@ -1489,6 +1490,7 @@ export default function TasksPage() {
   }, [agentPageTasks, selectedTask?.metadata.agent_request_id])
   const selectedTaskAgentThreadId = selectedTask?.metadata.agent_thread_id ?? selectedTaskAgentSession?.threadId
   const selectedTaskAgentRunId = selectedTask?.metadata.agent_run_id ?? selectedTaskAgentSession?.runId
+  const selectedTaskAgentSessionId = selectedTask?.metadata.agent_session_id ?? selectedTaskAgentSession?.sessionId ?? selectedTaskAgentSession?.run?.sessionId
   const selectedTaskAgentStatus = selectedTaskAgentSession?.run?.status ?? selectedTask?.metadata.agent_status
   const selectedTaskAgentWaiting = !!selectedTask?.metadata.agent_request_id
     && !selectedTaskAgentThreadId
@@ -1558,11 +1560,11 @@ export default function TasksPage() {
   async function publishTaskToAgent(task: ProjectTask, preferredAgentKey?: TaskAgentKey) {
     if (!projectId || publishingAgentTaskId === task.id) return
     if (task.metadata.agent_thread_id) {
-      openAgentPanelThread(task.metadata.agent_thread_id)
+      openAgentPanelThread(task.metadata.agent_thread_id, task.metadata.agent_session_id)
       return
     }
     if (task.metadata.agent_run_id) {
-      navigate(agentRunPath(task.metadata.agent_run_id))
+      navigate(agentRunPath(task.metadata.agent_run_id, { sessionId: task.metadata.agent_session_id }))
       return
     }
     if (task.metadata.agent_request_id && !agentRequestCanRetry(task.metadata.agent_status)) return
@@ -1599,6 +1601,7 @@ export default function TasksPage() {
               agent_request_id: requestId,
               ...(payload.thread?.id ?? payload.run?.threadId ? { agent_thread_id: payload.thread?.id ?? payload.run?.threadId } : {}),
               ...(payload.run?.id ? { agent_run_id: payload.run.id } : {}),
+              ...(payload.thread?.sessionId ?? payload.run?.sessionId ? { agent_session_id: payload.thread?.sessionId ?? payload.run?.sessionId } : {}),
               agent_status: runStatus,
               agent_completed_at: completedAt,
               agent_error: payload.run?.error ?? payload.error ?? undefined,
@@ -1884,8 +1887,8 @@ export default function TasksPage() {
                         type="button"
                         variant={selectedTaskAgentThreadId || selectedTaskAgentRunId ? 'outline' : 'solid'}
                         onClick={() => {
-                          if (selectedTaskAgentThreadId) openAgentPanelThread(selectedTaskAgentThreadId)
-                          else if (selectedTaskAgentRunId) navigate(agentRunPath(selectedTaskAgentRunId))
+                          if (selectedTaskAgentThreadId) openAgentPanelThread(selectedTaskAgentThreadId, selectedTaskAgentSessionId)
+                          else if (selectedTaskAgentRunId) navigate(agentRunPath(selectedTaskAgentRunId, { sessionId: selectedTaskAgentSessionId }))
                           else void publishTaskToAgent(selectedTask)
                         }}
                         disabled={publishingAgentTaskId === selectedTask.id || selectedTaskAgentWaiting}
@@ -1902,7 +1905,7 @@ export default function TasksPage() {
                         <ProjectTaskActionButton
                           type="button"
                           variant="outline"
-                          onClick={() => navigate(agentRunPath(selectedTaskAgentRunId))}
+                          onClick={() => navigate(agentRunPath(selectedTaskAgentRunId, { sessionId: selectedTaskAgentSessionId }))}
                         >
                           <ChevronRight size={14} />
                           查看运行详情

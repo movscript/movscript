@@ -1,21 +1,22 @@
-import type { AgentConversationMessageItem } from '@/features/agent/domain/agentConversationThreadItems'
+import type { AgentTranscriptMessageItem } from '@/features/agent/domain/agentConversationThreadItems'
 
-export function agentConversationMessageItemsEqual(
-  prev: AgentConversationMessageItem,
-  next: AgentConversationMessageItem,
+export function agentTranscriptMessageItemsEqual(
+  prev: AgentTranscriptMessageItem,
+  next: AgentTranscriptMessageItem,
 ) {
   return prev.message === next.message
+    && prev.timelineActivity === next.timelineActivity
     && prev.showMessage === next.showMessage
     && shallowReferenceArrayEqual(prev.beforeMessageInteractionRuns, next.beforeMessageInteractionRuns)
     && shallowReferenceArrayEqual(prev.afterMessageInteractionRuns, next.afterMessageInteractionRuns)
     && shallowReferenceArrayEqual(prev.liveInteractionRuns, next.liveInteractionRuns)
 }
 
-export function agentConversationMessageItemUsesLiveRunInteractionState(item: AgentConversationMessageItem) {
+export function agentTranscriptMessageItemUsesLiveRunInteractionState(item: AgentTranscriptMessageItem) {
   return !!item.liveInteractionRuns?.length
 }
 
-export function agentConversationMessageItemHasInteractionRuns(item: AgentConversationMessageItem) {
+export function agentTranscriptMessageItemHasInteractionRuns(item: AgentTranscriptMessageItem) {
   return !!item.liveInteractionRuns?.length
     || item.beforeMessageInteractionRuns.length > 0
     || item.afterMessageInteractionRuns.length > 0

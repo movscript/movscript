@@ -2,7 +2,7 @@
   "name": "@movscript/event-state",
   "version": "0.1.0",
   "type": "module",
-  "description": "Strict MovScript event-state merge, projection, and debug SDK.",
+  "description": "Shared helpers for MovScript runtime event extraction.",
   "files": [
     "dist"
   ],

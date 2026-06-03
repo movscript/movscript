@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveAgentChatRuntimeBindingIds } from '@/features/agent/presentation/useAgentChatStoreBindings'
 
-test('resolveAgentChatRuntimeBindingIds falls back to live runtime thread before session-level feeds', () => {
+test('resolveAgentChatRuntimeBindingIds falls back to live runtime thread before session-level aggregation', () => {
   const ids = resolveAgentChatRuntimeBindingIds({
     conversation: {
       id: 'conv_1',

@@ -1,5 +1,5 @@
 import type { MutableRefObject, SetStateAction } from 'react'
-import { notifyAgentMessageFeedAcceptedSource } from '@/features/agent/application/agentMessageFeedBridge'
+import { notifyAgentTimelineAcceptedSource } from '@/features/agent/application/agentTimelineBridge'
 import type { AgentTaskArtifactRef } from '@/features/agent/domain/agentArtifacts'
 import { notifyAgentPanelRunSettled } from '@/features/agent/application/agentPanelBridge'
 import { debugHttpRequestEvents, setActivityEventStatus, upsertActivityEvent } from '@/features/agent/application/agentSendActivity'
@@ -52,7 +52,6 @@ export interface CommitAgentSendWorkspaceDeps {
   recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
   revokeAttachmentPreviewUrls: (items: AgentAttachment[]) => void
   setMentionRange: (range: null) => void
-  assertMCPReady: () => Promise<unknown>
   refetchLocalAgentHealth: () => Promise<unknown>
   isLocalAgentAbortError: (error: unknown) => boolean
   thinkingStateForRun: (run: AgentRun) => AgentLivePendingAssistantState
@@ -67,6 +66,12 @@ export interface CommitAgentSendWorkspaceDeps {
 }
 
 export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, deps: CommitAgentSendWorkspaceDeps): Promise<void> {
+  const runtimeClient = workspace.localRuntime?.sessionId?.trim()
+    ? localAgentClient.forSession({
+        sessionId: workspace.localRuntime.sessionId.trim(),
+        ...(workspace.localRuntime.workspaceDir?.trim() ? { workspaceDir: workspace.localRuntime.workspaceDir.trim() } : {}),
+      })
+    : localAgentClient
   const operationId = workspace.performanceOperationId
   const commitStartedMs = performanceNow()
   let streamProgressUpdateCount = 0
@@ -88,6 +93,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
     requestId: workspace.localRuntime?.requestId,
     hasAgentManifest: Boolean(workspace.localRuntime?.agentManifest),
     hasRuntimeLimits: Boolean(workspace.localRuntime?.runtimeLimits),
+    sessionId: workspace.localRuntime?.sessionId,
   })
   if (!workspace.model.id) {
     deps.setConversationRuntime(deps.conversationId, { error: deps.labels.selectModelFirst, loading: false, building: false })
@@ -116,7 +122,10 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
   markSendPhase('source_message_prepared', { sourceMessageId, attachmentCount: workspace.attachments.length })
   schedulePostCommitFrame(operationId)
   if (workspace.localRuntime?.requestId) {
-    deps.setPageTaskRunning(workspace.localRuntime.requestId, { conversationId: deps.conversationId })
+    deps.setPageTaskRunning(workspace.localRuntime.requestId, {
+      conversationId: deps.conversationId,
+      ...(workspace.localRuntime.sessionId ? { sessionId: workspace.localRuntime.sessionId } : {}),
+    })
   }
   deps.resetStreamingAssistant()
   const sendController = new AbortController()
@@ -146,23 +155,21 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
   try {
     markSendPhase('prepare_runtime_start', {
       localAgentOnline: deps.localAgentOnline,
-      localAgentBaseURL: localAgentClient.baseURL,
+      localAgentBaseURL: runtimeClient.baseURL,
       mcpEndpoint: deps.mcpEndpoint,
     })
     await prepareSendRuntime({
       workspace,
-      localAgentOnline: deps.localAgentOnline,
-      localAgentBaseURL: localAgentClient.baseURL,
-      ...(deps.mcpEndpoint ? { mcpEndpoint: deps.mcpEndpoint } : {}),
+      localAgentOnline: workspace.localRuntime?.sessionId ? false : deps.localAgentOnline,
+      localAgentBaseURL: runtimeClient.baseURL,
       signal: sendController.signal,
       deps: {
         startActivityEvent,
         completeActivityEvent,
         markActivityEventStarted: (id) => updateActivityEvents((current) => setActivityEventStatus(current, id, 'started')),
-        ensureRunning: () => localAgentClient.ensureRunning(),
+        ensureRunning: () => runtimeClient.ensureRunning(),
         refetchLocalAgentHealth: deps.refetchLocalAgentHealth,
-        assertMCPReady: deps.assertMCPReady,
-        syncRuntimeModelConfig,
+        syncRuntimeModelConfig: (modelId) => syncRuntimeModelConfig(modelId, { client: runtimeClient }),
         markPerformancePhase: markSendPhase,
         setPendingAssistantThinking: () => deps.setPendingAssistantState({ status: 'thinking' }),
         abortError: createLocalAgentStopAbortError,
@@ -176,7 +183,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
       clientInputAttachmentCount: workspace.localRuntime?.clientInput?.attachments?.length ?? 0,
       diagnosticCommand: Boolean(workspace.localRuntime?.diagnosticCommand),
     })
-    const runResult = await localAgentClient.runMessageStream({
+    const runResult = await runtimeClient.runMessageStream({
       threadId: workspace.localRuntime?.threadId,
       message: workspace.localRuntime?.clientInput?.message ?? workspace.visibleUserContent,
       sourceMessageId,
@@ -210,13 +217,13 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
           setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
           setConversationRuntime: (patch) => deps.setConversationRuntime(deps.conversationId, patch),
           cancelGenerationJobIfActive: deps.cancelGenerationJobIfActive,
-          cancelRun: (runId, input) => localAgentClient.cancelRun(runId, input),
-          getRun: (runId) => localAgentClient.getRun(runId),
+          cancelRun: (runId, input) => runtimeClient.cancelRun(runId, input),
+          getRun: (runId) => runtimeClient.getRun(runId),
         })
       },
       onSourceMessage: (sourceMessage, run) => {
         if (sendController.signal.aborted) return
-        notifyAgentMessageFeedAcceptedSource(sourceMessage, run)
+        notifyAgentTimelineAcceptedSource(sourceMessage, run)
         markSendPhase('source_message_accepted', { threadId: sourceMessage.threadId, runId: run.id, runtimeMessageId: sourceMessage.id })
       },
       onRuntimeEvent: (event) => {
@@ -261,8 +268,8 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
               setConversationRun: (run, patch) => deps.setConversationRun(deps.conversationId, run, patch),
               setConversationRuntime: (patch) => deps.setConversationRuntime(deps.conversationId, patch),
               cancelGenerationJobIfActive: deps.cancelGenerationJobIfActive,
-              cancelRun: (runId, input) => localAgentClient.cancelRun(runId, input),
-              getRun: (runId) => localAgentClient.getRun(runId),
+              cancelRun: (runId, input) => runtimeClient.cancelRun(runId, input),
+              getRun: (runId) => runtimeClient.getRun(runId),
             })
           },
         })
@@ -281,7 +288,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
         setLiveEventsRef: (events) => {
           deps.liveTraceEventsRef.current = events
         },
-        getRun: (runId) => localAgentClient.getRun(runId),
+        getRun: (runId) => runtimeClient.getRun(runId),
         setLocalThreadId: deps.setLocalThreadId,
         setConversationSessionId: deps.setConversationSessionId,
         setConversationRuntimeSessionId: deps.setConversationRuntimeSessionId,
@@ -348,7 +355,7 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
       setConversationRuntime: deps.setConversationRuntime,
       notifyRunSettled: notifyAgentPanelRunSettled,
       toastError: deps.toastError,
-      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter @movscript/agent dev\`\n存活检查：\`${localAgentClient.baseURL}/livez\`\n兼容检查：\`${localAgentClient.baseURL}/runtime/compat\`\n\n错误：${errorMessage}`,
+      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter @movscript/agent dev\`\n存活检查：\`${runtimeClient.baseURL}/livez\`\n兼容检查：\`${runtimeClient.baseURL}/runtime/compat\`\n\n错误：${errorMessage}`,
     })
   } finally {
     logAgentSendPhase(operationId, 'finally', {

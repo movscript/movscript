@@ -8,7 +8,7 @@ import type {
   RuntimeModelRequestSnapshotPublic,
   RuntimeModelTestResult,
 } from '@movscript/protocol'
-import { atomicWriteJSON, resolveAgentStatePath } from '../../state/store/file/fileStore.js'
+import { atomicWriteJSON, resolveAgentRuntimeDataDir } from '../../state/store/file/fileStore.js'
 import { isRecord } from '../../shared/json/jsonValue.js'
 import {
   runtimeModelTextContent,
@@ -193,15 +193,18 @@ function hasSensitiveRuntimeModelURL(value: string | undefined): boolean {
 
 export class RuntimeModelConfigStore {
   readonly filePath: string
+  private readonly fallbackConfigInput?: RuntimeModelConfigInput
   private cachedConfig: RuntimeModelConfig | undefined
   private cacheLoaded = false
+  private fallbackDisabled = false
 
-  constructor(filePath = resolveRuntimeModelConfigPath()) {
+  constructor(filePath = resolveRuntimeModelConfigPath(), options: { fallbackConfig?: RuntimeModelConfigInput } = {}) {
     this.filePath = filePath
+    this.fallbackConfigInput = options.fallbackConfig
   }
 
   getEffectiveConfig(): RuntimeModelConfig | undefined {
-    return this.readFileConfig()
+    return this.readFileConfig() ?? this.readFallbackConfig()
   }
 
   getFileConfig(): RuntimeModelConfig | undefined {
@@ -209,7 +212,7 @@ export class RuntimeModelConfigStore {
   }
 
   getPublicConfig(): RuntimeModelConfigPublic {
-    const fileConfig = this.readFileConfig()
+    const fileConfig = this.getEffectiveConfig()
     if (!fileConfig) {
       return {
         configured: false,
@@ -237,6 +240,7 @@ export class RuntimeModelConfigStore {
     atomicWriteJSON(this.filePath, config)
     this.cachedConfig = config
     this.cacheLoaded = true
+    this.fallbackDisabled = false
     return this.publicConfigFromFileConfig(config)
   }
 
@@ -244,6 +248,7 @@ export class RuntimeModelConfigStore {
     if (existsSync(this.filePath)) unlinkSync(this.filePath)
     this.cachedConfig = undefined
     this.cacheLoaded = true
+    this.fallbackDisabled = true
     return this.getPublicConfig()
   }
 
@@ -345,6 +350,15 @@ export class RuntimeModelConfigStore {
     return this.cachedConfig
   }
 
+  private readFallbackConfig(): RuntimeModelConfig | undefined {
+    if (this.fallbackDisabled || !this.fallbackConfigInput) return undefined
+    try {
+      return this.buildConfigFromInput(this.fallbackConfigInput, undefined, new Date(0).toISOString())
+    } catch {
+      return undefined
+    }
+  }
+
   private publicConfigFromFileConfig(fileConfig: RuntimeModelConfig): RuntimeModelConfigPublic {
     return {
       configured: true,
@@ -363,10 +377,9 @@ export class RuntimeModelConfigStore {
   }
 }
 
-export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath()): string {
+export function resolveRuntimeModelConfigPath(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
   if (process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH) return process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
-  if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.model-config.json')
-  return join(statePath, 'model-config.json')
+  return join(runtimeDataDir, 'model-config.json')
 }
 
 function runtimeModelConfigsEquivalent(a: RuntimeModelConfig, b: RuntimeModelConfig): boolean {

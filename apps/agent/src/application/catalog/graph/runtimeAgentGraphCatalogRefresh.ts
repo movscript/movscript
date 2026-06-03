@@ -1,7 +1,7 @@
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
 import type { AgentDebugContextPanel, AgentMessage, AgentRun, AgentRunRole, ResolvedAgentSkill, ResolvedToolCatalog } from '../../../state/shared/types.js'
 import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
-import type { SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
+import type { SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
 import type { ToolRegistry } from '../../../tools/registry/core/toolRegistry.js'
 import { resolveAgentCapabilities, type CapabilityMCPClient } from '../../../tools/catalog/capabilities/capabilityResolver.js'
 import { addSkillToolGrantsToManifest, resolveRuntimeLayers } from '../../../skills/resolution/layers/runtimeLayerResolver.js'

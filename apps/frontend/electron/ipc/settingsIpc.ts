@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL } from '../services/agentRuntime'
+import { setAgentRuntimeAPIBaseURL } from '../services/agentRuntime'
 import { LOCAL_BACKEND_URL, startBackend, stopBackend, type BackendStatus } from '../services/backend'
 import { setMCPAPIBaseURL } from '../mcp/server'
 
@@ -19,9 +19,6 @@ export function registerSettingsIpcHandlers(deps: SettingsIpcDependencies): void
     if (!settings?.apiBaseURL) return
     setMCPAPIBaseURL(settings.apiBaseURL)
     await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
-    if (getAgentRuntimeLaunchPolicy() !== 'external') {
-      await deps.ensureMCPServerReady()
-      await ensureAgentRuntimeRunning()
-    }
+    await deps.ensureMCPServerReady()
   })
 }

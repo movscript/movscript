@@ -114,7 +114,7 @@ function normalizeAssistantToolCall(value: unknown): ToolCall[] {
 function normalizeAssistantToolArgs(args: Record<string, unknown>): Record<string, JSONValue> {
   const output: Record<string, JSONValue> = {}
   for (const [key, value] of Object.entries(args)) {
-    if ((key === 'projectId' || key === 'project_id' || key === 'productionId' || key === 'production_id') && !isJSONValue(value)) continue
+    if ((key === 'projectId' || key === 'project_id') && !isJSONValue(value)) continue
     if (isJSONValue(value)) output[key] = value
   }
   const projectId = isValidAgentProjectId(args.projectId)
@@ -122,28 +122,10 @@ function normalizeAssistantToolArgs(args: Record<string, unknown>): Record<strin
     : isValidAgentProjectId(args.project_id)
       ? args.project_id
       : undefined
-  const productionId = isValidAgentEntityId(args.productionId)
-    ? args.productionId
-    : isValidAgentEntityId(args.production_id)
-      ? args.production_id
-      : undefined
   if (projectId !== undefined) output.projectId = projectId
   else delete output.projectId
   if (!isValidAgentProjectId(output.project_id)) delete output.project_id
-  if (productionId !== undefined) output.productionId = productionId
-  else delete output.productionId
-  if (!isValidAgentEntityId(output.production_id)) delete output.production_id
-  if (isWorkspaceWorkspaceKind(output.kind) && projectId === undefined && productionId === undefined) {
-    output.kind = 'note'
-  }
   return output
-}
-
-function isWorkspaceWorkspaceKind(value: JSONValue | undefined): boolean {
-  return value === 'project_standards_workspace'
-    || value === 'production_workspace'
-    || value === 'asset_workspace'
-    || value === 'setting_workspace'
 }
 
 function parseArgumentsObject(value: string): unknown {

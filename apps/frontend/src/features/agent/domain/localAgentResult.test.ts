@@ -55,17 +55,13 @@ test('formatLocalAgentAssistantContent falls back to current run assistant by ru
   )
 })
 
-test('formatLocalAgentAssistantContent skips UI-only assistant anchors', () => {
+test('formatLocalAgentAssistantContent skips non-transcript assistant anchors', () => {
   const status = makeMessage({
     id: 'msg_status',
     role: 'assistant',
     content: '任务正在后台运行。',
     runId: 'run_current',
-    metadata: {
-      kind: 'runtime_status',
-      promptHistory: 'exclude',
-      runtimeStatus: { kind: 'async_work_handoff', title: '异步任务已提交', detail: '任务正在后台运行。' },
-    },
+    metadata: { promptEligibility: 'exclude' },
   })
   const currentAssistant = makeMessage({
     id: 'msg_current_assistant',

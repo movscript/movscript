@@ -1,15 +1,25 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, relative } from 'node:path'
-import { MCPClient } from '../../adapters/mcp/client/mcpClient.js'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import {
+  createAgentSessionLockFile,
+  ensureAgentSessionRuntime,
+  readAgentWorkspaceConfig,
+  releaseAgentSessionLockFile,
+  resolveAgentSessionRuntimePaths,
+  resolveDefaultAgentWorkspaceDir,
+  type AgentWorkspaceConfig,
+  type AgentSessionRuntimePaths,
+} from '@movscript/agent-runtime'
+import { MCPToolProviderRegistry, type MCPToolProviderView } from '../../adapters/mcp/providers/mcpToolProviderRegistry.js'
 import { AgentRuntimeRouter, loadAgentPluginCatalog } from '../../application/router/runtimeRouter.js'
-import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath, resolveAgentTracePath } from '../../state/store/file/fileStore.js'
+import { FileAgentStore, resolveAgentMemoryPath, resolveAgentRuntimeDataDir, resolveAgentRuntimeLogPath, resolveAgentTracePath } from '../../state/store/file/fileStore.js'
 import { FileAgentToolResultStore, resolveAgentToolResultPath } from '../../state/store/tool-results/toolResultStore.js'
 import { FileAgentWorkspaceStore, resolveAgentWorkspacePath } from '../../workspaces/store/workspaceStore.js'
 import { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../../workspaces/adapters/mcp/mcpBackendApplyClient.js'
 import { FileAgentMemoryStore } from '../../memory/store/file/fileMemoryStore.js'
 import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../../catalog/registry/state/catalogState.js'
-import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../../model/config/modelConfig.js'
+import { RuntimeModelConfigStore, resolveRuntimeChatModelConfig, resolveRuntimeModelConfigPath, type RuntimeModelConfigInput } from '../../model/config/modelConfig.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
 } from '../../contracts/runtime/runtimeContract.js'
@@ -18,6 +28,7 @@ import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemet
 import { createRuntimeOtlpExporterFromEnv } from '../../telemetry/exporters/otlp/runtimeOtlpExporter.js'
 import type { AgentPluginCatalog } from '../../catalog/loading/core/loader.js'
 import type { CatalogIssue } from '../../catalog/registry/shared/types.js'
+import type { AgentRuntimeServerEndpoint } from '../../server/transports/runtimeServerTransport.js'
 
 const DEFAULT_AGENT_PORT = 28765
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
@@ -27,15 +38,23 @@ export interface AgentServerContext {
   port: number
   mcpEndpoint: string
   paths: {
-    statePath: string
+    runtimeDataDir: string
     memoryPath: string
+    runtimeLogPath: string
     workspacePath: string
     toolResultPath: string
     catalogStatePath: string
     modelConfigPath: string
   }
+  sessionRuntime?: {
+    sessionId: string
+    workspaceDir: string
+    paths: AgentSessionRuntimePaths
+    workspaceConfig: AgentWorkspaceConfig
+  }
   updates: ReturnType<typeof buildAgentUpdateState>
-  client: MCPClient
+  client: MCPToolProviderRegistry
+  toolProviderRegistry: MCPToolProviderRegistry
   runtimeRouter: AgentRuntimeRouter
   backendApplyClient: BackendApplyClient
   modelConfigStore: RuntimeModelConfigStore
@@ -69,6 +88,15 @@ export interface AgentServerCapabilities {
   }
   updates: ReturnType<typeof buildAgentUpdateState>
   backendApplyEnabled: boolean
+  toolProviders: MCPToolProviderView[]
+  sessionRuntime?: {
+    sessionId: string
+    workspaceDir: string
+    sessionDir: string
+    runtimeLogPath: string
+    runtimePath: string
+    lockPath: string
+  }
 }
 
 export interface AgentRuntimeCompatibility {
@@ -80,7 +108,6 @@ export interface AgentRuntimeCompatibility {
     features: string[]
     endpoints: string[]
   }
-  mcpEndpoint: string
 }
 
 export interface AgentCatalogStartupReport {
@@ -128,16 +155,25 @@ export function createAgentServerContext(): AgentServerContext {
   }
   const port = Number(process.env.MOVSCRIPT_AGENT_PORT || DEFAULT_AGENT_PORT)
   const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
-  const statePath = resolveAgentStatePath()
-  const memoryPath = resolveAgentMemoryPath(statePath)
-  const tracePath = resolveAgentTracePath(statePath)
-  const workspacePath = resolveAgentWorkspacePath(statePath)
-  const toolResultPath = resolveAgentToolResultPath(statePath)
-  const catalogStatePath = resolveAgentCatalogStatePath(statePath)
-  const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} workspace=${pathDiagnostic(workspacePath)} toolResults=${pathDiagnostic(toolResultPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
-  const modelConfigStore = timeStartupStep('model-config-store', () => new RuntimeModelConfigStore(modelConfigPath), () => pathDiagnostic(modelConfigPath))
-  const pluginCatalog = timeStartupStep('plugin-catalog-load', () => loadAgentPluginCatalog(), (catalog) => [
+  const sessionRuntime = resolveSessionRuntimeContext()
+  const runtimeDataDir = sessionRuntime?.paths.sessionDir ?? resolveAgentRuntimeDataDir()
+  const memoryPath = sessionRuntime?.paths.memoryPath ?? resolveAgentMemoryPath(runtimeDataDir)
+  const runtimeLogPath = sessionRuntime?.paths.runtimeLogPath ?? resolveAgentRuntimeLogPath(runtimeDataDir)
+  const tracePath = sessionRuntime?.paths.traceDir ?? resolveAgentTracePath(runtimeDataDir)
+  const workspacePath = sessionRuntime?.paths.workspacePath ?? resolveAgentWorkspacePath(runtimeDataDir)
+  const toolResultPath = sessionRuntime?.paths.toolResultPath ?? resolveAgentToolResultPath(runtimeDataDir)
+  const catalogStatePath = sessionRuntime?.paths.catalogStatePath ?? resolveAgentCatalogStatePath(runtimeDataDir)
+  const modelConfigPath = sessionRuntime?.paths.modelConfigPath ?? resolveRuntimeModelConfigPath(runtimeDataDir)
+  logPhase(`paths-resolved runtimeDataDir=${pathDiagnostic(runtimeDataDir)} runtimeLog=${pathDiagnostic(runtimeLogPath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} workspace=${pathDiagnostic(workspacePath)} toolResults=${pathDiagnostic(toolResultPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
+  const modelConfigStore = timeStartupStep('model-config-store', () => new RuntimeModelConfigStore(modelConfigPath, {
+    ...(sessionRuntime?.workspaceConfig.modelConfig ? { fallbackConfig: sessionRuntime.workspaceConfig.modelConfig as RuntimeModelConfigInput } : {}),
+  }), () => pathDiagnostic(modelConfigPath))
+  const catalogLoadOptions = buildWorkspaceCatalogLoadOptions(sessionRuntime)
+  const loadPluginCatalog = (options: Parameters<typeof loadAgentPluginCatalog>[0] = {}) => loadAgentPluginCatalog({
+    ...catalogLoadOptions,
+    ...options,
+  })
+  const pluginCatalog = timeStartupStep('plugin-catalog-load', () => loadPluginCatalog(), (catalog) => [
     `packs=${catalog.packs.length}`,
     `skills=${catalog.layeredSkills.length}`,
     `tools=${catalog.layeredTools.length}`,
@@ -145,7 +181,7 @@ export function createAgentServerContext(): AgentServerContext {
     `skillsDir=${relative(process.cwd(), catalog.skillsDir) || '.'}`,
     `toolsDir=${relative(process.cwd(), catalog.toolsDir) || '.'}`,
   ].join(' '))
-  const catalogStateStore = timeStartupStep('catalog-state-store', () => new FileAgentCatalogStateStore(catalogStatePath), () => pathDiagnostic(catalogStatePath))
+  const catalogStateStore = timeStartupStep('catalog-data-store', () => new FileAgentCatalogStateStore(catalogStatePath), () => pathDiagnostic(catalogStatePath))
   const updateState = buildAgentUpdateState({
     runtimeVersion: '0.1.0',
     manifestVersion: pluginCatalog.manifest.version,
@@ -167,14 +203,20 @@ export function createAgentServerContext(): AgentServerContext {
     ],
   })
   logPhase('update-state-built')
-  const client = new MCPClient({ endpoint: mcpEndpoint })
+  const toolProviderRegistry = new MCPToolProviderRegistry(mcpEndpoint)
+  applyWorkspaceToolProviders(toolProviderRegistry, sessionRuntime?.workspaceConfig)
+  const client = toolProviderRegistry
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
   const telemetry = new RuntimeTelemetryRegistry({
     externalExporter: createRuntimeOtlpExporterFromEnv(),
   })
-  const store = timeStartupStep('state-store', () => new FileAgentStore(statePath, telemetry), (stateStore) => [
-    pathDiagnostic(statePath),
+  const store = timeStartupStep('runtime-store', () => new FileAgentStore(runtimeDataDir, telemetry, {
+    runtimeLogPath,
+    ...(sessionRuntime ? { sessionRuntimePaths: sessionRuntime.paths } : {}),
+  }), (stateStore) => [
+    pathDiagnostic(runtimeDataDir),
+    `runtimeLog=${pathDiagnostic(stateStore.runtimeLogPath)}`,
     `trace=${traceIndexDiagnostic(stateStore.tracePath)}`,
     `threads=${stateStore.listThreads().length}`,
     `runs=${stateStore.listRuns().length}`,
@@ -208,7 +250,7 @@ export function createAgentServerContext(): AgentServerContext {
     toolRegistry: pluginCatalog.registry,
     pluginCatalog,
     catalogStateStore,
-    pluginCatalogLoader: (options) => loadAgentPluginCatalog(options),
+    pluginCatalogLoader: (options) => loadPluginCatalog(options),
     contractResolver: runtimeContractResolver,
     pluginCatalogInfo: {
       skillsDir: pluginCatalog.skillsDir,
@@ -220,6 +262,7 @@ export function createAgentServerContext(): AgentServerContext {
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
+    resolveModelConfig: () => resolveRuntimeChatModelConfig(modelConfigStore),
     telemetry,
   }), () => [
     `registeredTools=${runtimeRouterToolCountSafe(pluginCatalog)}`,
@@ -239,15 +282,18 @@ export function createAgentServerContext(): AgentServerContext {
     port,
     mcpEndpoint,
     paths: {
-      statePath,
+      runtimeDataDir,
       memoryPath,
+      runtimeLogPath,
       workspacePath,
       toolResultPath,
       catalogStatePath,
       modelConfigPath,
     },
+    ...(sessionRuntime ? { sessionRuntime } : {}),
     updates: updateState,
     client,
+    toolProviderRegistry,
     runtimeRouter,
     backendApplyClient,
     modelConfigStore,
@@ -310,6 +356,95 @@ function formatStartupError(error: unknown): string {
   return error instanceof Error ? error.message.replace(/\s+/g, '_') : String(error).replace(/\s+/g, '_')
 }
 
+function resolveSessionRuntimeContext(): AgentServerContext['sessionRuntime'] | undefined {
+  const sessionId = process.env.MOVSCRIPT_AGENT_SESSION_ID?.trim()
+  if (!sessionId) return undefined
+  const workspaceDir = process.env.MOVSCRIPT_AGENT_WORKSPACE_DIR || resolveDefaultAgentWorkspaceDir()
+  const paths = resolveAgentSessionRuntimePaths({ workspaceDir, sessionId })
+  ensureAgentSessionRuntime(paths, {
+    title: process.env.MOVSCRIPT_AGENT_SESSION_TITLE,
+    projectId: parseOptionalInteger(process.env.MOVSCRIPT_AGENT_PROJECT_ID),
+  })
+  const workspaceConfig = applySessionWorkspaceConfigDefaults(paths)
+  applySessionWorkspaceEnvironmentDefaults(workspaceConfig)
+  createAgentSessionLockFile(paths)
+  const releaseLock = () => releaseAgentSessionLockFile(paths)
+  process.once('beforeExit', releaseLock)
+  process.once('exit', releaseLock)
+  return {
+    sessionId: paths.sessionId,
+    workspaceDir: paths.workspaceDir,
+    paths,
+    workspaceConfig,
+  }
+}
+
+function applySessionWorkspaceConfigDefaults(paths: AgentSessionRuntimePaths): AgentWorkspaceConfig {
+  const workspaceConfig = readAgentWorkspaceConfig(paths.configPath)
+  if (!new RuntimeModelConfigStore(paths.modelConfigPath).getEffectiveConfig() && workspaceConfig.modelConfig) {
+    try {
+      new RuntimeModelConfigStore(paths.modelConfigPath).save(workspaceConfig.modelConfig)
+    } catch (error) {
+      console.warn(`[agent] workspace modelConfig was not applied to session runtime: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  return workspaceConfig
+}
+
+function applySessionWorkspaceEnvironmentDefaults(workspaceConfig: AgentWorkspaceConfig): void {
+  for (const [key, value] of Object.entries(workspaceConfig.environment ?? {})) {
+    if (!key.trim()) continue
+    if (process.env[key] !== undefined) continue
+    process.env[key] = value
+  }
+}
+
+function buildWorkspaceCatalogLoadOptions(sessionRuntime: AgentServerContext['sessionRuntime'] | undefined): Parameters<typeof loadAgentPluginCatalog>[0] {
+  if (!sessionRuntime?.workspaceConfig.catalog) return {}
+  const catalog = sessionRuntime.workspaceConfig.catalog
+  return {
+    ...(catalog.skillsDir ? { skillsDir: resolveWorkspaceConfigPath(sessionRuntime.workspaceDir, catalog.skillsDir) } : {}),
+    ...(catalog.toolsDir ? { toolsDir: resolveWorkspaceConfigPath(sessionRuntime.workspaceDir, catalog.toolsDir) } : {}),
+    ...(catalog.packsDir ? { packsDir: resolveWorkspaceConfigPath(sessionRuntime.workspaceDir, catalog.packsDir) } : {}),
+    ...(catalog.configFilesDir ? { configFilesDir: resolveWorkspaceConfigPath(sessionRuntime.workspaceDir, catalog.configFilesDir) } : {}),
+  }
+}
+
+function resolveWorkspaceConfigPath(workspaceDir: string, configuredPath: string): string {
+  return isAbsolute(configuredPath) ? configuredPath : resolve(workspaceDir, configuredPath)
+}
+
+function applyWorkspaceToolProviders(registry: MCPToolProviderRegistry, workspaceConfig: AgentWorkspaceConfig | undefined): void {
+  for (const provider of workspaceConfig?.toolProviders ?? []) {
+    const providerId = stringField(provider.providerId)
+    const endpoint = stringField(provider.endpoint)
+    if (!providerId || !endpoint) {
+      console.warn('[agent] workspace tool provider was skipped because providerId or endpoint is missing')
+      continue
+    }
+    const label = stringField(provider.label)
+    try {
+      registry.register({
+        providerId,
+        endpoint,
+        ...(label ? { label } : {}),
+      })
+    } catch (error) {
+      console.warn(`[agent] workspace tool provider ${providerId} was not registered: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function parseOptionalInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const parsed = Number(value)
+  return Number.isInteger(parsed) ? parsed : undefined
+}
+
 export function getAgentServerCapabilities(context: AgentServerContext): AgentServerCapabilities {
   const { pluginCatalog, paths, mcpEndpoint, backendApplyClient } = context
   return {
@@ -334,6 +469,17 @@ export function getAgentServerCapabilities(context: AgentServerContext): AgentSe
     },
     updates: context.updates,
     backendApplyEnabled: backendApplyClient.isEnabled(),
+    toolProviders: context.toolProviderRegistry?.listProviders?.() ?? [],
+    ...(context.sessionRuntime ? {
+      sessionRuntime: {
+        sessionId: context.sessionRuntime.sessionId,
+        workspaceDir: context.sessionRuntime.workspaceDir,
+        sessionDir: context.sessionRuntime.paths.sessionDir,
+        runtimeLogPath: context.sessionRuntime.paths.runtimeLogPath,
+        runtimePath: context.sessionRuntime.paths.runtimePath,
+        lockPath: context.sessionRuntime.paths.lockPath,
+      },
+    } : {}),
   }
 }
 
@@ -344,11 +490,10 @@ export function getAgentRuntimeCompatibility(context: AgentServerContext): Agent
     service: contract.service,
     mode: contract.mode,
     runtime: contract.runtime,
-    mcpEndpoint: context.mcpEndpoint,
   }
 }
 
-function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok' | 'mcpEndpoint'> {
+function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok'> {
   return {
     service: 'movscript-agent',
     mode: 'server',
@@ -366,12 +511,15 @@ function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok' | 
         'runtime-thread-recovery',
         'runtime-livez',
         'runtime-compat',
+        'dynamic-tool-providers',
+        'workspace-session-runtime',
       ],
       endpoints: [
         '/livez',
         '/runtime/compat',
         '/health',
         '/runtime/capabilities',
+        '/runtime/tool-providers',
         '/model-config',
         '/runs',
         '/runs/{id}/cancel',
@@ -383,15 +531,21 @@ function runtimeCompatibilityContract(): Omit<AgentRuntimeCompatibility, 'ok' | 
   }
 }
 
-export function logAgentServerStartup(context: AgentServerContext): void {
+export function logAgentServerStartup(context: AgentServerContext, endpoint?: AgentRuntimeServerEndpoint): void {
   const { port, mcpEndpoint, paths, backendApplyClient, pluginCatalog, updates } = context
   const catalogReport = buildAgentCatalogStartupReport(pluginCatalog)
-  console.info(`[agent] movscript-agent listening on http://127.0.0.1:${port}`)
+  console.info(`[agent] movscript-agent listening on ${endpoint?.label ?? `http://127.0.0.1:${port}`}`)
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
-  console.info(`[agent] state path ${paths.statePath}`)
+  if (context.sessionRuntime) {
+    console.info(`[agent] session runtime workspace ${context.sessionRuntime.workspaceDir}`)
+    console.info(`[agent] session runtime id ${context.sessionRuntime.sessionId}`)
+    console.info(`[agent] session runtime dir ${context.sessionRuntime.paths.sessionDir}`)
+  }
+  console.info(`[agent] runtime data dir ${paths.runtimeDataDir}`)
+  console.info(`[agent] runtime log path ${paths.runtimeLogPath}`)
   console.info(`[agent] memory path ${paths.memoryPath}`)
   console.info(`[agent] workspace path ${paths.workspacePath}`)
-  console.info(`[agent] catalog state path ${paths.catalogStatePath}`)
+  console.info(`[agent] catalog data path ${paths.catalogStatePath}`)
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] update policy ${updates.policy.channel} (${updates.current.policyVersion})`)

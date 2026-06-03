@@ -19,7 +19,7 @@ export async function runAgentCli(argv = process.argv.slice(2), env = process.en
 
   if (command === 'context') {
     await client.initialize()
-    const context = await client.callTool('movscript_focus_get')
+    const context = await client.callTool('get_focus_context')
     printJSON(context)
     return
   }
@@ -33,7 +33,7 @@ export async function runAgentCli(argv = process.argv.slice(2), env = process.en
   }
 
   if (command === 'workspace') {
-    const kind = getFlag(args, '--kind') || 'project_standards_workspace'
+    const kind = getFlag(args, '--kind') || 'workspace'
     const title = getFlag(args, '--title') || 'Untitled workspace'
     const content = getFlag(args, '--content') || ''
     const projectId = getNumberFlag(args, '--project-id')

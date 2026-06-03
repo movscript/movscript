@@ -236,29 +236,26 @@ test('context ledger extracts generation refs from runtime work payloads', () =>
   assert.equal(audit.ledger.retrieved[0]?.ref.id, '99')
 })
 
-test('context ledger ignores invalid numeric entity refs', () => {
+test('context ledger ignores invalid numeric project and generation refs', () => {
   for (const invalidId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     const audit = recordToolResultInContextLedgerWithAudit({
       runId: 'run_1',
       threadId: 'thread_1',
       catalogSnapshotId: 'catalog_1',
       call: {
-        name: 'movscript_read_project_productions',
+        name: 'project_status_read',
         args: {
           projectId: invalidId,
-          productionId: invalidId,
         },
       },
       result: {
         projectId: invalidId,
-        productionId: invalidId,
         jobId: invalidId,
       },
       source: 'runtime',
     })
 
     assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'project'), false)
-    assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'production'), false)
     assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'generation_job'), false)
   }
 })

@@ -67,6 +67,7 @@ import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeade
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
 import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
 import { installAgentTelemetryReporter } from './features/agent/state/agentTelemetryReporter'
+import { ensureBundledClientPluginsInstalled } from './features/plugins/application/builtinClientPlugins'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { useHasOpenAgentConversations } from './features/agent/presentation/useHasOpenAgentConversations'
 import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
@@ -806,6 +807,13 @@ export default function App() {
     installAgentTelemetryReporter()
     installAgentPerformanceObservers()
   }, [])
+
+  useEffect(() => {
+    if (!settingsHydrated) return
+    void ensureBundledClientPluginsInstalled().catch((error) => {
+      console.warn('[plugins] failed to install bundled client plugins', error)
+    })
+  }, [settingsHydrated])
 
   if (!settingsHydrated) {
     return <LoadingScreen fullScreen />

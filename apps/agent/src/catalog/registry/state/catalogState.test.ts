@@ -31,7 +31,7 @@ test('InMemoryAgentCatalogStateStore returns independent catalog state snapshots
   assert.deepEqual(store.load().metadata, { nested: { stable: true } })
 })
 
-test('FileAgentCatalogStateStore ignores corrupt catalog state files', () => {
+test('FileAgentCatalogStateStore ignores corrupt catalog data files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-catalog-state-'))
   try {
     const filePath = join(dir, 'catalog.json')

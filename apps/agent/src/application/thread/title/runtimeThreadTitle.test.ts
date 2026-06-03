@@ -28,11 +28,34 @@ test('ensureRuntimeThreadTitle generates and persists a model title', async () =
   assert.equal(result?.metadata?.titleGenerationStatus, 'completed')
   assert.equal(result?.metadata?.titleSource, 'model')
   assert.equal(updates.length, 2)
+  assert.equal(updates[0]?.title, '请帮我写一个雨夜短片。')
   assert.equal(updates[0]?.metadata?.titleGenerationStatus, 'pending')
+  assert.equal(updates[0]?.metadata?.titleSource, 'fallback_pending')
   assert.equal(modelCalls[0]?.auth?.backendAuthToken, 'token')
   assert.equal(modelCalls[0]?.auth?.backendAPIBaseURL, 'https://backend.test')
   assert.match(runtimeModelContentText(modelCalls[0]?.messages[0]?.content ?? []), /short chat thread titles/i)
   assert.equal(runtimeModelContentText(modelCalls[0]?.messages[1]?.content ?? []), '请帮我写一个雨夜短片。')
+})
+
+test('ensureRuntimeThreadTitle persists a fallback title before waiting for the model title', async () => {
+  const thread = makeThread()
+  const userMessage = makeMessage({ content: '帮我整理 agent 标题持久化问题' })
+  const updates: AgentThread[] = []
+
+  await ensureRuntimeThreadTitle({
+    thread,
+    userMessage,
+    now: stableNow,
+    updateThread: (updatedThread) => updates.push({ ...updatedThread }),
+    resolveModelConfig: () => makeModelConfig(),
+    callModel: async () => makeModelResult('标题持久化修复'),
+  })
+
+  assert.equal(updates[0]?.title, '帮我整理 agent 标题持久化问题')
+  assert.equal(updates[0]?.metadata?.titleGenerationStatus, 'pending')
+  assert.equal(updates[0]?.metadata?.titleSource, 'fallback_pending')
+  assert.equal(updates[1]?.title, '标题持久化修复')
+  assert.equal(updates[1]?.metadata?.titleSource, 'model')
 })
 
 test('ensureRuntimeThreadTitle emits a thread_title event after title persistence', async () => {
@@ -119,6 +142,7 @@ test('applyRuntimeThreadTitleRequest bridges persistence and stream callbacks', 
 
   assert.equal(result?.title, '雨夜短片创作')
   assert.equal(updates.length, 2)
+  assert.equal(updates[0]?.title, '请帮我写一个雨夜短片。')
   assert.equal(events[0]?.type, 'thread_title')
   assert.equal(events[0]?.runId, 'run_1')
 })

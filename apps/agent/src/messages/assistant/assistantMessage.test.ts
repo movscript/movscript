@@ -56,16 +56,14 @@ test('assistant message extracts tool calls from model JSON content', () => {
   assert.equal(toolCalls[0].args?.projectId, 1)
 })
 
-test('assistant message ignores invalid model-emitted project and production ids', () => {
+test('assistant message ignores invalid model-emitted project ids', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
         name: 'workspace_open',
         parameters: {
           project_id: '42',
-          production_id: 7.5,
           projectId: 0,
-          productionId: Number.NaN,
           kind: 'project_standards_workspace',
         },
       },
@@ -76,8 +74,6 @@ test('assistant message ignores invalid model-emitted project and production ids
   assert.equal(toolCalls[0].name, 'workspace_open')
   assert.equal(toolCalls[0].args?.project_id, undefined)
   assert.equal(toolCalls[0].args?.projectId, undefined)
-  assert.equal(toolCalls[0].args?.production_id, undefined)
-  assert.equal(toolCalls[0].args?.productionId, undefined)
   assert.equal(toolCalls[0].args?.kind, 'note')
 })
 

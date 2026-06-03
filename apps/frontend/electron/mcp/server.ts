@@ -11,6 +11,7 @@ export { getMCPContextSnapshot, getMCPFocusSnapshot, updateMCPContextSnapshot } 
 export { normalizeBackendHTTPErrorForMCP, setMCPAPIBaseURL } from './backendClient'
 export { getMCPServerStatus, stopMCPServer } from './serverLifecycle'
 export { listTools } from './toolRegistry'
+export { updateMCPPluginTools } from './pluginTools'
 export { summarizeModelContractForAgent } from './modelContracts'
 export { listModels } from './modelCatalog'
 export { locateScriptPassages } from './scriptLocate'
@@ -21,22 +22,6 @@ export {
   attachAssetSlotCandidate,
   attachKeyframeCandidate,
 } from './candidateAttach'
-export {
-  buildGenerationModelParamRules,
-  buildGenerationParamValidationAudit,
-  normalizeGenerationExtraParams,
-  preflightGenerationParams,
-} from './generationModelContracts'
-export {
-  createGenerationJob,
-  waitGenerationJobs,
-} from './generationJobs'
-export {
-  callComfyUITool,
-  callWebUITool,
-  setMCPGenerationToolsSettings,
-  testMCPGenerationToolServer,
-} from './generationConnectors'
 export {
   queryCreativeReferences,
   queryProductionContext,

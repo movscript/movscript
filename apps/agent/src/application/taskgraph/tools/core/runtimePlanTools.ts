@@ -1,6 +1,5 @@
 import { cloneJSONValue, isJSONRecord } from '../../../../shared/json/jsonValue.js'
 import type {
-  AgentMessage,
   AgentPlan,
   AgentPlanTask,
   AgentPlanTaskStatus,
@@ -10,7 +9,6 @@ import type {
   JSONValue,
 } from '../../../../state/shared/types.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
-import { buildThreadMessage } from '../../../../messages/thread/threadMessage.js'
 import { isoNow, makeId } from '../../../../shared/runtime/runtimeIdentity.js'
 import { requireRuntimeThread } from '../../../shared/store/runtimeStoreLookup.js'
 
@@ -33,7 +31,6 @@ export interface UpdatePlanResult {
   status: 'updated' | 'unchanged'
   plan: AgentPlan
   revision?: AgentPlanRevision
-  message?: AgentMessage
 }
 
 export function updateRuntimePlan(input: {
@@ -43,7 +40,6 @@ export function updateRuntimePlan(input: {
   now?: string
   planId?: string
   revisionId?: string
-  messageId?: string
 }): UpdatePlanResult {
   const now = input.now ?? isoNow()
   const thread = requireRuntimeThread(input.store, input.run.threadId)
@@ -82,23 +78,9 @@ export function updateRuntimePlan(input: {
     snapshot: clonePlan(plan),
     createdAt: now,
   }
-  const message = buildThreadMessage({
-    id: input.messageId ?? makeId('msg'),
-    threadId: thread.id,
-    role: 'assistant',
-    content: 'Plan updated',
-    now,
-    runId: input.run.id,
-    metadata: {
-      kind: 'plan_revision',
-      promptHistory: 'exclude',
-      planRevision: revision as unknown as JSONValue,
-    },
-  })
-
-  applyPlanRevision({ thread, plan, revision, message })
+  applyPlanRevision({ thread, plan, revision })
   input.store.updateThread(thread)
-  return { status: 'updated', plan, revision, message }
+  return { status: 'updated', plan, revision }
 }
 
 function isSamePlanRequest(current: AgentPlan, input: {
@@ -117,15 +99,13 @@ export function applyPlanRevision(input: {
   thread: AgentThread
   plan: AgentPlan
   revision: AgentPlanRevision
-  message: AgentMessage
 }): AgentThread {
   input.thread.currentPlan = clonePlan(input.plan)
   input.thread.planRevisions = [
     ...(input.thread.planRevisions ?? []),
     clonePlanRevision(input.revision),
   ].slice(-MAX_PLAN_REVISIONS)
-  input.thread.messages.push(input.message)
-  input.thread.updatedAt = input.message.createdAt
+  input.thread.updatedAt = input.revision.createdAt
   return input.thread
 }
 

@@ -4,17 +4,39 @@ import type {
   ElectronAgentRuntimeStreamMessage,
 } from '../../../src/shared/contracts/electronApi'
 
-export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage'> {
+type AgentRuntimeStreamMessageHandler = (message: ElectronAgentRuntimeStreamMessage) => void
+
+export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage' | 'listAgentRuntimeSessions' | 'getAgentWorkspaceConfig' | 'saveAgentWorkspaceConfig'> {
+  const streamMessageHandlers = new Set<AgentRuntimeStreamMessageHandler>()
+  let streamMessageListenerInstalled = false
+  const streamMessageListener = (_event: unknown, message: ElectronAgentRuntimeStreamMessage) => {
+    for (const handler of Array.from(streamMessageHandlers)) handler(message)
+  }
+  const ensureStreamMessageListener = () => {
+    if (streamMessageListenerInstalled) return
+    ipcRenderer.on('agent:runtime-stream-message', streamMessageListener)
+    streamMessageListenerInstalled = true
+  }
+  const removeStreamMessageListenerIfUnused = () => {
+    if (!streamMessageListenerInstalled || streamMessageHandlers.size > 0) return
+    ipcRenderer.removeListener('agent:runtime-stream-message', streamMessageListener)
+    streamMessageListenerInstalled = false
+  }
+
   return {
     ensureAgentRuntime: (input) => ipcRenderer.invoke('agent:ensure-running', input),
     agentRuntimeRequest: (input) => ipcRenderer.invoke('agent:runtime-request', input),
     agentRuntimeOpenEventStream: (input) => ipcRenderer.invoke('agent:runtime-open-event-stream', input),
     agentRuntimeCloseEventStream: (input) => ipcRenderer.invoke('agent:runtime-close-event-stream', input),
-    onAgentRuntimeStreamMessage: (handler: (message: ElectronAgentRuntimeStreamMessage) => void) => {
-      const listener = (_event: unknown, message: ElectronAgentRuntimeStreamMessage) => handler(message)
-      ipcRenderer.on('agent:runtime-stream-message', listener)
+    listAgentRuntimeSessions: (input) => ipcRenderer.invoke('agent:runtime-list-sessions', input),
+    getAgentWorkspaceConfig: (input) => ipcRenderer.invoke('agent:workspace-config-get', input),
+    saveAgentWorkspaceConfig: (input) => ipcRenderer.invoke('agent:workspace-config-save', input),
+    onAgentRuntimeStreamMessage: (handler: AgentRuntimeStreamMessageHandler) => {
+      streamMessageHandlers.add(handler)
+      ensureStreamMessageListener()
       return () => {
-        ipcRenderer.removeListener('agent:runtime-stream-message', listener)
+        streamMessageHandlers.delete(handler)
+        removeStreamMessageListenerIfUnused()
       }
     },
   }

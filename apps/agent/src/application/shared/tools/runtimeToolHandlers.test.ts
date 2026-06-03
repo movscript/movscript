@@ -5,20 +5,18 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultImageProcessingPort,
-  createDefaultProjectStandardsPort,
   createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultRuntimeToolHandlerRegistry,
   createDefaultVideoFrameExtractionPort,
 } from './runtimeToolHandlers.js'
 
-test('createDefaultRuntimeToolHandlerRegistry registers core and domain runtime tools', () => {
+test('createDefaultRuntimeToolHandlerRegistry registers core and workspace runtime tools only', () => {
   const registry = createDefaultRuntimeToolHandlerRegistry()
 
   for (const toolName of [
     'core_file_read',
     'core_memory_search',
-    'reference_search',
     'core_update_plan',
     'core_image_inspect',
     'core_image_preprocess',
@@ -28,10 +26,11 @@ test('createDefaultRuntimeToolHandlerRegistry registers core and domain runtime 
     'workspace_open',
     'workspace_validate',
     'workspace_apply',
-    'movscript_project_standards_get',
   ]) {
     assert.ok(registry.get(toolName), `expected runtime handler for ${toolName}`)
   }
+  assert.equal(registry.get('reference_search'), undefined)
+  assert.equal(registry.get('movscript_project_standards_get'), undefined)
   assert.equal(registry.get('external_only_tool'), undefined)
 })
 
@@ -44,7 +43,6 @@ test('default runtime ports create transport adapters behind port interfaces', (
     applyReview: async () => ({ ok: true }),
     previewApplyReview: async () => ({ ok: true }),
     downloadResourceFile: async () => new Uint8Array(),
-    getProject: async () => ({ id: 1 }),
   } as never
 
   assert.equal(typeof createDefaultExternalToolGatewayPort(mcpClient).executeTool, 'function')
@@ -54,5 +52,4 @@ test('default runtime ports create transport adapters behind port interfaces', (
   assert.equal(typeof createDefaultResourceFilePort(mcpClient).readFile, 'function')
   assert.equal(typeof createDefaultImageProcessingPort(backendApplyClient).process, 'function')
   assert.equal(typeof createDefaultVideoFrameExtractionPort(backendApplyClient).extract, 'function')
-  assert.equal(typeof createDefaultProjectStandardsPort(backendApplyClient).loadProject, 'function')
 })

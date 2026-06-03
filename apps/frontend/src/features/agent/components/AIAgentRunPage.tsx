@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Copy, History, Loader2, RefreshCw, Route, XCircle } from 'lucide-react'
 import {
   AgentRunCallout,
@@ -136,8 +136,9 @@ import { modelRequestMessagesFromPayload } from '@/features/agent/domain/agent-r
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/features/agent/domain/agentTraceDebugData'
 import { agentToolCallStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
+import { useAgentRuntimeSessionLease } from '@/features/agent/presentation/useAgentRuntimeSessionLease'
 import { isRecord } from '@/shared/domain/jsonValue'
-import { localAgentClient, type AgentRun, type AgentRunDebugEvidence, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
+import { isLocalAgentNotFoundError, localAgentClient, type AgentRun, type AgentRunDebugEvidence, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
 import { UrlImage } from '@/shared/ui/UrlMedia'
 import { agentRunPath } from '@/routes/projectRoutes'
 
@@ -247,6 +248,22 @@ interface AgentDebugHotspot {
 export default function AIAgentRunPage() {
   const navigate = useNavigate()
   const { runId = '' } = useParams()
+  const [searchParams] = useSearchParams()
+  const runtimeSessionId = searchParams.get('sessionId')?.trim() || undefined
+  const runtimeWorkspaceDir = searchParams.get('workspaceDir')?.trim() || undefined
+  const runtimeClient = useMemo(() => runtimeSessionId
+    ? localAgentClient.forSession({
+      sessionId: runtimeSessionId,
+      ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+    })
+    : localAgentClient,
+  [runtimeSessionId, runtimeWorkspaceDir])
+  useAgentRuntimeSessionLease({
+    enabled: !!runtimeSessionId,
+    sessionId: runtimeSessionId,
+    workspaceDir: runtimeWorkspaceDir,
+    holder: 'trace-page',
+  })
   const [traceViewMode, setTraceViewMode] = useState<AgentTraceViewMode>('debug')
   const [eventKind, setEventKind] = useState<'all' | AgentTraceEventKind>('all')
   const [eventCategory, setEventCategory] = useState<'all' | AgentTraceCategory>('all')
@@ -272,38 +289,44 @@ export default function AIAgentRunPage() {
   const initialTraceLoadRunIdRef = useRef<string | null>(null)
   const loadingEventsRef = useRef(false)
   const runQuery = useQuery({
-    queryKey: ['agent-run-detail', localAgentClient.baseURL, runId],
+    queryKey: ['agent-run-detail', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
     queryFn: async () => {
-      await localAgentClient.ensureRunning()
-      return localAgentClient.getRun(runId)
+      await runtimeClient.ensureRunning()
+      return runtimeClient.getRun(runId)
     },
     enabled: !!runId,
     retry: false,
   })
   const planQuery = useQuery({
-    queryKey: ['agent-run-taskGraph-context', localAgentClient.baseURL, runQuery.data?.taskGraphId],
-    queryFn: async () => localAgentClient.getTaskGraphSnapshot(runQuery.data!.taskGraphId!),
+    queryKey: ['agent-run-taskGraph-context', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runQuery.data?.taskGraphId],
+    queryFn: async () => runtimeClient.getTaskGraphSnapshot(runQuery.data!.taskGraphId!),
     enabled: !!runQuery.data?.taskGraphId,
     retry: false,
   })
   const childRunsQuery = useQuery({
-    queryKey: ['agent-run-children', localAgentClient.baseURL, runId],
-    queryFn: async () => localAgentClient.getChildRuns(runId),
+    queryKey: ['agent-run-children', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
+    queryFn: async () => runtimeClient.getChildRuns(runId),
     enabled: !!runId,
     retry: false,
   })
   const summaryQuery = useQuery({
-    queryKey: ['agent-run-trace-summary', localAgentClient.baseURL, runId],
-    queryFn: async () => localAgentClient.getRunTraceSummary(runId),
+    queryKey: ['agent-run-trace-summary', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
+    queryFn: async () => runtimeClient.getRunTraceSummary(runId),
     enabled: !!runId,
     retry: false,
   })
   const debugViewQuery = useQuery({
-    queryKey: ['agent-run-trace-debug-view', localAgentClient.baseURL, runId],
-    queryFn: async () => localAgentClient.getRunTraceDebugView(runId),
+    queryKey: ['agent-run-trace-debug-view', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
+    queryFn: async () => runtimeClient.getRunTraceDebugView(runId),
     enabled: !!runId,
     retry: false,
   })
+  function runDetailPath(targetRunId: string, targetSessionId?: string) {
+    return agentRunPath(targetRunId, {
+      sessionId: targetSessionId?.trim() || runtimeSessionId || runQuery.data?.sessionId,
+      ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+    })
+  }
   const visibleEvents = useMemo(() => {
     const needle = eventSearch.trim().toLowerCase()
     return events.filter((event) => {
@@ -353,10 +376,10 @@ export default function AIAgentRunPage() {
   const roundContextUpdates = debugViewQuery.data?.roundContextUpdates ?? []
   const roundContextChanges = debugViewQuery.data?.roundContextChanges ?? []
   const modelRequestEvidenceQuery = useQuery({
-    queryKey: ['agent-run-model-request-evidence', localAgentClient.baseURL, runId],
+    queryKey: ['agent-run-model-request-evidence', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
     queryFn: async () => {
-      const refs = await localAgentClient.findRunDebugEvidenceRefs(runId, { kind: 'model_request' })
-      const evidence = await Promise.all(refs.evidenceRefs.map((ref) => localAgentClient.getRunDebugEvidence(runId, ref.evidenceId)))
+      const refs = await runtimeClient.findRunDebugEvidenceRefs(runId, { kind: 'model_request' })
+      const evidence = await Promise.all(refs.evidenceRefs.map((ref) => runtimeClient.getRunDebugEvidence(runId, ref.evidenceId)))
       return evidence
     },
     enabled: !!runId && traceViewMode === 'context' && roundContextChanges.length > 0,
@@ -415,6 +438,37 @@ export default function AIAgentRunPage() {
   useEffect(() => {
     currentRunIdRef.current = runId
   }, [runId])
+
+  useEffect(() => {
+    if (!runId || !runQuery.error || !isLocalAgentNotFoundError(runQuery.error)) return undefined
+    let disposed = false
+    void (async () => {
+      try {
+        const response = await localAgentClient.listRuntimeSessionsFromWorkspace({
+          ...(runtimeWorkspaceDir ? { workspaceDir: runtimeWorkspaceDir } : {}),
+        })
+        if (disposed) return
+        const match = response.sessions.find((session) => (
+          session.runs ?? []
+        ).some((run) => run.id?.trim() === runId))
+        const nextSessionId = match?.session.id?.trim()
+        const matchedWorkspaceDir = match?.workspaceDir?.trim()
+        if (!nextSessionId) return
+        const nextWorkspaceDir = matchedWorkspaceDir || runtimeWorkspaceDir
+        if (nextSessionId === runtimeSessionId && (nextWorkspaceDir ?? '') === (runtimeWorkspaceDir ?? '')) return
+        const nextPath = `${agentRunPath(runId, {
+          sessionId: nextSessionId,
+          ...(nextWorkspaceDir ? { workspaceDir: nextWorkspaceDir } : {}),
+        })}${window.location.hash ?? ''}`
+        navigate(nextPath, { replace: true })
+      } catch {
+        // Keep the original 404 visible when the local session index cannot resolve the run.
+      }
+    })()
+    return () => {
+      disposed = true
+    }
+  }, [navigate, runId, runQuery.error, runtimeSessionId, runtimeWorkspaceDir])
 
   useEffect(() => {
     setEvents([])
@@ -495,7 +549,7 @@ export default function AIAgentRunPage() {
         let cursor = nextEvents.at(-1)?.id
         let fetchedPageCount = 0
         while (currentRunIdRef.current === requestedRunId && fetchedPageCount < 100) {
-          const response = await localAgentClient.getRunTraceEvents(requestedRunId, { limit: TRACE_BULK_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
+          const response = await runtimeClient.getRunTraceEvents(requestedRunId, { limit: TRACE_BULK_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
           if (currentRunIdRef.current !== requestedRunId) return
           if (response.events.length === 0) {
             setEvents(nextEvents)
@@ -519,7 +573,7 @@ export default function AIAgentRunPage() {
         return { events: nextEvents, hasMore: nextHasMore }
       }
       const cursor = mode === 'more' ? events.at(-1)?.id : undefined
-      const response = await localAgentClient.getRunTraceEvents(requestedRunId, { limit: TRACE_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
+      const response = await runtimeClient.getRunTraceEvents(requestedRunId, { limit: TRACE_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
       if (currentRunIdRef.current !== requestedRunId) return
       const nextEvents = mode === 'more' ? mergeTraceEvents(events, response.events) : response.events
       setEvents(nextEvents)
@@ -600,7 +654,7 @@ export default function AIAgentRunPage() {
     setDebugBundleCopied(false)
     setDebugBundleCopyError(null)
     try {
-      const debugView = debugViewQuery.data ?? await localAgentClient.getRunTraceDebugView(runId)
+      const debugView = debugViewQuery.data ?? await runtimeClient.getRunTraceDebugView(runId)
       await navigator.clipboard.writeText(formatAgentTraceDebugData(debugView.bundle))
       setDebugBundleCopied(true)
     } catch (error) {
@@ -626,7 +680,7 @@ export default function AIAgentRunPage() {
     setCancelingRun(true)
     setCancelError(null)
     try {
-      await localAgentClient.cancelRunTree(runId, { reason: `从运行详情页取消 ${subagentName ?? runId}。` })
+      await runtimeClient.cancelRunTree(runId, { reason: `从运行详情页取消 ${subagentName ?? runId}。` })
       await refreshRunPage()
     } catch (error) {
       setCancelError(error instanceof Error ? error.message : String(error))
@@ -646,10 +700,10 @@ export default function AIAgentRunPage() {
     setApprovalError(null)
     try {
       if (action === 'approve') {
-        await localAgentClient.approveInteraction(approval.interactionId)
-        await localAgentClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
+        await runtimeClient.approveInteraction(approval.interactionId)
+        await runtimeClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       } else {
-        await localAgentClient.rejectInteraction(approval.interactionId)
+        await runtimeClient.rejectInteraction(approval.interactionId)
       }
       await refreshRunPage()
     } catch (error) {
@@ -664,8 +718,8 @@ export default function AIAgentRunPage() {
     setInputActionId(requestId)
     setInputError(null)
     try {
-      await localAgentClient.answerRunInput(runId, { requestId, ...answer })
-      await localAgentClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
+      await runtimeClient.answerRunInput(runId, { requestId, ...answer })
+      await runtimeClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       await refreshRunPage()
     } catch (error) {
       setInputError(error instanceof Error ? error.message : String(error))
@@ -693,13 +747,13 @@ export default function AIAgentRunPage() {
           </AgentRunPageHeaderCopy>
           <AgentRunPageHeaderActions>
             {runQuery.data?.parentRunId && (
-              <AgentRunPageActionButton type="button" variant="outline" aria-label="打开上级运行" onClick={() => navigate(agentRunPath(runQuery.data!.parentRunId!))}>
+              <AgentRunPageActionButton type="button" variant="outline" aria-label="打开上级运行" onClick={() => navigate(runDetailPath(runQuery.data!.parentRunId!, runQuery.data?.sessionId))}>
                 <Route size={14} />
                 上级
               </AgentRunPageActionButton>
             )}
             {planQuery.data?.taskGraph.rootRunId && planQuery.data.taskGraph.rootRunId !== runId && (
-              <AgentRunPageActionButton type="button" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(agentRunPath(planQuery.data!.taskGraph.rootRunId!))}>
+              <AgentRunPageActionButton type="button" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(runDetailPath(planQuery.data!.taskGraph.rootRunId!, planQuery.data?.taskGraph.sessionId ?? runQuery.data?.sessionId))}>
                 <Route size={14} />
                 根运行
               </AgentRunPageActionButton>
@@ -968,12 +1022,12 @@ export default function AIAgentRunPage() {
                                     <AgentRunTaskArtifactTitle>{artifact.label}</AgentRunTaskArtifactTitle>
                                     <AgentRunTaskArtifactActions>
                                       {artifact.sourceTaskOwnerRunId && (
-                                        <AgentRunInlineActionButton variant="ghost" onClick={() => navigate(agentRunPath(artifact.sourceTaskOwnerRunId!))}>
+                                        <AgentRunInlineActionButton variant="ghost" onClick={() => navigate(runDetailPath(artifact.sourceTaskOwnerRunId!))}>
                                           来源运行
                                         </AgentRunInlineActionButton>
                                       )}
                                       {artifact.sourceRunId && (
-                                        <AgentRunInlineActionButton variant="ghost" onClick={() => navigate(agentRunPath(artifact.sourceRunId!))}>
+                                        <AgentRunInlineActionButton variant="ghost" onClick={() => navigate(runDetailPath(artifact.sourceRunId!))}>
                                           <Route size={10} />
                                           运行
                                         </AgentRunInlineActionButton>
@@ -1008,7 +1062,7 @@ export default function AIAgentRunPage() {
                         key={child.id}
                         data-testid="agent-run-child-run"
                         aria-label={`打开子运行 ${childName}`}
-                        onClick={() => navigate(agentRunPath(child.id))}
+                        onClick={() => navigate(runDetailPath(child.id, child.sessionId))}
                       >
                         <AgentRunChildRunTitleRow>
                           <AgentRunChildRunTitle>{childName}</AgentRunChildRunTitle>

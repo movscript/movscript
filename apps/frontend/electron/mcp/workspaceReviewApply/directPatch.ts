@@ -1,4 +1,4 @@
-import { stringValue } from '../generation'
+import { stringValue } from '../valueUtils'
 import type { WorkspaceReviewApplyRequest } from './types'
 import { getObjectValue, toMCPJSONValue } from './utils'
 

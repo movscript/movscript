@@ -61,12 +61,11 @@ test('resolveRuntimeRunSetup resolves active manifest capabilities, metadata, co
     mcpClient: new FakeCapabilityClient(),
     contextResult: {
       snapshot: {
-        route: { pathname: '/production/7' },
+        route: { pathname: '/workspace/7' },
         project: { id: 42, name: 'Project' },
-        productionId: 7,
       },
     },
-    context: { currentProjectId: 42, currentProductionId: 7 },
+    context: { currentProjectId: 42 },
     contextError: 'focus offline',
     contextDurationMs: 15,
     contextStartedAt: 1000,
@@ -96,7 +95,6 @@ test('resolveRuntimeRunSetup resolves active manifest capabilities, metadata, co
   assert.deepEqual(run.metadata?.visibleToolNames, ['tool_a'])
   assert.equal((run.metadata?.catalogSnapshot as any)?.id, 'snapshot_1')
   assert.equal((run.metadata?.catalogSnapshot as any)?.version, 'catalog_v1')
-  assert.equal((run.metadata?.context as any)?.productionId, 7)
   assert.deepEqual(traces.map((trace) => trace.title), [
     'Runtime context resolved from fallback',
     'Agent manifest resolved',
@@ -109,7 +107,7 @@ test('resolveRuntimeRunSetup resolves active manifest capabilities, metadata, co
   assert.equal((traces[4]?.data as any)?.warningCount, 4)
 })
 
-test('resolveRuntimeRunSetup ignores invalid production ids in debug context metadata', async () => {
+test('resolveRuntimeRunSetup ignores invalid project ids in debug context metadata', async () => {
   const activeManifest: AgentManifest = {
     ...DEFAULT_AGENT_MANIFEST,
     id: 'default_manifest',
@@ -133,11 +131,10 @@ test('resolveRuntimeRunSetup ignores invalid production ids in debug context met
     mcpClient: new FakeCapabilityClient(),
     contextResult: {
       snapshot: {
-        project: { id: 42, name: 'Project' },
-        productionId: 7.5,
+        project: { id: 42.5, name: 'Project' },
       },
     },
-    context: { currentProjectId: 42, currentProductionId: 7.5 },
+    context: { currentProjectId: 42.5 },
     contextDurationMs: 1,
     contextStartedAt: 1000,
     contextCompletedAt: 1001,
@@ -151,7 +148,7 @@ test('resolveRuntimeRunSetup ignores invalid production ids in debug context met
     recordTrace: () => {},
   })
 
-  assert.equal((run.metadata?.context as any)?.productionId, undefined)
+  assert.equal((run.metadata?.context as any)?.project, undefined)
 })
 
 test('resolveRuntimeRunSetup applies layered active config file and stores configFile limits', async () => {

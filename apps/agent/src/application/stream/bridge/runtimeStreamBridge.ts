@@ -25,6 +25,7 @@ import {
   emitRuntimeVolatileTraceEvent,
   recordRuntimeRunTraceEvent,
   replayRuntimeRunStream,
+  runtimeStatusLightRecordForRun,
 } from '../../run/view/stream/runtimeRunStreamEvents.js'
 import { runtimeRunDisplayThreadIds, runtimeRunDisplaysOnThread } from '../../run/view/visibility/runtimeRunVisibility.js'
 
@@ -166,6 +167,12 @@ export function createRuntimeStreamBridge(input: {
         done: options.done,
         emitRunStreamEvent: bridge.emitRunStreamEvent,
       })
+      bridge.emitRunStreamEvent(run.id, {
+        type: 'runtime_status',
+        runId: run.id,
+        run,
+        status: runtimeStatusLightRecordForRun(run, input.store.getThread(run.threadId)),
+      })
     },
     emitAssistantMessage: (run, message) => {
       emitRuntimeAssistantMessage({
@@ -199,6 +206,10 @@ function sessionEventsForRunStreamEvent(
   event: AgentInternalRunSignal,
   getRun: (runId: string) => AgentRun | undefined,
 ): Array<{ sessionId: string; threadId: string }> {
+  if (event.type === 'runtime_status') {
+    const run = event.run ?? (event.runId ? getRun(event.runId) : undefined)
+    return run?.sessionId ? [{ sessionId: run.sessionId, threadId: event.status.threadId }] : []
+  }
   const run = 'run' in event && event.run
     ? event.run
     : 'runId' in event
@@ -209,6 +220,7 @@ function sessionEventsForRunStreamEvent(
 
 function threadIdsForRunStreamEvent(event: AgentInternalRunSignal, getRun: (runId: string) => AgentRun | undefined): string[] {
   if (event.type === 'thread_title') return [event.threadId]
+  if (event.type === 'runtime_status') return [event.status.threadId]
   const run = 'run' in event && event.run
     ? event.run
     : 'runId' in event

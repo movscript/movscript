@@ -1,5 +1,4 @@
 export * as AgentGraph from './graph/runner/agentGraph.js'
-export * as ContextBuilder from './model/context/contextBuilder.js'
 export * as ModelClient from '../model/client/modelClient.js'
 export * as ToolExecutor from './tools/execution/executor/toolExecutor.js'
 export * as PreviewPlanner from './model/planning/preview/previewPlanner.js'

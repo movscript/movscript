@@ -1,5 +1,5 @@
 import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
-import type { SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
+import type { SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
 import { isJSONRecord } from '../../../shared/json/jsonValue.js'
 import type { JSONValue, ResolvedAgentSkill, ResolvedToolCatalog } from '../../../state/shared/types.js'
 import type { ToolRegistry } from '../../../tools/registry/core/toolRegistry.js'
@@ -60,8 +60,10 @@ function buildCatalogRefreshCapabilitySnapshot(capabilities: ResolvedToolCatalog
   const keyToolNames = [
     'core_skill_update',
     'core_catalog_inspect',
-    'movscript_script_locate',
-    'movscript_focus_get',
+    'get_focus_context',
+    'workspace_open',
+    'workspace_validate',
+    'workspace_apply',
     'core_user_input_request',
   ]
   return {
@@ -97,19 +99,21 @@ function buildCatalogRefreshSummary(
     .flatMap((tool) => isJSONRecord(tool) && typeof tool.name === 'string' && typeof tool.mode === 'string' ? [`${tool.name}:${tool.mode}`] : [])
     .join(', ')
   const keyTools = Array.isArray(capabilitySnapshot.keyTools) ? capabilitySnapshot.keyTools : []
-  const readScriptsStatus = keyTools
+  const keyToolPreview = keyTools
+    .slice(0, 4)
     .flatMap((tool) => {
-      if (!isJSONRecord(tool) || tool.name !== 'movscript_script_locate') return []
+      if (!isJSONRecord(tool) || typeof tool.name !== 'string') return []
       const available = tool.available === true ? 'available' : 'blocked'
       const granted = tool.granted === true ? 'granted' : 'not_granted'
       const reason = typeof tool.unavailableReason === 'string' ? `/${tool.unavailableReason}` : ''
-      return [`movscript_script_locate=${available}/${granted}${reason}`]
-    })[0]
+      return [`${tool.name}=${available}/${granted}${reason}`]
+    })
+    .join(', ')
   return [
     `${availableCount} available tool(s) after catalog change`,
     `manifest=${String(manifest.id ?? '-')}`,
     `tools=${String(manifest.toolCount ?? tools.length)}`,
     grantPreview ? `grants=${grantPreview}${tools.length > 8 ? ', ...' : ''}` : undefined,
-    readScriptsStatus,
+    keyToolPreview ? `keyTools=${keyToolPreview}` : undefined,
   ].filter(Boolean).join('; ') + '.'
 }

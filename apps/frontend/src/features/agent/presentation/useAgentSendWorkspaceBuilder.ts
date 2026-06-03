@@ -27,6 +27,8 @@ export interface BuildAgentSendWorkspaceOptions {
   timeoutMs?: number
   omitDebugArtifacts?: boolean
   performanceOperationId?: string
+  localRuntimeWorkspaceDir?: string
+  localRuntimeSessionId?: string
 }
 
 export interface UseAgentSendWorkspaceBuilderInput {
@@ -44,10 +46,11 @@ export interface UseAgentSendWorkspaceBuilderInput {
   activeConversationManifest?: AgentManifest
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
+  localRuntimeWorkspaceDir?: string
+  localRuntimeSessionId?: string
   localAgentOnline: boolean
   mcpEndpoint?: string
   refetchLocalAgentHealth: () => Promise<unknown>
-  assertMCPReady: () => Promise<unknown>
   labels: {
     attachmentOnlyMessage: string
     syncModelConfig: string
@@ -64,8 +67,20 @@ export interface UseAgentSendWorkspaceBuilderInput {
 
 export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilderInput) {
   return useCallback(async (options: BuildAgentSendWorkspaceOptions = {}): Promise<AgentSendWorkspace> => {
+    const runtimeWorkspaceDir = options.localRuntimeWorkspaceDir ?? input.localRuntimeWorkspaceDir
+    const runtimeSessionId = options.localRuntimeSessionId ?? input.localRuntimeSessionId
+    const runtimeClient = runtimeSessionId?.trim()
+      ? localAgentClient.forSession({
+          sessionId: runtimeSessionId.trim(),
+          ...(runtimeWorkspaceDir?.trim() ? { workspaceDir: runtimeWorkspaceDir.trim() } : {}),
+        })
+      : localAgentClient
     return buildLocalAgentSendWorkspace({
-      options,
+      options: {
+        ...options,
+        ...(runtimeWorkspaceDir?.trim() ? { localRuntimeWorkspaceDir: runtimeWorkspaceDir.trim() } : {}),
+        ...(runtimeSessionId?.trim() ? { localRuntimeSessionId: runtimeSessionId.trim() } : {}),
+      },
       workspaceInput: input.input,
       attachments: input.attachments,
       composerAttachments: input.composerAttachments,
@@ -81,7 +96,7 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
       externalTask: input.externalTask,
       pageToolRequestId: input.pageToolRequestId,
       attachmentOnlyMessageLabel: input.labels.attachmentOnlyMessage,
-      localAgentBaseURL: localAgentClient.baseURL,
+      localAgentBaseURL: runtimeClient.baseURL,
       httpLabels: {
         syncModelConfig: input.labels.syncModelConfig,
         loadExistingThread: input.labels.loadExistingThread,
@@ -94,14 +109,13 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
         fetchFinalThread: input.labels.fetchFinalThread,
       },
       previewDeps: {
-        localAgentOnline: input.localAgentOnline,
-        ensureRunning: () => localAgentClient.ensureRunning(),
+        localAgentOnline: runtimeSessionId ? false : input.localAgentOnline,
+        ensureRunning: () => runtimeClient.ensureRunning(),
         refetchLocalAgentHealth: input.refetchLocalAgentHealth,
-        assertMCPReady: input.assertMCPReady,
-        syncRuntimeModelConfig,
-        previewRun: (clientInput) => localAgentClient.previewRun(clientInput),
+        syncRuntimeModelConfig: (modelId) => syncRuntimeModelConfig(modelId, { client: runtimeClient }),
+        previewRun: (clientInput) => runtimeClient.previewRun(clientInput),
         isLocalAgentNotFoundError,
-        onPreviewError: (error) => toastMCPError(error, input.mcpEndpoint ?? localAgentClient.baseURL),
+        onPreviewError: (error) => toastMCPError(error, input.mcpEndpoint ?? runtimeClient.baseURL),
       },
       resolveAttachmentDataUrl: resolveAgentAttachmentDataUrl,
     })
@@ -120,10 +134,11 @@ export function useAgentSendWorkspaceBuilder(input: UseAgentSendWorkspaceBuilder
     input.activeConversationManifest,
     input.externalTask,
     input.pageToolRequestId,
+    input.localRuntimeWorkspaceDir,
+    input.localRuntimeSessionId,
     input.localAgentOnline,
     input.mcpEndpoint,
     input.refetchLocalAgentHealth,
-    input.assertMCPReady,
     input.labels,
   ])
 }

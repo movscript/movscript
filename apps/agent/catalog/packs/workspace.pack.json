@@ -2,7 +2,7 @@
   "id": "workspace.pack.lifecycle",
   "version": "1.0.0",
   "name": "Workspace Lifecycle",
-  "description": "本地 workspace schema、validate 和 save 工具；正文读写通过 core file tools 完成，validate 内置 validation。",
+  "description": "通用 workspace lifecycle 工具；workspace schema、initial content、validate effects 和 save/apply 协议由前端 MCP contract 提供。",
   "source": "builtin",
   "resources": {
     "skills": [

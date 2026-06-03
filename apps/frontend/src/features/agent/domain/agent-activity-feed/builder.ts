@@ -1,6 +1,10 @@
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { buildRunActivitySnapshot, type RunActivityRoundSnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
-import { buildAgentRunTimeline, type AgentRunTimeline, type AgentRunTimelineRound } from '@movscript/conversation'
+import {
+  buildAgentRunActivityRoundIndex as buildConversationRunActivityRoundIndex,
+  type AgentRunActivityRoundIndex as ConversationRunActivityRoundIndex,
+  type AgentRunActivityRound as ConversationRunActivityRound,
+} from '@movscript/conversation'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import type {
@@ -25,11 +29,11 @@ export function buildAgentActivityFeed(input: {
   const snapshot = buildRunActivitySnapshot(input)
   if (!snapshot) return undefined
   const { activity } = snapshot
-  const timeline = buildAgentRunTimeline(activity)
+  const runActivityRoundIndex = buildConversationRunActivityRoundIndex(activity)
 
   const itemIndex = buildActivityItemIndex(activity)
   const rounds = filterHiddenActionItems(
-    buildTimelineActivityRounds(timeline, snapshot.rounds, itemIndex),
+    buildRoundIndexActivityRounds(runActivityRoundIndex, snapshot.rounds, itemIndex),
     input.hiddenActionItemIds,
   )
   const items = rounds.flatMap((round) => round.items)
@@ -188,13 +192,13 @@ function decisionToolLine(call: ModelDecisionToolCall): string {
   return `${agentToolNameLabel(call.name)}${details ? `：${details}` : ''}`
 }
 
-function buildTimelineActivityRounds(
-  timeline: AgentRunTimeline,
+function buildRoundIndexActivityRounds(
+  runActivityRoundIndex: ConversationRunActivityRoundIndex,
   modelRounds: RunActivityRoundSnapshot[],
   index: ActivityItemIndex,
 ): AgentActivityRound[] {
   const telemetryByIndex = new Map(modelRounds.map((round) => [round.index, round]))
-  return timeline.rounds
+  return runActivityRoundIndex.rounds
     .map((round, position) => {
       const telemetry = round.index !== undefined ? telemetryByIndex.get(round.index) : undefined
       const consumedActionItemIds = new Set<string>()
@@ -217,12 +221,12 @@ function buildTimelineActivityRounds(
       const remainingItems = [
         ...index.actionItems
           .filter((item) => !consumedActionItemIds.has(item.id))
-          .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
+          .filter((item) => systemActivityRoundId(item, runActivityRoundIndex.rounds) === round.id),
       ].sort(compareActivityItems)
       const structuredItems = [...decisionItems, ...toolExecutionItems]
       const firstStructuredItemTime = Math.min(...structuredItems.map((item) => timestamp(item.createdAt)))
       const systemItems = index.systemItems
-        .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id)
+        .filter((item) => systemActivityRoundId(item, runActivityRoundIndex.rounds) === round.id)
         .sort(compareActivityItems)
       const leadingSystemItems = Number.isFinite(firstStructuredItemTime)
         ? systemItems.filter((item) => timestamp(item.createdAt) <= firstStructuredItemTime)
@@ -241,7 +245,7 @@ function buildTimelineActivityRounds(
         id: round.id,
         ...(round.index !== undefined ? { index: round.index } : {}),
         ...(round.source ? { source: round.source } : {}),
-        label: timelineRoundLabel(round, position, status, telemetry),
+        label: activityRoundLabel(round, position, status, telemetry),
         status,
         items,
         ...(telemetry?.durationMs !== undefined ? { durationMs: telemetry.durationMs } : {}),
@@ -253,7 +257,7 @@ function buildTimelineActivityRounds(
 
 function systemActivityRoundId(
   item: { createdAt: string; roundIndex?: number },
-  rounds: AgentRunTimeline['rounds'],
+  rounds: ConversationRunActivityRoundIndex['rounds'],
 ): string {
   const key = activityRoundKeyForItem(item, rounds)
   if (key !== 'round-unknown') return key
@@ -366,14 +370,14 @@ function activityItemOrder(item: AgentActivityItem): number {
   return 3
 }
 
-function activityRoundStatus(round: AgentRunTimelineRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
+function activityRoundStatus(round: ConversationRunActivityRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
   if (round.failed) return 'failed'
   if (items.length > 0) return 'tool_calls'
   return round.finished ? 'final' : 'thinking'
 }
 
-function timelineRoundLabel(
-  round: AgentRunTimelineRound,
+function activityRoundLabel(
+  round: ConversationRunActivityRound,
   position: number,
   status: AgentActivityRound['status'],
   telemetry?: RunActivityRoundSnapshot,

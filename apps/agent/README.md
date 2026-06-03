@@ -1,10 +1,20 @@
 # movscript-agent
 
-`movscript-agent` is the local MovScript agent service. It is intentionally separate from the Electron frontend and the Go backend.
+`movscript-agent` is the MovScript session runtime. In the desktop app, each session owns its own agent child process instead of sharing a standalone local service.
 
-The desktop side exposes MovScript context through an MCP-shaped local endpoint. The service owns run lifecycle, the agentic loop, memory, tool metadata, active config file manifests, approval gates, sandbox interception, local candidate/workspace state, and optional model calls.
+The desktop side exposes MovScript context through an MCP-shaped local endpoint. The runtime owns run lifecycle, the agentic loop, memory, tool metadata, active config file manifests, approval gates, sandbox interception, local candidate/workspace state, and optional model calls.
 
 ## Development
+
+For normal desktop agent-flow debugging, let the Electron session own the agent process:
+
+```bash
+pnpm --filter @movscript/desktop dev:agent-workspace
+```
+
+By default this uses the repository `.movscript-dev` workspace. Override it with `MOVSCRIPT_AGENT_WORKSPACE_DIR` when a debugging run needs a clean workspace.
+
+Use the standalone server command only when you are debugging the agent package itself.
 
 Start the Electron app first if you need live MovScript context from:
 
@@ -16,7 +26,7 @@ Then run:
 
 ```bash
 pnpm install
-pnpm --filter movscript-agent dev
+pnpm --filter @movscript/agent dev
 ```
 
 Default agent endpoint:
@@ -51,10 +61,14 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 | --- | --- | --- |
 | `MOVSCRIPT_AGENT_PORT` | `28765` | Local agent HTTP port. |
 | `MOVSCRIPT_MCP_ENDPOINT` | `http://127.0.0.1:18765/mcp` | Desktop MCP-shaped endpoint. |
-| `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from state path | Local skill metadata override directory. Built-in skills from `apps/agent/catalog/skills` are always loaded first. |
-| `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from state path | Local tool metadata override directory. Built-in tools from `apps/agent/catalog/tools` are always loaded first. |
+| `MOVSCRIPT_AGENT_RUNTIME_DATA_DIR` | `.movscript-agent` under the process cwd | Root directory for local runtime data, including the runtime log, traces, memories, workspace registry, catalog defaults, and model config. |
+| `MOVSCRIPT_AGENT_CATALOG_STORE_DIR` | derived from runtime data dir | Root directory for frontend-managed agent catalog plugin files. Electron sets this explicitly for session child processes. |
+| `MOVSCRIPT_AGENT_SKILLS_DIR` | derived from catalog store dir | Local skill metadata directory. Built-in generic skills from `apps/agent/catalog/skills` are always loaded first. Plugin skills are installed under this directory by the desktop/shared pack store. |
+| `MOVSCRIPT_AGENT_TOOLS_DIR` | derived from catalog store dir | Local tool metadata directory. Built-in generic tools from `apps/agent/catalog/tools` are always loaded first. Plugin tools are installed under this directory by the desktop/shared pack store. |
+| `MOVSCRIPT_AGENT_PACKS_DIR` | derived from catalog store dir | Local pack metadata directory. Plugin packs are installed here by the desktop/shared pack store. |
+| `MOVSCRIPT_AGENT_CONFIG_FILES_DIR` | derived from catalog store dir | Local config-file metadata directory. Plugin config files are installed here by the desktop/shared pack store. |
 | `MOVSCRIPT_BACKEND_API_BASE_URL` | `http://localhost:8765/api/v1` for model calls | MovScript backend API base URL. Agent model calls use backend model configs through `/model-gateway/chat/completions`; provider API keys stay in the backend. |
-| `MOVSCRIPT_AGENT_MODEL_CONFIG_PATH` | derived from state path | Optional path for the local Agent model routing file. The file stores the backend public `model_id`, optional legacy `modelConfigId` for audit, and usage flags. |
+| `MOVSCRIPT_AGENT_MODEL_CONFIG_PATH` | derived from runtime data dir | Optional path for the local Agent model routing file. The file stores the backend public `model_id`, optional legacy `modelConfigId` for audit, and usage flags. |
 
 ## HTTP API
 
@@ -82,8 +96,16 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 | `GET` | `/threads/:id` | Read one agent thread. |
 | `PATCH` | `/threads/:id` | Update agent thread metadata. |
 | `DELETE` | `/threads/:id` | Physically delete one thread, its related runs, plans, runtime records, and trace files. Queued or in-progress runs must be cancelled first; waiting `requires_action` history is deletable. |
-| `POST` | `/threads/:id/messages` | Add agent thread message. |
+| `GET` | `/threads/:id/timeline` | Read the thread timeline page. This is the display source for transcript, runtime status, plan, and diagnostic items. |
+| `GET` | `/threads/:id/timeline/stream` | Stream thread timeline item upserts and reset requests. |
+| `GET` | `/threads/:id/runtime` | Read a protocol v2 runtime snapshot for one thread. |
+| `GET` | `/threads/:id/stream` | Stream thread-scoped runtime entity events. |
+| `POST` | `/threads/:id/messages` | Append a user transcript message only. This is not a message-history read API and does not accept runtime fields. |
 | `POST` | `/threads/:id/runs` | The only public entrypoint that creates and executes an agent run for a thread. Diagnostic single-tool runs also enter here through `toolCall`. |
+| `GET` | `/sessions/:id/timeline` | Read a session timeline page across all session threads, optionally filtered by `threadId`. |
+| `GET` | `/sessions/:id/timeline/stream` | Stream session timeline item upserts and reset requests, optionally filtered by `threadId`. |
+| `GET` | `/sessions/:id/runtime` | Read a protocol v2 runtime snapshot for all threads in a session. |
+| `GET` | `/sessions/:id/stream` | Stream session-scoped runtime entity events. |
 | `POST` | `/runs/preview` | Read-only preview of context, prompt, first tool calls, and approval gates without creating or executing a run. |
 | `GET` | `/runs` | List runs. |
 | `GET` | `/runs/:id` | Read one run. |
@@ -96,8 +118,9 @@ The agent uses a three-layer observability model: Prometheus-compatible metrics 
 
 ## Skills and Tools
 
-The agent service reads local JSON metadata from skills and tools directories at startup.
-It also ships a built-in MovScript catalog in `apps/agent/catalog/skills` and `apps/agent/catalog/tools`.
+The agent service reads local catalog metadata from skills, tools, packs, and config-file directories at startup. Electron owns plugin installation into those directories through the shared pack store; the session agent process only loads what is present.
+
+The agent package ships a built-in generic platform catalog in `apps/agent/catalog/skills`, `apps/agent/catalog/tools`, `apps/agent/catalog/packs`, and `apps/agent/catalog/config-files`. MovScript business-specific skills are distributed as frontend bundled plugins and installed into the shared catalog store at desktop startup.
 
 Skills and tools are file-defined resources. A resource is scanned into the catalog when its file is valid, but it becomes runtime-available only when a pack lists it and the active config file enables that pack. Config files choose packs, skills, tool grants, approval defaults, and limits. Skill loading behavior, trigger metadata, and tool grants are derived from enabled packs, the active config file, and skill definitions.
 

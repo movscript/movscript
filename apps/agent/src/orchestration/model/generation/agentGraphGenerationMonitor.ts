@@ -23,7 +23,6 @@ export async function monitorGenerationJob(
     | 'resourceFilePort'
     | 'imageProcessingPort'
     | 'videoFrameExtractionPort'
-    | 'projectStandardsPort'
     | 'registry'
     | 'runtimeToolHandlers'
     | 'memoryManager'
@@ -52,7 +51,6 @@ export async function monitorGenerationJob(
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
-      projectStandardsPort: input.projectStandardsPort,
       registry: input.registry,
       runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,

@@ -1,7 +1,5 @@
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
-import type { JSONValue } from '@movscript/protocol'
-import { isVisibleTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 
 export type AgentInputAnswer = { choiceIds?: string[]; text?: string }
 export type AgentPendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
@@ -70,14 +68,13 @@ export function interactionRunsForChat(submittedRuns: AgentRun[], actionableRuns
   return merged
 }
 
-export function runInteractionAnswerEchoesForMessages(messages: ChatMessage[], interactionRuns: AgentRun[]): Set<string> {
+export function runInteractionAnswerEchoesForMessages(messages: ChatMessage[], interactionRuns: AgentRun[], activities: ChatRunActivity[] = []): Set<string> {
   const echoes = new Set<string>()
   for (const run of interactionRuns) {
     for (const echo of inputAnswerEchoesFromRun(run)) echoes.add(echo)
   }
-  for (const message of messages) {
-    if (!isVisibleTranscriptChatMessage(message)) continue
-    const run = runInteractionFromActivity(message.meta?.localRunActivity)
+  for (const activity of activities) {
+    const run = runInteractionFromActivity(activity)
     if (!run) continue
     for (const echo of inputAnswerEchoesFromRun(run)) echoes.add(echo)
   }
@@ -127,8 +124,6 @@ export function runInteractionFromActivity(activity: ChatRunActivity | undefined
         ...(approval.displayThreadId ? { displayThreadId: approval.displayThreadId } : {}),
         ...(approval.displayAnchor ? { displayAnchor: approval.displayAnchor } : {}),
         toolName: approval.toolName,
-        ...(approval.args ? { args: approval.args as Record<string, JSONValue> } : {}),
-        ...(approval.preview !== undefined ? { preview: approval.preview as JSONValue } : {}),
         reason: approval.reason,
         ...(approval.risk ? { risk: approval.risk } : {}),
         ...(approval.permission ? { permission: approval.permission } : {}),

@@ -17,7 +17,7 @@
       },
       "request": {
         "type": "object",
-        "description": "work provider 原始请求。generation_job 使用后端生成任务参数；subagent_run 使用子 agent 任务说明、期望输出、写入边界和可选权限配置。"
+        "description": "work provider 原始请求。generation_job 使用 {\"tool\":\"generation_image_generate|generation_video_generate\",\"args\":{...},\"observeTool\":\"generation_image_job_get|generation_video_job_get\"}，由 runtime 调同步 provider 工具并管理异步生命周期；subagent_run 使用子 agent 任务说明、期望输出、写入边界和可选权限配置。"
       },
       "timeoutMs": {
         "type": "number"

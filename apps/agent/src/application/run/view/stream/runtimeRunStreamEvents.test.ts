@@ -117,9 +117,21 @@ test('replayRuntimeRunStream replays snapshot, title, trace progress, assistant 
 
   replayRuntimeRunStream({ run, store, listener: (event) => events.push(event) })
 
-  assert.deepEqual(events.map((event) => event.type), ['run', 'thread_title', 'trace', 'assistant_progress', 'assistant_message', 'done'])
+  assert.deepEqual(events.map((event) => event.type), ['run', 'thread_title', 'runtime_status', 'trace', 'assistant_progress', 'assistant_message', 'done'])
   assert.equal(events[1]?.type === 'thread_title' ? events[1].title : undefined, 'Thread title')
-  assert.equal(events[4]?.type === 'assistant_message' ? events[4].message.id : undefined, assistant.id)
+  assert.equal(events[5]?.type === 'assistant_message' ? events[5].message.id : undefined, assistant.id)
+})
+
+test('replayRuntimeRunStream does not close the stream for requires_action', () => {
+  const store = new InMemoryAgentStore()
+  const run = { ...makeRun(), status: 'requires_action' as const }
+  store.createThread(makeThread())
+  store.createRun(run)
+  const events: AgentInternalRunSignal[] = []
+
+  replayRuntimeRunStream({ run, store, listener: (event) => events.push(event) })
+
+  assert.deepEqual(events.map((event) => event.type), ['run', 'runtime_status'])
 })
 
 test('emitRuntimeRunSnapshot and emitRuntimeAssistantMessage project stream events', () => {

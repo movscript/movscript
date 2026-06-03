@@ -24,33 +24,30 @@ test('buildLocalDiagnosticFallbackContextResult preserves client UI context shap
     visibleMessage: 'context',
     attachments: [],
     uiSnapshot: {
-      route: { pathname: '/production/4', search: '?tab=orchestrate' },
+      route: { pathname: '/workspace/4', search: '?tab=review' },
       project: { id: 42, name: 'Demo' },
-      productionId: 4,
-      selection: { entityType: 'production', entityId: 4, label: 'Production 4' },
+      selection: { entityType: 'custom_entity', entityId: 4, label: 'Entity 4' },
       recentResources: [{ id: 7, name: 'script.md', type: 'script' }],
-      labels: ['production-orchestrate'],
+      labels: ['workspace-review'],
     },
   }, 'mcp offline')
 
   const text = (result as any).content?.[0]?.text
   const parsed = JSON.parse(text)
 
-  assert.equal(parsed.snapshot.route.pathname, '/production/4')
+  assert.equal(parsed.snapshot.route.pathname, '/workspace/4')
   assert.equal(parsed.snapshot.project.id, 42)
-  assert.equal(parsed.snapshot.productionId, 4)
-  assert.equal(parsed.snapshot.selection.entityType, 'production')
+  assert.equal(parsed.snapshot.selection.entityType, 'custom_entity')
   assert.equal(parsed.snapshot.contextError, 'mcp offline')
 })
 
-test('buildLocalDiagnosticFallbackContextResult drops invalid project and production ids', () => {
+test('buildLocalDiagnosticFallbackContextResult drops invalid project ids', () => {
   const result = buildLocalDiagnosticFallbackContextResult({
     visibleMessage: 'context',
     attachments: [],
     uiSnapshot: {
-      route: { pathname: '/production/invalid' },
+      route: { pathname: '/workspace/invalid' },
       project: { id: 0, name: 'Invalid project' },
-      productionId: 42.5,
     } as never,
   }, 'mcp offline')
 
@@ -59,7 +56,6 @@ test('buildLocalDiagnosticFallbackContextResult drops invalid project and produc
 
   assert.equal(parsed.snapshot.project.id, undefined)
   assert.equal(parsed.snapshot.project.name, 'Invalid project')
-  assert.equal(parsed.snapshot.productionId, undefined)
 })
 
 test('buildLocalDiagnosticFallbackContextResult drops invalid numeric selection ids', () => {
@@ -68,14 +64,14 @@ test('buildLocalDiagnosticFallbackContextResult drops invalid numeric selection 
     attachments: [],
     uiSnapshot: {
       route: { pathname: '/selection' },
-      selection: { entityType: 'production', entityId: Number.POSITIVE_INFINITY, label: 'Invalid selection' },
+      selection: { entityType: 'custom_entity', entityId: Number.POSITIVE_INFINITY, label: 'Invalid selection' },
     } as never,
   }, 'mcp offline')
 
   const text = (result as any).content?.[0]?.text
   const parsed = JSON.parse(text)
 
-  assert.equal(parsed.snapshot.selection.entityType, 'production')
+  assert.equal(parsed.snapshot.selection.entityType, 'custom_entity')
   assert.equal(parsed.snapshot.selection.entityId, undefined)
   assert.equal(parsed.snapshot.selection.label, 'Invalid selection')
 })
@@ -244,6 +240,9 @@ test('context diagnostic metadata preserves tool resolution chain', () => {
 
   const diagnostic = result.metadata as any
   assert.equal(diagnostic.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal(diagnostic.promptFragments.some((fragment: any) => fragment.id === 'runtime.core' && fragment.source === 'runtime_policy' && fragment.instructionAuthority === 'system'), true)
+  assert.equal(diagnostic.promptFragments.some((fragment: any) => fragment.id === 'context.summary' && fragment.source === 'project_context' && fragment.instructionAuthority === 'data'), true)
+  assert.equal(diagnostic.promptStats.parts.some((part: any) => part.id === 'context.summary' && part.source === 'project_context' && part.authority === 'data'), true)
   assert.equal(diagnostic.tools.available[0].resolution.authorized, true)
   assert.equal(diagnostic.tools.available[0].resolution.grantSource, 'manifest')
   assert.deepEqual(diagnostic.tools.available[0].resolution.activeSkillIds, ['movscript.content_unit_workspace'])
@@ -307,7 +306,7 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
 
   assert.match(content, /Command: \/context/)
   assert.match(content, /Model context text:/)
-  assert.match(content, /Business reference: project#42/)
+  assert.match(content, /Project reference: project#42/)
   assert.match(content, /Focus unavailable: mcp offline/)
   assert.doesNotMatch(content, /model output should not be used/)
 })

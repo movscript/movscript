@@ -3,7 +3,7 @@ import type { AgentManifest } from '../../../../catalog/manifest/agentManifest.j
 import type { ConfigFileLimits } from '../../../../catalog/registry/shared/types.js'
 import type { AgentCommandRuntime } from '../../../../context/command/commandRouter.js'
 import type { NormalizedClientInput } from '../../../../context/input/client/normalizeClientInput.js'
-import { isValidAgentEntityId, type AgentContext } from '../../../../context/runtime/runtimeContext.js'
+import type { AgentContext } from '../../../../context/runtime/runtimeContext.js'
 import type { AgentCapabilitiesResponse, AgentRun, ResolvedAgentSkill } from '../../../shared/types.js'
 import type { AgentMemory } from '../../../../memory/shared/types.js'
 import { buildDebugContext, buildDebugTrace } from '../../../../context/diagnostics/debug/debugContext.js'
@@ -35,9 +35,6 @@ export interface BuiltRunSetupMetadata {
 
 export function buildRunSetupMetadata(input: BuildRunSetupMetadataInput): BuiltRunSetupMetadata {
   const debugContext = buildDebugContext(input.contextResult, input.memories, input.clientInput)
-  if (isValidAgentEntityId(input.context.currentProductionId)) {
-    debugContext.productionId = input.context.currentProductionId
-  }
   const visibleToolNames = input.capabilities.resolvedTools.available.map((tool) => tool.name)
   const activeSkillIds = input.skills.map((skill) => skill.id)
   const contextLedger = modelTurnContext.createRunLedger({

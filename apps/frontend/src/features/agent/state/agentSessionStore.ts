@@ -208,9 +208,10 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       },
 
       createRuntimeConversation: (userId, input) => {
-        const conversationId = input.threadId.trim()
+        const conversationId = input.sessionId?.trim() || input.threadId.trim()
         if (!conversationId) return activeConversationIdForUser(get(), userId) ?? ''
         const title = input.title?.trim()
+        const threadId = input.threadId.trim()
         set((state) => ({
           activeConversationIdsByUser: {
             ...(state.activeConversationIdsByUser ?? {}),
@@ -226,7 +227,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
             : {}),
           localThreadIdsByConversation: {
             ...state.localThreadIdsByConversation,
-            [conversationId]: conversationId,
+            ...(threadId ? { [conversationId]: threadId } : {}),
           },
           conversationRuntimes: {
             ...state.conversationRuntimes,
@@ -235,7 +236,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...(state.conversationRuntimes[conversationId] ?? {}),
               ...(input.sessionId?.trim() ? { sessionId: input.sessionId.trim() } : {}),
               ...(title ? { title } : {}),
-              threadId: conversationId,
+              ...(threadId ? { threadId } : {}),
               loading: false,
               building: false,
               updatedAt: Date.now(),

@@ -19,8 +19,9 @@ const labels: AgentSendWorkspaceHttpLabels = {
   fetchFinalThread: 'Fetch final thread',
 }
 
-test('buildLocalAgentSendWorkspace binds composer input, attachments, and existing thread', async () => {
+test('buildLocalAgentSendWorkspace binds composer input, attachments, and session runtime', async () => {
   const workspace = await buildLocalAgentSendWorkspace({
+    options: { localRuntimeSessionId: 'session_1' },
     workspaceInput: 'Render this @[resource:42]',
     attachments: [],
     composerAttachments: [attachment({ resourceId: 42, name: 'shot.png', type: 'image', mimeType: 'image/png', size: 2048 })],
@@ -42,14 +43,16 @@ test('buildLocalAgentSendWorkspace binds composer input, attachments, and existi
   assert.equal(workspace.id, 'trace_test')
   assert.equal(workspace.createdAt, 123)
   assert.equal(workspace.visibleUserContent, 'Render this @[resource:42]')
-  assert.equal(workspace.localRuntime?.threadId, 'thread_1')
+  assert.equal(workspace.localRuntime?.sessionId, 'session_1')
+  assert.equal(workspace.localRuntime?.threadId, undefined)
   assert.equal(workspace.localRuntime?.clientInput?.message, 'Render this @[resource:42]')
   assert.equal(workspace.localRuntime?.clientInput?.uiSnapshot?.project?.id, 101)
   assert.equal(workspace.localRuntime?.runtimeLimits, undefined)
   assert.equal(workspace.model.runtimeModelId, 'gpt-test')
   assert.deepEqual(workspace.outbound.messages.map((message) => message.role), ['system', 'user'])
   assert.equal(workspace.outbound.messages.some((message) => message.content === 'Hi'), false)
-  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-get-thread'), true)
+  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-session-message-run'), true)
+  assert.equal(workspace.httpRequests.some((request) => request.id === 'local-get-thread'), false)
   assert.equal(workspace.httpRequests.some((request) => request.id === 'local-create-thread'), false)
 })
 
@@ -245,7 +248,6 @@ test('buildLocalAgentSendWorkspace retries preview without stale thread when run
       localAgentOnline: true,
       ensureRunning: async () => undefined,
       refetchLocalAgentHealth: async () => undefined,
-      assertMCPReady: async () => undefined,
       syncRuntimeModelConfig: async () => undefined,
       isLocalAgentNotFoundError: (error) => error instanceof Error && error.message === 'missing',
       previewRun: async (input) => {
@@ -277,6 +279,7 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
     modelName: 'gpt-test',
     messages: [{ role: 'user', content: 'x'.repeat(4100) }],
     localRuntime: {
+      sessionId: 'session_1',
       clientInput: {
         message: 'x'.repeat(4100),
         attachments: [{ id: 'att_1', type: 'image', dataUrl: 'data:image/png;base64,AAAA' }],
@@ -285,8 +288,8 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
     labels,
   })
 
-  const appendMessage = requests.find((request) => request.id === 'local-add-message')
-  const body = appendMessage?.body as { clientInput?: { message?: string; attachments?: Array<{ dataUrl?: string }> } } | undefined
+  const sessionRun = requests.find((request) => request.id === 'local-session-message-run')
+  const body = sessionRun?.body as { clientInput?: { message?: string; attachments?: Array<{ dataUrl?: string }> } } | undefined
   assert.match(body?.clientInput?.message ?? '', /truncated/)
   assert.equal(body?.clientInput?.attachments?.[0]?.dataUrl, '[image data URL redacted: 26 chars]')
 })

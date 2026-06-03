@@ -20,7 +20,6 @@ export function useAgentChatRuntimeState({
   const [debugBeforeSend, setDebugBeforeSend] = useState(false)
   const [planActionBusy, setPlanActionBusy] = useState(false)
   const [pendingSendWorkspace, setPendingSendWorkspace] = useState<AgentSendWorkspace | null>(null)
-  const [runtimeStatusLight, setRuntimeStatusLight] = useState(STOPPED_RUNTIME_STATUS_LIGHT)
   const [submittedInteractionRuns, setSubmittedInteractionRuns] = useState<AgentRun[]>([])
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const activeSendAbortControllerRef = useRef<AbortController | null>(null)
@@ -71,9 +70,8 @@ export function useAgentChatRuntimeState({
     setPendingHttpEvents,
     setPendingSendWorkspace,
     setPlanActionBusy,
-    setRuntimeStatusLight,
     setSubmittedInteractionRuns,
-    runtimeStatusLight,
+    runtimeStatusLight: STOPPED_RUNTIME_STATUS_LIGHT,
     streamingAssistantMessageId,
     streamingAssistantText,
     submittedInteractionRuns,

@@ -46,11 +46,10 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/wor
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../../ports/project/projectStandardsPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../../ports/runtime/runtimeToolHandlerPort.js'
 import type { ExternalToolGatewayPort } from '../../../ports/tools/externalToolGatewayPort.js'
 import type { AgentToolResultStore } from '../../../state/store/tool-results/toolResultStore.js'
-import type { RuntimeHistoricalVisionContext } from '../../../context/prompt/builder/modelContextBuilder.js'
+import type { RuntimeHistoricalVisionContext } from '../../../context/prompt/turn/runtimeHistoricalVisionTypes.js'
 
 export interface RuntimeAgentGraphInvocationTraceInput {
   kind: AgentTraceEventKind
@@ -85,7 +84,6 @@ export async function invokeRuntimeAgentGraph(input: {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   registry: ToolRegistry
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   contractResolver: AgentRuntimeContractResolver
@@ -186,7 +184,6 @@ export async function invokeRuntimeAgentGraph(input: {
     resourceFilePort: input.resourceFilePort,
     imageProcessingPort: input.imageProcessingPort,
     videoFrameExtractionPort: input.videoFrameExtractionPort,
-    projectStandardsPort: input.projectStandardsPort,
     registry: input.registry,
     runtimeToolHandlers: input.runtimeToolHandlers,
     contractResolver: input.contractResolver,

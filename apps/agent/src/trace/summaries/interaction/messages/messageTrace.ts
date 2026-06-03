@@ -54,7 +54,7 @@ export function summarizeRuntimeInputMessagesTrace(
 function runtimeInputMetadataTrace(metadata: AgentMessage['metadata']): Record<string, JSONValue> | undefined {
   if (!metadata) return undefined
   const output: Record<string, JSONValue> = {}
-  for (const key of ['kind', 'targetRunId', 'mode', 'status']) {
+  for (const key of ['kind', 'targetRunId', 'mode', 'deliveryStatus']) {
     const value = metadata[key]
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) {
       output[key] = value

@@ -404,7 +404,7 @@ export function answerRuntimeRunInputRequest(input: {
       kind: 'runtime_input',
       targetRunId: run.id,
       mode: 'soft',
-      status: 'accepted',
+      deliveryStatus: 'accepted',
     },
     id: input.messageId,
     now: input.now,

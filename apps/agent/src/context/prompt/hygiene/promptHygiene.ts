@@ -25,7 +25,7 @@ export function filterPromptHistory(messages: AgentMessage[]): AgentMessage[] {
 
 export function isPromptHistoryMessage(message: AgentMessage): boolean {
   if (message.role === 'system') return false
-  if (messagePromptHistoryMode(message) === 'exclude') return false
+  if (messagePromptEligibility(message) === 'exclude') return false
   if (isRuntimeFailureAssistantMessage(message)) return false
   if (isRuntimeInternalAssistantMessage(message)) return false
   return true
@@ -151,7 +151,7 @@ function buildPromptHistoryProjectionDecisions(input: {
     decisions.push({
       action: 'drop',
       stage: 'runtime_failure_filter',
-      reason: 'Runtime failure and UI-only runtime assistant messages are omitted from prompt history.',
+      reason: 'Runtime failure and non-transcript runtime assistant messages are omitted from prompt history.',
       messageCount: input.filteredCount,
       retainedCount: input.retainedCount,
       summaryChars: input.summaryChars,
@@ -313,10 +313,10 @@ function summaryAssistantMessageForRun(messages: AgentMessage[], run: AgentRun):
   return [...messages].reverse().find(assistantForRun)
 }
 
-function messagePromptHistoryMode(message: AgentMessage): 'include' | 'exclude' | undefined {
+function messagePromptEligibility(message: AgentMessage): 'include' | 'exclude' | undefined {
   const metadata = isRecord(message.metadata) ? message.metadata : undefined
   if (!metadata) return undefined
-  if (metadata.promptHistory === 'include' || metadata.promptHistory === 'exclude') return metadata.promptHistory
+  if (metadata.promptEligibility === 'include' || metadata.promptEligibility === 'exclude') return metadata.promptEligibility
   return undefined
 }
 
@@ -469,8 +469,6 @@ function isContextRefType(value: unknown): value is ContextRef['type'] {
     || value === 'workspace'
     || value === 'tool_result'
     || value === 'project'
-    || value === 'production'
-    || value === 'asset_slot'
     || value === 'generation_job'
     || value === 'taskGraph'
 }

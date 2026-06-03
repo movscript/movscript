@@ -64,12 +64,15 @@ export function useAgentChatStoreBindings({
     const trimmed = title.trim()
     const threadId = conversationId === conversation.id ? localThreadId : ''
     if (!trimmed || !threadId) return
-    void localAgentClient.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
+    const runtimeClient = localSessionId
+      ? localAgentClient.forSession({ sessionId: localSessionId })
+      : localAgentClient
+    void runtimeClient.updateThread(threadId, { title: trimmed, metadata: { frontendTitle: trimmed } })
       .then((thread) => upsertCachedLocalAgentThread(queryClient, runtimeThreadSummaryFromThread(thread)))
       .catch((error) => {
         console.error('[agent] failed to persist runtime conversation title', error)
       })
-  }, [conversation.id, localThreadId, queryClient, updateConversationTitle])
+  }, [conversation.id, localSessionId, localThreadId, queryClient, updateConversationTitle])
 
   return {
     agentContextConfig: EMPTY_AGENT_CONTEXT_CONFIG,

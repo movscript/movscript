@@ -1,0 +1,52 @@
+{
+  "name": "generation_image_generate",
+  "description": "Synchronously submit an image generation provider job and return its job id. Agent async lifecycle must be managed by core_work_start, not by calling this tool directly for user generation requests.",
+  "permission": "generation.image.write",
+  "risk": "generate",
+  "source": "mcp",
+  "capability": "generation.image.submit",
+  "projectScoped": true,
+  "allowedRunRoles": ["planner"],
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["prompt"],
+    "properties": {
+      "prompt": { "type": "string", "minLength": 1 },
+      "title": { "type": "string" },
+      "negative_prompt": { "type": "string" },
+      "model_id": { "type": "string" },
+      "input_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "reference_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "aspect_ratio": { "type": "string", "enum": ["1:1", "16:9", "9:16", "4:3", "3:4", "2:3", "3:2"] },
+      "image_size": { "type": "string" },
+      "quality": { "type": "string", "enum": ["auto", "standard", "hd", "high", "medium", "low"] },
+      "steps": { "type": "number", "minimum": 1 },
+      "seed": { "type": "number" },
+      "extra_params": { "type": "object", "additionalProperties": true },
+      "timeout_ms": { "type": "number", "minimum": 1 },
+      "poll_interval_ms": { "type": "number", "minimum": 1 }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["status", "jobId", "terminal", "monitor"],
+    "properties": {
+      "status": { "type": "string" },
+      "jobId": { "type": "number" },
+      "job_id": { "type": "number" },
+      "terminal": { "type": "boolean" },
+      "monitor": { "type": "object" },
+      "job": { "type": "object" }
+    }
+  },
+  "defaults": { "grant": "allow", "approval": "never" },
+  "execution": {
+    "readOnly": false,
+    "destructive": false,
+    "concurrencySafe": true,
+    "interruptBehavior": "block",
+    "resultRefStrategy": "summary_ref"
+  }
+}

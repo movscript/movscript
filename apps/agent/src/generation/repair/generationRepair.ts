@@ -19,7 +19,7 @@ export async function callMCPToolWithGenerationRepair(
 }
 
 function generationRepairArgs(toolName: string, args: Record<string, JSONValue>, error: unknown): Record<string, JSONValue> | undefined {
-  if (toolName !== 'generation_job_create') return undefined
+  if (!isGenerationSubmitTool(toolName)) return undefined
   if (!(error instanceof MCPError)) return undefined
   const data = isJSONRecord(error.data) ? error.data : undefined
   if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined
@@ -32,6 +32,12 @@ function generationRepairArgs(toolName: string, args: Record<string, JSONValue>,
     ...repaired,
     repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
   }
+}
+
+function isGenerationSubmitTool(toolName: string): boolean {
+  return toolName === 'generation_image_generate'
+    || toolName === 'generation_video_generate'
+    || toolName === 'generation_job_create'
 }
 
 function isRepairableGenerationValidationCode(code: unknown): boolean {

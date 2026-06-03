@@ -140,6 +140,22 @@
   white-space: nowrap;
 }
 
+.ai-agent-panel-conversation-tab-edit {
+  cursor: text;
+}
+
+.ai-agent-panel-conversation-tab-input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-background) 88%, var(--ms-color-foreground) 12%);
+  color: var(--ms-color-foreground);
+  padding: 1px 4px;
+  font: inherit;
+  outline: 1px solid color-mix(in srgb, var(--ms-color-primary) 45%, transparent);
+}
+
 .ai-agent-panel-conversation-tab-count {
   min-width: 16px;
   max-width: 30px;

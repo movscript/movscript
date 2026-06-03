@@ -2,19 +2,19 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  buildAgentConversationMessageItems,
+  buildAgentTranscriptMessageItems,
   buildAgentConversationThreadItems,
   buildPendingRuntimeInputQueueItems,
-  runIdsWithActivityMessages,
-  runtimeInputDisplayStatus,
+  runIdsWithTimelineActivityItems,
+  runtimeInputDisplayDeliveryStatus,
   splitRunGroupItemsForLiveBlocks,
 } from '@/features/agent/domain/agentConversationThreadItems'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
-test('buildAgentConversationMessageItems filters run interaction answer echoes', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [
+test('buildAgentTranscriptMessageItems filters run interaction answer echoes', () => {
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [
       message({ id: 'echo', role: 'user', content: '回答：选择方向\n选择：A' }),
       message({ id: 'assistant', role: 'assistant', content: 'done' }),
     ],
@@ -25,10 +25,10 @@ test('buildAgentConversationMessageItems filters run interaction answer echoes',
   assert.deepEqual(items.map((item) => item.message.id), ['assistant'])
 })
 
-test('buildAgentConversationMessageItems prefers live run interaction runs before result messages', () => {
+test('buildAgentTranscriptMessageItems prefers live run interaction runs before result messages', () => {
   const liveRun = run({ id: 'run_live' })
-  const items = buildAgentConversationMessageItems({
-    messages: [message({ id: 'assistant', role: 'assistant', content: 'done' })],
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({ id: 'assistant', role: 'assistant', content: 'done' })],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
   })
@@ -37,15 +37,15 @@ test('buildAgentConversationMessageItems prefers live run interaction runs befor
   assert.equal(items[0]?.beforeMessageInteractionRuns[0]?.id, 'run_live')
 })
 
-test('buildAgentConversationMessageItems suppresses mapped run interaction runs reserved for live activity', () => {
+test('buildAgentTranscriptMessageItems suppresses mapped run interaction runs reserved for live activity', () => {
   const liveRun = run({ id: 'run_live' })
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant',
       role: 'assistant',
       content: 'done',
-      meta: { localRunActivity: runActivity('run_live') },
     })],
+    timelineItems: [timelineItem('assistant', runActivity('run_live'))],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
     suppressedInteractionRunIds: new Set(['run_live']),
@@ -56,14 +56,14 @@ test('buildAgentConversationMessageItems suppresses mapped run interaction runs 
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems suppresses historical run interaction fallback for runs reserved for live activity', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+test('buildAgentTranscriptMessageItems suppresses historical run interaction fallback for runs reserved for live activity', () => {
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant',
       role: 'assistant',
       content: 'done',
-      meta: { localRunActivity: runActivity('run_live') },
     })],
+    timelineItems: [timelineItem('assistant', runActivity('run_live'))],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
     suppressedInteractionRunIds: new Set(['run_live']),
@@ -74,103 +74,14 @@ test('buildAgentConversationMessageItems suppresses historical run interaction f
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems hides UI-only assistant anchors from the chat timeline', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [
-      message({
-        id: 'plan_revision_message',
-        role: 'assistant',
-        content: 'Plan updated',
-        meta: {
-          planRevision: {
-            schema: 'movscript.agent.plan-revision.v1',
-            id: 'plan_revision_1',
-            planId: 'plan_1',
-            threadId: 'thread_1',
-            snapshot: {
-              schema: 'movscript.agent.plan.v1',
-              id: 'plan_1',
-              threadId: 'thread_1',
-              items: [{ step: 'Generate', status: 'completed' }],
-              completedCount: 1,
-              totalCount: 1,
-              createdAt: '2026-05-19T00:00:00.000Z',
-              updatedAt: '2026-05-19T00:00:00.000Z',
-            },
-            createdAt: '2026-05-19T00:00:00.000Z',
-          },
-        },
-      }),
-      message({
-        id: 'runtime_status_message',
-        role: 'assistant',
-        content: '异步任务已提交。',
-        meta: {
-          runtimeStatus: {
-            kind: 'async_work_handoff',
-            title: '异步任务已提交',
-            detail: '异步任务已提交。',
-            workId: 'work_1',
-          },
-        },
-      }),
-      message({
-        id: 'diagnostic_message',
-        role: 'assistant',
-        content: '',
-        meta: {
-          contextDiagnostic: {
-            schema: 'movscript.local_context_diagnostic.v1',
-            modelGatewayCalled: false,
-            messages: [],
-            debugParts: [],
-            tools: {
-              available: [],
-              blocked: [],
-              discoveredCount: 0,
-              modelTools: [],
-            },
-            skills: [],
-            warnings: [],
-          },
-        },
-      }),
-      message({ id: 'assistant', role: 'assistant', content: 'done' }),
-    ],
-    runInteractionAnswerEchoes: new Set(),
-    interactionRunsByResultMessageId: new Map(),
-  })
-
-  assert.deepEqual(items.map((item) => item.message.id), ['assistant'])
-})
-
-test('buildAgentConversationMessageItems keeps historical requires-action messages so activity can render inline', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+test('buildAgentTranscriptMessageItems keeps historical requires-action messages so activity can render inline', () => {
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant',
       role: 'assistant',
       content: '执行前需要确认：\n- movscript_test_tool: Needs confirmation',
-      meta: {
-        localRunActivity: {
-          runId: 'run_history',
-          threadId: 'thread_1',
-          status: 'requires_action',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          approvals: [{
-            id: 'approval_1',
-            runId: 'run_history',
-            toolName: 'movscript_test_tool',
-            reason: 'Needs confirmation',
-            status: 'pending',
-            createdAt: '2026-05-19T00:00:00.000Z',
-            updatedAt: '2026-05-19T00:00:00.000Z',
-          }],
-          steps: [],
-          events: [],
-        },
-      },
     })],
+    timelineItems: [timelineItem('assistant', requiresActionActivity('run_history'))],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
@@ -180,34 +91,17 @@ test('buildAgentConversationMessageItems keeps historical requires-action messag
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems keeps synthetic requires-action placeholders for inline activity', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+test('buildAgentTranscriptMessageItems keeps synthetic requires-action placeholders for inline activity', () => {
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant',
       role: 'assistant',
       content: '执行前需要确认：\n- movscript_test_tool: Needs confirmation',
       meta: {
         runtimeMessage: { threadId: 'thread_1', runId: 'run_requires_action' },
-        localRunActivity: {
-          runId: 'run_requires_action',
-          threadId: 'thread_1',
-          status: 'requires_action',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          approvals: [{
-            id: 'approval_1',
-            runId: 'run_requires_action',
-            toolName: 'movscript_test_tool',
-            reason: 'Needs confirmation',
-            status: 'pending',
-            createdAt: '2026-05-19T00:00:00.000Z',
-            updatedAt: '2026-05-19T00:00:00.000Z',
-          }],
-          steps: [],
-          events: [],
-        },
       },
     })],
+    timelineItems: [timelineItem('assistant', requiresActionActivity('run_requires_action'))],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
@@ -216,10 +110,10 @@ test('buildAgentConversationMessageItems keeps synthetic requires-action placeho
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems puts source-message fallback run interaction cards after the user message', () => {
+test('buildAgentTranscriptMessageItems puts source-message fallback run interaction cards after the user message', () => {
   const liveRun = run({ id: 'run_live' })
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'trigger',
       role: 'user',
       content: 'Start work',
@@ -234,7 +128,7 @@ test('buildAgentConversationMessageItems puts source-message fallback run intera
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems honors display anchor placement before a user message', () => {
+test('buildAgentTranscriptMessageItems honors display anchor placement before a user message', () => {
   const liveRun = run({
     id: 'run_live',
     pendingApprovals: [{
@@ -254,8 +148,8 @@ test('buildAgentConversationMessageItems honors display anchor placement before 
       },
     }],
   })
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'trigger',
       role: 'user',
       content: 'Start work',
@@ -269,7 +163,7 @@ test('buildAgentConversationMessageItems honors display anchor placement before 
   assert.deepEqual(items[0]?.afterMessageInteractionRuns, [])
 })
 
-test('buildAgentConversationMessageItems honors display anchor placement after an assistant message', () => {
+test('buildAgentTranscriptMessageItems honors display anchor placement after an assistant message', () => {
   const liveRun = run({
     id: 'run_live',
     pendingApprovals: [{
@@ -289,8 +183,8 @@ test('buildAgentConversationMessageItems honors display anchor placement after a
       },
     }],
   })
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant_local',
       role: 'assistant',
       content: 'Ready',
@@ -304,34 +198,17 @@ test('buildAgentConversationMessageItems honors display anchor placement after a
   assert.equal(items[0]?.afterMessageInteractionRuns[0]?.id, 'run_live')
 })
 
-test('buildAgentConversationMessageItems keeps substantive assistant content for requires-action runs', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
+test('buildAgentTranscriptMessageItems keeps substantive assistant content for requires-action runs', () => {
+  const items = buildAgentTranscriptMessageItems({
+    transcriptMessages: [message({
       id: 'assistant',
       role: 'assistant',
       content: '我已经整理好生成参数，确认后会继续。',
       meta: {
         runtimeMessage: { threadId: 'thread_1', runId: 'run_requires_action', messageId: 'msg_assistant' },
-        localRunActivity: {
-          runId: 'run_requires_action',
-          threadId: 'thread_1',
-          status: 'requires_action',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          approvals: [{
-            id: 'approval_1',
-            runId: 'run_requires_action',
-            toolName: 'movscript_test_tool',
-            reason: 'Needs confirmation',
-            status: 'pending',
-            createdAt: '2026-05-19T00:00:00.000Z',
-            updatedAt: '2026-05-19T00:00:00.000Z',
-          }],
-          steps: [],
-          events: [],
-        },
       },
     })],
+    timelineItems: [timelineItem('assistant', requiresActionActivity('run_requires_action'))],
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
@@ -341,7 +218,7 @@ test('buildAgentConversationMessageItems keeps substantive assistant content for
 
 test('buildAgentConversationThreadItems keeps trigger messages outside run groups and nests runtime inputs', () => {
   const items = buildAgentConversationThreadItems({
-    messages: [
+    transcriptMessages: [
       message({
         id: 'trigger',
         role: 'user',
@@ -349,7 +226,7 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         timestamp: 1,
         meta: {
           runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', status: 'accepted' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
@@ -359,7 +236,7 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
         timestamp: 2,
         meta: {
           runtimeMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', status: 'accepted' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
@@ -386,7 +263,7 @@ test('buildAgentConversationThreadItems keeps trigger messages outside run group
 
 test('splitRunGroupItemsForLiveBlocks keeps assistant output after live activity', () => {
   const threadItems = buildAgentConversationThreadItems({
-    messages: [
+    transcriptMessages: [
       message({
         id: 'trigger',
         role: 'user',
@@ -394,7 +271,7 @@ test('splitRunGroupItemsForLiveBlocks keeps assistant output after live activity
         timestamp: 1,
         meta: {
           runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', status: 'accepted' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
@@ -404,7 +281,7 @@ test('splitRunGroupItemsForLiveBlocks keeps assistant output after live activity
         timestamp: 2,
         meta: {
           runtimeMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', status: 'accepted' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
       message({
@@ -443,7 +320,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
       content: 'Add this once the run accepts it',
       timestamp: 2,
       meta: {
-        runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+        runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
       },
     }),
     message({
@@ -455,7 +332,7 @@ test('buildAgentConversationThreadItems keeps pending runtime inputs in the comp
     }),
   ]
   const threadItems = buildAgentConversationThreadItems({
-    messages,
+    transcriptMessages: messages,
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
@@ -487,18 +364,18 @@ test('runtime input pending status is treated as accepted once runtime assigns a
       timestamp: 2,
       meta: {
         runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1' },
-        runtimeInput: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1', status: 'pending' },
+        runtimeInput: { threadId: 'thread_1', messageId: 'runtime_msg_1', runId: 'run_1', deliveryStatus: 'pending' },
       },
     }),
   ]
   const threadItems = buildAgentConversationThreadItems({
-    messages,
+    transcriptMessages: messages,
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
   const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
 
-  assert.equal(runtimeInputDisplayStatus(messages[0]!), 'accepted')
+  assert.equal(runtimeInputDisplayDeliveryStatus(messages[0]!), 'accepted')
   assert.deepEqual(pendingQueue, [])
   assert.deepEqual(threadItems.flatMap((item) => item.type === 'message'
     ? [item.item.message.id]
@@ -507,7 +384,7 @@ test('runtime input pending status is treated as accepted once runtime assigns a
 
 test('buildAgentConversationThreadItems filters pending local run interaction input answer workspaces', () => {
   const items = buildAgentConversationThreadItems({
-    messages: [
+    transcriptMessages: [
       message({
         id: 'trigger',
         role: 'user',
@@ -521,7 +398,7 @@ test('buildAgentConversationThreadItems filters pending local run interaction in
         content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
         timestamp: 2,
         meta: {
-          runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+          runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
         },
       }),
     ],
@@ -536,7 +413,7 @@ test('buildAgentConversationThreadItems filters pending local run interaction in
 
 test('buildAgentConversationThreadItems filters accepted run interaction input answer echoes', () => {
   const items = buildAgentConversationThreadItems({
-    messages: [
+    transcriptMessages: [
       message({
         id: 'trigger',
         role: 'user',
@@ -551,7 +428,7 @@ test('buildAgentConversationThreadItems filters accepted run interaction input a
         timestamp: 2,
         meta: {
           runtimeMessage: { threadId: 'thread_1', messageId: 'answer', runId: 'run_1' },
-          runtimeInput: { threadId: 'thread_1', messageId: 'answer', runId: 'run_1', status: 'accepted' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'answer', runId: 'run_1', deliveryStatus: 'accepted' },
         },
       }),
     ],
@@ -572,12 +449,12 @@ test('buildAgentConversationThreadItems keeps new trigger messages pending until
       content: 'Start work',
       timestamp: 1,
       meta: {
-        runtimeInput: { status: 'pending' },
+        runtimeInput: { deliveryStatus: 'pending' },
       },
     }),
   ]
   const threadItems = buildAgentConversationThreadItems({
-    messages,
+    transcriptMessages: messages,
     runInteractionAnswerEchoes: new Set(),
     interactionRunsByResultMessageId: new Map(),
   })
@@ -595,58 +472,43 @@ test('buildAgentConversationThreadItems keeps new trigger messages pending until
   }])
 })
 
-test('runIdsWithActivityMessages only treats assistant messages with activity snapshots as embedded activity', () => {
-  const runIds = runIdsWithActivityMessages([
-    message({
-      id: 'assistant_final_without_activity',
-      role: 'assistant',
-      content: 'Final text',
-      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_final', runId: 'run_1' } },
-    }),
-    message({
-      id: 'assistant_with_activity',
-      role: 'assistant',
-      content: 'Activity attached',
-      meta: {
-        runtimeMessage: { threadId: 'thread_1', messageId: 'msg_final_2', runId: 'run_2' },
-        localRunActivity: {
-          runId: 'run_2',
-          threadId: 'thread_1',
-          status: 'completed',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          steps: [],
-          events: [],
-        },
-      },
-    }),
-    message({
-      id: 'assistant_ui_only_with_activity',
-      role: 'assistant',
-      content: 'UI-only activity anchor',
-      meta: {
-        runtimeStatus: {
-          kind: 'async_work_handoff',
-          title: '异步任务已提交',
-          detail: '任务正在后台运行。',
-        },
-        localRunActivity: {
-          runId: 'run_3',
-          threadId: 'thread_1',
-          status: 'completed',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          steps: [],
-          events: [],
-        },
-      },
+test('runIdsWithTimelineActivityItems reads embedded activity from timeline items', () => {
+  const runIds = runIdsWithTimelineActivityItems([
+    timelineItem('assistant_final_without_activity'),
+    timelineItem('assistant_with_activity', {
+      runId: 'run_2',
+      threadId: 'thread_1',
+      status: 'completed',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:01.000Z',
+      steps: [],
+      events: [],
     }),
   ])
 
   assert.deepEqual([...runIds], ['run_2'])
 })
 
-function runActivity(runId: string): NonNullable<ChatMessage['meta']>['localRunActivity'] {
+function timelineItem(id: string, activity?: ChatRunActivity): AgentTimelineItem {
+  return {
+    id,
+    threadId: 'thread_1',
+    origin: 'agent',
+    purpose: 'transcript',
+    surface: 'message_stream',
+    contentPromptEligibility: 'include',
+    sortRank: 30,
+    content: 'Final text',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:00.000Z',
+    revision: 1,
+    cursor: id,
+    runtimeRefs: { threadId: 'thread_1' },
+    ...(activity ? { activity } : {}),
+  }
+}
+
+function runActivity(runId: string): ChatRunActivity {
   return {
     runId,
     threadId: 'thread_1',
@@ -661,6 +523,27 @@ function runActivity(runId: string): NonNullable<ChatMessage['meta']>['localRunA
       inputType: 'text',
       choices: [],
       allowCustomAnswer: true,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+    }],
+    steps: [],
+    events: [],
+  }
+}
+
+function requiresActionActivity(runId: string): ChatRunActivity {
+  return {
+    runId,
+    threadId: 'thread_1',
+    status: 'requires_action',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+    approvals: [{
+      id: 'approval_1',
+      runId,
+      toolName: 'movscript_test_tool',
+      reason: 'Needs confirmation',
       status: 'pending',
       createdAt: '2026-05-19T00:00:00.000Z',
       updatedAt: '2026-05-19T00:00:00.000Z',

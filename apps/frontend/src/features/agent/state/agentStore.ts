@@ -18,11 +18,11 @@ import type {
   AgentGenerationParamPreflightError,
   AgentGenerationSubmittedInputs,
   AgentGenerationValidationError,
-  AgentRunActivity,
-  AgentRunActivityApproval,
-  AgentRunActivityEvent,
-  AgentRunActivityInputRequest,
-  AgentRunActivityStep,
+  AgentTimelineActivity,
+  AgentTimelineActivityApproval,
+  AgentTimelineActivityEvent,
+  AgentTimelineActivityInputRequest,
+  AgentTimelineActivityStep,
   AgentRuntimeInputRef,
   AgentRuntimeMessageRef,
   AgentCatalogConfigFile,
@@ -90,14 +90,13 @@ export type ChatGenerationSubmittedInputs = AgentGenerationSubmittedInputs
 export type ChatGenerationParamPreflightError = AgentGenerationParamPreflightError
 export type ChatGenerationInputPreflightError = AgentGenerationInputPreflightError
 export type ChatGenerationValidationError = AgentGenerationValidationError
-export type ChatRunActivity = AgentRunActivity
-export type ChatRunActivityApproval = AgentRunActivityApproval
-export type ChatRunActivityInputRequest = AgentRunActivityInputRequest
-export type ChatRunActivityStep = AgentRunActivityStep
-export type ChatRunActivityEvent = AgentRunActivityEvent
+export type ChatRunActivity = AgentTimelineActivity
+export type ChatRunActivityApproval = AgentTimelineActivityApproval
+export type ChatRunActivityInputRequest = AgentTimelineActivityInputRequest
+export type ChatRunActivityStep = AgentTimelineActivityStep
+export type ChatRunActivityEvent = AgentTimelineActivityEvent
 
 interface AgentStore {
-  // Legacy model fallback
   settings: AgentSettings
   updateSettings: (s: Partial<AgentSettings>) => void
   recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void

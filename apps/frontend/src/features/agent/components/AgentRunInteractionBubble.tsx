@@ -76,19 +76,21 @@ export function LocalAgentRunInteractionBubble({
 export function localAgentApprovalDetails(approval: LocalAgentApprovalRequest) {
   const generationApproval = generationJobApprovalView(approval)
   const assetCandidateApproval = assetSlotCandidateApprovalView(approval)
+  const args = approvalArgs(approval)
+  const preview = approvalPreview(approval)
   return (
     <>
       {generationApproval ? (
         <GenerationJobApprovalDetails view={generationApproval} />
       ) : assetCandidateApproval ? (
         <AssetSlotCandidateApprovalDetails view={assetCandidateApproval} />
-      ) : approval.args && (
+      ) : args && (
         <AgentRunInteractionApprovalCodeBlock>
-          {safeJSONStringify(approval.args)}
+          {safeJSONStringify(args)}
         </AgentRunInteractionApprovalCodeBlock>
       )}
       {(() => {
-        const applyPreview = isWorkspaceApplyPreview(approval.preview) ? approval.preview : null
+        const applyPreview = isWorkspaceApplyPreview(preview) ? preview : null
         return applyPreview ? (
           <AgentRunInteractionApprovalPreviewStack>
             <AgentRunInteractionApprovalSideEffect>
@@ -249,15 +251,19 @@ function ApprovalResourceThumbnail({ resourceId }: { resourceId?: number }) {
 }
 
 function generationJobApprovalView(approval: LocalAgentApprovalRequest): GenerationJobApprovalView | null {
-  const args = asRecord(approval.args)
+  const args = asRecord(approvalArgs(approval))
   if (!args) return null
   const kind = stringValue(args.kind)
-  if (approval.toolName !== 'generation_job_create' && !(approval.toolName === 'core_work_start' && kind === 'generation_job')) return null
-  const request = asRecord(args.request) ?? args
+  if (!isGenerationSubmitApproval(approval.toolName, kind)) return null
+  const workRequest = asRecord(args.request)
+  const request = asRecord(workRequest?.args) ?? workRequest ?? args
   const target = asRecord(request.target)
   const params = asRecord(request.params)
   const metadata = asRecord(request.metadata)
-  const referenceResourceIds = arrayNumbers(request.reference_resource_ids)
+  const referenceResourceIds = [
+    ...arrayNumbers(request.reference_resource_ids),
+    ...arrayNumbers(request.input_resource_ids),
+  ]
   return {
     targetLabel: stringValue(target?.name) ?? stringValue(request.targetName) ?? stringValue(metadata?.creative_reference_name),
     targetType: stringValue(target?.type),
@@ -275,9 +281,16 @@ function generationJobApprovalView(approval: LocalAgentApprovalRequest): Generat
   }
 }
 
+function isGenerationSubmitApproval(toolName: string | undefined, kind: string | undefined): boolean {
+  return toolName === 'generation_image_generate'
+    || toolName === 'generation_video_generate'
+    || toolName === 'generation_job_create'
+    || (toolName === 'core_work_start' && kind === 'generation_job')
+}
+
 function assetSlotCandidateApprovalView(approval: LocalAgentApprovalRequest): AssetSlotCandidateApprovalView | null {
   if (approval.toolName !== 'candidate_asset_slot_attach' && approval.toolName !== 'asset_candidate_write') return null
-  const args = asRecord(approval.args)
+  const args = asRecord(approvalArgs(approval))
   if (!args) return null
   const resourceIds = [
     ...arrayNumbers(args.resource_ids),
@@ -298,6 +311,14 @@ function assetSlotCandidateApprovalView(approval: LocalAgentApprovalRequest): As
     score: numberValue(args.score),
     note: stringValue(args.note),
   }
+}
+
+function approvalArgs(approval: LocalAgentApprovalRequest): unknown {
+  return 'args' in approval ? approval.args : undefined
+}
+
+function approvalPreview(approval: LocalAgentApprovalRequest): unknown {
+  return 'preview' in approval ? approval.preview : undefined
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

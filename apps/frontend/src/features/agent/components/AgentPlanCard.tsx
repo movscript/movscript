@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, Dot, ListChecks } from 'lucide-react'
 import { AgentDataBlock, AgentPlanOverviewTaskStatusIcon } from '@movscript/ui'
 import { cn } from '@/shared/ui/cn'
-import type { AgentPlan, AgentPlanTaskStatus, AgentPlanRevision } from '@/shared/infrastructure/localAgentClient'
+import type { AgentPlan, AgentPlanTaskStatus } from '@/shared/infrastructure/localAgentClient'
 
 export function AgentCurrentPlanPanel({ plan }: { plan?: AgentPlan }) {
   if (!plan || plan.items.length === 0) return null
@@ -26,29 +26,6 @@ export function AgentCurrentPlanPanel({ plan }: { plan?: AgentPlan }) {
         </div>
       </AgentDataBlock>
     </div>
-  )
-}
-
-export function AgentPlanRevisionCard({ revision }: { revision: AgentPlanRevision }) {
-  const plan = revision.snapshot
-  return (
-    <AgentDataBlock className="p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <ListChecks size={15} className="shrink-0 text-primary" />
-          <div className="min-w-0">
-            <p className="type-label font-medium text-foreground">Plan updated</p>
-            {revision.explanation && <p className="mt-0.5 type-tiny text-muted-foreground">{revision.explanation}</p>}
-          </div>
-        </div>
-        <span className="shrink-0 type-tiny text-muted-foreground">{plan.completedCount}/{plan.totalCount}</span>
-      </div>
-      <div className="mt-2 space-y-1.5">
-        {plan.items.map((item, index) => (
-          <PlanItemRow key={`${index}-${item.step}`} step={item.step} status={item.status} />
-        ))}
-      </div>
-    </AgentDataBlock>
   )
 }
 

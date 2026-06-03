@@ -106,14 +106,25 @@ function generationEventLikeFromWork(work: RuntimeWork): GenerationTraceEventLik
   const request = work.request && typeof work.request === 'object' && !Array.isArray(work.request)
     ? work.request as Record<string, JSONValue>
     : {}
-  const args = typeof jobId === 'number' ? { jobId } : request
-  const event = buildGenerationEvent({ name: 'generation_job_get', args }, work.result as JSONValue | undefined)
+  const args = typeof jobId === 'number'
+    ? { jobId }
+    : isJSONRecord(request.args) ? request.args : request
+  const toolName = stringField(request.observeTool) ?? stringField(request.observe_tool) ?? stringField(request.tool) ?? 'generation_job_get'
+  const event = buildGenerationEvent({ name: toolName, args }, work.result as JSONValue | undefined)
   if (!event) return undefined
   return {
     data: { generation: event },
     createdAt: work.updatedAt,
     completedAt: work.completedAt,
   }
+}
+
+function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function replayGenerationTrace(events: GenerationTraceEventLike[]) {

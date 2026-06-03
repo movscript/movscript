@@ -13,8 +13,8 @@ movscript/
 ├── apps/backend/          Go API server, database models, AI adapters, job worker
 ├── apps/frontend/         Electron + Vite + React desktop application
 ├── apps/admin/            Admin console for credentials, models, routing, and users
-├── apps/agent/            Local agent service
-├── apps/movcli/           CLI for plugin scaffolding and packaging
+├── apps/agent/            Session agent runtime
+├── apps/cli/              CLI for plugin scaffolding and packaging
 ├── packages/              Shared SDKs, UI, tokens, and domain packages
 ├── plugins/               First-party plugin examples
 ├── contracts/             Machine-readable API and schema contracts
@@ -53,14 +53,14 @@ If you want to run the backend separately:
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 docker compose up -d db
-pnpm --filter movscript-backend dev
+pnpm --filter @movscript/backend dev
 ```
 
 Then start the desktop frontend in another terminal:
 
 ```bash
 cp apps/frontend/.env.example apps/frontend/.env
-pnpm --filter movscript-frontend dev
+pnpm --filter @movscript/desktop dev
 ```
 
 Backend health check:
@@ -77,11 +77,26 @@ docker compose --profile observability up --build
 
 Grafana is available at `http://localhost:3002` by default. Prometheus scrapes the backend `/metrics` endpoint automatically, including HTTP route metrics, shot vector metrics, Agent frontend phases, Agent network latency, Web Vitals, frontend errors, and privacy-safe telemetry ingest health. The same profile also loads Prometheus alert rules for backend availability, HTTP latency/errors, Agent telemetry rejection, Agent runtime latency/failures, frontend errors, and Web Vitals thresholds.
 
-Start the local agent when working on agent flows:
+When working on agent flows, start the desktop app with an isolated debug agent workspace:
 
 ```bash
-pnpm --filter movscript-agent dev
+pnpm --filter @movscript/desktop dev:agent-workspace
 ```
+
+This stores debug agent sessions under `.movscript-dev/.movscript/agent/sessions/YYYY/MM/DD/...` in the repository. To isolate a specific debugging run, point the app at another workspace:
+
+```bash
+MOVSCRIPT_AGENT_WORKSPACE_DIR=/tmp/movscript-agent-debug pnpm --filter @movscript/desktop dev:agent-workspace
+```
+
+The CLI can inspect the same workspace without starting an agent process:
+
+```bash
+pnpm --filter @movscript/cli build
+node apps/cli/dist/index.js agent sessions --workspace /tmp/movscript-agent-debug
+```
+
+The Web UI should connect to a session runtime that the desktop app owns. It should not start a standalone agent service during normal development.
 
 ## Common Commands
 
@@ -89,7 +104,7 @@ pnpm --filter movscript-agent dev
 pnpm run test
 pnpm run build
 pnpm run typecheck
-pnpm --filter movscript-backend test
+pnpm --filter @movscript/backend test
 pnpm --filter "./plugins/*" build
 ```
 

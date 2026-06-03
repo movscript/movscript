@@ -3,17 +3,15 @@ import test from 'node:test'
 import { extractAgentContext, extractFocusTimings, isValidAgentReferenceId } from './runtimeContext.js'
 import type { JSONValue } from '../../shared/protocol/types.js'
 
-test('extractAgentContext reads project and production ids from focus payloads', () => {
+test('extractAgentContext reads project id from focus payloads', () => {
   assert.deepEqual(extractAgentContext({
     data: {
       focus: {
         project: { id: 42 },
-        productionId: 99,
       },
     },
   }), {
     currentProjectId: 42,
-    currentProductionId: 99,
   })
 })
 
@@ -23,28 +21,10 @@ test('extractAgentContext ignores invalid project ids', () => {
       data: {
         focus: {
           project: { id: projectId },
-          productionId: 99,
         },
       },
     }), {
       currentProjectId: undefined,
-      currentProductionId: 99,
-    })
-  }
-})
-
-test('extractAgentContext ignores invalid production ids', () => {
-  for (const productionId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.deepEqual(extractAgentContext({
-      data: {
-        focus: {
-          project: { id: 42 },
-          productionId,
-        },
-      },
-    }), {
-      currentProjectId: 42,
-      currentProductionId: undefined,
     })
   }
 })

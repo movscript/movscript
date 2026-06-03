@@ -48,7 +48,7 @@ import { ROUTES } from '@/routes/projectRoutes'
 
 function buildIframeHTML(plugin: ClientPluginManifest): string {
   const bundleUrl = plugin.bundleUrl ?? ''
-  const inlineScript = plugin.bundle ?? plugin.script ?? ''
+  const inlineScript = plugin.bundle ?? ''
   const movScript = `
 (function() {
   var _pending = {};
@@ -69,21 +69,23 @@ function buildIframeHTML(plugin: ClientPluginManifest): string {
     else p.resolve(data.result);
   });
   window.mov = {
-    get:           function(path)        { return call('get',           [path]); },
-    post:          function(path, body)  { return call('post',          [path, body]); },
-    patch:         function(path, body)  { return call('patch',         [path, body]); },
-    delete:        function(path)        { return call('delete',        [path]); },
-    models:        function(cap)         { return call('models',        [cap]); },
-    modelConfigs:  function()            { return call('modelConfigs',  []); },
-    resources:     function()            { return call('resources',     []); },
-    uploadResource:function(req)         { return call('uploadResource',[req]); },
-    generateMedia: function(req)         { return call('generateMedia', [req]); },
-    generateImage: function(req)         { return call('generateImage', [req]); },
-    sleep:         function(ms)          { return call('sleep',         [ms]); },
-    mcp: {
-      listTools:   function()            { return call('mcp.listTools', []); },
-      callTool:    function(n, a)        { return call('mcp.callTool',  [n, a]); },
+    api: {
+      get:    function(path)       { return call('api.get',    [path]); },
+      post:   function(path, body) { return call('api.post',   [path, body]); },
+      patch:  function(path, body) { return call('api.patch',  [path, body]); },
+      delete: function(path)       { return call('api.delete', [path]); },
     },
+    generation: {
+      models:       function(cap) { return call('generation.models', [cap]); },
+      modelConfigs: function()    { return call('generation.modelConfigs', []); },
+      submit:       function(req) { return call('generation.submit', [req]); },
+      getJob:       function(id)  { return call('generation.getJob', [id]); },
+    },
+    resources: {
+      list:   function()    { return call('resources.list', []); },
+      upload: function(req) { return call('resources.upload', [req]); },
+    },
+    sleep:         function(ms)          { return call('sleep',         [ms]); },
   };
 })();
 `
@@ -103,7 +105,7 @@ ${inlineScript ? `<script>${inlineScript}<\/script>` : ''}
 </html>`
 }
 
-// ── Native form UI (bundle/script plugins) ────────────────────────────────────
+// ── Native form UI (bundle plugins) ───────────────────────────────────────────
 
 function ParamField({
   name,
@@ -123,7 +125,7 @@ function ParamField({
   const label = prop.title ?? name
 
   // Model selector widget
-  const isModelSelector = prop['x-widget'] === 'model-selector' || name === 'model_config_id'
+  const isModelSelector = prop['x-widget'] === 'model-selector'
   if (isModelSelector) {
     const capability = (prop['x-capability'] as 'image' | 'video' | 'text') ?? 'image'
     return (
@@ -206,7 +208,7 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
   const initValues = () => {
     const vals: Record<string, string> = {}
     for (const [k, prop] of Object.entries(properties)) {
-      const isModelSelector = prop['x-widget'] === 'model-selector' || k === 'model_config_id'
+      const isModelSelector = prop['x-widget'] === 'model-selector'
       if (!isModelSelector) {
         vals[k] = prop.default !== undefined ? String(prop.default) : ''
       }
@@ -247,7 +249,8 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
       if (hasRefField && selectedResources.length > 0) {
         args.reference_resource_ids = selectedResources.map((r) => r.ID).join(',')
       }
-      const res = await runClientPlugin(plugin, args)
+      const toolName = primaryPluginToolName(plugin)
+      const res = await runClientPlugin(plugin, args, toolName ? { toolName } : undefined)
       const text = res.content?.map((c) => c.text ?? '').join('\n') ?? JSON.stringify(res.data ?? '')
       setResult({ text, isError: res.isError })
     } catch (err: any) {
@@ -260,7 +263,7 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
   // For required fields: model-selector fields are satisfied when modelValues has a value
   const canRun = !running && required.every((k) => {
     const prop = properties[k]
-    const isModelSelector = prop?.['x-widget'] === 'model-selector' || k === 'model_config_id'
+    const isModelSelector = prop?.['x-widget'] === 'model-selector'
     if (isModelSelector) return !!modelValues[k]
     return (values[k] ?? '').trim() !== ''
   })
@@ -313,7 +316,7 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
             <PluginToolFieldStack>
               {Object.entries(properties).map(([name, prop]) => {
                 if (name === 'reference_resource_ids') return null
-                const isModelSelector = prop['x-widget'] === 'model-selector' || name === 'model_config_id'
+                const isModelSelector = prop['x-widget'] === 'model-selector'
                 return (
                   <ParamField
                     key={name}
@@ -377,6 +380,12 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
   )
 }
 
+function primaryPluginToolName(plugin: ClientPluginManifest): string | undefined {
+  const tool = plugin.contributes?.tools?.[0]
+  const name = tool?.name ?? tool?.id
+  return typeof name === 'string' && name.trim() ? name.trim() : undefined
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PluginToolPage() {
@@ -427,7 +436,7 @@ export default function PluginToolPage() {
     )
   }
 
-  // webview plugins render in an iframe; bundle/script plugins use native UI
+  // webview plugins render in an iframe; bundle plugins use native UI
   const isWebview = !!plugin.bundleUrl
 
   return (

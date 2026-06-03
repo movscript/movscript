@@ -12,7 +12,6 @@ import { LocalAgentRunInteractionBubble } from '@/features/agent/components/Agen
 import { AgentPinnedStatusShelf, hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { LiveRunActivityBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import {
-  GenerationProgressBubble,
   MessageBubble,
   StreamingAssistantBubble,
   ThinkingBubble,
@@ -22,25 +21,26 @@ import {
 } from '@/features/agent/presentation/agentThinkingBubbleState'
 import {
   buildAgentConversationThreadItems,
-  runIdsWithActivityMessages,
+  runIdsWithTimelineActivityItems,
   splitRunGroupItemsForLiveBlocks,
-  type AgentConversationMessageItem,
+  type AgentTranscriptMessageItem,
 } from '@/features/agent/domain/agentConversationThreadItems'
-import { visibleAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { transcriptAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import {
   AGENT_THREAD_RENDER_WINDOW_INITIAL_SIZE,
   buildAgentThreadRenderWindow,
 } from '@/features/agent/domain/agentMessageRenderWindow'
 import {
-  agentConversationMessageItemHasInteractionRuns,
-  agentConversationMessageItemsEqual,
-  agentConversationMessageItemUsesLiveRunInteractionState,
+  agentTranscriptMessageItemHasInteractionRuns,
+  agentTranscriptMessageItemsEqual,
+  agentTranscriptMessageItemUsesLiveRunInteractionState,
 } from '@/features/agent/presentation/agentMessageRenderMemo'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentConversationBlock } from '@/features/agent/domain/agentConversationPresentation'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-import type { AgentTaskGraphSnapshot, AgentPlan, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
+import type { AgentTaskGraphSnapshot, AgentPlan, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 const EMPTY_RUN_ACTIVITY_EVENTS: ChatRunActivityEvent[] = []
@@ -53,8 +53,11 @@ export interface AgentConversationThreadSectionProps {
   conversationId: string
   conversationBlocks: AgentConversationBlock[]
   generationProgressStates: GenerationProgressState[]
-  messageHistoryLoading?: boolean
-  messages: ChatMessage[]
+  timelineLoading?: boolean
+  timelineItems: AgentTimelineItem[]
+  transcriptMessages: ChatMessage[]
+  transcriptMessageCount?: number
+  lastTranscriptAt?: number
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   pinnedStatusExpanded?: boolean
@@ -87,8 +90,9 @@ export function AgentConversationThreadSection({
   conversationId,
   conversationBlocks,
   generationProgressStates,
-  messageHistoryLoading = false,
-  messages,
+  timelineLoading = false,
+  timelineItems,
+  transcriptMessages,
   planActionBusy,
   planDispatchSettings,
   pinnedStatusExpanded,
@@ -118,7 +122,7 @@ export function AgentConversationThreadSection({
     setVisibleThreadItemCount(AGENT_THREAD_RENDER_WINDOW_INITIAL_SIZE)
   }, [conversationId])
 
-  const currentPlan = useMemo(() => latestPlanFromMessages(messages), [messages])
+  const currentPlan = useMemo(() => latestPlanFromTimelineItems(timelineItems), [timelineItems])
   const showPinnedStatus = useMemo(() => hasAgentPinnedStatus({
     plan: currentPlan,
     generationProgressStates,
@@ -131,16 +135,17 @@ export function AgentConversationThreadSection({
     ? new Set([activeRunId])
     : new Set<string>(), [activeRun?.status, activeRunId])
   const threadItems = useMemo(() => buildAgentConversationThreadItems({
-    messages,
+    transcriptMessages,
+    timelineItems,
     runInteractionAnswerEchoes,
     interactionRunsByResultMessageId,
     suppressedInteractionRunIds,
-  }), [messages, suppressedInteractionRunIds, runInteractionAnswerEchoes, interactionRunsByResultMessageId])
+  }), [timelineItems, transcriptMessages, suppressedInteractionRunIds, runInteractionAnswerEchoes, interactionRunsByResultMessageId])
   const anchoredInteractionRunIds = useMemo(() => new Set(Array.from(interactionRunsByResultMessageId.values())
     .flat()
     .map((run) => run.id)), [interactionRunsByResultMessageId])
-  const activityMessageRunIds = useMemo(() => runIdsWithActivityMessages(messages), [messages])
-  const embeddedInteractionRunIds = useMemo(() => interactionRunIdsEmbeddedInAssistantMessages(messages), [messages])
+  const activityMessageRunIds = useMemo(() => runIdsWithTimelineActivityItems(timelineItems), [timelineItems])
+  const embeddedInteractionRunIds = useMemo(() => interactionRunIdsEmbeddedInAssistantMessages(threadItems), [threadItems])
   const hiddenActivityActionItemIds = useMemo(
     () => standaloneInteractionActionItemIds(threadItems),
     [threadItems],
@@ -160,8 +165,8 @@ export function AgentConversationThreadSection({
   }), [activeRunId, threadItems, visibleThreadItemCount])
   const activeRunHasThreadGroup = !!activeRunId
     && threadWindow.visibleItems.some((item) => item.type === 'run_group' && item.runId === activeRunId)
-  const showMessageHistoryLoading = messageHistoryLoading
-    && messages.length === 0
+  const showTimelineLoading = timelineLoading
+    && transcriptMessages.length === 0
     && threadWindow.visibleItems.length === 0
     && renderableConversationBlocks.length === 0
     && !activeRunId
@@ -184,9 +189,6 @@ export function AgentConversationThreadSection({
   const renderConversationBlock = (block: AgentConversationBlock) => {
     if (block.type === 'assistant_stream') {
       return <StreamingAssistantBubble key={block.id} content={block.content} />
-    }
-    if (block.type === 'generation_progress') {
-      return <GenerationProgressBubble key={block.id} state={block.state} />
     }
     if (block.type === 'live_run_activity') {
       return (
@@ -223,10 +225,10 @@ export function AgentConversationThreadSection({
         data-agent-thread-visible-items={threadWindow.visibleCount}
         data-agent-thread-total-items={threadWindow.totalCount}
       >
-        {showMessageHistoryLoading && (
+        {showTimelineLoading && (
           <AgentEmpty role="status" aria-live="polite">
             <Loader2 size={16} className="animate-spin" />
-            <span>{t('agents.chat.loadingMessageHistory')}</span>
+            <span>{t('agents.chat.loadingConversationTimeline')}</span>
           </AgentEmpty>
         )}
         {threadWindow.hiddenCount > 0 && (
@@ -346,7 +348,7 @@ export function AgentConversationThreadSection({
 }
 
 interface ThreadMessageBubbleProps {
-  item: AgentConversationMessageItem
+  item: AgentTranscriptMessageItem
   projectId?: number
   approvingLocalRun: boolean
   hiddenActivityActionItemIds: Set<string>
@@ -390,6 +392,7 @@ const ThreadMessageBubble = React.memo(function ThreadMessageBubble({
         <MessageBubble
           msg={message}
           projectId={projectId}
+          timelineActivity={item.timelineActivity}
           liveInteractionRun={embeddedInteractionRun}
           liveInteractionEvents={embeddedInteractionRun ? liveActivityEventsByRunId.get(embeddedInteractionRun.id) ?? EMPTY_RUN_ACTIVITY_EVENTS : EMPTY_RUN_ACTIVITY_EVENTS}
           approvingLocalRun={approvingLocalRun}
@@ -408,11 +411,11 @@ function areThreadMessageBubblePropsEqual(
   prev: ThreadMessageBubbleProps,
   next: ThreadMessageBubbleProps,
 ) {
-  const comparesLiveRunInteractionState = agentConversationMessageItemUsesLiveRunInteractionState(prev.item)
-    || agentConversationMessageItemUsesLiveRunInteractionState(next.item)
-  const comparesRunInteractionActions = agentConversationMessageItemHasInteractionRuns(prev.item)
-    || agentConversationMessageItemHasInteractionRuns(next.item)
-  return agentConversationMessageItemsEqual(prev.item, next.item)
+  const comparesLiveRunInteractionState = agentTranscriptMessageItemUsesLiveRunInteractionState(prev.item)
+    || agentTranscriptMessageItemUsesLiveRunInteractionState(next.item)
+  const comparesRunInteractionActions = agentTranscriptMessageItemHasInteractionRuns(prev.item)
+    || agentTranscriptMessageItemHasInteractionRuns(next.item)
+  return agentTranscriptMessageItemsEqual(prev.item, next.item)
     && prev.projectId === next.projectId
     && (!comparesRunInteractionActions || prev.approvingLocalRun === next.approvingLocalRun)
     && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
@@ -423,15 +426,15 @@ function areThreadMessageBubblePropsEqual(
 }
 
 function renderedInteractionRunsForMessageItem(
-  item: AgentConversationMessageItem,
+  item: AgentTranscriptMessageItem,
 ): {
   beforeInteractionRuns: AgentRun[]
   afterInteractionRuns: AgentRun[]
   embeddedInteractionRun: AgentRun | null
 } {
-  const { afterMessageInteractionRuns, beforeMessageInteractionRuns, liveInteractionRuns, message } = item
+  const { afterMessageInteractionRuns, beforeMessageInteractionRuns, liveInteractionRuns } = item
   const interactionRuns = liveInteractionRuns ?? [...beforeMessageInteractionRuns, ...afterMessageInteractionRuns]
-  const embeddedInteractionRun = liveInteractionRuns?.find((run) => interactionRunEmbedsInMessage(run, message)) ?? null
+  const embeddedInteractionRun = liveInteractionRuns?.find((run) => interactionRunEmbedsInMessage(run, item)) ?? null
   const beforeInteractionRunIds = new Set(beforeMessageInteractionRuns.map((run) => run.id))
   if (liveInteractionRuns) {
     return {
@@ -472,16 +475,21 @@ function collectInteractionActionItemIds(run: AgentRun, ids: Set<string>) {
   for (const request of run.pendingInputRequests ?? []) ids.add(`input-${request.id}`)
 }
 
-function interactionRunEmbedsInMessage(run: AgentRun, message: ChatMessage): boolean {
-  const runId = visibleAssistantRelatedRunId(message)
+function interactionRunEmbedsInMessage(run: AgentRun, item: AgentTranscriptMessageItem): boolean {
+  const runId = transcriptAssistantRelatedRunId(item.message)
+    ?? normalizeRunId(item.timelineActivity?.runId)
   return runId === run.id
 }
 
-function interactionRunIdsEmbeddedInAssistantMessages(messages: ChatMessage[]): Set<string> {
+function interactionRunIdsEmbeddedInAssistantMessages(threadItems: ReturnType<typeof buildAgentConversationThreadItems>): Set<string> {
   const runIds = new Set<string>()
-  for (const message of messages) {
-    const runId = visibleAssistantRelatedRunId(message)
-    if (runId) runIds.add(runId)
+  for (const threadItem of threadItems) {
+    const messageItems = threadItem.type === 'message' ? [threadItem.item] : threadItem.items
+    for (const item of messageItems) {
+      const runId = transcriptAssistantRelatedRunId(item.message)
+        ?? normalizeRunId(item.timelineActivity?.runId)
+      if (runId) runIds.add(runId)
+    }
   }
   return runIds
 }
@@ -501,14 +509,20 @@ function normalizeRunId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
-  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
-}
-
-export function latestPlanFromMessages(messages: ChatMessage[]): AgentPlan | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const plan = messages[index].meta?.planRevision?.snapshot
+export function latestPlanFromTimelineItems(items: AgentTimelineItem[]): AgentPlan | undefined {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+    if (!item || !isPlanStatusTimelineItem(item)) continue
+    const plan = item.meta?.planRevision?.snapshot
     if (plan) return plan
   }
   return undefined
+}
+
+function isPlanStatusTimelineItem(item: AgentTimelineItem): boolean {
+  return item.origin === 'system_runtime'
+    && item.purpose === 'status'
+    && item.surface === 'status_strip'
+    && item.contentPromptEligibility === 'exclude'
+    && !!item.meta?.planRevision
 }

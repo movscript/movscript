@@ -1,11 +1,12 @@
 import { localAgentClient, type AgentClientInput, type AgentRun } from '@/shared/infrastructure/localAgentClient'
-import { notifyAgentMessageFeedAcceptedSource } from '@/features/agent/application/agentMessageFeedBridge'
+import { notifyAgentTimelineAcceptedSource } from '@/features/agent/application/agentTimelineBridge'
 import { resolveAgentAttachmentDataUrl } from '@/features/agent/application/agentAttachmentDataUrl'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 export interface SendActiveRunRuntimeInputDeps {
   conversationId: string
-  threadId: string
+  workspaceDir?: string
+  sessionId?: string
   run: AgentRun
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; error?: string }) => void
   setConversationRuntime: (conversationId: string, patch: { loading?: boolean; building?: boolean; error?: string }) => void
@@ -19,8 +20,16 @@ export async function sendActiveRunRuntimeInput(input: {
   const attachments = await resolveRuntimeInputAttachments(input.attachments ?? [])
   const content = input.content.trim()
   if (!content && attachments.length === 0) return
+  const sessionId = input.deps.sessionId?.trim()
+  if (!sessionId) {
+    throw new Error('active runtime input requires a session runtime')
+  }
+  const runtimeClient = localAgentClient.forSession({
+    sessionId,
+    ...(input.deps.workspaceDir?.trim() ? { workspaceDir: input.deps.workspaceDir.trim() } : {}),
+  })
   try {
-    const result = await localAgentClient.createMessageRun(input.deps.threadId, {
+    const messageRunInput = {
       message: content,
       sourceMessageId: sourceMessageIdForRuntimeInput(input.deps.run.id),
       activeRunMode: 'runtime_input',
@@ -31,8 +40,9 @@ export async function sendActiveRunRuntimeInput(input: {
           ? { attachments: attachments.map(agentAttachmentToClientInputRef) }
           : {}),
       } satisfies AgentClientInput,
-    })
-    notifyAgentMessageFeedAcceptedSource(result.message, result.run)
+    } as const
+    const result = await runtimeClient.createSessionMessageRun(sessionId, messageRunInput)
+    notifyAgentTimelineAcceptedSource(result.message, result.run)
     input.deps.setConversationRun(input.deps.conversationId, result.run, { loading: true, building: false })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

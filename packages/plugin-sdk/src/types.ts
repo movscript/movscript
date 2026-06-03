@@ -8,58 +8,6 @@ export interface PublicModel {
 
 export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
 
-export type MediaPipelineCapability =
-  | 'audio_tts'
-  | 'audio_transcribe'
-  | 'subtitle_align'
-  | 'render_video'
-
-export type MediaProviderFeature =
-  | 'streaming'
-  | 'ssml'
-  | 'word_timestamps'
-  | 'phoneme_timestamps'
-  | 'viseme_timestamps'
-  | 'voice_clone'
-  | 'voice_design'
-  | 'multi_speaker'
-  | 'emotion_control'
-  | 'speed_control'
-  | 'pitch_control'
-  | 'forced_alignment'
-  | 'burn_in_subtitles'
-
-export interface MediaProviderParamDef {
-  key: string
-  label?: string
-  type: 'string' | 'number' | 'boolean' | 'select'
-  default?: unknown
-  options?: Array<string | number | boolean>
-  min?: number
-  max?: number
-  step?: number
-}
-
-export interface MediaModelContract {
-  modelId: string
-  displayName: string
-  features: MediaProviderFeature[]
-  supportedLanguages?: string[]
-  supportedFormats?: string[]
-  supportedParams: MediaProviderParamDef[]
-}
-
-export interface MediaCapabilityContract {
-  capability: MediaPipelineCapability
-  models: MediaModelContract[]
-}
-
-export interface MediaProviderContract {
-  provider: string
-  displayName?: string
-  capabilities: MediaCapabilityContract[]
-}
-
 export interface GenerateMediaRequest {
   model_id: string
   prompt: string
@@ -72,8 +20,12 @@ export interface GenerateMediaRequest {
   timeout_ms?: number
 }
 
-export type GenerateImageRequest = GenerateMediaRequest & {
-  job_type?: 'image' | 'image_edit'
+export interface GenerationJob {
+  id: number
+  status: string
+  error?: string
+  outputResourceIds?: number[]
+  raw?: unknown
 }
 
 export interface UploadResourceRequest {
@@ -92,9 +44,12 @@ export type ExecutableCapability =
   | 'video_i2v'
   | 'video_v2v'
   | 'audio'
-  | MediaPipelineCapability
+  | 'audio_tts'
+  | 'audio_transcribe'
+  | 'subtitle_align'
+  | 'render_video'
 
-export interface ExecutableSpec {
+export interface CanvasExecutableSpec {
   executor: 'ai_model'
   capability: ExecutableCapability
   featureKey?: string
@@ -131,7 +86,7 @@ export interface CanvasPortDef {
   description?: string
 }
 
-export interface PluginToolContribution {
+export interface AgentToolContribution {
   id: string
   title: string
   description?: string
@@ -139,6 +94,18 @@ export interface PluginToolContribution {
   outputSchema?: unknown
   permissions?: string[]
 }
+
+export interface AgentToolCall<TArgs extends Record<string, unknown> = Record<string, unknown>> {
+  name: string
+  args: TArgs
+}
+
+export interface AgentToolHandler<TArgs extends Record<string, unknown> = Record<string, unknown>> {
+  compile?: (args: TArgs) => CanvasExecutableSpec | Promise<CanvasExecutableSpec>
+  run: (host: MovPluginHost, args: TArgs) => Promise<PluginRunResult> | PluginRunResult
+}
+
+export type AgentToolHandlers = Record<string, AgentToolHandler>
 
 export interface PluginCardContribution {
   id: string
@@ -153,7 +120,6 @@ export interface CanvasNodeContribution {
   type: string
   title: string
   description?: string
-  tool?: string
   inputs?: CanvasPortDef[]
   outputs?: CanvasPortDef[]
   card?: string
@@ -189,44 +155,45 @@ export interface AgentSkillContribution {
 }
 
 export interface PluginContributions {
-  tools?: PluginToolContribution[]
+  /** Agent/MCP-visible tools contributed by this plugin. Canvas nodes are declared separately. */
+  tools?: AgentToolContribution[]
   cards?: PluginCardContribution[]
   canvasNodes?: CanvasNodeContribution[]
   agentSkills?: AgentSkillContribution[]
   commands?: Array<{ id: string; title: string; tool?: string }>
 }
 
-export interface McpTools {
-  listProjects: () => Promise<unknown[]>
-  getProject: (id: number) => Promise<unknown>
-  createProject: (data: { name: string; description?: string }) => Promise<unknown>
-  listScripts: (projectId: number) => Promise<unknown[]>
-  getScript: (id: number) => Promise<unknown>
-  updateScript: (id: number, data: Record<string, unknown>) => Promise<unknown>
-  listAssetSlots: (projectId: number) => Promise<unknown[]>
-  createAssetSlot: (projectId: number, data: Record<string, unknown>) => Promise<unknown>
-  search: (projectId: number, query: string) => Promise<unknown>
+export interface PluginGenerationHost {
+  /** Fetch models filtered by capability (e.g. "image", "video"). */
+  models(capability: string): Promise<PublicModel[]>
+  /** Fetch all platform model configs. */
+  modelConfigs(): Promise<PublicModel[]>
+  /** Submit a generation job and return immediately with the backend job handle. */
+  submit(req: GenerateMediaRequest): Promise<GenerationJob>
+  /** Fetch the latest state for a submitted generation job. */
+  getJob(id: number | string): Promise<GenerationJob>
 }
 
-export interface MovRuntime {
+export interface PluginResourceHost {
+  list(): Promise<unknown[]>
+  upload(req: UploadResourceRequest): Promise<unknown>
+}
+
+export interface PluginApiHost {
   get<T = unknown>(path: string): Promise<T>
   post<T = unknown>(path: string, body?: unknown): Promise<T>
   patch<T = unknown>(path: string, body?: unknown): Promise<T>
   delete<T = unknown>(path: string): Promise<T>
-  /** Fetch models filtered by capability (e.g. "image", "video"). */
-  models(capability: string): Promise<PublicModel[]>
-  /** Fetch all platform model configs — use this to let users pick a model. */
-  modelConfigs(): Promise<PublicModel[]>
-  resources(): Promise<unknown[]>
-  uploadResource(req: UploadResourceRequest): Promise<unknown>
-  generateMedia(req: GenerateMediaRequest): Promise<unknown>
-  /** @deprecated Use generateMedia for new image and video plugins. */
-  generateImage(req: GenerateImageRequest): Promise<unknown>
-  sleep(ms: number): Promise<void>
-  mcp: McpTools
 }
 
-export interface ToolResult {
+export interface MovPluginHost {
+  api: PluginApiHost
+  generation: PluginGenerationHost
+  resources: PluginResourceHost
+  sleep(ms: number): Promise<void>
+}
+
+export interface PluginRunResult {
   content?: Array<{ type: string; text?: string }>
   data?: unknown
   isError?: boolean
@@ -250,8 +217,7 @@ export interface PluginInputSchema {
   required?: string[]
 }
 
-/** @deprecated Inline-script manifest. Use PluginWebview for new plugins. */
-export interface PluginManifest {
+export interface PluginPackageManifest {
   schema: 'movscript.clientPlugin.v1' | string
   id: string
   name: string
@@ -262,22 +228,7 @@ export interface PluginManifest {
   permissions?: string[]
   inputSchema?: PluginInputSchema
   contributes?: PluginContributions
-  script: string
-}
-
-/** @deprecated Bundle manifest with inlined JS. Use PluginWebview for new plugins. */
-export interface PluginBundle {
-  schema: 'movscript.clientPlugin.v1' | string
-  id: string
-  name: string
-  version: string
-  description?: string
-  author?: string
-  homepage?: string
-  permissions?: string[]
-  inputSchema?: PluginInputSchema
-  contributes?: PluginContributions
-  /** Compiled JS source. Must export/define a `run(mov, args)` function. */
+  /** Compiled JS source. Must export/define a `run(host, args)` function. */
   bundle: string
   /** True when the bundle also exports/defines `compile(args)`. */
   hasCompile?: boolean
@@ -290,13 +241,13 @@ export interface PluginBundle {
  *
  * The plugin is a compiled JS bundle hosted at `bundleUrl`. It runs inside a
  * sandboxed <iframe> and communicates with the platform via `window.mov`
- * (injected by the host, VSCode-webview style).
+ * (injected by the host).
  *
  * The bundle can use any framework (React, Vue, vanilla). It is responsible for
  * rendering its own UI into `document.getElementById('root')`.
  *
  * Example entry point:
- *   const models = await window.mov.modelConfigs()
+ *   const models = await window.mov.generation.modelConfigs()
  *   document.getElementById('root').innerHTML = `<p>${models.length} models</p>`
  */
 export interface PluginWebview {
@@ -316,4 +267,4 @@ export interface PluginWebview {
 }
 
 /** Union of all installable formats. */
-export type AnyPluginManifest = PluginManifest | PluginBundle | PluginWebview
+export type AnyPluginManifest = PluginPackageManifest | PluginWebview

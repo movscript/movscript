@@ -22,6 +22,8 @@ export async function cancelGenerationJobIfActive(state: GenerationProgressState
 
 export interface UseAgentRunStopActionInput {
   conversationId: string
+  workspaceDir?: string
+  sessionId?: string
   run: AgentRun | null
   loading: boolean
   building: boolean
@@ -37,6 +39,8 @@ export interface UseAgentRunStopActionInput {
 
 export function useAgentRunStopAction({
   conversationId,
+  workspaceDir,
+  sessionId,
   run,
   loading,
   building,
@@ -49,6 +53,12 @@ export function useAgentRunStopAction({
   setConversationRun,
   setConversationRuntime,
 }: UseAgentRunStopActionInput) {
+  const runtimeClient = useMemo(() => sessionId?.trim()
+    ? localAgentClient.forSession({
+        sessionId: sessionId.trim(),
+        ...(workspaceDir?.trim() ? { workspaceDir: workspaceDir.trim() } : {}),
+      })
+    : localAgentClient, [sessionId, workspaceDir])
   const deps = useMemo<StopLocalRunActionDeps>(() => ({
     abortActiveSend: () => {
       const sendController = activeSendAbortControllerRef.current
@@ -63,13 +73,14 @@ export function useAgentRunStopAction({
     cancelGenerationJobIfActive: () => {
       void cancelGenerationJobIfActive(generationProgressState)
     },
-    cancelRun: (runId, input) => localAgentClient.cancelRun(runId, input),
-    getRun: (runId) => localAgentClient.getRun(runId),
+    cancelRun: (runId, input) => runtimeClient.cancelRun(runId, input),
+    getRun: (runId) => runtimeClient.getRun(runId),
   }), [
     activeSendAbortControllerRef,
     conversationId,
     generationProgressState,
     resetStreamingAssistant,
+    runtimeClient,
     setConversationRun,
     setConversationRuntime,
     setPendingAssistantState,

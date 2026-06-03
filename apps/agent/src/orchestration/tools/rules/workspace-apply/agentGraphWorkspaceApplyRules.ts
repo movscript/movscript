@@ -3,14 +3,6 @@ import { isJSONRecord } from '../../../../shared/json/jsonValue.js'
 import type { AgentApprovalRequest, AgentRun, JSONValue, ToolCall, ToolCallOutcome } from '../../../../state/shared/types.js'
 import type { ToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 
-const DEFAULT_WORKSPACE_APPLY_KIND_ORDER: Record<string, number> = {
-  project_standards_workspace: 5,
-  setting_workspace: 10,
-  asset_workspace: 20,
-  production_workspace: 30,
-  content_unit_workspace: 40,
-}
-
 export function buildDefaultWorkspaceApplyCalls(input: {
   outcomes: ToolCallOutcome[]
   registry: ToolRegistry
@@ -35,12 +27,11 @@ export function buildDefaultWorkspaceApplyCalls(input: {
           ? workspace.id
           : undefined
     const workspaceKind = typeof workspace?.kind === 'string' ? workspace.kind : undefined
-    const rank = workspaceKind ? DEFAULT_WORKSPACE_APPLY_KIND_ORDER[workspaceKind] : undefined
-    if (!workspaceId || rank === undefined) return []
-    return [{ workspaceId, workspaceKind, rank, index }]
+    if (!workspaceId) return []
+    return [{ workspaceId, workspaceKind, index }]
   })
   return candidates
-    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .sort((left, right) => left.index - right.index)
     .map((candidate): ToolCall => ({
       id: input.makeId('call'),
       name: 'workspace_apply',

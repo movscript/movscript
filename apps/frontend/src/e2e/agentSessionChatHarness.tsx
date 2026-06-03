@@ -28,14 +28,15 @@ function AgentSessionChatHarness() {
           conversationId="agent-session-chat-harness"
           conversationBlocks={[]}
           generationProgressStates={[]}
-          messages={[
+          timelineItems={[]}
+          transcriptMessages={[
             message({
               id: 'local_user',
               role: 'user',
               content: 'Start worker task',
               meta: {
                 runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker' },
-                runtimeInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', status: 'accepted' },
+                runtimeInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', deliveryStatus: 'accepted' },
               },
             }),
             message({

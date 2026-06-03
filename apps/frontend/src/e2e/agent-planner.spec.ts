@@ -765,7 +765,7 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
     [INPUT_WORKER_RUN_ID, inputWorkerRun],
   ])
 
-  await page.route('http://127.0.0.1:28765/**', async (route) => {
+  await page.route(/\/(?:livez|runtime\/compat|health|plans|runs)(?:[/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/livez') {
       await fulfillJSON(route, { ok: true })
@@ -779,10 +779,6 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
         mcpEndpoint: 'http://127.0.0.1:29999/mcp',
         runtime: { apiVersion: 1, features: ['model-config', 'runtime-capabilities'], endpoints: ['/livez', '/runtime/compat'] },
       })
-      return
-    }
-    if (url.pathname === '/inspect' || url.pathname === '/capabilities') {
-      await route.fallback()
       return
     }
     if (url.pathname === `/plans/${PLANNER_TASK_GRAPH_ID}`) {

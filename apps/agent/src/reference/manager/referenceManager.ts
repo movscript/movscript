@@ -60,7 +60,7 @@ export class ReferenceManager {
 
   get(input: Record<string, JSONValue>, options: { maxChars?: number } = {}): JSONValue {
     const id = normalizeLocalReferenceId(stringField(input.id))
-    if (!id) throw new Error('reference_get requires id')
+    if (!id) throw new Error('reference lookup requires id')
     const chunk = this.store.getChunk(id)
     if (!chunk) throw new Error(`reference not found: ${id}`)
     const requestedMaxChars = numberField(input.maxChars) ?? 4000

@@ -32,7 +32,7 @@ export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed
   const conversation: Conversation = {
     id: CONVERSATION_ID,
     title: 'Planner 调度 E2E',
-    messages: [userMessage, assistantMessage],
+    transcriptMessages: [userMessage, assistantMessage],
     createdAt: Date.parse(FIXED_NOW),
     updatedAt: Date.parse('2026-05-12T09:00:10.000Z'),
   }
@@ -337,7 +337,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
               headers: { authorization: 'Bearer e2e-header-secret', 'content-type': 'application/json' },
               body: {
                 model: 'model_config:e2e',
-                messages: [
+                transcriptMessages: [
                   { role: 'system', content: '你是素材风险审计 worker。' },
                   { role: 'user', content: '请检查当前项目素材风险。' },
                 ],
@@ -374,7 +374,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
             latencyMs: 321,
             request: {
               body: {
-                messages: [
+                transcriptMessages: [
                   { role: 'system', content: '你是素材风险审计 worker。' },
                   { role: 'user', content: '请检查当前项目素材风险。' },
                 ],

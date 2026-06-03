@@ -108,7 +108,7 @@ export function preflightToolExecutionPipeline(input: {
           pendingActions,
           warnings: [
             ...repairGate.warnings,
-            '读取项目剧本需要先加载剧本读取能力，已自动加载后重试。',
+            'A required skill was loaded automatically before retrying the blocked tool call.',
           ],
         }
       }
@@ -466,7 +466,6 @@ async function executeRuntimeHandler(
     resourceFilePort: options.resourceFilePort,
     imageProcessingPort: options.imageProcessingPort,
     videoFrameExtractionPort: options.videoFrameExtractionPort,
-    projectStandardsPort: options.projectStandardsPort,
     fileSystem,
     registry: options.registry,
     memoryManager: options.memoryManager,

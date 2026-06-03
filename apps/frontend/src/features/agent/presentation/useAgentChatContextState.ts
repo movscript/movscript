@@ -11,6 +11,7 @@ interface UseAgentChatContextStateInput {
   currentProject: Project | null
   includeProjectContext: AgentSettings['includeProjectContext']
   localRuntimeEnabled: boolean
+  localSessionId?: string
 }
 
 export function useAgentChatContextState({
@@ -19,10 +20,12 @@ export function useAgentChatContextState({
   currentProject,
   includeProjectContext,
   localRuntimeEnabled,
+  localSessionId,
 }: UseAgentChatContextStateInput) {
   const { t } = useTranslation()
   const runtime = useAgentLocalRuntimeContextController({
     enabled: localRuntimeEnabled,
+    sessionId: localSessionId,
   })
   const summary = useAgentContextSummary({
     agentContextConfig,

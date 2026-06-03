@@ -12,12 +12,9 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { api } from '@/shared/infrastructure/api'
-import { generateImageViaRuntime, generateMediaViaRuntime, uploadResourceViaRuntime } from '@/features/plugins/application/clientPlugins'
-import { createMcpTools } from '@/features/plugins/infrastructure/mcpTools'
+import { getGenerationJobViaHost, submitGenerationJobViaHost, uploadResourceViaRuntime } from '@/features/plugins/application/clientPlugins'
 
 export function usePluginBridge(iframeRef: React.RefObject<HTMLIFrameElement | null>) {
-  const mcp = useRef(createMcpTools())
-
   const handleMessage = useCallback(async (event: MessageEvent) => {
     const iframe = iframeRef.current
     if (!iframe || event.source !== iframe.contentWindow) return
@@ -30,7 +27,7 @@ export function usePluginBridge(iframeRef: React.RefObject<HTMLIFrameElement | n
     }
 
     try {
-      const result = await dispatch(method, args ?? [], mcp.current)
+      const result = await dispatch(method, args ?? [])
       reply(result)
     } catch (err: any) {
       reply(undefined, err?.message ?? String(err))
@@ -43,38 +40,31 @@ export function usePluginBridge(iframeRef: React.RefObject<HTMLIFrameElement | n
   }, [handleMessage])
 }
 
-async function dispatch(method: string, args: unknown[], mcp: ReturnType<typeof createMcpTools>): Promise<unknown> {
+async function dispatch(method: string, args: unknown[]): Promise<unknown> {
   switch (method) {
-    case 'get':
+    case 'api.get':
       return api.get(args[0] as string).then((r) => r.data)
-    case 'post':
+    case 'api.post':
       return api.post(args[0] as string, args[1]).then((r) => r.data)
-    case 'patch':
+    case 'api.patch':
       return api.patch(args[0] as string, args[1]).then((r) => r.data)
-    case 'delete':
+    case 'api.delete':
       return api.delete(args[0] as string).then((r) => r.data)
-    case 'models':
+    case 'generation.models':
       return api.get(`/models?capability=${encodeURIComponent(args[0] as string)}`).then((r) => r.data)
-    case 'modelConfigs':
-      return api.get('/models?capability=image').then((r) => r.data)
-    case 'resources':
+    case 'generation.modelConfigs':
+      return api.get('/models').then((r) => r.data)
+    case 'resources.list':
       return api.get('/resources').then((r) => r.data)
-    case 'uploadResource':
+    case 'resources.upload':
       return uploadResourceViaRuntime(args[0] as any)
-    case 'generateMedia':
-      return generateMediaViaRuntime(args[0] as any)
-    case 'generateImage':
-      return generateImageViaRuntime(args[0] as any)
+    case 'generation.submit':
+      return submitGenerationJobViaHost(args[0] as any)
+    case 'generation.getJob':
+      return getGenerationJobViaHost(args[0] as any)
     case 'sleep':
       return new Promise((resolve) => setTimeout(resolve, args[0] as number))
     default:
-      // mcp.* methods
-      if (method.startsWith('mcp.')) {
-        const fn = method.slice(4) as keyof typeof mcp
-        if (typeof mcp[fn] === 'function') {
-          return (mcp[fn] as Function)(...(args as any[]))
-        }
-      }
       throw new Error(`unknown method: ${method}`)
   }
 }

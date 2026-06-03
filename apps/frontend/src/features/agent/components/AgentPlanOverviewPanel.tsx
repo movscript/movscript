@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Bot, CircleStop, ClipboardCheck, FileText, History, ListChecks, Loader2, PlayIcon, RefreshCw, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -116,6 +116,11 @@ export function AgentPlanOverviewPanel({
   const [loadingTraceEventsRunId, setLoadingTraceEventsRunId] = useState<string | null>(null)
   const [traceEventErrors, setTraceEventErrors] = useState<Record<string, string>>({})
   const [traceEventKindFilters, setTraceEventKindFilters] = useState<Record<string, 'all' | AgentTraceEvent['kind']>>({})
+  const snapshotSessionId = snapshot?.taskGraph.sessionId?.trim()
+  const runtimeClient = useMemo(() => snapshotSessionId
+    ? localAgentClient.forSession({ sessionId: snapshotSessionId })
+    : localAgentClient,
+  [snapshotSessionId])
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
   const artifactSummary = buildPlanArtifactSummary(snapshot)
@@ -146,7 +151,7 @@ export function AgentPlanOverviewPanel({
   }
   const openRun = (runId: string | undefined) => {
     if (!runId) return
-    navigate(agentRunPath(runId))
+    navigate(agentRunPath(runId, { sessionId: snapshot.taskGraph.sessionId }))
   }
   const loadTraceSummary = async (runId: string) => {
     if (traceSummaries[runId] || loadingTraceSummaryRunId === runId) return
@@ -157,7 +162,7 @@ export function AgentPlanOverviewPanel({
       return next
     })
     try {
-      const summary = await localAgentClient.getRunTraceSummary(runId)
+      const summary = await runtimeClient.getRunTraceSummary(runId)
       setTraceSummaries((current) => ({ ...current, [runId]: summary }))
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
@@ -177,7 +182,7 @@ export function AgentPlanOverviewPanel({
     try {
       const currentEvents = traceEventsByRunId[runId] ?? []
       const cursor = mode === 'more' ? currentEvents.at(-1)?.id : undefined
-      const response = await localAgentClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
+      const response = await runtimeClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
       setTraceEventsByRunId((current) => ({
         ...current,
         [runId]: mode === 'more' ? [...(current[runId] ?? []), ...response.events] : response.events,
@@ -465,7 +470,7 @@ export function AgentPlanOverviewPanel({
                           <AgentPlanOverviewActionButton
                             type="button"
                             variant="ghost"
-                            onClick={() => navigate(agentRunPath(view.worker!.id))}
+                            onClick={() => navigate(agentRunPath(view.worker!.id, { sessionId: view.worker?.sessionId ?? snapshot.taskGraph.sessionId }))}
                           >
                             <Route size={10} />
                             详情

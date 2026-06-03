@@ -79,6 +79,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/resource-storage/stats", h.resourceAdmin.StorageStats)
 	admin.GET("/resource-storage/resources", h.resourceAdmin.ListResources)
 	admin.GET("/resource-storage/resources/:id/detail", h.resourceAdmin.ResourceDetail)
+	admin.GET("/resource-storage/resources/:id/file", h.resourceAdmin.ServeFile)
 	admin.DELETE("/resource-storage/resources/:id", h.resourceAdmin.DeleteResource)
 	admin.POST("/resource-storage/blobs/gc", h.resourceAdmin.CollectUnusedBlobs)
 

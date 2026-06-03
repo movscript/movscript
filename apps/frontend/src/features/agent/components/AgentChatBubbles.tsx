@@ -18,10 +18,6 @@ import {
   AgentModelSetupCalloutDescription,
   AgentModelSetupCalloutIcon,
   AgentModelSetupCalloutTitle,
-  AgentRuntimeStatusContent,
-  AgentRuntimeStatusDetail,
-  AgentRuntimeStatusHeader,
-  AgentRuntimeStatusSuccessIcon,
   Button,
 } from '@movscript/ui'
 import { agentMessageDividerLabel, formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
@@ -30,29 +26,25 @@ import { type ThinkingBubbleState } from '@/features/agent/presentation/agentThi
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { GenerationParamAuditCard, GenerationProgressCard, GenerationValidationErrorCard } from '@/features/agent/components/GenerationCards'
+import { GenerationParamAuditCard, GenerationValidationErrorCard } from '@/features/agent/components/GenerationCards'
 import { GeneratedResultCard } from '@/features/agent/components/GeneratedResultCard'
 import {
   AgentAttachmentPreview as AttachmentPreview,
   AgentMarkdownContent as MarkdownContent,
   AgentMessageSection,
 } from '@/features/agent/components/AgentMessageContent'
-import { ContextDiagnosticCard } from '@/features/agent/components/ContextDiagnosticCard'
 import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWorkspaceResultCards'
-import { AgentPlanRevisionCard } from '@/features/agent/components/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
-import { visibleAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import { runtimeInputDisplayStatus } from '@/features/agent/domain/agentConversationThreadItems'
-import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
-import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
+import { transcriptAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { runtimeInputDisplayDeliveryStatus } from '@/features/agent/domain/agentConversationThreadItems'
 import { RunActivityTitleBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/presentation/agentMessageRenderMemo'
 import { useAgentMessagePresentationModel } from '@/features/agent/presentation/useAgentMessagePresentationModel'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
-import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: ThinkingBubbleState }) {
   const reasoning = state.reasoning?.trim() ?? ''
@@ -96,26 +88,10 @@ function fallbackThinkingDetail(state: ThinkingBubbleState): string {
   return '正在分析请求和上下文'
 }
 
-export function GenerationProgressBubble({ state }: { state: GenerationProgressState }) {
-  return (
-    <AgentChatMessage
-      role="assistant"
-      avatar={<Bot size={14} />}
-      head={<AgentMessageHeadLabel>{formatAgentDividerTime(state.firstSeenAt ?? state.updatedAt)}</AgentMessageHeadLabel>}
-      footer={(
-        <AgentChatTinyBadge variant={state.terminal ? 'outline' : 'soft'}>
-          {state.terminal ? '生成已结束' : '生成监控中'}
-        </AgentChatTinyBadge>
-      )}
-    >
-      <GenerationProgressCard state={state} />
-    </AgentChatMessage>
-  )
-}
-
 interface MessageBubbleProps {
   msg: ChatMessage
   projectId?: number
+  timelineActivity?: ChatRunActivity
   liveInteractionRun?: AgentRun | null
   liveInteractionEvents?: ChatRunActivityEvent[]
   approvingLocalRun?: boolean
@@ -128,6 +104,7 @@ interface MessageBubbleProps {
 export const MessageBubble = React.memo(function MessageBubble({
   msg,
   projectId,
+  timelineActivity,
   liveInteractionRun,
   liveInteractionEvents = [],
   approvingLocalRun = false,
@@ -142,27 +119,24 @@ export const MessageBubble = React.memo(function MessageBubble({
   const isUser = msg.role === 'user'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const time = useMemo(() => new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }), [locale, msg.timestamp])
-  const presentation = useAgentMessagePresentationModel(msg)
+  const presentation = useAgentMessagePresentationModel(msg, timelineActivity)
   const runtimeInput = msg.meta?.runtimeInput
-  const runtimeRunId = visibleAssistantRuntimeMessageRunId(msg)
-  const planRevision = msg.meta?.planRevision
-  const runtimeInputStatus = runtimeInputDisplayStatus(msg)
-  const runtimeInputLabel = runtimeInputStatus === 'pending'
+  const runtimeRunId = transcriptAssistantRuntimeMessageRunId(msg)
+  const runtimeInputDeliveryStatus = runtimeInputDisplayDeliveryStatus(msg)
+  const runtimeInputDeliveryLabel = runtimeInputDeliveryStatus === 'pending'
     ? '正在同步到运行中对话'
-    : runtimeInputStatus === 'accepted'
+    : runtimeInputDeliveryStatus === 'accepted'
       ? '已加入运行中对话'
-      : runtimeInputStatus === 'consumed'
+      : runtimeInputDeliveryStatus === 'consumed'
         ? '已被模型读取'
-        : runtimeInputStatus === 'failed' ? '同步失败' : undefined
+        : runtimeInputDeliveryStatus === 'failed' ? '同步失败' : undefined
   const {
-    contextDiagnostic,
     contextLabels,
     workspaceArtifacts,
     generationJobs,
     generationParamAudits,
     generationValidationErrors,
-    localRunActivity,
-    runtimeStatus,
+    timelineActivity: historicalTimelineActivity,
     messageAttachments,
     generatedMediaAttachments,
     compactAttachments,
@@ -176,29 +150,18 @@ export const MessageBubble = React.memo(function MessageBubble({
   const hasActivityContent = useMemo(() => !isUser && (
     activityFeedRun
       ? runActivityHasVisibleContent(undefined, activityFeedRun, liveInteractionEvents, hiddenActivityActionItemIds)
-      : !!localRunActivity && runActivityHasVisibleContent(localRunActivity, undefined, undefined, hiddenActivityActionItemIds)
-  ), [activityFeedRun, hiddenActivityActionItemIds, isUser, liveInteractionEvents, localRunActivity])
+      : !!historicalTimelineActivity && runActivityHasVisibleContent(historicalTimelineActivity, undefined, undefined, hiddenActivityActionItemIds)
+  ), [activityFeedRun, hiddenActivityActionItemIds, historicalTimelineActivity, isUser, liveInteractionEvents])
   const hasMessageBody = isUser
     ? !!displayContent.trim() || compactAttachments.length > 0
     : hasActivityContent
-      || !!planRevision
       || !!displayContent.trim()
       || showModelSetupAction
       || hasResultSection
       || hasDiagnosticSection
-  const hasFooter = contextLabels.length > 0 || !!runtimeInputLabel
-  const assistantHeadLabel = !isUser ? agentMessageDividerLabel(time, localRunActivity) : undefined
-  const asyncWorkHandoffOnly = !isUser
-    && shouldRenderRuntimeStatusOnly({
-      content: msg.content,
-      runtimeStatus,
-      hasDiagnosticSection,
-      hasResultSection,
-      planRevision,
-      showModelSetupAction,
-    })
+  const hasFooter = contextLabels.length > 0 || !!runtimeInputDeliveryLabel
+  const assistantHeadLabel = !isUser ? agentMessageDividerLabel(time, historicalTimelineActivity) : undefined
 
-  if (asyncWorkHandoffOnly && runtimeStatus) return <RuntimeStatusBubble status={runtimeStatus} />
   if (!hasMessageBody && !hasFooter) return null
 
   function copy() {
@@ -229,18 +192,18 @@ export const MessageBubble = React.memo(function MessageBubble({
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </Button>
       ) : hasActivityContent && !activityFeedRun ? (
-        <AgentActivityDividerMenu activity={localRunActivity} />
+        <AgentActivityDividerMenu activity={historicalTimelineActivity} />
       ) : undefined}
-      footer={(contextLabels.length > 0 || runtimeInputLabel) && (
+      footer={(contextLabels.length > 0 || runtimeInputDeliveryLabel) && (
         <AgentChatFooterBadges align={isUser ? 'end' : 'start'}>
-          {runtimeInputLabel && (
+          {runtimeInputDeliveryLabel && (
             <AgentChatTinyStatusBadge
-              tone={runtimeInputStatus === 'failed' ? 'danger' : runtimeInputStatus === 'pending' ? 'neutral' : 'neutral'}
+              tone={runtimeInputDeliveryStatus === 'failed' ? 'danger' : runtimeInputDeliveryStatus === 'pending' ? 'neutral' : 'neutral'}
               title={runtimeInput?.error}
             >
-              {runtimeInputStatus === 'pending' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
-              {runtimeInputStatus === 'failed' && <AlertCircle size={10} className="mr-1 inline" />}
-              {runtimeInputLabel}
+              {runtimeInputDeliveryStatus === 'pending' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
+              {runtimeInputDeliveryStatus === 'failed' && <AlertCircle size={10} className="mr-1 inline" />}
+              {runtimeInputDeliveryLabel}
             </AgentChatTinyStatusBadge>
           )}
           {contextLabels.map((label) => (
@@ -256,7 +219,7 @@ export const MessageBubble = React.memo(function MessageBubble({
           activity={undefined}
           run={activityFeedRun}
           events={liveInteractionEvents}
-          className={displayContent || planRevision ? 'mb-2' : undefined}
+          className={displayContent ? 'mb-2' : undefined}
           approving={approvingLocalRun}
           onApprove={onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
           onReject={onRejectLocalRun ? (approvalIds) => onRejectLocalRun(activityFeedRun.id, approvalIds) : undefined}
@@ -265,16 +228,14 @@ export const MessageBubble = React.memo(function MessageBubble({
           hiddenActionItemIds={hiddenActivityActionItemIds}
         />
       )}
-      {!isUser && hasActivityContent && !activityFeedRun && localRunActivity && (
+      {!isUser && hasActivityContent && !activityFeedRun && historicalTimelineActivity && (
         <RunActivityTitleBubble
-          activity={localRunActivity}
+          activity={historicalTimelineActivity}
           title="运行过程"
-          className={displayContent || planRevision ? 'mb-2' : undefined}
+          className={displayContent ? 'mb-2' : undefined}
         />
       )}
-      {planRevision
-        ? <AgentPlanRevisionCard revision={planRevision} />
-        : displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
+      {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {showModelSetupAction && (
         <AgentModelSetupCallout>
           <AgentModelSetupCalloutBody>
@@ -308,8 +269,7 @@ export const MessageBubble = React.memo(function MessageBubble({
         </AgentChatResultStack>
       )}
       {hasDiagnosticSection && (
-        <AgentMessageSection title={t('agents.chat.messageSections.diagnostics')} tone="diagnostic" defaultOpen={!!contextDiagnostic && !displayContent}>
-          {contextDiagnostic && <ContextDiagnosticCard diagnostic={contextDiagnostic} />}
+        <AgentMessageSection title={t('agents.chat.messageSections.diagnostics')} tone="diagnostic" defaultOpen={!displayContent}>
           <GenerationValidationErrorCard errors={generationValidationErrors} />
           <GenerationParamAuditCard audits={generationParamAudits} />
         </AgentMessageSection>
@@ -328,6 +288,7 @@ export const MessageBubble = React.memo(function MessageBubble({
 function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
   return prev.msg === next.msg
     && prev.projectId === next.projectId
+    && prev.timelineActivity === next.timelineActivity
     && prev.liveInteractionRun === next.liveInteractionRun
     && shallowReferenceArrayEqual(prev.liveInteractionEvents, next.liveInteractionEvents)
     && prev.approvingLocalRun === next.approvingLocalRun
@@ -338,45 +299,13 @@ function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbl
 }
 
 function runActivityHasVisibleContent(
-  activity?: NonNullable<ChatMessage['meta']>['localRunActivity'],
+  activity?: ChatRunActivity,
   run?: AgentRun | null,
   events?: ChatRunActivityEvent[],
   hiddenActionItemIds?: Set<string>,
 ): boolean {
   const feed = buildAgentActivityFeed({ activity, run, events, hiddenActionItemIds })
   return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
-}
-
-function RuntimeStatusBubble({ status }: { status: RuntimeStatusMessage }) {
-  return (
-    <AgentChatMessage
-      role="assistant"
-      avatar={<Bot size={14} />}
-      head={<AgentMessageHeadLabel>{formatAgentDividerTime(undefined)}</AgentMessageHeadLabel>}
-      footer={(
-        <AgentChatTinyBadge variant="outline">
-          Runtime
-        </AgentChatTinyBadge>
-      )}
-    >
-      <AgentRuntimeStatusContent>
-        <AgentRuntimeStatusHeader>
-          <AgentRuntimeStatusSuccessIcon>
-            <Check size={12} />
-          </AgentRuntimeStatusSuccessIcon>
-          <span>{status.title}</span>
-        </AgentRuntimeStatusHeader>
-        <AgentRuntimeStatusDetail>{status.detail}</AgentRuntimeStatusDetail>
-        {(status.workId || status.workKind || status.workStatus) && (
-          <AgentChatFooterBadges>
-            {status.workKind && <AgentChatTinyBadge>{status.workKind}</AgentChatTinyBadge>}
-            {status.workStatus && <AgentChatTinyBadge variant="outline">{status.workStatus}</AgentChatTinyBadge>}
-            {status.workId && <AgentChatTinyBadge variant="outline">{status.workId}</AgentChatTinyBadge>}
-          </AgentChatFooterBadges>
-        )}
-      </AgentRuntimeStatusContent>
-    </AgentChatMessage>
-  )
 }
 
 export function StreamingAssistantBubble({ content }: { content: string }) {

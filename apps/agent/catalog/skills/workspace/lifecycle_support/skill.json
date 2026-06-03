@@ -2,7 +2,7 @@
   "id": "workspace.lifecycle_support",
   "version": "1.0.0",
   "name": "Workspace Lifecycle",
-  "description": "通用本地 workspace 打开、读取、编辑、validate/apply 和汇报流程；workspace_validate 内置 validation 与 dry-run。",
+  "description": "通用 workspace 打开、读取、编辑、validate/save 和汇报流程；具体 schema、字段和影响面以 MCP contract 为准。",
   "priority": 740,
   "enabled": true,
   "triggers": [
@@ -20,7 +20,7 @@
     }
   ],
   "toolScope": "intersect",
-  "outputContract": "返回 workspaceId、kind、是否读取过现有 workspace、validation/apply 结果，以及下一步编辑或 apply 动作。",
+  "outputContract": "返回 workspaceId、kind、是否读取过当前 workspace、MCP validation effects/save 结果，以及下一步编辑或 save 动作。",
   "instructionTemplatePath": "instruction.md",
   "toolGrants": [
     "get_workspace_model",

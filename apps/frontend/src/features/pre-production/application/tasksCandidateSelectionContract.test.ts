@@ -111,11 +111,13 @@ test('task detail can publish work items into the agent panel and reopen the lin
   assert.match(source, /打开 AI 会话/)
 
   assert.match(bridgeSource, /AGENT_PANEL_THREAD_EVENT/)
-  assert.match(bridgeSource, /function openAgentPanelThread\(threadId: string\)/)
+  assert.match(bridgeSource, /function openAgentPanelThread\(input: string \| AgentPanelThreadPayload, sessionId\?: string\)/)
+  assert.match(bridgeSource, /sessionId: payload\.sessionId\.trim\(\)/)
   assert.match(panelSource, /pendingThreadIdToOpen/)
+  assert.match(panelSource, /pendingThreadSessionIdToOpen/)
   assert.match(panelSource, /<AgentBuiltinChatShell/)
   assert.match(builtinChatShellSource, /useAgentBuiltinChatController\(\{/)
-  assert.match(builtinChatControllerSource, /handleRestoreLocalThread\(pendingThreadIdToOpen\)/)
+  assert.match(builtinChatControllerSource, /handleRestoreLocalThread\(pendingThreadIdToOpen, pendingThreadSessionIdToOpen \?\? undefined\)/)
 })
 
 test('task creation dialog keeps publish controls visible and can publish to a named agent', () => {

@@ -62,6 +62,26 @@ test('createRuntimeThread keeps the session interactive thread stable when addin
   assert.equal(session?.activeThreadId, 'thread_worker')
 })
 
+test('createRuntimeThread creates a requested session when the store has not loaded it yet', () => {
+  const store = new InMemoryAgentStore()
+
+  const result = createRuntimeThread({
+    store,
+    threadId: 'thread_session_scoped',
+    messageId: () => 'msg_1',
+    now: () => '2026-01-01T00:00:00.000Z',
+    threadInput: {
+      sessionId: 'session_scoped',
+      title: 'Scoped conversation',
+    },
+  })
+
+  assert.equal(result.thread.sessionId, 'session_scoped')
+  assert.equal(store.getSession('session_scoped')?.title, 'Scoped conversation')
+  assert.equal(store.getSession('session_scoped')?.rootThreadId, 'thread_session_scoped')
+  assert.equal(store.getSession('session_scoped')?.interactiveThreadId, 'thread_session_scoped')
+})
+
 test('updateRuntimeThread persists thread updates', () => {
   const store = new InMemoryAgentStore()
   createRuntimeThread({

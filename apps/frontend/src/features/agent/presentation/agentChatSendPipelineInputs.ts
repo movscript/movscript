@@ -35,6 +35,7 @@ export function buildAgentChatSendPipelineInput({
       activeConversationManifest: context.activeConversationManifest,
       externalTask,
       pageToolRequestId,
+      localRuntimeSessionId: store.localSessionId,
       localAgentOnline: context.localAgentOnline,
       ...(context.localAgentHealth?.mcpEndpoint ? { mcpEndpoint: context.localAgentHealth.mcpEndpoint } : {}),
       refetchLocalAgentHealth: context.refetchLocalAgentHealth,
@@ -81,7 +82,7 @@ export function buildAgentChatSendPipelineInput({
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
       canSendActiveRunRuntimeInput: canSendActiveRunRuntimeInput({
         run: activeLocalRun ?? store.conversationRuntime?.run ?? null,
-        threadId: store.localThreadId ?? store.conversationRuntime?.threadId ?? activeLocalRun?.threadId,
+        sessionId: store.localSessionId,
       }),
       modelId: composer.modelId,
       debugBeforeSend: runtime.debugBeforeSend,
@@ -95,14 +96,13 @@ export function buildAgentChatSendPipelineInput({
       setConversationBuilding: (patch) => store.setConversationRuntime(conv.id, patch),
       sendActiveRunRuntimeInput: async ({ content, attachments }) => {
         const run = activeLocalRun ?? store.conversationRuntime?.run
-        const threadId = store.localThreadId ?? store.conversationRuntime?.threadId ?? run?.threadId
-        if (!run || !threadId) throw new Error('active runtime run is not available')
+        if (!run || !store.localSessionId) throw new Error('active runtime session run is not available')
         await sendActiveRunRuntimeInput({
           content,
           attachments,
           deps: {
             conversationId: conv.id,
-            threadId,
+            sessionId: store.localSessionId,
             run,
             setConversationRun: store.setConversationRun,
             setConversationRuntime: store.setConversationRuntime,
@@ -116,7 +116,7 @@ export function buildAgentChatSendPipelineInput({
 
 function canSendActiveRunRuntimeInput(input: {
   run: NonNullable<BuildAgentChatInteractionControllerInputOptions['activeLocalRun']> | null
-  threadId?: string
+  sessionId?: string
 }): boolean {
-  return !!input.run && !isTerminalAgentRun(input.run) && !!input.threadId?.trim()
+  return !!input.run && !isTerminalAgentRun(input.run) && !!input.sessionId?.trim()
 }

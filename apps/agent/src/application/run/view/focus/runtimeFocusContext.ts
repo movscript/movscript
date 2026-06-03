@@ -42,7 +42,7 @@ export async function resolveRuntimeFocusContext(input: {
   const contextStartedAt = input.timestampMs()
   try {
     await input.mcpClient.initialize({ signal: input.signal })
-    const contextResult = await input.mcpClient.callTool('movscript_focus_get', {}, { signal: input.signal })
+    const contextResult = await input.mcpClient.callTool('get_focus_context', {}, { signal: input.signal })
     return {
       contextResult,
       contextStartedAt,
@@ -60,7 +60,7 @@ export async function resolveRuntimeFocusContext(input: {
       round: input.setupRound,
       data: {
         source: 'mcp_focus',
-        endpoint: 'movscript_focus_get',
+        endpoint: 'get_focus_context',
         error: contextError,
         durationMs: contextDurationMs,
         startedAt: new Date(contextStartedAt).toISOString(),

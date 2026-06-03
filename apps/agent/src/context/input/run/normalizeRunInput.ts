@@ -27,6 +27,7 @@ export function normalizeWorkspaceQuery(query: {
   pageRoute?: unknown
   pageEntityType?: unknown
   pageEntityId?: unknown
+  current?: unknown
   limit?: unknown
 }): {
   projectId?: number
@@ -42,6 +43,7 @@ export function normalizeWorkspaceQuery(query: {
   pageRoute?: string
   pageEntityType?: string
   pageEntityId?: number | string
+  current?: boolean
   limit?: number
 } {
   const kind = normalizeOptionalWorkspaceKind(query.kind)
@@ -61,6 +63,7 @@ export function normalizeWorkspaceQuery(query: {
     ...(typeof query.pageRoute === 'string' && query.pageRoute.trim() ? { pageRoute: query.pageRoute.trim() } : {}),
     ...(typeof query.pageEntityType === 'string' && query.pageEntityType.trim() ? { pageEntityType: query.pageEntityType.trim() } : {}),
     ...(isValidAgentReferenceId(query.pageEntityId) ? { pageEntityId: query.pageEntityId } : {}),
+    ...(typeof query.current === 'boolean' ? { current: query.current } : {}),
     ...(typeof query.limit === 'number' && Number.isFinite(query.limit) ? { limit: query.limit } : {}),
   }
 }

@@ -7,7 +7,6 @@ export interface PrepareSendRuntimeDeps {
   markActivityEventStarted: (id: string) => void
   ensureRunning: () => Promise<unknown>
   refetchLocalAgentHealth: () => Promise<unknown>
-  assertMCPReady: () => Promise<unknown>
   syncRuntimeModelConfig: (model: string) => Promise<unknown>
   markPerformancePhase?: (name: string, details?: Record<string, unknown>) => void
   setPendingAssistantThinking: () => void
@@ -18,13 +17,12 @@ export interface PrepareSendRuntimeInput {
   workspace: AgentSendWorkspace
   localAgentOnline: boolean
   localAgentBaseURL: string
-  mcpEndpoint?: string
   signal: AbortSignal
   deps: PrepareSendRuntimeDeps
 }
 
 export async function prepareSendRuntime(input: PrepareSendRuntimeInput): Promise<void> {
-  const { workspace, localAgentOnline, localAgentBaseURL, mcpEndpoint, signal, deps } = input
+  const { workspace, localAgentOnline, localAgentBaseURL, signal, deps } = input
   if (!localAgentOnline) {
     deps.markPerformancePhase?.('ensure_runtime_start')
     deps.startActivityEvent({
@@ -42,16 +40,6 @@ export async function prepareSendRuntime(input: PrepareSendRuntimeInput): Promis
     deps.markPerformancePhase?.('health_refetch_done')
     throwIfAborted(signal, deps.abortError)
   }
-  deps.markPerformancePhase?.('mcp_ready_check_start')
-  deps.startActivityEvent({
-    id: 'local-runtime-mcp-ready',
-    kind: 'runtime',
-    title: '检查 MCP 服务',
-    summary: mcpEndpoint ?? localAgentBaseURL,
-  })
-  await deps.assertMCPReady()
-  deps.markPerformancePhase?.('mcp_ready_check_done')
-  deps.completeActivityEvent('local-runtime-mcp-ready')
   deps.setPendingAssistantThinking()
   deps.markPerformancePhase?.('model_config_sync_start', {
     model: workspace.model.runtimeModelId ?? workspace.model.name ?? String(workspace.model.id),
@@ -61,7 +49,7 @@ export async function prepareSendRuntime(input: PrepareSendRuntimeInput): Promis
   deps.markPerformancePhase?.('model_config_sync_done')
   deps.completeActivityEvent('http-request-local-save-model-config')
   throwIfAborted(signal, deps.abortError)
-  deps.markActivityEventStarted('http-request-local-create-thread')
+  deps.markActivityEventStarted('http-request-local-session-message-run')
   throwIfAborted(signal, deps.abortError)
 }
 

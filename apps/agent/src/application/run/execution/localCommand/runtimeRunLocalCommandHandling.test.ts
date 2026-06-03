@@ -17,7 +17,6 @@ import type {
   AgentRun,
   AgentRunStep,
   AgentThread,
-  JSONValue,
 } from '../../../../state/shared/types.js'
 import { StaticToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core/runtimeCatalogSnapshot.js'
@@ -28,7 +27,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -45,11 +43,6 @@ const defaultWorkspaceApplyBackend = {
 }
 const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
 const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
-const defaultProjectStandardsBackend = {
-  async getProject(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
 
 test('applyRuntimeRunLocalCommandHandling handles diagnostic commands through the dispatch boundary', async () => {
   const store = new InMemoryAgentStore()
@@ -67,36 +60,20 @@ test('applyRuntimeRunLocalCommandHandling handles diagnostic commands through th
   assert.equal(store.getThread(thread.id)?.messages.at(-1)?.role, 'assistant')
 })
 
-test('applyRuntimeRunLocalCommandHandling executes generation commands with catalog snapshot tools', async () => {
+test('applyRuntimeRunLocalCommandHandling does not execute generation slash commands locally', async () => {
   const store = new InMemoryAgentStore()
   const run = makeRun()
   const thread = makeThread()
   store.createThread(thread)
   store.createRun(run)
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
 
   const handled = await applyRuntimeRunLocalCommandHandling({
     ...baseInput(store, run, thread, '/image a title card'),
-    catalogManager: {
-      inspectAgentCatalog: () => ({}),
-      updateActiveSkills: () => ({}),
-      updatePlan: () => ({}),
-      startWork: async (_run, args) => {
-        calls.push({ name: 'core_work_start', args })
-        return { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } } as JSONValue
-      },
-      getWork: () => ({}),
-      listWork: () => ({}),
-      waitWork: () => ({}),
-      cancelWork: () => ({}),
-    } as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
   })
 
-  assert.equal(handled, true)
-  assert.equal(run.status, 'completed')
-  assert.equal(calls[0]?.name, 'core_work_start')
-  assert.equal(calls.length, 1)
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'core_work_start')
+  assert.equal(handled, false)
+  assert.equal(run.status, 'in_progress')
+  assert.equal(run.metadata?.forcedToolCall, undefined)
 })
 
 function baseInput(
@@ -130,7 +107,6 @@ function baseInput(
     workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
-    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     memoryManager,
     runtimeToolHandlers: defaultRuntimeToolHandlers,
     referenceManager: new ReferenceManager(EMPTY_REFERENCE_STORE),

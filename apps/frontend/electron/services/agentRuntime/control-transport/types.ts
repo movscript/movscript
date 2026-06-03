@@ -22,5 +22,7 @@ export interface AgentRuntimeControlTransportInput {
   baseURL?: string
   transportKind?: AgentRuntimeControlTransportKind
   socketPath?: string
+  workspaceDir?: string
+  sessionId?: string
   env?: NodeJS.ProcessEnv
 }

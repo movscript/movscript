@@ -19,10 +19,10 @@ import {
 
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
+import { startSharedProvisionalConversation } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { api } from '@/shared/infrastructure/api'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { routeForWorkMode } from '@/routes/appRouteModel'
@@ -78,8 +78,7 @@ export default function GlobalHomePage() {
     void (async () => {
       const label = String(t(`home.inspiration.${option.key}`))
       try {
-        await localAgentClient.ensureRunning()
-        const thread = await localAgentClient.startProvisionalConversation({ title: label })
+        const thread = await startSharedProvisionalConversation({ title: label })
         const createdAt = Date.parse(thread.createdAt)
         const updatedAt = Date.parse(thread.updatedAt)
         const conversationId = createRuntimeConversation(userId, {

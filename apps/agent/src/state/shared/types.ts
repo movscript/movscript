@@ -9,6 +9,9 @@ import type {
   AgentDebugTool as ProtocolAgentDebugTool,
   AgentToolRuntimeExplanation as ProtocolAgentToolRuntimeExplanation,
   AgentClientInput as ProtocolAgentClientInput,
+  AgentContextDiagnosticRecord as ProtocolAgentContextDiagnosticRecord,
+  AgentRuntimeStatusLightState as ProtocolAgentRuntimeStatusLightState,
+  AgentRuntimeStatusRecord as ProtocolAgentRuntimeStatusRecord,
   AgentInputChoice as ProtocolAgentInputChoice,
   AgentInputRequest as ProtocolAgentInputRequest,
   AgentInputRequestStatus as ProtocolAgentInputRequestStatus,
@@ -87,6 +90,11 @@ export type AgentSession = ProtocolAgentSession
 export type AgentSessionSummary = ProtocolAgentSessionSummary
 
 export type AgentMessage = ProtocolAgentMessage
+
+export type AgentContextDiagnosticRecord = ProtocolAgentContextDiagnosticRecord
+
+export type AgentRuntimeStatusRecord = ProtocolAgentRuntimeStatusRecord
+export type AgentRuntimeStatusLightState = ProtocolAgentRuntimeStatusLightState
 
 export type AgentThread = ProtocolAgentThread
 
@@ -190,6 +198,12 @@ export type AgentInternalRunSignal =
     run: AgentInternalRunSignalRun
   }
   | {
+    type: 'runtime_status'
+    status: AgentRuntimeStatusRecord
+    runId?: string
+    run?: AgentInternalRunSignalRun
+  }
+  | {
     type: 'thread_title'
     runId: string
     threadId: string
@@ -257,7 +271,6 @@ export interface AgentClientUISnapshot {
     visual_style?: string
     project_style?: string
   }
-  productionId?: number
   workspaceId?: string
   selection?: {
     entityType?: string
@@ -304,7 +317,6 @@ export interface AgentRuntimeRouterOptions {
   resourceFilePort?: import('../../ports/files/resourceFilePort.js').CoreResourceFilePort
   imageProcessingPort?: import('../../ports/media/imageProcessingPort.js').CoreImageProcessingPort
   videoFrameExtractionPort?: import('../../ports/media/videoFrameExtractionPort.js').CoreVideoFrameExtractionPort
-  projectStandardsPort?: import('../../ports/project/projectStandardsPort.js').ProjectStandardsPort
   runtimeToolHandlers?: import('../../ports/runtime/runtimeToolHandlerPort.js').RuntimeToolHandlerRegistry
   referenceManager?: import('../../reference/manager/referenceManager.js').ReferenceManager
   memoryStore?: import('../../memory/store/in-memory/memoryStore.js').AgentMemoryStore
@@ -317,6 +329,7 @@ export interface AgentRuntimeRouterOptions {
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
   updateState?: AgentUpdateState
+  resolveModelConfig?: typeof import('../../model/config/modelConfig.js').resolveRuntimeChatModelConfig
   telemetry?: import('../../telemetry/runtime/runtimeTelemetry.js').RuntimeTelemetryRegistry
 }
 

@@ -44,19 +44,17 @@ test('normalizeClientInput drops non-plain nested attachment and ui snapshot rec
   assert.deepEqual(normalized?.uiSnapshot?.recentResources, [{ id: 7, name: 'Shot', type: 'image', mimeType: 'image/png' }])
 })
 
-test('normalizeClientInput drops invalid ui project and production ids', () => {
+test('normalizeClientInput drops invalid ui project ids', () => {
   for (const invalidId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     const normalized = normalizeClientInput({
       message: 'inspect',
       uiSnapshot: {
         project: { id: invalidId, name: 'Invalid project' },
-        productionId: invalidId,
       },
     })
 
     assert.equal(normalized?.uiSnapshot?.project?.id, undefined)
     assert.equal(normalized?.uiSnapshot?.project?.name, 'Invalid project')
-    assert.equal(normalized?.uiSnapshot?.productionId, undefined)
   }
 })
 
@@ -93,9 +91,9 @@ test('normalizeClientInput drops invalid numeric entity reference ids', () => {
         pageEntityId: 42.5,
       },
       selection: {
-        entityType: 'production',
+        entityType: 'custom_entity',
         entityId: 0,
-        label: 'Invalid production',
+        label: 'Invalid entity',
       },
     },
   })
@@ -105,8 +103,8 @@ test('normalizeClientInput drops invalid numeric entity reference ids', () => {
     pageEntityType: 'project',
   })
   assert.deepEqual(normalized?.uiSnapshot?.selection, {
-    entityType: 'production',
-    label: 'Invalid production',
+    entityType: 'custom_entity',
+    label: 'Invalid entity',
   })
 })
 

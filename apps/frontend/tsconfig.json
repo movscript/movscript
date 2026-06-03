@@ -17,6 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@movscript/agent-runtime": ["../../packages/agent-runtime/src/index.ts"],
       "@movscript/conversation": ["../../packages/conversation/src/index.ts"],
       "@movscript/event-state": ["../../packages/event-state/src/index.ts"],
       "@movscript/protocol": ["../../packages/protocol/src/index.ts"],

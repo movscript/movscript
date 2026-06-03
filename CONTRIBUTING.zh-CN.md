@@ -21,14 +21,14 @@ openssl rand -hex 32
 启动主要开发服务：
 
 ```bash
-pnpm --filter movscript-backend dev
-pnpm --filter movscript-frontend dev
+pnpm --filter @movscript/backend dev
+pnpm --filter @movscript/desktop dev
 ```
 
-可选本地 Agent：
+调试 Agent 流程：
 
 ```bash
-pnpm --filter movscript-agent dev
+pnpm --filter @movscript/desktop dev
 ```
 
 ## 提交 Pull Request 前
@@ -43,7 +43,7 @@ pnpm run build
 较小的前端改动至少运行：
 
 ```bash
-pnpm --filter movscript-frontend typecheck
+pnpm --filter @movscript/desktop typecheck
 ```
 
 后端改动运行：

@@ -10,7 +10,7 @@ export type AgentPerformanceOperationKind =
   | 'external_task'
   | 'conversation_create'
   | 'conversation_open'
-  | 'message_history_load'
+  | 'timeline_load'
 export type AgentPerformanceOperationStatus = 'running' | 'success' | 'error' | 'cancelled'
 export type AgentPerformanceLogLevel = 'info' | 'warning' | 'error'
 
@@ -91,7 +91,7 @@ const SLOW_OPERATION_THRESHOLDS_MS: Record<AgentPerformanceOperationKind, number
   external_task: 1_000,
   conversation_create: 800,
   conversation_open: 800,
-  message_history_load: 600,
+  timeline_load: 600,
 }
 
 let observerInstalled = false
@@ -542,7 +542,7 @@ export function operationKindLabel(kind: AgentPerformanceOperationKind): string 
     case 'external_task': return '外部任务'
     case 'conversation_create': return '新建会话'
     case 'conversation_open': return '打开会话'
-    case 'message_history_load': return '读取历史消息'
+    case 'timeline_load': return '读取 Timeline'
     default: return kind
   }
 }
@@ -623,10 +623,10 @@ export function phaseLabel(name: string): string {
     conversation_archive_patch_start: '归档状态更新开始',
     conversation_archive_patch_done: '归档状态更新完成',
     conversation_active_set: '活动会话已切换',
-    message_history_request_start: '历史消息请求开始',
-    message_history_request_done: '历史消息请求完成',
-    message_history_state_replace_queued: '历史消息替换已排队',
-    message_history_state_merge_queued: '历史消息合并已排队',
+    timeline_request_start: 'Timeline 请求开始',
+    timeline_request_done: 'Timeline 请求完成',
+    timeline_state_replace_queued: 'Timeline 替换已排队',
+    timeline_state_merge_queued: 'Timeline 合并已排队',
   }
   return labels[name] ?? name.replace(/_/g, ' ')
 }

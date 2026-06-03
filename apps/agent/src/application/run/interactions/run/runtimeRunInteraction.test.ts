@@ -77,7 +77,7 @@ test('answerRuntimeRunInputRequest records the answer and appends an intentional
     kind: 'runtime_input',
     targetRunId: 'run_1',
     mode: 'soft',
-    status: 'accepted',
+    deliveryStatus: 'accepted',
   })
   assert.equal(thread?.messages[0]?.role, 'user')
   assert.match(thread?.messages[0]?.content ?? '', /选择目标内容/)
@@ -139,7 +139,7 @@ test('applyRuntimeRunRequiredActionFlow pauses approval runs and projects the th
     warnings: ['needs approval'],
     now,
     recordTrace: (_run, trace) => traces.push(trace),
-    emitRunSnapshot: (targetRun, options) => events.push(`snapshot:${targetRun.status}:${options.done === true}`),
+    emitRunSnapshot: (targetRun, options) => events.push(`snapshot:${targetRun.status}:${options?.done === true}`),
   })
 
   assert.equal(result.status, 'requires_action')
@@ -152,7 +152,7 @@ test('applyRuntimeRunRequiredActionFlow pauses approval runs and projects the th
   assert.equal((data.approvalSummary as Record<string, unknown>).total, 1)
   assert.equal((data.inputRequestSummary as Record<string, unknown>).total, 0)
   assert.doesNotMatch(JSON.stringify(data), /Needs approval/)
-  assert.deepEqual(events, ['snapshot:requires_action:true'])
+  assert.deepEqual(events, ['snapshot:requires_action:false'])
 })
 
 test('applyRuntimeRunRequiredActionFlow uses input trace kind when only user input is pending', () => {

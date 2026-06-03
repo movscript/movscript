@@ -77,6 +77,53 @@ test('runtime model config can be cleared back to unconfigured state', () => {
   }
 })
 
+test('runtime model config falls back to workspace config when session file is missing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'), {
+      fallbackConfig: {
+        modelConfigId: 3,
+        model: 'gpt-5.4',
+        apiKind: 'openai_responses',
+        useForChat: true,
+        useForPlanner: true,
+      },
+    })
+
+    const effective = store.getEffectiveConfig()
+    const publicConfig = store.getPublicConfig()
+
+    assert.equal(effective?.modelConfigId, 3)
+    assert.equal(effective?.model, 'gpt-5.4')
+    assert.equal(publicConfig.configured, true)
+    assert.equal(publicConfig.modelConfigId, 3)
+    assert.equal(publicConfig.model, 'gpt-5.4')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config clear disables workspace fallback for the current process', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'), {
+      fallbackConfig: {
+        model: 'workspace-default',
+        useForChat: true,
+        useForPlanner: true,
+      },
+    })
+
+    assert.equal(store.getEffectiveConfig()?.model, 'workspace-default')
+    const cleared = store.clear()
+
+    assert.equal(cleared.configured, false)
+    assert.equal(store.getEffectiveConfig(), undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime model config keeps an existing backend model config id when saving usage changes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   try {

@@ -1,6 +1,5 @@
 const AGENT_CONVERSATION_OPEN_STATE_STORAGE_KEY = 'movscript-agent-conversation-open-state'
 const AGENT_ACTIVE_CONVERSATION_STORAGE_KEY = 'movscript-agent-active-conversation'
-const LEGACY_AGENT_CONVERSATION_OPEN_ORDER_STORAGE_KEY = 'movscript-agent-conversation-open-order'
 export const AGENT_CONVERSATION_OPEN_STATE_CHANGED_EVENT = 'movscript-agent-conversation-open-state-changed'
 
 export interface AgentConversationOpenRecord {
@@ -12,14 +11,10 @@ export function agentConversationOpenStateStorageKey(userId: string) {
   return `${AGENT_CONVERSATION_OPEN_STATE_STORAGE_KEY}:${userId || 'anonymous'}`
 }
 
-function legacyAgentConversationOpenOrderStorageKey(userId: string) {
-  return `${LEGACY_AGENT_CONVERSATION_OPEN_ORDER_STORAGE_KEY}:${userId || 'anonymous'}`
-}
-
 export function readAgentConversationOpenState(userId: string): AgentConversationOpenRecord[] {
   if (typeof window === 'undefined') return []
   const saved = window.localStorage.getItem(agentConversationOpenStateStorageKey(userId))
-  if (saved === null) return readLegacyOpenOrder(userId).map((id) => ({ id, open: true }))
+  if (saved === null) return []
   try {
     const parsed = JSON.parse(saved)
     if (Array.isArray(parsed)) {
@@ -28,7 +23,7 @@ export function readAgentConversationOpenState(userId: string): AgentConversatio
   } catch {
     return []
   }
-  return readLegacyOpenOrder(userId).map((id) => ({ id, open: true }))
+  return []
 }
 
 export function writeAgentConversationOpenState(userId: string, records: AgentConversationOpenRecord[]) {
@@ -138,15 +133,6 @@ export function agentConversationOpenRecordsEqual(left: AgentConversationOpenRec
       const rightRecord = normalizedRight[index]
       return rightRecord?.id === record.id && rightRecord.open === record.open
     })
-}
-
-function readLegacyOpenOrder(userId: string) {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(legacyAgentConversationOpenOrderStorageKey(userId)) ?? '[]')
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
-  } catch {
-    return []
-  }
 }
 
 function normalizeOpenRecords(records: unknown[]) {

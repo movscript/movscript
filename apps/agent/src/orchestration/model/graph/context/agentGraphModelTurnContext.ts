@@ -19,7 +19,6 @@ export function composeAgentGraphModelTurn(input: AgentGraphInput, options: {
     context: input.context,
     tools: input.capabilities,
     runtimeLimits: input.runtimeLimits,
-    memories: input.memories,
     warnings: options.warnings,
     history: preparedInput.promptHistory.messages,
     historyProjection: preparedInput.promptHistory,

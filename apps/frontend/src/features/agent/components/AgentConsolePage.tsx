@@ -75,7 +75,8 @@ import {
   agentRunStatusRecipe,
   agentSeverityStatusRecipe,
 } from '@/features/agent/presentation/agentSemanticUi'
-import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { listRuntimeRunSummariesFromWorkspace, listRuntimeThreadSummariesFromWorkspace, type AgentWorkspaceRunListItem } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import {
   DEFAULT_GENERATION_TOOLS_SETTINGS,
   createGenerationToolServer,
@@ -105,39 +106,24 @@ type GenerationToolTestResult = {
 }
 
 export default function AgentConsolePage() {
-  const healthQuery = useQuery({
-    queryKey: ['agent-console-health', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.ensureRunning(),
+  const runtimeSessionsQuery = useQuery({
+    queryKey: ['agent-console-runtime-sessions', 'workspace'],
+    queryFn: () => localAgentClient.listRuntimeSessionsFromWorkspace().then((result) => result.sessions),
     retry: false,
   })
   const modelQuery = useQuery({
-    queryKey: ['agent-console-model-config', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.getModelConfig(),
-    retry: false,
-  })
-  const inspectQuery = useQuery({
-    queryKey: ['agent-console-inspect', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.inspect(),
-    retry: false,
-  })
-  const capabilitiesQuery = useQuery({
-    queryKey: ['agent-console-capabilities', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.getCapabilities(),
+    queryKey: ['agent-console-workspace-model-config'],
+    queryFn: () => localAgentClient.getWorkspaceModelConfig(),
     retry: false,
   })
   const runsQuery = useQuery({
-    queryKey: ['agent-console-runs', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.listRuns().then((result) => result.runs),
+    queryKey: ['agent-console-runs', 'workspace-sessions'],
+    queryFn: () => listRuntimeRunSummariesFromWorkspace(),
     retry: false,
   })
   const threadsQuery = useQuery({
-    queryKey: ['agent-console-threads', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.listThreads().then((result) => result.threads),
-    retry: false,
-  })
-  const workspacesQuery = useQuery({
-    queryKey: ['agent-console-workspace-index', localAgentClient.baseURL],
-    queryFn: () => localAgentClient.listWorkspaces({ status: 'workspace', limit: 20 }).then((result) => result.workspaces),
+    queryKey: ['agent-console-threads', 'workspace-sessions'],
+    queryFn: () => listRuntimeThreadSummariesFromWorkspace({ includeProvisional: true }),
     retry: false,
   })
   const [clearConfirming, setClearConfirming] = useState(false)
@@ -145,29 +131,28 @@ export default function AgentConsolePage() {
   const [clearHistoryError, setClearHistoryError] = useState<string | null>(null)
   const [clearHistoryResult, setClearHistoryResult] = useState<string | null>(null)
 
+  const runtimeSessions = runtimeSessionsQuery.data ?? []
   const runs = useMemo(() => sortRuns(runsQuery.data ?? []), [runsQuery.data])
   const threads = threadsQuery.data ?? []
-  const workspaces = workspacesQuery.data ?? []
+  const workspaces: unknown[] = []
   const runSummary = useMemo(() => summarizeRuns(runs), [runs])
   const executingHistoryRunCount = runSummary.active
   const toolSummary = useMemo(() => {
-    const tools = capabilitiesQuery.data?.resolvedTools
     return {
-      available: tools?.available.length ?? 0,
-      blocked: tools?.blocked.length ?? 0,
-      discovered: tools?.discovered.length ?? 0,
-      warningCount: capabilitiesQuery.data?.warnings.length ?? 0,
+      available: 0,
+      blocked: 0,
+      discovered: 0,
+      warningCount: 0,
     }
-  }, [capabilitiesQuery.data])
+  }, [])
   const skillSummary = useMemo(() => {
-    const skills = inspectQuery.data?.skills ?? []
     return {
-      total: skills.length,
-      enabled: skills.filter((skill) => skill.enabled !== false).length,
+      total: 0,
+      enabled: 0,
     }
-  }, [inspectQuery.data?.skills])
+  }, [])
   const issues = useMemo<ConsoleIssue[]>(() => buildConsoleIssues({
-    healthError: healthQuery.error,
+    sessionIndexError: runtimeSessionsQuery.error,
     modelConfigured: modelQuery.data?.configured ?? false,
     modelError: modelQuery.error,
     activeRuns: runSummary.active,
@@ -176,19 +161,17 @@ export default function AgentConsolePage() {
     blockedTools: toolSummary.blocked,
     capabilityWarnings: toolSummary.warningCount,
     workspaceCount: workspaces.length,
-  }), [workspaces.length, healthQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
+  }), [workspaces.length, runtimeSessionsQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
   const attentionIssues = issues.filter((item) => item.tone !== 'ready')
-  const loading = healthQuery.isLoading || modelQuery.isLoading || inspectQuery.isLoading || capabilitiesQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || workspacesQuery.isLoading
+  const loading = runtimeSessionsQuery.isLoading || modelQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading
   const consoleStatusRecipe = agentReadinessStatusRecipe(attentionIssues.length === 0)
+  const runningSessionCount = runtimeSessions.filter((session) => session.running && !session.stale).length
 
   function refreshAll() {
-    void healthQuery.refetch()
+    void runtimeSessionsQuery.refetch()
     void modelQuery.refetch()
-    void inspectQuery.refetch()
-    void capabilitiesQuery.refetch()
     void runsQuery.refetch()
     void threadsQuery.refetch()
-    void workspacesQuery.refetch()
   }
 
   async function clearThreadHistory() {
@@ -201,15 +184,7 @@ export default function AgentConsolePage() {
     }
     setClearingHistory(true)
     try {
-      await localAgentClient.ensureRunning()
-      const result = await localAgentClient.deleteAllThreads()
-      setClearConfirming(false)
-      setClearHistoryResult(`已删除 ${result.deletedThreadIds.length} 个会话、${result.deletedRunIds.length} 个 Run。`)
-      await Promise.all([
-        runsQuery.refetch(),
-        threadsQuery.refetch(),
-        workspacesQuery.refetch(),
-      ])
+      throw new Error('清空历史已改为按 workspace/session 文件执行，不能再连接全局 agent runtime。文件级清理入口尚未接入。')
     } catch (error) {
       setClearHistoryError(errorMessage(error))
     } finally {
@@ -266,10 +241,10 @@ export default function AgentConsolePage() {
       <AgentPageShellBody>
         <AgentConsoleMetricGrid>
           <ConsoleMetricCard
-            title="Runtime"
-            value={healthQuery.data?.ok ? '在线' : healthQuery.error ? '不可用' : '检查中'}
-            detail={healthQuery.data?.mcpEndpoint ?? localAgentClient.baseURL}
-            tone={healthQuery.data?.ok ? 'ready' : healthQuery.error ? 'action' : 'warning'}
+            title="Session Runtime"
+            value={runtimeSessionsQuery.error ? '索引不可用' : `${runningSessionCount}/${runtimeSessions.length} 在线`}
+            detail="从 workspace session 文件读取，不连接全局 runtime"
+            tone={runtimeSessionsQuery.error ? 'action' : 'ready'}
           />
           <ConsoleMetricCard
             title="模型配置"
@@ -688,11 +663,11 @@ function BoundaryCard({ title, detail }: { title: string; detail: string }) {
   return <AgentConsoleBoundaryCard title={title} detail={detail} />
 }
 
-function RunSummaryRow({ run }: { run: AgentRun }) {
+function RunSummaryRow({ run }: { run: AgentWorkspaceRunListItem }) {
   const statusRecipe = agentRunStatusRecipe(run.status)
   return (
     <AgentConsoleRunSummaryLink>
-      <Link to={agentRunPath(run.id)}>
+      <Link to={agentRunPath(run.id, { sessionId: run.sessionId, workspaceDir: run.workspaceDir })}>
         <AgentConsoleRunSummaryHeader>
           <AgentConsoleRunSummaryCopy>
             <AgentConsoleRunSummaryId>{run.id}</AgentConsoleRunSummaryId>
@@ -818,7 +793,7 @@ function EmptyText({ children }: { children: React.ReactNode }) {
 }
 
 function buildConsoleIssues(input: {
-  healthError: unknown
+  sessionIndexError: unknown
   modelConfigured: boolean
   modelError: unknown
   activeRuns: number
@@ -829,12 +804,12 @@ function buildConsoleIssues(input: {
   workspaceCount: number
 }): ConsoleIssue[] {
   const issues: ConsoleIssue[] = []
-  if (input.healthError) {
+  if (input.sessionIndexError) {
     issues.push({
-      id: 'runtime-offline',
+      id: 'session-index-unavailable',
       tone: 'action',
-      title: 'Runtime 不可用',
-      detail: errorMessage(input.healthError),
+      title: 'Session 索引不可用',
+      detail: errorMessage(input.sessionIndexError),
       to: ROUTES.agentSettings,
     })
   }
@@ -886,7 +861,7 @@ function buildConsoleIssues(input: {
   return issues
 }
 
-function summarizeRuns(runs: AgentRun[]) {
+function summarizeRuns(runs: AgentWorkspaceRunListItem[]) {
   return {
     total: runs.length,
     active: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').length,
@@ -895,7 +870,7 @@ function summarizeRuns(runs: AgentRun[]) {
   }
 }
 
-function sortRuns(runs: AgentRun[]) {
+function sortRuns(runs: AgentWorkspaceRunListItem[]) {
   return [...runs].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
 }
 

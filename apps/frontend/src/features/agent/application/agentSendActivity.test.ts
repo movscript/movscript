@@ -6,25 +6,23 @@ import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('debugHttpRequestEvents maps debug requests into visible activity events', () => {
   const events = debugHttpRequestEvents([{
-    id: 'local-create-thread',
-    label: 'Create thread',
+    id: 'local-session-message-run',
+    label: 'Create session run',
     method: 'POST',
-    url: 'http://agent.local/threads',
+    url: 'http://agent.local/sessions/session_1/runs',
     headers: { 'Content-Type': 'application/json' },
-    body: { title: 'Thread' },
-    note: 'Fallback note',
+    body: { message: 'Hello' },
   }], '2026-05-19T00:00:00.000Z')
 
-  assert.equal(events[0]?.id, 'http-request-local-create-thread')
+  assert.equal(events[0]?.id, 'http-request-local-session-message-run')
   assert.equal(events[0]?.kind, 'model_call')
-  assert.equal(events[0]?.title, 'POST Create thread')
+  assert.equal(events[0]?.title, 'POST Create session run')
   assert.deepEqual(events[0]?.data, {
     httpRequest: {
       method: 'POST',
-      url: 'http://agent.local/threads',
+      url: 'http://agent.local/sessions/session_1/runs',
       headers: { 'Content-Type': 'application/json' },
-      body: { title: 'Thread' },
-      note: 'Fallback note',
+      body: { message: 'Hello' },
     },
   })
 })
@@ -43,14 +41,14 @@ test('setActivityEventStatus only updates the targeted event', () => {
 
 test('upsertActivityEvent keeps setup events before http events and runtime events last', () => {
   const events = [
-    event({ id: 'http-request-local-create-thread' }),
+    event({ id: 'http-request-local-session-message-run' }),
     event({ id: 'agent-step-1' }),
   ]
   const next = upsertActivityEvent(events, event({ id: 'local-runtime-ensure-running' }))
 
   assert.deepEqual(next.map((item) => item.id), [
     'local-runtime-ensure-running',
-    'http-request-local-create-thread',
+    'http-request-local-session-message-run',
     'agent-step-1',
   ])
 })

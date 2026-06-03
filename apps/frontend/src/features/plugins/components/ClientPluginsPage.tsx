@@ -8,12 +8,15 @@ import {
   loadClientPlugins,
   saveClientPlugin,
   removeClientPlugin,
+  isClientPluginRemovable,
+  isClientPluginRunnable,
   migrateFromLocalStorage,
   installPluginFromURL,
   installPluginFromFile,
   type ClientPluginManifest,
 } from '@/features/plugins/application/clientPlugins'
 import { MARKETPLACE_PLUGINS, type MarketplaceEntry } from '@/features/plugins/application/pluginMarketplace'
+import { ensureBundledClientPluginsInstalled } from '@/features/plugins/application/builtinClientPlugins'
 import {
   Button,
   Input,
@@ -125,6 +128,8 @@ function PluginCard({ plugin, onRemove, onOpen }: {
   onOpen: () => void
 }) {
   const { t } = useTranslation()
+  const removable = isClientPluginRemovable(plugin)
+  const runnable = isClientPluginRunnable(plugin)
   return (
     <PluginCardSurface>
       <PluginCardHeader>
@@ -142,9 +147,13 @@ function PluginCard({ plugin, onRemove, onOpen }: {
               </a>
             </Button>
           )}
-          <Button size="icon-sm" variant="ghost" tone="danger" onClick={onRemove}>
-            <Trash2 size={14} />
-          </Button>
+          {!removable ? (
+            <PluginStatusMeta>{t('plugins.builtin')}</PluginStatusMeta>
+          ) : (
+            <Button size="icon-sm" variant="ghost" tone="danger" onClick={onRemove}>
+              <Trash2 size={14} />
+            </Button>
+          )}
         </PluginCardActions>
       </PluginCardHeader>
 
@@ -154,10 +163,14 @@ function PluginCard({ plugin, onRemove, onOpen }: {
 
       <PluginCardFooter>
         <PluginCardId>{plugin.id}</PluginCardId>
-        <Button size="sm" onClick={onOpen}>
-          <Play size={12} className="mr-1.5" />
-          {t('plugins.open')}
-        </Button>
+        {runnable ? (
+          <Button size="sm" onClick={onOpen}>
+            <Play size={12} className="mr-1.5" />
+            {t('plugins.open')}
+          </Button>
+        ) : (
+          <PluginStatusMeta>{t('plugins.agentSkills')}</PluginStatusMeta>
+        )}
       </PluginCardFooter>
     </PluginCardSurface>
   )
@@ -178,14 +191,19 @@ function MarketplaceView({ installedIds, onInstall }: {
     if (!search.trim()) return MARKETPLACE_PLUGINS
     const q = search.toLowerCase()
     return MARKETPLACE_PLUGINS.filter(
-      (p) => p.name.includes(q) || p.description.includes(q) || p.tags.some((tag) => tag.includes(q))
+      (p) => p.name.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.tags.some((tag) => tag.toLowerCase().includes(q))
     )
   }, [search])
 
   async function handleInstall(entry: MarketplaceEntry) {
     setInstalling(entry.id)
     try {
-      const manifest = { ...entry.manifest, installedAt: new Date().toISOString() }
+      const builtinResult = entry.manifest.builtin
+        ? (await ensureBundledClientPluginsInstalled()).find((item) => item.pluginId === entry.id)
+        : undefined
+      const manifest = builtinResult?.manifest ?? { ...entry.manifest, installedAt: new Date().toISOString() }
       await saveClientPlugin(manifest)
       onInstall(manifest)
       setJustInstalled((prev) => new Set([...prev, entry.id]))
@@ -275,15 +293,35 @@ export default function ClientPluginsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    migrateFromLocalStorage().then((count) => {
-      if (count > 0) setMigrationNote(t('plugins.migratedFromLocalStorage', { count }))
+    let cancelled = false
+    async function refreshPlugins() {
+      const count = await migrateFromLocalStorage()
+      if (!cancelled && count > 0) setMigrationNote(t('plugins.migratedFromLocalStorage', { count }))
+      const bundled = await ensureBundledClientPluginsInstalled()
+      const loaded = await loadClientPlugins()
+      const builtinManifests = bundled.map((item) => item.manifest)
+      const merged = [
+        ...loaded.filter((plugin) => !builtinManifests.some((builtin) => builtin.id === plugin.id)),
+        ...builtinManifests,
+      ]
+      if (!cancelled) setPlugins(merged)
+    }
+    refreshPlugins().catch((error) => {
+      console.warn('[plugins] failed to refresh bundled plugins', error)
+      loadClientPlugins().then((loaded) => {
+        if (!cancelled) setPlugins(loaded)
+      }).catch(() => undefined)
     })
-    loadClientPlugins().then(setPlugins)
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [t])
 
   const installedIds = useMemo(() => new Set(plugins.map((p) => p.id)), [plugins])
 
   async function handleRemove(id: string) {
+    const plugin = plugins.find((item) => item.id === id)
+    if (plugin && !isClientPluginRemovable(plugin)) return
     await removeClientPlugin(id)
     setPlugins((prev) => prev.filter((p) => p.id !== id))
   }

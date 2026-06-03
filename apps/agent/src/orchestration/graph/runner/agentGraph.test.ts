@@ -14,7 +14,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -31,11 +30,6 @@ const defaultWorkspaceApplyBackend = {
 }
 const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
 const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
-const defaultProjectStandardsBackend = {
-  async getProject(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
 
 const runtimeLimits: AgentRuntimeLimits = {
   approvalMode: 'interactive',
@@ -97,7 +91,7 @@ function emptyContext() {
   }
 }
 
-function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'workspaceApplyPort' | 'workspaceApplyPreviewPort' | 'workspaceSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'projectStandardsPort' | 'runtimeToolHandlers'> & {
+function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'workspaceApplyPort' | 'workspaceApplyPreviewPort' | 'workspaceSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'runtimeToolHandlers'> & {
   mcpClient: {
     initialize(): Promise<JSONValue>
     callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue>
@@ -112,7 +106,6 @@ function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGat
     workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
-    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     runtimeToolHandlers: defaultRuntimeToolHandlers,
   })
 }
@@ -832,7 +825,7 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
         role: 'user',
         content: 'old correction',
         runId: 'run_runtime_input',
-        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', status: 'accepted' },
+        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', deliveryStatus: 'accepted' },
         createdAt: '2026-05-16T00:00:01.000Z',
       },
       {
@@ -841,7 +834,7 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
         role: 'user',
         content: '改成图片方案',
         runId: 'run_runtime_input',
-        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', status: 'accepted' },
+        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', deliveryStatus: 'accepted' },
         createdAt: '2026-05-16T00:00:02.000Z',
       },
     ],

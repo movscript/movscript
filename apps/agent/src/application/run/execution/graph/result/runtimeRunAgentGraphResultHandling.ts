@@ -43,7 +43,7 @@ export function applyRuntimeRunAgentGraphResultHandling(input: {
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
   deferPostRunRecords: Parameters<typeof applyRuntimeRunCompletion>[0]['deferPostRunRecords']
-}): AgentRun | AgentMessage {
+}): AgentRun | AgentMessage | undefined {
   const now = input.now()
   return applyRuntimeAgentGraphResult({
     store: input.store,

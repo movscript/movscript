@@ -4,14 +4,16 @@ import { useTranslation } from 'react-i18next'
 import { Archive, Loader2 } from 'lucide-react'
 import { AgentConversationItem, AgentMain, Button, useResizablePanel } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
+import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
 import { AgentChatHeaderActions } from '@/features/agent/components/AgentChatHeaderActions'
 import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHeaderSection'
-import { AgentConversationThreadSection, latestPlanFromMessages } from '@/features/agent/components/AgentConversationThreadSection'
+import { AgentConversationThreadSection, latestPlanFromTimelineItems } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
-import { latestVisibleTranscriptChatMessage, visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
+import { latestTranscriptChatMessage, transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
+import { listRuntimeThreadPageFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
 import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
@@ -22,6 +24,7 @@ const HISTORY_MAX_RATIO = 0.78
 
 export function AgentChatPanelLayout({
   composer,
+  contextDiagnosticDialog,
   debugPreview,
   header,
   host = 'dock-panel',
@@ -29,8 +32,7 @@ export function AgentChatPanelLayout({
   thread,
 }: AgentChatViewLayoutProps & { host?: AgentChatHost }) {
   const { t, i18n } = useTranslation()
-  const visibleMessages = useMemo(() => visibleTranscriptChatMessages(thread.messages), [thread.messages])
-  const conversationStarted = visibleMessages.length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
+  const conversationStarted = transcriptMessageCount({ transcriptMessages: thread.transcriptMessages, transcriptMessageCount: thread.transcriptMessageCount }) > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
   const emptyConversation = !conversationStarted
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
@@ -41,12 +43,12 @@ export function AgentChatPanelLayout({
   const historyQuery = useInfiniteQuery({
     queryKey: ['local-agent-panel-thread-history', localAgentClient.baseURL],
     queryFn: async ({ pageParam, signal }) => {
-      await localAgentClient.ensureRunning()
-      return localAgentClient.listThreads({
+      return listRuntimeThreadPageFromWorkspace({
         limit: HISTORY_PAGE_SIZE,
         includeProvisional: true,
         ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
-      }, signal)
+        signal,
+      })
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -91,15 +93,15 @@ export function AgentChatPanelLayout({
       })),
   ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, historyThreads, openRuntimeThreadIds])
   const hasPinnedStatus = hasAgentPinnedStatus({
-    plan: latestPlanFromMessages(thread.messages),
+    plan: latestPlanFromTimelineItems(thread.timelineItems),
     generationProgressStates: thread.generationProgressStates,
     planSnapshot: thread.activePlanSnapshot,
   })
 
-  async function restoreThread(threadId: string) {
+  async function restoreThread(threadId: string, sessionId?: string) {
     setRestoringThreadId(threadId)
     try {
-      await runtimeHistory.onRestoreLocalThread(threadId)
+      await runtimeHistory.onRestoreLocalThread(threadId, sessionId)
     } finally {
       setRestoringThreadId(null)
     }
@@ -182,7 +184,7 @@ export function AgentChatPanelLayout({
           </div>
         ) : historyItems.map((item) => {
           if (item.type === 'conversation') {
-            const lastMessage = latestVisibleTranscriptChatMessage(item.conversation.messages)?.content.trim()
+            const lastMessage = latestTranscriptChatMessage(item.conversation)?.content.trim()
             return (
               <div key={item.id} className="group relative">
                 <AgentConversationItem
@@ -207,7 +209,7 @@ export function AgentChatPanelLayout({
                 ].filter(Boolean).join(' · ')}
                 meta={restoringThreadId === runtimeThread.id ? t('agents.chat.restoring') : formatAgentDate(runtimeThread.updatedAt, locale)}
                 className="ai-agent-panel-empty-history-item"
-                onClick={() => { void restoreThread(runtimeThread.id) }}
+                onClick={() => { void restoreThread(runtimeThread.id, runtimeThread.sessionId) }}
               />
             </div>
           )
@@ -236,6 +238,7 @@ export function AgentChatPanelLayout({
       data-history-resizing={historyResize.resizing ? 'true' : undefined}
     >
       <AgentDebugPreviewDialog {...debugPreview} />
+      <ContextDiagnosticDialog {...contextDiagnosticDialog} />
       <section
         className="ai-agent-panel-content-card"
         data-empty-conversation={emptyConversation ? 'true' : undefined}

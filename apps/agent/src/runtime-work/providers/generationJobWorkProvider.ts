@@ -1,7 +1,6 @@
-import { buildGenerationEvent } from '../../generation/events/generationEvents.js'
-import { callMCPToolWithGenerationRepair } from '../../generation/repair/generationRepair.js'
 import type { MCPClient } from '../../adapters/mcp/client/mcpClient.js'
-import type { JSONValue, ToolCall } from '../../state/shared/types.js'
+import { callMCPToolWithGenerationRepair } from '../../generation/repair/generationRepair.js'
+import type { JSONValue } from '../../state/shared/types.js'
 import { cloneJSONValue, isJSONRecord, isJSONValue, isRecord } from '../../shared/json/jsonValue.js'
 import type { RuntimeWorkProvider } from '../core/runtimeWorkProvider.js'
 import type { RuntimeWork, RuntimeWorkStartInput, RuntimeWorkStatus } from '../core/runtimeWork.js'
@@ -13,15 +12,12 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
 
   async start(input: RuntimeWorkStartInput): Promise<RuntimeWork> {
     await this.mcpClient.initialize({ signal: input.signal })
-    const request = {
-      ...input.request,
-      wait: false,
-    }
-    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'generation_job_create', request, { signal: input.signal })
-    const event = buildGenerationEvent({ name: 'generation_job_create', args: request }, raw)
+    const request = normalizeStartRequest(input.request)
+    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, request.tool, request.args, { signal: input.signal })
+    const payload = normalizePayload(raw)
     const now = new Date().toISOString()
-    const jobId = event?.jobId
-    const status = eventStatus(event?.status, event?.terminal)
+    const jobId = jobIdFromPayload(payload)
+    const status = eventStatus(statusFromPayload(payload), terminalFromPayload(payload))
     return {
       id: makeWorkId(),
       sessionId: input.sessionId,
@@ -30,10 +26,10 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
       kind: this.kind,
       mode: 'async',
       status,
-      request: cloneJSONValue(request),
+      request: cloneJSONValue(requestJSON(request)),
       ...(input.continuationPolicy ? { continuationPolicy: input.continuationPolicy } : {}),
       ...(jobId !== undefined ? { externalHandle: { provider: 'movscript', type: 'generation_job', id: jobId } } : {}),
-      result: normalizePayload(raw),
+      result: payload,
       ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
       ...(input.pollIntervalMs !== undefined ? { pollIntervalMs: input.pollIntervalMs } : {}),
       createdAt: now,
@@ -45,33 +41,60 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
   async observe(work: RuntimeWork, options: { signal?: AbortSignal } = {}): Promise<RuntimeWork> {
     const jobId = work.externalHandle?.id
     if (typeof jobId !== 'number') throw new Error(`generation job work has no numeric job id: ${work.id}`)
+    const request = normalizeStartRequest(work.request)
+    const observeTool = observeToolForWork(work, request)
     const args = { jobId }
-    const raw = await this.mcpClient.callTool('generation_job_get', args, { signal: options.signal })
-    const event = buildGenerationEvent({ name: 'generation_job_get', args }, raw)
+    const raw = await this.mcpClient.callTool(observeTool, args, { signal: options.signal })
+    const payload = normalizePayload(raw)
     const now = new Date().toISOString()
-    const status = eventStatus(event?.status, event?.terminal)
+    const status = eventStatus(statusFromPayload(payload), terminalFromPayload(payload))
     return {
       ...work,
       status,
-      result: normalizePayload(raw),
+      result: payload,
       updatedAt: now,
       ...(status === 'completed' || status === 'failed' || status === 'cancelled' ? { completedAt: now } : {}),
     }
   }
+}
 
-  async cancel(work: RuntimeWork, options: { signal?: AbortSignal } = {}): Promise<RuntimeWork> {
-    const jobId = work.externalHandle?.id
-    if (typeof jobId !== 'number') throw new Error(`generation job work has no numeric job id: ${work.id}`)
-    const raw = await this.mcpClient.callTool('generation_job_cancel', { jobId }, { signal: options.signal })
-    const now = new Date().toISOString()
-    return {
-      ...work,
-      status: 'cancelled',
-      result: normalizePayload(raw),
-      updatedAt: now,
-      completedAt: now,
-    }
+interface GenerationStartRequest {
+  tool: string
+  args: Record<string, JSONValue>
+  observeTool?: string
+}
+
+function requestJSON(request: GenerationStartRequest): Record<string, JSONValue> {
+  return {
+    tool: request.tool,
+    args: request.args,
+    ...(request.observeTool ? { observeTool: request.observeTool } : {}),
   }
+}
+
+function normalizeStartRequest(value: unknown): GenerationStartRequest {
+  if (!isRecord(value)) throw new Error('generation_job request must be an object')
+  const tool = typeof value.tool === 'string' ? value.tool.trim() : ''
+  if (!tool) throw new Error('generation_job request.tool is required')
+  const rawArgs = isJSONRecord(value.args) ? value.args : {}
+  const observeTool = typeof value.observeTool === 'string' && value.observeTool.trim()
+    ? value.observeTool.trim()
+    : typeof value.observe_tool === 'string' && value.observe_tool.trim()
+      ? value.observe_tool.trim()
+      : undefined
+  return {
+    tool,
+    args: cloneJSONValue(rawArgs),
+    ...(observeTool ? { observeTool } : {}),
+  }
+}
+
+function observeToolForWork(work: RuntimeWork, request: GenerationStartRequest): string {
+  if (request.observeTool) return request.observeTool
+  const payload = isJSONValue(work.result) ? normalizePayload(work.result) : undefined
+  const monitor = monitorFromPayload(payload)
+  if (monitor?.tool) return monitor.tool
+  throw new Error(`generation job work has no observe tool: ${work.id}`)
 }
 
 function eventStatus(status: string | undefined, terminal: boolean | undefined): RuntimeWorkStatus {
@@ -123,6 +146,36 @@ const CANCELLED_STATUSES = new Set([
 function normalizePayload(value: JSONValue): JSONValue {
   const payload = unwrapToolPayload(value)
   return isJSONValue(payload) ? payload : value
+}
+
+function statusFromPayload(value: JSONValue | undefined): string | undefined {
+  if (!isRecord(value)) return undefined
+  if (typeof value.status === 'string' && value.status.trim()) return value.status.trim()
+  if (isRecord(value.job) && typeof value.job.status === 'string' && value.job.status.trim()) return value.job.status.trim()
+  return undefined
+}
+
+function terminalFromPayload(value: JSONValue | undefined): boolean | undefined {
+  if (!isRecord(value)) return undefined
+  return typeof value.terminal === 'boolean' ? value.terminal : undefined
+}
+
+function jobIdFromPayload(value: JSONValue | undefined): number | undefined {
+  if (!isRecord(value)) return undefined
+  return idField(value.jobId)
+    ?? idField(value.job_id)
+    ?? idField(isRecord(value.job) ? value.job.id : undefined)
+}
+
+function monitorFromPayload(value: JSONValue | undefined): { tool?: string } | undefined {
+  if (!isRecord(value) || !isRecord(value.monitor)) return undefined
+  const tool = typeof value.monitor.tool === 'string' && value.monitor.tool.trim() ? value.monitor.tool.trim() : undefined
+  return tool ? { tool } : undefined
+}
+
+function idField(value: unknown): number | undefined {
+  const numberValue = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined
 }
 
 function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined {

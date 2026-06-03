@@ -10,6 +10,7 @@ import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteracti
 
 export interface UseAgentRunInteractionActionBindingsInput {
   conversationId: string
+  sessionId?: string
   actionableRun: AgentRun | null
   interactionRuns?: AgentRun[]
   approving: boolean
@@ -23,6 +24,7 @@ export interface UseAgentRunInteractionActionBindingsInput {
 
 export function useAgentRunInteractionActionBindings({
   conversationId,
+  sessionId,
   actionableRun,
   interactionRuns,
   approving,
@@ -33,6 +35,10 @@ export function useAgentRunInteractionActionBindings({
   runTouchesAgentCatalog,
   refreshAgentCatalogContext,
 }: UseAgentRunInteractionActionBindingsInput) {
+  const runtimeClient = useMemo(() => sessionId?.trim()
+    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+    : localAgentClient, [sessionId])
+
   const deps = useMemo<AgentRunInteractionActionDeps>(() => ({
     conversationId,
     setSubmittedInteractionRuns,
@@ -62,10 +68,10 @@ export function useAgentRunInteractionActionBindings({
     await approveRunInteractionAction({
       run,
       approvalIds,
-      approveInteraction: (interactionId) => localAgentClient.approveInteraction(interactionId),
+      approveInteraction: (interactionId) => runtimeClient.approveInteraction(interactionId),
       deps,
     })
-  }, [deps, runById])
+  }, [deps, runById, runtimeClient])
 
   const rejectLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
@@ -73,10 +79,10 @@ export function useAgentRunInteractionActionBindings({
     await rejectRunInteractionAction({
       run,
       approvalIds,
-      rejectInteraction: (interactionId) => localAgentClient.rejectInteraction(interactionId),
+      rejectInteraction: (interactionId) => runtimeClient.rejectInteraction(interactionId),
       deps,
     })
-  }, [deps, runById])
+  }, [deps, runById, runtimeClient])
 
   const answerLocalRunInput = useCallback(async (runId: string, requestId: string, answer: AgentInputAnswer) => {
     const run = runById.get(runId)
@@ -85,10 +91,10 @@ export function useAgentRunInteractionActionBindings({
       run,
       requestId,
       answer,
-      answerRunInput: (runId, input) => localAgentClient.answerRunInput(runId, input),
+      answerRunInput: (runId, input) => runtimeClient.answerRunInput(runId, input),
       deps,
     })
-  }, [approving, deps, runById])
+  }, [approving, deps, runById, runtimeClient])
 
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     if (!actionableRun) return

@@ -27,7 +27,7 @@ test('buildAgentActivityFeed renders read tools as plain lines', () => {
   assert.match(feed?.items[0]?.type === 'line' ? feed.items[0].text : '', /读取数据/)
 })
 
-test('buildAgentActivityFeed keeps tool debug args and result for expandable rows', () => {
+test('buildAgentActivityFeed omits tool debug payloads from timeline-safe rows', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
@@ -44,10 +44,7 @@ test('buildAgentActivityFeed keeps tool debug args and result for expandable row
 
   const item = feed?.items[0]
   assert.equal(item?.type, 'line')
-  assert.deepEqual(item?.type === 'line' ? item.detail : undefined, {
-    args: { projectId: 2, query: '舅爷' },
-    result: { count: 3 },
-  })
+  assert.equal(item?.type === 'line' ? item.detail : undefined, undefined)
 })
 
 test('buildAgentActivityFeed renders core workspace tools as lightweight blocks', () => {
@@ -71,10 +68,6 @@ test('buildAgentActivityFeed renders core workspace tools as lightweight blocks'
   assert.equal(item?.kind, 'workspace')
   assert.equal(item?.type === 'block' ? item.title : '', '创建本地工作区')
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '工作区：workspace_123',
-    '标题：镜头描述工作区',
-    '类型：content_unit_workspace',
-    '项目：#7',
     '项目数据尚未正式写入。',
   ])
 })
@@ -115,14 +108,11 @@ test('buildAgentActivityFeed renders plan update rationale and task counts', () 
     [
       '更新执行计划：已确认素材需求，下一步提交 5 个生成任务。；任务：3 项（已完成 1，进行中 1，待处理 1）',
     ],
-    [
-      '说明：已确认素材需求，下一步提交 5 个生成任务。',
-      '任务：3 项（已完成 1，进行中 1，待处理 1）',
-    ],
+    [],
   ])
 })
 
-test('buildAgentActivityFeed renders generation work details from args and result', () => {
+test('buildAgentActivityFeed renders generation work without raw request details', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
@@ -151,9 +141,6 @@ test('buildAgentActivityFeed renders generation work details from args and resul
   assert.equal(item?.kind, 'task')
   assert.equal(item?.durationMs, 1450)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '类型：生成任务',
-    '任务：work_1',
-    '类型：image，模型：image-v1，数量：2',
     '任务已提交，后续结果会从 runtime work 返回。',
   ])
 })
@@ -236,9 +223,6 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
   const item = taskItems?.[0]
   assert.equal(item?.type === 'block' ? item.durationMs : undefined, 166_000)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '类型：生成任务',
-    '任务：work_1',
-    '类型：image，模型：gpt-image-2',
     '任务已提交，后续结果会从 runtime work 返回。',
   ])
 })
@@ -299,14 +283,11 @@ test('buildAgentActivityFeed compacts runtime work observations when the latest 
   const item = feed?.items[0]
   assert.equal(item?.type, 'block')
   assert.equal(item?.type === 'block' ? item.title : '', '观察异步任务 ×2')
-  assert.deepEqual(item?.type === 'block' ? item.lines : [], [
-    '任务：work_1',
-    '状态：completed',
-  ])
+  assert.deepEqual(item?.type === 'block' ? item.lines : [], [])
   assert.equal(item?.durationMs, 250)
 })
 
-test('buildAgentActivityFeed exposes workspace file patch as plain text code', () => {
+test('buildAgentActivityFeed omits workspace file patch payloads from chat activity', () => {
   const patch = [
     '*** Begin Patch',
     '*** Update File: content',
@@ -333,8 +314,7 @@ test('buildAgentActivityFeed exposes workspace file patch as plain text code', (
 
   const item = feed?.items[0]
   assert.equal(item?.type, 'block')
-  assert.equal(item?.type === 'block' ? item.code?.label : undefined, 'Patch')
-  assert.equal(item?.type === 'block' ? item.code?.text : undefined, patch)
+  assert.equal(item?.type === 'block' ? item.code : undefined, undefined)
 })
 
 test('buildAgentActivityFeed groups tool calls by model http round', () => {
@@ -644,7 +624,6 @@ test('agentActivityFeedMarkdown copies human-readable activity instead of raw js
   const markdown = agentActivityFeedMarkdown(feed!)
   assert.match(markdown, /Run run_1/)
   assert.match(markdown, /写入素材候选/)
-  assert.match(markdown, /素材槽：#9/)
   assert.doesNotMatch(markdown, /"asset_slot_id"/)
 })
 
@@ -786,16 +765,25 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
   ])
 })
 
-function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
+type ActivityFixtureStep = ChatRunActivity['steps'][number] & { args?: unknown; result?: unknown }
+type ActivityFixtureApproval = NonNullable<ChatRunActivity['approvals']>[number] & { args?: unknown; preview?: unknown }
+type ActivityFixture = Omit<Partial<ChatRunActivity>, 'steps' | 'approvals'> & {
+  steps?: ActivityFixtureStep[]
+  approvals?: ActivityFixtureApproval[]
+}
+
+function activity(overrides: ActivityFixture = {}): ChatRunActivity {
+  const { steps, approvals, ...rest } = overrides
   return {
     runId: 'run_test',
     threadId: 'thread_test',
     status: 'completed',
     createdAt: '2026-05-22T01:00:00.000Z',
     updatedAt: '2026-05-22T01:00:02.000Z',
-    steps: [],
+    steps: (steps ?? []).map(({ args: _args, result: _result, ...step }) => step),
+    ...(approvals ? { approvals: approvals.map(({ args: _args, preview: _preview, ...approval }) => approval) } : {}),
     events: [],
-    ...overrides,
+    ...rest,
   }
 }
 

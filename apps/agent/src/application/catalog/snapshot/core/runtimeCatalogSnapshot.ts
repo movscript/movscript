@@ -203,7 +203,6 @@ function sanitizePluginCatalogInfo(info: NonNullable<AgentRuntimeCatalogSnapshot
     skillCount: info.skillCount,
     toolCount: info.toolCount,
     ...(isJSONRecord(info.metadata) ? { metadata: cloneJSONValue(info.metadata) as Record<string, unknown> } : {}),
-    ...(info.packPlugins ? { packPlugins: info.packPlugins.map((plugin) => ({ pluginId: plugin.pluginId, path: plugin.path })) } : {}),
     ...(info.warnings ? { warnings: [...info.warnings] } : {}),
   }
 }

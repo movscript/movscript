@@ -46,6 +46,11 @@ test('shouldGenerateThreadTitle requires missing title, usable message, and no g
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '新会话' }, message), true)
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '新对话' }, message), true)
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), title: '上下文' }, message), false)
+  assert.equal(shouldGenerateThreadTitle({
+    ...makeThread(),
+    title: '梳理 agent 架构',
+    metadata: { titleGenerationStatus: 'pending', titleSource: 'fallback_pending' },
+  }, message), true)
   assert.equal(shouldGenerateThreadTitle(makeThread(), makeMessage('  ')), false)
   assert.equal(shouldGenerateThreadTitle({ ...makeThread(), metadata: { titleGeneratedAt: 'done' } }, message), false)
 })
@@ -53,8 +58,10 @@ test('shouldGenerateThreadTitle requires missing title, usable message, and no g
 test('thread title generation helpers record pending, model result, and fallback metadata', () => {
   const thread = makeThread()
   const message = makeMessage('梳理 agent 架构')
-  markThreadTitleGenerationPending(thread, '2026-01-01T00:00:01.000Z')
+  markThreadTitleGenerationPending(thread, '2026-01-01T00:00:01.000Z', message)
+  assert.equal(thread.title, '梳理 agent 架构')
   assert.equal(thread.metadata?.titleGenerationStatus, 'pending')
+  assert.equal(thread.metadata?.titleSource, 'fallback_pending')
   assert.equal(thread.updatedAt, '2026-01-01T00:00:01.000Z')
 
   applyThreadTitleGenerationResult({

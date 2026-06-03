@@ -45,6 +45,32 @@ test('agent runtime health probe uses liveness before compatibility handshake', 
   }
 })
 
+test('agent runtime health probe does not require an MCP endpoint for compatibility', async () => {
+  const restore = mockFetch(async (url) => {
+    if (url.endsWith('/livez')) return jsonResponse({ ok: true })
+    if (url.endsWith('/runtime/compat')) {
+      return jsonResponse({
+        ok: true,
+        runtime: {
+          apiVersion: 1,
+          features: ['model-config', 'runtime-capabilities'],
+        },
+      })
+    }
+    return jsonResponse({ error: 'unexpected' }, 500)
+  })
+
+  try {
+    assert.deepEqual(await getAgentRuntimeHealth('http://127.0.0.1:28765'), {
+      ok: true,
+      compatible: true,
+      apiVersion: 1,
+    })
+  } finally {
+    restore()
+  }
+})
+
 test('agent runtime health probe can run over a Unix socket transport', async (t) => {
   const originalMcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT
   process.env.MOVSCRIPT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'

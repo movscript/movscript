@@ -1,5 +1,5 @@
 import type { RunActivityTokenUsage } from '@/features/agent/domain/agentRunActivitySnapshot'
-import type { AgentRunTimelineRound } from '@movscript/conversation'
+import type { AgentRunActivityRound as ConversationRunActivityRound } from '@movscript/conversation'
 import type { ChatRunActivity, ChatRunActivityApproval, ChatRunActivityInputRequest } from '@/features/agent/state/agentStore'
 
 export type AgentActivityKind = 'read' | 'workspace' | 'write' | 'task' | 'system' | 'error'
@@ -105,7 +105,7 @@ export interface AgentActivityTotals {
 export interface AgentActivityRound {
   id: string
   index?: number
-  source?: AgentRunTimelineRound['source']
+  source?: ConversationRunActivityRound['source']
   label: string
   status: 'thinking' | 'tool_calls' | 'final' | 'failed'
   items: AgentActivityItem[]

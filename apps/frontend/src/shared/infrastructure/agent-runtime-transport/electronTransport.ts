@@ -10,11 +10,11 @@ export class ElectronAgentRuntimeTransport implements AgentRuntimeTransport {
   readonly socketPath?: string
 
   constructor(private readonly input: ElectronAgentRuntimeEnsureInput = {}) {
-    this.kind = input.transportKind ?? 'http'
+    this.kind = input.transportKind === 'unix-socket' ? 'unix-socket' : 'electron'
     this.socketPath = input.socketPath
     this.endpointLabel = input.transportKind === 'unix-socket' && input.socketPath
       ? `unix:${input.socketPath}`
-      : (input.baseURL ?? 'electron:agent-runtime')
+      : 'electron:agent-runtime'
   }
 
   async request(path: string, init: RequestInit = {}): Promise<Response> {

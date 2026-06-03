@@ -14,7 +14,7 @@ import {
   runInteractionFromActivity,
 } from '@/features/agent/domain/agentRunInteraction'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('optimisticApprovalRun updates targeted pending approvals only', () => {
   const run = makeRun({
@@ -53,65 +53,9 @@ test('run interaction echo helpers hide user answer echoes restored from run act
     content: '[用户补充信息]\n标题：选择方向\n问题：Pick\n选择：\n- A',
     timestamp: 1,
   }
-  const messages: ChatMessage[] = [{
-    id: 'assistant_result',
-    role: 'assistant',
-    content: 'done',
-    timestamp: 2,
-    meta: {
-      localRunActivity: {
-        runId: 'run_1',
-        threadId: 'thread_1',
-        status: 'completed',
-        createdAt: '2026-05-19T00:00:00.000Z',
-        updatedAt: '2026-05-19T00:00:01.000Z',
-        inputs: [{
-          id: 'input_1',
-          runId: 'run_1',
-          title: '选择方向',
-          question: 'Pick',
-          inputType: 'choice',
-          choices: [{ id: 'a', label: 'A' }],
-          allowCustomAnswer: false,
-          status: 'answered',
-          answer: { choiceIds: ['a'] },
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-        }],
-        steps: [],
-        events: [],
-      },
-    },
-  }]
-
-  const echoes = runInteractionAnswerEchoesForMessages(messages, [])
+  const echoes = runInteractionAnswerEchoesForMessages([], [], [answeredInputActivity()])
 
   assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), true)
-})
-
-test('run interaction echo helpers ignore UI-only activity anchors', () => {
-  const message: ChatMessage = {
-    id: 'msg_echo',
-    role: 'user',
-    content: '回答：选择方向\n选择：A',
-    timestamp: 1,
-  }
-  const messages: ChatMessage[] = [{
-    ...messageWithAnsweredInput(),
-    id: 'assistant_ui_only_anchor',
-    meta: {
-      ...messageWithAnsweredInput().meta,
-      runtimeStatus: {
-        kind: 'async_work_handoff',
-        title: '异步任务已提交',
-        detail: '任务正在后台运行。',
-      },
-    },
-  }]
-
-  const echoes = runInteractionAnswerEchoesForMessages(messages, [])
-
-  assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), false)
 })
 
 test('run interaction echo helpers hide accepted runtime input answer echoes', () => {
@@ -122,7 +66,7 @@ test('run interaction echo helpers hide accepted runtime input answer echoes', (
     timestamp: 1,
     meta: {
       runtimeMessage: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1' },
-      runtimeInput: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1', status: 'accepted' },
+      runtimeInput: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1', deliveryStatus: 'accepted' },
     },
   }
   const echoes = new Set([message.content.trim()])
@@ -137,7 +81,7 @@ test('run interaction echo helpers hide local input answer workspaces before ech
     content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
     timestamp: 1,
     meta: {
-      runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+      runtimeInput: { threadId: 'thread_1', runId: 'run_1', deliveryStatus: 'pending' },
     },
   }
 
@@ -151,9 +95,7 @@ test('run interaction echo helpers keep hiding legacy user answer echoes', () =>
     content: '回答：选择方向\n选择：A',
     timestamp: 1,
   }
-  const messages: ChatMessage[] = [messageWithAnsweredInput()]
-
-  const echoes = runInteractionAnswerEchoesForMessages(messages, [])
+  const echoes = runInteractionAnswerEchoesForMessages([], [], [answeredInputActivity()])
 
   assert.equal(isRunInteractionAnswerEchoMessage(message, echoes), true)
 })
@@ -207,36 +149,28 @@ test('formatInputAnswerForChat renders selected choices and custom text', () => 
   )
 })
 
-function messageWithAnsweredInput(): ChatMessage {
+function answeredInputActivity(): ChatRunActivity {
   return {
-    id: 'assistant_result',
-    role: 'assistant',
-    content: 'done',
-    timestamp: 2,
-    meta: {
-      localRunActivity: {
-        runId: 'run_1',
-        threadId: 'thread_1',
-        status: 'completed',
-        createdAt: '2026-05-19T00:00:00.000Z',
-        updatedAt: '2026-05-19T00:00:01.000Z',
-        inputs: [{
-          id: 'input_1',
-          runId: 'run_1',
-          title: '选择方向',
-          question: 'Pick',
-          inputType: 'choice',
-          choices: [{ id: 'a', label: 'A' }],
-          allowCustomAnswer: false,
-          status: 'answered',
-          answer: { choiceIds: ['a'] },
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-        }],
-        steps: [],
-        events: [],
-      },
-    },
+    runId: 'run_1',
+    threadId: 'thread_1',
+    status: 'completed',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+    inputs: [{
+      id: 'input_1',
+      runId: 'run_1',
+      title: '选择方向',
+      question: 'Pick',
+      inputType: 'choice',
+      choices: [{ id: 'a', label: 'A' }],
+      allowCustomAnswer: false,
+      status: 'answered',
+      answer: { choiceIds: ['a'] },
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:01.000Z',
+    }],
+    steps: [],
+    events: [],
   }
 }
 

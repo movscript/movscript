@@ -178,7 +178,7 @@ function markRunInterrupted(input: {
   })
   input.store.updateRun(input.run)
   projectRunOntoOwningThread(input.store, input.run, input.now)
-  input.emitRunSnapshot(input.run, { done: true })
+  input.emitRunSnapshot(input.run)
 }
 
 function ensureRuntimeRecoveryInput(run: AgentRun, now: string): AgentInputRequest[] {

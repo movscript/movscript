@@ -32,6 +32,7 @@
     "@anthropic-ai/sdk": "^0.96.0",
     "@langchain/core": "^1.1.44",
     "@langchain/langgraph": "^1.2.9",
+    "@movscript/agent-runtime": "workspace:*",
     "@movscript/protocol": "workspace:*",
     "@movscript/workspaces": "workspace:*",
     "openai": "^6.38.0",

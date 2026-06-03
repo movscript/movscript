@@ -62,6 +62,31 @@ test('selectLatestGeneratedResource reads MCP data wrapper output resources', ()
   })
 })
 
+test('selectLatestGeneratedResource reads agent-owned provider generation output resources', () => {
+  const run = runWithToolResults([
+    {
+      toolName: 'generation_image_generate',
+      result: { data: { status: 'submitted', jobId: 101 } },
+    },
+    {
+      toolName: 'generation_image_job_get',
+      result: {
+        data: {
+          status: 'succeeded',
+          job_id: 101,
+          output_resource_ids: [202],
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(selectLatestGeneratedResource(run), {
+    jobId: 101,
+    outputResourceId: 202,
+    outputResourceIds: [202],
+  })
+})
+
 test('selectLatestGeneratedResource uses the latest generation result', () => {
   const run = runWithResults([
     { output_resource_id: 201, job: { ID: 101 } },

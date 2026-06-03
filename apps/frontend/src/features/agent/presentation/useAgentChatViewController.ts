@@ -5,7 +5,7 @@ import { buildAgentChatViewLayoutProps } from '@/features/agent/presentation/age
 import { useAgentChatComposerState } from '@/features/agent/presentation/useAgentChatComposerState'
 import { useAgentChatContextState } from '@/features/agent/presentation/useAgentChatContextState'
 import { useAgentChatInteractionController } from '@/features/agent/presentation/useAgentChatInteractionController'
-import { useAgentMessageFeed } from '@/features/agent/presentation/useAgentMessageFeed'
+import { useAgentTimeline } from '@/features/agent/presentation/useAgentTimeline'
 import { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
 import { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
 import { useAgentChatStoreBindings } from '@/features/agent/presentation/useAgentChatStoreBindings'
@@ -22,11 +22,12 @@ export interface AgentChatViewControllerInput {
   onCollapse: () => void
   onSelectConversation: (id: string) => void
   onNewConversation: () => void
+  onRenameConversation: (id: string, title: string) => void
   onCloseConversation: (id: string) => void
   onCloseConversations: (ids: string[]) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onRestoreArchivedConversation?: (id: string) => void
-  onRestoreLocalThread: (threadId: string) => Promise<void>
+  onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalWorkspaceConsumed?: () => void
@@ -43,6 +44,7 @@ export function useAgentChatViewController({
   onCollapse,
   onSelectConversation,
   onNewConversation,
+  onRenameConversation,
   onCloseConversation,
   onCloseConversations,
   onReorderConversation,
@@ -59,14 +61,20 @@ export function useAgentChatViewController({
     conversation: conv,
     userId,
   })
-  const messageFeed = useAgentMessageFeed({
+  const timeline = useAgentTimeline({
     localSessionId: store.localSessionId,
     localThreadId: store.localThreadId,
     requireThread: true,
   })
   const effectiveConversation = useMemo(() => {
-    return { ...conv, messages: messageFeed.messages }
-  }, [conv, messageFeed.messages])
+    const lastMessage = timeline.transcriptMessages.at(-1)
+    return {
+      ...conv,
+      transcriptMessages: timeline.transcriptMessages,
+      transcriptMessageCount: timeline.transcriptMessages.length,
+      ...(lastMessage ? { lastTranscriptAt: lastMessage.timestamp } : {}),
+    }
+  }, [conv, timeline.transcriptMessages])
   const taskGraph = useAgentPlanDispatchSettings({
     settings: store.settings,
     updateSettings: store.updateSettings,
@@ -95,17 +103,19 @@ export function useAgentChatViewController({
     includeProjectContext: store.settings.includeProjectContext,
     currentProject: store.currentProject,
     localRuntimeEnabled: store.localRuntimeEnabled,
+    localSessionId: store.localSessionId,
   })
   const presentation = useAgentChatPresentationState({
     activeRun: activeLocalRun,
     conversationId: conv.id,
     localRuntimeEnabled: store.localRuntimeEnabled,
     localAgentOnline: context.localAgentOnline,
+    localSessionId: store.localSessionId,
     composerAttachments: composer.composerAttachments,
     input: composer.input,
     inputPlaceholder: t('agents.chat.inputPlaceholder'),
     loading,
-    messages: effectiveConversation.messages,
+    messages: effectiveConversation.transcriptMessages,
     pendingAssistantState: runtime.pendingAssistantState,
     pendingSendWorkspace: runtime.pendingSendWorkspace,
     runtimeApproving: store.conversationRuntime?.approving,
@@ -115,6 +125,7 @@ export function useAgentChatViewController({
     streamingAssistantMessageId: runtime.streamingAssistantMessageId,
     streamingAssistantText: runtime.streamingAssistantText,
     submittedInteractionRuns: runtime.submittedInteractionRuns,
+    timelineItems: timeline.timelineItems,
     uploading: composer.uploading,
     visibleActivityEvents: runtime.visibleActivityEvents,
   })
@@ -141,9 +152,10 @@ export function useAgentChatViewController({
     conv: effectiveConversation,
     conversations,
     archivedConversations,
+    timelineItems: timeline.timelineItems,
     currentProject: store.currentProject,
     interaction,
-    messageHistoryLoading: messageFeed.initialLoading,
+    timelineLoading: timeline.initialLoading,
     planActionBusy: runtime.planActionBusy,
     planDispatchSettings: taskGraph.planDispatchSettings,
     presentation,
@@ -153,6 +165,7 @@ export function useAgentChatViewController({
     onCloseConversations,
     onCollapse,
     onNewConversation,
+    onRenameConversation,
     onReorderConversation,
     onRestoreArchivedConversation,
     onRestoreLocalThread,

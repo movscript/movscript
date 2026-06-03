@@ -4,13 +4,12 @@ import type {
   AgentChatMessageMeta,
   AgentConversation,
   AgentConversationWorkspace,
-  AgentPlanRevision,
   AgentRun,
-  AgentRunActivity,
-  AgentRunActivityApproval,
-  AgentRunActivityEvent,
-  AgentRunActivityInputRequest,
-  AgentRunActivityStep,
+  AgentTimelineActivity,
+  AgentTimelineActivityApproval,
+  AgentTimelineActivityEvent,
+  AgentTimelineActivityInputRequest,
+  AgentTimelineActivityStep,
   AgentThread,
   RuntimeInteraction,
 } from '@movscript/protocol'
@@ -25,33 +24,30 @@ export type {
   AgentPlan,
   AgentPlanRevision,
   AgentRun,
-  AgentRunActivity,
-  AgentRunActivityEvent,
-  AgentRunActivityStep,
+  AgentTimelineActivity,
+  AgentTimelineActivityEvent,
+  AgentTimelineActivityStep,
   AgentRuntimeInputRef,
   AgentRuntimeMessageRef,
   AgentThread,
   RuntimeInteraction,
 } from '@movscript/protocol'
 
-export interface AgentConversationMessageMetaShape {
+export interface AgentConversationTranscriptMessageMetaShape {
   modelId?: number | null
   agentName?: string
   permissionMode?: string
   contextLabels?: string[]
+  promptEligibility?: AgentChatMessageMeta['promptEligibility']
   runtimeMessage?: AgentChatMessageMeta['runtimeMessage']
   runtimeInput?: AgentChatMessageMeta['runtimeInput']
-  runtimeStatus?: AgentChatMessageMeta['runtimeStatus']
-  contextDiagnostic?: unknown
   generationJobs?: unknown[]
   generationParamAudits?: unknown[]
   generationValidationErrors?: unknown[]
   workspaceArtifacts?: unknown[]
-  localRunActivity?: unknown
-  planRevision?: AgentPlanRevision
 }
 
-export interface AgentConversationMessageShape<Meta = AgentConversationMessageMetaShape> {
+export interface AgentConversationTranscriptMessageShape<Meta = AgentConversationTranscriptMessageMetaShape> {
   id: string
   role: 'user' | 'assistant'
   content: string
@@ -60,10 +56,10 @@ export interface AgentConversationMessageShape<Meta = AgentConversationMessageMe
   timestamp: number
 }
 
-export interface AgentConversationShape<Message extends AgentConversationMessageShape = AgentConversationMessageShape> {
+export interface AgentConversationShape<Message extends AgentConversationTranscriptMessageShape = AgentConversationTranscriptMessageShape> {
   id: string
   title: string
-  messages: Message[]
+  transcriptMessages: Message[]
   runtimeSessionId?: string
   runtimeThreadId?: string
   archived?: boolean
@@ -93,43 +89,42 @@ export interface ResolveRuntimeThreadRunStateInput<Run extends AgentRun = AgentR
   thread?: Pick<AgentThread, 'activeRunId' | 'lastRunId'>
 }
 
-export interface AgentRunTimeline {
+export interface AgentRunActivityRoundIndex {
   runId: string
   threadId: string
   status: string
   createdAt: string
   updatedAt: string
-  rounds: AgentRunTimelineRound[]
-  unassignedInputs: AgentRunActivityInputRequest[]
+  rounds: AgentRunActivityRound[]
+  unassignedInputs: AgentTimelineActivityInputRequest[]
 }
 
-export interface AgentRunTimelineRound {
+export interface AgentRunActivityRound {
   id: string
   index?: number
   label?: string
-  source?: AgentRunActivityStep['roundSource'] | AgentRunActivityEvent['roundSource']
+  source?: AgentTimelineActivityStep['roundSource'] | AgentTimelineActivityEvent['roundSource']
   startedAt: string
   finishedAt?: string
   failed: boolean
   finished: boolean
-  decisions: AgentRunTimelineDecision[]
-  toolExecutions: AgentRunTimelineToolExecution[]
-  inputs: AgentRunActivityInputRequest[]
+  decisions: AgentRunActivityDecision[]
+  toolExecutions: AgentRunActivityToolExecution[]
+  inputs: AgentTimelineActivityInputRequest[]
 }
 
-export interface AgentRunTimelineDecision {
+export interface AgentRunActivityDecision {
   id: string
-  event: AgentRunActivityEvent
-  toolCalls: AgentRunTimelineDecisionToolCall[]
+  event: AgentTimelineActivityEvent
+  toolCalls: AgentRunActivityDecisionToolCall[]
 }
 
-export interface AgentRunTimelineDecisionToolCall {
+export interface AgentRunActivityDecisionToolCall {
   id?: string
   name: string
-  args?: Record<string, unknown>
 }
 
-export interface AgentRunTimelineToolExecution {
+export interface AgentRunActivityToolExecution {
   id: string
   toolName: string
   decisionOrder?: number
@@ -138,10 +133,10 @@ export interface AgentRunTimelineToolExecution {
   completedAt?: string
   roundIndex?: number
   roundLabel?: string
-  roundSource?: AgentRunActivityStep['roundSource'] | AgentRunActivityEvent['roundSource']
-  step?: AgentRunActivityStep
-  events: AgentRunActivityEvent[]
-  approvals: AgentRunActivityApproval[]
+  roundSource?: AgentTimelineActivityStep['roundSource'] | AgentTimelineActivityEvent['roundSource']
+  step?: AgentTimelineActivityStep
+  events: AgentTimelineActivityEvent[]
+  approvals: AgentTimelineActivityApproval[]
 }
 
 export interface AgentUserConversationState<
@@ -158,7 +153,7 @@ export interface AgentConversationMutationOptions {
   now?: () => number
 }
 
-export type AgentConversationMessageInput<Message extends AgentConversationMessageShape> =
+export type AgentConversationTranscriptMessageInput<Message extends AgentConversationTranscriptMessageShape> =
   Omit<Message, 'id' | 'timestamp'> & { timestamp?: number }
 
 export interface AgentConversationNormalizeOptions {
@@ -202,21 +197,21 @@ export function normalizeConversations<Conversation extends AgentConversationSha
     .map((conversation) => {
       const now = options.now?.() ?? Date.now()
       const id = typeof conversation.id === 'string' && conversation.id ? conversation.id : createNormalizedId(options)
-      const messages = normalizeMessages(conversation.messages, options)
+      const transcriptMessages = normalizeTranscriptMessages(conversation.transcriptMessages, options)
       return {
         id,
         title: typeof conversation.title === 'string' && conversation.title.trim() ? conversation.title : options.defaultTitle ?? 'New conversation',
-        messages,
+        transcriptMessages,
         ...(typeof conversation.runtimeSessionId === 'string' && conversation.runtimeSessionId.trim() ? { runtimeSessionId: conversation.runtimeSessionId.trim() } : {}),
         ...(typeof conversation.runtimeThreadId === 'string' && conversation.runtimeThreadId.trim() ? { runtimeThreadId: conversation.runtimeThreadId.trim() } : {}),
         ...(conversation.archived === true ? { archived: true } : {}),
-        createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
-        updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
+        createdAt: numberOrFallback(conversation.createdAt, transcriptMessages[0]?.timestamp ?? now),
+        updatedAt: numberOrFallback(conversation.updatedAt, transcriptMessages[transcriptMessages.length - 1]?.timestamp ?? now),
       } as Conversation
     })
 }
 
-export function normalizeMessages<Message extends AgentConversationMessageShape = AgentChatMessage>(
+export function normalizeTranscriptMessages<Message extends AgentConversationTranscriptMessageShape = AgentChatMessage>(
   value: unknown,
   options: AgentConversationNormalizeOptions = {},
 ): Message[] {
@@ -282,12 +277,12 @@ export function normalizeAttachment<Attachment extends AgentAttachment = AgentAt
   } as Attachment
 }
 
-export function appendConversationMessage<
-  Message extends AgentConversationMessageShape,
-  Conversation extends { messages: Message[]; updatedAt: number },
+export function appendConversationTranscriptMessage<
+  Message extends AgentConversationTranscriptMessageShape,
+  Conversation extends { transcriptMessages: Message[]; updatedAt: number },
 >(
   conversation: Conversation,
-  message: AgentConversationMessageInput<Message>,
+  message: AgentConversationTranscriptMessageInput<Message>,
   options: AgentConversationMutationOptions = {},
 ): { conversation: Conversation; messageId: string } {
   const messageId = options.createId?.() ?? defaultId()
@@ -296,53 +291,53 @@ export function appendConversationMessage<
     messageId,
     conversation: {
       ...conversation,
-      messages: [...conversation.messages, { ...message, id: messageId, timestamp: message.timestamp ?? now } as Message],
+      transcriptMessages: [...conversation.transcriptMessages, { ...message, id: messageId, timestamp: message.timestamp ?? now } as Message],
       updatedAt: now,
     },
   }
 }
 
-export function upsertConversationMessage<
-  Message extends AgentConversationMessageShape,
-  Conversation extends { messages: Message[]; updatedAt: number },
+export function upsertConversationTranscriptMessage<
+  Message extends AgentConversationTranscriptMessageShape,
+  Conversation extends { transcriptMessages: Message[]; updatedAt: number },
 >(
   conversation: Conversation,
   messageId: string,
-  message: AgentConversationMessageInput<Message>,
+  message: AgentConversationTranscriptMessageInput<Message>,
   options: AgentConversationMutationOptions = {},
 ): Conversation {
   const now = options.now?.() ?? Date.now()
-  const existingIndex = conversation.messages.findIndex((item) => item.id === messageId)
+  const existingIndex = conversation.transcriptMessages.findIndex((item) => item.id === messageId)
   const nextMessage = {
     ...message,
     id: messageId,
-    timestamp: message.timestamp ?? (existingIndex >= 0 ? conversation.messages[existingIndex]?.timestamp ?? now : now),
+    timestamp: message.timestamp ?? (existingIndex >= 0 ? conversation.transcriptMessages[existingIndex]?.timestamp ?? now : now),
   } as Message
-  const messages = existingIndex >= 0
-    ? conversation.messages.map((item, index) => index === existingIndex ? nextMessage : item)
-    : [...conversation.messages, nextMessage]
-  return { ...conversation, messages, updatedAt: now }
+  const transcriptMessages = existingIndex >= 0
+    ? conversation.transcriptMessages.map((item, index) => index === existingIndex ? nextMessage : item)
+    : [...conversation.transcriptMessages, nextMessage]
+  return { ...conversation, transcriptMessages, updatedAt: now }
 }
 
-export function replaceConversationMessages<
-  Message extends AgentConversationMessageShape,
-  Conversation extends { messages: Message[]; updatedAt: number },
+export function replaceConversationTranscriptMessages<
+  Message extends AgentConversationTranscriptMessageShape,
+  Conversation extends { transcriptMessages: Message[]; updatedAt: number },
 >(
   conversation: Conversation,
-  messages: Message[],
+  transcriptMessages: Message[],
   options: Pick<AgentConversationMutationOptions, 'now'> = {},
 ): Conversation {
   return {
     ...conversation,
-    messages,
+    transcriptMessages,
     updatedAt: options.now?.() ?? Date.now(),
   }
 }
 
-export function patchConversationMessageMeta<
-  Message extends AgentConversationMessageShape,
+export function patchConversationTranscriptMessageMeta<
+  Message extends AgentConversationTranscriptMessageShape,
   Meta extends NonNullable<Message['meta']>,
-  Conversation extends { messages: Message[]; updatedAt: number },
+  Conversation extends { transcriptMessages: Message[]; updatedAt: number },
 >(
   conversation: Conversation,
   messageId: string,
@@ -351,16 +346,16 @@ export function patchConversationMessageMeta<
 ): Conversation {
   return {
     ...conversation,
-    messages: conversation.messages.map((message) => message.id === messageId
+    transcriptMessages: conversation.transcriptMessages.map((message) => message.id === messageId
       ? { ...message, meta: { ...message.meta, ...meta } as Message['meta'] }
       : message),
     updatedAt: options.now?.() ?? Date.now(),
   }
 }
 
-export function removeConversationMessage<
-  Message extends AgentConversationMessageShape,
-  Conversation extends { messages: Message[]; updatedAt: number },
+export function removeConversationTranscriptMessage<
+  Message extends AgentConversationTranscriptMessageShape,
+  Conversation extends { transcriptMessages: Message[]; updatedAt: number },
 >(
   conversation: Conversation,
   messageId: string,
@@ -368,12 +363,12 @@ export function removeConversationMessage<
 ): Conversation {
   return {
     ...conversation,
-    messages: conversation.messages.filter((message) => message.id !== messageId),
+    transcriptMessages: conversation.transcriptMessages.filter((message) => message.id !== messageId),
     updatedAt: options.now?.() ?? Date.now(),
   }
 }
 
-export function buildAgentRunTimeline(activity: AgentRunActivity): AgentRunTimeline {
+export function buildAgentRunActivityRoundIndex(activity: AgentTimelineActivity): AgentRunActivityRoundIndex {
   const decisions = timelineDecisions(activity.events ?? [])
   const toolExecutions = timelineToolExecutions(activity, decisions)
   const inputs = [...(activity.inputs ?? [])].sort(compareTimelineInputs)
@@ -593,14 +588,14 @@ function runNeedsRuntimeUserAction(run: AgentRun): boolean {
     )
 }
 
-function timelineDecisions(events: AgentRunActivityEvent[]): AgentRunTimelineDecision[] {
+function timelineDecisions(events: AgentTimelineActivityEvent[]): AgentRunActivityDecision[] {
   return events.flatMap((event) => {
     if (event.kind !== 'model_call' || event.title !== 'Model tool calls requested') return []
     const data = isRecord(event.data) ? event.data : undefined
     const toolCalls = Array.isArray(data?.tool_calls)
       ? data.tool_calls
           .map((call) => timelineDecisionToolCall(isRecord(call) ? call : undefined))
-          .filter((call): call is AgentRunTimelineDecisionToolCall => Boolean(call))
+          .filter((call): call is AgentRunActivityDecisionToolCall => Boolean(call))
       : []
     if (toolCalls.length === 0) return []
     return [{
@@ -611,24 +606,22 @@ function timelineDecisions(events: AgentRunActivityEvent[]): AgentRunTimelineDec
   }).sort(compareTimelineDecisions)
 }
 
-function timelineDecisionToolCall(call: Record<string, unknown> | undefined): AgentRunTimelineDecisionToolCall | undefined {
+function timelineDecisionToolCall(call: Record<string, unknown> | undefined): AgentRunActivityDecisionToolCall | undefined {
   const name = typeof call?.name === 'string' && call.name.trim() ? call.name.trim() : undefined
   if (!name) return undefined
-  const args = isRecord(call?.args) ? call.args : undefined
   const id = typeof call?.id === 'string' && call.id.trim() ? call.id.trim() : undefined
   return {
     ...(id ? { id } : {}),
     name,
-    ...(args ? { args } : {}),
   }
 }
 
 function timelineToolExecutions(
-  activity: AgentRunActivity,
-  decisions: AgentRunTimelineDecision[],
-): AgentRunTimelineToolExecution[] {
+  activity: AgentTimelineActivity,
+  decisions: AgentRunActivityDecision[],
+): AgentRunActivityToolExecution[] {
   const decisionOrderCandidates = timelineDecisionOrderCandidates(decisions)
-  const eventsByStep = new Map<string, AgentRunActivityEvent[]>()
+  const eventsByStep = new Map<string, AgentTimelineActivityEvent[]>()
   for (const event of activity.events ?? []) {
     if (!event.stepId) continue
     const events = eventsByStep.get(event.stepId) ?? []
@@ -638,7 +631,7 @@ function timelineToolExecutions(
 
   const steps = activity.steps ?? []
   const events = activity.events ?? []
-  const executions: AgentRunTimelineToolExecution[] = steps
+  const executions: AgentRunActivityToolExecution[] = steps
     .filter((step) => step.type === 'tool_call' && typeof step.toolName === 'string' && step.toolName.trim())
     .map((step, stepIndex) => ({
       id: `step-${step.id}`,
@@ -706,20 +699,18 @@ function timelineToolExecutions(
 interface TimelineDecisionOrderCandidate {
   order: number
   toolName: string
-  argsSignature?: string
   roundIndex?: number
   roundLabel?: string
-  roundSource?: AgentRunActivityEvent['roundSource']
+  roundSource?: AgentTimelineActivityEvent['roundSource']
   used: boolean
 }
 
-function timelineDecisionOrderCandidates(decisions: AgentRunTimelineDecision[]): TimelineDecisionOrderCandidate[] {
+function timelineDecisionOrderCandidates(decisions: AgentRunActivityDecision[]): TimelineDecisionOrderCandidate[] {
   let order = 0
   return [...decisions].sort(compareTimelineDecisions).flatMap((decision) => (
     decision.toolCalls.map((call) => ({
       order: order++,
       toolName: call.name,
-      ...(call.args !== undefined ? { argsSignature: timelineArgsSignature(call.args) } : {}),
       ...(decision.event.roundIndex !== undefined ? { roundIndex: decision.event.roundIndex } : {}),
       ...(decision.event.roundLabel ? { roundLabel: decision.event.roundLabel } : {}),
       ...(decision.event.roundSource ? { roundSource: decision.event.roundSource } : {}),
@@ -729,49 +720,27 @@ function timelineDecisionOrderCandidates(decisions: AgentRunTimelineDecision[]):
 }
 
 function timelineDecisionMatchForExecution(
-  execution: AgentRunTimelineToolExecution,
+  execution: AgentRunActivityToolExecution,
   candidates: TimelineDecisionOrderCandidate[],
 ): TimelineDecisionOrderCandidate | undefined {
   const sameTool = candidates.filter((candidate) => !candidate.used && candidate.toolName === execution.toolName)
   if (sameTool.length === 0) return undefined
-  const argsSignature = timelineExecutionArgsSignature(execution)
-  const exact = argsSignature
-    ? sameTool.filter((candidate) => candidate.argsSignature === argsSignature)
-    : []
-  const pool = exact.length > 0 ? exact : sameTool
   const roundMatched = execution.roundIndex !== undefined
-    ? pool.filter((candidate) => candidate.roundIndex === execution.roundIndex)
+    ? sameTool.filter((candidate) => candidate.roundIndex === execution.roundIndex)
     : []
-  const candidate = [...(roundMatched.length > 0 ? roundMatched : pool)]
+  const candidate = [...(roundMatched.length > 0 ? roundMatched : sameTool)]
     .sort((left, right) => left.order - right.order)[0]
   if (!candidate) return undefined
   candidate.used = true
   return candidate
 }
 
-function timelineExecutionArgsSignature(execution: AgentRunTimelineToolExecution): string | undefined {
-  if (execution.step?.args !== undefined) return timelineArgsSignature(execution.step.args)
-  for (const event of execution.events) {
-    const data = isRecord(event.data) ? event.data : undefined
-    if (data?.args !== undefined) return timelineArgsSignature(data.args)
-  }
-  const approval = execution.approvals.find((item) => item.args !== undefined)
-  return approval?.args !== undefined ? timelineArgsSignature(approval.args) : undefined
-}
-
 function findTimelineApprovalExecution(
-  executions: AgentRunTimelineToolExecution[],
-  approval: AgentRunActivityApproval,
-): AgentRunTimelineToolExecution | undefined {
+  executions: AgentRunActivityToolExecution[],
+  approval: AgentTimelineActivityApproval,
+): AgentRunActivityToolExecution | undefined {
   const sameTool = executions.filter((execution) => execution.toolName === approval.toolName)
   if (sameTool.length === 0) return undefined
-  const signature = timelineArgsSignature(approval.args)
-  const exact = sameTool.find((execution) => execution.step && timelineArgsSignature(execution.step.args) === signature)
-    ?? sameTool.find((execution) => execution.events.some((event) => {
-      const data = isRecord(event.data) ? event.data : undefined
-      return timelineArgsSignature(data?.args) === signature
-    }))
-  if (exact) return exact
   const approvalTime = timelineTime(approval.createdAt)
   return [...sameTool].sort((left, right) => (
     Math.abs(timelineTime(left.createdAt) - approvalTime) - Math.abs(timelineTime(right.createdAt) - approvalTime)
@@ -780,17 +749,17 @@ function findTimelineApprovalExecution(
 }
 
 function timelineRoundSeeds(
-  activity: AgentRunActivity,
-  decisions: AgentRunTimelineDecision[],
-  toolExecutions: AgentRunTimelineToolExecution[],
-  inputs: AgentRunActivityInputRequest[],
-): Array<Omit<AgentRunTimelineRound, 'decisions' | 'toolExecutions' | 'inputs'>> {
-  const byId = new Map<string, Omit<AgentRunTimelineRound, 'decisions' | 'toolExecutions' | 'inputs'>>()
+  activity: AgentTimelineActivity,
+  decisions: AgentRunActivityDecision[],
+  toolExecutions: AgentRunActivityToolExecution[],
+  inputs: AgentTimelineActivityInputRequest[],
+): Array<Omit<AgentRunActivityRound, 'decisions' | 'toolExecutions' | 'inputs'>> {
+  const byId = new Map<string, Omit<AgentRunActivityRound, 'decisions' | 'toolExecutions' | 'inputs'>>()
   const ensureRound = (input: {
     id: string
     index?: number
     label?: string
-    source?: AgentRunTimelineRound['source']
+    source?: AgentRunActivityRound['source']
     startedAt: string
     finishedAt?: string
     failed?: boolean
@@ -862,7 +831,7 @@ function timelineRoundSeeds(
 
 function timelineRoundKeyForItem(
   item: { createdAt: string; roundIndex?: number },
-  rounds: Array<Pick<AgentRunTimelineRound, 'id' | 'index' | 'startedAt'>>,
+  rounds: Array<Pick<AgentRunActivityRound, 'id' | 'index' | 'startedAt'>>,
 ): string {
   if (item.roundIndex !== undefined) return timelineRoundId(item.roundIndex)
   const itemTime = timelineTime(item.createdAt)
@@ -878,26 +847,26 @@ function timelineRoundId(index: number): string {
   return `round-${index}`
 }
 
-function timelineEventIsFailure(event: AgentRunActivityEvent): boolean {
+function timelineEventIsFailure(event: AgentTimelineActivityEvent): boolean {
   if (event.status === 'failed') return true
   if (event.status !== 'blocked') return false
   return event.kind !== 'input' && event.kind !== 'approval'
 }
 
 function compareTimelineRounds(
-  left: Pick<AgentRunTimelineRound, 'id' | 'index' | 'startedAt'>,
-  right: Pick<AgentRunTimelineRound, 'id' | 'index' | 'startedAt'>,
+  left: Pick<AgentRunActivityRound, 'id' | 'index' | 'startedAt'>,
+  right: Pick<AgentRunActivityRound, 'id' | 'index' | 'startedAt'>,
 ): number {
   return (left.index ?? Number.MAX_SAFE_INTEGER) - (right.index ?? Number.MAX_SAFE_INTEGER)
     || timelineTime(left.startedAt) - timelineTime(right.startedAt)
     || left.id.localeCompare(right.id)
 }
 
-function compareTimelineDecisions(left: AgentRunTimelineDecision, right: AgentRunTimelineDecision): number {
+function compareTimelineDecisions(left: AgentRunActivityDecision, right: AgentRunActivityDecision): number {
   return compareTimelineEvents(left.event, right.event)
 }
 
-function compareTimelineToolExecutions(left: AgentRunTimelineToolExecution, right: AgentRunTimelineToolExecution): number {
+function compareTimelineToolExecutions(left: AgentRunActivityToolExecution, right: AgentRunActivityToolExecution): number {
   return (left.roundIndex ?? Number.MAX_SAFE_INTEGER) - (right.roundIndex ?? Number.MAX_SAFE_INTEGER)
     || (left.decisionOrder ?? Number.MAX_SAFE_INTEGER) - (right.decisionOrder ?? Number.MAX_SAFE_INTEGER)
     || (left.activityOrder ?? Number.MAX_SAFE_INTEGER) - (right.activityOrder ?? Number.MAX_SAFE_INTEGER)
@@ -905,26 +874,16 @@ function compareTimelineToolExecutions(left: AgentRunTimelineToolExecution, righ
     || left.id.localeCompare(right.id)
 }
 
-function compareTimelineInputs(left: AgentRunActivityInputRequest, right: AgentRunActivityInputRequest): number {
+function compareTimelineInputs(left: AgentTimelineActivityInputRequest, right: AgentTimelineActivityInputRequest): number {
   return timelineTime(left.createdAt) - timelineTime(right.createdAt) || left.id.localeCompare(right.id)
 }
 
-function compareTimelineApprovals(left: AgentRunActivityApproval, right: AgentRunActivityApproval): number {
+function compareTimelineApprovals(left: AgentTimelineActivityApproval, right: AgentTimelineActivityApproval): number {
   return timelineTime(left.createdAt) - timelineTime(right.createdAt) || left.id.localeCompare(right.id)
 }
 
-function compareTimelineEvents(left: AgentRunActivityEvent, right: AgentRunActivityEvent): number {
+function compareTimelineEvents(left: AgentTimelineActivityEvent, right: AgentTimelineActivityEvent): number {
   return timelineTime(left.createdAt) - timelineTime(right.createdAt) || left.id.localeCompare(right.id)
-}
-
-function timelineArgsSignature(value: unknown): string {
-  return JSON.stringify(sortTimelineValue(value ?? null))
-}
-
-function sortTimelineValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortTimelineValue)
-  if (!isRecord(value)) return value
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortTimelineValue(value[key])]))
 }
 
 function maxTimelineTimestamp(left: string | undefined, right: string | undefined): string | undefined {

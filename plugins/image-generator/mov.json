@@ -10,6 +10,75 @@
   "main": "src/index.ts",
   "hasCompile": true,
   "contributes": {
+    "tools": [
+      {
+        "id": "generation_image_generate",
+        "title": "生成图像",
+        "description": "实现 agent generation_image_generate 接口：同步提交图像生成后端任务，并返回 job id；agent 异步生命周期由 core_work_start 管理。",
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["prompt"],
+          "properties": {
+            "prompt": { "type": "string", "minLength": 1 },
+            "title": { "type": "string" },
+            "negative_prompt": { "type": "string" },
+            "model_id": { "type": "string" },
+            "input_resource_ids": { "type": "array", "items": { "type": "number" } },
+            "reference_resource_ids": { "type": "array", "items": { "type": "number" } },
+            "aspect_ratio": { "type": "string", "enum": ["1:1", "16:9", "9:16", "4:3", "3:4", "2:3", "3:2"] },
+            "image_size": { "type": "string" },
+            "quality": { "type": "string", "enum": ["auto", "standard", "hd", "high", "medium", "low"] },
+            "steps": { "type": "number", "minimum": 1 },
+            "seed": { "type": "number" },
+            "extra_params": { "type": "object", "additionalProperties": true },
+            "timeout_ms": { "type": "number", "minimum": 1 },
+            "poll_interval_ms": { "type": "number", "minimum": 1 }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status", "jobId", "terminal", "monitor"],
+          "properties": {
+            "status": { "type": "string" },
+            "jobId": { "type": "number" },
+            "job_id": { "type": "number" },
+            "terminal": { "type": "boolean" },
+            "monitor": { "type": "object" },
+            "job": { "type": "object" }
+          }
+        }
+      },
+      {
+        "id": "generation_image_job_get",
+        "title": "查看图像生成任务",
+        "description": "实现 agent generation_image_job_get 接口：同步查询 generation_image_generate 提交的图像生成任务状态。",
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobId"],
+          "properties": {
+            "jobId": { "type": "number", "minimum": 1 },
+            "job_id": { "type": "number", "minimum": 1 }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status", "jobId", "terminal"],
+          "properties": {
+            "status": { "type": "string" },
+            "jobId": { "type": "number" },
+            "job_id": { "type": "number" },
+            "terminal": { "type": "boolean" },
+            "outputResourceIds": { "type": "array", "items": { "type": "number" } },
+            "output_resource_ids": { "type": "array", "items": { "type": "number" } },
+            "job": { "type": "object" }
+          }
+        }
+      }
+    ],
     "canvasNodes": [
       {
         "type": "com.movscript.image-generator.image_generator",

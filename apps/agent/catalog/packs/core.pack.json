@@ -2,19 +2,17 @@
   "id": "core.pack.agent",
   "version": "1.0.0",
   "name": "Agent Core",
-  "description": "Agent 对自身能力的核心认知层：memory、文件、用户输入、catalog inspection、runtime works 和 generation job 提交。",
+  "description": "Agent 对自身能力的核心认知层：memory、文件、用户输入、catalog inspection 和 runtime works。",
   "source": "builtin",
   "resources": {
     "skills": [
       "core/base/default",
       "core/rules/runtime",
       "core/memory_access",
-      "core/subagent_planning",
-      "core/generation/visual_execution"
+      "core/subagent_planning"
     ],
     "tools": [
-      "core",
-      "generation"
+      "core"
     ]
   },
   "schemas": [],
@@ -39,16 +37,12 @@
     "core_work_list",
     "core_work_wait",
     "core_work_cancel",
-    "core_user_input_request",
-    "generation_model_list",
-    "tool_comfyui",
-    "tool_webui"
+    "core_user_input_request"
   ],
   "skills": [
     "core.base.default",
     "core.rules.runtime",
     "core.memory_access",
-    "core.subagent_planning",
-    "generation.visual_execution"
+    "core.subagent_planning"
   ]
 }

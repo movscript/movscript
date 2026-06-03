@@ -7,7 +7,7 @@ import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import {
   agentRuntimeStatusLightController,
-  runtimeStatusLightTargetKey,
+  runtimeStatusLightTargetKeys,
   runtimeStatusLightTargetsSignature,
   useAgentRuntimeStatusLightStore,
   type AgentRuntimeStatusLightWatchTarget,
@@ -46,13 +46,21 @@ export function useAgentConversationTabRuntimeStatusLights(conversations: Conver
   return useMemo(() => {
     const statusLights: Record<string, AgentRuntimeStatusLight> = {}
     for (const target of tabRuntimeTargets) {
-      const targetKey = runtimeStatusLightTargetKey(target)
-      statusLights[target.conversationId] = targetKey
-        ? runtimeStatusLightsByTarget[targetKey] ?? STOPPED_RUNTIME_STATUS_LIGHT
-        : STOPPED_RUNTIME_STATUS_LIGHT
+      const targetKeys = runtimeStatusLightTargetKeys(target)
+      statusLights[target.conversationId] = runtimeStatusLightForTargetKeys(runtimeStatusLightsByTarget, targetKeys)
     }
     return statusLights
   }, [runtimeStatusLightsByTarget, tabRuntimeTargets])
+}
+
+export function runtimeStatusLightForTargetKeys(
+  runtimeStatusLightsByTarget: Record<string, AgentRuntimeStatusLight>,
+  targetKeys: string[],
+): AgentRuntimeStatusLight {
+  const lights = targetKeys
+    .map((targetKey) => runtimeStatusLightsByTarget[targetKey])
+    .filter((light): light is AgentRuntimeStatusLight => Boolean(light))
+  return lights.find((light) => light.state !== 'stopped') ?? lights[0] ?? STOPPED_RUNTIME_STATUS_LIGHT
 }
 
 export interface AgentConversationTabRuntimeTarget extends AgentRuntimeStatusLightWatchTarget {

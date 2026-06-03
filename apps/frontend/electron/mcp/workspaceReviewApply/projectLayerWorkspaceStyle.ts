@@ -1,5 +1,4 @@
-import { stringValue } from '../generation'
-import { isRecord } from '../valueUtils'
+import { isRecord, stringValue } from '../valueUtils'
 
 export function normalizeProjectStylePatch(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) return {}

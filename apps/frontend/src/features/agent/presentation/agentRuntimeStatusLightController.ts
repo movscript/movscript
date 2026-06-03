@@ -1,11 +1,10 @@
 import { create } from 'zustand'
 import {
   STOPPED_RUNTIME_STATUS_LIGHT,
-  runtimeStatusLightFromThreadRuntimeSnapshot,
+  runtimeStatusLightFromRuntimeStatusRecord,
   type AgentRuntimeStatusLight,
 } from '@/features/agent/domain/agentRuntimeStatusLight'
-import { localAgentClient, type AgentRuntimeEventV2, type AgentRuntimeSnapshotV2 } from '@/shared/infrastructure/localAgentClient'
-import { runtimeStateShouldRefresh } from '@movscript/event-state'
+import { localAgentClient, type AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
 
 export interface AgentRuntimeStatusLightWatchTarget {
   conversationId: string
@@ -40,8 +39,7 @@ export const useAgentRuntimeStatusLightStore = create<AgentRuntimeStatusLightSto
 }))
 
 export interface AgentRuntimeStatusLightClient {
-  getSessionRuntime: (sessionId: string, signal?: AbortSignal) => Promise<AgentRuntimeSnapshotV2>
-  getThreadRuntime: (threadId: string, signal?: AbortSignal) => Promise<AgentRuntimeSnapshotV2>
+  forSession?: (input: { sessionId: string; workspaceDir?: string }) => AgentRuntimeStatusLightClient
   streamSession: (sessionId: string, options: { onRuntimeEvent?: (event: AgentRuntimeEventV2) => void; signal?: AbortSignal }) => Promise<void>
   streamThread: (threadId: string, options: { onRuntimeEvent?: (event: AgentRuntimeEventV2) => void; signal?: AbortSignal }) => Promise<void>
 }
@@ -54,39 +52,32 @@ interface AgentRuntimeStatusLightSink {
 interface AgentRuntimeStatusLightControllerOptions {
   client: AgentRuntimeStatusLightClient
   sink: AgentRuntimeStatusLightSink
-  refreshDebounceMs?: number
-  shouldRefresh?: (event: AgentRuntimeEventV2) => boolean
 }
 
 interface RuntimeWatchRef {
   targetKey: string
   kind: 'session' | 'thread'
   id: string
+  sessionId?: string
 }
 
 interface RuntimeConnection {
   targetKey: string
   kind: 'session' | 'thread'
   id: string
+  sessionId?: string
   controller: AbortController
-  refreshTimer: ReturnType<typeof setTimeout> | undefined
-  refreshing: boolean
-  refreshQueued: boolean
 }
 
 export class AgentRuntimeStatusLightController {
   private readonly client: AgentRuntimeStatusLightClient
   private readonly sink: AgentRuntimeStatusLightSink
-  private readonly refreshDebounceMs: number
-  private readonly shouldRefresh: (event: AgentRuntimeEventV2) => boolean
   private readonly ownerTargets = new Map<string, RuntimeWatchRef[]>()
   private readonly connections = new Map<string, RuntimeConnection>()
 
   constructor(options: AgentRuntimeStatusLightControllerOptions) {
     this.client = options.client
     this.sink = options.sink
-    this.refreshDebounceMs = options.refreshDebounceMs ?? 300
-    this.shouldRefresh = options.shouldRefresh ?? runtimeStateShouldRefresh
   }
 
   setOwnerTargets(ownerId: string, targets: AgentRuntimeStatusLightWatchTarget[]): void {
@@ -123,83 +114,52 @@ export class AgentRuntimeStatusLightController {
 
   private startConnection(ref: RuntimeWatchRef): void {
     const controller = new AbortController()
-    const connection: RuntimeConnection = {
-      ...ref,
-      controller,
-      refreshTimer: undefined,
-      refreshing: false,
-      refreshQueued: false,
-    }
+    const connection: RuntimeConnection = { ...ref, controller }
     this.connections.set(ref.targetKey, connection)
-    this.refreshNow(connection)
+    const client = this.clientForConnection(connection)
 
     const stream = ref.kind === 'session'
-      ? this.client.streamSession(ref.id, {
+      ? client.streamSession(ref.id, {
         signal: controller.signal,
-        onRuntimeEvent: (event) => {
-          if (this.shouldRefresh(event)) this.scheduleRefresh(connection)
-        },
+        onRuntimeEvent: (event) => this.applyRuntimeStatusEvent(connection, event),
       })
-      : this.client.streamThread(ref.id, {
+      : client.streamThread(ref.id, {
         signal: controller.signal,
-        onRuntimeEvent: (event) => {
-          if (this.shouldRefresh(event)) this.scheduleRefresh(connection)
-        },
+        onRuntimeEvent: (event) => this.applyRuntimeStatusEvent(connection, event),
       })
 
-    void stream.catch(() => {
-      if (!controller.signal.aborted) this.sink.setTargetStatusLight(ref.targetKey, STOPPED_RUNTIME_STATUS_LIGHT)
+    void stream.catch((error) => {
+      if (controller.signal.aborted) return
+      logRuntimeStatusLightDiagnostic('stream_error', connection, { error: error instanceof Error ? error.message : String(error) })
+      this.sink.setTargetStatusLight(ref.targetKey, STOPPED_RUNTIME_STATUS_LIGHT)
     })
+  }
+
+  private clientForConnection(connection: RuntimeConnection): AgentRuntimeStatusLightClient {
+    const sessionId = connection.sessionId?.trim()
+    if (!sessionId || !this.client.forSession) return this.client
+    return this.client.forSession({ sessionId })
+  }
+
+  private applyRuntimeStatusEvent(connection: RuntimeConnection, event: AgentRuntimeEventV2): void {
+    if (!this.connections.has(connection.targetKey) || connection.controller.signal.aborted) return
+    if (event.kind !== 'runtime_status.upserted' || event.entity?.type !== 'runtime_status') return
+    const statusLight = runtimeStatusLightFromRuntimeStatusRecord(event.entity.value)
+    if (!statusLight) return
+    logRuntimeStatusLightDiagnostic('status_light', connection, {
+      state: statusLight.state,
+      runId: event.causality?.runId,
+      threadId: event.causality?.threadId,
+    })
+    this.sink.setTargetStatusLight(connection.targetKey, statusLight)
   }
 
   private stopConnection(targetKey: string): void {
     const connection = this.connections.get(targetKey)
     if (!connection) return
     this.connections.delete(targetKey)
-    if (connection.refreshTimer) clearTimeout(connection.refreshTimer)
     connection.controller.abort()
     this.sink.clearTargetStatusLight(targetKey)
-  }
-
-  private scheduleRefresh(connection: RuntimeConnection): void {
-    if (!this.connections.has(connection.targetKey) || connection.controller.signal.aborted) return
-    if (connection.refreshTimer) return
-    connection.refreshTimer = setTimeout(() => {
-      connection.refreshTimer = undefined
-      this.refreshNow(connection)
-    }, this.refreshDebounceMs)
-  }
-
-  private refreshNow(connection: RuntimeConnection): void {
-    if (!this.connections.has(connection.targetKey) || connection.controller.signal.aborted) return
-    if (connection.refreshing) {
-      connection.refreshQueued = true
-      return
-    }
-
-    connection.refreshing = true
-    const snapshot = connection.kind === 'session'
-      ? this.client.getSessionRuntime(connection.id, connection.controller.signal)
-      : this.client.getThreadRuntime(connection.id, connection.controller.signal)
-
-    void snapshot
-      .then((snapshot) => {
-        if (!connection.controller.signal.aborted && this.connections.get(connection.targetKey) === connection) {
-          this.sink.setTargetStatusLight(connection.targetKey, runtimeStatusLightFromThreadRuntimeSnapshot(snapshot))
-        }
-      })
-      .catch(() => {
-        if (!connection.controller.signal.aborted && this.connections.get(connection.targetKey) === connection) {
-          this.sink.setTargetStatusLight(connection.targetKey, STOPPED_RUNTIME_STATUS_LIGHT)
-        }
-      })
-      .finally(() => {
-        connection.refreshing = false
-        if (connection.refreshQueued) {
-          connection.refreshQueued = false
-          this.scheduleRefresh(connection)
-        }
-      })
   }
 }
 
@@ -210,25 +170,31 @@ export function createAgentRuntimeStatusLightController(
 }
 
 export function runtimeStatusLightTargetKey(target: AgentRuntimeStatusLightWatchTarget): string | undefined {
-  const threadId = target.threadId?.trim()
-  if (threadId) return `thread:${threadId}`
+  return runtimeStatusLightTargetKeys(target)[0]
+}
+
+export function runtimeStatusLightTargetKeys(target: AgentRuntimeStatusLightWatchTarget): string[] {
+  const keys: string[] = []
   const sessionId = target.sessionId?.trim()
-  if (sessionId) return `session:${sessionId}`
-  return undefined
+  if (sessionId) keys.push(`session:${sessionId}`)
+  const threadId = target.threadId?.trim()
+  if (threadId) keys.push(`thread:${threadId}`)
+  return keys
 }
 
 export function runtimeStatusLightTargetsSignature(targets: AgentRuntimeStatusLightWatchTarget[]): string {
   return targets
-    .map((target) => `${target.conversationId}:${runtimeStatusLightTargetKey(target) ?? 'none'}`)
+    .map((target) => `${target.conversationId}:${runtimeStatusLightTargetKeys(target).join(',') || 'none'}`)
     .join('|')
 }
 
 function runtimeWatchRefFromTarget(target: AgentRuntimeStatusLightWatchTarget): RuntimeWatchRef[] {
-  const threadId = target.threadId?.trim()
-  if (threadId) return [{ targetKey: `thread:${threadId}`, kind: 'thread', id: threadId }]
+  const refs: RuntimeWatchRef[] = []
   const sessionId = target.sessionId?.trim()
-  if (sessionId) return [{ targetKey: `session:${sessionId}`, kind: 'session', id: sessionId }]
-  return []
+  if (sessionId) refs.push({ targetKey: `session:${sessionId}`, kind: 'session', id: sessionId, sessionId })
+  const threadId = target.threadId?.trim()
+  if (threadId) refs.push({ targetKey: `thread:${threadId}`, kind: 'thread', id: threadId, ...(sessionId ? { sessionId } : {}) })
+  return refs
 }
 
 function runtimeStatusLightsEqual(
@@ -236,6 +202,17 @@ function runtimeStatusLightsEqual(
   b: AgentRuntimeStatusLight | undefined,
 ): boolean {
   return a?.state === b?.state && a?.label === b?.label && a?.detail === b?.detail
+}
+
+function logRuntimeStatusLightDiagnostic(event: string, connection: RuntimeConnection, details: Record<string, unknown>): void {
+  if (typeof console === 'undefined') return
+  console.debug('[agent-status-light]', event, {
+    targetKey: connection.targetKey,
+    kind: connection.kind,
+    id: connection.id,
+    sessionId: connection.sessionId,
+    ...details,
+  })
 }
 
 export const agentRuntimeStatusLightController = createAgentRuntimeStatusLightController({

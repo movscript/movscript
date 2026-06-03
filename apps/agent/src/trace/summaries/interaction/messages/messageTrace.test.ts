@@ -26,7 +26,7 @@ test('summarizeRuntimeInputMessagesTrace keeps ids and hashes without full user 
       kind: 'runtime_input',
       targetRunId: 'run_1',
       mode: 'soft',
-      status: 'accepted',
+      deliveryStatus: 'accepted',
       ignoredNested: { content: 'do not keep nested payloads' },
     },
   }]) as Array<Record<string, unknown>>
@@ -40,7 +40,7 @@ test('summarizeRuntimeInputMessagesTrace keeps ids and hashes without full user 
     kind: 'runtime_input',
     targetRunId: 'run_1',
     mode: 'soft',
-    status: 'accepted',
+    deliveryStatus: 'accepted',
   })
 })
 

@@ -125,6 +125,10 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 		h.writeResourceError(c, err)
 		return
 	}
+	serveResourceFile(c, h.store, r)
+}
+
+func serveResourceFile(c *gin.Context, store storage.Storage, r domainresource.RawResource) {
 	if r.StorageKey == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no storage key"})
 		return
@@ -142,7 +146,7 @@ func (h *ResourceHandler) ServeFile(c *gin.Context) {
 		rangeStart, rangeEnd = parseRangeHeader(rh)
 	}
 
-	body, totalSize, contentType, err := h.store.GetObject(c.Request.Context(), r.StorageKey, rangeStart, rangeEnd)
+	body, totalSize, contentType, err := store.GetObject(c.Request.Context(), r.StorageKey, rangeStart, rangeEnd)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve file"})
 		return

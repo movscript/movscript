@@ -1,4 +1,4 @@
-import { isUiOnlyAssistantChatMessage, isVisibleAssistantChatMessage, visibleAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
+import { isTranscriptAssistantChatMessage, transcriptAssistantRelatedRunId } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
@@ -15,8 +15,8 @@ export function buildInteractionRunsByResultMessageId({
   const messagesById = buildRunInteractionAnchorMessagesById(messages)
 
   for (const message of messages) {
-    if (!isVisibleAssistantChatMessage(message)) continue
-    const runId = visibleAssistantRelatedRunId(message)
+    if (!isTranscriptAssistantChatMessage(message)) continue
+    const runId = transcriptAssistantRelatedRunId(message)
     const interactionRun = runId ? interactionRunById.get(runId) : undefined
     if (!interactionRun || insertedRunIds.has(interactionRun.id)) continue
     insertInteractionRun(runsByMessageId, insertedRunIds, message.id, interactionRun)
@@ -41,7 +41,6 @@ export function buildInteractionRunsByResultMessageId({
 function buildRunInteractionAnchorMessagesById(messages: ChatMessage[]): Map<string, ChatMessage> {
   const byId = new Map<string, ChatMessage>()
   for (const message of messages) {
-    if (isUiOnlyAssistantChatMessage(message)) continue
     byId.set(message.id, message)
     const runtimeMessageId = message.meta?.runtimeMessage?.messageId?.trim()
     if (runtimeMessageId) byId.set(runtimeMessageId, message)

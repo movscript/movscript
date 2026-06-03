@@ -11,7 +11,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../workspace/hydra
 import type { CoreImageProcessingPort } from '../media/imageProcessingPort.js'
 import type { CoreResourceFilePort } from '../files/resourceFilePort.js'
 import type { CoreVideoFrameExtractionPort } from '../media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../project/projectStandardsPort.js'
 
 export interface RuntimeToolHandlerResult {
   result: JSONValue
@@ -29,7 +28,6 @@ export interface RuntimeToolHandlerContext {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   fileSystem: AgentFileSystem
   registry: ToolRegistry
   memoryManager?: MemoryManager

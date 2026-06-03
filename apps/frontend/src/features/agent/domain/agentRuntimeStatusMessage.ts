@@ -1,9 +1,11 @@
+import type { AgentRuntimeStatusMessage } from '@movscript/protocol'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
+import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
 
-export type RuntimeStatusMessage = NonNullable<ChatMessageMeta['runtimeStatus']>
+export type RuntimeStatusMessage = AgentRuntimeStatusMessage
 
 export function isRuntimeEmptyAssistantPlaceholder(content: string): boolean {
   const normalized = content.trim()
@@ -14,11 +16,9 @@ export function isRuntimeEmptyAssistantPlaceholder(content: string): boolean {
 }
 
 export function runtimeStatusMessageFromRunActivity(input: {
-  activity?: ChatMessageMeta['localRunActivity']
-  runtimeStatus?: ChatMessageMeta['runtimeStatus']
+  activity?: ChatRunActivity
   generationJobs?: NonNullable<ChatMessageMeta['generationJobs']>
 }): RuntimeStatusMessage | undefined {
-  if (input.runtimeStatus) return input.runtimeStatus
   const activity = input.activity
   if (!activity) return undefined
   const work = asyncWorkStartFromActivity(activity)
@@ -39,24 +39,8 @@ export function runtimeStatusMessageFromRunActivity(input: {
 }
 
 export function isRuntimeAsyncWorkHandoffRun(run: AgentRun | null | undefined): boolean {
-  if (!run || !isTerminalRunStatus(run.status)) return false
+  if (!run || !isTerminalAgentRunStatus(run.status)) return false
   return run.steps.some((step) => step.type === 'tool_call' && step.toolName === 'core_work_start')
-}
-
-export function shouldRenderRuntimeStatusOnly(input: {
-  content: string
-  runtimeStatus?: RuntimeStatusMessage
-  hasDiagnosticSection: boolean
-  hasResultSection: boolean
-  planRevision?: ChatMessageMeta['planRevision']
-  showModelSetupAction: boolean
-}): boolean {
-  return !!input.runtimeStatus
-    && isRuntimeEmptyAssistantPlaceholder(input.content)
-    && !input.planRevision
-    && !input.showModelSetupAction
-    && !input.hasResultSection
-    && !input.hasDiagnosticSection
 }
 
 function asyncWorkStartFromActivity(activity: ChatRunActivity): { workId?: string; workKind?: string; workStatus?: string } | undefined {
@@ -64,13 +48,12 @@ function asyncWorkStartFromActivity(activity: ChatRunActivity): { workId?: strin
   const event = [...(activity.events ?? [])].reverse().find((item) => item.kind === 'tool_call' && item.toolName === 'core_work_start')
   if (!step && !event) return undefined
 
-  const args = recordValue(step?.args)
-  const result = recordValue(step?.result)
-  const work = recordValue(result?.work) ?? recordValue(recordValue(event?.data)?.runtimeWork)
+  const eventData = recordValue(event?.data)
+  const work = recordValue(eventData?.runtimeWork)
   return {
-    workId: stringValue(work?.id) ?? stringValue(result?.workId),
-    workKind: stringValue(work?.kind) ?? stringValue(args?.kind),
-    workStatus: stringValue(work?.status) ?? stringValue(result?.status),
+    workId: stringValue(work?.id),
+    workKind: stringValue(work?.kind),
+    workStatus: stringValue(work?.status),
   }
 }
 
@@ -80,10 +63,6 @@ function isActiveRuntimeWorkStatus(status: string | undefined): boolean {
     || status === 'running'
     || status === 'waiting'
     || status === 'started'
-}
-
-function isTerminalRunStatus(status: AgentRun['status'] | undefined): boolean {
-  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

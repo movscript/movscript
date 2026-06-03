@@ -1,13 +1,14 @@
 import { generationProgressListFromEvents, type GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export function generationProgressStatesForPinnedStatus(input: {
   messages: ChatMessage[]
   run: AgentRun | null
+  timelineItems?: AgentTimelineItem[]
   visibleActivityEvents: ChatRunActivityEvent[]
 }): GenerationProgressState[] {
-  const historicalStates = latestHistoricalGenerationProgressStates(input.messages)
+  const historicalStates = latestHistoricalGenerationProgressStates(input.messages, input.timelineItems ?? [])
   const liveEvents = [
     ...(input.run?.traceEvents ?? []),
     ...input.visibleActivityEvents,
@@ -16,13 +17,15 @@ export function generationProgressStatesForPinnedStatus(input: {
   return mergeGenerationProgressStates([...historicalStates, ...liveStates])
 }
 
-function latestHistoricalGenerationProgressStates(messages: ChatMessage[]): GenerationProgressState[] {
+function latestHistoricalGenerationProgressStates(messages: ChatMessage[], timelineItems: AgentTimelineItem[]): GenerationProgressState[] {
   const states: GenerationProgressState[] = []
   for (const message of messages) {
     if (message.role === 'user') continue
     const generationJobs = message.meta?.generationJobs ?? []
     states.push(...generationJobs)
-    const activityEvents = message.meta?.localRunActivity?.events ?? []
+  }
+  for (const item of timelineItems) {
+    const activityEvents = item.activity?.events ?? []
     states.push(...generationProgressListFromEvents(activityEvents))
   }
   return mergeGenerationProgressStates(states)

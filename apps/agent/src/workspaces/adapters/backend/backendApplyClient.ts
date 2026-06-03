@@ -6,8 +6,6 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { JSONValue } from '../../../shared/protocol/types.js'
-import { isJSONRecord as isRecord } from '../../../shared/json/jsonValue.js'
-import { isValidAgentProjectId, isValidAgentReferenceId } from '../../../context/runtime/runtimeContext.js'
 import type { ApplyWorkspaceReview } from '../../apply/workspaceApply.js'
 
 export interface BackendApplyClientOptions {
@@ -66,34 +64,6 @@ export class BackendApplyHTTPError extends Error {
   }
 }
 
-const PATCH_ROUTES: Record<string, string> = {
-  script: '/scripts/:id',
-  asset_slot: '/projects/:projectId/entities/asset-slots/:id',
-  segment: '/projects/:projectId/entities/segments/:id',
-  scene_moment: '/projects/:projectId/entities/scene-moments/:id',
-  storyboard_script: '/projects/:projectId/entities/storyboard-scripts/:id',
-  content_unit: '/projects/:projectId/entities/content-units/:id',
-  keyframe: '/projects/:projectId/entities/keyframes/:id',
-  preview_timeline: '/projects/:projectId/entities/preview-timelines/:id',
-  delivery_version: '/projects/:projectId/entities/delivery-versions/:id',
-}
-
-const FIELD_ALLOWLIST: Record<string, Set<string>> = {
-  script: new Set([
-    'title', 'description', 'content', 'status', 'summary', 'characters', 'character_profiles',
-    'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary',
-    'script_points',
-  ]),
-  asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
-  segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
-  scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
-  storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
-  content_unit: new Set(['title', 'kind', 'description', 'prompt', 'duration_sec', 'status', 'metadata_json']),
-  keyframe: new Set(['title', 'description', 'prompt', 'resource_id', 'status', 'metadata_json']),
-  preview_timeline: new Set(['name', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
-  delivery_version: new Set(['name', 'description', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
-}
-
 export class BackendApplyClient {
   private readonly baseURL?: string
   private readonly resourceCacheDir: string
@@ -108,101 +78,33 @@ export class BackendApplyClient {
     return !!this.baseURL
   }
 
-  async applyReview(review: ApplyWorkspaceReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    const baseURL = this.resolveBaseURL(auth)
-    if (!baseURL) {
-      return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
-    }
-    const request = buildApplyRequest(review)
-    const url = `${baseURL}${request.path}`
-    const headers = buildHeaders(auth)
-
-    const response = await fetch(url, {
-      method: request.method,
-      headers,
-      body: JSON.stringify(request.payload),
-    })
-    const responseText = await response.text()
-    const parsed = parseJSONText(responseText)
-    if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend ${request.method} ${request.path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: request.method,
-        path: request.path,
-        status: response.status,
-        responseText,
-        ...(parsed !== undefined ? { response: parsed } : {}),
-      })
-    }
+  async applyReview(review: ApplyWorkspaceReview, _auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    void review
     return {
-      performed: true,
-      method: request.method,
-      url,
-      payload: request.payload,
-      ...(parsed !== undefined ? { response: parsed } : {}),
+      performed: false,
+      skippedReason: 'workspace apply is owned by MCP; the agent backend client does not encode application entity routes.',
     }
   }
 
-  async applyWorkspace(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    const baseURL = this.resolveBaseURL(auth)
-    if (!baseURL) {
-      return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
-    }
-    const path = `/projects/${encodeURIComponent(String(projectId))}/entities/production-workspaces/apply`
-    const url = `${baseURL}${path}`
-    const headers = buildHeaders(auth)
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    })
-    const responseText = await response.text()
-    const parsed = parseJSONText(responseText)
-    if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: 'POST',
-        path,
-        status: response.status,
-        responseText,
-        ...(parsed !== undefined ? { response: parsed } : {}),
-      })
-    }
+  async previewApplyReview(review: ApplyWorkspaceReview, _auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    void review
     return {
-      performed: true,
-      method: 'POST',
-      url,
-      payload,
-      ...(parsed !== undefined ? { response: parsed } : {}),
+      performed: false,
+      skippedReason: 'workspace validation is owned by MCP; the agent backend client does not encode application entity routes.',
     }
   }
 
-  async getProject(projectId: number, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    const baseURL = this.resolveBaseURL(auth)
-    if (!baseURL) {
-      return { performed: false, skippedReason: 'backend read disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
-    }
-    const path = `/projects/${encodeURIComponent(String(projectId))}`
-    const url = `${baseURL}${path}`
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: buildHeaders(auth),
-    })
-    const responseText = await response.text()
-    const parsed = parseJSONText(responseText)
-    if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend GET ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: 'GET',
-        path,
-        status: response.status,
-        responseText,
-        ...(parsed !== undefined ? { response: parsed } : {}),
-      })
-    }
+  async applyWorkspace(_projectId: number, _payload: Record<string, JSONValue>, _auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     return {
-      performed: true,
-      method: 'GET',
-      url,
-      ...(parsed !== undefined ? { response: parsed } : {}),
+      performed: false,
+      skippedReason: 'workspace apply is owned by MCP; direct backend workspace apply is not implemented in the agent.',
+    }
+  }
+
+  async getProject(_projectId: number, _auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    return {
+      performed: false,
+      skippedReason: 'project reads are owned by MCP; direct backend project reads are not implemented in the agent.',
     }
   }
 
@@ -287,281 +189,9 @@ export class BackendApplyClient {
     }
   }
 
-  async previewApplyReview(review: ApplyWorkspaceReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    const baseURL = this.resolveBaseURL(auth)
-    if (!baseURL) {
-      return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
-    }
-    const request = buildApplyRequest(review)
-    if (!isProjectLayerWorkspaceTarget(review) && !isProductionWorkspaceTarget(review)) {
-      return { performed: false, skippedReason: 'backend apply preview is only implemented for workspace workspaces' }
-    }
-    const path = request.path.replace(/\/apply$/, '/apply-preview')
-    const url = `${baseURL}${path}`
-    const response = await fetch(url, {
-      method: request.method,
-      headers: buildHeaders(auth),
-      body: JSON.stringify(request.payload),
-    })
-    const responseText = await response.text()
-    const parsed = parseJSONText(responseText)
-    if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend ${request.method} ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: request.method,
-        path,
-        status: response.status,
-        responseText,
-        ...(parsed !== undefined ? { response: parsed } : {}),
-      })
-    }
-    return {
-      performed: true,
-      method: request.method,
-      url,
-      payload: request.payload,
-      ...(parsed !== undefined ? { response: parsed } : {}),
-    }
-  }
-
   private resolveBaseURL(auth?: BackendApplyAuthContext): string | undefined {
     return normalizeBaseURL(auth?.backendAPIBaseURL) ?? this.baseURL
   }
-}
-
-export function buildPatchRequest(review: ApplyWorkspaceReview): { path: string; payload: Record<string, JSONValue> } {
-  const request = buildApplyRequest(review)
-  if (request.method !== 'PATCH') {
-    throw new Error(`apply_workspace does not support target entity type: ${review.target.entityType ?? 'unknown'}`)
-  }
-  return { path: request.path, payload: request.payload }
-}
-
-function buildApplyRequest(review: ApplyWorkspaceReview): { method: 'PATCH' | 'POST'; path: string; payload: Record<string, JSONValue> } {
-  if (isProjectLayerWorkspaceTarget(review)) {
-    return buildProjectLayerWorkspaceRequest(review)
-  }
-  if (isProductionWorkspaceTarget(review)) {
-    return buildProductionWorkspaceRequest(review)
-  }
-  const entityType = review.target.entityType
-  const entityId = review.target.entityId
-  const field = review.target.field
-  if (!entityType || !(entityType in PATCH_ROUTES)) {
-    throw new Error(`apply_workspace does not support target entity type: ${entityType ?? 'unknown'}`)
-  }
-  if (entityId === undefined || entityId === null || String(entityId).trim() === '') {
-    throw new Error('apply_workspace requires target entity id')
-  }
-  const route = PATCH_ROUTES[entityType]
-  const projectId = review.target.projectId
-  if (route.includes(':projectId') && !isValidAgentProjectId(projectId)) {
-    throw new Error(`apply_workspace requires projectId for target entity type: ${entityType}`)
-  }
-  if (!field || !FIELD_ALLOWLIST[entityType].has(field)) {
-    throw new Error(`apply_workspace cannot write field ${field ?? 'unknown'} on ${entityType}`)
-  }
-  return {
-    method: 'PATCH',
-    path: route
-      .replace(':projectId', encodeURIComponent(String(projectId)))
-      .replace(':id', encodeURIComponent(String(entityId))),
-    payload: {
-      [field]: review.proposedValue,
-    },
-  }
-}
-
-function buildProjectLayerWorkspaceRequest(review: ApplyWorkspaceReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
-  const projectId = resolveProjectId(review)
-  const payload = normalizeProjectLayerWorkspacePayloadForKind(review.proposedValue, review.workspaceKind)
-  const routeSegment = projectLayerWorkspaceRouteSegment(inferProjectLayerWorkspaceWorkspaceKind(payload, review.workspaceKind))
-  return {
-    method: 'POST',
-    path: `/projects/${encodeURIComponent(String(projectId))}/entities/${routeSegment}/apply`,
-    payload,
-  }
-}
-
-function isProjectLayerWorkspaceTarget(review: ApplyWorkspaceReview): boolean {
-  return review.workspaceKind === 'setting_workspace'
-    || review.workspaceKind === 'asset_workspace'
-    || review.workspaceKind === 'project_standards_workspace'
-    || (review.target.entityType === 'project' && review.target.field === 'workspace')
-}
-
-function buildProductionWorkspaceRequest(review: ApplyWorkspaceReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
-  const projectId = resolveProjectId(review)
-  const payload = normalizeProductionWorkspacePayload(review.proposedValue, review.target.entityId)
-  return {
-    method: 'POST',
-    path: `/projects/${encodeURIComponent(String(projectId))}/entities/production-workspaces/apply`,
-    payload,
-  }
-}
-
-function isProductionWorkspaceTarget(review: ApplyWorkspaceReview): boolean {
-  return review.workspaceKind === 'production_workspace' || review.target.entityType === 'production'
-}
-
-function resolveProjectId(review: ApplyWorkspaceReview): number {
-  const candidate = review.target.projectId ?? (isProjectLayerWorkspaceTarget(review) ? review.target.entityId : undefined)
-  if (!isValidAgentProjectId(candidate)) {
-    throw new Error('apply_workspace requires projectId for workspace apply')
-  }
-  return candidate
-}
-
-function normalizeProjectLayerWorkspacePayload(value: JSONValue): Record<string, JSONValue> {
-  if (typeof value === 'string') {
-    const parsed = parseJSONText(value)
-    if (!isRecord(parsed)) {
-      throw new Error('project-layer workspace workspace content must be a JSON object')
-    }
-    return parsed as Record<string, JSONValue>
-  }
-  if (!isRecord(value)) {
-    throw new Error('project-layer workspace workspace content must be a JSON object')
-  }
-  return value as Record<string, JSONValue>
-}
-
-function normalizeProjectLayerWorkspacePayloadForKind(value: JSONValue, kind: ApplyWorkspaceReview['workspaceKind']): Record<string, JSONValue> {
-  const payload = normalizeProjectLayerWorkspacePayload(value)
-  const effectiveKind = inferProjectLayerWorkspaceWorkspaceKind(payload, kind)
-  if (effectiveKind === 'project_standards_workspace') {
-    const workspace = isRecord(payload.workspace) ? payload.workspace : {}
-    if (workspace.creative_references !== undefined || workspace.asset_slots !== undefined) {
-      throw new Error('project_standards_workspace only supports workspace.project_style; use setting_workspace or asset_workspace for project-layer lists')
-    }
-    return {
-      ...payload,
-      scope: 'project_standards_workspace',
-      mode: 'snapshot',
-      workspace: {
-        ...workspace,
-        project_style: normalizeProjectStylePatch(workspace.project_style),
-      },
-    }
-  }
-  if (effectiveKind !== 'setting_workspace' && effectiveKind !== 'asset_workspace') return payload
-  const workspace = isRecord(payload.workspace) ? payload.workspace : {}
-  const creativeReferences = effectiveKind === 'setting_workspace' ? normalizeProjectLayerWorkspaceSnapshotNodes(workspace.creative_references) : []
-  const assetSlots = effectiveKind === 'asset_workspace' ? normalizeProjectLayerWorkspaceSnapshotNodes(workspace.asset_slots) : []
-  return {
-    ...payload,
-    scope: effectiveKind,
-    mode: 'snapshot',
-    workspace: {
-      ...workspace,
-      creative_references: creativeReferences,
-      asset_slots: assetSlots,
-    },
-  }
-}
-
-function normalizeProjectStylePatch(value: JSONValue | undefined): Record<string, JSONValue> {
-  if (!isRecord(value)) return {}
-  const out: Record<string, JSONValue> = { ...value }
-  if (value.shot_size_system !== undefined) {
-    out.shot_size_system = normalizeProjectStyleStringList(value.shot_size_system)
-  }
-  if (value.negative_rules !== undefined) {
-    out.negative_rules = normalizeProjectStyleStringList(value.negative_rules)
-  }
-  return out
-}
-
-function normalizeProjectStyleStringList(value: JSONValue): string[] {
-  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\r?\n/) : [value]
-  return items
-    .map((item) => projectStyleListItemToString(item))
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function projectStyleListItemToString(value: JSONValue): string {
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (!isRecord(value)) return ''
-  const key = stringFromJSONValue(value.key)
-  const label = stringFromJSONValue(value.label)
-  const usage = stringFromJSONValue(value.usage)
-  const composition = stringFromJSONValue(value.composition)
-  const description = stringFromJSONValue(value.description)
-  const name = [key, label].filter(Boolean).join(' ')
-  const details = [usage, composition, description].filter(Boolean).join('；')
-  return [name, details].filter(Boolean).join('：')
-}
-
-function stringFromJSONValue(value: JSONValue | undefined): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function inferProjectLayerWorkspaceWorkspaceKind(payload: Record<string, JSONValue>, kind: ApplyWorkspaceReview['workspaceKind']): ApplyWorkspaceReview['workspaceKind'] {
-  if (kind === 'setting_workspace' || kind === 'asset_workspace' || kind === 'project_standards_workspace') return kind
-  const schema = typeof payload.schema === 'string' ? payload.schema : ''
-  if (schema === 'movscript.setting_workspace.v1') return 'setting_workspace'
-  if (schema === 'movscript.asset_workspace.v1') return 'asset_workspace'
-  if (schema === 'movscript.project_standards_workspace.v1') return 'project_standards_workspace'
-  const scope = typeof payload.scope === 'string' ? payload.scope : ''
-  if (scope === 'setting_workspace' || scope === 'asset_workspace' || scope === 'project_standards_workspace') return scope
-  return kind
-}
-
-function projectLayerWorkspaceRouteSegment(kind: ApplyWorkspaceReview['workspaceKind']): string {
-  switch (kind) {
-  case 'setting_workspace':
-    return 'setting-workspaces'
-  case 'asset_workspace':
-    return 'asset-workspaces'
-  case 'project_standards_workspace':
-    return 'project-standards-workspaces'
-  default:
-    throw new Error(`unsupported project-layer workspace kind: ${kind}`)
-  }
-}
-
-function normalizeProjectLayerWorkspaceSnapshotNodes(value: JSONValue): JSONValue[] {
-  if (!Array.isArray(value)) return []
-  return value.map((item, index) => {
-    if (isRecord(item) && item.fields !== undefined) {
-      throw new Error(`project-layer workspace snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
-    }
-    return item
-  })
-}
-
-function normalizeProductionWorkspacePayload(value: JSONValue, fallbackProductionId: unknown): Record<string, JSONValue> {
-  const parsed = typeof value === 'string' ? parseJSONText(value) : value
-  if (!isRecord(parsed)) {
-    throw new Error('production workspace workspace content must be a JSON object')
-  }
-  const productionId = parsed.production_id ?? parsed.productionId ?? fallbackProductionId
-  if ((typeof productionId !== 'string' && typeof productionId !== 'number') || String(productionId).trim() === '') {
-    throw new Error('production workspace workspace content requires productionId')
-  }
-  if (!isRecord(parsed.workspace)) {
-    throw new Error('production workspace workspace content requires workspace')
-  }
-  if (parsed.mode !== 'snapshot') {
-    throw new Error('production workspace workspace content requires mode "snapshot"')
-  }
-  if (containsActionField(parsed.workspace)) {
-    throw new Error('production workspace snapshot must not include action fields')
-  }
-  return {
-    ...parsed,
-    mode: 'snapshot',
-    production_id: productionId,
-    workspace_scope: parsed.workspace_scope ?? parsed.workspaceScope ?? 'production',
-  }
-}
-
-function containsActionField(value: JSONValue): boolean {
-  if (Array.isArray(value)) return value.some(containsActionField)
-  if (!isRecord(value)) return false
-  if (Object.prototype.hasOwnProperty.call(value, 'action')) return true
-  return Object.values(value).some(containsActionField)
 }
 
 interface ResourceFileCacheMetadata {
@@ -705,7 +335,9 @@ function buildHeaders(auth?: BackendApplyAuthContext, options: { json?: boolean 
 }
 
 export function normalizeBackendApplyAuthUserId(value: unknown): number | string | undefined {
-  return isValidAgentReferenceId(value) ? value : undefined
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return undefined
 }
 
 function parseJSONText(text: string): JSONValue | undefined {

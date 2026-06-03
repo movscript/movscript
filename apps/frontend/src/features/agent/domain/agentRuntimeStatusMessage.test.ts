@@ -4,7 +4,6 @@ import {
   isRuntimeAsyncWorkHandoffRun,
   isRuntimeEmptyAssistantPlaceholder,
   runtimeStatusMessageFromRunActivity,
-  shouldRenderRuntimeStatusOnly,
 } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
@@ -17,8 +16,16 @@ test('runtimeStatusMessageFromRunActivity turns core work starts into runtime ha
         type: 'tool_call',
         status: 'completed',
         toolName: 'core_work_start',
-        args: { kind: 'generation_job' },
-        result: { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } },
+        createdAt: '2026-05-23T00:00:00.000Z',
+        completedAt: '2026-05-23T00:00:01.000Z',
+      }],
+      events: [{
+        id: 'event_1',
+        kind: 'tool_call',
+        title: 'Runtime work started',
+        status: 'completed',
+        toolName: 'core_work_start',
+        data: { runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'running' } },
         createdAt: '2026-05-23T00:00:00.000Z',
         completedAt: '2026-05-23T00:00:01.000Z',
       }],
@@ -33,23 +40,9 @@ test('runtimeStatusMessageFromRunActivity turns core work starts into runtime ha
   assert.match(status?.detail ?? '', /继续发送消息/)
 })
 
-test('shouldRenderRuntimeStatusOnly replaces empty assistant placeholders', () => {
-  const runtimeStatus = runtimeStatusMessageFromRunActivity({ activity: activity() })
+test('isRuntimeEmptyAssistantPlaceholder detects empty runtime placeholders', () => {
   assert.equal(isRuntimeEmptyAssistantPlaceholder('（无内容）'), true)
-  assert.equal(shouldRenderRuntimeStatusOnly({
-    content: '（无内容）',
-    runtimeStatus,
-    hasDiagnosticSection: false,
-    hasResultSection: false,
-    showModelSetupAction: false,
-  }), true)
-  assert.equal(shouldRenderRuntimeStatusOnly({
-    content: '这是 agent 的真实回复',
-    runtimeStatus,
-    hasDiagnosticSection: false,
-    hasResultSection: false,
-    showModelSetupAction: false,
-  }), false)
+  assert.equal(isRuntimeEmptyAssistantPlaceholder('这是 agent 的真实回复'), false)
 })
 
 test('isRuntimeAsyncWorkHandoffRun only unlocks terminal core work handoff runs', () => {
@@ -70,8 +63,6 @@ function activity(overrides: Partial<ChatRunActivity> = {}): ChatRunActivity {
       type: 'tool_call',
       status: 'completed',
       toolName: 'core_work_start',
-      args: { kind: 'generation_job' },
-      result: { workId: 'work_1', status: 'started' },
       createdAt: '2026-05-23T00:00:00.000Z',
       completedAt: '2026-05-23T00:00:01.000Z',
     }],

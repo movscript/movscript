@@ -3,40 +3,22 @@
   "id": "movscript.config_file.base",
   "version": "1.0.0",
   "name": "MovScript Base Config File",
-  "description": "基础 MovScript Agent 配置文件，显式启用 core、workspace 和 MovScript 前期准备 capability pack；generation job 提交能力随 core pack 提供。",
+  "description": "基础 Agent 配置文件，只启用通用 core 和 workspace 能力；生成能力由已安装的 image/video 插件提供。",
   "enabledPackIds": [
     "core.pack.agent",
-    "workspace.pack.lifecycle",
-    "movscript.pack.workspace"
+    "generation.pack.media",
+    "workspace.pack.lifecycle"
   ],
   "skillIds": [
     "core.base.default",
     "core.rules.runtime",
     "core.memory_access",
     "core.subagent_planning",
-    "workspace.lifecycle_support",
-    "movscript.script_reading",
-    "movscript.setting_workspace",
-    "movscript.asset_workspace",
-    "movscript.setting_prep",
-    "candidate.asset_planning",
-    "generation.visual_execution"
+    "core.generation.image",
+    "core.generation.video",
+    "workspace.lifecycle_support"
   ],
   "toolGrants": [
-    { "name": "movscript_focus_get", "mode": "allow", "approval": "never" },
-    { "name": "movscript_project_list", "mode": "allow", "approval": "never" },
-    { "name": "movscript_project_standards_get", "mode": "allow", "approval": "never" },
-    { "name": "movscript_script_locate", "mode": "allow", "approval": "never" },
-    { "name": "movscript_creative_reference_query", "mode": "allow", "approval": "never" },
-    { "name": "movscript_asset_slot_query", "mode": "allow", "approval": "never" },
-    { "name": "movscript_production_context_query", "mode": "allow", "approval": "never" },
-    { "name": "generation_model_list", "mode": "allow", "approval": "never" },
-    { "name": "tool_comfyui", "mode": "allow", "approval": "always" },
-    { "name": "tool_webui", "mode": "allow", "approval": "always" },
-    { "name": "candidate_asset_slot_attach", "mode": "allow", "approval": "never" },
-    { "name": "candidate_keyframe_attach", "mode": "allow", "approval": "never" },
-    { "name": "reference_search", "mode": "allow", "approval": "never" },
-    { "name": "reference_get", "mode": "allow", "approval": "never" },
     { "name": "core_file_read", "mode": "allow", "approval": "never" },
     { "name": "core_file_search", "mode": "allow", "approval": "never" },
     { "name": "core_file_edit", "mode": "allow", "approval": "never" },
@@ -74,9 +56,6 @@
   },
   "metadata": {
     "promptOptions": {
-      "projectStandards": {
-        "mode": "required_for_project_work"
-      },
       "finalSourceBlock": true
     }
   }

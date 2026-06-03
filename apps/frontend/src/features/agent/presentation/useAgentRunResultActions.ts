@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { upsertInteractionRunSnapshot } from '@/features/agent/domain/agentRunInteraction'
 import { localAgentClient, type AgentRun, type AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
@@ -9,6 +9,7 @@ type ConversationRunPatch = Partial<Omit<AgentConversationRuntimeState, 'convers
 
 export interface UseAgentRunResultActionsInput {
   conversationId: string
+  sessionId?: string
   setConversationRun: (conversationId: string, run: AgentRun, patch?: ConversationRunPatch) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
@@ -17,13 +18,18 @@ export interface UseAgentRunResultActionsInput {
 
 export function useAgentRunResultActions({
   conversationId,
+  sessionId,
   setConversationRun,
   setSubmittedInteractionRuns,
   recordLiveTraceEvent,
   updateStreamingAssistantText,
 }: UseAgentRunResultActionsInput) {
+  const runtimeClient = useMemo(() => sessionId?.trim()
+    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+    : localAgentClient, [sessionId])
+
   const streamFollowUpRun = useCallback(async (runId: string) => {
-    return await localAgentClient.streamRun(runId, {
+    return await runtimeClient.streamRun(runId, {
       timeoutMs: 900_000,
       pollMs: 1000,
       onRunUpdate: (nextRun) => {
@@ -38,7 +44,7 @@ export function useAgentRunResultActions({
         }
       },
     })
-  }, [conversationId, recordLiveTraceEvent, setConversationRun, setSubmittedInteractionRuns, updateStreamingAssistantText])
+  }, [conversationId, recordLiveTraceEvent, runtimeClient, setConversationRun, setSubmittedInteractionRuns, updateStreamingAssistantText])
 
   return {
     streamFollowUpRun,

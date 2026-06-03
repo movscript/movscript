@@ -660,7 +660,7 @@ async function mockContentWorkbenchData(page: Page, options: { previewMountReady
     }] : [])
   })
 
-  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
+  await page.route(/\/workspaces(?:[/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/workspaces' || url.pathname === '/workspaces/') {
       const requestedStatuses = url.searchParams.getAll('status')

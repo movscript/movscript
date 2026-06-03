@@ -44,6 +44,34 @@ test('generation events prefer structured MCP data over rendered content text', 
   assert.equal(monitor.pollIntervalMs, 300)
 })
 
+test('generation events expose agent-owned provider tool names', () => {
+  const call: ToolCall = {
+    name: 'generation_image_generate',
+    args: { projectId: 42 },
+  }
+  const result: JSONValue = {
+    data: {
+      status: 'submitted',
+      jobId: 123,
+      terminal: false,
+      monitor: {
+        tool: 'generation_image_job_get',
+        args: { jobId: 123 },
+      },
+    },
+  }
+
+  const event = buildGenerationEvent(call, result)
+  assert.ok(event)
+  assert.equal(event.toolName, 'generation_image_generate')
+  assert.equal(event.stage, 'created')
+
+  const monitor = extractGenerationMonitorRequest(call, result, event)
+  assert.ok(monitor)
+  assert.equal(monitor.toolName, 'generation_image_job_get')
+  assert.deepEqual(monitor.args, { jobId: 123, projectId: 42 })
+})
+
 test('generation events clone JSON media and monitor args snapshots', () => {
   const call: ToolCall = {
     name: 'generation_job_create',
@@ -113,7 +141,14 @@ test('generation monitor requests normalize backend monitor data to get job poll
 test('runtime work starts emit generation events without synchronous monitor requests', () => {
   const call: ToolCall = {
     name: 'core_work_start',
-    args: { kind: 'generation_job', request: { projectId: 42, prompt: 'image' } },
+    args: {
+      kind: 'generation_job',
+      request: {
+        tool: 'generation_image_generate',
+        args: { projectId: 42, prompt: 'image' },
+        observeTool: 'generation_image_job_get',
+      },
+    },
   }
   const result: JSONValue = {
     status: 'started',
@@ -121,13 +156,17 @@ test('runtime work starts emit generation events without synchronous monitor req
       id: 'work_1',
       kind: 'generation_job',
       status: 'waiting',
-      request: { projectId: 42, prompt: 'image' },
+      request: {
+        tool: 'generation_image_generate',
+        args: { projectId: 42, prompt: 'image' },
+        observeTool: 'generation_image_job_get',
+      },
       result: {
         status: 'queued',
         jobId: 123,
         terminal: false,
         monitor: {
-          tool: 'generation_job_get',
+          tool: 'generation_image_job_get',
           args: { jobId: 123, projectId: 42 },
           timeoutMs: 200,
           pollIntervalMs: 300,
@@ -138,6 +177,7 @@ test('runtime work starts emit generation events without synchronous monitor req
 
   const event = buildGenerationEvent(call, result)
   assert.ok(event)
+  assert.equal(event.toolName, 'generation_image_generate')
   assert.equal(event.stage, 'created')
   assert.equal(event.jobId, 123)
   assert.equal(extractGenerationMonitorRequest(call, result, event), undefined)

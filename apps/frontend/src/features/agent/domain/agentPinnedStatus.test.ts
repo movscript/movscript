@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { generationProgressStatesForPinnedStatus } from '@/features/agent/domain/agentPinnedStatus'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('generationProgressStatesForPinnedStatus restores completed generation jobs from historical messages', () => {
@@ -110,36 +110,9 @@ test('generationProgressStatesForPinnedStatus lets later historical activity upd
         role: 'assistant',
         content: '生成完成',
         timestamp: 2,
-        meta: {
-          localRunActivity: {
-            runId: 'run_2',
-            threadId: 'thread_1',
-            status: 'completed',
-            createdAt: '2026-05-22T01:00:00.000Z',
-            updatedAt: '2026-05-22T01:00:02.000Z',
-            steps: [],
-            events: [{
-              id: 'event_2',
-              kind: 'tool_call',
-              title: 'Generation completed',
-              status: 'completed',
-              createdAt: '2026-05-22T01:00:01.000Z',
-              completedAt: '2026-05-22T01:00:02.000Z',
-              data: {
-                generation: {
-                  jobId: 42,
-                  status: 'completed',
-                  stage: 'completed',
-                  progress: 100,
-                  terminal: true,
-                  outputResourceId: 420,
-                },
-              },
-            }],
-          },
-        },
       },
     ],
+    timelineItems: [timelineItemWithGenerationActivity()],
     run: null,
     visibleActivityEvents: [],
   })
@@ -164,6 +137,50 @@ function historicalMessage(): ChatMessage {
         stage: 'queued',
         progress: 5,
         terminal: false,
+      }],
+    },
+  }
+}
+
+function timelineItemWithGenerationActivity(): AgentTimelineItem {
+  return {
+    id: 'message_2',
+    threadId: 'thread_1',
+    origin: 'agent',
+    purpose: 'transcript',
+    surface: 'message_stream',
+    contentPromptEligibility: 'include',
+    sortRank: 30,
+    content: '生成完成',
+    createdAt: '2026-05-22T01:00:00.000Z',
+    updatedAt: '2026-05-22T01:00:02.000Z',
+    revision: 1,
+    cursor: 'message_2',
+    runtimeRefs: { threadId: 'thread_1' },
+    activity: {
+      runId: 'run_2',
+      threadId: 'thread_1',
+      status: 'completed',
+      createdAt: '2026-05-22T01:00:00.000Z',
+      updatedAt: '2026-05-22T01:00:02.000Z',
+      steps: [],
+      events: [{
+        id: 'event_2',
+        kind: 'tool_call',
+        title: 'Generation completed',
+        status: 'completed',
+        createdAt: '2026-05-22T01:00:01.000Z',
+        completedAt: '2026-05-22T01:00:02.000Z',
+        data: {
+          generation: {
+            jobId: 42,
+            status: 'completed',
+            stage: 'completed',
+            progress: 100,
+            terminal: true,
+            outputResourceId: 420,
+          },
+        },
       }],
     },
   }

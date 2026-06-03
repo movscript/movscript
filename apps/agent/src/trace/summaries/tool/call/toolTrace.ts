@@ -85,13 +85,22 @@ function generationTraceForWork(toolName: string, work: RuntimeWork) {
   const request = work.request && typeof work.request === 'object' && !Array.isArray(work.request)
     ? work.request as Record<string, JSONValue>
     : {}
-  const args = typeof jobId === 'number' ? { jobId } : request
+  const requestArgs = isJSONRecord(request.args) ? request.args : request
+  const args = typeof jobId === 'number' ? { jobId } : requestArgs
   const backendToolName = toolName === 'core_work_start'
-    ? 'generation_job_create'
+    ? stringField(request.tool) ?? 'generation_job_create'
     : toolName === 'core_work_cancel'
       ? 'generation_job_cancel'
-      : 'generation_job_get'
+      : stringField(request.observeTool) ?? stringField(request.observe_tool) ?? 'generation_job_get'
   return buildGenerationEvent({ name: backendToolName, args }, work.result as JSONValue | undefined)
+}
+
+function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function summarizeContextRefs(refs: ContextRef[]): Array<Record<string, JSONValue>> | undefined {

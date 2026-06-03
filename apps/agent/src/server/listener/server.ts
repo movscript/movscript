@@ -3,6 +3,10 @@ import { IncomingMessage, ServerResponse, type Server } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import {
+  touchAgentSessionHeartbeat,
+  writeAgentSessionRuntimeRecord,
+} from '@movscript/agent-runtime'
+import {
   createAgentServerContext,
   type AgentServerContext,
   getAgentRuntimeCompatibility,
@@ -11,9 +15,9 @@ import {
 } from '../../bootstrap/server/agentServerContext.js'
 import { isRecord } from '../../shared/json/jsonValue.js'
 import { isActiveRunStatus, isExecutingRunStatus } from '../../state/run/status/lifecycle/runStatus.js'
+import { toThreadSummary } from '../../state/store/core/store.js'
 import { buildRuntimeInputMessageMetadata } from '../../state/run/input/runtime/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from '../../memory/shared/types.js'
-import { installAgentPack, listAgentPackPlugins, uninstallAgentPack } from '../../catalog/loading/install/packInstaller.js'
 import { RuntimeModelConfigInputError } from '../../model/config/modelConfig.js'
 import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
 import {
@@ -27,10 +31,10 @@ import {
   streamThreadEvents,
 } from '../streams/runtimeStreams.js'
 import {
-  streamSessionMessageEvents,
-  streamThreadMessageEvents,
-} from '../streams/messageFeedStreams.js'
-import { buildRuntimeMessageFeedPage } from '../protocol/messageFeed.js'
+  streamSessionTimelineEvents,
+  streamThreadTimelineEvents,
+} from '../streams/timelineStreams.js'
+import { buildRuntimeTimelinePage } from '../protocol/timelineProjection.js'
 import {
   AgentHTTPError,
   isCrossSiteBrowserRequest,
@@ -51,8 +55,6 @@ import {
   activeAgentConfigFileId,
   asDirectToolRun,
   asPlannerUserRun,
-  normalizeAgentPackBody,
-  normalizeAgentPackUninstallBody,
   normalizeDebugEvidenceRefQuery,
   normalizeWorkspaceBody,
   normalizeWorkspaceQuery,
@@ -95,10 +97,16 @@ function installAgentLogTimestamps(scope: string): void {
 
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
+  idleShutdownDelayMs?: number
 }
 
 export function createAgentRequestListener(context: AgentServerContext, options: AgentRequestListenerOptions = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const telemetry = context.telemetry ?? new RuntimeTelemetryRegistry()
+  const sessionLifecycle = createAgentSessionLifecycle({
+    sessionId: context.sessionRuntime?.paths.sessionId,
+    idleShutdownDelayMs: options.idleShutdownDelayMs,
+    onShutdownRequest: options.onShutdownRequest,
+  })
   return async (req, res) => {
     const requestStartedAt = Date.now()
     setHeaders(res)
@@ -154,6 +162,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         const healthStartedAt = Date.now()
         writeJSON(res, 200, {
           ...getAgentRuntimeCompatibility(context),
+          paths: context.paths,
           workspacePath: context.paths.workspacePath,
           modelConfigPath: context.paths.modelConfigPath,
         })
@@ -165,6 +174,62 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         const capabilityStartedAt = Date.now()
         writeJSON(res, 200, getAgentServerCapabilities(context))
         logSlowRequest(req.method, url.pathname, requestStartedAt, capabilityStartedAt)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/runtime/tool-providers') {
+        writeJSON(res, 200, { providers: context.toolProviderRegistry.listProviders() })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/runtime/tool-providers') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider registration is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider registration rejects cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'runtime tool provider body')
+        writeJSON(res, 200, {
+          provider: context.toolProviderRegistry.register(normalizeToolProviderRegistration(body)),
+          providers: context.toolProviderRegistry.listProviders(),
+        })
+        return
+      }
+
+      const toolProviderMatch = url.pathname.match(/^\/runtime\/tool-providers\/([^/]+)$/)
+      if (toolProviderMatch && req.method === 'DELETE') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider removal is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider removal rejects cross-site browser requests' })
+          return
+        }
+        writeJSON(res, 200, {
+          removed: context.toolProviderRegistry.unregister(decodeURIComponent(toolProviderMatch[1] ?? '')),
+          providers: context.toolProviderRegistry.listProviders(),
+        })
+        return
+      }
+
+      const toolProviderHeartbeatMatch = url.pathname.match(/^\/runtime\/tool-providers\/([^/]+)\/heartbeat$/)
+      if (toolProviderHeartbeatMatch && req.method === 'POST') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider heartbeat is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime tool provider heartbeat rejects cross-site browser requests' })
+          return
+        }
+        writeJSON(res, 200, {
+          provider: context.toolProviderRegistry.heartbeat(decodeURIComponent(toolProviderHeartbeatMatch[1] ?? '')),
+          providers: context.toolProviderRegistry.listProviders(),
+        })
         return
       }
 
@@ -191,11 +256,36 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         writeJSON(res, 202, { ok: true, shuttingDown: true })
-        setTimeout(() => {
-          void Promise.resolve(options.onShutdownRequest?.()).catch((error) => {
-            console.error('[agent] runtime shutdown failed', error)
-          })
-        }, 0)
+        sessionLifecycle.shutdownNow('runtime_shutdown')
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/runtime/session/leases') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime session lease is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime session lease rejects cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'runtime session lease body')
+        const lease = sessionLifecycle.acquireLease(normalizeRuntimeSessionLeaseBody(body))
+        writeJSON(res, 200, lease)
+        return
+      }
+
+      const sessionLeaseMatch = url.pathname.match(/^\/runtime\/session\/leases\/([^/]+)$/)
+      if (sessionLeaseMatch && req.method === 'DELETE') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime session lease release is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime session lease release rejects cross-site browser requests' })
+          return
+        }
+        writeJSON(res, 200, sessionLifecycle.releaseLease(decodeURIComponent(sessionLeaseMatch[1] ?? '')))
         return
       }
 
@@ -233,7 +323,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             builtinToolsDir: context.pluginCatalog.builtinToolsDir,
             skillCount: context.pluginCatalog.layeredSkills.length,
             toolCount: context.pluginCatalog.layeredTools.length,
-            packPlugins: listAgentPackPlugins(context.pluginCatalog.skillsDir),
             warnings: context.pluginCatalog.warnings,
           },
           updates: context.updates,
@@ -272,46 +361,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         writeJSON(res, 200, context.runtimeRouter.reloadAgentCatalog())
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/agent-catalog/packs/install') {
-        if (!isLoopbackRequest(req)) {
-          writeJSON(res, 403, { error: 'agent pack install is only available from loopback clients' })
-          return
-        }
-        if (isCrossSiteBrowserRequest(req)) {
-          writeJSON(res, 403, { error: 'agent pack install rejects cross-site browser requests' })
-          return
-        }
-        const body = await readOptionalJSONObject(req, 'agent pack body')
-        const install = installAgentPack(normalizeAgentPackBody(body, context.pluginCatalog.skillsDir))
-        const catalogReload = context.runtimeRouter.reloadAgentCatalog()
-        writeJSON(res, 200, {
-          status: 'installed',
-          ...install,
-          catalog: isRecord(catalogReload) ? catalogReload : { status: 'unknown' },
-        })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/agent-catalog/packs/uninstall') {
-        if (!isLoopbackRequest(req)) {
-          writeJSON(res, 403, { error: 'agent pack uninstall is only available from loopback clients' })
-          return
-        }
-        if (isCrossSiteBrowserRequest(req)) {
-          writeJSON(res, 403, { error: 'agent pack uninstall rejects cross-site browser requests' })
-          return
-        }
-        const body = await readOptionalJSONObject(req, 'agent pack uninstall body')
-        const uninstall = uninstallAgentPack(normalizeAgentPackUninstallBody(body, context.pluginCatalog.skillsDir))
-        const catalogReload = context.runtimeRouter.reloadAgentCatalog()
-        writeJSON(res, 200, {
-          status: 'uninstalled',
-          ...uninstall,
-          catalog: isRecord(catalogReload) ? catalogReload : { status: 'unknown' },
-        })
         return
       }
 
@@ -487,9 +536,35 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const sessionMessagesMatch = url.pathname.match(/^\/sessions\/([^/]+)\/messages$/)
-      if (sessionMessagesMatch && req.method === 'GET') {
-        const sessionId = decodeURIComponent(sessionMessagesMatch[1] ?? '')
+      const sessionRunMatch = url.pathname.match(/^\/sessions\/([^/]+)\/runs$/)
+      if (sessionRunMatch && req.method === 'POST') {
+        const sessionId = decodeURIComponent(sessionRunMatch[1] ?? '')
+        const body = withRequestAuth(await readOptionalJSONObject(req, 'session run body'), req)
+        telemetry.markPhase(requestOperationId, 'body_read')
+        const session = context.runtimeRouter.getSession(sessionId)
+        if (!session) throw new AgentHTTPError(404, 'session not found')
+        const targetThread = resolveSessionMessageThread(context, sessionId, body)
+        telemetry.markPhase(requestOperationId, 'session_thread_resolved', {
+          sessionId,
+          threadId: targetThread.id,
+          activeThreadId: session.activeThreadId,
+          interactiveThreadId: session.interactiveThreadId,
+          rootThreadId: session.rootThreadId,
+        })
+        await writeThreadRunResponse({
+          context,
+          telemetry,
+          requestOperationId,
+          res,
+          threadId: targetThread.id,
+          body,
+        })
+        return
+      }
+
+      const sessionTimelineMatch = url.pathname.match(/^\/sessions\/([^/]+)\/timeline$/)
+      if (sessionTimelineMatch && req.method === 'GET') {
+        const sessionId = decodeURIComponent(sessionTimelineMatch[1] ?? '')
         const snapshot = await context.runtimeRouter.getSessionRuntimeSnapshot(sessionId)
         if (!snapshot) {
           writeJSON(res, 404, { error: 'session not found' })
@@ -500,7 +575,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 404, { error: 'thread not found in session' })
           return
         }
-        writeJSON(res, 200, buildRuntimeMessageFeedPage({
+        writeJSON(res, 200, buildRuntimeTimelinePage({
           threads: snapshot.threads,
           runs: snapshot.runs,
           ...(threadId ? { threadId } : {}),
@@ -510,14 +585,15 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const sessionMessagesStreamMatch = url.pathname.match(/^\/sessions\/([^/]+)\/messages\/stream$/)
-      if (sessionMessagesStreamMatch && req.method === 'GET') {
-        await streamSessionMessageEvents(
+      const sessionTimelineStreamMatch = url.pathname.match(/^\/sessions\/([^/]+)\/timeline\/stream$/)
+      if (sessionTimelineStreamMatch && req.method === 'GET') {
+        await streamSessionTimelineEvents(
           req,
           res,
           context.runtimeRouter,
-          decodeURIComponent(sessionMessagesStreamMatch[1] ?? ''),
+          decodeURIComponent(sessionTimelineStreamMatch[1] ?? ''),
           url.searchParams.get('threadId')?.trim() || undefined,
+          sessionLifecycle.streamHooks(),
         )
         return
       }
@@ -535,7 +611,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const sessionStreamMatch = url.pathname.match(/^\/sessions\/([^/]+)\/stream$/)
       if (sessionStreamMatch && req.method === 'GET') {
-        streamSessionEvents(req, res, context.runtimeRouter, sessionStreamMatch[1])
+        streamSessionEvents(req, res, context.runtimeRouter, sessionStreamMatch[1], sessionLifecycle.streamHooks())
         return
       }
 
@@ -601,15 +677,15 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
-      if (messagesMatch && req.method === 'GET') {
-        const threadId = decodeURIComponent(messagesMatch[1] ?? '')
+      const timelineMatch = url.pathname.match(/^\/threads\/([^/]+)\/timeline$/)
+      if (timelineMatch && req.method === 'GET') {
+        const threadId = decodeURIComponent(timelineMatch[1] ?? '')
         const thread = context.runtimeRouter.getThread(threadId)
         if (!thread) {
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
-        writeJSON(res, 200, buildRuntimeMessageFeedPage({
+        writeJSON(res, 200, buildRuntimeTimelinePage({
           threads: [thread],
           runs: context.runtimeRouter.listRunsByThread(threadId),
           before: url.searchParams.get('before') ?? undefined,
@@ -617,23 +693,16 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         }))
         return
       }
-      if (messagesMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'message body')
-        if (body.role !== undefined && body.role !== 'user') {
-          throw new AgentHTTPError(400, 'thread message role must be user')
+      const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
+      if (messagesMatch && req.method === 'GET') {
+        const page = context.runtimeRouter.listThreadMessagesPage(decodeURIComponent(messagesMatch[1] ?? ''), normalizeThreadMessagesPageQuery(url))
+        if (!page) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
         }
-        if (body.runId !== undefined || body.metadata !== undefined) {
-          throw new AgentHTTPError(400, 'thread message runtime fields are not accepted')
-        }
-        writeJSON(res, 201, context.runtimeRouter.addMessage(messagesMatch[1], {
-          ...(typeof body.id === 'string' && body.id.trim() ? { id: body.id.trim() } : {}),
-          role: 'user',
-          content: body.content,
-          ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
-        }))
+        writeJSON(res, 200, page)
         return
       }
-
       const threadRunMatch = url.pathname.match(/^\/threads\/([^/]+)\/runs$/)
       if (threadRunMatch && req.method === 'GET') {
         const thread = context.runtimeRouter.getThread(threadRunMatch[1])
@@ -661,177 +730,13 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const threadStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/stream$/)
       if (threadStreamMatch && req.method === 'GET') {
-        streamThreadEvents(req, res, context.runtimeRouter, threadStreamMatch[1])
+        streamThreadEvents(req, res, context.runtimeRouter, threadStreamMatch[1], sessionLifecycle.streamHooks())
         return
       }
 
-      const threadMessagesStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages\/stream$/)
-      if (threadMessagesStreamMatch && req.method === 'GET') {
-        await streamThreadMessageEvents(req, res, context.runtimeRouter, decodeURIComponent(threadMessagesStreamMatch[1] ?? ''))
-        return
-      }
-
-      if (threadRunMatch && req.method === 'POST') {
-        const body = withRequestAuth(await readOptionalJSONObject(req, 'thread run body'), req)
-        telemetry.markPhase(requestOperationId, 'body_read')
-        const content = typeof body.message === 'string' && body.message.trim()
-          ? body.message
-          : typeof body.content === 'string' && body.content.trim()
-            ? body.content
-            : undefined
-        if (!content) throw new AgentHTTPError(400, 'thread run message is required')
-        telemetry.markPhase(requestOperationId, 'thread_lookup_start', { threadId: threadRunMatch[1] })
-        const thread = context.runtimeRouter.getThread(threadRunMatch[1])
-        if (!thread) throw new AgentHTTPError(404, 'thread not found')
-        telemetry.markPhase(requestOperationId, 'thread_lookup_done', {
-          threadId: thread.id,
-          messageCount: thread.messages.length,
-          activeRunId: thread.activeRunId,
-        })
-        telemetry.markPhase(requestOperationId, 'active_run_lookup_start', {
-          threadId: threadRunMatch[1],
-          activeRunId: thread.activeRunId,
-        })
-        const activeRun = thread.activeRunId ? context.runtimeRouter.getRun(thread.activeRunId) : undefined
-        const activeRunMode = body.activeRunMode === 'new_run' ? 'new_run' : 'runtime_input'
-        telemetry.markPhase(requestOperationId, 'active_run_lookup_done', {
-          activeRunMode,
-          activeRunId: activeRun?.id,
-          activeRunStatus: activeRun?.status,
-        })
-        if (activeRun && isActiveRunStatus(activeRun.status) && activeRunMode !== 'new_run') {
-          telemetry.markPhase(requestOperationId, 'runtime_input_add_message_start', {
-            threadId: threadRunMatch[1],
-            activeRunId: activeRun.id,
-          })
-          const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
-            ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
-            role: 'user',
-            content,
-            runId: activeRun.id,
-            metadata: buildRuntimeInputMessageMetadata({
-              targetRunId: activeRun.id,
-              mode: body.runtimeInputMode,
-            }),
-            ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
-          })
-          telemetry.markPhase(requestOperationId, 'runtime_input_add_message_done', {
-            threadId: threadRunMatch[1],
-            activeRunId: activeRun.id,
-            messageId: message.id,
-          })
-          telemetry.markPhase(requestOperationId, 'response_write_start', {
-            status: 202,
-            threadId: threadRunMatch[1],
-            runId: activeRun.id,
-            messageId: message.id,
-          })
-          writeJSON(res, 202, {
-            run: activeRun,
-            message,
-            runtimeInput: {
-              accepted: true,
-              runId: activeRun.id,
-              messageId: message.id,
-              status: 'accepted',
-            },
-          })
-          telemetry.markPhase(requestOperationId, 'response_write_done', {
-            status: 202,
-            threadId: threadRunMatch[1],
-            runId: activeRun.id,
-            messageId: message.id,
-          })
-          return
-        }
-        if (body.toolCall !== undefined) {
-          const toolRunOperationId = telemetry.beginOperation({ kind: 'tool_run_create', threadId: threadRunMatch[1] })
-          const {
-            message: _message,
-            content: _content,
-            sourceMessageId: _sourceMessageId,
-            ...runBody
-          } = body
-          let run
-          try {
-            run = context.runtimeRouter.createToolRun(asDirectToolRun({
-              ...runBody,
-              threadId: threadRunMatch[1],
-              message: content,
-            }))
-            telemetry.markPhase(toolRunOperationId, 'run_created', { runId: run.id, status: run.status })
-            telemetry.finishOperation(toolRunOperationId, 'success', { runId: run.id, status: run.status })
-          } catch (error) {
-            telemetry.finishOperation(toolRunOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-            throw error
-          }
-          const updatedThread = context.runtimeRouter.getThread(threadRunMatch[1])
-          const initialUserMessageId = run.input?.sourceMessageId
-            ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
-          const message = toolRunResponseMessage(updatedThread, initialUserMessageId)
-          telemetry.markPhase(requestOperationId, 'response_write_start', {
-            status: 201,
-            threadId: threadRunMatch[1],
-            runId: run.id,
-            messageId: message?.id,
-          })
-          writeJSON(res, 201, message ? { run, message } : { run })
-          telemetry.markPhase(requestOperationId, 'response_write_done', {
-            status: 201,
-            threadId: threadRunMatch[1],
-            runId: run.id,
-            messageId: message?.id,
-          })
-          return
-        }
-        telemetry.markPhase(requestOperationId, 'user_message_add_start', { threadId: threadRunMatch[1] })
-        const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
-          ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
-          role: 'user',
-          content,
-          ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
-        })
-        telemetry.markPhase(requestOperationId, 'message_created', { threadId: threadRunMatch[1], messageId: message.id })
-        const {
-          message: _message,
-          content: _content,
-          sourceMessageId: _sourceMessageId,
-          ...runBody
-        } = body
-        const runCreateOperationId = telemetry.beginOperation({ kind: 'run_create', threadId: threadRunMatch[1] })
-        let run
-        try {
-          run = context.runtimeRouter.createRun(asPlannerUserRun({
-            ...runBody,
-            threadId: threadRunMatch[1],
-            sourceMessageId: message.id,
-          }))
-          telemetry.markPhase(runCreateOperationId, 'run_created', { runId: run.id, status: run.status })
-          telemetry.finishOperation(runCreateOperationId, 'success', { runId: run.id, status: run.status })
-        } catch (error) {
-          telemetry.finishOperation(runCreateOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
-          throw error
-        }
-        telemetry.markPhase(requestOperationId, 'run_created', { runId: run.id, threadId: run.threadId, status: run.status })
-        telemetry.recordMetric({
-          name: 'movscript_agent_run_create_total',
-          value: 1,
-          unit: 'count',
-          labels: { role: run.role ?? 'unknown', status: run.status },
-        })
-        telemetry.markPhase(requestOperationId, 'response_write_start', {
-          status: 201,
-          threadId: run.threadId,
-          runId: run.id,
-          messageId: message.id,
-        })
-        writeJSON(res, 201, { run, message })
-        telemetry.markPhase(requestOperationId, 'response_write_done', {
-          status: 201,
-          threadId: run.threadId,
-          runId: run.id,
-          messageId: message.id,
-        })
+      const threadTimelineStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/timeline\/stream$/)
+      if (threadTimelineStreamMatch && req.method === 'GET') {
+        await streamThreadTimelineEvents(req, res, context.runtimeRouter, decodeURIComponent(threadTimelineStreamMatch[1] ?? ''), sessionLifecycle.streamHooks())
         return
       }
 
@@ -879,7 +784,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const planStreamMatch = url.pathname.match(/^\/plans\/([^/]+)\/stream$/)
       if (planStreamMatch && req.method === 'GET') {
-        streamPlanEvents(req, res, context.runtimeRouter, planStreamMatch[1])
+        streamPlanEvents(req, res, context.runtimeRouter, planStreamMatch[1], sessionLifecycle.streamHooks())
         return
       }
 
@@ -1025,7 +930,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
       if (runStreamMatch && req.method === 'GET') {
-        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1], telemetry)
+        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1], telemetry, sessionLifecycle.streamHooks())
         return
       }
 
@@ -1062,7 +967,9 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
       if (runCancelMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'cancel body')
-        writeJSON(res, 200, context.runtimeRouter.cancelRun(runCancelMatch[1], body))
+        const cancelled = context.runtimeRouter.cancelRun(runCancelMatch[1], body)
+        sessionLifecycle.allowIdleShutdown('run_cancelled')
+        writeJSON(res, 200, cancelled)
         return
       }
 
@@ -1075,7 +982,9 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const runCancelTreeMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel-tree$/)
       if (runCancelTreeMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'cancel tree body')
-        writeJSON(res, 200, context.runtimeRouter.cancelPlanTree(runCancelTreeMatch[1], body))
+        const cancelled = context.runtimeRouter.cancelPlanTree(runCancelTreeMatch[1], body)
+        sessionLifecycle.allowIdleShutdown('run_tree_cancelled')
+        writeJSON(res, 200, cancelled)
         return
       }
 
@@ -1145,6 +1054,331 @@ export function createAgentRequestListener(context: AgentServerContext, options:
   }
 }
 
+function normalizeToolProviderRegistration(body: Record<string, unknown>): {
+  providerId: string
+  endpoint: string
+  label?: string
+} {
+  const providerId = typeof body.providerId === 'string' ? body.providerId.trim() : ''
+  const endpoint = typeof body.endpoint === 'string' ? body.endpoint.trim() : ''
+  const label = typeof body.label === 'string' ? body.label.trim() : ''
+  if (!providerId) throw new AgentHTTPError(400, 'runtime tool provider id is required')
+  if (!endpoint) throw new AgentHTTPError(400, 'runtime tool provider endpoint is required')
+  return {
+    providerId,
+    endpoint,
+    ...(label ? { label } : {}),
+  }
+}
+
+function normalizeRuntimeSessionLeaseBody(body: Record<string, unknown>): { leaseId: string; ttlMs?: number; holder?: string } {
+  const leaseId = typeof body.leaseId === 'string' ? body.leaseId.trim() : ''
+  if (!leaseId) throw new AgentHTTPError(400, 'runtime session lease id is required')
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,191}$/.test(leaseId)) throw new AgentHTTPError(400, 'runtime session lease id is invalid')
+  const ttlMs = typeof body.ttlMs === 'number' && Number.isFinite(body.ttlMs)
+    ? Math.max(5_000, Math.min(120_000, Math.trunc(body.ttlMs)))
+    : undefined
+  const holder = typeof body.holder === 'string' && body.holder.trim() ? body.holder.trim().slice(0, 120) : undefined
+  return {
+    leaseId,
+    ...(ttlMs !== undefined ? { ttlMs } : {}),
+    ...(holder ? { holder } : {}),
+  }
+}
+
+function resolveSessionMessageThread(context: AgentServerContext, sessionId: string, body: Record<string, unknown>) {
+  const session = context.runtimeRouter.getSession(sessionId)
+  if (!session) throw new AgentHTTPError(404, 'session not found')
+  const candidateThreadIds = [
+    session.activeThreadId,
+    session.interactiveThreadId,
+    session.rootThreadId,
+  ].filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+  for (const threadId of candidateThreadIds) {
+    const thread = context.runtimeRouter.getThread(threadId)
+    if (thread) return thread
+  }
+  return context.runtimeRouter.createThread({
+    sessionId,
+    lifecycle: session.lifecycle,
+    ...(typeof session.title === 'string' && session.title.trim() ? { title: session.title.trim() } : {}),
+    ...(typeof body.title === 'string' && body.title.trim() ? { title: body.title.trim() } : {}),
+    ...(typeof body.projectId === 'number' ? { projectId: body.projectId } : typeof session.projectId === 'number' ? { projectId: session.projectId } : {}),
+    agentRole: 'root',
+  })
+}
+
+async function writeThreadRunResponse(input: {
+  context: AgentServerContext
+  telemetry: RuntimeTelemetryRegistry
+  requestOperationId: string
+  res: ServerResponse
+  threadId: string
+  body: Record<string, unknown>
+}): Promise<void> {
+  const { context, telemetry, requestOperationId, res, threadId, body } = input
+  const content = typeof body.message === 'string' && body.message.trim()
+    ? body.message
+    : typeof body.content === 'string' && body.content.trim()
+      ? body.content
+      : undefined
+  if (!content) throw new AgentHTTPError(400, 'thread run message is required')
+  telemetry.markPhase(requestOperationId, 'thread_lookup_start', { threadId })
+  const thread = context.runtimeRouter.getThread(threadId)
+  if (!thread) throw new AgentHTTPError(404, 'thread not found')
+  const threadSummary = toThreadSummary(thread)
+  telemetry.markPhase(requestOperationId, 'thread_lookup_done', {
+    threadId: thread.id,
+    messageCount: threadSummary.messageCount,
+    activeRunId: thread.activeRunId,
+  })
+  telemetry.markPhase(requestOperationId, 'active_run_lookup_start', {
+    threadId,
+    activeRunId: thread.activeRunId,
+  })
+  const activeRun = thread.activeRunId ? context.runtimeRouter.getRun(thread.activeRunId) : undefined
+  const activeRunMode = body.activeRunMode === 'new_run' ? 'new_run' : 'runtime_input'
+  telemetry.markPhase(requestOperationId, 'active_run_lookup_done', {
+    activeRunMode,
+    activeRunId: activeRun?.id,
+    activeRunStatus: activeRun?.status,
+  })
+  if (activeRun && isActiveRunStatus(activeRun.status) && activeRunMode !== 'new_run') {
+    telemetry.markPhase(requestOperationId, 'runtime_input_add_message_start', {
+      threadId,
+      activeRunId: activeRun.id,
+    })
+    const message = context.runtimeRouter.addMessage(threadId, {
+      ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
+      role: 'user',
+      content,
+      runId: activeRun.id,
+      metadata: buildRuntimeInputMessageMetadata({
+        targetRunId: activeRun.id,
+        mode: body.runtimeInputMode,
+      }),
+      ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
+    })
+    telemetry.markPhase(requestOperationId, 'runtime_input_add_message_done', {
+      threadId,
+      activeRunId: activeRun.id,
+      messageId: message.id,
+    })
+    telemetry.markPhase(requestOperationId, 'response_write_start', {
+      status: 202,
+      threadId,
+      runId: activeRun.id,
+      messageId: message.id,
+    })
+    writeJSON(res, 202, {
+      run: activeRun,
+      message,
+      runtimeInput: {
+        accepted: true,
+        runId: activeRun.id,
+        messageId: message.id,
+        deliveryStatus: 'accepted',
+      },
+    })
+    telemetry.markPhase(requestOperationId, 'response_write_done', {
+      status: 202,
+      threadId,
+      runId: activeRun.id,
+      messageId: message.id,
+    })
+    return
+  }
+  if (body.toolCall !== undefined) {
+    const toolRunOperationId = telemetry.beginOperation({ kind: 'tool_run_create', threadId })
+    const {
+      message: _message,
+      content: _content,
+      sourceMessageId: _sourceMessageId,
+      ...runBody
+    } = body
+    let run
+    try {
+      run = context.runtimeRouter.createToolRun(asDirectToolRun({
+        ...runBody,
+        threadId,
+        message: content,
+      }))
+      telemetry.markPhase(toolRunOperationId, 'run_created', { runId: run.id, status: run.status })
+      telemetry.finishOperation(toolRunOperationId, 'success', { runId: run.id, status: run.status })
+    } catch (error) {
+      telemetry.finishOperation(toolRunOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+    const updatedThread = context.runtimeRouter.getThread(threadId)
+    const initialUserMessageId = run.input?.sourceMessageId
+      ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
+    const message = toolRunResponseMessage(updatedThread, initialUserMessageId)
+    telemetry.markPhase(requestOperationId, 'response_write_start', {
+      status: 201,
+      threadId,
+      runId: run.id,
+      messageId: message?.id,
+    })
+    writeJSON(res, 201, message ? { run, message } : { run })
+    telemetry.markPhase(requestOperationId, 'response_write_done', {
+      status: 201,
+      threadId,
+      runId: run.id,
+      messageId: message?.id,
+    })
+    return
+  }
+  telemetry.markPhase(requestOperationId, 'user_message_add_start', { threadId })
+  const message = context.runtimeRouter.addMessage(threadId, {
+    ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
+    role: 'user',
+    content,
+    ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
+  })
+  telemetry.markPhase(requestOperationId, 'message_created', { threadId, messageId: message.id })
+  const {
+    message: _message,
+    content: _content,
+    sourceMessageId: _sourceMessageId,
+    ...runBody
+  } = body
+  const runCreateOperationId = telemetry.beginOperation({ kind: 'run_create', threadId })
+  let run
+  try {
+    run = context.runtimeRouter.createRun(asPlannerUserRun({
+      ...runBody,
+      threadId,
+      sourceMessageId: message.id,
+    }))
+    telemetry.markPhase(runCreateOperationId, 'run_created', { runId: run.id, status: run.status })
+    telemetry.finishOperation(runCreateOperationId, 'success', { runId: run.id, status: run.status })
+  } catch (error) {
+    telemetry.finishOperation(runCreateOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
+  telemetry.markPhase(requestOperationId, 'run_created', { runId: run.id, threadId: run.threadId, status: run.status })
+  telemetry.recordMetric({
+    name: 'movscript_agent_run_create_total',
+    value: 1,
+    unit: 'count',
+    labels: { role: run.role ?? 'unknown', status: run.status },
+  })
+  telemetry.markPhase(requestOperationId, 'response_write_start', {
+    status: 201,
+    threadId: run.threadId,
+    runId: run.id,
+    messageId: message.id,
+  })
+  writeJSON(res, 201, { run, message })
+  telemetry.markPhase(requestOperationId, 'response_write_done', {
+    status: 201,
+    threadId: run.threadId,
+    runId: run.id,
+    messageId: message.id,
+  })
+}
+
+function createAgentSessionLifecycle(input: {
+  sessionId?: string
+  idleShutdownDelayMs?: number
+  onShutdownRequest?: () => void | Promise<void>
+}) {
+  const idleShutdownDelayMs = Math.max(0, input.idleShutdownDelayMs ?? 500)
+  const defaultLeaseTtlMs = 30_000
+  let subscribers = 0
+  const leases = new Map<string, NodeJS.Timeout>()
+  let idleShutdownAllowed = false
+  let shutdownRequested = false
+  let idleShutdownTimer: NodeJS.Timeout | undefined
+
+  const clearIdleShutdownTimer = () => {
+    if (!idleShutdownTimer) return
+    clearTimeout(idleShutdownTimer)
+    idleShutdownTimer = undefined
+  }
+  const shutdownNow = (reason: string) => {
+    if (shutdownRequested) return
+    shutdownRequested = true
+    clearIdleShutdownTimer()
+    for (const timeout of leases.values()) clearTimeout(timeout)
+    leases.clear()
+    setTimeout(() => {
+      void Promise.resolve(input.onShutdownRequest?.()).catch((error) => {
+        console.error(`[agent] runtime shutdown failed reason=${reason}`, error)
+      })
+    }, 0)
+  }
+  const activeClientCount = () => subscribers + leases.size
+  const maybeScheduleIdleShutdown = (reason: string) => {
+    if (!input.sessionId || !idleShutdownAllowed || shutdownRequested || activeClientCount() > 0 || idleShutdownTimer) return
+    idleShutdownTimer = setTimeout(() => {
+      idleShutdownTimer = undefined
+      if (activeClientCount() > 0) return
+      console.info(`[agent] session idle shutdown reason=${reason} session=${input.sessionId}`)
+      shutdownNow(reason)
+    }, idleShutdownDelayMs)
+    idleShutdownTimer.unref()
+  }
+  const releaseLeaseTimer = (leaseId: string) => {
+    const current = leases.get(leaseId)
+    if (!current) return false
+    clearTimeout(current)
+    leases.delete(leaseId)
+    maybeScheduleIdleShutdown('session_stopped_without_clients')
+    return true
+  }
+
+  return {
+    streamHooks: () => ({
+      onSubscribe: () => {
+        subscribers += 1
+        clearIdleShutdownTimer()
+      },
+      onUnsubscribe: () => {
+        subscribers = Math.max(0, subscribers - 1)
+        maybeScheduleIdleShutdown('session_stopped_without_clients')
+      },
+    }),
+    acquireLease: (lease: { leaseId: string; ttlMs?: number; holder?: string }) => {
+      if (!input.sessionId) throw new AgentHTTPError(409, 'runtime session lease requires a session runtime')
+      releaseLeaseTimer(lease.leaseId)
+      clearIdleShutdownTimer()
+      const ttlMs = lease.ttlMs ?? defaultLeaseTtlMs
+      const expiresAt = new Date(Date.now() + ttlMs).toISOString()
+      const timeout = setTimeout(() => {
+        leases.delete(lease.leaseId)
+        maybeScheduleIdleShutdown('session_lease_expired')
+      }, ttlMs)
+      timeout.unref()
+      leases.set(lease.leaseId, timeout)
+      return {
+        ok: true,
+        sessionId: input.sessionId,
+        leaseId: lease.leaseId,
+        ttlMs,
+        expiresAt,
+        activeLeases: leases.size,
+        activeStreams: subscribers,
+        ...(lease.holder ? { holder: lease.holder } : {}),
+      }
+    },
+    releaseLease: (leaseId: string) => ({
+      ok: true,
+      released: releaseLeaseTimer(leaseId),
+      sessionId: input.sessionId,
+      leaseId,
+      activeLeases: leases.size,
+      activeStreams: subscribers,
+    }),
+    allowIdleShutdown: (reason: string) => {
+      if (!input.sessionId) return
+      idleShutdownAllowed = true
+      maybeScheduleIdleShutdown(reason)
+    },
+    shutdownNow,
+  }
+}
+
 export function startAgentServer(context = createAgentServerContext()): Server {
   const listenStartedAt = Date.now()
   const { transport, endpoint } = resolveAgentRuntimeServerTransport(context.port)
@@ -1171,9 +1405,52 @@ export function startAgentServer(context = createAgentServerContext()): Server {
   })
   transport.listen(server, endpoint, () => {
     console.info(`[agent] startup end ${endpoint.kind}-listen elapsed=${Date.now() - listenStartedAt}ms endpoint=${endpoint.label}`)
-    logAgentServerStartup(context)
+    const sessionHeartbeat = installSessionRuntimeRecord(context, endpoint)
+    server.once('close', () => {
+      if (sessionHeartbeat) clearInterval(sessionHeartbeat)
+    })
+    logAgentServerStartup(context, endpoint)
   })
   return server
+}
+
+function installSessionRuntimeRecord(
+  context: AgentServerContext,
+  endpoint: ReturnType<typeof resolveAgentRuntimeServerTransport>['endpoint'],
+): NodeJS.Timeout | undefined {
+  if (!context.sessionRuntime) return undefined
+  const endpointLabel = endpoint.kind === 'http'
+    ? `http://${endpoint.label}`
+    : endpoint.label
+  writeAgentSessionRuntimeRecord(context.sessionRuntime.paths, {
+    pid: process.pid,
+    endpoint: endpointLabel,
+    transport: endpoint.kind === 'unix-socket' ? 'unix-socket' : 'http',
+    startedAt: new Date().toISOString(),
+    version: '0.1.0',
+    startedBy: normalizeSessionRuntimeStartedBy(process.env.MOVSCRIPT_AGENT_STARTED_BY),
+  })
+  const heartbeat = setInterval(() => {
+    touchAgentSessionHeartbeat(context.sessionRuntime!.paths)
+  }, 5_000)
+  heartbeat.unref()
+  return heartbeat
+}
+
+function normalizeSessionRuntimeStartedBy(value: string | undefined): 'desktop' | 'cli' | 'agent' | 'unknown' {
+  if (value === 'desktop' || value === 'cli' || value === 'agent') return value
+  return 'unknown'
+}
+
+function normalizeThreadMessagesPageQuery(url: URL): { afterOrdinal?: number; limit?: number; direction?: 'asc' | 'desc' } {
+  const afterOrdinal = Number(url.searchParams.get('afterOrdinal') ?? url.searchParams.get('after') ?? '')
+  const limit = Number(url.searchParams.get('limit') ?? '')
+  const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : undefined
+  return {
+    ...(Number.isFinite(afterOrdinal) && afterOrdinal > 0 ? { afterOrdinal: Math.floor(afterOrdinal) } : {}),
+    ...(Number.isFinite(limit) && limit > 0 ? { limit: Math.floor(limit) } : {}),
+    ...(direction ? { direction } : {}),
+  }
 }
 
 function toolRunResponseMessage(thread: { messages: Array<{ id: string; role: string }> } | undefined, initialUserMessageId?: string) {

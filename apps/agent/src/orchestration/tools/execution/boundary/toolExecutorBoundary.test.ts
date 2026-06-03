@@ -10,31 +10,26 @@ const toolExecutionGateSource = readFileSync(new URL('../../gate/toolExecutionGa
 const runtimeToolHandlersSource = readFileSync(new URL('../../../../application/shared/tools/runtimeToolHandlers.ts', import.meta.url), 'utf8')
 const runtimeWorkspaceOperationsSource = readFileSync(new URL('../../../../application/workspace/operations/runtimeWorkspaceOperations.ts', import.meta.url), 'utf8')
 const mcpExternalToolGatewaySource = readFileSync(new URL('../../../../adapters/mcp/gateway/mcpExternalToolGatewayAdapter.ts', import.meta.url), 'utf8')
-const projectStandardsHandlerSource = readFileSync(new URL('../../../../tools/handlers/project/projectStandardsToolHandler.ts', import.meta.url), 'utf8')
 const fileHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/files/fileToolHandler.ts', import.meta.url), 'utf8')
 const memoryHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/memory/memoryToolHandler.ts', import.meta.url), 'utf8')
-const referenceHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/reference/referenceToolHandler.ts', import.meta.url), 'utf8')
 const videoFrameHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/video/videoFrameToolHandler.ts', import.meta.url), 'utf8')
 const runtimeControlHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/runtime-control/runtimeControlToolHandler.ts', import.meta.url), 'utf8')
 const workspaceApplyHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.ts', import.meta.url), 'utf8')
 const workspaceCreateHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/create/workspaceCreateToolHandler.ts', import.meta.url), 'utf8')
 
-test('project standards tool is implemented behind a tool handler boundary', () => {
-  assert.equal(
-    toolExecutorSource.includes("if (toolName === 'movscript_project_standards_get')"),
-    false,
-    'toolExecutor should not directly branch on movscript_project_standards_get',
-  )
-  assert.equal(
-    toolExecutorSource.includes('function buildProjectStandardsToolResult'),
-    false,
-    'project standards result shaping belongs in the project tool handler',
-  )
-  assert.equal(
-    projectStandardsHandlerSource.includes("toolNames: ['movscript_project_standards_get']"),
-    true,
-    'project standards tool should be registered by its tool handler',
-  )
+test('legacy business tools are not registered by runtime handlers', () => {
+  for (const toolName of ['movscript_project_standards_get', 'reference_search', 'reference_get']) {
+    assert.equal(
+      toolExecutorSource.includes(`if (toolName === '${toolName}')`),
+      false,
+      `toolExecutor should not directly branch on ${toolName}`,
+    )
+    assert.equal(
+      runtimeToolHandlersSource.includes(toolName),
+      false,
+      `${toolName} should be provided by MCP or installed plugins, not runtime handlers`,
+    )
+  }
 })
 
 test('core runtime control tools are implemented behind the core tool handler boundary', () => {
@@ -61,7 +56,7 @@ test('core runtime control tools are implemented behind the core tool handler bo
   }
 })
 
-test('memory and reference tools are implemented behind core tool handler boundaries', () => {
+test('memory tools are implemented behind core tool handler boundaries', () => {
   for (const toolName of [
     'core_memory_search',
     'core_memory_get',
@@ -80,18 +75,6 @@ test('memory and reference tools are implemented behind core tool handler bounda
     )
   }
 
-  for (const toolName of ['reference_search', 'reference_get']) {
-    assert.equal(
-      toolExecutorSource.includes(`if (toolName === '${toolName}')`),
-      false,
-      `toolExecutor should not directly branch on ${toolName}`,
-    )
-    assert.equal(
-      referenceHandlerSource.includes(`'${toolName}'`),
-      true,
-      `${toolName} should be registered by the core reference handler`,
-    )
-  }
 })
 
 test('core file tools are implemented behind the core tool handler boundary', () => {
@@ -844,24 +827,6 @@ test('workspace workspace services do not import MCP transport directly', () => 
       `${fileURL.pathname} should use ports instead of importing the MCP client transport`,
     )
   }
-})
-
-test('project standards handler reads project snapshots through a port', () => {
-  assert.equal(
-    projectStandardsHandlerSource.includes('backendApplyClient'),
-    false,
-    'projectStandardsToolHandler should not depend on the backend apply client directly',
-  )
-  assert.equal(
-    projectStandardsHandlerSource.includes('.getProject('),
-    false,
-    'projectStandardsToolHandler should not perform backend project reads directly',
-  )
-  assert.equal(
-    projectStandardsHandlerSource.includes('projectStandardsPort.loadProject'),
-    true,
-    'projectStandardsToolHandler should load projects through ProjectStandardsPort',
-  )
 })
 
 test('core file handler reads readonly resources through a port', () => {

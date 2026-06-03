@@ -6,6 +6,7 @@ export interface AgentConversationListItem {
   description?: string;
   meta?: string;
   onClick: () => void;
+  onRename?: (title: string) => void | Promise<void>;
   onArchive?: () => void;
   onDelete?: () => void;
 }
@@ -24,6 +25,7 @@ export interface AgentConversationListPanelProps {
   collapseAssistantLabel: string;
   archiveConversationLabel: string;
   deleteConversationLabel: string;
+  renameConversationLabel: string;
   refreshLabel: string;
 }
 
@@ -33,6 +35,7 @@ export interface AgentConversationTabItem {
   messageCount?: number;
   runtimeState?: "stopped" | "waiting" | "active";
   runtimeDetail?: string;
+  onRename?: (title: string) => void | Promise<void>;
 }
 
 export interface AgentConversationTabsPanelProps {
@@ -47,4 +50,5 @@ export interface AgentConversationTabsPanelProps {
   conversationTabsLabel: string;
   archiveConversationLabel: string;
   closeConversationLabel: string;
+  renameConversationLabel: string;
 }

@@ -9,20 +9,12 @@ import {
 } from '../../../../workspaces/workspace/creation/workspaceWorkspaceCreationService.js'
 import { workspaceContentFileRef } from '../../../../files/providers/workspaceFileProvider.js'
 
-const workspaceKindToLegacyWorkspaceKind: Record<string, string> = {
-  project_standards_edit: 'project_standards_workspace',
-  setting_edit: 'setting_workspace',
-  asset_edit: 'asset_workspace',
-  production_edit: 'production_workspace',
-  content_unit_edit: 'content_unit_workspace',
-}
-
 export function createWorkspaceOpenToolHandler(): RuntimeToolHandler {
   return {
     toolNames: ['workspace_open'],
     async execute({ call, args, run, workspaceStore, workspaceSnapshotHydrationPort, signal }) {
       const normalizedArgs = normalizeWorkspaceOpenArgs(args)
-      if (normalizedArgs.workspace === true || normalizedArgs.workspaceKind !== undefined || isStructuredWorkspaceWorkspaceKind(normalizedArgs.kind)) {
+      if (isStructuredWorkspaceWorkspaceKind(normalizedArgs.kind)) {
         const result = await createWorkspaceWorkspace(workspaceStore, run, workspaceSnapshotHydrationPort, normalizedArgs, signal)
         return {
           result: workspaceOpenResult(result),
@@ -54,23 +46,19 @@ export function createWorkspaceOpenToolHandler(): RuntimeToolHandler {
 
 function normalizeWorkspaceOpenArgs(args: Record<string, JSONValue>): Record<string, JSONValue> {
   const kind = typeof args.workspaceKind === 'string'
-    ? workspaceKindToLegacyWorkspaceKind[args.workspaceKind] ?? args.workspaceKind
+    ? args.workspaceKind
     : typeof args.workspace_kind === 'string'
-      ? workspaceKindToLegacyWorkspaceKind[args.workspace_kind] ?? args.workspace_kind
-      : typeof args.kind === 'string'
-        ? workspaceKindToLegacyWorkspaceKind[args.kind] ?? args.kind
-        : args.kind
+      ? args.workspace_kind
+      : args.kind
   return {
     ...args,
     kind,
-    workspace: args.workspace ?? true,
   }
 }
 
 function workspaceOpenResult(value: JSONValue): JSONValue {
   if (!isJSONRecord(value)) return value
   const workspaceId = stringField(value.workspaceId)
-    ?? stringField(value.workspaceRef)
     ?? stringField(value.workspaceRef)
     ?? stringField(value.id)
   if (!workspaceId) return value
@@ -82,20 +70,12 @@ function workspaceOpenResult(value: JSONValue): JSONValue {
     workspaceContentRef: workspaceContentFileRef(workspaceId),
     workspace: {
       id: workspaceId,
-      kind: workspaceKindForLegacyKind(stringField(workspace.kind)),
+      kind: stringField(workspace.kind),
       title: stringField(workspace.title),
       updatedAt: stringField(workspace.updatedAt),
     },
     message: 'Workspace is ready for editing.',
   } as unknown as JSONValue
-}
-
-function workspaceKindForLegacyKind(kind: string | undefined): string | undefined {
-  if (!kind) return undefined
-  for (const [workspaceKind, legacyKind] of Object.entries(workspaceKindToLegacyWorkspaceKind)) {
-    if (legacyKind === kind) return workspaceKind
-  }
-  return kind
 }
 
 function stringField(value: JSONValue | undefined): string | undefined {

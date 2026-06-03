@@ -21,7 +21,6 @@ export function isToolVisibleForActiveBehavior(input: {
 }): boolean {
   const name = publicToolName(input.toolName)
   if (BASE_RETRIEVAL_TOOLS.has(name)) return true
-  if (name === 'movscript_focus_get' && /^\/context\b/i.test(input.userMessage.trim())) return true
   if (COMMAND_REQUIRED_TOOLS.has(name) && /^\/(?:image|video)\b/i.test(input.userMessage.trim())) return true
   if (input.activeSkills.length === 0) return false
   const activeToolHints = new Set<string>()

@@ -6,9 +6,7 @@ import {
   DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS,
   DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS,
   DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS,
-  runtimeLocalAgentBaseURL,
   runtimeLocalAgentTransport,
-  TERMINAL_RUN_STATUSES,
 } from '@/shared/infrastructure/local-agent-client/config'
 import {
   isLocalAgentNotFoundError,
@@ -25,8 +23,7 @@ import {
 } from '@/shared/infrastructure/local-agent-client/requestSignal'
 import { withRuntimeModelConfigError } from '@/shared/infrastructure/local-agent-client/modelConfigError'
 import { parseRuntimeEvent } from '@/shared/infrastructure/local-agent-client/runtimeEvent'
-import { minimalResolvedThread } from '@/shared/infrastructure/local-agent-client/threadResolution'
-import { AGENT_TRACE_EVENT_KINDS } from '@movscript/protocol'
+import { AGENT_TRACE_EVENT_KINDS, RUNTIME_MODEL_API_KINDS, isAgentRunStreamSettledStatus, isAgentRunTerminalStatus } from '@movscript/protocol'
 import { runtimeRunFromEvent, runtimeRunIdFromEvent } from '@movscript/event-state'
 import type {
   AgentApprovalRequest,
@@ -37,9 +34,9 @@ import type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
-  AgentFeedMessage,
-  AgentFeedMessagePage,
-  AgentFeedMessageStreamEvent,
+  AgentTimelineItem,
+  AgentTimelinePage,
+  AgentTimelineStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -59,6 +56,7 @@ import type {
   AgentRunTracePage,
   AgentRunTraceSummary,
   AgentRuntimeEventV2,
+  AgentRuntimeStatusRecord,
   AgentRuntimeSnapshotV2,
   AgentSession,
   AgentSessionSummary,
@@ -98,12 +96,16 @@ import type {
   ToolCall,
   UpdateTaskGraphResult,
   AgentToolCall,
+  AgentRuntimeSessionSummary,
+  AgentRuntimeSessionLease,
   AgentRuntimeLimitsOverride,
   AgentThreadListQuery,
+  AgentThreadMessagesPage,
+  AgentThreadMessagesQuery,
   AgentHealth,
-  AgentMessageFeedQuery,
-  AgentMessageFeedStreamOptions,
-  AgentSessionMessageFeedQuery,
+  AgentTimelineQuery,
+  AgentTimelineStreamOptions,
+  AgentSessionTimelineQuery,
   AgentRuntimeTelemetryMetricSample,
   AgentRuntimeTelemetryLogEntry,
   AgentRuntimeTelemetrySpan,
@@ -126,9 +128,8 @@ import type {
   AgentRunDebugEvidence,
   AgentTraceDebugView,
   AgentRunGenerationView,
-  AgentPackFile,
-  AgentPackInstallResult,
-  AgentPackUninstallResult,
+  AgentWorkspaceRuntimeConfig,
+  AgentWorkspaceRuntimeConfigSaveInput,
   RunMessageOptions,
   ThreadStreamOptions,
   SessionStreamOptions,
@@ -146,9 +147,9 @@ export type {
   AgentClientInput,
   AgentDebugTool,
   AgentDebugContextPanel,
-  AgentFeedMessage,
-  AgentFeedMessagePage,
-  AgentFeedMessageStreamEvent,
+  AgentTimelineItem,
+  AgentTimelinePage,
+  AgentTimelineStreamEvent,
   AgentInspectResponse,
   AgentInputRequest,
   AgentManifest,
@@ -168,6 +169,7 @@ export type {
   AgentRunTracePage,
   AgentRunTraceSummary,
   AgentRuntimeEventV2,
+  AgentRuntimeStatusRecord,
   AgentRuntimeSnapshotV2,
   AgentSession,
   AgentSessionSummary,
@@ -207,12 +209,15 @@ export type {
   ToolCall,
   UpdateTaskGraphResult,
   AgentToolCall,
+  AgentRuntimeSessionSummary,
   AgentRuntimeLimitsOverride,
   AgentThreadListQuery,
+  AgentThreadMessagesPage,
+  AgentThreadMessagesQuery,
   AgentHealth,
-  AgentMessageFeedQuery,
-  AgentMessageFeedStreamOptions,
-  AgentSessionMessageFeedQuery,
+  AgentTimelineQuery,
+  AgentTimelineStreamOptions,
+  AgentSessionTimelineQuery,
   AgentRuntimeTelemetryMetricSample,
   AgentRuntimeTelemetryLogEntry,
   AgentRuntimeTelemetrySpan,
@@ -235,9 +240,9 @@ export type {
   AgentRunDebugEvidence,
   AgentTraceDebugView,
   AgentRunGenerationView,
-  AgentPackFile,
-  AgentPackInstallResult,
-  AgentPackUninstallResult,
+  AgentWorkspaceRuntimeConfig,
+  AgentWorkspaceRuntimeConfigSaveInput,
+  AgentRuntimeSessionLease,
   RunMessageOptions,
   ThreadStreamOptions,
   SessionStreamOptions,
@@ -250,21 +255,32 @@ export function canStartLocalAgentFromClient(): boolean {
 export class LocalAgentClient {
   readonly baseURL: string
   readonly transportKind: AgentRuntimeTransport['kind']
+  readonly workspaceDir?: string
+  readonly sessionId?: string
   private readonly transport: AgentRuntimeTransport
   private readonly healthTimeoutMs: number
   private readonly requestTimeoutMs: number
 
   constructor(
-    baseURL: string | AgentRuntimeTransport = runtimeLocalAgentBaseURL(),
-    options: { healthTimeoutMs?: number; requestTimeoutMs?: number; transport?: AgentRuntimeTransport } = {},
+    transport?: AgentRuntimeTransport,
+    options: { healthTimeoutMs?: number; requestTimeoutMs?: number; transport?: AgentRuntimeTransport; workspaceDir?: string; sessionId?: string } = {},
   ) {
-    this.transport = typeof baseURL === 'string'
-      ? options.transport ?? runtimeLocalAgentTransport(baseURL)
-      : baseURL
+    this.transport = transport ?? options.transport ?? runtimeLocalAgentTransport({ workspaceDir: options.workspaceDir, sessionId: options.sessionId })
     this.baseURL = this.transport.endpointLabel
     this.transportKind = this.transport.kind
+    this.workspaceDir = options.workspaceDir
+    this.sessionId = options.sessionId
     this.healthTimeoutMs = normalizePositiveTimeoutMs(options.healthTimeoutMs) ?? DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS
     this.requestTimeoutMs = normalizePositiveTimeoutMs(options.requestTimeoutMs) ?? DEFAULT_LOCAL_AGENT_REQUEST_TIMEOUT_MS
+  }
+
+  forSession(input: { sessionId: string; workspaceDir?: string }): LocalAgentClient {
+    return new LocalAgentClient(undefined, {
+      healthTimeoutMs: this.healthTimeoutMs,
+      requestTimeoutMs: this.requestTimeoutMs,
+      workspaceDir: input.workspaceDir,
+      sessionId: input.sessionId,
+    })
   }
 
   async health(): Promise<AgentHealth> {
@@ -284,19 +300,39 @@ export class LocalAgentClient {
     return this.getJSON('/runtime/telemetry', { auth: false, signal })
   }
 
+  async listRuntimeSessionsFromWorkspace(input: { workspaceDir?: string } = {}): Promise<{ sessions: AgentRuntimeSessionSummary[] }> {
+    if (typeof window === 'undefined' || typeof window.api?.listAgentRuntimeSessions !== 'function') {
+      return { sessions: [] }
+    }
+    return window.api.listAgentRuntimeSessions(input)
+  }
+
+  acquireRuntimeSessionLease(input: { leaseId: string; ttlMs?: number; holder?: string }, signal?: AbortSignal): Promise<AgentRuntimeSessionLease> {
+    return this.postJSON('/runtime/session/leases', {
+      leaseId: input.leaseId,
+      ...(typeof input.ttlMs === 'number' ? { ttlMs: input.ttlMs } : {}),
+      ...(input.holder?.trim() ? { holder: input.holder.trim() } : {}),
+    }, signal)
+  }
+
+  releaseRuntimeSessionLease(leaseId: string, signal?: AbortSignal): Promise<AgentRuntimeSessionLease> {
+    return this.deleteJSON(`/runtime/session/leases/${encodeURIComponent(leaseId)}`, signal)
+  }
+
   async ensureRunning(): Promise<AgentHealth> {
     try {
       return await this.health()
     } catch (healthError) {
       const ensureAgentRuntime = canStartLocalAgentFromClient() ? window.api?.ensureAgentRuntime : undefined
       if (!ensureAgentRuntime) {
-        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter @movscript/agent dev`)
+        throw new Error('当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，让会话自己拉起对应的 agent 进程。')
       }
 
       const status = await ensureAgentRuntime({
-        baseURL: this.baseURL,
-        transportKind: this.transport.kind,
+        ...(this.transport.kind === 'unix-socket' ? { baseURL: this.baseURL, transportKind: this.transport.kind } : {}),
         ...(this.transport.socketPath ? { socketPath: this.transport.socketPath } : {}),
+        ...(this.workspaceDir ? { workspaceDir: this.workspaceDir } : {}),
+        ...(this.sessionId ? { sessionId: this.sessionId } : {}),
       })
       if (!status.ok) {
         throw new Error(status.error || `failed to start agent at ${this.baseURL}`)
@@ -321,9 +357,14 @@ export class LocalAgentClient {
     return this.postJSON('/threads', input, signal)
   }
 
-  startProvisionalConversation(input: { title?: string; projectId?: number; expiresAt?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
+  startProvisionalConversation(input: { sessionId?: string; title?: string; projectId?: number; expiresAt?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
     return this.createThread({
       ...input,
+      ...(input.sessionId?.trim()
+        ? { sessionId: input.sessionId.trim() }
+        : this.sessionId
+          ? { sessionId: this.sessionId }
+          : {}),
       lifecycle: 'provisional',
     }, signal)
   }
@@ -344,15 +385,15 @@ export class LocalAgentClient {
     return this.deleteJSON('/threads', signal)
   }
 
-  addMessage(threadId: string, content: string, clientInput?: AgentClientInput, signal?: AbortSignal): Promise<AgentMessage> {
-    return this.postJSON(`/threads/${encodeURIComponent(threadId)}/messages`, {
-      role: 'user',
-      content,
-      ...(clientInput ? { clientInput } : {}),
-    }, signal)
+  listThreadMessages(threadId: string, query: AgentThreadMessagesQuery = {}, signal?: AbortSignal): Promise<AgentThreadMessagesPage> {
+    const params = new URLSearchParams()
+    if (typeof query.afterOrdinal === 'number') params.set('afterOrdinal', String(query.afterOrdinal))
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    if (query.direction === 'desc') params.set('direction', 'desc')
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/messages${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
-  createMessageRun(threadId: string, input: {
+  createSessionMessageRun(sessionId: string, input: {
     message: string
     sourceMessageId?: string
     toolCall?: AgentToolCall
@@ -362,8 +403,10 @@ export class LocalAgentClient {
     runtimeLimits?: AgentRuntimeLimitsOverride
     activeRunMode?: 'runtime_input' | 'new_run'
     runtimeInputMode?: 'soft' | 'hard'
+    title?: string
+    projectId?: number
   }, signal?: AbortSignal): Promise<CreateMessageRunResult> {
-    return this.postJSON(`/threads/${encodeURIComponent(threadId)}/runs`, input, signal)
+    return this.postJSON(`/sessions/${encodeURIComponent(sessionId)}/runs`, input, signal)
   }
 
   listRuns(): Promise<{ runs: AgentRun[] }> {
@@ -382,19 +425,19 @@ export class LocalAgentClient {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
   }
 
-  listThreadMessages(threadId: string, query: AgentMessageFeedQuery = {}, signal?: AbortSignal): Promise<AgentFeedMessagePage> {
+  listThreadTimeline(threadId: string, query: AgentTimelineQuery = {}, signal?: AbortSignal): Promise<AgentTimelinePage> {
     const params = new URLSearchParams()
     if (query.before) params.set('before', query.before)
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
-    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/messages${params.size ? `?${params.toString()}` : ''}`, { signal })
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/timeline${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
-  listSessionMessages(sessionId: string, query: AgentSessionMessageFeedQuery = {}, signal?: AbortSignal): Promise<AgentFeedMessagePage> {
+  listSessionTimeline(sessionId: string, query: AgentSessionTimelineQuery = {}, signal?: AbortSignal): Promise<AgentTimelinePage> {
     const params = new URLSearchParams()
     if (query.threadId) params.set('threadId', query.threadId)
     if (query.before) params.set('before', query.before)
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
-    return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/messages${params.size ? `?${params.toString()}` : ''}`, { signal })
+    return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/timeline${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
   previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; runtimeLimits?: AgentRuntimeLimitsOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
@@ -405,14 +448,6 @@ export class LocalAgentClient {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     return this.getJSON(`/capabilities${params.size ? `?${params.toString()}` : ''}`)
-  }
-
-  installAgentPack(input: { pluginId: string; files: AgentPackFile[] }, signal?: AbortSignal): Promise<AgentPackInstallResult> {
-    return this.postJSON('/agent-catalog/packs/install', input, signal)
-  }
-
-  uninstallAgentPack(input: { pluginId: string }, signal?: AbortSignal): Promise<AgentPackUninstallResult> {
-    return this.postJSON('/agent-catalog/packs/uninstall', input, signal)
   }
 
   reloadAgentCatalog(signal?: AbortSignal): Promise<unknown> {
@@ -457,6 +492,54 @@ export class LocalAgentClient {
 
   clearModelConfig(): Promise<RuntimeModelConfigPublic> {
     return withRuntimeModelConfigError(this.deleteJSON('/model-config'))
+  }
+
+  async getWorkspaceConfig(input: { workspaceDir?: string } = {}): Promise<AgentWorkspaceRuntimeConfig> {
+    if (typeof window !== 'undefined' && typeof window.api?.getAgentWorkspaceConfig === 'function') {
+      return window.api.getAgentWorkspaceConfig({
+        ...(input.workspaceDir ?? this.workspaceDir ? { workspaceDir: input.workspaceDir ?? this.workspaceDir } : {}),
+      })
+    }
+    return {
+      schema: 'movscript.agent.workspace-config.v1',
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  async saveWorkspaceConfig(input: AgentWorkspaceRuntimeConfigSaveInput): Promise<AgentWorkspaceRuntimeConfig> {
+    if (typeof window !== 'undefined' && typeof window.api?.saveAgentWorkspaceConfig === 'function') {
+      return window.api.saveAgentWorkspaceConfig({
+        ...(this.workspaceDir ? { workspaceDir: this.workspaceDir } : {}),
+        ...input,
+      })
+    }
+    if (input.modelConfig && isPlainRecord(input.modelConfig)) await this.saveModelConfig(modelConfigInputFromRecord(input.modelConfig))
+    if (input.modelConfig === null) await this.clearModelConfig()
+    return this.getWorkspaceConfig()
+  }
+
+  async getWorkspaceModelConfig(): Promise<RuntimeModelConfigPublic> {
+    if (typeof window !== 'undefined' && typeof window.api?.getAgentWorkspaceConfig === 'function') {
+      const config = await this.getWorkspaceConfig()
+      return runtimeModelConfigPublicFromWorkspaceConfig(config.modelConfig)
+    }
+    return this.getModelConfig()
+  }
+
+  async saveWorkspaceModelConfig(input: Parameters<LocalAgentClient['saveModelConfig']>[0]): Promise<RuntimeModelConfigPublic> {
+    if (typeof window !== 'undefined' && typeof window.api?.saveAgentWorkspaceConfig === 'function') {
+      const config = await this.saveWorkspaceConfig({ modelConfig: input })
+      return runtimeModelConfigPublicFromWorkspaceConfig(config.modelConfig)
+    }
+    return this.saveModelConfig(input)
+  }
+
+  async clearWorkspaceModelConfig(): Promise<RuntimeModelConfigPublic> {
+    if (typeof window !== 'undefined' && typeof window.api?.saveAgentWorkspaceConfig === 'function') {
+      const config = await this.saveWorkspaceConfig({ modelConfig: null })
+      return runtimeModelConfigPublicFromWorkspaceConfig(config.modelConfig)
+    }
+    return this.clearModelConfig()
   }
 
   testModelConfig(input: {
@@ -608,7 +691,7 @@ export class LocalAgentClient {
     while (true) {
       const run = await this.getRun(runId, options.signal)
       options.onRunUpdate?.(run)
-      if (TERMINAL_RUN_STATUSES.has(run.status)) return run
+      if (isAgentRunStreamSettledStatus(run.status)) return run
       if (Date.now() > deadline) throw new Error(`local runtime run ${runId} did not finish within ${timeoutMs}ms`)
       await sleepWithAbort(pollMs, options.signal)
     }
@@ -640,7 +723,7 @@ export class LocalAgentClient {
         if (latestRun) {
           lastKnownRun = latestRun
           options.onRunUpdate?.(latestRun)
-          if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
+          if (isAgentRunStreamSettledStatus(latestRun.status)) return await fullRunOrLatest(latestRun)
         }
         throw new Error(`local runtime stream for run ${runId} timed out after ${timeoutMs}ms across ${streamRequestCount} HTTP request${streamRequestCount === 1 ? '' : 's'}`)
       }
@@ -663,7 +746,7 @@ export class LocalAgentClient {
         streamRequestCount += 1
         const attempt = await this.readRunStreamAttempt(runId, options, controller.signal)
         lastKnownRun = attempt.run
-        if (TERMINAL_RUN_STATUSES.has(attempt.run.status)) return await fullRunOrLatest(attempt.run)
+        if (isAgentRunStreamSettledStatus(attempt.run.status)) return await fullRunOrLatest(attempt.run)
         options.onRunUpdate?.(attempt.run)
       } catch (error) {
         if (externalSignal?.aborted) throw externalSignal.reason ?? createLocalAgentAbortError()
@@ -672,7 +755,7 @@ export class LocalAgentClient {
         if (latestRun) {
           lastKnownRun = latestRun
           options.onRunUpdate?.(latestRun)
-          if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
+          if (isAgentRunStreamSettledStatus(latestRun.status)) return await fullRunOrLatest(latestRun)
         }
 
         if (streamRequestTimedOut || (latestRun && isRetryableRunStreamError(error))) {
@@ -680,7 +763,7 @@ export class LocalAgentClient {
         }
 
         const fallbackRun = lastKnownRun ?? latestRun
-        if (fallbackRun && TERMINAL_RUN_STATUSES.has(fallbackRun.status)) return await fullRunOrLatest(fallbackRun)
+        if (fallbackRun && isAgentRunStreamSettledStatus(fallbackRun.status)) return await fullRunOrLatest(fallbackRun)
         throw error
       } finally {
         globalThis.clearTimeout(requestTimeout)
@@ -697,14 +780,14 @@ export class LocalAgentClient {
     await this.streamRuntimeEvents(`/sessions/${encodeURIComponent(sessionId)}/stream`, options)
   }
 
-  async streamThreadMessages(threadId: string, options: AgentMessageFeedStreamOptions = {}): Promise<void> {
-    await this.streamMessageFeedEvents(`/threads/${encodeURIComponent(threadId)}/messages/stream`, options)
+  async streamThreadTimeline(threadId: string, options: AgentTimelineStreamOptions = {}): Promise<void> {
+    await this.streamTimelineEvents(`/threads/${encodeURIComponent(threadId)}/timeline/stream`, options)
   }
 
-  async streamSessionMessages(sessionId: string, options: AgentMessageFeedStreamOptions = {}): Promise<void> {
+  async streamSessionTimeline(sessionId: string, options: AgentTimelineStreamOptions = {}): Promise<void> {
     const params = new URLSearchParams()
     if (options.threadId) params.set('threadId', options.threadId)
-    await this.streamMessageFeedEvents(`/sessions/${encodeURIComponent(sessionId)}/messages/stream${params.size ? `?${params.toString()}` : ''}`, options)
+    await this.streamTimelineEvents(`/sessions/${encodeURIComponent(sessionId)}/timeline/stream${params.size ? `?${params.toString()}` : ''}`, options)
   }
 
   async streamPlan(taskGraphId: string, options: PlanStreamOptions = {}): Promise<void> {
@@ -731,9 +814,9 @@ export class LocalAgentClient {
     }
   }
 
-  private async streamMessageFeedEvents(
+  private async streamTimelineEvents(
     path: string,
-    options: AgentMessageFeedStreamOptions = {},
+    options: AgentTimelineStreamOptions = {},
   ): Promise<void> {
     const stream = await this.openMeasuredEventStream(path, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
@@ -743,8 +826,8 @@ export class LocalAgentClient {
 
     for await (const data of stream.messages()) {
       try {
-        const event = parseMessageFeedEvent(data)
-        if (event) options.onMessageEvent?.(event)
+        const event = parseTimelineEvent(data)
+        if (event) options.onTimelineEvent?.(event)
       } catch {
         continue
       }
@@ -764,6 +847,7 @@ export class LocalAgentClient {
 
     const timeoutMs = normalizePositiveTimeoutMs(options.timeoutMs) ?? 30_000
     const timeout = globalThis.setTimeout(() => {
+      if (latestRun?.status === 'requires_action') return
       if (!controller.signal.aborted) controller.abort(createLocalAgentAbortError())
     }, timeoutMs)
 
@@ -778,7 +862,7 @@ export class LocalAgentClient {
             latestRun = eventRun
             options.onRunUpdate?.(eventRun)
           }
-          if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
+          if (latestRun && isAgentRunTerminalStatus(latestRun.status)) {
             settled = true
             if (!controller.signal.aborted) controller.abort(createLocalAgentAbortError())
           }
@@ -792,11 +876,11 @@ export class LocalAgentClient {
       externalSignal?.removeEventListener('abort', abortFromExternal)
     }
 
-    const terminalRun = latestRun
-    if (terminalRun && TERMINAL_RUN_STATUSES.has(terminalRun.status)) {
-      return terminalRun.streamPartial
-        ? await this.getRun(terminalRun.id, externalSignal).catch(() => terminalRun)
-        : terminalRun
+    const settledRun = latestRun
+    if (settledRun && isAgentRunTerminalStatus(settledRun.status)) {
+      return settledRun.streamPartial
+        ? await this.getRun(settledRun.id, externalSignal).catch(() => settledRun)
+        : settledRun
     }
     return this.streamRun(runId, options)
   }
@@ -818,15 +902,15 @@ export class LocalAgentClient {
         latestRun = eventRun
         options.onRunUpdate?.(eventRun)
       }
-      if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
+      if (isAgentRunTerminalStatus(latestRun.status)) return latestRun
       return undefined
     }
 
     for await (const data of stream.messages()) {
-      const terminalRun = processData(data)
-      if (terminalRun) return { run: terminalRun }
+      const settledRun = processData(data)
+      if (settledRun) return { run: settledRun }
     }
-    if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
+    if (latestRun.streamPartial && isAgentRunTerminalStatus(latestRun.status)) {
       return { run: latestRun }
     }
     return { run: latestRun }
@@ -855,7 +939,7 @@ export class LocalAgentClient {
     return this.getJSON(`/memories${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  listWorkspaces(query: { projectId?: number; kind?: AgentWorkspaceKind; status?: AgentWorkspaceStatus | AgentWorkspaceStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ workspaces: AgentWorkspace[] }> {
+  listWorkspaces(query: { projectId?: number; kind?: AgentWorkspaceKind; status?: AgentWorkspaceStatus | AgentWorkspaceStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; current?: boolean; limit?: number } = {}): Promise<{ workspaces: AgentWorkspace[] }> {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     if (query.kind) params.set('kind', query.kind)
@@ -871,6 +955,7 @@ export class LocalAgentClient {
     if (query.pageRoute) params.set('pageRoute', query.pageRoute)
     if (query.pageEntityType) params.set('pageEntityType', query.pageEntityType)
     if (query.pageEntityId !== undefined) params.set('pageEntityId', String(query.pageEntityId))
+    if (typeof query.current === 'boolean') params.set('current', String(query.current))
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
     return this.getJSON(`/workspaces${params.size ? `?${params.toString()}` : ''}`)
   }
@@ -918,43 +1003,58 @@ export class LocalAgentClient {
     approvedToolNames?: string[]
     activeRunMode?: 'runtime_input' | 'new_run'
   }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    options.onPhase?.('resolve_thread_start', {
-      requestedThreadId: input.threadId,
-      hasExistingThread: Boolean(input.threadId),
+    if (input.threadId?.trim()) {
+      throw new Error('agent message send no longer accepts a client-selected thread')
+    }
+    const sessionId = this.sessionId?.trim()
+    if (!sessionId) {
+      throw new Error('agent message send requires a session runtime')
+    }
+    return await this.runSessionMessageStream(sessionId, input, options)
+  }
+
+  private async runSessionMessageStream(sessionId: string, input: {
+    message: string
+    sourceMessageId?: string
+    title?: string
+    projectId?: number
+    clientInput?: AgentClientInput
+    toolCall?: AgentToolCall
+    approvedToolNames?: string[]
+    activeRunMode?: 'runtime_input' | 'new_run'
+  }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
+    options.onPhase?.('resolve_session_start', { sessionId })
+    const session = await this.getSession(sessionId, options.signal)
+    options.onPhase?.('resolve_session_done', {
+      sessionId: session.id,
+      activeThreadId: session.activeThreadId,
+      interactiveThreadId: session.interactiveThreadId,
+      rootThreadId: session.rootThreadId,
     })
-    const resolvedThread = await this.resolveMessageThread(input, options.signal)
-    options.onPhase?.('resolve_thread_done', {
-      threadId: resolvedThread.thread.id,
-      createdNewThread: resolvedThread.resolution.createdNewThread,
-      reusedExistingThread: resolvedThread.resolution.reusedExistingThread,
-      missingRequestedThread: resolvedThread.resolution.missingRequestedThread,
-    })
-    let thread = resolvedThread.thread
-    options.onPhase?.('create_message_run_start', {
-      threadId: thread.id,
-      activeRunMode: input.activeRunMode ?? 'new_run',
+    options.onPhase?.('create_session_message_run_start', {
+      sessionId,
+      activeRunMode: input.activeRunMode ?? 'runtime_input',
       hasClientInput: Boolean(input.clientInput),
       hasAgentManifest: Boolean(options.agentManifest),
       hasRuntimeLimits: Boolean(options.runtimeLimits),
     })
-    const created = await this.createMessageRunWithMissingThreadFallback(thread.id, {
+    const created = await this.createSessionMessageRun(sessionId, {
       message: input.message,
       ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
       ...(input.toolCall ? { toolCall: input.toolCall } : {}),
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
-      activeRunMode: input.activeRunMode ?? 'new_run',
+      activeRunMode: input.activeRunMode ?? 'runtime_input',
       ...(options.runtimeLimits ? { runtimeLimits: options.runtimeLimits } : {}),
-    }, {
-      input,
-      resolvedThread,
-      signal: options.signal,
-    })
-    thread = resolvedThread.thread
+      ...(input.title ? { title: input.title } : {}),
+      ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+    }, options.signal)
     const run = created.run
-    options.onPhase?.('create_message_run_done', {
-      threadId: thread.id,
+    const threadId = run.threadId || created.message.threadId
+    options.onPhase?.('create_session_message_run_done', {
+      sessionId,
+      threadId,
       runId: run.id,
       runStatus: run.status,
       sourceMessageId: created.message.id,
@@ -963,74 +1063,37 @@ export class LocalAgentClient {
     options.onSourceMessage?.(created.message, run)
     options.onRunUpdate?.(run)
     if (created.runtimeInput?.accepted) {
-      options.onPhase?.('runtime_input_final_thread_start', { threadId: thread.id, runId: run.id })
-      const finalThread = await this.getThread(thread.id)
-      options.onPhase?.('runtime_input_final_thread_done', { threadId: finalThread.id, runId: run.id })
-      return { run, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
-    }
-    options.onPhase?.('run_stream_start', { threadId: thread.id, runId: run.id })
-    const finalRun = await this.streamRunFromThread(thread.id, run.id, options, run)
-    options.onPhase?.('run_stream_done_client', { threadId: thread.id, runId: finalRun.id, runStatus: finalRun.status })
-    options.onPhase?.('final_thread_fetch_start', { threadId: thread.id, runId: finalRun.id })
-    const finalThread = await this.getThread(thread.id)
-    options.onPhase?.('final_thread_fetch_done', { threadId: finalThread.id, runId: finalRun.id })
-    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
-  }
-
-  private async resolveMessageThread(input: { threadId?: string; title?: string; projectId?: number }, signal?: AbortSignal): Promise<{
-    thread: AgentThread
-    resolution: AgentThreadResolution
-  }> {
-    if (!input.threadId) {
-      const thread = await this.startProvisionalConversation({ title: input.title, projectId: input.projectId }, signal)
+      options.onPhase?.('runtime_input_final_session_thread_start', { sessionId, threadId, runId: run.id })
+      const finalThread = await this.getThread(threadId)
+      options.onPhase?.('runtime_input_final_session_thread_done', { sessionId, threadId: finalThread.id, runId: run.id })
       return {
-        thread,
-        resolution: {
-          threadId: thread.id,
-          reusedExistingThread: false,
-          createdNewThread: true,
+        run,
+        thread: finalThread,
+        threadResolution: {
+          threadId: finalThread.id,
+          reusedExistingThread: true,
+          createdNewThread: false,
           missingRequestedThread: false,
         },
+        sourceMessage: created.message,
       }
     }
-
-    const thread = minimalResolvedThread(input.threadId)
+    options.onPhase?.('run_stream_start', { sessionId, threadId, runId: run.id })
+    const finalRun = await this.streamRunFromThread(threadId, run.id, options, run)
+    options.onPhase?.('run_stream_done_client', { sessionId, threadId, runId: finalRun.id, runStatus: finalRun.status })
+    options.onPhase?.('final_session_thread_fetch_start', { sessionId, threadId, runId: finalRun.id })
+    const finalThread = await this.getThread(threadId)
+    options.onPhase?.('final_session_thread_fetch_done', { sessionId, threadId: finalThread.id, runId: finalRun.id })
     return {
-      thread,
-      resolution: {
-        requestedThreadId: input.threadId,
-        threadId: thread.id,
+      run: finalRun,
+      thread: finalThread,
+      threadResolution: {
+        threadId: finalThread.id,
         reusedExistingThread: true,
         createdNewThread: false,
         missingRequestedThread: false,
       },
-    }
-  }
-
-  private async createMessageRunWithMissingThreadFallback(
-    threadId: string,
-    body: Parameters<LocalAgentClient['createMessageRun']>[1],
-    options: {
-      input: { threadId?: string; title?: string; projectId?: number }
-      resolvedThread: Awaited<ReturnType<LocalAgentClient['resolveMessageThread']>>
-      signal?: AbortSignal
-    },
-  ): Promise<CreateMessageRunResult> {
-    try {
-      return await this.createMessageRun(threadId, body, options.signal)
-    } catch (error) {
-      if (options.signal?.aborted) throw options.signal.reason ?? createLocalAgentAbortError()
-      if (!options.input.threadId || !isLocalAgentNotFoundError(error)) throw error
-      const thread = await this.startProvisionalConversation({ title: options.input.title, projectId: options.input.projectId }, options.signal)
-      options.resolvedThread.thread = thread
-      options.resolvedThread.resolution = {
-        requestedThreadId: options.input.threadId,
-        threadId: thread.id,
-        reusedExistingThread: false,
-        createdNewThread: true,
-        missingRequestedThread: true,
-      }
-      return await this.createMessageRun(thread.id, body, options.signal)
+      sourceMessage: created.message,
     }
   }
 
@@ -1151,20 +1214,100 @@ function statusClass(status: number): string {
   return `${Math.floor(status / 100)}xx`
 }
 
-function parseMessageFeedEvent(data: string): AgentFeedMessageStreamEvent | undefined {
+function parseTimelineEvent(data: string): AgentTimelineStreamEvent | undefined {
   const parsed = JSON.parse(data) as unknown
   if (!isPlainRecord(parsed)) return undefined
   const type = parsed.type
-  if (type !== 'message.created' && type !== 'message.updated' && type !== 'messages.reset_required') return undefined
+  if (
+    type !== 'timeline.item.created'
+    && type !== 'timeline.item.updated'
+    && type !== 'timeline.reset_required'
+  ) return undefined
   const revision = typeof parsed.revision === 'number' && Number.isFinite(parsed.revision)
     ? parsed.revision
     : Date.now()
+  if (type === 'timeline.reset_required') {
+    return {
+      type,
+      revision,
+      ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}),
+    }
+  }
+  if (!isPlainRecord(parsed.item)) return undefined
   return {
     type,
     revision,
-    ...(isPlainRecord(parsed.message) ? { message: parsed.message as unknown as AgentFeedMessageStreamEvent['message'] } : {}),
-    ...(typeof parsed.reason === 'string' ? { reason: parsed.reason } : {}),
+    item: parsed.item as unknown as Extract<AgentTimelineStreamEvent, { type: typeof type }>['item'],
   }
+}
+
+function runtimeModelConfigPublicFromWorkspaceConfig(modelConfig: Record<string, unknown> | undefined): RuntimeModelConfigPublic {
+  if (!modelConfig) {
+    return {
+      configured: false,
+      provider: 'backend-model-config',
+      model: 'movscript-default-chat',
+      apiKind: 'openai_responses',
+      apiKeyConfigured: false,
+      useForChat: true,
+      useForPlanner: true,
+      source: 'none',
+      credentialStatus: {
+        required: false,
+        configured: false,
+        sourceEnv: [],
+        acceptedEnv: [],
+      },
+    }
+  }
+  const input = modelConfigInputFromRecord(modelConfig)
+  return {
+    configured: Boolean(input.model?.trim()),
+    provider: 'backend-model-config',
+    ...(input.modelConfigId ? { modelConfigId: input.modelConfigId } : {}),
+    model: input.model || (input.modelConfigId ? `model_config:${input.modelConfigId}` : 'movscript-default-chat'),
+    apiKind: input.apiKind ?? 'openai_responses',
+    ...(input.baseURL ? { baseURL: input.baseURL } : {}),
+    apiKeyConfigured: Boolean(input.apiKey?.trim()),
+    useForChat: input.useForChat ?? true,
+    useForPlanner: input.useForPlanner ?? true,
+    updatedAt: typeof modelConfig.updatedAt === 'string' ? modelConfig.updatedAt : undefined,
+    source: input.model || input.modelConfigId ? 'file' : 'none',
+    credentialStatus: {
+      required: Boolean(input.baseURL?.trim()),
+      configured: Boolean(input.apiKey?.trim()),
+      sourceEnv: [],
+      acceptedEnv: [],
+    },
+  }
+}
+
+function modelConfigInputFromRecord(value: Record<string, unknown>): Parameters<LocalAgentClient['saveModelConfig']>[0] {
+  const modelConfigId = positiveIntegerField(value.modelConfigId)
+  const model = stringField(value.model) || (modelConfigId ? `model_config:${modelConfigId}` : '')
+  return {
+    ...(modelConfigId ? { modelConfigId } : {}),
+    model,
+    ...(runtimeModelAPIKindField(value.apiKind) ? { apiKind: runtimeModelAPIKindField(value.apiKind) } : {}),
+    ...(stringField(value.baseURL) ? { baseURL: stringField(value.baseURL) } : {}),
+    ...(stringField(value.apiKey) ? { apiKey: stringField(value.apiKey) } : {}),
+    ...(typeof value.useForChat === 'boolean' ? { useForChat: value.useForChat } : {}),
+    ...(typeof value.useForPlanner === 'boolean' ? { useForPlanner: value.useForPlanner } : {}),
+  }
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function positiveIntegerField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
+}
+
+function runtimeModelAPIKindField(value: unknown): RuntimeModelAPIKind | undefined {
+  return typeof value === 'string' && (RUNTIME_MODEL_API_KINDS as readonly string[]).includes(value)
+    ? value as RuntimeModelAPIKind
+    : undefined
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

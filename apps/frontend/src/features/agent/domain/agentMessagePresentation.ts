@@ -1,21 +1,19 @@
 import { dedupeAttachments } from '@/features/agent/domain/agentAttachments'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
-import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity, type RuntimeStatusMessage } from '@/features/agent/domain/agentRuntimeStatusMessage'
+import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity } from '@/features/agent/domain/agentRuntimeStatusMessage'
 import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
-import type { AgentAttachment, ChatMessage } from '@/features/agent/state/agentStore'
+import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
 
 export interface AgentMessagePresentation {
-  contextDiagnostic?: ChatMessageMeta['contextDiagnostic']
   contextLabels: string[]
   workspaceArtifacts: NonNullable<ChatMessageMeta['workspaceArtifacts']>
   isUser: boolean
   generationJobs: NonNullable<ChatMessageMeta['generationJobs']>
   generationParamAudits: NonNullable<ChatMessageMeta['generationParamAudits']>
   generationValidationErrors: NonNullable<ChatMessageMeta['generationValidationErrors']>
-  localRunActivity?: ChatMessageMeta['localRunActivity']
-  runtimeStatus?: RuntimeStatusMessage
+  timelineActivity?: ChatRunActivity
   messageAttachments: AgentAttachment[]
   generatedMediaAttachments: AgentAttachment[]
   compactAttachments: AgentAttachment[]
@@ -30,6 +28,7 @@ export interface AgentMessagePresentation {
 
 export function buildAgentMessagePresentation(
   msg: ChatMessage,
+  input: { timelineActivity?: ChatRunActivity } = {},
 ): AgentMessagePresentation {
   const isUser = msg.role === 'user'
   const messageAttachments = dedupeAttachments(msg.attachments ?? [])
@@ -40,20 +39,17 @@ export function buildAgentMessagePresentation(
   const showLargeMedia = !isUser && generatedMediaAttachments.length > 0
   const hasUsableGeneratedResource = generatedMediaAttachments.some((attachment) => attachment.resourceId !== undefined)
   const compactAttachments = showLargeMedia ? [...nonGeneratedMediaAttachments, ...otherAttachments] : messageAttachments
-  const contextDiagnostic = !isUser ? msg.meta?.contextDiagnostic : undefined
   const workspaceArtifacts = !isUser ? msg.meta?.workspaceArtifacts ?? [] : []
   const generationJobs = !isUser ? msg.meta?.generationJobs ?? [] : []
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
-  const localRunActivity = !isUser ? msg.meta?.localRunActivity : undefined
-  const runtimeStatus = !isUser ? runtimeStatusMessageFromRunActivity({ runtimeStatus: msg.meta?.runtimeStatus, activity: localRunActivity, generationJobs }) : undefined
-  const rawDisplayContent = contextDiagnostic
-    ? ''
-    : !isUser ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+  const timelineActivity = !isUser ? input.timelineActivity : undefined
+  const runtimeStatus = !isUser ? runtimeStatusMessageFromRunActivity({ activity: timelineActivity, generationJobs }) : undefined
+  const rawDisplayContent = !isUser ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
   const displayContent = !isUser && runtimeStatus && isRuntimeEmptyAssistantPlaceholder(visibleContent)
     ? ''
-    : !isUser && localRunActivity && isRequiredActionSummaryContent(visibleContent, localRunActivity)
+    : !isUser && timelineActivity && isRequiredActionSummaryContent(visibleContent, timelineActivity)
     ? ''
     : visibleContent
   const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
@@ -63,24 +59,21 @@ export function buildAgentMessagePresentation(
     || workspaceArtifacts.length > 0
   )
   const hasProcessSection = !isUser && (
-    !!localRunActivity
+    !!timelineActivity
     || generationJobs.length > 0
   )
   const hasDiagnosticSection = !isUser && (
-    !!contextDiagnostic
-    || generationValidationErrors.length > 0
+    generationValidationErrors.length > 0
     || generationParamAudits.length > 0
   )
   return {
-    contextDiagnostic,
     contextLabels: visibleContextLabels(msg.meta?.contextLabels ?? [], isUser),
     workspaceArtifacts,
     isUser,
     generationJobs,
     generationParamAudits,
     generationValidationErrors,
-    localRunActivity,
-    runtimeStatus,
+    timelineActivity,
     messageAttachments,
     generatedMediaAttachments,
     compactAttachments,
@@ -114,7 +107,7 @@ function visibleContextLabels(labels: string[], isUser: boolean): string[] {
   })
 }
 
-function isRequiredActionSummaryContent(content: string, activity: NonNullable<ChatMessageMeta['localRunActivity']>): boolean {
+function isRequiredActionSummaryContent(content: string, activity: ChatRunActivity): boolean {
   if (activity.status !== 'requires_action') return false
   const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
   if (lines.length === 0) return false

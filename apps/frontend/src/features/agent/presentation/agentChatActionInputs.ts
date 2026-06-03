@@ -17,6 +17,7 @@ export function buildAgentChatActionBindingsInput({
   return {
     runResultActions: {
       conversationId: conv.id,
+      ...(conv.runtimeSessionId ? { sessionId: conv.runtimeSessionId } : {}),
       setConversationRun: store.setConversationRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       recordLiveTraceEvent: runtime.recordLiveTraceEvent,
@@ -24,6 +25,7 @@ export function buildAgentChatActionBindingsInput({
     },
     runInteractionActions: {
       conversationId: conv.id,
+      ...(conv.runtimeSessionId ? { sessionId: conv.runtimeSessionId } : {}),
       actionableRun: presentation.actionableLocalRun,
       interactionRuns: presentation.interactionRuns,
       approving: presentation.approvingLocalRun,
@@ -34,6 +36,7 @@ export function buildAgentChatActionBindingsInput({
     },
     planActions: {
       conversationId: conv.id,
+      ...(conv.runtimeSessionId ? { sessionId: conv.runtimeSessionId } : {}),
       run: activeLocalRun,
       snapshot: presentation.activePlanSnapshot,
       busy: runtime.planActionBusy,
@@ -45,6 +48,7 @@ export function buildAgentChatActionBindingsInput({
     },
     stopAction: {
       conversationId: conv.id,
+      ...(conv.runtimeSessionId ? { sessionId: conv.runtimeSessionId } : {}),
       run: activeLocalRun,
       loading,
       building: buildingSendWorkspace,

@@ -4,23 +4,16 @@ import type { WorkspaceSeedMode } from '../../../src/shared/domain/workspaceDoma
 import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
 
 export function normalizeWorkspaceModelKind(value: string): AgentWorkspaceKind {
-  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
-  switch (normalized) {
+  switch (value.trim()) {
   case 'setting_workspace':
-  case 'setting_edit':
-  case 'setting':
     return 'setting_workspace'
   case 'project_standards_workspace':
-  case 'project_standards_edit':
     return 'project_standards_workspace'
   case 'production_workspace':
-  case 'production_edit':
     return 'production_workspace'
   case 'asset_workspace':
-  case 'asset_edit':
     return 'asset_workspace'
   case 'content_unit_workspace':
-  case 'content_unit_edit':
     return 'content_unit_workspace'
   default:
     throw new Error(`Unsupported workspace model kind: ${value}`)

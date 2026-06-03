@@ -54,6 +54,37 @@ test('restoreRuntimeThreadConversation creates a restored conversation from runt
   ])
 })
 
+test('restoreRuntimeThreadConversation reports restored messages loaded with the runtime thread shell', async () => {
+  const calls: string[] = []
+  const result = await restoreRuntimeThreadConversation('thread_4', depsFixture(calls, {
+    thread: thread({
+      id: 'thread_4',
+      title: 'Paged runtime thread',
+      messages: [{
+        id: 'msg_1',
+        threadId: 'thread_4',
+        role: 'user',
+        content: 'hello',
+        createdAt: '2026-05-19T00:00:00.000Z',
+      }, {
+        id: 'msg_2',
+        threadId: 'thread_4',
+        role: 'assistant',
+        content: 'done',
+        createdAt: '2026-05-19T00:00:01.000Z',
+      }],
+    }),
+  }))
+
+  assert.equal(result.conversationId, 'thread_4')
+  assert.equal(result.reusedExistingConversation, false)
+  assert.equal(result.restoredMessageCount, 2)
+  assert.deepEqual(calls.slice(0, 2), [
+    'loadThread:thread_4',
+    'createRuntime:thread_4:Paged runtime thread',
+  ])
+})
+
 function depsFixture(
   calls: string[],
   options: {
@@ -97,7 +128,7 @@ function conversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
     id: 'conv_1',
     title: '',
-    messages: [],
+    transcriptMessages: [],
     createdAt: 1,
     updatedAt: 1,
     ...overrides,

@@ -1,0 +1,112 @@
+import type { CatalogRegistry, RuntimeContext, SkillDefinition } from '../../catalog/registry/shared/types.js'
+import { fitTextSectionsToBudget, renderTextSections } from '../../shared/text/textSectionBudgeter.js'
+import { isRecord } from '../../shared/json/jsonValue.js'
+
+const PLACEHOLDER_RE = /\{\{(tool|schema|ctx):([^}]+)\}\}/g
+
+export interface CompiledSkillInstructions {
+  instructionText: string
+  parts: Array<{ id: string; kind: 'skill'; title: string; content: string; priority: number }>
+  warnings: string[]
+  degraded?: 'dropped_low_priority_skills' | 'dropped_skills' | 'dropped_examples'
+}
+
+export function renderSkill(skill: SkillDefinition, registry: CatalogRegistry, ctx: RuntimeContext): string {
+  const rendered = skill.instructionTemplate.replace(PLACEHOLDER_RE, (_, kind: string, ref: string) => {
+    if (kind === 'tool') return renderToolGrant(ref, registry)
+    if (kind === 'schema') return renderSchemaRef(ref, registry)
+    if (kind === 'ctx') return String(getPath(ctx.uiContext, ref) ?? '')
+    return ''
+  })
+  if (/\{\{[^}]+\}\}/.test(rendered)) throw new Error(`catalog.ref.missing: unresolved placeholder in ${skill.id}`)
+  return [rendered, skill.outputContract ? `Output contract:\n${skill.outputContract}` : ''].filter(Boolean).join('\n\n')
+}
+
+export function compileSkillInstructions(input: {
+  registry: CatalogRegistry
+  ctx: RuntimeContext
+  skills: SkillDefinition[]
+}): CompiledSkillInstructions {
+  const parts = [...input.skills].sort(byPriority).map((skill) => toPart(skill, input.registry, input.ctx))
+  return fitPromptToLimit(parts, input.ctx.configFile.limits?.systemPromptCharLimit)
+}
+
+function toPart(skill: SkillDefinition, registry: CatalogRegistry, ctx: RuntimeContext): CompiledSkillInstructions['parts'][number] {
+  return {
+    id: skill.id,
+    kind: 'skill',
+    title: skill.name,
+    priority: skill.priority,
+    content: renderSkill(skill, registry, ctx),
+  }
+}
+
+function renderToolGrant(ref: string, registry: CatalogRegistry): string {
+  const [name, sub] = ref.split('.')
+  const tool = registry.tools.get(name)
+  if (!tool) throw new Error(`catalog.ref.missing: tool ${name}`)
+  if (!sub) return tool.capability ?? tool.description
+  if (sub === 'actions') return enumActions(tool.inputSchema).join(', ')
+  if (sub === 'errors') return (tool.errorCodes ?? []).join(', ')
+  throw new Error(`catalog.ref.missing: unsupported tool ref ${ref}`)
+}
+
+function renderSchemaRef(ref: string, registry: CatalogRegistry): string {
+  const id = ref.endsWith('.id') ? ref.slice(0, -3) : ref
+  const schema = registry.schemas.get(id)
+  if (!schema) throw new Error(`catalog.ref.missing: schema ${id}`)
+  return ref.endsWith('.id') ? schema.id : schema.promptSummary
+}
+
+function enumActions(schema: unknown): string[] {
+  if (!isRecord(schema)) return []
+  const actions = new Set<string>()
+  visit(schema)
+  return Array.from(actions)
+
+  function visit(value: unknown): void {
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    if (!isRecord(value)) return
+    const record = value
+    if (isRecord(record.action) && typeof record.action.const === 'string') {
+      actions.add(record.action.const)
+    }
+    Object.values(record).forEach(visit)
+  }
+}
+
+function getPath(value: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, key) => {
+    if (!isRecord(current)) return undefined
+    return current[key]
+  }, value)
+}
+
+function byPriority(a: SkillDefinition, b: SkillDefinition): number {
+  return b.priority - a.priority || a.id.localeCompare(b.id)
+}
+
+function fitPromptToLimit(parts: CompiledSkillInstructions['parts'], limit: number | undefined): CompiledSkillInstructions {
+  const warnings: string[] = []
+  if (!limit) return { parts, instructionText: renderTextSections(parts), warnings }
+  const fitted = fitTextSectionsToBudget({
+    parts,
+    limit,
+    warnings,
+    priorityOfPart: (part) => part.priority,
+    lowPriorityDropPredicate: (part) => part.kind === 'skill' && part.priority < 100,
+    lowPriorityDropWarning: (part) => `skill_prompt.size.exceeded: dropped non-critical skill ${part.id}`,
+    secondaryDropPredicate: (part) => part.kind === 'skill' && part.priority < 1000,
+    secondaryDropWarning: (part) => `skill_prompt.size.exceeded: dropped skill ${part.id}`,
+    examplesDropWarning: 'skill_prompt.size.exceeded: stripped schema examples sections',
+  })
+  return {
+    parts: fitted.parts,
+    instructionText: fitted.text,
+    warnings: fitted.warnings,
+    ...(fitted.degraded ? { degraded: fitted.degraded } : {}),
+  }
+}

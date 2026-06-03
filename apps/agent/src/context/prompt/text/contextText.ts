@@ -15,17 +15,14 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
     : '- No project is currently selected.')
   if (context.project?.description) lines.push(`- Summary: ${context.project.description}`)
   if (context.project?.status) lines.push(`- Status: ${context.project.status}`)
-  if (context.project) lines.push(`- Business reference: project#${context.project.id}`)
-  const projectStandards = context.project ? renderProjectStandards(context.project) : []
-  if (projectStandards.length > 0) lines.push('', '### Project Standards', ...projectStandards)
-  if (context.productionId !== undefined) lines.push(`- Active production business reference: production#${context.productionId}`)
+  if (context.project) lines.push(`- Project reference: project#${context.project.id}`)
   if (!context.project && context.projectsError) lines.push(`- Project list status: unavailable (${context.projectsError})`)
-  else if (!context.project && context.projects.length > 0) lines.push(`- Project list status: ${context.projects.length} visible project(s); call movscript_project_list if selection is needed.`)
+  else if (!context.project && context.projects.length > 0) lines.push(`- Project list status: ${context.projects.length} visible project(s); use a currently visible project-selection tool if selection is needed.`)
   lines.push('', '### Selection')
   lines.push(context.selection
-    ? `- Title: ${context.selection.label ?? businessReferenceLabel(context.selection.entityType, context.selection.entityId)}`
+    ? `- Title: ${context.selection.label ?? entityReferenceLabel(context.selection.entityType, context.selection.entityId)}`
     : '- No specific project item is selected.')
-  if (context.selection) lines.push(`- Business area: ${businessKindLabel(context.selection.entityType)}`, `- Business reference: ${businessReferenceLabel(context.selection.entityType, context.selection.entityId)}`)
+  if (context.selection) lines.push(`- Entity type: ${context.selection.entityType}`, `- Entity reference: ${entityReferenceLabel(context.selection.entityType, context.selection.entityId)}`)
   if (context.statusDigest && context.statusDigest.length > 0) {
     lines.push('', '### Current Status Digest')
     for (const item of context.statusDigest.slice(0, 6)) lines.push(`- ${item}`)
@@ -143,111 +140,6 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
   return lines.join('\n')
 }
 
-function renderProjectStandards(project: NonNullable<AgentDebugContextPanel['project']>): string[] {
-  const style = parseProjectStyle(project.project_style)
-  const coreFields: Array<[string, string, unknown]> = [
-    ['Aspect ratio', 'aspect_ratio', project.aspect_ratio ?? style.aspect_ratio],
-    ['Visual style', 'visual_style', project.visual_style ?? style.visual_style],
-    ['Shot size system', 'shot_size_system', style.shot_size_system],
-    ['Camera language', 'camera_language', style.camera_language],
-    ['Lighting style', 'lighting_style', style.lighting_style],
-    ['Color palette', 'color_palette', style.color_palette],
-    ['Pacing rules', 'pacing_rules', style.pacing_rules],
-    ['Negative rules', 'negative_rules', style.negative_rules],
-  ]
-  const lines = coreFields.flatMap(([label, key, value]) => {
-    const text = promptValueText(value)
-    return text ? [`- ${label} (${key}): ${truncate(text, 360)}`] : []
-  })
-  const customRules = Array.isArray(style.custom_rules) ? style.custom_rules : []
-  const rules: ProjectPromptRuleSummary[] = []
-  customRules.forEach((item, index) => {
-    const rule = normalizeProjectPromptRule(item, index)
-    if (rule === null) return
-    if (rule.enabled && rule.value) rules.push(rule)
-  })
-  const enabledRules = rules
-    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
-  if (enabledRules.length > 0) {
-    lines.push('- Custom prompt rules:')
-    for (const rule of enabledRules.slice(0, 12)) {
-      const details = [
-        `key=${rule.key}`,
-        `role=${rule.promptRole}`,
-        rule.category ? `category=${rule.category}` : undefined,
-        rule.required ? 'required=true' : undefined,
-      ].filter(Boolean).join('; ')
-      lines.push(`  - ${rule.label}${details ? ` (${details})` : ''}: ${truncate(rule.value, 360)}`)
-    }
-    if (enabledRules.length > 12) lines.push(`  - ${enabledRules.length - 12} more custom rule(s) omitted from the default focus snapshot.`)
-  }
-  return lines
-}
-
-function parseProjectStyle(value: unknown): Record<string, unknown> {
-  if (isRecord(value)) return value
-  if (typeof value !== 'string' || !value.trim()) return {}
-  try {
-    const parsed = JSON.parse(value)
-    return isRecord(parsed) ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function promptValueText(value: unknown): string {
-  if (typeof value === 'string') return value.trim()
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (Array.isArray(value)) return value.map((item) => promptValueText(item)).filter(Boolean).join('; ')
-  return ''
-}
-
-interface ProjectPromptRuleSummary {
-  key: string
-  label: string
-  category: string
-  promptRole: string
-  value: string
-  enabled: boolean
-  required: boolean
-  order: number
-}
-
-function normalizeProjectPromptRule(value: unknown, index: number): ProjectPromptRuleSummary | null {
-  if (!isRecord(value)) return null
-  const label = typeof value.label === 'string' && value.label.trim()
-    ? value.label.trim()
-    : typeof value.key === 'string' && value.key.trim()
-      ? value.key.trim()
-      : `custom_rule_${index + 1}`
-  const key = typeof value.key === 'string' && value.key.trim() ? value.key.trim() : label
-  const ruleValue = promptValueText(value.value ?? value.content ?? value.description)
-  if (!ruleValue) return null
-  const promptRole = typeof value.prompt_role === 'string' && ['context', 'style', 'constraint', 'negative', 'quality_gate'].includes(value.prompt_role)
-    ? value.prompt_role
-    : 'constraint'
-  return {
-    key,
-    label,
-    category: typeof value.category === 'string' ? value.category.trim() : '',
-    promptRole,
-    value: ruleValue,
-    enabled: typeof value.enabled === 'boolean' ? value.enabled : true,
-    required: typeof value.required === 'boolean' ? value.required : false,
-    order: typeof value.order === 'number' && Number.isFinite(value.order) ? value.order : (index + 1) * 10,
-  }
-}
-
-export function renderMemoriesText(memories: AgentMemory[]): string {
-  if (memories.length === 0) return 'No relevant memories.'
-  return [
-    'Startup memory index:',
-    ...memories.slice(0, 12).map((memory) => `- [${memory.kind}] ${memory.title} (memory#${memory.id})`),
-    '',
-    'This is only an index. Use core_memory_search or core_memory_get before relying on memory content.',
-  ].join('\n')
-}
-
 export function renderMemoryFilesText(memories: AgentMemory[], memoryStorePath?: string): string {
   const lines = ['Opened memory files:']
   if (memories.length === 0) return [...lines, '- none'].join('\n')
@@ -300,26 +192,8 @@ function summarizeSchemaField(key: string, value: unknown): string {
   return key
 }
 
-function businessReferenceLabel(kind: string, id: number | string): string {
-  return `${businessKindLabel(kind)} ${id}`
-}
-
-function businessKindLabel(kind: string): string {
-  const labels: Record<string, string> = {
-    project: '项目',
-    production: '制作单元',
-    script: '剧本',
-    creative_reference: '设定资料',
-    asset_slot: '素材需求',
-    segment: '编排段',
-    scene_moment: '情景',
-    storyboard_script: '分镜脚本',
-    content_unit: '制作项',
-    keyframe: '图片关键帧',
-    preview_timeline: '预览时间线',
-    delivery_version: '交付版本',
-  }
-  return labels[kind] ?? kind
+function entityReferenceLabel(kind: string, id: number | string): string {
+  return `${kind} ${id}`
 }
 
 function memoryFileLabel(memory: AgentMemory, memoryStorePath?: string): string {

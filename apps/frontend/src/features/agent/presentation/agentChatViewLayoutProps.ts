@@ -3,8 +3,7 @@ import type { useAgentChatInteractionController } from '@/features/agent/present
 import type { useAgentChatPresentationState } from '@/features/agent/presentation/useAgentChatPresentationState'
 import type { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
-import { runtimeStatusLightFromActiveRun } from '@/features/agent/domain/agentRuntimeStatusLight'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
 
@@ -14,9 +13,10 @@ interface BuildAgentChatViewLayoutPropsInput {
   conv: Conversation
   conversations: Conversation[]
   archivedConversations: Conversation[]
+  timelineItems: AgentTimelineItem[]
   currentProject: Project | null
   interaction: ReturnType<typeof useAgentChatInteractionController>
-  messageHistoryLoading: boolean
+  timelineLoading: boolean
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   presentation: ReturnType<typeof useAgentChatPresentationState>
@@ -26,9 +26,10 @@ interface BuildAgentChatViewLayoutPropsInput {
   onCloseConversations: (ids: string[]) => void
   onCollapse: () => void
   onNewConversation: () => void
+  onRenameConversation: (id: string, title: string) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onRestoreArchivedConversation?: (id: string) => void
-  onRestoreLocalThread: (threadId: string) => Promise<void>
+  onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
   onSelectConversation: (id: string) => void
   showCollapse?: boolean
   showConversationControls?: boolean
@@ -42,9 +43,10 @@ export function buildAgentChatViewLayoutProps({
   conv,
   conversations,
   archivedConversations,
+  timelineItems,
   currentProject,
   interaction,
-  messageHistoryLoading,
+  timelineLoading,
   planActionBusy,
   planDispatchSettings,
   presentation,
@@ -54,6 +56,7 @@ export function buildAgentChatViewLayoutProps({
   onCloseConversations,
   onCollapse,
   onNewConversation,
+  onRenameConversation,
   onReorderConversation,
   onRestoreArchivedConversation,
   onRestoreLocalThread,
@@ -70,6 +73,9 @@ export function buildAgentChatViewLayoutProps({
       onCancel: () => runtime.setPendingSendWorkspace(null),
       onConfirm: interaction.confirmPendingSendWorkspace,
     },
+    contextDiagnosticDialog: {
+      timelineItems,
+    },
     header: {
       activeConversation: conv,
       conversations,
@@ -78,9 +84,10 @@ export function buildAgentChatViewLayoutProps({
       onCloseConversations,
       onCollapse,
       onNewConversation,
+      onRenameConversation,
       onReorderConversation,
       onSelectConversation,
-      activeConversationRuntimeStatusLight: runtimeStatusLightFromActiveRun(activeLocalRun, runtime.runtimeStatusLight),
+      activeConversationRuntimeStatusLight: runtime.runtimeStatusLight,
       showCollapse,
       showConversationControls,
     },
@@ -98,8 +105,11 @@ export function buildAgentChatViewLayoutProps({
       conversationId: conv.id,
       conversationBlocks: presentation.conversationPresentation.blocks,
       generationProgressStates: presentation.generationProgressStates,
-      messageHistoryLoading,
-      messages: conv.messages,
+      timelineLoading,
+      timelineItems,
+      transcriptMessages: conv.transcriptMessages,
+      transcriptMessageCount: conv.transcriptMessageCount,
+      lastTranscriptAt: conv.lastTranscriptAt,
       planActionBusy,
       planDispatchSettings,
       projectId: currentProject?.ID,

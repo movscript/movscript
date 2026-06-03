@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { JSONValue } from '../../../shared/protocol/types.js'
 import { isJSONRecord, isRecord } from '../../../shared/json/jsonValue.js'
-import { atomicWriteJSON, resolveAgentStatePath } from '../../../state/store/file/fileStore.js'
+import { atomicWriteJSON, resolveAgentRuntimeDataDir } from '../../../state/store/file/fileStore.js'
 
 export interface AgentCatalogState {
   version: 1
@@ -54,10 +54,9 @@ export class FileAgentCatalogStateStore implements AgentCatalogStateStore {
   }
 }
 
-export function resolveAgentCatalogStatePath(statePath = resolveAgentStatePath()): string {
+export function resolveAgentCatalogStatePath(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
   if (process.env.MOVSCRIPT_AGENT_CATALOG_STATE_PATH) return process.env.MOVSCRIPT_AGENT_CATALOG_STATE_PATH
-  if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.catalog.json')
-  return join(statePath, 'catalog.json')
+  return join(runtimeDataDir, 'catalog.json')
 }
 
 export function defaultCatalogState(): AgentCatalogState {

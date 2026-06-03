@@ -2,7 +2,7 @@ import type { AgentTaskGraph, AgentRun, AgentTask, JSONValue } from '../../share
 import { subagentNameFromTask } from '../identity/subagentIdentity.js'
 import {
   isTerminalPlanStatus,
-  isTerminalRunStatus,
+  isSubagentWaitResolvedRunStatus,
   toSubagentRunSummary,
   waitStatusFromPlanStatus,
   waitStatusFromRunStatus,
@@ -30,7 +30,7 @@ export function resolveSubagentWaitTarget(input: {
     const run = requireRun(input.getRun, runId)
     if (run.taskGraphId !== input.taskGraphId) throw new Error(`run ${runId} does not belong to taskGraph ${input.taskGraphId}`)
     return {
-      done: isTerminalRunStatus(run.status),
+      done: isSubagentWaitResolvedRunStatus(run.status),
       status: waitStatusFromRunStatus(run.status),
       target: {
         kind: 'run',

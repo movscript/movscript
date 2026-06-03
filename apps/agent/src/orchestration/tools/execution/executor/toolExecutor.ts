@@ -10,7 +10,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../../../ports/project/projectStandardsPort.js'
 import type { ExternalToolGatewayPort } from '../../../../ports/tools/externalToolGatewayPort.js'
 import type { ToolSource } from '../../../../ports/tools/toolExecutionSource.js'
 import type { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
@@ -51,7 +50,6 @@ export interface ToolExecutorOptions {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   fileSystem?: AgentFileSystem
   registry: ToolRegistry
   memoryManager?: MemoryManager

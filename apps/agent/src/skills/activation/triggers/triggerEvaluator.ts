@@ -98,7 +98,6 @@ export function matchSelector(selector: ContextSelector, ctx: RuntimeContext): b
   if (selector.selectedScope && (!ui.selectedScope || !selector.selectedScope.includes(ui.selectedScope))) return false
   if (selector.workspaceStatus && (!ui.workspaceStatus || !selector.workspaceStatus.includes(ui.workspaceStatus))) return false
   if (selector.hasProjectId !== undefined && (ui.projectId !== undefined) !== selector.hasProjectId) return false
-  if (selector.hasProductionId !== undefined && (ui.productionId !== undefined) !== selector.hasProductionId) return false
   if (selector.custom) {
     for (const [key, expected] of Object.entries(selector.custom)) {
       const actual = ui[key]

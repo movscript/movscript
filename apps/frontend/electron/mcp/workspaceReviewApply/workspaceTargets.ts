@@ -8,7 +8,10 @@ export function isProjectLayerWorkspaceTarget(review: Record<string, unknown>): 
 
 export function isProductionWorkspaceTarget(review: Record<string, unknown>): boolean {
   const target = isRecord(review.target) ? review.target : {}
-  return review.workspaceKind === 'production_workspace' || target.entityType === 'production'
+  if (typeof review.workspaceKind === 'string' && review.workspaceKind.trim()) {
+    return review.workspaceKind === 'production_workspace'
+  }
+  return target.entityType === 'production'
 }
 
 export function resolveWorkspaceProjectId(

@@ -82,8 +82,8 @@ func TestAgentClientMetricsSnapshotAndPrometheusText(t *testing.T) {
 		Unit:  "ms",
 		Value: 11,
 		Labels: map[string]string{
-			"component": "state_store",
-			"kind":      "state_file",
+			"component": "runtime_store",
+			"kind":      "runtime_log",
 			"stage":     "flush",
 			"status":    "success",
 		},
@@ -104,8 +104,8 @@ func TestAgentClientMetricsSnapshotAndPrometheusText(t *testing.T) {
 		Unit:  "bytes",
 		Value: 4096,
 		Labels: map[string]string{
-			"component": "state_store",
-			"kind":      "state_file",
+			"component": "runtime_store",
+			"kind":      "runtime_log",
 			"stage":     "flush",
 			"status":    "success",
 		},
@@ -133,9 +133,9 @@ func TestAgentClientMetricsSnapshotAndPrometheusText(t *testing.T) {
 		`movscript_agent_client_metric_score_max{metric="frontend_web_vital_cls_score",vital="cls"} 0.120`,
 		`movscript_agent_client_metric_milliseconds_sum{metric="frontend_storage_operation_duration_ms",component="agent_panel",kind="agent_store",stage="set",status="success"} 7.000`,
 		`movscript_agent_client_metric_bytes_sum{metric="frontend_storage_payload_bytes",component="agent_panel",kind="agent_store",stage="set",status="success"} 2048.000`,
-		`movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_storage_flush_duration_ms",component="state_store",kind="state_file",stage="flush",status="success"} 11.000`,
+		`movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_storage_flush_duration_ms",component="runtime_store",kind="runtime_log",stage="flush",status="success"} 11.000`,
 		`movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_trace_store_operation_duration_ms",component="trace_store",kind="trace_file",stage="append",status="success"} 5.000`,
-		`movscript_agent_client_metric_bytes_sum{metric="movscript_agent_storage_file_bytes",component="state_store",kind="state_file",stage="flush",status="success"} 4096.000`,
+		`movscript_agent_client_metric_bytes_sum{metric="movscript_agent_storage_file_bytes",component="runtime_store",kind="runtime_log",stage="flush",status="success"} 4096.000`,
 		`movscript_agent_client_logs_total{level="error",area="agent_frontend",kind="window_error"} 1`,
 		`movscript_agent_client_long_task_duration_milliseconds_sum 250.000`,
 	} {

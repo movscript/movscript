@@ -1,5 +1,5 @@
-import { buildApplyWorkspacePreview } from '../../../../workspaces/apply/workspaceApply.js'
-import { validateWorkspace, type AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
+import { applyWorkspaceAfterApproval, buildApplyWorkspacePreview } from '../../../../workspaces/apply/workspaceApply.js'
+import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import { isJSONRecord } from '../../../../shared/json/jsonValue.js'
 import type { RuntimeToolHandler } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
 import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
@@ -25,18 +25,37 @@ export function createWorkspaceApplyToolHandler(): RuntimeToolHandler {
         if (!workspaceId) throw new Error('workspace_apply requires workspaceId')
         const workspace = workspaceStore.getWorkspace(workspaceId)
         if (!workspace) throw new Error(`workspace not found: ${workspaceId}`)
-        const validation = validateWorkspace(workspace)
-        if (!validation.ok) {
-          const validationResult = {
-            ok: false,
-            stage: 'local_validation',
-            workspaceId,
-            validation,
-            message: 'Workspace failed local validation. Patch the workspace and validate again before applying.',
-          } as unknown as JSONValue
+        const validationResult = await previewWorkspaceApply(workspaceStore, workspaceApplyPreviewPort, workspace, args)
+        if (!validationAllowsApply(validationResult)) {
           return { result: workspaceApplyResult(validationResult, workspaceId, 'apply') }
         }
         const user = userFromRunContext(run)
+        if (shouldRecordWorkspaceApplyOnly(validationResult)) {
+          const recorded = applyWorkspaceAfterApproval(workspaceStore, {
+            workspaceId,
+            target: isJSONRecord(args.target) ? args.target : workspace.target,
+            targetEntityType: args.targetEntityType ?? args.target_entity_type,
+            targetEntityId: args.targetEntityId ?? args.target_entity_id,
+            targetField: args.targetField ?? args.target_field,
+            currentValue: args.currentValue ?? args.current_value,
+            proposedValue: args.proposedValue ?? args.proposed_value,
+            appliedByUserId: args.appliedByUserId ?? args.applied_by_user_id ?? user?.id,
+          })
+          return {
+            result: workspaceApplyResult({
+              ok: true,
+              stage: 'apply',
+              validation: validationResult,
+              status: recorded.status,
+              workspace: recorded.workspace as unknown as JSONValue,
+              backendApply: {
+                performed: false,
+                skippedReason: 'MCP validation did not request backend apply for this workspace kind.',
+              },
+              message: 'Workspace save recorded locally. Backend apply was skipped by MCP contract.',
+            } as unknown as JSONValue, workspaceId, 'apply'),
+          }
+        }
         const applyResult = await workspaceApplyPort.apply({
           workspaceStore,
           applyInput: {
@@ -57,7 +76,7 @@ export function createWorkspaceApplyToolHandler(): RuntimeToolHandler {
         const toolResult = {
           ok: true,
           stage: 'apply',
-          validation,
+          validation: validationResult,
           ...(isJSONRecord(applyResult) ? applyResult : { result: applyResult }),
         } as unknown as JSONValue
         return { result: workspaceApplyResult(toolResult, workspaceId, 'apply') }
@@ -68,31 +87,18 @@ export function createWorkspaceApplyToolHandler(): RuntimeToolHandler {
   }
 }
 
+function shouldRecordWorkspaceApplyOnly(value: JSONValue): boolean {
+  if (!isJSONRecord(value)) return false
+  const backendApply = isJSONRecord(value.backendApply) ? value.backendApply : undefined
+  return backendApply?.backendPreviewPerformed === false
+}
+
 async function previewWorkspaceApply(
   workspaceStore: AgentWorkspaceStore,
   workspaceApplyPreviewPort: WorkspaceApplyPreviewPort,
   workspace: NonNullable<ReturnType<AgentWorkspaceStore['getWorkspace']>>,
   args: Record<string, JSONValue>,
 ): Promise<JSONValue> {
-  const validation = validateWorkspace(workspace)
-  if (!validation.ok) {
-    return {
-      ok: false,
-      stage: 'local_validation',
-      workspaceId: workspace.id,
-      validation,
-      message: 'Workspace failed local validation. Update the workspace and validate again.',
-    } as unknown as JSONValue
-  }
-  if (workspace.kind === 'asset_workspace' || workspace.kind === 'content_unit_workspace') {
-    return {
-      ok: true,
-      stage: 'local_validation',
-      workspaceId: workspace.id,
-      validation,
-      message: 'Workspace is locally valid. Backend validation is intentionally not performed for this kind yet.',
-    } as unknown as JSONValue
-  }
   const preview = buildApplyWorkspacePreview(workspaceStore, {
     workspaceId: workspace.id,
     target: isJSONRecord(args.target) ? args.target : workspace.target,
@@ -104,11 +110,15 @@ async function previewWorkspaceApply(
   })
   const backendPreview = await workspaceApplyPreviewPort.previewApplyReview(preview.review)
   if (backendPreview.ok) {
+    const backendApply = isJSONRecord(backendPreview.backendApply) ? backendPreview.backendApply : undefined
+    const validation = isJSONRecord(backendApply?.validation) ? backendApply.validation : undefined
+    const effects = Array.isArray(backendApply?.effects) ? backendApply.effects : undefined
     return {
       ok: true,
       stage: 'backend_apply_preview',
       workspaceId: workspace.id,
-      validation,
+      ...(validation ? { validation } : {}),
+      ...(effects ? { effects } : {}),
       review: preview.review,
       backendApply: backendPreview.backendApply,
     } as unknown as JSONValue
@@ -117,11 +127,21 @@ async function previewWorkspaceApply(
     ok: false,
     stage: 'backend_apply_preview',
     workspaceId: workspace.id,
-    validation,
     error: backendPreview.error,
     ...(backendPreview.backendError !== undefined ? { backendError: backendPreview.backendError } : {}),
-    message: 'Backend validation failed. Update the workspace and validate again.',
+    message: 'MCP validation failed. Update the workspace and validate again.',
   } as unknown as JSONValue
+}
+
+function validationAllowsApply(value: JSONValue): boolean {
+  if (!isJSONRecord(value)) return false
+  if (value.ok === false) return false
+  const validation = isJSONRecord(value.validation) ? value.validation : undefined
+  if (validation?.ok === false) return false
+  const backendApply = isJSONRecord(value.backendApply) ? value.backendApply : undefined
+  const backendValidation = isJSONRecord(backendApply?.validation) ? backendApply.validation : undefined
+  if (backendValidation?.ok === false) return false
+  return true
 }
 
 function workspaceRefArg(args: Record<string, JSONValue>): unknown {

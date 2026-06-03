@@ -27,7 +27,7 @@ test('createRuntimeRecoveryBridge wires startup reconciliation through runtime b
   assert.deepEqual(report.rescheduledRunIds, ['run_queued'])
   assert.deepEqual(report.interruptedRunIds, ['run_interrupted'])
   assert.deepEqual(started, ['run_queued'])
-  assert.deepEqual(snapshots, ['run_interrupted:requires_action:done'])
+  assert.deepEqual(snapshots, ['run_interrupted:requires_action:open'])
   assert.deepEqual(
     traces.map((item) => [item.runId, item.trace.data && (item.trace.data as Record<string, unknown>).eventType]),
     [

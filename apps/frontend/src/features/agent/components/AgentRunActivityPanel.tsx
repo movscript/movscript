@@ -26,7 +26,7 @@ import {
   AgentRunActivitySummaryText,
   AgentRunActivityTitle,
 } from '@movscript/ui'
-import { agentTimelineSummary, buildAgentRunTimeline } from '@/features/agent/domain/agentTimeline'
+import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/domain/agentRunActivityTimeline'
 import { formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
@@ -34,6 +34,7 @@ import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/feature
 import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/features/agent/components/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
+import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
@@ -94,10 +95,10 @@ export function RunActivityPanel({
   const navigate = useNavigate()
   const { i18n } = useTranslation()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const timeline = buildAgentRunTimeline({ activity, run, events })
-  if (!timeline) return null
-  const runId = run?.id ?? activity?.runId ?? timeline.runId
-  const timelineStatusRecipe = agentRunStatusRecipe(timeline.status)
+  const activityTimeline = buildAgentRunActivityTimeline({ activity, run, events })
+  if (!activityTimeline) return null
+  const runId = run?.id ?? activity?.runId ?? activityTimeline.runId
+  const activityTimelineStatusRecipe = agentRunStatusRecipe(activityTimeline.status)
 
   return (
     <AgentRunActivityDisclosure
@@ -113,7 +114,7 @@ export function RunActivityPanel({
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            navigate(agentRunPath(runId))
+            navigate(agentRunPath(runId, { sessionId: run?.sessionId }))
           }}
         >
           <Route size={10} />
@@ -121,17 +122,17 @@ export function RunActivityPanel({
         </AgentRunActivityDetailButton>
       )}
       status={(
-        <AgentRunActivityStatusBadge intent={timelineStatusRecipe.intent} emphasis={timelineStatusRecipe.emphasis}>
-          {genericRunStatusLabel(timeline.status)}
+        <AgentRunActivityStatusBadge intent={activityTimelineStatusRecipe.intent} emphasis={activityTimelineStatusRecipe.emphasis}>
+          {genericRunStatusLabel(activityTimeline.status)}
         </AgentRunActivityStatusBadge>
       )}
-      summary={agentTimelineSummary(timeline)}
+      summary={agentRunActivityTimelineSummary(activityTimeline)}
     >
-      {timeline.items.length === 0 ? (
+      {activityTimeline.items.length === 0 ? (
         <AgentRunActivityEmpty>
           这次运行没有记录工具调用或交互。
         </AgentRunActivityEmpty>
-      ) : timeline.items.map((item) => {
+      ) : activityTimeline.items.map((item) => {
         const itemStatusRecipe = agentRunInteractionStatusRecipe(item.status)
         return (
           <AgentRunActivityItem key={item.id}>
@@ -161,14 +162,14 @@ export function RunActivityPanel({
           </AgentRunActivityItem>
         )
       })}
-      {timeline.warnings?.length ? (
+      {activityTimeline.warnings?.length ? (
         <AgentRunActivityNotice tone="warning">
-          {timeline.warnings.map((warning) => <div key={warning}>{warning}</div>)}
+          {activityTimeline.warnings.map((warning) => <div key={warning}>{warning}</div>)}
         </AgentRunActivityNotice>
       ) : null}
-      {timeline.error && (
+      {activityTimeline.error && (
         <AgentRunActivityNotice tone="danger">
-          {timeline.error}
+          {activityTimeline.error}
         </AgentRunActivityNotice>
       )}
     </AgentRunActivityDisclosure>
@@ -190,10 +191,10 @@ export function RunActivityTitleBubble({
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const timeline = buildAgentRunTimeline({ activity, run, events })
-  if (!timeline) return null
-  const runId = run?.id ?? activity?.runId ?? timeline.runId
-  const timelineStatusRecipe = agentRunStatusRecipe(timeline.status)
+  const activityTimeline = buildAgentRunActivityTimeline({ activity, run, events })
+  if (!activityTimeline) return null
+  const runId = run?.id ?? activity?.runId ?? activityTimeline.runId
+  const activityTimelineStatusRecipe = agentRunStatusRecipe(activityTimeline.status)
 
   const openCard = () => setOpen(true)
   if (open) {
@@ -223,10 +224,10 @@ export function RunActivityTitleBubble({
         >
           <AgentRunActivityTitle icon={<ChevronRight size={12} />}>{title}</AgentRunActivityTitle>
           <AgentRunActivityMeta>
-            <AgentRunActivityStatusBadge intent={timelineStatusRecipe.intent} emphasis={timelineStatusRecipe.emphasis}>
-              {genericRunStatusLabel(timeline.status)}
+            <AgentRunActivityStatusBadge intent={activityTimelineStatusRecipe.intent} emphasis={activityTimelineStatusRecipe.emphasis}>
+              {genericRunStatusLabel(activityTimeline.status)}
             </AgentRunActivityStatusBadge>
-            <AgentRunActivitySummaryText>{agentTimelineSummary(timeline)}</AgentRunActivitySummaryText>
+            <AgentRunActivitySummaryText>{agentRunActivityTimelineSummary(activityTimeline)}</AgentRunActivitySummaryText>
           </AgentRunActivityMeta>
         </AgentRunActivityBubbleButton>
         {runId && (
@@ -234,7 +235,7 @@ export function RunActivityTitleBubble({
             type="button"
             title="打开完整运行详情"
             aria-label="打开完整运行详情"
-            onClick={() => navigate(agentRunPath(runId))}
+            onClick={() => navigate(agentRunPath(runId, { sessionId: run?.sessionId }))}
           >
             <Route size={10} />
             详情
@@ -299,7 +300,7 @@ export function LiveRunActivityBubble({
 }
 
 function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {
-  if (run && isTerminalRunStatus(run.status)) return undefined
+  if (run && isTerminalAgentRunStatus(run.status)) return undefined
   const latest = [...events].reverse().find((event) => event.status === 'started' || event.status === 'info' || event.status === 'completed' || event.status === 'failed' || event.status === 'blocked')
   if (latest && latest.status !== 'started' && latest.status !== 'info') return undefined
   if (latest?.title === 'Model HTTP request sent') return '正在请求模型'
@@ -310,10 +311,6 @@ function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEve
   if (run?.status === 'queued') return '等待 agent 开始'
   if (run?.status === 'in_progress') return 'agent 正在运行'
   return undefined
-}
-
-function isTerminalRunStatus(status: AgentRun['status']): boolean {
-  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function latestModelRetryStatus(events: ChatRunActivityEvent[]): string | undefined {

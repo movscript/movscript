@@ -2,7 +2,6 @@ export const AGENT_PROTOCOL_VERSION = 'movscript.agent.protocol.v1'
 export const AGENT_RUNTIME_SNAPSHOT_V2_SCHEMA = 'movscript.agent.runtime-snapshot.v2'
 export const AGENT_RUNTIME_EVENT_V2_SCHEMA = 'movscript.agent.runtime-event.v2'
 export const AGENT_CLIENT_TELEMETRY_SCHEMA = 'movscript.agent.client-telemetry.v1'
-export const EVENT_STATE_DEBUG_V1_SCHEMA = 'movscript.agent.event-state-debug.v1'
 export const MEDIA_ARTIFACTS_V1_SCHEMA = 'movscript.media.artifacts.v1'
 export const MEDIA_PROVIDER_CONTRACT_V1_SCHEMA = 'movscript.media.provider_contract.v1'
 
@@ -39,9 +38,9 @@ export const AGENT_TELEMETRY_REPORTABLE_METRICS = [
   'frontend_agent_stream_flush_total',
   'frontend_agent_stream_text_chars',
   'frontend_agent_stream_update_total',
-  'frontend_agent_message_history_page_duration_ms',
-  'frontend_agent_message_history_page_messages',
-  'frontend_agent_message_history_page_payload_bytes',
+  'frontend_agent_timeline_page_duration_ms',
+  'frontend_agent_timeline_page_items',
+  'frontend_agent_timeline_page_payload_bytes',
   'frontend_agent_thread_restore_duration_ms',
   'frontend_agent_thread_restore_message_count',
   'frontend_agent_thread_restore_payload_bytes',
@@ -270,6 +269,8 @@ export interface MediaArtifactsV1 {
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
+export const AGENT_RUN_TERMINAL_STATUSES = ['completed', 'completed_with_warnings', 'failed', 'cancelled'] as const satisfies readonly AgentRunStatus[]
+export const AGENT_RUN_STREAM_SETTLED_STATUSES = [...AGENT_RUN_TERMINAL_STATUSES, 'requires_action'] as const satisfies readonly AgentRunStatus[]
 export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'completed' | 'failed' | 'cancelled'
 export type AgentConversationLifecycle = 'provisional' | 'active' | 'abandoned'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
@@ -281,6 +282,15 @@ export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunExecutionMode = 'standard' | 'compact' | 'deep'
+
+export function isAgentRunTerminalStatus(status: AgentRunStatus | undefined): boolean {
+  return !!status && (AGENT_RUN_TERMINAL_STATUSES as readonly string[]).includes(status)
+}
+
+export function isAgentRunStreamSettledStatus(status: AgentRunStatus | undefined): boolean {
+  return !!status && (AGENT_RUN_STREAM_SETTLED_STATUSES as readonly string[]).includes(status)
+}
+
 export type AgentWorkspaceKind =
   | 'setting_workspace'
   | 'asset_workspace'
@@ -346,6 +356,8 @@ export interface AgentThread {
   metadata?: Record<string, JSONValue>
   currentPlan?: AgentPlan
   planRevisions?: AgentPlanRevision[]
+  runtimeStatuses?: AgentRuntimeStatusRecord[]
+  contextDiagnostics?: AgentContextDiagnosticRecord[]
   archived?: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -354,6 +366,25 @@ export interface AgentThread {
   createdAt: string
   updatedAt: string
   messages: AgentMessage[]
+}
+
+export interface AgentContextDiagnosticRecord {
+  id: string
+  threadId: string
+  runId?: string
+  command?: string
+  content: string
+  diagnostic: AgentContextDiagnostic
+  createdAt: string
+}
+
+export interface AgentRuntimeStatusRecord {
+  id: string
+  threadId: string
+  runId?: string
+  content: string
+  status: AgentRuntimeStatusMessage
+  createdAt: string
 }
 
 export interface AgentSession {
@@ -764,10 +795,6 @@ export interface AgentPluginCatalogInfo {
   skillCount: number
   toolCount: number
   metadata?: Record<string, unknown>
-  packPlugins?: Array<{
-    pluginId: string
-    path: string
-  }>
   warnings?: string[]
 }
 
@@ -1109,7 +1136,7 @@ export interface CreateMessageRunResult {
     accepted: boolean
     runId: string
     messageId: string
-    status: string
+    deliveryStatus: AgentRuntimeInputDeliveryStatus
   }
 }
 
@@ -1155,7 +1182,6 @@ export interface AgentClientInput {
       status?: string
       description?: string
     }
-    productionId?: number
     workspaceId?: string
     agent?: {
       key?: string
@@ -1321,6 +1347,7 @@ export interface AgentRuntimeEntitiesV2 {
   wakeEvents?: RuntimeWakeEvent[]
   plans?: AgentPlan[]
   planRevisions?: AgentPlanRevision[]
+  runtimeStatuses?: AgentRuntimeStatusRecord[]
   taskGraphs?: AgentTaskGraphSnapshot[]
 }
 
@@ -1349,6 +1376,7 @@ export type AgentRuntimeEventKind =
   | 'wake_event.upserted'
   | 'plan.upserted'
   | 'plan_revision.upserted'
+  | 'runtime_status.upserted'
   | 'task_graph.upserted'
   | 'assistant.progress'
   | 'scope.done'
@@ -1366,6 +1394,7 @@ export interface AgentRuntimeEventCausalityV2 {
   wakeEventId?: string
   planId?: string
   planRevisionId?: string
+  runtimeStatusId?: string
   taskGraphId?: string
   taskId?: string
   sourceEventId?: string
@@ -1384,6 +1413,7 @@ export type AgentRuntimeEventEntityV2 =
   | { type: 'wake_event'; value: RuntimeWakeEvent }
   | { type: 'plan'; value: AgentPlan }
   | { type: 'plan_revision'; value: AgentPlanRevision }
+  | { type: 'runtime_status'; value: AgentRuntimeStatusRecord }
   | { type: 'task_graph'; value: AgentTaskGraphSnapshot }
 
 export interface AgentRuntimeAssistantProgressV2 {
@@ -1410,11 +1440,27 @@ export interface AgentRuntimeEventV2 {
   assistantProgress?: AgentRuntimeAssistantProgressV2
 }
 
-export type AgentFeedMessageRole = 'user' | 'assistant' | 'system' | 'tool'
-export type AgentFeedMessageKind = 'text' | 'status' | 'tool_call' | 'tool_result' | 'approval'
-export type AgentFeedMessageStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'cancelled' | 'requires_action'
+export type AgentTimelineOrigin = 'system_runtime' | 'user' | 'agent'
+export type AgentTimelinePurpose = 'transcript' | 'status' | 'diagnostic'
+export type AgentTimelineSurface =
+  | 'message_stream'
+  | 'status_strip'
+  | 'debug_panel'
+export type AgentTimelineContentPromptEligibility = 'include' | 'exclude'
+export type AgentTimelineStatus = 'pending' | 'streaming' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled' | 'requires_action'
+export type AgentRuntimeInputDeliveryStatus = 'pending' | 'accepted' | 'consumed' | 'failed'
 
-export interface AgentFeedMessageRuntimeRefs {
+export function agentTimelineStatusFromRunStatus(status: AgentRunStatus): AgentTimelineStatus {
+  if (status === 'queued') return 'pending'
+  if (status === 'in_progress') return 'streaming'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'requires_action') return 'requires_action'
+  if (status === 'completed_with_warnings') return 'completed_with_warnings'
+  return 'completed'
+}
+
+export interface AgentTimelineRuntimeRefs {
   sessionId?: string
   threadId: string
   messageId?: string
@@ -1422,86 +1468,62 @@ export interface AgentFeedMessageRuntimeRefs {
   traceId?: string
 }
 
-export interface AgentFeedMessage {
+export interface AgentTimelineMeta {
+  runtimeStatus?: AgentRuntimeStatusMessage
+  contextDiagnostic?: AgentContextDiagnostic
+  planRevision?: AgentPlanRevision
+}
+
+export interface AgentTimelineItem {
   id: string
   sessionId?: string
   threadId: string
-  role: AgentFeedMessageRole
-  kind: AgentFeedMessageKind
-  content: string
+  /** Runtime/user/agent source. This is not a UI surface decision by itself. */
+  origin: AgentTimelineOrigin
+  /** Conversation purpose. `transcript` means message-stream text, not prompt inclusion. */
+  purpose: AgentTimelinePurpose
+  /** UI surface that owns this item. */
+  surface: AgentTimelineSurface
+  /** Model prompt eligibility is independent from transcript rendering. */
+  contentPromptEligibility: AgentTimelineContentPromptEligibility
+  /** Stable semantic order for equal timestamps. Clients sort by createdAt, sortRank, then id. */
+  sortRank: number
+  content?: string
   attachments?: AgentAttachment[]
-  meta?: AgentChatMessageMeta
-  activity?: AgentRunActivity
-  status?: AgentFeedMessageStatus
+  meta?: AgentTimelineMeta
+  activity?: AgentTimelineActivity
+  status?: AgentTimelineStatus
   createdAt: string
   updatedAt: string
   revision: number
+  /** Opaque pagination token. Clients must not parse it for display ordering. */
   cursor: string
-  runtimeRefs: AgentFeedMessageRuntimeRefs
+  runtimeRefs: AgentTimelineRuntimeRefs
 }
 
-export interface AgentFeedMessagePage {
-  messages: AgentFeedMessage[]
+export interface AgentTimelinePage {
+  items: AgentTimelineItem[]
   nextBefore?: string
   hasMoreBefore: boolean
   snapshotRevision: number
 }
 
-export type AgentFeedMessageStreamEventType = 'message.created' | 'message.updated' | 'messages.reset_required'
+export type AgentTimelineItemStreamEventType = 'timeline.item.created' | 'timeline.item.updated'
+export type AgentTimelineStreamEventType = AgentTimelineItemStreamEventType | 'timeline.reset_required'
 
-export interface AgentFeedMessageStreamEvent {
-  type: AgentFeedMessageStreamEventType
+export interface AgentTimelineItemStreamEvent {
+  type: AgentTimelineItemStreamEventType
   revision: number
-  message?: AgentFeedMessage
+  item: AgentTimelineItem
+}
+
+export interface AgentTimelineResetStreamEvent {
+  type: 'timeline.reset_required'
+  revision: number
   reason?: string
 }
 
-export type EventStateDropReason =
-  | 'duplicate_event'
-  | 'invalid_schema'
-  | 'invalid_shape'
-  | 'ordinal_regression'
-  | 'ordinal_gap'
-  | 'stale_entity'
-  | 'kind_entity_mismatch'
-  | 'progress_regression'
-
-export interface EventStateDebugReportV1 {
-  schema: typeof EVENT_STATE_DEBUG_V1_SCHEMA
-  generatedAt: string
-  scope: AgentRuntimeScopeRef
-  input: {
-    lastSnapshotCursor?: string
-    currentCursor?: string
-    currentOrdinal?: number
-    eventsRead: string[]
-    eventsAccepted: string[]
-    eventsDropped: Array<{ eventId?: string; ordinal?: number; kind?: string; reason: EventStateDropReason; detail?: string }>
-    gaps: Array<{ expectedOrdinal: number; receivedOrdinal: number; action: 'snapshot_required' }>
-  }
-  normalized: {
-    sessions: AgentSession[]
-    threads: AgentThread[]
-    messages: AgentMessage[]
-    runs: AgentRun[]
-    steps: AgentRunStep[]
-    traces: AgentTraceEvent[]
-    interactions: RuntimeInteraction[]
-    works: RuntimeWork[]
-    continuations: RuntimeContinuation[]
-    plans: AgentPlan[]
-    planRevisions: AgentPlanRevision[]
-    taskGraphs: AgentTaskGraphSnapshot[]
-    assistantProgresses: AgentRuntimeAssistantProgressV2[]
-  }
-  mergeDecisions: Array<{ entityType: string; entityId: string; decision: 'insert' | 'replace' | 'keep_existing' | 'drop'; reason: string; previousRevision?: string | number; nextRevision?: string | number }>
-  projection: {
-    conversationMessages: Array<{ id: string; role: 'user' | 'assistant'; content: string; runId?: string; messageId?: string; traceId?: string; status?: string }>
-    pendingInteractions: RuntimeInteraction[]
-    activeRunIds: string[]
-  }
-  invariants: Array<{ name: string; status: 'pass' | 'fail'; detail?: string }>
-}
+export type AgentTimelineStreamEvent = AgentTimelineItemStreamEvent | AgentTimelineResetStreamEvent
 
 export interface AgentRunInput {
   schema: 'movscript.agent.run-input.v1'
@@ -1568,7 +1590,6 @@ export interface AgentDebugContextPanel {
     visual_style?: string
     project_style?: string
   }
-  productionId?: number
   user?: {
     id: number
     username: string
@@ -1652,8 +1673,26 @@ export interface AgentDebugContextPanel {
   }
 }
 
+export interface PromptFragmentPreview {
+  id: string
+  source: string
+  owner: string
+  layer: string
+  lifecycle: string
+  trustLevel: string
+  instructionAuthority: string
+  promptEligibility: string
+  contentHash: string
+  renderMode: string
+  budgetPriority: number
+  inclusionReason: string
+}
+
 export interface CompiledPromptPreview {
   system: string
+  sectionPrompt?: string
+  providerSystemPrompt?: string
+  providerSystemMessages?: Array<{ role: string; content: string }>
   messages: Array<{ role: string; content: string }>
   debugParts: Array<{
     id: string
@@ -1661,20 +1700,35 @@ export interface CompiledPromptPreview {
     title: string
     content: string
   }>
+  promptFragments?: PromptFragmentPreview[]
   promptStats?: {
     totalChars: number
-    systemChars?: number
+    sectionPromptChars?: number
+    providerSystemChars?: number
     conversationChars?: number
     budget?: {
       limitChars: number
       usedChars: number
       remainingChars: number
       usageRatio: number
-      status: string
+      status: 'ok' | 'warning' | 'critical' | 'exceeded'
     }
-    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
+    parts: Array<{
+      id: string
+      title: string
+      kind: string
+      layer: string
+      contextLayer?: string
+      source?: string
+      lifecycle?: string
+      authority?: string
+      chars: number
+      contentHash?: string
+    }>
     byLayer: Record<string, number>
     byContextLayer?: Record<string, number>
+    bySource?: Record<string, number>
+    byAuthority?: Record<string, number>
   }
 }
 
@@ -1755,6 +1809,7 @@ export const AGENT_TRACE_EVENT_KINDS = [
 ] as const
 
 export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]
+export type AgentTraceStatus = 'started' | 'completed' | 'blocked' | 'failed' | 'info'
 
 export interface AgentTraceEvent {
   id: string
@@ -1762,7 +1817,7 @@ export interface AgentTraceEvent {
   kind: AgentTraceEventKind
   title: string
   summary?: string
-  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
+  status: AgentTraceStatus
   roundId?: string
   roundIndex?: number
   roundLabel?: string
@@ -1855,7 +1910,9 @@ export interface AgentChatMessage {
 export interface AgentConversation {
   id: string
   title: string
-  messages: AgentChatMessage[]
+  transcriptMessages: AgentChatMessage[]
+  transcriptMessageCount?: number
+  lastTranscriptAt?: number
   runtimeSessionId?: string
   runtimeThreadId?: string
   archived?: boolean
@@ -1878,11 +1935,13 @@ export interface AgentRuntimeInputRef {
   threadId?: string
   runId?: string
   messageId?: string
-  status: 'pending' | 'accepted' | 'consumed' | 'failed'
+  deliveryStatus: AgentRuntimeInputDeliveryStatus
   error?: string
 }
 
-export interface AgentRuntimeStatusMessage {
+export type AgentRuntimeStatusLightState = 'stopped' | 'waiting' | 'active'
+
+export interface AgentRuntimeAsyncWorkHandoffStatusMessage {
   kind: 'async_work_handoff'
   title: string
   detail: string
@@ -1891,59 +1950,54 @@ export interface AgentRuntimeStatusMessage {
   workStatus?: string
 }
 
+export interface AgentRuntimeStatusLightMessage {
+  kind: 'status_light'
+  state: AgentRuntimeStatusLightState
+  label: string
+  detail: string
+}
+
+export type AgentRuntimeStatusMessage =
+  | AgentRuntimeAsyncWorkHandoffStatusMessage
+  | AgentRuntimeStatusLightMessage
+
 export interface AgentChatMessageMeta {
   modelId?: number | null
   agentName?: string
   contextLabels?: string[]
+  promptEligibility?: 'include' | 'exclude'
+  localRunActivity?: Record<string, unknown>
   runtimeMessage?: AgentRuntimeMessageRef
   runtimeInput?: AgentRuntimeInputRef
-  runtimeStatus?: AgentRuntimeStatusMessage
-  contextDiagnostic?: AgentContextDiagnostic
   generationJobs?: AgentGenerationJob[]
   generationParamAudits?: AgentGenerationParamAudit[]
   generationValidationErrors?: AgentGenerationValidationError[]
   workspaceArtifacts?: AgentTaskArtifactRef[]
-  localRunActivity?: AgentRunActivity
-  planRevision?: AgentPlanRevision
 }
 
-export function isAgentUiOnlyAssistantMetadata(metadata: unknown): boolean {
+export function isAgentTranscriptExcludedAssistantMetadata(metadata: unknown): boolean {
   if (!isAgentMetadataRecord(metadata)) return false
-  if (metadata.promptHistory === 'exclude') return true
-  if (metadata.kind === 'runtime_status' || metadata.kind === 'runtime_activity' || metadata.kind === 'plan_revision') return true
-  return isAgentMetadataRecord(metadata.runtimeStatus)
-    || isAgentMetadataRecord(metadata.planRevision)
-    || isAgentMetadataRecord(metadata.contextDiagnostic)
+  if (metadata.promptEligibility === 'exclude') return true
+  return false
 }
 
 export function isAgentPromptExcludedAssistantMetadata(metadata: unknown): boolean {
-  if (isAgentUiOnlyAssistantMetadata(metadata)) return true
+  if (isAgentTranscriptExcludedAssistantMetadata(metadata)) return true
   if (!isAgentMetadataRecord(metadata)) return false
-  return isAgentMetadataRecord(metadata.localRunActivity)
+  if (isAgentMetadataRecord(metadata.localRunActivity)) return true
+  return false
 }
 
-export function isAgentNonTranscriptAssistantMetadata(metadata: unknown): boolean {
-  return isAgentPromptExcludedAssistantMetadata(metadata)
+export function isAgentTranscriptExcludedAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
+  return message.role === 'assistant' && isAgentTranscriptExcludedAssistantMetadata(message.metadata)
 }
 
-export function isAgentUiOnlyAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
-  return message.role === 'assistant' && isAgentUiOnlyAssistantMetadata(message.metadata)
+export function isAgentTranscriptAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
+  return message.role === 'assistant' && !isAgentTranscriptExcludedAssistantMetadata(message.metadata)
 }
 
 export function isAgentPromptExcludedAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
   return message.role === 'assistant' && isAgentPromptExcludedAssistantMetadata(message.metadata)
-}
-
-export function isAgentVisibleAssistantMessage(message: Pick<AgentMessage, 'role' | 'metadata'>): boolean {
-  return message.role === 'assistant' && !isAgentUiOnlyAssistantMetadata(message.metadata)
-}
-
-export function isAgentChatUiOnlyAssistantMessage(message: Pick<AgentChatMessage, 'role' | 'meta'>): boolean {
-  return message.role === 'assistant' && isAgentUiOnlyAssistantMetadata(message.meta)
-}
-
-export function isAgentChatVisibleAssistantMessage(message: Pick<AgentChatMessage, 'role' | 'meta'>): boolean {
-  return message.role === 'assistant' && !isAgentUiOnlyAssistantMetadata(message.meta)
 }
 
 function isAgentMetadataRecord(value: unknown): value is Record<string, unknown> {
@@ -1956,21 +2010,38 @@ export interface AgentContextDiagnostic {
   modelGatewayCalled: boolean
   messages: Array<{ role: string; content: string }>
   systemPrompt?: string
+  sectionPrompt?: string
+  providerSystemPrompt?: string
   debugParts: Array<{ id: string; kind: string; title: string; content: string }>
+  promptFragments?: PromptFragmentPreview[]
   promptStats?: {
     totalChars: number
-    systemChars?: number
+    sectionPromptChars?: number
+    providerSystemChars?: number
     conversationChars?: number
     budget?: {
       limitChars: number
       usedChars: number
       remainingChars: number
       usageRatio: number
-      status: string
+      status: 'ok' | 'warning' | 'critical' | 'exceeded'
     }
-    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
+    parts: Array<{
+      id: string
+      title: string
+      kind: string
+      layer: string
+      contextLayer?: string
+      source?: string
+      lifecycle?: string
+      authority?: string
+      chars: number
+      contentHash?: string
+    }>
     byLayer: Record<string, number>
     byContextLayer?: Record<string, number>
+    bySource?: Record<string, number>
+    byAuthority?: Record<string, number>
   }
   tools: {
     available: AgentContextDiagnosticTool[]
@@ -2099,10 +2170,10 @@ export interface AgentGenerationValidationError {
   actualCount?: number
 }
 
-export interface AgentRunActivity {
+export interface AgentTimelineActivity {
   runId: string
   threadId: string
-  status: string
+  status: AgentRunStatus
   createdAt: string
   updatedAt: string
   startedAt?: string
@@ -2110,32 +2181,30 @@ export interface AgentRunActivity {
   failedAt?: string
   error?: string
   warnings?: string[]
-  approvals?: AgentRunActivityApproval[]
-  inputs?: AgentRunActivityInputRequest[]
-  steps: AgentRunActivityStep[]
-  events: AgentRunActivityEvent[]
+  approvals?: AgentTimelineActivityApproval[]
+  inputs?: AgentTimelineActivityInputRequest[]
+  steps: AgentTimelineActivityStep[]
+  events: AgentTimelineActivityEvent[]
 }
 
-export interface AgentRunActivityApproval {
+export interface AgentTimelineActivityApproval {
   id: string
   runId?: string
   interactionId?: string
   displayThreadId?: string
   displayAnchor?: RuntimeDisplayAnchor
   toolName: string
-  args?: Record<string, unknown>
-  preview?: unknown
   reason: string
   risk?: string
   permission?: string
-  status: string
+  status: AgentApprovalStatus
   createdAt: string
   updatedAt: string
   approvedAt?: string
   rejectedAt?: string
 }
 
-export interface AgentRunActivityInputRequest {
+export interface AgentTimelineActivityInputRequest {
   id: string
   runId?: string
   displayThreadId?: string
@@ -2146,7 +2215,7 @@ export interface AgentRunActivityInputRequest {
   inputType: string
   choices: Array<{ id: string; label: string; description?: string }>
   allowCustomAnswer: boolean
-  status: string
+  status: AgentInputRequestStatus
   createdAt: string
   updatedAt: string
   answeredAt?: string
@@ -2156,18 +2225,16 @@ export interface AgentRunActivityInputRequest {
   }
 }
 
-export interface AgentRunActivityStep {
+export interface AgentTimelineActivityStep {
   id: string
   type: 'tool_call' | 'message'
-  status: string
+  status: AgentStepStatus
   roundId?: string
   roundIndex?: number
   roundLabel?: string
   roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
   title?: string
   toolName?: string
-  args?: unknown
-  result?: unknown
   error?: string
   sandboxed?: boolean
   durationMs?: number
@@ -2175,21 +2242,21 @@ export interface AgentRunActivityStep {
   completedAt?: string
 }
 
-export interface AgentRunActivityEvent {
+export interface AgentTimelineActivityEvent {
   id: string
   runId?: string
   threadId?: string
   kind: string
   title: string
   summary?: string
-  status: string
+  status: AgentTraceStatus
   roundId?: string
   roundIndex?: number
   roundLabel?: string
   roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
   toolName?: string
   stepId?: string
-  data?: unknown
+  data?: Record<string, unknown>
   durationMs?: number
   createdAt: string
   completedAt?: string

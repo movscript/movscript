@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   isTerminalPlanStatus,
-  isTerminalRunStatus,
+  isSubagentWaitResolvedRunStatus,
   toSubagentRunSummary,
   waitStatusFromPlanStatus,
   waitStatusFromRunStatus,
@@ -56,9 +56,9 @@ test('toSubagentRunSummary falls back to task subagent name', () => {
   assert.equal(toSubagentRunSummary(run({ taskId: 'task_1' }), task({ metadata: { subagentName: 'Turing' } })).subagentName, 'Turing')
 })
 
-test('terminal status helpers classify run and taskGraph status', () => {
-  assert.equal(isTerminalRunStatus('requires_action'), true)
-  assert.equal(isTerminalRunStatus('in_progress'), false)
+test('wait resolved status helpers classify run and taskGraph status', () => {
+  assert.equal(isSubagentWaitResolvedRunStatus('requires_action'), true)
+  assert.equal(isSubagentWaitResolvedRunStatus('in_progress'), false)
   assert.equal(isTerminalPlanStatus('done'), true)
   assert.equal(isTerminalPlanStatus('needs_review'), false)
 })

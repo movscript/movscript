@@ -83,6 +83,10 @@ func (s *Service) ResourceDetail(ctx context.Context, id uint) (ResourceDetail, 
 	return s.repo.ResourceDetail(ctx, id)
 }
 
+func (s *Service) GetResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
+	return s.repo.GetResource(ctx, id)
+}
+
 func (s *Service) DeleteResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
 	var resource domainresource.RawResource
 	if err := s.repo.Transaction(ctx, func(repo repository) error {

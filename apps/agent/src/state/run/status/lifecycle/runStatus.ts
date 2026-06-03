@@ -43,12 +43,12 @@ export function applyRunCancellation(run: AgentRun, now: string, reason?: string
 
 export function applyRunCompletion(run: AgentRun, input: {
   now: string
-  assistantMessageId: string
+  assistantMessageId?: string
   warnings?: string[]
   metadataPatch?: Record<string, JSONValue>
 }): AgentRun {
   const warnings = input.warnings && input.warnings.length > 0 ? [...input.warnings] : undefined
-  run.assistantMessageId = input.assistantMessageId
+  if (input.assistantMessageId) run.assistantMessageId = input.assistantMessageId
   run.warnings = warnings
   if (input.metadataPatch) {
     run.metadata = {

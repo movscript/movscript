@@ -7,7 +7,6 @@ import {
 } from '@movscript/protocol'
 import type { AgentRuntimeRouter } from '../../../application/router/runtimeRouter.js'
 import type { RuntimeDebugEvidenceRefQuery } from '../../../application/read/trace/runtimeTraceReadBridge.js'
-import { installAgentPack, uninstallAgentPack, type AgentPackFile } from '../../../catalog/loading/install/packInstaller.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../../../context/runtime/runtimeContext.js'
 import { normalizeWorkspaceKind, normalizeWorkspaceStatus } from '../../../workspaces/store/workspaceStore.js'
 import { isValidMemoryProjectId } from '../../../memory/shared/types.js'
@@ -47,6 +46,7 @@ export function normalizeWorkspaceQuery(url: URL): Parameters<AgentRuntimeRouter
   const pageRoute = url.searchParams.get('pageRoute')
   const pageEntityType = url.searchParams.get('pageEntityType')
   const pageEntityId = url.searchParams.get('pageEntityId')
+  const current = parseOptionalBooleanParam(url.searchParams.get('current'))
   const limit = url.searchParams.get('limit')
   const parsedLimit = parseLimitParam(limit, 100)
   return {
@@ -62,8 +62,17 @@ export function normalizeWorkspaceQuery(url: URL): Parameters<AgentRuntimeRouter
     ...(pageRoute ? { pageRoute } : {}),
     ...(pageEntityType ? { pageEntityType } : {}),
     ...(pageEntityId ? { pageEntityId } : {}),
+    ...(current !== undefined ? { current } : {}),
     ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
   }
+}
+
+function parseOptionalBooleanParam(value: string | null): boolean | undefined {
+  if (value === null || value.trim() === '') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'true') return true
+  if (normalized === 'false') return false
+  throw new AgentHTTPError(400, 'boolean query parameter must be true or false')
 }
 
 export function parseOptionalProjectIdParam(value: string | null): number | undefined {
@@ -77,25 +86,6 @@ function normalizeWorkspaceBodyProjectId(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined
   if (isValidAgentProjectId(value)) return value
   throw new AgentHTTPError(400, 'workspace projectId must be a positive safe integer')
-}
-
-export function normalizeAgentPackBody(body: Record<string, unknown>, packInstallRootDir: string): Parameters<typeof installAgentPack>[0] {
-  const pluginId = typeof body.pluginId === 'string' && body.pluginId.trim() ? body.pluginId.trim() : undefined
-  if (!pluginId) throw new AgentHTTPError(400, 'agent pack pluginId is required')
-  if (!Array.isArray(body.files) || body.files.length === 0) throw new AgentHTTPError(400, 'agent pack files are required')
-  const files: AgentPackFile[] = body.files.map((file, index) => {
-    if (!isRecord(file)) throw new AgentHTTPError(400, `agent pack file ${index + 1} must be an object`)
-    if (typeof file.path !== 'string' || !file.path.trim()) throw new AgentHTTPError(400, `agent pack file ${index + 1} path is required`)
-    if (typeof file.content !== 'string') throw new AgentHTTPError(400, `agent pack file ${index + 1} content must be a string`)
-    return { path: file.path, content: file.content }
-  })
-  return { packInstallRootDir, pluginId, files }
-}
-
-export function normalizeAgentPackUninstallBody(body: Record<string, unknown>, packInstallRootDir: string): Parameters<typeof uninstallAgentPack>[0] {
-  const pluginId = typeof body.pluginId === 'string' && body.pluginId.trim() ? body.pluginId.trim() : undefined
-  if (!pluginId) throw new AgentHTTPError(400, 'agent pack pluginId is required')
-  return { packInstallRootDir, pluginId }
 }
 
 export function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['listMemories']>[0] | undefined {

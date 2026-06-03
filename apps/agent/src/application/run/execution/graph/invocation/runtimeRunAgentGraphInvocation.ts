@@ -22,7 +22,7 @@ import type { AgentRuntimeCatalogSnapshot, RuntimeCatalogSnapshotRegistry } from
 import type { RuntimeRunContextPackage } from '../../context/package/runtimeRunContextPackage.js'
 import type { RuntimeRunExecutionContext } from '../../context/input/runtimeRunExecutionContext.js'
 import type { RuntimeRunSetupResolution } from '../../setup/resolution/runtimeRunSetupResolution.js'
-import type { RuntimeHistoricalVisionContext } from '../../../../../context/prompt/builder/modelContextBuilder.js'
+import type { RuntimeHistoricalVisionContext } from '../../../../../context/prompt/turn/runtimeHistoricalVisionTypes.js'
 import {
   invokeRuntimeAgentGraph,
   type RuntimeAgentGraphInvocationTraceInput,
@@ -34,7 +34,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../../por
 import type { CoreResourceFilePort } from '../../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../../../../ports/project/projectStandardsPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../../../../ports/runtime/runtimeToolHandlerPort.js'
 import type { ExternalToolGatewayPort } from '../../../../../ports/tools/externalToolGatewayPort.js'
 import type { AgentToolResultStore } from '../../../../../state/store/tool-results/toolResultStore.js'
@@ -65,7 +64,6 @@ export async function invokeRuntimeRunAgentGraph(input: {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   contractResolver: AgentRuntimeContractResolver
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   memoryManager: MemoryManager
@@ -123,7 +121,6 @@ export async function invokeRuntimeRunAgentGraph(input: {
     resourceFilePort: input.resourceFilePort,
     imageProcessingPort: input.imageProcessingPort,
     videoFrameExtractionPort: input.videoFrameExtractionPort,
-    projectStandardsPort: input.projectStandardsPort,
     registry: input.catalogSnapshot.toolRegistry,
     runtimeToolHandlers: input.runtimeToolHandlers,
     contractResolver: input.contractResolver,

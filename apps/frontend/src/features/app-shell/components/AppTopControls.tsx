@@ -6,6 +6,7 @@ import {
   Check,
   FolderOpen,
   LayoutDashboard,
+  MessageSquare,
   Palette,
   PanelRightClose,
   PanelRightOpen,
@@ -38,10 +39,12 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
 import { openAgentPanelNewConversation } from '@/features/agent/application/agentPanelBridge'
+import { listRuntimeSessionSummariesFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { useHasOpenAgentConversations } from '@/features/agent/presentation/useHasOpenAgentConversations'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
+import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -116,8 +119,12 @@ export function AppTopControls({
   }
 
   function handleAssistantShortcut() {
-    if (conversationCount === 0) return
+    if (!hasAssistantShortcutTarget) return
     setAgentPanelOpen(!agentPanelOpen)
+  }
+
+  function handleHistoryConversationShortcut() {
+    setAgentPanelOpen(true)
   }
 
   function handleNewConversationShortcut() {
@@ -133,6 +140,13 @@ export function AppTopControls({
   const iconSize = compact ? 11 : 16
   const showAssistantShortcut = routeSurface === 'detail' && showAssistantShortcutProp
   const showAgentContentPanelShortcut = routeSurface === 'agent' && showAgentContentPanelShortcutProp
+  const { data: agentWorkspaceSessions = [] } = useQuery({
+    queryKey: ['local-agent-sessions', localAgentClient.baseURL, 'app-top-controls'],
+    queryFn: () => listRuntimeSessionSummariesFromWorkspace(),
+    enabled: showAssistantShortcut,
+    retry: false,
+  })
+  const hasAssistantShortcutTarget = conversationCount > 0 || agentWorkspaceSessions.length > 0
   const AssistantShortcutIcon = agentPanelOpen ? PanelRightClose : PanelRightOpen
   const assistantShortcutTitle = agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
   const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
@@ -170,14 +184,25 @@ export function AppTopControls({
           variant="ghost"
           density={density}
           onClick={handleAssistantShortcut}
-          active={agentPanelOpen && conversationCount > 0}
+          active={agentPanelOpen && hasAssistantShortcutTarget}
           title={assistantShortcutTitle}
           aria-label={assistantShortcutTitle}
         >
           <AssistantShortcutIcon size={iconSize} />
         </AppTopControlButton>
       )}
-      {showAssistantShortcut && conversationCount === 0 && (
+      {showAssistantShortcut && conversationCount === 0 && agentWorkspaceSessions.length > 0 && (
+        <AppTopControlButton
+          variant="ghost"
+          density={density}
+          onClick={handleHistoryConversationShortcut}
+          title={t('agents.chat.conversationHistory')}
+          aria-label={t('agents.chat.conversationHistory')}
+        >
+          <MessageSquare size={iconSize} />
+        </AppTopControlButton>
+      )}
+      {showAssistantShortcut && conversationCount === 0 && agentWorkspaceSessions.length === 0 && (
         <AppTopControlButton
           variant="ghost"
           density={density}

@@ -112,7 +112,6 @@ export async function executeToolTurn(input: AgentGraphInput, options: {
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
-      projectStandardsPort: input.projectStandardsPort,
       registry: input.registry,
       runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,

@@ -76,9 +76,6 @@ export async function resolveRuntimeRunSetup(input: {
   const agentManifest = input.run.agentManifest ?? input.catalogSnapshot.activeAgentManifest
   const contextWarnings = input.contextError ? [`Focus unavailable: ${input.contextError}`] : []
   const baseDebugContext = buildDebugContext(input.contextResult, input.memories, input.clientInput)
-  if (isValidAgentEntityId(input.context.currentProductionId)) {
-    baseDebugContext.productionId = input.context.currentProductionId
-  }
 
   const activeSkillState = activeSkillStateFromRun(input.run)
   const shouldUseLayeredRuntime = input.catalogSnapshot.layeredRegistry.configFiles.size > 0

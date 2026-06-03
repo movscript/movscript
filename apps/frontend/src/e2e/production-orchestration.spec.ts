@@ -173,7 +173,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
   })
 
   let createdProductionWorkspaceContent = ''
-  await page.route('http://127.0.0.1:28765/workspace', async (route) => {
+  await page.route(/\/workspace(?:[?#]|$)/, async (route) => {
     const input = await route.request().postDataJSON().catch(() => ({})) as { content?: string }
     createdProductionWorkspaceContent = typeof input.content === 'string' ? input.content : createdProductionWorkspaceContent
     await route.fulfill({
@@ -192,7 +192,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
     })
   })
 
-  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
+  await page.route(/\/workspaces(?:[/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
     if (pathname === '/workspaces' || pathname === '/workspaces/') {

@@ -30,26 +30,12 @@ export function resolveRuntimeIntents(message: string, debugContext: AgentDebugC
     const normalizedLabel = normalizeIntentLabel(label)
     if (!normalizedLabel) continue
     addSignal(signals, normalizedLabel, 'client_label', 'high', `label:${label}`)
-    const alias = LABEL_INTENT_ALIASES[normalizedLabel]
-    if (alias) addSignal(signals, alias, 'label_alias', 'high', `label:${label}`)
     if (isVisualGenerationLabel(normalizedLabel)) addSignal(signals, 'visual_generation', 'label_alias', 'high', `label:${label}`)
   }
 
   for (const [intent, needles] of INTENT_KEYWORD_MAPPINGS) {
     const matchedNeedle = needles.find((needle) => matchesIntentNeedle(normalized, needle.toLowerCase(), intent))
     if (matchedNeedle) addSignal(signals, intent, 'keyword_fallback', 'low', `keyword:${matchedNeedle}`)
-  }
-
-  const route = debugContext.route.pathname.toLowerCase()
-  if (route.includes('project-workspace')) addSignal(signals, 'project_standards_workspace', 'route', 'high', `route:${debugContext.route.pathname}`)
-  const routeIntentSet = intentSet(signals)
-  const hasExplicitAssetTask = routeIntentSet.has('asset_workspace')
-    || routeIntentSet.has('asset_candidate_generation')
-    || routeIntentSet.has('visual_generation')
-  if (route.includes('creative-references') || (route.includes('pre-production') && !hasExplicitAssetTask)) addSignal(signals, 'setting_workspace', 'route', 'high', `route:${debugContext.route.pathname}`)
-  if (route.includes('production-orchestrate')) addSignal(signals, 'production_workspace', 'route', 'high', `route:${debugContext.route.pathname}`)
-  if (route.includes('asset-slots') || route.includes('pre-production')) {
-    if (!hasExplicitAssetTask) addSignal(signals, 'asset_workspace', 'route', 'high', `route:${debugContext.route.pathname}`)
   }
 
   if (debugContext.agentTaskGraph) addSignal(signals, 'planner_subagents', 'agent_taskGraph', 'high', `taskGraph:${debugContext.agentTaskGraph.id}`)
@@ -83,24 +69,6 @@ function normalizeIntentLabel(label: string): string | undefined {
   return normalized.startsWith('intent:') ? normalized.slice('intent:'.length).trim() : normalized
 }
 
-const LABEL_INTENT_ALIASES: Record<string, string> = {
-  project_orchestration: 'project_standards_workspace',
-  setting_workspace: 'setting_workspace',
-  asset_workspace: 'asset_workspace',
-  production_orchestration: 'production_workspace',
-  asset_candidate_generation: 'asset_candidate_generation',
-  content_unit_suggest: 'content_unit_workspace',
-  content_unit_workspace: 'content_unit_workspace',
-  content_unit_media_workspace: 'visual_generation',
-  keyframe_generation: 'visual_generation',
-  setting_prep: 'setting_prep',
-  visual_generation: 'visual_generation',
-  image_edit: 'visual_generation',
-  image_generation: 'visual_generation',
-  video_generation: 'visual_generation',
-  planner_subagents: 'planner_subagents',
-}
-
 function isVisualGenerationLabel(label: string): boolean {
   return [
     'visual_generation',
@@ -115,14 +83,6 @@ function isVisualGenerationLabel(label: string): boolean {
 }
 
 const INTENT_KEYWORD_MAPPINGS = [
-  ['project_standards_workspace', ['项目规范工作区', '项目规范', '镜头大小', '镜头规格', '风格规范', 'project standards workspace', 'project_standards_workspace']],
-  ['setting_workspace', ['设定工作区', '设定资料', '人物设定', '地点设定', 'setting workspace', 'setting_workspace']],
-  ['asset_workspace', ['素材需求工作区', '素材需求', '素材位', 'asset slot', '素材方案', '素材候选', '素材候选方案', '图片候选', '视频候选', '候选图方案', '候选视频方案', 'prompt 方案', 'asset workspace', 'asset_workspace']],
-  ['production_workspace', ['制作工作区', 'production workspace', 'production_workspace']],
-  ['asset_candidate_generation', ['生成素材', '生成候选', '生成图片候选', '生成视频候选', 'asset candidate']],
-  ['setting_prep', ['设定准备', '设定完善', 'creative reference']],
-  ['content_unit_workspace', ['content unit workspace', 'content_unit_workspace']],
-  ['visual_generation', ['content unit media', 'content_unit_media_workspace', '媒体方案', '媒体计划', '关键帧', 'keyframe generation', 'keyframe_generation']],
   ['visual_generation', [
     '生成图片',
     '生成视频',

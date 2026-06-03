@@ -175,6 +175,24 @@
   line-height: var(--ms-leading-item);
 }
 
+.ms-agent-conversation--editing {
+  cursor: text;
+}
+
+.ms-agent-conversation__title-input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  border-radius: var(--ms-radius-sm);
+  background: color-mix(in srgb, var(--ms-color-background) 88%, var(--ms-color-foreground) 12%);
+  color: var(--ms-color-foreground);
+  padding: 1px 4px;
+  font-size: var(--ms-text-item);
+  font-weight: 550;
+  line-height: var(--ms-leading-item);
+  outline: 1px solid color-mix(in srgb, var(--ms-color-primary) 45%, transparent);
+}
+
 .ms-agent-conversation__description,
 .ms-agent-conversation__meta {
   font-size: var(--ms-text-label);

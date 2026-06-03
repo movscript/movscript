@@ -24,7 +24,7 @@ export interface GenerationEvent {
 }
 
 export interface GenerationMonitorRequest {
-  toolName: 'generation_job_get'
+  toolName: string
   args: Record<string, JSONValue>
   timeoutMs: number
   pollIntervalMs: number
@@ -83,12 +83,12 @@ export function buildGenerationTimeoutEvent(initial: GenerationEvent): Generatio
 export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValue | undefined, event: GenerationEvent): GenerationMonitorRequest | undefined {
   if (call.name === 'core_work_start') return undefined
   const normalized = normalizeGenerationCall(call, result)
-  if (!normalized || normalized.call.name !== 'generation_job_create' || event.terminal) return undefined
+  if (!normalized || !isGenerationSubmitTool(normalized.call.name) || event.terminal) return undefined
   const payload = unwrapToolPayload(normalized.result)
   const monitor = isRecord(payload) && isRecord(payload.monitor) ? payload.monitor : undefined
   if (!monitor) return undefined
   const monitorArgs = isRecord(monitor?.args) ? monitor.args : undefined
-  const monitorTool = 'generation_job_get'
+  const monitorTool = stringField(monitor.tool) ?? defaultObserveToolForSubmitTool(normalized.call.name)
   const jobId = event.jobId ?? idField(monitorArgs?.jobId) ?? idField(monitorArgs?.job_id)
   const jobIds = idListField(monitorArgs?.jobIds) ?? idListField(monitorArgs?.job_ids) ?? (jobId !== undefined ? [jobId] : [])
   if (jobId === undefined && jobIds.length === 0) return undefined
@@ -117,8 +117,9 @@ function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined):
     : isJSONRecord(call.args?.request)
       ? cloneJSONValue(call.args.request)
       : {}
+  const requestTool = stringField(request.tool)
   return {
-    call: { name: 'generation_job_create', args: request },
+    call: { name: requestTool && isGenerationTool(requestTool) ? requestTool : 'generation_job_create', args: request },
     result: workResult,
   }
 }
@@ -150,7 +151,7 @@ function inferStage(toolName: string, status: string, terminal: boolean): Genera
   if (status === 'timeout') return 'timeout'
   if (isFailedStatus(status)) return 'failed'
   if (isCancelledStatus(status)) return 'cancelled'
-  if (toolName === 'generation_job_create' && !terminal) return 'created'
+  if (isGenerationSubmitTool(toolName) && !terminal) return 'created'
   return 'observed'
 }
 
@@ -172,14 +173,28 @@ function defaultMessage(toolName: string, jobId: number | undefined, status: str
   if (isCompletedStatus(status)) return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
   if (isFailedStatus(status)) return `${jobLabel} 生成失败。`
   if (isCancelledStatus(status)) return `${jobLabel} 已取消。`
-  if (toolName === 'generation_job_create') return `${jobLabel} 已创建，当前状态：${status}。`
+  if (isGenerationSubmitTool(toolName)) return `${jobLabel} 已创建，当前状态：${status}。`
   return `${jobLabel} 仍在运行，当前状态：${status}${progress !== undefined ? `，进度 ${progress}%` : ''}。`
 }
 
 function isGenerationTool(toolName: string): boolean {
-  return toolName === 'generation_job_create'
+  return isGenerationSubmitTool(toolName)
     || toolName === 'generation_job_get'
     || toolName === 'generation_job_cancel'
+    || toolName === 'generation_image_job_get'
+    || toolName === 'generation_video_job_get'
+}
+
+function isGenerationSubmitTool(toolName: string): boolean {
+  return toolName === 'generation_image_generate'
+    || toolName === 'generation_video_generate'
+    || toolName === 'generation_job_create'
+}
+
+function defaultObserveToolForSubmitTool(toolName: string): string {
+  if (toolName === 'generation_image_generate') return 'generation_image_job_get'
+  if (toolName === 'generation_video_generate') return 'generation_video_job_get'
+  return 'generation_job_get'
 }
 
 function isTerminalStatus(status: string): boolean {

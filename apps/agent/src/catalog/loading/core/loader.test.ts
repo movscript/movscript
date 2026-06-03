@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { installAgentCatalogPack, resolveAgentCatalogPackStoreDirs } from '@movscript/agent-runtime'
 import { loadAgentPluginCatalog } from './loader.js'
 
 test('loads target-state tool catalog but only enabled packs grant runtime access', () => {
@@ -179,7 +180,7 @@ test('enabled pack registration activates file-loaded skills and tools without c
   }
 })
 
-test('loads built-in MovScript platform catalog by default', () => {
+test('loads built-in generic platform catalog by default', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
   try {
     const catalog = loadAgentPluginCatalog({
@@ -189,43 +190,41 @@ test('loads built-in MovScript platform catalog by default', () => {
 
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.rules.workspace'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'workspace.rules.lifecycle'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'kernel.workspace_first'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.project_standards_workspace'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'workspace.lifecycle_support'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'core.base.default'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'core.pack.agent'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'workspace.pack.lifecycle'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.workspace'))
+    assert.equal(catalog.packs.some((pack) => pack.id === 'movscript.pack.workspace'), false)
     assert.ok(catalog.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_focus_get'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_project_create'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'generation_model_list'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_apply'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'core_video_extract_frames'))
-    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_focus_get'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'generation_model_list'))
-    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_project_create' && grant.approval === 'always'))
     assert.ok(catalog.registry.get('workspace_open'))
     assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'workspace_open'), true)
-    assert.equal(catalog.registry.get('movscript_project_create')?.projectScoped, false)
+    assert.equal(catalog.registry.get('movscript_project_create'), undefined)
+    assert.equal(catalog.registry.get('movscript_focus_get'), undefined)
     assert.deepEqual(catalog.warnings, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('loads built-in content unit workspace catalogs by default', () => {
+test('does not load MovScript business workspace catalogs by default', () => {
   const catalog = loadAgentPluginCatalog()
 
   const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.workspace')
   const workspacePack = catalog.packs.find((pack) => pack.id === 'workspace.pack.lifecycle')
 
-  assert.ok(movscriptPack)
-  assert.ok(workspacePack?.schemas.includes('movscript.content_unit_workspace.v1'))
+  assert.equal(movscriptPack, undefined)
+  assert.ok(workspacePack)
+  assert.equal(workspacePack?.schemas.includes('movscript.content_unit_workspace.v1'), false)
   assert.equal(workspacePack?.schemas.includes('movscript.content_unit_media_workspace.v1'), false)
-  assert.ok(movscriptPack?.skills.includes('movscript.content_unit_workspace'))
-  assert.equal(movscriptPack?.skills.includes('movscript.content-unit-media-workspace'), false)
+  assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'movscript.content_unit_workspace'), false)
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'))
   assert.equal(catalog.registry.get('movscript_upsert_workspace_node'), undefined)
@@ -630,6 +629,74 @@ test('local packs default their tools to local source', () => {
     assert.equal(catalog.layeredTools.find((tool) => tool.name === 'studio.local_preview')?.source, 'local')
     assert.equal(catalog.registry.get('studio.local_preview')?.source, 'local')
     assert.deepEqual(catalog.packs.find((pack) => pack.id === 'studio.pack.local')?.reference, ['reference://studio/local-guide'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('indexes plugin pack resources installed by shared agent catalog pack store without auto-granting runtime access', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-store-loader-'))
+  const dirs = resolveAgentCatalogPackStoreDirs({ dataDir: dir, env: {} })
+  const builtinSkillsDir = join(dir, 'builtin-skills')
+  const builtinToolsDir = join(dir, 'builtin-tools')
+  const builtinPacksDir = join(dir, 'builtin-packs')
+  const builtinConfigFilesDir = join(dir, 'builtin-config-files')
+
+  try {
+    installAgentCatalogPack({
+      pluginId: 'studio/plugin',
+      dirs,
+      files: [
+        {
+          path: 'agent-skills/story/SKILL.md',
+          content: '---\nid: studio.story\nname: Story Skill\ndescription: Plan story beats.\n---\nUse story beats.',
+        },
+        {
+          path: 'agent-tools/workspace/story.tool.json',
+          content: JSON.stringify({
+            name: 'studio.story_tool',
+            description: 'Read story context.',
+            permission: 'workspace.read',
+            risk: 'read',
+            inputSchema: {},
+            projectScoped: false,
+            defaults: { grant: 'allow', approval: 'never' },
+          }),
+        },
+        {
+          path: 'agent-packs/story.pack.json',
+          content: JSON.stringify({
+            id: 'studio.pack.story',
+            name: 'Story Pack',
+            resources: {
+              skills: ['story'],
+              tools: ['workspace'],
+            },
+            skills: ['studio.story'],
+            tools: ['studio.story_tool'],
+          }),
+        },
+      ],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir: dirs.skillsDir,
+      toolsDir: dirs.toolsDir,
+      packsDir: dirs.packsDir,
+      configFilesDir: dirs.configFilesDir,
+      builtinSkillsDir,
+      builtinToolsDir,
+      builtinPacksDir,
+      builtinConfigFilesDir,
+    })
+
+    assert.equal(catalog.packs.find((pack) => pack.id === 'studio.pack.story')?.source, 'plugin')
+    assert.equal(catalog.packs.find((pack) => pack.id === 'studio.pack.story')?.pluginId, 'studio/plugin')
+    assert.equal(catalog.layeredSkills.find((skill) => skill.id === 'studio.story')?.source, 'plugin')
+    assert.equal(catalog.layeredTools.find((tool) => tool.name === 'studio.story_tool')?.source, 'plugin')
+    assert.equal(catalog.registry.get('studio.story_tool')?.source, 'plugin')
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.story_tool'), false)
+    assert.deepEqual(catalog.warnings, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

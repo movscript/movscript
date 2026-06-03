@@ -65,7 +65,7 @@ import {
   clampAppSidebarWidth,
   useResizablePanel,
 } from '@movscript/ui'
-import { loadClientPlugins } from '@/features/plugins/application/clientPlugins'
+import { isClientPluginRunnable, loadClientPlugins } from '@/features/plugins/application/clientPlugins'
 import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
@@ -249,7 +249,7 @@ export function Sidebar({
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
-          {installedPlugins.map((plugin, index) => (
+          {installedPlugins.filter(isClientPluginRunnable).map((plugin, index) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
           ))}
         </AppSidebarSection>

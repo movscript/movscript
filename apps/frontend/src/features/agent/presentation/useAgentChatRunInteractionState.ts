@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { actionableRunsForTaskGraph, interactionRunsForTaskGraph } from '@/features/agent/domain/agentPlanUi'
 import { firstPendingInputRequest, runInteractionAnswerEchoesForMessages, interactionRunsForChat } from '@/features/agent/domain/agentRunInteraction'
 import { buildInteractionRunsByResultMessageId } from '@/features/agent/domain/agentRunInteractionAnchors'
-import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 interface UseAgentChatRunInteractionStateInput {
@@ -10,6 +10,7 @@ interface UseAgentChatRunInteractionStateInput {
   messages: ChatMessage[]
   run: AgentRun | null
   submittedInteractionRuns: AgentRun[]
+  timelineItems: AgentTimelineItem[]
 }
 
 export function useAgentChatRunInteractionState({
@@ -17,6 +18,7 @@ export function useAgentChatRunInteractionState({
   messages,
   run,
   submittedInteractionRuns,
+  timelineItems,
 }: UseAgentChatRunInteractionStateInput) {
   const actionableLocalRuns = useMemo(() => actionableRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const planInteractionRuns = useMemo(() => interactionRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
@@ -30,7 +32,8 @@ export function useAgentChatRunInteractionState({
     const insertedRunIds = new Set(Array.from(interactionRunsByResultMessageId.values()).flat().map((interactionRun) => interactionRun.id))
     return interactionRuns.filter((interactionRun) => !insertedRunIds.has(interactionRun.id))
   }, [interactionRuns, interactionRunsByResultMessageId])
-  const runInteractionAnswerEchoes = useMemo(() => runInteractionAnswerEchoesForMessages(messages, interactionRuns), [messages, interactionRuns])
+  const timelineActivities = useMemo(() => timelineItems.flatMap((item) => item.activity ? [item.activity] : []), [timelineItems])
+  const runInteractionAnswerEchoes = useMemo(() => runInteractionAnswerEchoesForMessages(messages, interactionRuns, timelineActivities), [messages, interactionRuns, timelineActivities])
   const activePendingInputRequest = firstPendingInputRequest(actionableLocalRun)
   const answeringPendingInput = !!activePendingInputRequest
   const canAnswerPendingInputWithText = !!activePendingInputRequest

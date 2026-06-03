@@ -13,7 +13,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../../../ports/project/projectStandardsPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
 import type { ExternalToolGatewayPort } from '../../../../ports/tools/externalToolGatewayPort.js'
 import type { AgentToolResultStore } from '../../../../state/store/tool-results/toolResultStore.js'
@@ -38,6 +37,7 @@ import { applyRuntimeThreadTitleRequest } from '../../../thread/title/runtimeThr
 import { isoNow, makeId } from '../../../../shared/runtime/runtimeIdentity.js'
 import { prepareRuntimeVisionClientInput } from '../../input/vision/runtimeImageClientInput.js'
 import { resolveRuntimeHistoricalVisionContext } from '../context/vision/runtimeHistoricalVisionContext.js'
+import type { resolveRuntimeChatModelConfig } from '../../../../model/config/modelConfig.js'
 
 export interface RuntimeRunExecutionDependencies {
   store: AgentStore
@@ -57,7 +57,6 @@ export interface RuntimeRunExecutionDependencies {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   memoryStore: AgentMemoryStore
   memoryManager: MemoryManager
   referenceManager: ReferenceManager
@@ -66,6 +65,7 @@ export interface RuntimeRunExecutionDependencies {
   toolResultStore?: AgentToolResultStore
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   updateState?: AgentCapabilitiesResponse['updates']
+  resolveModelConfig?: typeof resolveRuntimeChatModelConfig
 }
 
 export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies & {
@@ -90,6 +90,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
         updateThread: (targetThread) => input.store.updateThread(targetThread),
         ...(targetRunId ? { runId: targetRunId } : {}),
         emitRunStreamEvent: (targetRunId, event) => input.streams.emitRunStreamEvent(targetRunId, event),
+        ...(input.resolveModelConfig ? { resolveModelConfig: input.resolveModelConfig } : {}),
       })
     },
   })
@@ -236,7 +237,6 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
-      projectStandardsPort: input.projectStandardsPort,
       memoryManager: input.memoryManager,
       runtimeToolHandlers: input.runtimeToolHandlers,
       referenceManager: input.referenceManager,
@@ -268,7 +268,6 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
-      projectStandardsPort: input.projectStandardsPort,
       contractResolver: input.contractResolver,
       runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,
@@ -288,6 +287,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       emitVolatileTrace: (targetRun, trace) => input.streams.emitVolatileTraceEvent(targetRun, trace),
       createStep: (targetRun, type, round, toolName, args) => input.runSteps.createStep(targetRun, type, round, toolName, args),
       emitRunSnapshot: (targetRun) => input.streams.emitRunSnapshot(targetRun),
+      ...(input.resolveModelConfig ? { resolveModelConfig: input.resolveModelConfig } : {}),
     })
     catalogSnapshot = input.catalogSnapshots.getForRun(run.id)
     input.runCancellationGuard.throwIfRunCancelled(run.id, input.signal)

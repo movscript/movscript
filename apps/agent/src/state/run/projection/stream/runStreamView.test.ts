@@ -96,13 +96,9 @@ test('assistant message lookup prefers explicit assistant id then falls back to 
   assert.equal(assistantMessageForRun(undefined, run), undefined)
 })
 
-test('assistant message lookup skips UI-only assistant anchors', () => {
+test('assistant message lookup skips non-transcript assistant anchors', () => {
   const status = message('msg_status', 'assistant', '任务正在后台运行。', {
-    metadata: {
-      kind: 'runtime_status',
-      promptHistory: 'exclude',
-      runtimeStatus: { kind: 'async_work_handoff', title: '异步任务已提交', detail: '任务正在后台运行。' },
-    },
+    metadata: { promptEligibility: 'exclude' },
   })
   const final = message('msg_final', 'assistant', '完成。')
   const thread = buildThread([status, final])

@@ -16,8 +16,6 @@ export interface AgentRuntimeHealthCheck {
     | 'capabilities-fetch-failed'
     | 'incompatible-api-version'
     | 'missing-features'
-    | 'mcp-endpoint-mismatch'
-    | 'mcp-endpoint-missing'
   error?: string
 }
 

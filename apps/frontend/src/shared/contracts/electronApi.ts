@@ -17,6 +17,27 @@ export type ElectronMCPServerStatus = {
   error?: string
 }
 
+export type ElectronMCPObjectSchema = {
+  type: 'object'
+  properties: Record<string, unknown>
+  required?: string[]
+  additionalProperties?: boolean
+}
+
+export type ElectronMCPPluginTool = {
+  pluginId: string
+  name: string
+  description: string
+  inputSchema: ElectronMCPObjectSchema
+  outputSchema?: ElectronMCPObjectSchema
+}
+
+export type ElectronMCPPluginToolCall = {
+  pluginId: string
+  toolName: string
+  args: Record<string, unknown>
+}
+
 export type ElectronAgentBrowserBounds = {
   x: number
   y: number
@@ -172,6 +193,8 @@ export type ElectronAgentRuntimeEnsureInput = {
   baseURL?: string
   transportKind?: ElectronAgentRuntimeTransportKind
   socketPath?: string
+  workspaceDir?: string
+  sessionId?: string
 }
 
 export type ElectronAgentRuntimeStatus = {
@@ -183,6 +206,8 @@ export type ElectronAgentRuntimeStatus = {
   transportKind?: ElectronAgentRuntimeTransportKind
   endpoint?: string
   socketPath?: string
+  workspaceDir?: string
+  sessionId?: string
   pid?: number
   error?: string
 }
@@ -216,6 +241,135 @@ export type ElectronAgentRuntimeStreamMessage = {
   error?: string
 }
 
+export type ElectronAgentRuntimeRunSummary = {
+  id: string
+  sessionId?: string
+  threadId: string
+  status: string
+  role?: string
+  parentRunId?: string
+  taskGraphId?: string
+  taskId?: string
+  progress?: number
+  blockedReason?: string
+  pendingApprovals?: unknown[]
+  pendingInputRequests?: unknown[]
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  failedAt?: string
+  cancelledAt?: string
+  error?: string
+  warnings?: string[]
+  steps: unknown[]
+}
+
+export type ElectronAgentRuntimeSessionSummary = {
+  session: {
+    id: string
+    title?: string
+    projectId?: number
+    createdAt: string
+    updatedAt: string
+    archived?: boolean
+  }
+  workspaceDir?: string
+  state?: {
+    rootThreadId?: string
+    interactiveThreadId?: string
+    activeThreadId?: string
+    title?: string
+    projectId?: number
+    archived?: boolean
+    status?: string
+    threadUpdatedAt?: string
+    messageCount: number
+    lastMessageAt?: string
+  }
+  runs?: ElectronAgentRuntimeRunSummary[]
+  paths: {
+    sessionDate: string
+    sessionDir: string
+    runtimeLogPath: string
+    runtimePath: string
+    lockPath: string
+    heartbeatPath: string
+    socketPath: string
+  }
+  runtime?: {
+    pid: number
+    endpoint: string
+    transport: 'http' | 'unix-socket' | 'stdio'
+    startedAt: string
+    heartbeatAt: string
+    version: string
+    startedBy: 'desktop' | 'cli' | 'agent' | 'unknown'
+  }
+  running: boolean
+  stale: boolean
+  heartbeatAgeMs?: number
+}
+
+export type ElectronAgentWorkspaceConfig = {
+  schema: 'movscript.agent.workspace-config.v1'
+  updatedAt: string
+  modelConfig?: Record<string, unknown>
+  toolProviders?: Array<Record<string, unknown>>
+  permissions?: Record<string, unknown>
+  environment?: Record<string, string>
+}
+
+export type ElectronAgentWorkspaceConfigSaveInput = {
+  workspaceDir?: string
+  modelConfig?: Record<string, unknown> | null
+  toolProviders?: Array<Record<string, unknown>> | null
+  permissions?: Record<string, unknown> | null
+  environment?: Record<string, string> | null
+}
+
+export type ElectronAgentCatalogPackStoreDirs = {
+  rootDir: string
+  skillsDir: string
+  toolsDir: string
+  packsDir: string
+  configFilesDir: string
+}
+
+export type ElectronAgentCatalogPackFile = {
+  path: string
+  content: string
+}
+
+export type ElectronAgentCatalogPackInstallInput = {
+  pluginId: string
+  files: ElectronAgentCatalogPackFile[]
+}
+
+export type ElectronAgentCatalogPackInstallResult = {
+  pluginId: string
+  dirs: ElectronAgentCatalogPackStoreDirs
+  targetDirs: Partial<Record<'skills' | 'tools' | 'packs' | 'configFiles', string>>
+  installedFiles: string[]
+}
+
+export type ElectronAgentCatalogPackUninstallInput = {
+  pluginId: string
+}
+
+export type ElectronAgentCatalogPackUninstallResult = {
+  pluginId: string
+  dirs: ElectronAgentCatalogPackStoreDirs
+  removed: boolean
+}
+
+export type ElectronAgentCatalogPackPlugin = {
+  pluginId: string
+  kinds: Array<'skills' | 'tools' | 'packs' | 'configFiles'>
+  paths: Partial<Record<'skills' | 'tools' | 'packs' | 'configFiles', string>>
+}
+
 export type ElectronWindowControlAction = 'close' | 'minimize' | 'toggleFullscreen'
 
 export type ElectronWindowState = {
@@ -240,7 +394,9 @@ export type ElectronAPI = {
   getWindowState?: () => Promise<ElectronWindowState>
   onWindowState?: (handler: (state: ElectronWindowState) => void) => () => void
   updateMCPContext?: (snapshot: MCPContextUpdate) => Promise<void>
+  updateMCPPluginTools?: (tools: ElectronMCPPluginTool[]) => Promise<void>
   getMCPStatus?: () => Promise<ElectronMCPServerStatus>
+  onMCPPluginToolCall?: (handler: (call: ElectronMCPPluginToolCall) => Promise<unknown>) => () => void
   setAppSettings?: (settings: AppSettings) => Promise<void>
   setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
   testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<ElectronGenerationToolServerTestResult>
@@ -263,6 +419,12 @@ export type ElectronAPI = {
   agentRuntimeOpenEventStream?: (input: ElectronAgentRuntimeStreamInput) => Promise<ElectronAgentRuntimeResponse>
   agentRuntimeCloseEventStream?: (input: ElectronAgentRuntimeStreamCloseInput) => Promise<void>
   onAgentRuntimeStreamMessage?: (handler: (message: ElectronAgentRuntimeStreamMessage) => void) => () => void
+  listAgentRuntimeSessions?: (input?: { workspaceDir?: string }) => Promise<{ sessions: ElectronAgentRuntimeSessionSummary[] }>
+  getAgentWorkspaceConfig?: (input?: { workspaceDir?: string }) => Promise<ElectronAgentWorkspaceConfig>
+  saveAgentWorkspaceConfig?: (input: ElectronAgentWorkspaceConfigSaveInput) => Promise<ElectronAgentWorkspaceConfig>
+  listAgentCatalogPackPlugins?: () => Promise<{ dirs: ElectronAgentCatalogPackStoreDirs; plugins: ElectronAgentCatalogPackPlugin[] }>
+  installAgentCatalogPack?: (input: ElectronAgentCatalogPackInstallInput) => Promise<ElectronAgentCatalogPackInstallResult>
+  uninstallAgentCatalogPack?: (input: ElectronAgentCatalogPackUninstallInput) => Promise<ElectronAgentCatalogPackUninstallResult>
   clipVideo?: (input: ElectronVideoClipInput) => Promise<ElectronVideoClipResult>
   exportTimelineVideo?: (input: ElectronTimelineVideoInput) => Promise<ElectronTimelineVideoResult>
   getVideoClipStatus?: () => Promise<ElectronVideoClipStatus>

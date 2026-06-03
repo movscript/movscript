@@ -418,6 +418,33 @@ function createTestRuntime(options: ConstructorParameters<typeof AgentRuntimeRou
   return new AgentRuntimeRouter(options)
 }
 
+test('thread message fallback pages use ordinal cursors in descending order', () => {
+  const store = new InMemoryAgentStore()
+  const threadId = 'thread_paged_fallback'
+  store.createThread({
+    id: threadId,
+    title: 'Paged thread',
+    createdAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: '2026-05-21T00:00:03.000Z',
+    messages: [
+      { id: 'msg_fallback_1', threadId, role: 'user', content: 'first', createdAt: '2026-05-21T00:00:01.000Z' },
+      { id: 'msg_fallback_2', threadId, role: 'assistant', content: 'second', createdAt: '2026-05-21T00:00:02.000Z' },
+      { id: 'msg_fallback_3', threadId, role: 'user', content: 'third', createdAt: '2026-05-21T00:00:03.000Z' },
+    ],
+  })
+  const runtime = createTestRuntime({ mcpClient: new FakeMCPClient(), store })
+
+  const page1 = runtime.listThreadMessagesPage(threadId, { direction: 'desc', limit: 2 })
+  const page2 = runtime.listThreadMessagesPage(threadId, { direction: 'desc', afterOrdinal: page1?.nextAfterOrdinal, limit: 2 })
+
+  assert.deepEqual(page1?.messages.map((message) => message.content), ['third', 'second'])
+  assert.equal(page1?.nextAfterOrdinal, 2)
+  assert.equal(page1?.hasMore, true)
+  assert.deepEqual(page2?.messages.map((message) => message.content), ['first'])
+  assert.equal(page2?.nextAfterOrdinal, 1)
+  assert.equal(page2?.hasMore, false)
+})
+
 test('thread deletion removes stored tool result records for deleted runs', () => {
   const store = new InMemoryAgentStore()
   const toolResultStore = new InMemoryAgentToolResultStore()
@@ -463,7 +490,7 @@ test('interrupted run resume reuses file-backed tool result projection after run
   const originalFetch = globalThis.fetch
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-result-recovery-'))
-  const statePath = join(dir, 'state.json')
+  const runtimeDataDir = dir
   const toolResultPath = join(dir, 'tool-results.json')
   const modelConfigPath = join(dir, 'model-config.json')
   try {
@@ -482,7 +509,7 @@ test('interrupted run resume reuses file-backed tool result projection after run
     }
     const result = toolText(rawResult)
     const call = { id: 'call_restart_scripts', name: 'movscript_script_locate', args: { projectId: 42 } }
-    const seedStore = new FileAgentStore(statePath)
+    const seedStore = new FileAgentStore(runtimeDataDir)
     const seedRuntime = createTestRuntime({ mcpClient: new FakeMCPClient(), store: seedStore })
     const thread = seedRuntime.createThread({ title: '读取剧本', messages: [{ role: 'user', content: '读取项目剧本' }] })
     const run: AgentRun = {
@@ -500,7 +527,6 @@ test('interrupted run resume reuses file-backed tool result projection after run
       steps: [],
     }
     seedStore.createRun(run)
-    seedStore.flush()
 
     const storedContext = buildModelToolResultContext({
       run: {
@@ -553,7 +579,7 @@ test('interrupted run resume reuses file-backed tool result projection after run
       return new Response(JSON.stringify({ choices: [{ message: { content: 'done', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as typeof fetch
 
-    const resumedStore = new FileAgentStore(statePath)
+    const resumedStore = new FileAgentStore(runtimeDataDir)
     const resumedToolResultStore = new FileAgentToolResultStore(toolResultPath)
     const client = new FakeMCPClient()
     client.projectId = 42
@@ -1431,19 +1457,18 @@ test('sandbox mode intercepts agent write-risk tools', async () => {
 })
 
 test('persists threads, messages, runs, and steps across runtime rebuilds', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-log-'))
   try {
-    const statePath = join(dir, 'state.json')
+    const runtimeDataDir = dir
     const client = new FakeMCPClient()
     client.projectId = 42
-    const store = new FileAgentStore(statePath)
+    const store = new FileAgentStore(runtimeDataDir)
     const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ title: 'Persistent thread' })
     runtime.addMessage(thread.id, { role: 'user', content: '帮我写一个镜头工作区' })
     const run = await createAndWaitForRun(runtime, thread.id)
-    store.flush()
 
-    const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
+    const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(runtimeDataDir) })
     const restoredThread = rebuilt.getThread(thread.id)
     const restoredRun = rebuilt.getRun(run.id)
     const restoredTraceEvents = rebuilt.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
@@ -1601,7 +1626,7 @@ test('agent runtime persists generated thread titles asynchronously', async () =
   }
 })
 
-test('agent runtime streams plan revision messages when core update_plan changes the thread plan', () => {
+test('agent runtime updates plan revisions without streaming assistant message anchors', () => {
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
   const thread = runtime.createThread()
   const run: AgentRun = {
@@ -1627,16 +1652,15 @@ test('agent runtime streams plan revision messages when core update_plan changes
       { step: 'Inspect message flow', status: 'completed' },
       { step: 'Refresh pinned status', status: 'in_progress' },
     ],
-  }) as { status: string; message?: { id: string; metadata?: { kind?: string } } }
+  }) as { status: string; revision?: { id: string } }
 
   unsubscribe()
 
   assert.equal(result.status, 'updated')
-  assert.equal(result.message?.metadata?.kind, 'plan_revision')
-  const messageEvent = events.find((event) => event.type === 'assistant_message')
-  assert.equal(messageEvent?.type, 'assistant_message')
-  assert.equal(messageEvent.message.id, result.message?.id)
-  assert.equal(messageEvent.message.metadata?.kind, 'plan_revision')
+  assert.equal(result.revision?.id.startsWith('plan_revision'), true)
+  assert.equal(events.some((event) => event.type === 'assistant_message'), false)
+  assert.equal(runtime.getThread(thread.id)?.messages.length, 0)
+  assert.equal(runtime.getThread(thread.id)?.planRevisions?.length, 1)
 })
 
 test('agent runtime keeps explicit thread titles', async () => {
@@ -1705,32 +1729,6 @@ test('user conversation runs default to planner while tool runs default to worke
   assert.equal(userRun.role, 'planner')
   assert.equal(finishedToolRun.role, 'worker')
   assert.equal(finishedToolRun.parentRunId, undefined)
-})
-
-test('file store writes valid JSON atomically enough to recover state', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
-  try {
-    const statePath = join(dir, 'state.json')
-    const store = new FileAgentStore(statePath)
-    const now = new Date().toISOString()
-    store.createThread({
-      id: 'thread_atomic',
-      archived: false,
-      createdAt: now,
-      updatedAt: now,
-      messages: [],
-    })
-    store.flush()
-
-    const parsed = JSON.parse(readFileSync(statePath, 'utf8'))
-    assert.equal(parsed.version, 6)
-    assert.deepEqual(parsed.sessions, [])
-    assert.equal(parsed.threads[0].id, 'thread_atomic')
-    assert.deepEqual(parsed.traceEvents ?? [], [])
-    assert.equal(new FileAgentStore(statePath).getThread('thread_atomic')?.id, 'thread_atomic')
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
 })
 
 test('preference memories are written and searchable by the next run', async () => {
@@ -1979,7 +1977,7 @@ test('content unit storyboard workspace searches reference and creates a workspa
 
 test('records backend OpenAI-compatible model HTTP request and response in run trace', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-trace-'))
-  const statePath = join(modelConfigDir, 'state.json')
+  const runtimeDataDir = modelConfigDir
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
   try {
@@ -2007,11 +2005,10 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
 
     const client = new FakeMCPClient()
     client.projectId = 42
-    const store = new FileAgentStore(statePath)
+    const store = new FileAgentStore(runtimeDataDir)
     const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
     const run = await createAndWaitForRun(runtime, thread.id, { backendAuthToken: 'secret-token' })
-    store.flush()
 
     const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     const requestEvent = traceEvents.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')
@@ -2086,7 +2083,7 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
     assert.ok(Array.isArray(run.metadata?.activeSkillIds))
     assert.ok(Array.isArray(run.metadata?.visibleToolNames))
 
-    const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
+    const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(runtimeDataDir) })
     const restoredTraceEvents = rebuilt.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     const restoredRequestData = restoredTraceEvents
       .find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')

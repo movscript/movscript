@@ -30,7 +30,7 @@ export function toSubagentRunSummary(run: AgentRun, task?: AgentTask): Record<st
   }
 }
 
-export function isTerminalRunStatus(status: AgentRun['status']): boolean {
+export function isSubagentWaitResolvedRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
 }
 

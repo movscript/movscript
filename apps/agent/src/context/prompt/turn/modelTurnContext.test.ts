@@ -3,40 +3,30 @@ import test from 'node:test'
 
 import { DEFAULT_AGENT_MANIFEST } from '../../../catalog/manifest/agentManifest.js'
 import type { ContextLedger } from '../../ledger/shared/contextLedgerTypes.js'
-import { modelTurnContext } from './modelTurnContext.js'
+import { modelTurnContext, type ComposeRuntimePromptContextInput } from './modelTurnContext.js'
 import { runtimeModelTextContent } from '../../../model/config/modelConfig.js'
 import { refKey, selectRetrievedContext, buildRetrievedContextStore } from '../../ledger/retrieval/retrievedContextStore.js'
 
-test('ModelTurnContextComposer composes model context with prompt memory filtering', () => {
-  const built = modelTurnContext.composeModelContext({
-    manifest: DEFAULT_AGENT_MANIFEST,
-    skills: [],
-    context: {
-      route: { pathname: '/project/42' },
-      projects: [],
-      recentResources: [],
-      attachments: [],
-      memories: [],
-      labels: [],
-    },
-    tools: { discovered: [], available: [], blocked: [], byName: {} },
-    runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
-    memories: [{
-      id: 'memory_1',
-      projectId: 42,
-      kind: 'preference',
-      title: '模型调用未完成',
-      content: 'backend model gateway returned 500',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    }],
-    warnings: [],
-    history: [],
-    userMessage: 'hello',
-  })
-
-  assert.equal(built.promptStats.parts.some((part) => part.id === 'memory.index'), false)
-})
+const runtimePromptContextInputBoundary = {
+  manifest: DEFAULT_AGENT_MANIFEST,
+  skills: [],
+  context: {
+    route: { pathname: '/project/42' },
+    projects: [],
+    recentResources: [],
+    attachments: [],
+    memories: [],
+    labels: [],
+  },
+  tools: { discovered: [], available: [], blocked: [], byName: {} },
+  runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+  warnings: [],
+  history: [],
+  userMessage: 'hello',
+  // @ts-expect-error turn-only visual projection context must not be accepted by runtime prompt context input.
+  historicalVisionContext: undefined,
+} satisfies ComposeRuntimePromptContextInput
+void runtimePromptContextInputBoundary
 
 test('ModelTurnContextComposer builds bounded tool result context for model turn feedback', () => {
   const result = modelTurnContext.buildToolResultContext({
@@ -101,7 +91,6 @@ test('ModelTurnContextComposer composes a full model turn with tool-loop history
       }],
     },
     runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
-    memories: [],
     warnings: ['watch budget'],
     history: [{ id: 'msg_1', threadId: 'thread_1', role: 'assistant', content: 'Earlier answer', createdAt: '2026-01-01T00:00:00.000Z' }],
     userMessage: 'hello',
@@ -116,8 +105,12 @@ test('ModelTurnContextComposer composes a full model turn with tool-loop history
   assert.equal(skillContextProjection[0]?.includedInPrompt, true)
   assert.equal(skillContextProjection[0]?.activationReason, 'trigger')
   assert.equal((turn.promptTrace.data.promptStats as any)?.budgetLedger?.decisionCount, 0)
+  assert.equal((turn.promptTrace.data.promptFragments as any[])?.some((fragment) => fragment.id === 'runtime.core' && fragment.source === 'runtime_policy'), true)
+  assert.equal((turn.promptTrace.data.promptFragments as any[])?.some((fragment) => fragment.id === 'skill.skill.test' && fragment.instructionAuthority === 'developer'), true)
   assert.equal((turn.promptTrace.data.toolLoopProjection as any)?.messageCount, 1)
   assert.equal(turn.contextBundle.promptBudget?.decisionCount, 0)
+  assert.equal(turn.contextBundle.promptParts.some((part) => part.id === 'runtime.core' && part.source === 'runtime_policy' && part.authority === 'system'), true)
+  assert.equal(turn.contextBundle.promptParts.some((part) => part.id === 'skill.skill.test' && part.source === 'skill' && part.authority === 'developer'), true)
   assert.equal(turn.messages.some((message) => message.role === 'tool'), true)
   assert.equal(turn.messages.at(-1)?.role, 'user')
   assert.equal(turn.tools[0]?.function.name, 'core_catalog_inspect')
@@ -145,7 +138,6 @@ test('ModelTurnContextComposer reactively compacts oversized tool-loop without t
     },
     tools: { discovered: [], available: [], blocked: [], byName: {} },
     runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
-    memories: [],
     warnings: [],
     history: [],
     userMessage: 'describe this image',
@@ -188,7 +180,6 @@ test('ModelTurnContextComposer injects historical vision context before the curr
     },
     tools: { discovered: [], available: [], blocked: [], byName: {} },
     runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
-    memories: [],
     warnings: [],
     history: [],
     userMessage: 'continue from the previous image',
@@ -451,7 +442,6 @@ test('ModelTurnContextComposer emits context bundle refs so model trace does not
     },
     tools: { discovered: [], available: [], blocked: [], byName: {} },
     runtimeLimits: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
-    memories: [],
     warnings: [],
     history: [],
     userMessage: 'hello',

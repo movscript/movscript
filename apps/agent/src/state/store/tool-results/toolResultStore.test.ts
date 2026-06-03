@@ -91,15 +91,15 @@ test('file tool result store restores persisted full result records', () => {
   }
 })
 
-test('tool result path resolves beside the agent state file by default', () => {
+test('tool result path resolves under runtime data dir by default', () => {
   const originalToolResultPath = process.env.MOVSCRIPT_AGENT_TOOL_RESULTS_PATH
   const originalUserDataDir = process.env.MOVSCRIPT_AGENT_USER_DATA_DIR
   try {
     delete process.env.MOVSCRIPT_AGENT_TOOL_RESULTS_PATH
     delete process.env.MOVSCRIPT_AGENT_USER_DATA_DIR
     assert.equal(
-      resolveAgentToolResultPath('/tmp/movscript-agent/state.json'),
-      '/tmp/movscript-agent/state.tool-results.json',
+      resolveAgentToolResultPath('/tmp/movscript-agent'),
+      '/tmp/movscript-agent/tool-results.json',
     )
   } finally {
     if (originalToolResultPath === undefined) {

@@ -15,7 +15,6 @@ import {
   createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
   createDefaultWorkspaceSnapshotHydrationPort,
-  createDefaultProjectStandardsPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -74,11 +73,6 @@ const defaultWorkspaceApplyBackend = {
 }
 const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
 const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
-const defaultProjectStandardsBackend = {
-  async getProject(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
 
 function testRun(): AgentRun {
   return {
@@ -108,7 +102,6 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
     workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
-    projectStandardsPort: createDefaultProjectStandardsPort(defaultProjectStandardsBackend),
     registry: { get: () => undefined, list: () => [] },
     runtimeToolHandlers: defaultRuntimeToolHandlers,
     sandboxMode: false,
@@ -400,56 +393,6 @@ test('executeTool serves runtime reference search and bounded get', async () => 
   assert.match((body.result as any)?.contentHash, /^sha256:/)
   assert.equal(typeof (body.result as any)?.sourcePath, 'string')
   assert.equal(((body.result as any)?.content as string).length <= 32, true)
-})
-
-test('executeTool reads project standards from backend project data with context fallback', async () => {
-  const run = testRun()
-  run.metadata = {
-    context: {
-      project: {
-        id: 42,
-        name: 'Context Project',
-        aspect_ratio: '16:9',
-        visual_style: 'context style',
-        project_style: JSON.stringify({
-          camera_language: 'stable camera',
-          custom_rules: [
-            { key: 'qa', label: 'QA', value: 'Check every output.', prompt_role: 'quality_gate', enabled: true },
-            { key: 'style_reference_images', label: 'Style reference images', value: 'Use resource#100 and resource#101 as visual style references only.', prompt_role: 'style', enabled: true },
-          ],
-        }),
-      },
-    },
-  }
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for project standards')
-      },
-    }),
-    run,
-    projectStandardsPort: createDefaultProjectStandardsPort({
-      async getProject(): Promise<any> {
-        return { performed: false, skippedReason: 'backend disabled in test' }
-      },
-    }),
-  }
-
-  const result = await executeTool({
-    name: 'movscript_project_standards_get',
-    args: { projectId: 42 },
-  }, options)
-
-  assert.equal((result.result as any)?.loaded, true)
-  assert.equal((result.result as any)?.source, 'run_context')
-  assert.equal((result.result as any)?.standards.core.aspect_ratio, '16:9')
-  assert.equal((result.result as any)?.standards.core.camera_language, 'stable camera')
-  assert.equal((result.result as any)?.standards.enabled_custom_rules[0].prompt_role, 'quality_gate')
-  assert.deepEqual((result.result as any)?.standards.style_reference_resource_ids, ['100', '101'])
-  assert.match(((result.result as any)?.warnings as string[]).join('\n'), /backend disabled/)
 })
 
 test('executeTool extracts local video frames and returns image parts only through supplemental model messages', async () => {
@@ -1453,7 +1396,7 @@ test('executeTool ignores non-plain runtime workspace source and metadata record
   })
 
   const workspace = workspaceStore.listWorkspaces()[0]
-  assert.equal((result.result as any)?.id, workspace?.id)
+  assert.equal((result.result as any)?.workspaceId, workspace?.id)
   assert.deepEqual(workspace?.source, {
     runId: 'run-1',
     threadId: 'thread-1',
@@ -1506,57 +1449,43 @@ test('executeTool drops invalid numeric page entity ids from runtime workspace s
   })
 })
 
-test('executeTool rejects invalid project ids for project standards workspaces', async () => {
+test('executeTool ignores invalid project ids for generic workspaces', async () => {
   for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
-    await assert.rejects(
-      () => executeTool({
-        name: 'workspace_open',
-        args: {
-          kind: 'project_standards_workspace',
-          workspace: true,
-          projectId,
-          content: JSON.stringify({
-            schema: WORKSPACE_CONTENT_SCHEMA_IDS.projectStandardsWorkspace,
-            scope: 'project_standards_workspace',
-            workspace: {},
-          }),
+    const workspaceStore = new InMemoryAgentWorkspaceStore()
+    const result = await executeTool({
+      name: 'workspace_open',
+      args: {
+        kind: 'custom_workspace',
+        workspace: true,
+        projectId,
+        content: JSON.stringify({ workspace: {} }),
+      },
+    }, {
+      ...testOptions({
+        async initialize(): Promise<JSONValue> {
+          return {}
         },
-      }, {
-        ...testOptions({
-          async initialize(): Promise<JSONValue> {
-            return {}
-          },
-          async callTool(): Promise<JSONValue> {
-            throw new Error('MCP should not be called for runtime workspace creation')
-          },
-        }),
-        workspaceStore: new InMemoryAgentWorkspaceStore(),
+        async callTool(): Promise<JSONValue> {
+          throw new Error('MCP should not be called for runtime workspace creation')
+        },
       }),
-      /create_workspace requires projectId for project_standards_workspace/,
-    )
+      workspaceStore,
+    })
+    assert.equal((result.result as any)?.status, 'created')
+    assert.equal(workspaceStore.listWorkspaces()[0]?.projectId, undefined)
   }
 })
 
-test('executeTool ignores invalid production ids for inferred workspace targets', async () => {
+test('executeTool ignores productionId when inferring generic workspace targets', async () => {
   const workspaceStore = new InMemoryAgentWorkspaceStore()
   const result = await executeTool({
     name: 'workspace_open',
     args: {
-      kind: 'production_workspace',
+      kind: 'custom_workspace',
       workspace: true,
       projectId: 42,
       productionId: '7',
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
-        scope: 'production_workspace',
-        mode: 'snapshot',
-        productionId: 7,
-        workspaceScope: 'production',
-        workspace: {
-          segments: [],
-        },
-        impact_notes: [],
-      }),
+      content: JSON.stringify({ workspace: {} }),
     },
   }, {
     ...testOptions({
@@ -1573,7 +1502,6 @@ test('executeTool ignores invalid production ids for inferred workspace targets'
   assert.equal((result.result as any)?.status, 'created')
   assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
     projectId: 42,
-    entityType: 'production',
     field: 'workspace',
   })
 })
@@ -1583,25 +1511,15 @@ test('executeTool drops invalid numeric entity ids from explicit workspace targe
   const result = await executeTool({
     name: 'workspace_open',
     args: {
-      kind: 'production_workspace',
+      kind: 'custom_workspace',
       workspace: true,
       projectId: 42,
       target: {
-        entityType: 'production',
+        entityType: 'custom_entity',
         entityId: 7.5,
         field: 'workspace',
       },
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.productionWorkspace,
-        scope: 'production_workspace',
-        mode: 'snapshot',
-        productionId: 7,
-        workspaceScope: 'production',
-        workspace: {
-          segments: [],
-        },
-        impact_notes: [],
-      }),
+      content: JSON.stringify({ workspace: {} }),
     },
   }, {
     ...testOptions({
@@ -1617,7 +1535,7 @@ test('executeTool drops invalid numeric entity ids from explicit workspace targe
 
   assert.equal((result.result as any)?.status, 'created')
   assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
-    entityType: 'production',
+    entityType: 'custom_entity',
     field: 'workspace',
   })
 })

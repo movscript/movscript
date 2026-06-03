@@ -18,7 +18,6 @@ import type {
 import type { AgentCommandRuntime } from '../../../../context/command/commandRouter.js'
 import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core/runtimeCatalogSnapshot.js'
 import { applyRuntimeLocalCommandDispatch, type RuntimeLocalCommandTraceInput } from '../../../local-command/dispatch/runtimeLocalCommandDispatch.js'
-import { executeRuntimeLocalGenerationTool } from '../../../local-command/generation/tool/runtimeLocalGenerationToolExecution.js'
 import type { RuntimeRunSetupResolution } from '../setup/resolution/runtimeRunSetupResolution.js'
 import type { WorkspaceApplyPort } from '../../../../ports/workspace/apply/workspaceApplyPort.js'
 import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
@@ -26,7 +25,6 @@ import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
-import type { ProjectStandardsPort } from '../../../../ports/project/projectStandardsPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
 import type { ExternalToolGatewayPort } from '../../../../ports/tools/externalToolGatewayPort.js'
 
@@ -62,7 +60,6 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
-  projectStandardsPort: ProjectStandardsPort
   memoryManager: MemoryManager
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   referenceManager: ReferenceManager
@@ -95,25 +92,6 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
     contractResolver: input.contractResolver,
     now: input.now,
     timestampMs: input.timestampMs,
-    executeGenerationTool: (call) => executeRuntimeLocalGenerationTool({
-      call,
-      run: input.run,
-      workspaceStore: input.workspaceStore,
-      externalToolGatewayPort: input.externalToolGatewayPort,
-      workspaceApplyPort: input.workspaceApplyPort,
-      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
-      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
-      resourceFilePort: input.resourceFilePort,
-      imageProcessingPort: input.imageProcessingPort,
-      videoFrameExtractionPort: input.videoFrameExtractionPort,
-      projectStandardsPort: input.projectStandardsPort,
-      registry: input.catalogSnapshot.toolRegistry,
-      runtimeToolHandlers: input.runtimeToolHandlers,
-      memoryManager: input.memoryManager,
-      referenceManager: input.referenceManager,
-      catalogManager: input.catalogManager,
-      signal: input.signal,
-    }),
     recordTrace: input.recordTrace as (run: AgentRun, trace: RuntimeLocalCommandTraceInput) => void,
     createStep: input.createStep,
     emitAssistantMessage: input.emitAssistantMessage,

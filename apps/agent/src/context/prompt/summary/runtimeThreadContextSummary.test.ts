@@ -55,7 +55,7 @@ test('applyRuntimeThreadContextSummary respects run summary size limit', () => {
   assert.equal(summary.recentRunRefs[0]?.summary, '123…')
 })
 
-test('applyRuntimeThreadContextSummary does not persist UI-only assistant content', () => {
+test('applyRuntimeThreadContextSummary does not persist non-transcript assistant content', () => {
   const thread = makeThread()
   const run = makeRun({ assistantMessageId: 'msg_status' })
   thread.messages.push({
@@ -70,11 +70,7 @@ test('applyRuntimeThreadContextSummary does not persist UI-only assistant conten
     role: 'assistant',
     content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
     runId: run.id,
-    metadata: {
-      kind: 'runtime_status',
-      promptHistory: 'exclude',
-      runtimeStatus: { kind: 'async_work_handoff', title: 'handoff', detail: 'SECRET_TOOL_RESULT_BODY' },
-    },
+    metadata: { promptEligibility: 'exclude' },
     createdAt: '2026-01-01T00:00:01.000Z',
   })
 

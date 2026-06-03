@@ -1,10 +1,8 @@
-export type AgentRuntimeTransportKind = 'http' | 'unix-socket' | 'named-pipe' | 'websocket'
-export type AgentRuntimeTransportMode = 'http' | 'electron' | 'unix-socket' | 'named-pipe' | 'websocket'
+export type AgentRuntimeTransportKind = 'electron' | 'unix-socket'
 
 export interface AgentRuntimeTransportConfig {
-  baseURL: string
-  mode?: string
-  socketPath?: string
+  workspaceDir?: string
+  sessionId?: string
 }
 
 export interface AgentRuntimeTransport {

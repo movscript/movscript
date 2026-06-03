@@ -3,8 +3,7 @@ import type { AgentCommandRuntime } from '../../../../context/command/commandRou
 import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { ToolRegistry } from '../../../../tools/registry/core/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import type { SkillDiscoverySummary } from '../../../../context/prompt/builder/modelContextBuilder.js'
-import type { AgentMemory } from '../../../../memory/shared/types.js'
+import type { SkillDiscoverySummary } from '../../../../context/prompt/registry/promptCandidateParts.js'
 import type { ConfiguredRuntimeModelConfig } from '../../../../model/config/modelConfig.js'
 import type { ModelCallInput, ModelCallResult } from '../../../../model/client/modelClient.js'
 import type {
@@ -29,7 +28,6 @@ export interface PreviewToolPlanInput {
   context: AgentDebugContextPanel
   tools: ResolvedToolCatalog
   runtimeLimits: AgentRuntimeLimits
-  memories: AgentMemory[]
   warnings: string[]
   history: AgentMessage[]
   userMessage: string
@@ -60,7 +58,6 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
     context: input.context,
     tools: input.tools,
     runtimeLimits: input.runtimeLimits,
-    memories: input.memories,
     warnings: input.warnings,
     history: input.history,
     userMessage: input.userMessage,

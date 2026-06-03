@@ -1,5 +1,4 @@
-import { stringValue } from '../generation'
-import { isRecord } from '../valueUtils'
+import { isRecord, stringValue } from '../valueUtils'
 import type { AgentWorkspaceKind } from '../../../src/shared/contracts/agentWorkspace'
 import type { WorkspaceReviewApplyRequest } from './types'
 import {

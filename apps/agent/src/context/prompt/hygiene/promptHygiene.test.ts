@@ -22,7 +22,7 @@ test('prompt hygiene filters runtime failure messages and memories from future m
   assert.deepEqual(memories.map((memory) => memory.title), ['偏好：镜头更稳'])
 })
 
-test('prompt hygiene omits UI-only runtime assistant messages from future model context', () => {
+test('prompt hygiene omits non-transcript runtime assistant messages from future model context', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
   const history = filterPromptHistory([
     { id: 'u1', threadId: 't', role: 'user', content: '生成一张图', createdAt },
@@ -32,41 +32,16 @@ test('prompt hygiene omits UI-only runtime assistant messages from future model 
       role: 'assistant',
       content: 'generation_job work work_1已提交，当前状态：running，输出资源 #42。',
       runId: 'run_1',
-      metadata: {
-        kind: 'runtime_status',
-        runtimeStatus: {
-          kind: 'async_work_handoff',
-          title: '异步任务已提交',
-          detail: 'generation_job work work_1已提交。',
-          workId: 'work_1',
-        },
-      },
+      metadata: { promptEligibility: 'exclude' },
       createdAt,
     },
     {
-      id: 'a_activity',
+      id: 'a_activity_status',
       threadId: 't',
       role: 'assistant',
       content: '查看模型；提交异步任务。',
       runId: 'run_1',
-      metadata: {
-        localRunActivity: {
-          runId: 'run_1',
-          threadId: 't',
-          status: 'completed',
-          createdAt,
-          updatedAt: createdAt,
-          steps: [{
-            id: 'step_1',
-            type: 'tool_call',
-            status: 'completed',
-            toolName: 'core_work_start',
-            result: { work: { id: 'work_1', status: 'running' } },
-            createdAt,
-          }],
-          events: [],
-        },
-      },
+      metadata: { promptEligibility: 'exclude' },
       createdAt,
     },
     { id: 'a_text', threadId: 't', role: 'assistant', content: '我会继续跟进这个生成任务。', runId: 'run_1', createdAt },
@@ -84,7 +59,7 @@ test('compactPromptHistory does not summarize omitted runtime assistant messages
       threadId: 't',
       role: 'assistant',
       content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
-      metadata: { kind: 'runtime_status', runtimeStatus: { kind: 'async_work_handoff', title: 'handoff', detail: 'SECRET_TOOL_RESULT_BODY' } },
+      metadata: { promptEligibility: 'exclude' },
       createdAt,
     },
     { id: 'a1', threadId: 't', role: 'assistant', content: '普通答复', createdAt },
@@ -102,23 +77,15 @@ test('isPromptHistoryMessage keeps user runtime input as transcript but drops as
     threadId: 't',
     role: 'user',
     content: '补充需求',
-    metadata: { kind: 'runtime_input', targetRunId: 'run_1', status: 'accepted' },
+    metadata: { kind: 'runtime_input', targetRunId: 'run_1', deliveryStatus: 'accepted' },
     createdAt,
   }), true)
-  assert.equal(isPromptHistoryMessage({
-    id: 'a_plan',
-    threadId: 't',
-    role: 'assistant',
-    content: '计划已更新',
-    metadata: { kind: 'plan_revision', planRevision: { id: 'plan_1' } },
-    createdAt,
-  }), false)
   assert.equal(isPromptHistoryMessage({
     id: 'a_explicit',
     threadId: 't',
     role: 'assistant',
-    content: 'UI-only status',
-    metadata: { promptHistory: 'exclude' },
+    content: 'Non-transcript status',
+    metadata: { promptEligibility: 'exclude' },
     createdAt,
   }), false)
 })
@@ -216,7 +183,7 @@ test('thread context summary keeps refs and prompt compaction renders persisted 
   assert.equal((compacted.summary ?? '').includes('已参考分镜节奏基础，生成方案摘要。'.repeat(20)), false)
 })
 
-test('thread context summary does not reintroduce UI-only runtime assistant content', () => {
+test('thread context summary does not reintroduce non-transcript runtime assistant content', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
   const messages = [
     { id: 'u1', threadId: 't', role: 'user' as const, content: '生成一张图', createdAt },
@@ -226,15 +193,7 @@ test('thread context summary does not reintroduce UI-only runtime assistant cont
       role: 'assistant' as const,
       content: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
       runId: 'run_1',
-      metadata: {
-        kind: 'runtime_status',
-        promptHistory: 'exclude',
-        runtimeStatus: {
-          kind: 'async_work_handoff',
-          title: '异步任务已提交',
-          detail: 'SECRET_TOOL_RESULT_BODY output_resource_id=42',
-        },
-      },
+      metadata: { promptEligibility: 'exclude' },
       createdAt,
     },
   ]

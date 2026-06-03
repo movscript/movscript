@@ -10,6 +10,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@movscript/agent-runtime": ["../../packages/agent-runtime/src/index.ts"],
       "@movscript/protocol": ["../../packages/protocol/src/index.ts"],
       "@movscript/workspaces": ["../../packages/workspaces/src/index.ts"]
     },

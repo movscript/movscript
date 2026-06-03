@@ -138,10 +138,10 @@ test('buildRunActivitySnapshot keeps historical feed activity compact when a ful
   })
 
   assert.equal(JSON.stringify(snapshot?.activity).includes('SECRET_'), false)
-  assert.equal(snapshot?.activity.steps[0]?.args, undefined)
-  assert.equal(snapshot?.activity.steps[0]?.result, undefined)
-  assert.equal(snapshot?.activity.approvals?.[0]?.args, undefined)
-  assert.equal(snapshot?.activity.approvals?.[0]?.preview, undefined)
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot?.activity.steps[0] ?? {}, 'args'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot?.activity.steps[0] ?? {}, 'result'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot?.activity.approvals?.[0] ?? {}, 'args'), false)
+  assert.equal(Object.prototype.hasOwnProperty.call(snapshot?.activity.approvals?.[0] ?? {}, 'preview'), false)
   assert.deepEqual(snapshot?.activity.events[0]?.data, {
     generation: {
       jobId: 123,
@@ -236,7 +236,7 @@ function modelEvent(
   id: string,
   title: string,
   roundIndex: number,
-  status: string,
+  status: ChatRunActivityEvent['status'],
   createdAt: string,
   overrides: Partial<ChatRunActivityEvent> = {},
 ): ChatRunActivityEvent {

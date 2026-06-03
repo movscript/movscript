@@ -1,17 +1,16 @@
 import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from '@/shared/infrastructure/localAgentClient'
 import { agentPlanStatusLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { runHasRunInteraction } from '@/features/agent/domain/agentRunInteraction'
+import { isStoppableAgentRunStatus, isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 
-const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
-const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
 const TERMINAL_AGENT_TASK_GRAPH_STATUSES = new Set<AgentTaskGraphStatus>(['done', 'failed', 'cancelled'])
 
 export function shouldPollPlanSnapshot(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): boolean {
   if (snapshot) {
     if (!TERMINAL_AGENT_TASK_GRAPH_STATUSES.has(snapshot.taskGraph.status)) return true
-    return snapshot.runs.some((run) => STOPPABLE_AGENT_RUN_STATUSES.has(run.status))
+    return snapshot.runs.some((run) => isStoppableAgentRunStatus(run.status))
   }
-  return !!activeRun?.taskGraphId && !TERMINAL_AGENT_RUN_STATUSES.has(activeRun.status)
+  return !!activeRun?.taskGraphId && !isTerminalAgentRunStatus(activeRun.status)
 }
 
 export function plannerRunIdForPlanAction(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): string | undefined {
@@ -20,7 +19,7 @@ export function plannerRunIdForPlanAction(snapshot: AgentTaskGraphSnapshot | und
 }
 
 export function activeWorkerRunCount(snapshot: AgentTaskGraphSnapshot): number {
-  return snapshot.runs.filter((run) => run.role === 'worker' && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)).length
+  return snapshot.runs.filter((run) => run.role === 'worker' && isStoppableAgentRunStatus(run.status)).length
 }
 
 export interface AgentPlanTaskView {
@@ -48,6 +47,7 @@ export interface AgentPlanTaskView {
 
 export interface AgentPlanWorkerView {
   id: string
+  sessionId?: string
   subagentName?: string
   status: AgentRun['status']
   role?: AgentRun['role']
@@ -303,6 +303,7 @@ function taskStatusExplanation(input: {
 function formatWorkerView(run: AgentRun): AgentPlanWorkerView {
   return {
     id: run.id,
+    sessionId: run.sessionId,
     subagentName: runSubagentName(run),
     status: run.status,
     role: run.role,

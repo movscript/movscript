@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildAgentMessagePresentation } from '@/features/agent/domain/agentMessagePresentation'
-import type { AgentAttachment, ChatMessage } from '@/features/agent/state/agentStore'
+import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentMessagePresentation keeps user attachments compact and avoids assistant sections', () => {
   const result = buildAgentMessagePresentation(message({
@@ -47,44 +47,10 @@ test('buildAgentMessagePresentation hides technical output summaries without hyd
   assert.equal(result.messageAttachments.length, 1)
 })
 
-test('buildAgentMessagePresentation hides content behind context diagnostics and opens diagnostics section', () => {
-  const result = buildAgentMessagePresentation(message({
-    meta: {
-      contextDiagnostic: {
-        schema: 'movscript.local_context_diagnostic.v1',
-        modelGatewayCalled: false,
-        messages: [],
-        debugParts: [],
-        tools: {
-          available: [],
-          blocked: [],
-          discoveredCount: 0,
-          modelTools: [],
-        },
-        skills: [],
-        warnings: [],
-      },
-    },
-  }))
-
-  assert.equal(result.displayContent, '')
-  assert.equal(result.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
-  assert.equal(result.hasDiagnosticSection, true)
-})
-
 test('buildAgentMessagePresentation exposes assistant meta as view model fields', () => {
   const result = buildAgentMessagePresentation(message({
     meta: {
       contextLabels: ['Project'],
-      localRunActivity: {
-        runId: 'run_1',
-        threadId: 'thread_1',
-        status: 'completed',
-        createdAt: '2026-05-19T00:00:00.000Z',
-        updatedAt: '2026-05-19T00:00:01.000Z',
-        steps: [],
-        events: [],
-      },
       generationJobs: [{
         jobId: 42,
         status: 'running',
@@ -127,10 +93,10 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
         workspaceKind: 'content_unit_workspace',
       }],
     },
-  }))
+  }), { timelineActivity: runActivity('run_1') })
 
   assert.deepEqual(result.contextLabels, ['Project'])
-  assert.equal(result.localRunActivity?.runId, 'run_1')
+  assert.equal(result.timelineActivity?.runId, 'run_1')
   assert.equal(result.generationJobs[0]?.jobId, 42)
   assert.equal(result.generationParamAudits[0]?.modelConfigId, 7)
   assert.equal(result.generationValidationErrors[0]?.code, 'INVALID_INPUT_COUNT')
@@ -153,31 +119,25 @@ test('buildAgentMessagePresentation hides internal run status breadcrumbs', () =
 test('buildAgentMessagePresentation hides requires-action summary text while preserving inline activity', () => {
   const result = buildAgentMessagePresentation(message({
     content: '执行前需要确认：\n- workspace_apply: 需要正式写入项目数据',
-    meta: {
-      localRunActivity: {
+  }), {
+    timelineActivity: {
+      ...runActivity('run_action'),
+      status: 'requires_action',
+      approvals: [{
+        id: 'approval_1',
         runId: 'run_action',
-        threadId: 'thread_1',
-        status: 'requires_action',
+        toolName: 'workspace_apply',
+        reason: '需要正式写入项目数据',
+        status: 'pending',
         createdAt: '2026-05-19T00:00:00.000Z',
-        updatedAt: '2026-05-19T00:00:01.000Z',
-        approvals: [{
-          id: 'approval_1',
-          runId: 'run_action',
-          toolName: 'workspace_apply',
-          reason: '需要正式写入项目数据',
-          status: 'pending',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:00.000Z',
-        }],
-        steps: [],
-        events: [],
-      },
+        updatedAt: '2026-05-19T00:00:00.000Z',
+      }],
     },
-  }))
+  })
 
   assert.equal(result.displayContent, '')
   assert.equal(result.hasProcessSection, true)
-  assert.equal(result.localRunActivity?.approvals?.[0]?.id, 'approval_1')
+  assert.equal(result.timelineActivity?.approvals?.[0]?.id, 'approval_1')
 })
 
 test('buildAgentMessagePresentation hides technical final source summary blocks', () => {
@@ -200,50 +160,24 @@ test('buildAgentMessagePresentation hides technical final source summary blocks'
 test('buildAgentMessagePresentation promotes async work handoff out of empty assistant text', () => {
   const result = buildAgentMessagePresentation(message({
     content: '（无内容）',
-    meta: {
-      localRunActivity: {
-        runId: 'run_work',
-        threadId: 'thread_1',
+  }), {
+    timelineActivity: {
+      ...runActivity('run_work'),
+      status: 'completed',
+      createdAt: '2026-05-23T00:00:00.000Z',
+      updatedAt: '2026-05-23T00:00:01.000Z',
+      steps: [{
+        id: 'step_work',
+        type: 'tool_call',
         status: 'completed',
+        toolName: 'core_work_start',
         createdAt: '2026-05-23T00:00:00.000Z',
-        updatedAt: '2026-05-23T00:00:01.000Z',
-        steps: [{
-          id: 'step_work',
-          type: 'tool_call',
-          status: 'completed',
-          toolName: 'core_work_start',
-          args: { kind: 'generation_job' },
-          result: { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } },
-          createdAt: '2026-05-23T00:00:00.000Z',
-          completedAt: '2026-05-23T00:00:01.000Z',
-        }],
-        events: [],
-      },
+        completedAt: '2026-05-23T00:00:01.000Z',
+      }],
     },
-  }))
+  })
 
   assert.equal(result.displayContent, '')
-  assert.equal(result.runtimeStatus?.kind, 'async_work_handoff')
-  assert.equal(result.runtimeStatus?.workId, 'work_1')
-})
-
-test('buildAgentMessagePresentation prefers explicit runtime status metadata', () => {
-  const result = buildAgentMessagePresentation(message({
-    content: '本地 Agent Runtime 没有返回 assistant 消息。',
-    meta: {
-      runtimeStatus: {
-        kind: 'async_work_handoff',
-        title: '异步任务已提交',
-        detail: '任务正在后台运行，完成后会自动接续。你可以继续发送消息。',
-        workId: 'work_explicit',
-        workKind: 'generation_job',
-        workStatus: 'running',
-      },
-    },
-  }))
-
-  assert.equal(result.displayContent, '')
-  assert.equal(result.runtimeStatus?.workId, 'work_explicit')
 })
 
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -264,5 +198,17 @@ function attachment(overrides: Partial<AgentAttachment> = {}): AgentAttachment {
     mimeType: 'image/png',
     size: 10,
     ...overrides,
+  }
+}
+
+function runActivity(runId: string): ChatRunActivity {
+  return {
+    runId,
+    threadId: 'thread_1',
+    status: 'completed',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+    steps: [],
+    events: [],
   }
 }

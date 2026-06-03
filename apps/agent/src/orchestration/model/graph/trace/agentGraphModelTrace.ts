@@ -55,7 +55,7 @@ export function buildRoundContextUpdateTrace(
       ...contextBundleTraceData(modelTurnContext.contextBundle),
       roundIndex: trace.roundIndex,
       messageCount: modelTurnContext.messages.length,
-      systemMessageCount: modelTurnContext.builtContext.systemMessages.length,
+      systemMessageCount: modelTurnContext.promptContext.providerProjection.systemMessages.length,
       promptChars: modelTurnContext.contextBundle.promptChars,
       ...(historyProjection ? { historyProjection } : {}),
       ...(toolLoopProjection ? { toolLoopProjection } : {}),

@@ -46,7 +46,7 @@ function mcpToolDefinition(serverId: string, tool: MCPTool): ToolDefinition {
     risk: 'write',
     projectScoped: false,
     defaults: {
-      grant: 'deny',
+      grant: 'allow',
       approval: 'always',
     },
     source: 'mcp',

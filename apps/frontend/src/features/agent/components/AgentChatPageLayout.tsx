@@ -11,15 +11,17 @@ import {
   DropdownMenuTrigger,
 } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
-import { AgentConversationThreadSection, latestPlanFromMessages } from '@/features/agent/components/AgentConversationThreadSection'
+import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
+import { AgentConversationThreadSection, latestPlanFromTimelineItems } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
-import { visibleTranscriptChatMessages } from '@/features/agent/domain/agentMessageBoundaries'
+import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
 import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
 
 export function AgentChatPageLayout({
   composer,
+  contextDiagnosticDialog,
   debugPreview,
   emptyAccessory,
   host = 'immersive',
@@ -27,10 +29,10 @@ export function AgentChatPageLayout({
 }: AgentChatViewLayoutProps & { emptyAccessory?: ReactNode; host?: AgentChatHost }) {
   const { t } = useTranslation()
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
-  const conversationStarted = visibleTranscriptChatMessages(thread.messages).length > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
-  const loadingMessageHistory = thread.messageHistoryLoading && !conversationStarted
+  const conversationStarted = transcriptMessageCount({ transcriptMessages: thread.transcriptMessages, transcriptMessageCount: thread.transcriptMessageCount }) > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
+  const loadingConversationTimeline = thread.timelineLoading && !conversationStarted
   const hasPinnedStatus = hasAgentPinnedStatus({
-    plan: latestPlanFromMessages(thread.messages),
+    plan: latestPlanFromTimelineItems(thread.timelineItems),
     generationProgressStates: thread.generationProgressStates,
     planSnapshot: thread.activePlanSnapshot,
   })
@@ -61,14 +63,15 @@ export function AgentChatPageLayout({
   return (
     <AgentMain className="agent-page-chat-main" data-agent-chat-host={host}>
       <AgentDebugPreviewDialog {...debugPreview} />
+      <ContextDiagnosticDialog {...contextDiagnosticDialog} />
       {!conversationStarted ? (
         <section className="agent-page-chat-thread-shell agent-page-chat-thread-shell--empty" aria-label={composer.composerPlaceholder}>
           {pageActions}
           <div className="agent-page-chat-empty">
-            {loadingMessageHistory ? (
+            {loadingConversationTimeline ? (
               <AgentEmpty role="status" aria-live="polite" className="agent-page-chat-empty-status">
                 <Loader2 size={16} className="animate-spin" />
-                <span>{t('agents.chat.loadingMessageHistory')}</span>
+                <span>{t('agents.chat.loadingConversationTimeline')}</span>
               </AgentEmpty>
             ) : (
               <h1 className="agent-page-chat-empty-title">

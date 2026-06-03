@@ -37,38 +37,29 @@ test('renderToolCatalogText summarizes plain output schema fields', () => {
   assert.match(text, /studio_list: results\[\]\.id\|title/)
 })
 
-test('renderDebugContextText includes project standards and enabled custom prompt rules', () => {
+test('renderDebugContextText includes generic project and selection context', () => {
   const text = renderDebugContextText({
-    route: { pathname: '/project/standards' },
+    route: { pathname: '/project/workspace' },
     projects: [],
     project: {
       id: 42,
       name: 'Demo',
-      aspect_ratio: '9:16',
-      visual_style: '竖屏写实',
-      project_style: JSON.stringify({
-        camera_language: '稳定手持，关键道具给 insert。',
-        negative_rules: ['不要随机改脸'],
-        custom_rules: [
-          { key: 'character_consistency', label: '角色一致性', value: '主角发型和服装气质必须一致。', prompt_role: 'constraint', enabled: true, order: 10 },
-          { key: 'disabled_rule', label: '停用规则', value: '不应进入提示词。', enabled: false, order: 20 },
-        ],
-      }),
+      description: 'Project summary',
+      status: 'active',
     },
-    selection: null,
+    selection: { entityType: 'custom_entity', entityId: 7, label: 'Selected item' },
     recentResources: [],
     attachments: [],
     memories: [],
     labels: [],
   })
 
-  assert.match(text, /### Project Standards/)
-  assert.match(text, /Aspect ratio \(aspect_ratio\): 9:16/)
-  assert.match(text, /Camera language \(camera_language\): 稳定手持/)
-  assert.match(text, /Custom prompt rules/)
-  assert.match(text, /character_consistency/)
-  assert.match(text, /主角发型和服装气质必须一致/)
-  assert.doesNotMatch(text, /不应进入提示词/)
+  assert.match(text, /Title: Demo/)
+  assert.match(text, /Summary: Project summary/)
+  assert.match(text, /Status: active/)
+  assert.match(text, /Entity type: custom_entity/)
+  assert.match(text, /Entity reference: custom_entity 7/)
+  assert.doesNotMatch(text, /Project Standards/)
 })
 
 test('renderToolCatalogText ignores non-plain output schema records', () => {

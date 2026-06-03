@@ -1,0 +1,27 @@
+{
+  "name": "@movscript/agent-runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared local Agent workspace and session runtime filesystem contracts.",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.0"
+  }
+}

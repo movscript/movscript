@@ -10,7 +10,7 @@ export function sourceBoundaryForContextRef(ref: ContextRef, toolSource: ToolSou
   if (ref.type === 'workspace') return { source: 'workspace', evidence: 'workspace' }
   if (ref.type === 'memory') return { source: 'memory', evidence: 'summary' }
   if (ref.type === 'reference') return { source: 'reference', evidence: 'advisory' }
-  if (ref.type === 'project' || ref.type === 'production' || ref.type === 'asset_slot') {
+  if (ref.type === 'project') {
     return { source: toolSource === 'mcp' ? 'mcp' : 'backend', evidence: 'verified' }
   }
   if (ref.type === 'generation_job') return { source: toolSource === 'mcp' ? 'mcp' : 'tool_result', evidence: 'runtime_state' }

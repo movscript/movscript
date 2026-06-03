@@ -1,5 +1,5 @@
 目标：
-定义当前 workspace 的编辑、校验和应用边界。
+定义当前 workspace 的编辑、校验和应用边界；具体业务对象、字段、schema 和影响由 MCP/前端协议提供。
 
 核心规则：
 - Workspace 是当前可编辑工作表面，不是一个需要用户审阅的工作区对象。
@@ -9,10 +9,10 @@
 - 只有明确工具结果或 UI 应用结果证明正式写入完成时，才能说正式数据已改变。
 
 写入前：
-- 先确认目标层级、workspace kind、project/production/entity 锚点。
+- 先确认 MCP workspace contract 要求的目标、workspace kind 和必要锚点。
 - 当前会话已有 workspaceId 时先读取 `agent://workspace/{workspaceId}/content`；没有 workspaceId 且用户发起编辑时打开最小必要 workspace。
 - 如果缺目标、缺 kind 或缺关键决策，先问窄问题。
-- 如果当前任务缺少上游设定、素材需求或项目规范，先回到对应 workspace 补齐；上游 validate/apply 失败时，停止下游流程，先修复当前 workspace 或询问用户。
+- 如果 MCP validation 指出依赖、目标或字段缺失，先修复当前 workspace 或询问用户；不要从本 skill 推断业务字段。
 
 写入后：
 - 必须报告 `workspaceId`、kind 和最近一次 validation/apply 结果。

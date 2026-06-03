@@ -108,7 +108,6 @@ function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | unde
       },
     } : {}),
     ...(project ? { project: { ...(isValidAgentProjectId(project.id) ? { id: project.id } : isValidAgentProjectId(project.ID) ? { id: project.ID } : {}), ...(typeof project.name === 'string' ? { name: project.name } : {}), ...(typeof project.status === 'string' ? { status: project.status } : {}), ...(typeof project.description === 'string' ? { description: project.description } : {}), ...(typeof project.aspect_ratio === 'string' ? { aspect_ratio: project.aspect_ratio } : {}), ...(typeof project.visual_style === 'string' ? { visual_style: project.visual_style } : {}), ...(typeof project.project_style === 'string' ? { project_style: project.project_style } : {}) } } : {}),
-    ...(isValidAgentEntityId(value.productionId) ? { productionId: value.productionId } : {}),
     ...(typeof value.workspaceId === 'string' ? { workspaceId: value.workspaceId } : {}),
     ...(selection === null ? { selection: null } : selection ? { selection: { ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}), ...(isValidAgentReferenceId(selection.entityId) ? { entityId: selection.entityId } : {}), ...(typeof selection.label === 'string' ? { label: selection.label } : {}) } } : {}),
     ...(recentResources.length > 0 ? { recentResources } : {}),

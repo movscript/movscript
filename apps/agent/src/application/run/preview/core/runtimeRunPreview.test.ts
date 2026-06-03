@@ -70,7 +70,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
         },
         async callTool(name, args) {
           calls.push(`callTool:${name}:${JSON.stringify(args)}`)
-          return { data: { focus: { project: { id: 42 }, productionId: 9 } } }
+          return { data: { focus: { project: { id: 42 } } } }
         },
         async listTools(): Promise<MCPTool[]> {
           calls.push('listTools')
@@ -124,7 +124,6 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     const promptPreview = preview.promptPreview
     const debug = preview.debug
     assert.equal(context.project?.id, 42)
-    assert.equal(context.productionId, 9)
     assert.deepEqual(preview.memoryIds, [])
     assert.equal(preview.memoryCount, 0)
     assert.equal(runtimeLimits.sandboxMode, undefined)
@@ -132,6 +131,8 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.equal(runtimeLimits.maxIterations, 2)
     assert.ok(tools.discovered.length > 0)
     assert.ok(promptPreview.messages.length > 0)
+    assert.equal(promptPreview.promptFragments?.some((fragment) => fragment.id === 'runtime.core' && fragment.source === 'runtime_policy' && fragment.instructionAuthority === 'system'), true)
+    assert.equal(promptPreview.promptStats?.parts.some((part) => part.id === 'runtime.core' && part.source === 'runtime_policy' && part.authority === 'system'), true)
     assert.ok(debug.promptPartIds.length > 0)
     assert.deepEqual(preview.toolCalls, [])
     assert.deepEqual(preview.pendingApprovals, [])
@@ -140,7 +141,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.deepEqual(calls, [
       'getThread:thread_1',
       'initialize',
-      'callTool:movscript_focus_get:{}',
+      'callTool:get_focus_context:{}',
       'initialize',
       'listTools',
       'listResources',
@@ -192,7 +193,7 @@ test('buildRuntimeRunPreview uses active config file runtime limits by default',
           return {}
         },
         async callTool() {
-          return { data: { focus: { project: { id: 42 }, productionId: 9 } } }
+          return { data: { focus: { project: { id: 42 } } } }
         },
         async listTools(): Promise<MCPTool[]> {
           return []
@@ -250,7 +251,7 @@ test('buildRuntimeRunPreview ignores invalid focus project ids at preview bounda
           return {}
         },
         async callTool() {
-          return { data: { focus: { project: { id: '42' }, productionId: 9 } } }
+          return { data: { focus: { project: { id: '42' } } } }
         },
         async listTools(): Promise<MCPTool[]> {
           return []

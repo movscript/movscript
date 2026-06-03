@@ -1,9 +1,10 @@
 "use client";
 
+import * as React from "react";
 import { ArchiveIcon, ChevronRightIcon, PlusIcon, RefreshIcon, TrashIcon } from "../../../../primitives/icons";
 import { Button } from "../../../../primitives/button";
 import { ScrollArea } from "../../../../primitives/scroll-area";
-import type { AgentConversationListPanelProps } from "../types";
+import type { AgentConversationListItem, AgentConversationListPanelProps } from "../types";
 
 export function AgentConversationListPanel({
   conversations,
@@ -19,6 +20,7 @@ export function AgentConversationListPanel({
   collapseAssistantLabel,
   archiveConversationLabel,
   deleteConversationLabel,
+  renameConversationLabel,
   refreshLabel,
 }: AgentConversationListPanelProps) {
   return (
@@ -45,16 +47,7 @@ export function AgentConversationListPanel({
             <div className="ms-agent-sidebar__section">
               {conversations.map((conv) => (
                 <div key={conv.id} className="group relative">
-                  <button type="button" className="ms-agent-conversation pr-10" onClick={conv.onClick}>
-                    <span className="ms-agent-conversation__indicator" aria-hidden="true" />
-                    <span className="ms-agent-conversation__body">
-                      <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{conv.title}</span>
-                      {conv.description ? (
-                        <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{conv.description}</span>
-                      ) : null}
-                    </span>
-                    {conv.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{conv.meta}</span> : null}
-                  </button>
+                  <EditableConversationListRow item={conv} renameConversationLabel={renameConversationLabel} />
                   {conv.onArchive ? (
                     <Button
                       size="icon-xs"
@@ -99,16 +92,7 @@ export function AgentConversationListPanel({
             ) : (
               localThreads.map((thread) => (
                 <div key={thread.id} className="group relative">
-                  <button type="button" className="ms-agent-conversation pr-10" onClick={thread.onClick}>
-                    <span className="ms-agent-conversation__indicator" aria-hidden="true" />
-                    <span className="ms-agent-conversation__body">
-                      <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{thread.title}</span>
-                      {thread.description ? (
-                        <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{thread.description}</span>
-                      ) : null}
-                    </span>
-                    {thread.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{thread.meta}</span> : null}
-                  </button>
+                  <EditableConversationListRow item={thread} renameConversationLabel={renameConversationLabel} />
                   {thread.onDelete ? (
                     <Button
                       size="icon-xs"
@@ -131,5 +115,118 @@ export function AgentConversationListPanel({
         </ScrollArea>
       </div>
     </main>
+  );
+}
+
+function EditableConversationListRow({
+  item,
+  renameConversationLabel,
+}: {
+  item: AgentConversationListItem;
+  renameConversationLabel: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const clickTimerRef = React.useRef<number | null>(null);
+  const [editing, setEditing] = React.useState(false);
+  const [draftTitle, setDraftTitle] = React.useState(item.title);
+
+  React.useEffect(() => {
+    return () => {
+      if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!editing) return;
+    setDraftTitle(item.title);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [editing, item.title]);
+
+  function startEditing(event: React.MouseEvent) {
+    if (!item.onRename) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (clickTimerRef.current !== null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+    setEditing(true);
+  }
+
+  function handleClick() {
+    if (!item.onRename) {
+      item.onClick();
+      return;
+    }
+    if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = window.setTimeout(() => {
+      clickTimerRef.current = null;
+      item.onClick();
+    }, 180);
+  }
+
+  function cancelEditing() {
+    setDraftTitle(item.title);
+    setEditing(false);
+  }
+
+  function commitEditing() {
+    const trimmed = draftTitle.trim();
+    if (!trimmed || trimmed === item.title.trim()) {
+      cancelEditing();
+      return;
+    }
+    setEditing(false);
+    void item.onRename?.(trimmed);
+  }
+
+  if (editing) {
+    return (
+      <form
+        className="ms-agent-conversation ms-agent-conversation--editing pr-10"
+        onSubmit={(event) => {
+          event.preventDefault();
+          commitEditing();
+        }}
+      >
+        <span className="ms-agent-conversation__indicator" aria-hidden="true" />
+        <span className="ms-agent-conversation__body">
+          <input
+            ref={inputRef}
+            className="ms-agent-conversation__title-input"
+            aria-label={renameConversationLabel}
+            value={draftTitle}
+            onChange={(event) => setDraftTitle(event.target.value)}
+            onBlur={commitEditing}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                cancelEditing();
+              }
+            }}
+          />
+          {item.description ? (
+            <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{item.description}</span>
+          ) : null}
+        </span>
+        {item.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{item.meta}</span> : null}
+      </form>
+    );
+  }
+
+  return (
+    <button type="button" className="ms-agent-conversation pr-10" onClick={handleClick} onDoubleClick={startEditing}>
+      <span className="ms-agent-conversation__indicator" aria-hidden="true" />
+      <span className="ms-agent-conversation__body">
+        <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{item.title}</span>
+        {item.description ? (
+          <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">{item.description}</span>
+        ) : null}
+      </span>
+      {item.meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{item.meta}</span> : null}
+    </button>
   );
 }

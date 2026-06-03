@@ -46,12 +46,12 @@ func TestAgentTelemetryHandlerRecordsBatch(t *testing.T) {
 			"name":"movscript_agent_storage_flush_duration_ms",
 			"unit":"ms",
 			"value":11,
-			"labels":{"component":"state_store","kind":"state_file","stage":"flush","status":"success"}
+			"labels":{"component":"runtime_store","kind":"runtime_log","stage":"flush","status":"success"}
 		},{
 			"name":"movscript_agent_storage_file_bytes",
 			"unit":"bytes",
 			"value":4096,
-			"labels":{"component":"state_store","kind":"state_file","stage":"flush","status":"success"}
+			"labels":{"component":"runtime_store","kind":"runtime_log","stage":"flush","status":"success"}
 		}],
 		"logs":[{"level":"error","area":"agent_frontend","kind":"window_error"}]
 	}`))
@@ -72,8 +72,8 @@ func TestAgentTelemetryHandlerRecordsBatch(t *testing.T) {
 		`movscript_agent_client_metric_milliseconds_sum{metric="frontend_agent_network_request_duration_ms",method="post",route_group="/threads/:id/runs",status_class="2xx"} 35.000`,
 		`movscript_agent_client_metric_count_total{metric="frontend_ui_errors_total",area="agent_frontend",kind="window_error",level="error"} 1.000`,
 		`movscript_agent_client_metric_milliseconds_sum{metric="frontend_storage_operation_duration_ms",component="agent_panel",kind="agent_store",stage="set",status="success"} 7.000`,
-		`movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_storage_flush_duration_ms",component="state_store",kind="state_file",stage="flush",status="success"} 11.000`,
-		`movscript_agent_client_metric_bytes_sum{metric="movscript_agent_storage_file_bytes",component="state_store",kind="state_file",stage="flush",status="success"} 4096.000`,
+		`movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_storage_flush_duration_ms",component="runtime_store",kind="runtime_log",stage="flush",status="success"} 11.000`,
+		`movscript_agent_client_metric_bytes_sum{metric="movscript_agent_storage_file_bytes",component="runtime_store",kind="runtime_log",stage="flush",status="success"} 4096.000`,
 		`movscript_agent_client_logs_total{level="error",area="agent_frontend",kind="window_error"} 1`,
 		`movscript_agent_client_long_task_duration_milliseconds_sum 250.000`,
 	} {

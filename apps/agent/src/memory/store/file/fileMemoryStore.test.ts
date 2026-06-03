@@ -6,7 +6,7 @@ import test from 'node:test'
 import { FileAgentMemoryStore } from './fileMemoryStore.js'
 import { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
 
-test('file memory store ignores corrupt or non-object state files', () => {
+test('file memory store ignores corrupt or non-object data files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-memory-store-'))
   try {
     const filePath = join(dir, 'memory.json')

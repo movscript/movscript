@@ -13,7 +13,7 @@ import type {
   RuntimeWakeEvent,
 } from '../../shared/types.js'
 import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
-import { isAgentUiOnlyAssistantMessage } from '@movscript/protocol'
+import { isAgentTranscriptExcludedAssistantMessage } from '@movscript/protocol'
 import {
   applyTraceEventToDebugLedger,
   buildRunDebugLedgerFromTrace,
@@ -626,7 +626,7 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
 }
 
 function isThreadSummaryTranscriptMessage(message: AgentThread['messages'][number]): boolean {
-  return !isAgentUiOnlyAssistantMessage(message)
+  return !isAgentTranscriptExcludedAssistantMessage(message)
 }
 
 export function toSessionSummary(session: AgentSession, threadCount: number): AgentSessionSummary {

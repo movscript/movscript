@@ -29,7 +29,7 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
         runtimeThreadId: 'thread-1',
         createdAt: 1000,
         updatedAt: 2000,
-        messages: [{
+        transcriptMessages: [{
           id: 'msg-1',
           role: 'assistant',
           content: 'Output resource: #42',
@@ -44,17 +44,6 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
             previewUrl: 'blob:stale-preview',
             resourceId: 42,
           }],
-          meta: {
-            localRunActivity: {
-              runId: 'run-1',
-              threadId: 'thread-1',
-              status: 'completed',
-              createdAt: '2026-05-13T00:00:00.000Z',
-              updatedAt: '2026-05-13T00:00:01.000Z',
-              steps: [],
-              events: [],
-            },
-          },
         }],
       }],
     },
@@ -62,14 +51,14 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
 
   const normalized = normalizeConvsByUser(state)
   const userState = normalized['7']
-  const message = userState?.conversations[0]?.messages[0]
+  const message = userState?.conversations[0]?.transcriptMessages[0]
   const messageAttachment = message?.attachments?.[0]
   const workspaceAttachment = userState?.workspacesByConversation['conv-1']?.attachments[0]
 
   assert.equal(userState?.activeConversationId, 'conv-1')
   assert.equal(userState?.conversations[0]?.runtimeSessionId, 'session-1')
   assert.equal(userState?.conversations[0]?.runtimeThreadId, 'thread-1')
-  assert.equal(message?.meta?.localRunActivity?.runId, 'run-1')
+  assert.equal(message?.meta?.runtimeMessage, undefined)
   assert.equal(messageAttachment?.url, '/api/v1/resources/42/file')
   assert.equal(messageAttachment?.previewUrl, undefined)
   assert.equal(workspaceAttachment?.url, '/api/v1/resources/42/file')
@@ -103,7 +92,7 @@ test('normalizeConvsByUser uses injected defaults for missing ids, titles, and t
       activeConversationId: 'missing',
       workspacesByConversation: {},
       conversations: [{
-        messages: [{ content: 'hello' }],
+        transcriptMessages: [{ content: 'hello' }],
       }],
     },
   }, {
@@ -117,7 +106,7 @@ test('normalizeConvsByUser uses injected defaults for missing ids, titles, and t
   assert.equal(conversation?.id, 'generated-id')
   assert.equal(conversation?.title, 'Default title')
   assert.equal(conversation?.createdAt, 123)
-  assert.equal(conversation?.messages[0]?.id, 'generated-id')
-  assert.equal(conversation?.messages[0]?.role, 'user')
-  assert.equal(conversation?.messages[0]?.timestamp, 123)
+  assert.equal(conversation?.transcriptMessages[0]?.id, 'generated-id')
+  assert.equal(conversation?.transcriptMessages[0]?.role, 'user')
+  assert.equal(conversation?.transcriptMessages[0]?.timestamp, 123)
 })

@@ -53,7 +53,7 @@ export async function buildRuntimeRunPreview(input: {
     activeAgentManifest: input.catalogSnapshot.activeAgentManifest,
   })
   await input.mcpClient.initialize()
-  const contextResult = await input.mcpClient.callTool('movscript_focus_get', {})
+  const contextResult = await input.mcpClient.callTool('get_focus_context', {})
   const context = extractAgentContext(contextResult)
   const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
   const relevantMemories = shouldLoadRuntimeMemories(command, message)
@@ -90,19 +90,17 @@ export async function buildRuntimeRunPreview(input: {
   })
   const configRuntimeLimitDefaults = runtimeLimitDefaultsFromConfigFile(input.catalogSnapshot, agentManifest)
   const runtimeLimits = defaultRuntimeLimits({ sandboxMode: input.previewInput.sandboxMode === true, ...configRuntimeLimitDefaults, override: input.previewInput.runtimeLimits })
-  const promptPreview = modelTurnContext.buildPromptPreview({
+  const promptPreview = modelTurnContext.buildRuntimePromptPreview({
     manifest: activeManifest,
     skills,
     ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
     context: debugContext,
     tools: capabilities.resolvedTools,
     runtimeLimits,
-    memories,
     warnings: [...capabilities.warnings],
     history: thread?.messages ?? [],
     userMessage: message,
     command,
-    contractResolver: input.contractResolver,
   })
   const warnings: string[] = [...capabilities.warnings]
 
@@ -115,7 +113,6 @@ export async function buildRuntimeRunPreview(input: {
       context: debugContext,
       tools: capabilities.resolvedTools,
       runtimeLimits,
-      memories,
       warnings,
       history: thread?.messages ?? [],
       userMessage: message,

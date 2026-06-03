@@ -2,7 +2,7 @@
   "name": "@movscript/conversation",
   "version": "0.1.0",
   "type": "module",
-  "description": "Shared MovScript agent conversation message projection and merge logic.",
+  "description": "Shared MovScript agent conversation transcript projection and merge logic.",
   "files": [
     "dist"
   ],

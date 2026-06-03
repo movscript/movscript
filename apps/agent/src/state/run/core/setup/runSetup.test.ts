@@ -60,14 +60,12 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
     },
     contextResult: {
       snapshot: {
-        route: { pathname: '/production/4' },
+        route: { pathname: '/workspace/4' },
         project: { id: 42, name: 'Demo' },
-        productionId: 4,
       },
     },
     context: {
       currentProjectId: 42,
-      currentProductionId: 4,
     },
     memories: [],
     command: {
@@ -84,7 +82,6 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   })
 
   assert.equal(result.debugContext.project?.id, 42)
-  assert.equal(result.debugContext.productionId, 4)
   assert.equal(result.metadata.initialUserMessageId, 'msg_1')
   assert.equal(result.metadata.backendAuthToken, 'token_1')
   assert.equal((result.metadata.command as any)?.name, 'chat')
@@ -106,7 +103,7 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   assert.deepEqual((result.metadata.contextLedger as any)?.retrieved, [])
 })
 
-test('buildRunSetupMetadata ignores invalid production ids', () => {
+test('buildRunSetupMetadata ignores invalid project ids in context metadata', () => {
   const result = buildRunSetupMetadata({
     run: {
       id: 'run_1',
@@ -133,13 +130,11 @@ test('buildRunSetupMetadata ignores invalid production ids', () => {
     },
     contextResult: {
       snapshot: {
-        project: { id: 42, name: 'Demo' },
-        productionId: 4.5,
+        project: { id: 42.5, name: 'Demo' },
       },
     },
     context: {
-      currentProjectId: 42,
-      currentProductionId: 4.5,
+      currentProjectId: 42.5,
     },
     memories: [],
     command: {
@@ -152,8 +147,7 @@ test('buildRunSetupMetadata ignores invalid production ids', () => {
     },
   })
 
-  assert.equal(result.debugContext.productionId, undefined)
-  assert.equal((result.metadata.context as any)?.productionId, undefined)
+  assert.equal(result.debugContext.project, undefined)
 })
 
 test('buildRunSetupMetadata stores independent input metadata snapshots', () => {

@@ -154,7 +154,7 @@ test('handleSendRunUpdate recovers latest run when cancel reports already finish
 test('handleSendRuntimeEvent trims thread titles, completes started http events, and records the event', () => {
   const calls: string[] = []
   let events = [
-    event({ id: 'http-request-local-create-thread', status: 'started' }),
+    event({ id: 'http-request-local-session-message-run', status: 'started' }),
     event({ id: 'agent-step-1', status: 'started' }),
   ]
 

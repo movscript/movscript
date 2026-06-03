@@ -28,6 +28,7 @@ export function threadRuntimeSnapshotV2(snapshot: RuntimeThreadSnapshotV2): Agen
       wakeEvents: snapshot.wakeEvents,
       ...(snapshot.thread.currentPlan ? { plans: [snapshot.thread.currentPlan] } : {}),
       ...(snapshot.thread.planRevisions?.length ? { planRevisions: snapshot.thread.planRevisions } : {}),
+      ...(snapshot.thread.runtimeStatuses?.length ? { runtimeStatuses: snapshot.thread.runtimeStatuses } : {}),
     },
   }
 }
@@ -52,6 +53,7 @@ export function sessionRuntimeSnapshotV2(snapshot: RuntimeSessionSnapshotV1): Ag
       taskGraphs: snapshot.taskGraphs,
       plans: snapshot.threads.flatMap((thread) => thread.currentPlan ? [thread.currentPlan] : []),
       planRevisions: snapshot.threads.flatMap((thread) => thread.planRevisions ?? []),
+      runtimeStatuses: snapshot.threads.flatMap((thread) => thread.runtimeStatuses ?? []),
     },
   }
 }
@@ -181,6 +183,20 @@ export function runtimeEventFromRunStream(input: {
       entity: { type: 'message', value: input.event.message },
     }
   }
+  if (input.event.type === 'runtime_status') {
+    return {
+      ...base,
+      kind: 'runtime_status.upserted',
+      causality: {
+        threadId: input.event.status.threadId,
+        runId: input.event.runId ?? input.event.status.runId,
+        runtimeStatusId: input.event.status.id,
+        taskGraphId: input.event.run?.taskGraphId,
+        taskId: input.event.run?.taskId,
+      },
+      entity: { type: 'runtime_status', value: input.event.status },
+    }
+  }
   if (input.event.type === 'thread_title') {
     const thread = input.runtime.getThread(input.event.threadId)
     if (!thread) {
@@ -215,6 +231,7 @@ function runtimeStreamEventTime(event: AgentInternalRunSignal | AgentInternalThr
   if (event.type === 'assistant_progress') return event.createdAt
   if (event.type === 'trace') return event.event.createdAt
   if (event.type === 'assistant_message') return event.message.createdAt
+  if (event.type === 'runtime_status') return event.status.createdAt
   if (event.type === 'thread_title') return event.updatedAt
   if ('run' in event) return event.run.updatedAt
   return new Date().toISOString()

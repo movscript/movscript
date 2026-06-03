@@ -24,12 +24,11 @@ test('buildDebugContext ignores non-plain runtime context records', () => {
   assert.deepEqual(context.recentResources, [{ id: 9, name: 'fallback.md', type: 'script' }])
 })
 
-test('buildDebugContext drops invalid project and production ids', () => {
+test('buildDebugContext drops invalid project ids', () => {
   const context = buildDebugContext({
     data: {
       focus: {
         project: { id: 0, name: 'Invalid runtime project' },
-        productionId: 42.5,
       },
       projects: [
         { id: 0, name: 'Zero project' },
@@ -41,12 +40,10 @@ test('buildDebugContext drops invalid project and production ids', () => {
     attachments: [],
     uiSnapshot: {
       project: { id: Number.NaN, name: 'Invalid UI project' },
-      productionId: Number.POSITIVE_INFINITY,
     } as never,
   })
 
   assert.equal(context.project, undefined)
-  assert.equal(context.productionId, undefined)
   assert.deepEqual(context.projects, [{ id: 7, name: 'Valid project' }])
 })
 
@@ -129,7 +126,7 @@ test('buildDebugContext drops invalid numeric selection entity ids', () => {
     data: {
       focus: {
         route: { pathname: '/selection' },
-        selection: { entityType: 'production', entityId: Number.NaN, label: 'Invalid runtime selection' },
+        selection: { entityType: 'custom_entity', entityId: Number.NaN, label: 'Invalid runtime selection' },
       },
     },
   }, [], {

@@ -4,6 +4,11 @@ import { objectSchema } from './schema'
 export function workspaceTools(): MCPTool[] {
   return [
     {
+      name: 'get_focus_context',
+      description: 'Return the current task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
+      inputSchema: objectSchema({}),
+    },
+    {
       name: 'movscript_focus_get',
       description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, workspaces, or resources.',
       inputSchema: objectSchema({}),
@@ -102,7 +107,7 @@ export function workspaceTools(): MCPTool[] {
       description: 'Return the frontend-owned WorkspaceModel contract for a workspace kind and target. This is the single source for workspace field ownership, seed policy, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_edit', 'project_standards_edit', 'production_edit', 'content_unit_edit', 'asset_edit'] },
+          kind: { type: 'string', enum: ['setting_workspace', 'project_standards_workspace', 'production_workspace', 'content_unit_workspace', 'asset_workspace'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -119,6 +124,9 @@ export function workspaceTools(): MCPTool[] {
           target: { type: 'object' },
           seedPolicy: { type: 'object' },
           seed: { type: 'object' },
+          workspaceProtocol: { type: 'object' },
+          initialContent: { type: 'object' },
+          initialContentText: { type: 'string' },
           contentSchemaId: { type: 'string' },
           contentSchema: { type: 'object' },
           fieldGuide: { type: 'object' },
@@ -127,7 +135,7 @@ export function workspaceTools(): MCPTool[] {
           reviewRoute: { type: 'string' },
           modelRef: { type: 'string' },
         },
-        ['contractVersion', 'kind', 'targetEntityType', 'target', 'seedPolicy', 'fieldGuide', 'applyBoundary', 'reviewRouteTemplate', 'reviewRoute', 'modelRef']
+        ['contractVersion', 'kind', 'targetEntityType', 'target', 'seedPolicy', 'workspaceProtocol', 'initialContent', 'fieldGuide', 'applyBoundary', 'reviewRouteTemplate', 'reviewRoute', 'modelRef']
       ),
     },
     {

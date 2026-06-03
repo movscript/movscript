@@ -5,39 +5,21 @@
     "type": "object",
     "additionalProperties": false,
     "required": [
-      "workspaceKind",
-      "content"
+      "workspaceKind"
     ],
     "properties": {
       "workspaceKind": {
         "type": "string",
-        "enum": [
-          "project_standards_edit",
-          "setting_edit",
-          "asset_edit",
-          "production_edit",
-          "content_unit_edit",
-          "script",
-          "asset_slot",
-          "content_unit",
-          "prompt",
-          "note",
-          "pipeline",
-          "segment",
-          "scene_moment"
-        ]
+        "description": "业务 workspace kind。具体可用值来自 get_workspace_model/MCP contract，不在 agent 内置 schema 中枚举。"
       },
       "title": {
         "type": "string"
       },
       "content": {
         "type": "string",
-        "description": "Workspace 初始正文。编辑类 workspace 继续使用现有后端 JSON schema 作为存储形态；顶层必须包含 schema 字段。打开成功后不要再通过工具参数替换正文，改用 agent://workspace/{workspaceId}/content 的真实文件编辑。"
+        "description": "可选初始正文。通常省略，由前端 MCP workspace contract/hydration 生成当前初始内容。打开成功后不要再通过工具参数替换正文，改用 agent://workspace/{workspaceId}/content 的真实文件编辑。"
       },
       "projectId": {
-        "type": "number"
-      },
-      "productionId": {
         "type": "number"
       },
       "source": {
@@ -67,5 +49,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "为当前 MovScript 工作打开可编辑 workspace；内部使用现有后端 JSON 存储。"
+  "capability": "为当前任务打开可编辑 workspace；具体初始内容和协议由前端 MCP workspace contract 决定。"
 }

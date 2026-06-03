@@ -74,6 +74,19 @@ func (h *ResourceAdminHandler) ResourceDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, detail)
 }
 
+func (h *ResourceAdminHandler) ServeFile(c *gin.Context) {
+	resource, err := h.service.GetResource(c.Request.Context(), parseID(c.Param("id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("查询资源失败"))
+		return
+	}
+	serveResourceFile(c, h.store, resource)
+}
+
 func (h *ResourceAdminHandler) DeleteResource(c *gin.Context) {
 	deleted, err := h.service.DeleteResource(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {

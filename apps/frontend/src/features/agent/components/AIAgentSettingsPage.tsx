@@ -322,10 +322,7 @@ export default function AIAgentSettingsPage() {
   const configFileRollbackBackup = agentSettings.lastConfigFileBackup
   const runtimeQuery = useQuery({
     queryKey: ['agent-settings-runtime-model', localAgentClient.baseURL],
-    queryFn: async () => {
-      await localAgentClient.ensureRunning()
-      return localAgentClient.getModelConfig()
-    },
+    queryFn: () => localAgentClient.getWorkspaceModelConfig(),
     retry: false,
   })
   const catalogQuery = useQuery<AgentInspectResponse>({
@@ -720,8 +717,7 @@ export default function AIAgentSettingsPage() {
     setTestResult(null)
     setTestError(null)
     try {
-      await localAgentClient.ensureRunning()
-      const nextConfig = await localAgentClient.saveModelConfig({
+      const nextConfig = await localAgentClient.saveWorkspaceModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: workspaceModelValue,
         apiKind: selectedApiKind,
@@ -771,8 +767,7 @@ export default function AIAgentSettingsPage() {
     setTestError(null)
     setSaveError(null)
     try {
-      await localAgentClient.ensureRunning()
-      await localAgentClient.saveModelConfig({
+      await localAgentClient.saveWorkspaceModelConfig({
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: workspaceModelValue,
         apiKind: selectedApiKind,
@@ -782,6 +777,7 @@ export default function AIAgentSettingsPage() {
         useForPlanner,
       })
       updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
+      await localAgentClient.ensureRunning()
       const result = await localAgentClient.testModelConfig({
         message: testMessage.trim() || t('agents.settings.testMessageDefault'),
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
@@ -821,8 +817,7 @@ export default function AIAgentSettingsPage() {
     setTestError(null)
     setTestResult(null)
     try {
-      await localAgentClient.ensureRunning()
-      const nextConfig = await localAgentClient.clearModelConfig()
+      const nextConfig = await localAgentClient.clearWorkspaceModelConfig()
       setSavedConfig(nextConfig)
       setSelectedModelId(NO_MODEL_VALUE)
       setDirectModelId('')
@@ -1653,9 +1648,9 @@ export default function AIAgentSettingsPage() {
   }
 
   async function applySettingsSnapshotWrites(snapshot: AgentSettingsSnapshot) {
-    const writesRuntime = Boolean(snapshot.model || snapshot.configFiles || snapshot.runtimeLimits || snapshot.activeConfigFileId || snapshot.skillConfig || snapshot.toolPermissionOverrides)
+    const writesRuntime = Boolean(snapshot.configFiles || snapshot.runtimeLimits || snapshot.activeConfigFileId || snapshot.skillConfig || snapshot.toolPermissionOverrides)
     if (writesRuntime) await localAgentClient.ensureRunning()
-    if (snapshot.model) await localAgentClient.saveModelConfig(buildRuntimeModelConfigFromSnapshotModel(snapshot.model))
+    if (snapshot.model) await localAgentClient.saveWorkspaceModelConfig(buildRuntimeModelConfigFromSnapshotModel(snapshot.model))
     const configFileWrites = new Map<string, AgentCatalogConfigFile>()
     const configFileWriteActivations = new Map<string, boolean>()
     function queueConfigFileWrite(configFile: AgentCatalogConfigFile, activate: boolean) {

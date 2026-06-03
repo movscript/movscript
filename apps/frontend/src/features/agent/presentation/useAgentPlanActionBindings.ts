@@ -13,6 +13,7 @@ import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
+  sessionId?: string
   run: AgentRun | null
   snapshot?: AgentTaskGraphSnapshot | null
   busy: boolean
@@ -25,6 +26,7 @@ export interface UseAgentPlanActionBindingsInput {
 
 export function useAgentPlanActionBindings({
   conversationId,
+  sessionId,
   run,
   snapshot,
   busy,
@@ -34,17 +36,20 @@ export function useAgentPlanActionBindings({
   setConversationRuntime,
   refetchPlanSnapshot,
 }: UseAgentPlanActionBindingsInput) {
+  const runtimeClient = useMemo(() => sessionId?.trim()
+    ? localAgentClient.forSession({ sessionId: sessionId.trim() })
+    : localAgentClient, [sessionId])
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
     reportError: (message) => setConversationRuntime(conversationId, { error: message, loading: false }),
-    dispatchTaskGraph: (taskGraphId, input) => localAgentClient.dispatchTaskGraph(taskGraphId, input),
-    replanRun: (runId, input) => localAgentClient.replanRun(runId, input),
-    updateTask: (taskId, input) => localAgentClient.updateTask(taskId, input),
-    cancelRunTree: (runId, input) => localAgentClient.cancelRunTree(runId, input),
-    getRun: (runId) => localAgentClient.getRun(runId),
+    dispatchTaskGraph: (taskGraphId, input) => runtimeClient.dispatchTaskGraph(taskGraphId, input),
+    replanRun: (runId, input) => runtimeClient.replanRun(runId, input),
+    updateTask: (taskId, input) => runtimeClient.updateTask(taskId, input),
+    cancelRunTree: (runId, input) => runtimeClient.cancelRunTree(runId, input),
+    getRun: (runId) => runtimeClient.getRun(runId),
     refetchPlanSnapshot,
-  }), [conversationId, refetchPlanSnapshot, setBusy, setConversationRun, setConversationRuntime])
+  }), [conversationId, refetchPlanSnapshot, runtimeClient, setBusy, setConversationRun, setConversationRuntime])
 
   const dispatchActiveTaskGraph = useCallback(async () => {
     if (busy) return

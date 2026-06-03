@@ -25,6 +25,7 @@ export type AgentPanelWorkspacePayload = AgentPageTaskPayload
 
 export interface AgentPanelThreadPayload {
   threadId: string
+  sessionId?: string
 }
 
 export interface AgentPanelNewConversationPayload {
@@ -42,9 +43,18 @@ export function openAgentPanelNewConversation(payload: AgentPanelNewConversation
   window.dispatchEvent(new CustomEvent<AgentPanelNewConversationPayload>(AGENT_PANEL_NEW_CONVERSATION_EVENT, { detail: payload }))
 }
 
-export function openAgentPanelThread(threadId: string) {
-  if (!threadId.trim()) return
-  window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, { detail: { threadId } }))
+export function openAgentPanelThread(input: string | AgentPanelThreadPayload, sessionId?: string) {
+  const payload = typeof input === 'string'
+    ? { threadId: input, ...(sessionId?.trim() ? { sessionId: sessionId.trim() } : {}) }
+    : input
+  const normalizedThreadId = payload.threadId.trim()
+  if (!normalizedThreadId) return
+  window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, {
+    detail: {
+      threadId: normalizedThreadId,
+      ...(payload.sessionId?.trim() ? { sessionId: payload.sessionId.trim() } : {}),
+    },
+  }))
 }
 
 export function consumeAgentPanelWorkspace() {

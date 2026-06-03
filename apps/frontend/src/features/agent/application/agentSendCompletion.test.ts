@@ -62,7 +62,7 @@ test('completeSendRunResult resolves stream partial runs before completing state
   assert.equal(calls.includes('settled:undefined:completed:run_final:thread_1:0'), true)
 })
 
-test('completeSendRunResult leaves requires_action messages to the message feed', async () => {
+test('completeSendRunResult leaves requires_action messages to the message item', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -109,7 +109,7 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
   return {
     userId: 'user_1',
     conversationId: 'conv_1',
-    liveEvents: () => [activityEvent({ id: 'http-request-local-create-thread' })],
+    liveEvents: () => [activityEvent({ id: 'http-request-local-session-message-run' })],
     setLiveEventsRef: (events) => {
       calls.push(`liveRef:${events.length}`)
     },

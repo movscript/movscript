@@ -67,6 +67,9 @@ export function mergeSearch(pathname: string, search: string, nextParams: Record
   return query ? `${pathname}?${query}` : pathname
 }
 
-export function agentRunPath(runId: string) {
-  return `/agent/runs/${encodeURIComponent(runId)}`
+export function agentRunPath(runId: string, runtime?: { sessionId?: string; workspaceDir?: string }) {
+  return withRouteParams(`/agent/runs/${encodeURIComponent(runId)}`, {
+    sessionId: runtime?.sessionId,
+    workspaceDir: runtime?.workspaceDir,
+  })
 }

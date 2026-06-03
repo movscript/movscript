@@ -151,7 +151,6 @@ export function recordRuntimeRunSetupTraces(input: {
         route: input.debugContext.route,
         project: input.debugContext.project,
         selection: input.debugContext.selection,
-        productionId: input.debugContext.productionId,
       } as unknown as JSONValue,
     },
   })

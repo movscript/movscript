@@ -1,31 +1,30 @@
 import { isRunInteractionAnswerEchoMessage, runInteractionFromActivity } from '@/features/agent/domain/agentRunInteraction'
 import {
-  isUiOnlyAssistantChatMessage,
-  visibleAssistantActivityRunId,
-  visibleAssistantRelatedRunId,
+  transcriptAssistantRelatedRunId,
 } from '@/features/agent/domain/agentMessageBoundaries'
-import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
+import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
-export interface AgentConversationMessageItem {
+export interface AgentTranscriptMessageItem {
   beforeMessageInteractionRuns: AgentRun[]
   afterMessageInteractionRuns: AgentRun[]
   liveInteractionRuns: AgentRun[] | null
   message: ChatMessage
   showMessage: boolean
+  timelineActivity?: ChatRunActivity
 }
 
 export type AgentConversationThreadItem =
   | {
     id: string
     type: 'message'
-    item: AgentConversationMessageItem
+    item: AgentTranscriptMessageItem
   }
   | {
     id: string
     type: 'run_group'
     runId: string
-    items: AgentConversationMessageItem[]
+    items: AgentTranscriptMessageItem[]
   }
 
 export interface AgentPendingRuntimeInputQueueItem {
@@ -35,9 +34,9 @@ export interface AgentPendingRuntimeInputQueueItem {
   timestamp: number
 }
 
-export function splitRunGroupItemsForLiveBlocks(items: AgentConversationMessageItem[]): {
-  beforeLiveBlocks: AgentConversationMessageItem[]
-  afterLiveBlocks: AgentConversationMessageItem[]
+export function splitRunGroupItemsForLiveBlocks(items: AgentTranscriptMessageItem[]): {
+  beforeLiveBlocks: AgentTranscriptMessageItem[]
+  afterLiveBlocks: AgentTranscriptMessageItem[]
 } {
   return {
     beforeLiveBlocks: items.filter((item) => item.message.role === 'user'),
@@ -45,24 +44,27 @@ export function splitRunGroupItemsForLiveBlocks(items: AgentConversationMessageI
   }
 }
 
-export function buildAgentConversationMessageItems({
-  messages,
+export function buildAgentTranscriptMessageItems({
+  transcriptMessages,
   runInteractionAnswerEchoes,
   interactionRunsByResultMessageId,
   suppressedInteractionRunIds = new Set(),
+  timelineItems = [],
 }: {
-  messages: ChatMessage[]
+  transcriptMessages: ChatMessage[]
   runInteractionAnswerEchoes: Set<string>
   interactionRunsByResultMessageId: Map<string, AgentRun[]>
   suppressedInteractionRunIds?: Set<string>
-}): AgentConversationMessageItem[] {
-  return messages.flatMap((message) => {
+  timelineItems?: AgentTimelineItem[]
+}): AgentTranscriptMessageItem[] {
+  const activityByMessageId = timelineActivityByMessageId(timelineItems)
+  return transcriptMessages.flatMap((message) => {
     if (isRunInteractionAnswerEchoMessage(message, runInteractionAnswerEchoes)) return []
-    if (isUiOnlyAssistantChatMessage(message)) return []
+    const timelineActivity = activityByMessageId.get(message.id)
     const mappedInteractionRuns = interactionRunsByResultMessageId.get(message.id) ?? null
     const liveInteractionRuns = mappedInteractionRuns
       ?.filter((run) => !suppressedInteractionRunIds.has(run.id)) ?? null
-    const historicalInteractionRun = mappedInteractionRuns || message.role === 'assistant' ? null : runInteractionFromActivity(message.meta?.localRunActivity)
+    const historicalInteractionRun = mappedInteractionRuns || message.role === 'assistant' ? null : runInteractionFromActivity(timelineActivity)
     const visibleHistoricalInteractionRun = historicalInteractionRun
       && !suppressedInteractionRunIds.has(historicalInteractionRun.id)
       ? historicalInteractionRun
@@ -80,22 +82,24 @@ export function buildAgentConversationMessageItems({
       liveInteractionRuns,
       message,
       showMessage: true,
+      ...(timelineActivity ? { timelineActivity } : {}),
     }]
   })
 }
 
 export function buildAgentConversationThreadItems(input: {
-  messages: ChatMessage[]
+  transcriptMessages: ChatMessage[]
   runInteractionAnswerEchoes: Set<string>
   interactionRunsByResultMessageId: Map<string, AgentRun[]>
   suppressedInteractionRunIds?: Set<string>
+  timelineItems?: AgentTimelineItem[]
 }): AgentConversationThreadItem[] {
-  const messageItems = buildAgentConversationMessageItems(input)
+  const transcriptMessageItems = buildAgentTranscriptMessageItems(input)
   const groupsByRunId = new Map<string, Extract<AgentConversationThreadItem, { type: 'run_group' }>>()
   const threadItems: AgentConversationThreadItem[] = []
   const seenUserRunIds = new Set<string>()
 
-  for (const item of messageItems) {
+  for (const item of transcriptMessageItems) {
     if (isPendingRuntimeInputMessage(item.message)) continue
     const userRunId = userMessageRunId(item.message)
     if (userRunId && !seenUserRunIds.has(userRunId)) {
@@ -108,7 +112,7 @@ export function buildAgentConversationThreadItems(input: {
       continue
     }
     if (userRunId) seenUserRunIds.add(userRunId)
-    const groupRunId = runGroupIdForMessage(item.message)
+    const groupRunId = runGroupIdForMessageItem(item)
     if (!groupRunId) {
       threadItems.push({
         id: `message:${item.message.id}`,
@@ -171,28 +175,28 @@ export function buildPendingRuntimeInputQueueItems(messages: ChatMessage[]): Age
     }))
 }
 
-export function runtimeInputDisplayStatus(message: Pick<ChatMessage, 'meta'>): NonNullable<NonNullable<ChatMessage['meta']>['runtimeInput']>['status'] | undefined {
+export function runtimeInputDisplayDeliveryStatus(message: Pick<ChatMessage, 'meta'>): NonNullable<NonNullable<ChatMessage['meta']>['runtimeInput']>['deliveryStatus'] | undefined {
   const runtimeInput = message.meta?.runtimeInput
   if (!runtimeInput) return undefined
   if (
-    runtimeInput.status === 'pending'
+    runtimeInput.deliveryStatus === 'pending'
     && (runtimeInput.messageId?.trim() || message.meta?.runtimeMessage?.messageId?.trim())
   ) {
     return 'accepted'
   }
-  return runtimeInput.status
+  return runtimeInput.deliveryStatus
 }
 
 export function runtimeInputIsWaitingForDelivery(message: ChatMessage): boolean {
   return message.role === 'user'
-    && runtimeInputDisplayStatus(message) === 'pending'
+    && runtimeInputDisplayDeliveryStatus(message) === 'pending'
     && !message.meta?.runtimeMessage?.messageId
 }
 
-export function runIdsWithActivityMessages(messages: ChatMessage[]): Set<string> {
+export function runIdsWithTimelineActivityItems(timelineItems: AgentTimelineItem[]): Set<string> {
   const runIds = new Set<string>()
-  for (const message of messages) {
-    const runId = visibleAssistantActivityRunId(message)
+  for (const item of timelineItems) {
+    const runId = normalizeRunId(item.activity?.runId)
     if (runId) runIds.add(runId)
   }
   return runIds
@@ -202,11 +206,21 @@ function isPendingRuntimeInputMessage(message: ChatMessage): boolean {
   return runtimeInputIsWaitingForDelivery(message)
 }
 
-function runGroupIdForMessage(message: ChatMessage): string | undefined {
+function runGroupIdForMessageItem(item: AgentTranscriptMessageItem): string | undefined {
+  const message = item.message
   if (message.role === 'user') {
     return userMessageRunId(message)
   }
-  return visibleAssistantRelatedRunId(message)
+  return transcriptAssistantRelatedRunId(message)
+    ?? normalizeRunId(item.timelineActivity?.runId)
+}
+
+function timelineActivityByMessageId(timelineItems: AgentTimelineItem[]): Map<string, ChatRunActivity> {
+  const byMessageId = new Map<string, ChatRunActivity>()
+  for (const item of timelineItems) {
+    if (item.activity) byMessageId.set(item.id, item.activity)
+  }
+  return byMessageId
 }
 
 function userMessageRunId(message: ChatMessage): string | undefined {

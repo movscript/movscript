@@ -1,11 +1,11 @@
 import type { AgentManifest, AgentToolApprovalMode, AgentToolGrant } from '../../../catalog/manifest/agentManifest.js'
 import type { CatalogRegistry, RuntimeContext, SkillDefinition, SkillTrigger } from '../../../catalog/registry/shared/types.js'
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
-import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
+import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
 import type { AgentDebugContextPanel, AgentMessage, ResolvedAgentSkill } from '../../../state/shared/types.js'
 import { resolveConfigFile } from '../../../configFiles/resolution/resolveConfigFile.js'
 import { resolveRuntimeIntents, type RuntimeIntentSignal } from '../intent/intentResolver.js'
-import { composePrompt, renderSkill } from '../../prompt/promptComposer.js'
+import { compileSkillInstructions, renderSkill } from '../../prompt/skillInstructionCompiler.js'
 import { selectActiveTriggeredSkillsWithTrace, type SkillTriggerTrace } from '../../activation/triggers/triggerEvaluator.js'
 
 export interface RuntimeLayerResolution {
@@ -72,7 +72,15 @@ export function resolveRuntimeLayers(input: {
     const skill = input.registry.skills.get(id)
     return skill && skill.enabled !== false ? [skill] : []
   })
-  const triggerableSkills = configSkills.flatMap((skill): SkillDefinition[] => (
+  const configSkillIds = new Set(configSkills.map((skill) => skill.id))
+  const installedTriggerableSkills = Array.from(input.registry.skills.values()).filter((skill) => (
+    !configSkillIds.has(skill.id)
+    && skill.enabled !== false
+    && skill.source !== 'builtin'
+    && skillHasTriggers(skill)
+    && skill.loadMode !== 'manual'
+  ))
+  const triggerableSkills = [...configSkills, ...installedTriggerableSkills].flatMap((skill): SkillDefinition[] => (
     skillHasTriggers(skill) && skill.loadMode !== 'manual' ? [skill] : []
   ))
   const selected = selectActiveTriggeredSkillsWithTrace(triggerableSkills, ctx)
@@ -87,20 +95,20 @@ export function resolveRuntimeLayers(input: {
   })
   const activeTriggeredSkills = selected.skills.filter((skill) => !unloadedIds.has(skill.id))
   const referencedSkills = selectReferencedSkills(input.registry, activeTriggeredSkills)
-  const mergedSkills = mergeSkills(activeConfigSkills, [...requested.skills, ...referencedSkills])
-  const composed = composePrompt({
+  const mergedSkills = mergeSkills(activeConfigSkills, [...activeTriggeredSkills, ...requested.skills, ...referencedSkills])
+  const compiledInstructions = compileSkillInstructions({
     registry: input.registry,
     ctx,
     skills: mergedSkills,
   })
 
   const skillById = new Map<SkillDefinition, string>()
-  for (const part of composed.parts) {
+  for (const part of compiledInstructions.parts) {
     const skill = input.registry.skills.get(part.id)
     if (skill) skillById.set(skill, part.content)
   }
   const skills = mergedSkills
-    .filter((skill) => composed.parts.some((part) => part.id === skill.id))
+    .filter((skill) => compiledInstructions.parts.some((part) => part.id === skill.id))
     .map((skill, index) => toResolvedSkill(skill, input.registry, ctx, skillById.get(skill), index))
   const skillDiscovery = buildSkillDiscoverySummary({
     registry: input.registry,
@@ -128,7 +136,7 @@ export function resolveRuntimeLayers(input: {
     ctx,
     skills,
     skillDiscovery,
-    warnings: [...resolvedConfigFile.warnings, ...selected.warnings, ...composed.warnings],
+    warnings: [...resolvedConfigFile.warnings, ...selected.warnings, ...compiledInstructions.warnings],
     trace: {
       configFileId: resolvedConfigFile.configFile.id,
       configFileVersion: resolvedConfigFile.configFile.version,
@@ -504,7 +512,6 @@ function summarizeTriggers(triggers: SkillTrigger[]): string[] {
       trigger.selector.route?.length ? `route:${trigger.selector.route.slice(0, 3).join('|')}` : undefined,
       trigger.selector.selectedKind?.length ? `selectedKind:${trigger.selector.selectedKind.join('|')}` : undefined,
       trigger.selector.hasProjectId !== undefined ? `hasProjectId:${trigger.selector.hasProjectId}` : undefined,
-      trigger.selector.hasProductionId !== undefined ? `hasProductionId:${trigger.selector.hasProductionId}` : undefined,
     ].filter((item): item is string => typeof item === 'string')
     return selectors.length > 0 ? selectors : ['context']
   })
@@ -571,7 +578,6 @@ function buildUIContext(debugContext: AgentDebugContextPanel): RuntimeContext['u
   return {
     route: `${debugContext.route.pathname}${debugContext.route.search ?? ''}${debugContext.route.hash ?? ''}`,
     ...(debugContext.project?.id !== undefined ? { projectId: debugContext.project.id } : {}),
-    ...(debugContext.productionId !== undefined ? { productionId: debugContext.productionId } : {}),
     ...(debugContext.selection?.entityType ? { selectedKind: debugContext.selection.entityType as RuntimeContext['uiContext']['selectedKind'] } : {}),
     ...(debugContext.selection?.entityId !== undefined ? { selectedId: debugContext.selection.entityId } : {}),
   }

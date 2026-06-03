@@ -356,7 +356,6 @@ function buildRetrievedRecord(input: {
 function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONValue | undefined): number {
   const payload = unwrapResult(result)
   if (ref.type === 'reference') {
-    if (call.name !== 'reference_get') return 0
     const item = findRefPayload(ref, payload)
     return positiveNumberField(item, 'charCount')
       ?? stringLengthField(item, 'content')
@@ -433,7 +432,6 @@ function extractContextRefs(call: ToolCall, result: JSONValue | undefined): Cont
     refs.push(...extractPlanRefs(payload))
     refs.push(...extractGenerationRefs(payload))
     refs.push(...extractProjectRefs(call, payload))
-    refs.push(...extractProductionRefs(call, payload))
   }
   if (refs.length === 0) {
     refs.push(...extractRefsFromArgs(call))
@@ -560,21 +558,6 @@ function extractProjectRefs(call: ToolCall, payload: Record<string, unknown>): C
     type: 'project',
     id: String(id),
     title: stringField(payload.project, 'name') ?? `Project #${id}`,
-    source: call.name,
-  }]
-}
-
-function extractProductionRefs(call: ToolCall, payload: Record<string, unknown>): ContextRef[] {
-  const id = numberField(payload.productionId)
-    ?? numberField(payload.production_id)
-    ?? numberField(payload.production, 'id')
-    ?? numberField(call.args?.productionId)
-    ?? numberField(call.args?.production_id)
-  if (id === undefined || !call.name.includes('production')) return []
-  return [{
-    type: 'production',
-    id: String(id),
-    title: stringField(payload.production, 'name') ?? `Production #${id}`,
     source: call.name,
   }]
 }
@@ -716,8 +699,6 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     || value === 'workspace'
     || value === 'tool_result'
     || value === 'project'
-    || value === 'production'
-    || value === 'asset_slot'
     || value === 'generation_job'
     || value === 'taskGraph'
     ? value

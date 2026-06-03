@@ -1,7 +1,7 @@
 import { normalizeClientInput, type NormalizedClientInput } from '../../../../../context/input/client/normalizeClientInput.js'
 import type { CoreImageProcessingPort } from '../../../../../ports/media/imageProcessingPort.js'
 import type { AgentClientAttachmentRef, AgentMessage, AgentRun, AgentThread, JSONValue } from '../../../../../state/shared/types.js'
-import type { RuntimeHistoricalVisionContext, RuntimeHistoricalVisionReference } from '../../../../../context/prompt/builder/modelContextBuilder.js'
+import type { RuntimeHistoricalVisionContext, RuntimeHistoricalVisionReference } from '../../../../../context/prompt/turn/runtimeHistoricalVisionTypes.js'
 
 const DEFAULT_MAX_HISTORICAL_IMAGES = 3
 

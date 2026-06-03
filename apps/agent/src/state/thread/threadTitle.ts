@@ -37,16 +37,22 @@ export function truncateThreadTitle(value: string): string {
 }
 
 export function shouldGenerateThreadTitle(thread: AgentThread, userMessage: AgentMessage | undefined): boolean {
-  if (thread.title?.trim() && !isPlaceholderThreadTitle(thread.title)) return false
   if (!userMessage?.content.trim()) return false
+  if (thread.title?.trim() && !isPlaceholderThreadTitle(thread.title)) {
+    return thread.metadata?.titleGenerationStatus === 'pending' && thread.metadata?.titleSource === 'fallback_pending'
+  }
   if (thread.metadata?.titleGeneratedAt) return false
   return true
 }
 
-export function markThreadTitleGenerationPending(thread: AgentThread, now: string): AgentThread {
+export function markThreadTitleGenerationPending(thread: AgentThread, now: string, userMessage?: AgentMessage): AgentThread {
+  if (userMessage?.content.trim()) {
+    thread.title = fallbackThreadTitle(userMessage.content)
+  }
   thread.metadata = {
     ...(thread.metadata ?? {}),
     titleGenerationStatus: 'pending',
+    ...(userMessage ? { titleSourceMessageId: userMessage.id, titleSource: 'fallback_pending' } : {}),
   }
   thread.updatedAt = now
   return thread

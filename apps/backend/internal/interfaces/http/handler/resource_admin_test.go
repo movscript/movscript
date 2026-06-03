@@ -159,6 +159,43 @@ func TestResourceAdminDetailReturnsResourceBindings(t *testing.T) {
 	}
 }
 
+func TestResourceAdminServeFileReadsAnyResource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db, store := newTestResourceAdminRouter(t)
+	store.objects = map[string]string{"resources/admin-preview.png": "admin-preview-bytes"}
+	user := persistencemodel.User{Username: "preview-owner", SystemRole: "user", Status: "active"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	resource := persistencemodel.RawResource{
+		OwnerID:        user.ID,
+		Type:           "image",
+		Name:           "admin-preview.png",
+		FilePath:       "stored:resources/admin-preview.png",
+		StorageKey:     "resources/admin-preview.png",
+		StorageBackend: "local",
+		MimeType:       "image/png",
+		Size:           19,
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/resource-storage/resources/1/file", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected admin resource file to return 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if res.Body.String() != "admin-preview-bytes" {
+		t.Fatalf("unexpected response body: %q", res.Body.String())
+	}
+	if res.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("unexpected Content-Type: %q", res.Header().Get("Content-Type"))
+	}
+}
+
 func TestResourceServeFileReturnsImmutableCacheHeadersAndNotModified(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-resource-serve-file.db", &persistencemodel.User{}, &persistencemodel.RawResource{}, &persistencemodel.ResourceBinding{})
@@ -265,6 +302,7 @@ func newTestResourceAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB, *handlerFa
 
 	router := gin.New()
 	router.GET("/admin/resource-storage/resources/:id/detail", h.ResourceDetail)
+	router.GET("/admin/resource-storage/resources/:id/file", h.ServeFile)
 	router.DELETE("/admin/resource-storage/resources/:id", h.DeleteResource)
 	router.POST("/admin/resource-storage/blobs/gc", h.CollectUnusedBlobs)
 	return router, db, store

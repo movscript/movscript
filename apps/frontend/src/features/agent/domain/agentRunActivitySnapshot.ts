@@ -79,11 +79,11 @@ function activityFromEvents(events: ChatRunActivityEvent[]): ChatRunActivity | u
   const first = sorted[0]
   const last = sorted[sorted.length - 1] ?? first
   const failed = sorted.some((event) => event.status === 'failed' || event.status === 'blocked')
-  const running = sorted.some((event) => event.status === 'started' || event.status === 'in_progress' || event.status === 'info')
+  const running = sorted.some((event) => event.status === 'started' || event.status === 'info')
   return {
     runId: 'pending',
     threadId: 'pending',
-    status: failed ? 'failed' : running ? 'in_progress' : last.status,
+    status: failed ? 'failed' : running ? 'in_progress' : 'completed',
     createdAt: first.createdAt,
     updatedAt: last.completedAt ?? last.createdAt,
     steps: [],

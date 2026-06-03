@@ -4,7 +4,6 @@ import test from 'node:test'
 
 const TRACE_SOURCE_FILES = [
   '../../application/local-command/diagnostics/runtimeLocalDiagnosticCommand.ts',
-  '../../application/local-command/generation/command/runtimeLocalGenerationCommand.ts',
   '../../application/run/completion/success/runtimeRunCompletion.ts',
   '../../application/run/interactions/run/runtimeRunInteraction.ts',
   '../../application/read/post-run/core/runtimePostRunRecords.ts',

@@ -22,12 +22,12 @@ test('applyRuntimeAgentGraphResult pauses runs that require action', () => {
   const result = applyRuntimeAgentGraphResult({
     ...baseInput(store, run, thread, { status: 'requires_action', pendingApprovals: [approval()], pendingInputRequests: [], messages: [], toolOutcomes: [], warnings: ['needs approval'] }),
     recordTrace: (_run, trace) => traces.push(`${trace.kind}:${trace.title}`),
-    emitRunSnapshot: (targetRun, options) => snapshots.push(`${targetRun.status}:${options.done === true}`),
+    emitRunSnapshot: (targetRun, options) => snapshots.push(`${targetRun.status}:${options?.done === true}`),
   })
 
   assert.equal((result as AgentRun).status, 'requires_action')
   assert.deepEqual(traces, ['approval:Approval required'])
-  assert.deepEqual(snapshots, ['requires_action:true'])
+  assert.deepEqual(snapshots, ['requires_action:false'])
   assert.equal(store.getThread('thread_1')?.status, 'requires_action')
 })
 

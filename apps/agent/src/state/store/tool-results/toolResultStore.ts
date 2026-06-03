@@ -4,6 +4,7 @@ import type { JSONValue, ToolCall } from '../../shared/types.js'
 import type { ModelToolResultContext, ModelToolResultRef } from '../../../context/tool-result/toolResultContext.js'
 import { isJSONValue, isRecord } from '../../../shared/json/jsonValue.js'
 import type { RuntimeTelemetryRegistry } from '../../../telemetry/runtime/runtimeTelemetry.js'
+import { resolveAgentRuntimeDataDir } from '../file/fileStore.js'
 
 export interface AgentToolResultRecord {
   schema: 'movscript.agent.tool-result.v1'
@@ -203,12 +204,10 @@ export class FileAgentToolResultStore extends InMemoryAgentToolResultStore {
   }
 }
 
-export function resolveAgentToolResultPath(statePath?: string): string {
+export function resolveAgentToolResultPath(runtimeDataDir = resolveAgentRuntimeDataDir()): string {
   if (process.env.MOVSCRIPT_AGENT_TOOL_RESULTS_PATH) return process.env.MOVSCRIPT_AGENT_TOOL_RESULTS_PATH
   if (process.env.MOVSCRIPT_AGENT_USER_DATA_DIR) return join(process.env.MOVSCRIPT_AGENT_USER_DATA_DIR, 'tool-results.json')
-  const basePath = statePath ?? process.env.MOVSCRIPT_AGENT_STATE_PATH
-  if (basePath) return basePath.replace(/\.json$/, '.tool-results.json')
-  return join(process.cwd(), '.movscript-agent', 'tool-results.json')
+  return join(runtimeDataDir, 'tool-results.json')
 }
 
 function normalizeToolResultRecord(value: unknown): AgentToolResultRecord | undefined {

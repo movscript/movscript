@@ -12,7 +12,7 @@ export function buildRuntimeInputMessageMetadata(input: {
     kind: RUNTIME_INPUT_KIND,
     targetRunId: input.targetRunId,
     mode: input.mode === 'hard' ? 'hard' : 'soft',
-    status: 'accepted',
+    deliveryStatus: 'accepted',
   }
 }
 

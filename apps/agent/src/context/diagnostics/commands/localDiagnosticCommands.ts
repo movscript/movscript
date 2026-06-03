@@ -14,8 +14,9 @@ import type {
 import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
 import type { AgentMemory } from '../../../memory/shared/types.js'
 import type { AgentRuntimeContractResolver } from '../../../contracts/runtime/runtimeContract.js'
-import type { SkillDiscoverySummary } from '../../prompt/builder/modelContextBuilder.js'
-import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId, parseToolResult } from '../../runtime/runtimeContext.js'
+import type { SkillDiscoverySummary } from '../../prompt/registry/promptCandidateParts.js'
+import { promptBundleDebugParts, promptBundleFragments } from '../../prompt/compiler/promptBundle.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from '../../runtime/runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from '../../prompt/text/contextText.js'
 import { renderFinalAssistantContent } from '../sources/finalSourceSummary.js'
 import { modelTurnContext } from '../../prompt/turn/modelTurnContext.js'
@@ -42,7 +43,6 @@ export function buildLocalDiagnosticFallbackContextResult(clientInput: Normalize
         ...(typeof ui.project.description === 'string' ? { description: ui.project.description } : {}),
       },
     } : {}),
-    ...(isValidAgentEntityId(ui?.productionId) ? { productionId: ui.productionId } : {}),
     selection: ui?.selection
       ? {
         ...(typeof ui.selection.entityType === 'string' ? { entityType: ui.selection.entityType } : {}),
@@ -106,27 +106,29 @@ export function buildLocalDiagnosticCommand(input: {
       context: input.context,
       tools: input.tools,
       runtimeLimits: input.runtimeLimits,
-      memories: input.memories,
       warnings: input.warnings,
       history: input.history,
       userMessage: input.userMessage,
       command: input.command,
       contractResolver: input.contractResolver,
     })
-    const { builtContext } = composedTurnContext
+    const { promptContext } = composedTurnContext
     return {
-      content: renderModelGatewayMessagesText(builtContext.messages),
+      content: renderModelGatewayMessagesText(promptContext.providerProjection.messages),
       metadata: {
         schema: 'movscript.local_context_diagnostic.v1',
         command: input.command as unknown as JSONValue,
         modelGatewayCalled: false,
-        messages: builtContext.messages.map((message) => ({
+        messages: promptContext.providerProjection.messages.map((message) => ({
           role: message.role,
           content: runtimeModelContentText(message.content),
         })) as unknown as JSONValue,
-        systemPrompt: builtContext.systemPrompt,
-        debugParts: builtContext.debugParts as unknown as JSONValue,
-        promptStats: builtContext.promptStats as unknown as JSONValue,
+        systemPrompt: promptContext.promptBundle.sectionPrompt,
+        sectionPrompt: promptContext.promptBundle.sectionPrompt,
+        providerSystemPrompt: promptContext.providerProjection.systemPrompt,
+        debugParts: promptBundleDebugParts(promptContext.promptBundle) as unknown as JSONValue,
+        promptFragments: promptBundleFragments(promptContext.promptBundle) as unknown as JSONValue,
+        promptStats: promptContext.promptStats as unknown as JSONValue,
         tools: {
           available: compactDiagnosticTools(input.tools.available),
           blocked: compactDiagnosticTools(input.tools.blocked),
@@ -143,7 +145,7 @@ export function buildLocalDiagnosticCommand(input: {
           activationReason: skill.activationReason,
           resolvedPriority: skill.resolvedPriority,
         })) as unknown as JSONValue,
-        warnings: builtContext.warnings as unknown as JSONValue,
+        warnings: promptContext.warnings as unknown as JSONValue,
       },
     }
   }
@@ -160,7 +162,6 @@ export function buildLocalDiagnosticCommand(input: {
       context: input.context,
       tools: input.tools,
       runtimeLimits: input.runtimeLimits,
-      memories: input.memories,
       warnings: input.warnings,
       history: promptHistory.messages,
       historyProjection: promptHistory,
@@ -169,7 +170,7 @@ export function buildLocalDiagnosticCommand(input: {
       command: input.command,
       contractResolver: input.contractResolver,
     })
-    const { builtContext } = composedTurnContext
+    const { promptContext } = composedTurnContext
     const status = buildRuntimeStatusDiagnostic({
       run: input.run,
       manifest: input.manifest,
@@ -177,16 +178,16 @@ export function buildLocalDiagnosticCommand(input: {
       skillDiscovery: input.skillDiscovery,
       tools: input.tools,
       memories: input.memories,
-      warnings: builtContext.warnings,
-      promptStats: builtContext.promptStats,
-      messageCount: builtContext.messages.length,
-      systemMessageCount: builtContext.systemMessages.length,
+      warnings: promptContext.warnings,
+      promptStats: promptContext.promptStats,
+      messageCount: promptContext.providerProjection.messages.length,
+      systemMessageCount: promptContext.providerProjection.systemMessages.length,
       historyInputCount: input.history.length,
       historyRetainedCount: promptHistory.messages.length,
       historyCompactedCount: promptHistory.compactedCount,
       hasThreadSummary: Boolean(promptHistory.summary),
       modelToolCount: composedTurnContext.tools.length,
-      degraded: builtContext.degraded,
+      degraded: promptContext.degraded,
     })
     return {
       content: renderRuntimeStatusDiagnostic(status),
@@ -206,7 +207,6 @@ export function buildLocalDiagnosticCommand(input: {
       context: input.context,
       tools: input.tools,
       runtimeLimits: input.runtimeLimits,
-      memories: input.memories,
       warnings: input.warnings,
       history: promptHistory.messages,
       historyProjection: promptHistory,
@@ -217,13 +217,13 @@ export function buildLocalDiagnosticCommand(input: {
     })
     const compact = buildRuntimeCompactDiagnostic({
       run: input.run,
-      promptStats: composedTurnContext.builtContext.promptStats,
+      promptStats: composedTurnContext.promptContext.promptStats,
       historyInputCount: input.history.length,
       historyRetainedCount: promptHistory.messages.length,
       historyCompactedCount: promptHistory.compactedCount,
       summary: promptHistory.summary,
-      warnings: composedTurnContext.builtContext.warnings,
-      degraded: composedTurnContext.builtContext.degraded,
+      warnings: composedTurnContext.promptContext.warnings,
+      degraded: composedTurnContext.promptContext.degraded,
     })
     return {
       content: renderRuntimeCompactDiagnostic(compact),
@@ -313,7 +313,7 @@ interface RuntimeCompactDiagnostic {
 
 function buildRuntimeCompactDiagnostic(input: {
   run: AgentRun
-  promptStats: ReturnType<typeof modelTurnContext.composeModelContext>['promptStats']
+  promptStats: ReturnType<typeof modelTurnContext.composeRuntimePromptContext>['promptStats']
   historyInputCount: number
   historyRetainedCount: number
   historyCompactedCount: number
@@ -374,7 +374,7 @@ function buildRuntimeStatusDiagnostic(input: {
   tools: ResolvedToolCatalog
   memories: AgentMemory[]
   warnings: string[]
-  promptStats: ReturnType<typeof modelTurnContext.composeModelContext>['promptStats']
+  promptStats: ReturnType<typeof modelTurnContext.composeRuntimePromptContext>['promptStats']
   messageCount: number
   systemMessageCount: number
   historyInputCount: number
@@ -529,149 +529,9 @@ export function renderLocalFinalAssistantContent(input: {
   if (input.command.name === 'memory') {
     return renderMemoryFilesText(input.memories, input.memoryStorePath)
   }
-  if (input.command.name === 'image') {
-    return renderLocalGenerationCommand({
-      command: input.command.rawName ?? '/image',
-      run: input.run,
-      warnings: input.warnings,
-      toolResults: input.toolResults ?? [],
-      modelContent: input.modelContent,
-    })
-  }
-  if (input.command.name === 'video') {
-    return renderLocalGenerationCommand({
-      command: input.command.rawName ?? '/video',
-      run: input.run,
-      warnings: input.warnings,
-      toolResults: input.toolResults ?? [],
-      modelContent: input.modelContent,
-    })
-  }
   return renderFinalAssistantContent(input.modelContent, {
     run: input.run,
   })
-}
-
-export interface GenerationDebugCommandSpec {
-  prompt: string
-  outputType: 'image' | 'video'
-  jobType: 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
-  aspectRatio?: string
-  duration?: number
-  sourceKey: string
-  timeoutMs: number
-  extraParams: Record<string, JSONValue>
-  referenceResourceIds: number[]
-}
-
-export function parseGenerationDebugCommand(command: AgentCommandRuntime): GenerationDebugCommandSpec | undefined {
-  if (command.name !== 'image' && command.name !== 'video') return undefined
-  const prompt = command.payload.trim() || '一段电影感的动态镜头，强调运动、光影和节奏。'
-  const referenceResourceIds = extractReferenceResourceIds(command.payload)
-  const outputType = command.name === 'image' ? 'image' : 'video'
-  return {
-    prompt,
-    outputType,
-    jobType: outputType === 'image'
-      ? (referenceResourceIds.length > 0 ? 'image_edit' : 'image')
-      : (referenceResourceIds.length > 0 ? 'video_i2v' : 'video'),
-    ...(outputType === 'video' ? { aspectRatio: extractAspectRatio(command.payload) ?? '16:9' } : {}),
-    ...(outputType === 'video' ? { duration: extractDuration(command.payload) ?? 5 } : {}),
-    sourceKey: outputType === 'image' ? 'plugin.image_generator' : 'plugin.video_generator',
-    timeoutMs: 600_000,
-    extraParams: {
-      ...(outputType === 'video' && extractFps(command.payload) !== undefined ? { fps: extractFps(command.payload) } : {}),
-    },
-    referenceResourceIds,
-  }
-}
-
-function renderLocalGenerationCommand(input: {
-  command: string
-  run: AgentRun
-  warnings: string[]
-  toolResults: ToolCallOutcome[]
-  modelContent: string
-}): string {
-  const toolOutcome = input.toolResults[0]
-  const parsed = toolOutcome && !toolOutcome.error && isRecord(parseToolResult(toolOutcome.result ?? null))
-    ? parseToolResult(toolOutcome.result ?? null)
-    : undefined
-  const parsedRecord = findGenerationPayload(parsed)
-  const jobId = isValidAgentEntityId(parsedRecord?.jobId) ? parsedRecord.jobId : undefined
-  const status = typeof parsedRecord?.status === 'string' ? parsedRecord.status : undefined
-  const outputResourceId = isValidAgentEntityId(parsedRecord?.output_resource_id)
-    ? parsedRecord.output_resource_id
-    : isValidAgentEntityId(parsedRecord?.outputResourceId)
-      ? parsedRecord.outputResourceId
-      : undefined
-  const lines = [
-    `Command: ${input.command}`,
-    `Run: ${input.run.id}`,
-    `Thread: ${input.run.threadId}`,
-    '',
-    jobId !== undefined ? `Job #${jobId}` : 'No job id was returned.',
-    status ? `Status: ${status}` : undefined,
-    outputResourceId !== undefined ? `Output resource: #${outputResourceId}` : undefined,
-    toolOutcome?.error ? `Error: ${toolOutcome.error}` : undefined,
-    input.modelContent.trim() ? input.modelContent.trim() : undefined,
-  ]
-  if (input.warnings.length > 0) {
-    lines.push('', 'Warnings:', ...input.warnings.map((warning) => `- ${warning}`))
-  }
-  return lines.filter((line): line is string => typeof line === 'string' && line.length > 0).join('\n')
-}
-
-function findGenerationPayload(value: unknown): Record<string, unknown> | undefined {
-  if (!isRecord(value)) return undefined
-  if (isRecord(value.work)) {
-    const found = findGenerationPayload(value.work)
-    if (found) return found
-  }
-  if (isRecord(value.result)) {
-    const found = findGenerationPayload(value.result)
-    if (found) return found
-  }
-  for (const key of ['completed', 'failed', 'cancelled', 'pending']) {
-    const items = value[key]
-    if (!Array.isArray(items)) continue
-    for (const item of items) {
-      const found = findGenerationPayload(item)
-      if (found) return found
-    }
-  }
-  if (
-    isValidAgentEntityId(value.jobId)
-    || isValidAgentEntityId(value.output_resource_id)
-    || isValidAgentEntityId(value.outputResourceId)
-    || typeof value.status === 'string'
-  ) return value
-  return undefined
-}
-
-function extractReferenceResourceIds(text: string): number[] {
-  const matches = text.match(/(?:ref|reference|资源|资源id|resource)\s*[:=]?\s*([0-9,\s]+)/i)
-  if (!matches?.[1]) return []
-  return matches[1]
-    .split(',')
-    .map((value) => Number(value.trim()))
-    .filter((value) => Number.isFinite(value) && value > 0)
-}
-
-function extractAspectRatio(text: string): string | undefined {
-  return text.match(/(16:9|9:16|1:1|4:3|3:4)/)?.[1]
-}
-
-function extractDuration(text: string): number | undefined {
-  const match = text.match(/(\d+(?:\.\d+)?)\s*(?:s|秒)/i)
-  const value = match ? Number(match[1]) : undefined
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
-}
-
-function extractFps(text: string): number | undefined {
-  const match = text.match(/fps\s*[:=]?\s*(\d+(?:\.\d+)?)/i)
-  const value = match ? Number(match[1]) : undefined
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function renderLocalContextCommand(input: {

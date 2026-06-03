@@ -78,6 +78,7 @@ test('applyRuntimeLocalDiagnosticCommand completes memory diagnostic run without
     emitRunSnapshot: (targetRun, options) => snapshots.push(`${targetRun.status}:${options.done === true}`),
   })
 
+  assert.ok(assistant)
   assert.equal(assistant.id, run.assistantMessageId)
   assert.equal(run.status, 'completed')
   assert.deepEqual(run.metadata?.memoryIds, ['mem_1'])
@@ -105,7 +106,7 @@ test('applyRuntimeLocalDiagnosticCommand completes memory diagnostic run without
   assert.deepEqual(snapshots, ['completed:true'])
 })
 
-test('applyRuntimeLocalDiagnosticCommand preserves warning completion status and context diagnostic metadata', () => {
+test('applyRuntimeLocalDiagnosticCommand records context diagnostics outside transcript messages', () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   const run = makeRun({ status: 'in_progress' })
@@ -113,7 +114,7 @@ test('applyRuntimeLocalDiagnosticCommand preserves warning completion status and
   store.createRun(run)
   let completedStep: AgentRunStep | undefined
 
-  applyRuntimeLocalDiagnosticCommand({
+  const assistant = applyRuntimeLocalDiagnosticCommand({
     store,
     run,
     thread,
@@ -147,10 +148,16 @@ test('applyRuntimeLocalDiagnosticCommand preserves warning completion status and
   })
 
   const diagnostic = (completedStep?.result as any)?.diagnostic
+  assert.equal(assistant, undefined)
   assert.equal(run.status, 'completed_with_warnings')
+  assert.equal(run.assistantMessageId, undefined)
   assert.deepEqual(run.warnings, ['Focus unavailable: mcp offline'])
-  assert.equal((thread.messages.at(-1)?.metadata as any)?.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
-  assert.equal((thread.messages.at(-1)?.metadata as any)?.contextDiagnostic?.modelGatewayCalled, false)
+  assert.deepEqual(thread.messages.map((message) => message.role), ['user'])
+  assert.equal(thread.contextDiagnostics?.length, 1)
+  assert.equal(thread.contextDiagnostics?.[0]?.runId, run.id)
+  assert.equal(thread.contextDiagnostics?.[0]?.command, '/context')
+  assert.equal(thread.contextDiagnostics?.[0]?.diagnostic.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal(thread.contextDiagnostics?.[0]?.diagnostic.modelGatewayCalled, false)
   assert.equal(diagnostic?.schema, 'movscript.local_context_diagnostic.v1')
   assert.equal(diagnostic?.modelGatewayCalled, false)
   assert.equal(Array.isArray(diagnostic?.messages), true)
@@ -207,6 +214,7 @@ test('applyRuntimeLocalDiagnosticCommand completes compact command and refreshes
   })
 
   const diagnostic = (completedStep?.result as any)?.diagnostic
+  assert.ok(assistant)
   assert.equal(run.status, 'completed')
   assert.equal((completedStep?.result as any)?.localCommand, 'compact')
   assert.equal(diagnostic?.schema, 'movscript.local_compact_diagnostic.v1')

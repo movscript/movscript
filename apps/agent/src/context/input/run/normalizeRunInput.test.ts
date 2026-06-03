@@ -58,10 +58,12 @@ test('normalizeWorkspaceQuery drops invalid numeric entity reference ids', () =>
     sourceEntityId: 0,
     pageEntityType: 'production',
     pageEntityId: 7.5,
+    current: true,
   }), {
     projectId: 42,
     sourceEntityType: 'scene',
     pageEntityType: 'production',
+    current: true,
   })
 
   assert.deepEqual(normalizeWorkspaceQuery({

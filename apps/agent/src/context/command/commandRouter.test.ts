@@ -28,16 +28,12 @@ test('parses explicit agent diagnostic commands', () => {
   assert.equal(compact.requiredTools.length, 0)
 
   const image = parseAgentCommand('/image 一张雨夜便利店概念图')
-  assert.equal(image.name, 'image')
-  assert.equal(image.contextMode, 'minimal')
-  assert.equal(image.outputMode, 'natural')
-  assert.deepEqual(image.requiredTools, ['core_work_start'])
+  assert.equal(image.name, 'chat')
+  assert.equal(image.payload, '/image 一张雨夜便利店概念图')
 
   const video = parseAgentCommand('/video 一段雨夜街头追车镜头')
-  assert.equal(video.name, 'video')
-  assert.equal(video.contextMode, 'minimal')
-  assert.equal(video.outputMode, 'natural')
-  assert.deepEqual(video.requiredTools, ['core_work_start'])
+  assert.equal(video.name, 'chat')
+  assert.equal(video.payload, '/video 一段雨夜街头追车镜头')
 })
 
 test('removed business slash commands are parsed as chat text', () => {

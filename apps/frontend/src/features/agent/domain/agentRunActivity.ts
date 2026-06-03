@@ -35,8 +35,6 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
             ...(approval.displayThreadId ? { displayThreadId: approval.displayThreadId } : {}),
             ...(approval.displayAnchor ? { displayAnchor: approval.displayAnchor } : {}),
             toolName: approval.toolName,
-            ...(approval.args ? { args: approval.args } : {}),
-            ...(approval.preview !== undefined ? { preview: approval.preview } : {}),
             reason: approval.reason,
             ...(approval.risk ? { risk: approval.risk } : {}),
             ...(approval.permission ? { permission: approval.permission } : {}),
@@ -81,8 +79,6 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
         ...(step.roundSource ? { roundSource: step.roundSource } : {}),
         ...(step.title ? { title: step.title } : {}),
         ...(step.toolName ? { toolName: step.toolName } : {}),
-        ...(step.args ? { args: step.args } : {}),
-        ...(step.result !== undefined ? { result: step.result } : {}),
         ...(step.error ? { error: step.error } : {}),
         ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
         ...(typeof step.durationMs === 'number' ? { durationMs: step.durationMs } : {}),
@@ -120,11 +116,52 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
       ...(trace.summary ? { summary: trace.summary } : {}),
       ...(trace.toolName ? { toolName: trace.toolName } : {}),
       ...(trace.stepId ? { stepId: trace.stepId } : {}),
-      ...(trace.data !== undefined ? { data: trace.data } : {}),
+      ...(compactTimelineTraceData(trace.data) !== undefined ? { data: compactTimelineTraceData(trace.data) } : {}),
       ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
       createdAt: trace.createdAt,
       ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
     }))
+}
+
+function compactTimelineTraceData(data: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(data)) return undefined
+  const generation = compactGenerationTraceData(data.generation)
+  if (!generation) return undefined
+  return { generation }
+}
+
+function compactGenerationTraceData(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined
+  const generation: Record<string, unknown> = {}
+  for (const key of [
+    'jobId',
+    'jobType',
+    'providerName',
+    'modelDisplay',
+    'modelIdentifier',
+    'modelConfigId',
+    'status',
+    'stage',
+    'progress',
+    'terminal',
+    'outputResourceId',
+    'output_resource_id',
+    'message',
+  ]) {
+    const item = value[key]
+    if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') generation[key] = item
+  }
+  const outputResourceIds = primitiveArray(value.outputResourceIds) ?? primitiveArray(value.output_resource_ids)
+  if (outputResourceIds?.length) generation.outputResourceIds = outputResourceIds
+  return Object.keys(generation).length > 0 ? generation : undefined
+}
+
+function primitiveArray(value: unknown): Array<string | number | boolean> | undefined {
+  if (!Array.isArray(value)) return undefined
+  const values = value.filter((item): item is string | number | boolean => (
+    typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+  ))
+  return values.length > 0 ? values : undefined
 }
 
 export function liveTraceEventKey(event: ChatRunActivityEvent): string {
@@ -175,6 +212,7 @@ export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRu
 
 function chatRunActivityEventFromTrace(trace: AgentTraceEvent, event?: AgentRuntimeEventV2): ChatRunActivityEvent {
   const runId = trace.runId || (event ? runtimeRunIdFromEvent(event) : undefined)
+  const data = isRecord(trace.data) ? trace.data : undefined
   return {
     id: trace.id,
     ...(runId ? { runId } : {}),
@@ -189,7 +227,7 @@ function chatRunActivityEventFromTrace(trace: AgentTraceEvent, event?: AgentRunt
     ...(trace.summary ? { summary: trace.summary } : {}),
     ...(trace.toolName ? { toolName: trace.toolName } : {}),
     ...(trace.stepId ? { stepId: trace.stepId } : {}),
-    ...(trace.data !== undefined ? { data: trace.data } : {}),
+    ...(data !== undefined ? { data } : {}),
     ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
     createdAt: trace.createdAt,
     ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),

@@ -39,6 +39,7 @@ export interface AgentChatHeaderSectionProps {
   pinnedStatusExpanded?: boolean
   showPinnedStatusControl?: boolean
   onNewConversation: () => void
+  onRenameConversation: (id: string, title: string) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
   onTogglePinnedStatus?: () => void
@@ -54,13 +55,15 @@ export function AgentChatHeaderSection({
   showCollapse = true,
   showConversationControls = true,
   activeConversationRuntimeStatusLight,
+  onRenameConversation,
   onReorderConversation,
   onSelectConversation,
 }: AgentChatHeaderSectionProps) {
   const { t } = useTranslation()
   const conversationTabs = useMemo(() => {
-    if (conversations.some((item) => item.id === activeConversation.id)) return conversations
-    return [activeConversation, ...conversations]
+    const hasActiveConversation = conversations.some((item) => item.id === activeConversation.id)
+    const mapped = conversations.map((item) => item.id === activeConversation.id ? { ...item, ...activeConversation } : item)
+    return hasActiveConversation ? mapped : [activeConversation, ...mapped]
   }, [activeConversation, conversations])
   const tabRuntimeStatusLights = useAgentConversationTabRuntimeStatusLights(conversationTabs)
   const runtimeStatusLights = useMemo(() => {
@@ -203,6 +206,7 @@ export function AgentChatHeaderSection({
               onCloseTabContextMenu={closeTabContextMenu}
               onOpenKeyboardMenu={openConversationTabKeyboardMenu}
               onOpenMenu={openConversationTabMenu}
+              onRenameConversation={onRenameConversation}
               onReorderConversation={onReorderConversation}
               onSelectConversation={onSelectConversation}
             />

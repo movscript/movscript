@@ -48,7 +48,7 @@ export function applyRuntimeAgentGraphResult(input: {
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
   deferPostRunRecords: Parameters<typeof applyRuntimeRunCompletion>[0]['deferPostRunRecords']
-}): AgentRun | AgentMessage {
+}): AgentRun | AgentMessage | undefined {
   if (input.result.status === 'requires_action') {
     const inputOnly = (input.result.pendingInputRequests?.length ?? 0) > 0
       && input.result.pendingApprovals.length === 0

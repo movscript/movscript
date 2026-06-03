@@ -40,6 +40,8 @@ export interface AgentSendWorkspace {
   }
   httpRequests: DebugHttpRequest[]
   localRuntime?: {
+    workspaceDir?: string
+    sessionId?: string
     threadId?: string
     title?: string
     projectId?: number
@@ -79,6 +81,8 @@ export interface AgentSendWorkspaceOptions {
   timeoutMs?: number
   omitDebugArtifacts?: boolean
   performanceOperationId?: string
+  localRuntimeWorkspaceDir?: string
+  localRuntimeSessionId?: string
 }
 
 export interface AgentSendWorkspaceHttpLabels {
@@ -97,7 +101,6 @@ export interface AgentSendWorkspacePreviewDeps {
   localAgentOnline: boolean
   ensureRunning: () => Promise<unknown>
   refetchLocalAgentHealth: () => Promise<unknown>
-  assertMCPReady: () => Promise<unknown>
   syncRuntimeModelConfig: (modelId?: string) => Promise<unknown>
   previewRun: (input: {
     threadId?: string
@@ -183,9 +186,13 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
     { role: 'user' as const, content: enrichedUserContent },
   ]
   const debugMessages = options.omitDebugArtifacts ? [] : messages
-  const threadId = input.localThreadId || undefined
+  const sessionId = options.localRuntimeSessionId?.trim() || undefined
+  const threadId = sessionId ? undefined : input.localThreadId || undefined
+  const workspaceDir = options.localRuntimeWorkspaceDir?.trim() || undefined
   const localRuntimeProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
   const localRuntime: AgentSendWorkspace['localRuntime'] = {
+    ...(workspaceDir ? { workspaceDir } : {}),
+    ...(sessionId ? { sessionId } : {}),
     ...(threadId ? { threadId } : {}),
     ...(threadId && (options.title ?? taskPayload?.title) ? { title: options.title ?? taskPayload?.title } : {}),
     ...(localRuntimeProjectId !== undefined ? { projectId: localRuntimeProjectId } : {}),
@@ -203,7 +210,6 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
         await input.previewDeps.ensureRunning()
         await input.previewDeps.refetchLocalAgentHealth()
       }
-      await input.previewDeps.assertMCPReady()
       await input.previewDeps.syncRuntimeModelConfig(input.activeModel ? publicModelId(input.activeModel) : undefined)
       try {
         localRuntime.preview = await input.previewDeps.previewRun({
@@ -362,66 +368,34 @@ export function buildDebugHttpRequests(options: {
     })
   }
 
-  const threadId = options.localRuntime?.threadId
-  const resolvedThreadId = threadId ?? '{threadId from POST /threads}'
-  const threadRequests: DebugHttpRequest[] = threadId
-    ? [{
-      id: 'local-get-thread',
-      label: options.labels.loadExistingThread,
-      method: 'GET',
-      url: `${options.baseURL}/threads/${encodeURIComponent(threadId)}`,
-      note: options.labels.missingThreadFallback,
-    }]
-    : [{
-      id: 'local-create-thread',
-      label: options.labels.createThread,
-      method: 'POST',
-      url: `${options.baseURL}/threads`,
-      headers: { 'Content-Type': 'application/json' },
-      body: {
-        title: options.localRuntime?.title,
+  const sessionId = options.localRuntime?.sessionId?.trim()
+  if (sessionId) {
+    requests.push(
+      {
+        id: 'local-session-message-run',
+        label: options.labels.createRun,
+        method: 'POST',
+        url: `${options.baseURL}/sessions/${encodeURIComponent(sessionId)}/runs`,
+        headers: { 'Content-Type': 'application/json' },
+        body: {
+          message: options.localRuntime?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
+          ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
+        },
       },
-    }]
+      {
+        id: 'local-poll-run',
+        label: options.labels.pollRun,
+        method: 'GET',
+        url: `${options.baseURL}/runs/{runId}`,
+        note: options.labels.pollRunNote,
+      },
+    )
+    return requests.map((request) => ({
+      ...request,
+      ...(request.body !== undefined ? { body: compactDebugValue(request.body) } : {}),
+    }))
+  }
 
-  requests.push(
-    ...threadRequests,
-    {
-      id: 'local-add-message',
-      label: options.labels.appendUserMessage,
-      method: 'POST',
-      url: `${options.baseURL}/threads/${resolvedThreadId}/messages`,
-      headers: { 'Content-Type': 'application/json' },
-      body: {
-        role: 'user',
-        content: options.localRuntime?.clientInput?.message ?? options.messages.at(-1)?.content ?? '',
-        ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
-      },
-    },
-    {
-      id: 'local-create-run',
-      label: options.labels.createRun,
-      method: 'POST',
-      url: `${options.baseURL}/runs`,
-      headers: { 'Content-Type': 'application/json' },
-      body: {
-        threadId: resolvedThreadId,
-        ...(options.localRuntime?.clientInput ? { clientInput: options.localRuntime.clientInput } : {}),
-      },
-    },
-    {
-      id: 'local-poll-run',
-      label: options.labels.pollRun,
-      method: 'GET',
-      url: `${options.baseURL}/runs/{runId}`,
-      note: options.labels.pollRunNote,
-    },
-    {
-      id: 'local-final-thread',
-      label: options.labels.fetchFinalThread,
-      method: 'GET',
-      url: `${options.baseURL}/threads/${resolvedThreadId}`,
-    },
-  )
   return requests.map((request) => ({
     ...request,
     ...(request.body !== undefined ? { body: compactDebugValue(request.body) } : {}),

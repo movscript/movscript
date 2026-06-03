@@ -811,7 +811,6 @@ export interface CanvasExecutableSpec {
   capability: CanvasExecutableCapability
   modelId?: string
   modelDbId?: number
-  pluginToolKey?: string
   prompt?: string
   inputResourceIds?: number[]
   aspectRatio?: string
@@ -925,7 +924,6 @@ export interface PluginCanvasNodeContribution {
   type: string
   title: string
   description?: string
-  tool?: string
   inputs?: CanvasPortDef[]
   outputs?: CanvasPortDef[]
   card?: string

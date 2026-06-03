@@ -90,7 +90,7 @@ Both boundaries return transport-neutral results to application/domain code. Bac
 `catalog/` separates durable catalog concerns from runtime activation:
 
 - `catalog/manifest/` owns current-agent manifest defaults and normalization.
-- `catalog/loading/` owns file/plugin catalog loading, reload staging, MCP virtual packs, and pack install/remove.
+- `catalog/loading/` owns built-in file catalog loading, frontend/shared-store plugin catalog loading, reload staging, and MCP virtual packs. Pack install/remove belongs to the desktop/shared pack store boundary, not the session agent process.
 - `catalog/registry/` owns catalog registry types, registry construction, and persisted catalog state.
 - `catalog/inspect/` owns public catalog inspect views and catalog issue blocking rules.
 - `catalog/validation/` owns linter and layering invariants.
@@ -139,20 +139,20 @@ The agent runtime separates three concepts that are easy to conflate:
 
 Conversation state has four separate projections and new code must keep their boundaries explicit:
 
-- Transcript messages are durable natural-language conversation turns in `thread.messages`. They are the only message records eligible for routine prompt history. User text and final assistant answers belong here; tool-call bodies, tool results, reasoning streams, activity cards, approvals, and async-work status payloads do not. If a UI-only assistant record must be stored as a message anchor, its metadata must set `promptHistory: "exclude"` and the prompt hygiene layer must drop it before compaction.
+- Transcript messages are durable natural-language conversation turns in `thread.messages`. They are the only message records eligible for routine prompt history. User text and final assistant answers belong here; tool-call bodies, tool results, reasoning streams, activity cards, approvals, plan revisions, diagnostics, and async-work status payloads do not.
 - Run activity is operational state for one run. Tool calls/results, model rounds, reasoning, approvals, input requests, async-work lifecycle events, and debug traces belong to `AgentRun.steps`, `AgentRun.traceEvents`, pending interaction records, debug evidence, or tool-result storage. They are UI/debug material, not transcript history.
-- Message feed is the UI projection. Server protocol code may attach compact run activity to an `AgentFeedMessage` as a display anchor, but that attachment does not make the activity part of the transcript or model context.
-- Message feed activity is a compact display summary. It must not carry raw tool args, tool results, approval args/previews, model request/response bodies, or arbitrary trace `data`; keep those behind debug/evidence APIs. The narrow exception is whitelisted generation progress metadata needed by the pinned generation status.
+- Timeline projection is the UI projection. Server protocol code exposes `AgentTimelineItem`; every item must carry explicit `origin`, `purpose`, `surface`, `contentPromptEligibility`, and `sortRank` semantics. `purpose: "transcript"` means conversation text; prompt history eligibility is controlled only by `contentPromptEligibility`. Compact run activity attached to a final assistant transcript item is display data; it does not make activity part of the transcript or model context.
+- Timeline activity uses the sanitized `AgentTimelineActivity` type. It must not carry raw tool args, tool results, approval args/previews, model request/response bodies, or arbitrary trace `data`; keep those behind debug/evidence APIs. The narrow exception is whitelisted generation progress metadata needed by the pinned generation status.
 - Model context is built from prompt-safe transcript history, current-run tool-loop history, thread summaries, context ledger refs, runtime state, and the current user input. Old run tool results can re-enter a later prompt only through explicit refs/summaries/context records, never by leaking UI activity or status messages through `thread.messages`.
+- Timeline cursors are opaque pagination tokens. Server and client ordering must use explicit item fields: `createdAt`, `sortRank`, then `id`; clients must not parse cursor internals for display order.
 
 Assistant metadata boundaries are centralized in `@movscript/protocol`:
 
-- UI-only assistant anchors are display/control records such as runtime status, runtime activity, plan revision display records, diagnostics, and explicit `promptHistory: "exclude"` anchors. They must not terminate a streaming final assistant response.
-- UI-only assistant anchors may remain in raw message/feed state so pinned status, plan state, and diagnostics can read their metadata, but thread item builders must filter them from the chat timeline.
-- Prompt-excluded assistant metadata includes UI-only anchors plus local run activity snapshots. This broader boundary is used before prompt compaction so operational payloads cannot return through model history.
-- Frontend feed messages may carry `localRunActivity` as a compact process snapshot alongside a real final assistant answer. That snapshot is not enough by itself to classify the assistant answer as UI-only.
+- Runtime status, plan revisions, diagnostics, and compact activity are display/control projections. They may remain in raw timeline state so pinned status, plan state, and diagnostics can read their metadata, but they must project to non-`message_stream` surfaces unless they are attached to real transcript content.
+- Prompt-excluded assistant metadata is an explicit hygiene boundary. Existing assistant messages are excluded from prompt history only when metadata declares `promptEligibility: "exclude"`; display activity, status, diagnostics, or payload-shaped metadata must not create implicit prompt-history rules.
+- Frontend transcript view-models may attach sanitized `AgentTimelineActivity` as `timelineActivity` display data derived from timeline items. It is not chat message metadata, not a message source, not a prompt source, and not a debug payload carrier; raw args/results/previews stay behind run debug/evidence APIs.
 
-Prompt history must pass through `context/prompt/hygiene/promptHygiene.ts`. Prompt-excluded assistant messages are filtered before compaction so their content cannot return through a summary. New UI-only message kinds should prefer the explicit `promptHistory: "exclude"` metadata over implicit filtering by kind.
+Prompt history must pass through `context/prompt/hygiene/promptHygiene.ts`. Prompt-excluded assistant messages are filtered before compaction so their content cannot return through a summary. New display/control data should be modeled as timeline/status/debug projection data, not as assistant message kinds.
 
 The default data shape for cross-domain links is a ref:
 

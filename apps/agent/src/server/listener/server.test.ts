@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -12,6 +12,7 @@ import { DEFAULT_MAX_JSON_BODY_BYTES } from '../core/http.js'
 import type { AgentServerContext } from '../../bootstrap/server/agentServerContext.js'
 import { RuntimeModelConfigStore } from '../../model/config/modelConfig.js'
 import { RuntimeTelemetryRegistry } from '../../telemetry/runtime/runtimeTelemetry.js'
+import { MCPToolProviderRegistry } from '../../adapters/mcp/providers/mcpToolProviderRegistry.js'
 import type { AgentThreadSummary } from '../../state/shared/types.js'
 
 test('normalizeTraceQuery accepts bounded pagination and known trace kind', () => {
@@ -113,11 +114,14 @@ test('telemetry endpoints expose runtime snapshot and prometheus-compatible metr
 })
 
 test('runtime health endpoints split liveness, compatibility, and heavier capabilities', async () => {
+  const toolProviderRegistry = new MCPToolProviderRegistry('http://127.0.0.1:18765/mcp')
   const handler = createAgentRequestListener({
     mcpEndpoint: 'http://127.0.0.1:18765/mcp',
+    toolProviderRegistry,
     paths: {
-      statePath: '/tmp/agent-state.json',
+      runtimeDataDir: '/tmp/agent-runtime',
       memoryPath: '/tmp/agent-memory.json',
+      runtimeLogPath: '/tmp/agent-runtime-log/events.jsonl',
       workspacePath: '/tmp/agent-workspaces.json',
       toolResultPath: '/tmp/agent-tool-results.json',
       catalogStatePath: '/tmp/agent-catalog.json',
@@ -159,15 +163,18 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
   const compatBody = JSON.parse(compat.body)
   assert.equal(compatBody.ok, true)
   assert.equal(compatBody.service, 'movscript-agent')
-  assert.equal(compatBody.mcpEndpoint, 'http://127.0.0.1:18765/mcp')
+  assert.equal(compatBody.mcpEndpoint, undefined)
   assert.equal(compatBody.runtime.apiVersion, 1)
   assert.equal(compatBody.runtime.features.includes('runtime-compat'), true)
+  assert.equal(compatBody.runtime.features.includes('dynamic-tool-providers'), true)
   assert.equal(compatBody.runtime.endpoints.includes('/livez'), true)
+  assert.equal(compatBody.runtime.endpoints.includes('/runtime/tool-providers'), true)
   assert.equal(compatBody.pluginCatalog, undefined)
 
   assert.equal(legacyHealth.statusCode, 200)
   const healthBody = JSON.parse(legacyHealth.body)
   assert.equal(healthBody.ok, true)
+  assert.equal(healthBody.paths.runtimeDataDir, '/tmp/agent-runtime')
   assert.equal(healthBody.workspacePath, '/tmp/agent-workspaces.json')
   assert.equal(healthBody.modelConfigPath, '/tmp/agent-model-config.json')
   assert.equal(healthBody.modelConfig, undefined)
@@ -179,6 +186,37 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
   assert.equal(capabilitiesBody.pluginCatalog.skillCount, 1)
   assert.equal(capabilitiesBody.pluginCatalog.toolCount, 1)
   assert.equal(capabilitiesBody.paths.workspacePath, '/tmp/agent-workspaces.json')
+  assert.equal(capabilitiesBody.toolProviders.length, 1)
+  assert.equal(capabilitiesBody.toolProviders[0].providerId, 'default')
+})
+
+test('runtime tool provider endpoints register, heartbeat, and remove providers', async () => {
+  const toolProviderRegistry = new MCPToolProviderRegistry()
+  const handler = createAgentRequestListener({
+    toolProviderRegistry,
+  } as unknown as AgentServerContext)
+
+  const registered = await dispatch(handler, 'POST', '/runtime/tool-providers', JSON.stringify({
+    providerId: 'desktop-main',
+    endpoint: 'http://127.0.0.1:18765/mcp',
+    label: 'Desktop MCP',
+  }))
+  assert.equal(registered.statusCode, 200)
+  const registeredBody = JSON.parse(registered.body)
+  assert.equal(registeredBody.provider.providerId, 'desktop-main')
+  assert.equal(registeredBody.provider.endpoint, 'http://127.0.0.1:18765/mcp')
+
+  const listed = await dispatch(handler, 'GET', '/runtime/tool-providers')
+  assert.equal(listed.statusCode, 200)
+  assert.equal(JSON.parse(listed.body).providers.length, 1)
+
+  const heartbeat = await dispatch(handler, 'POST', '/runtime/tool-providers/desktop-main/heartbeat')
+  assert.equal(heartbeat.statusCode, 200)
+  assert.equal(JSON.parse(heartbeat.body).provider.providerId, 'desktop-main')
+
+  const removed = await dispatch(handler, 'DELETE', '/runtime/tool-providers/desktop-main')
+  assert.equal(removed.statusCode, 200)
+  assert.equal(JSON.parse(removed.body).removed, true)
 })
 
 test('trace read endpoints return 404 for missing runs instead of surfacing facade errors', async () => {
@@ -377,14 +415,11 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'POST', path: '/workspaces/workspace_1/reject', label: 'workspace rejection body' },
     { method: 'POST', path: '/threads', label: 'thread body' },
     { method: 'PATCH', path: '/threads/thread_1', label: 'thread update body' },
-    { method: 'POST', path: '/threads/thread_1/messages', label: 'message body' },
-    { method: 'POST', path: '/threads/thread_1/runs', label: 'thread run body' },
+    { method: 'POST', path: '/sessions/session_1/runs', label: 'session run body' },
     { method: 'POST', path: '/runs/preview', label: 'run preview body' },
     { method: 'POST', path: '/agent-config-files/active', label: 'active agent config file body' },
     { method: 'POST', path: '/agent-config-files/config_file_default/tool-permissions', label: 'config file tool permissions body' },
     { method: 'POST', path: '/agent-skills/instructions', label: 'skill instructions body' },
-    { method: 'POST', path: '/agent-catalog/packs/install', label: 'agent pack body' },
-    { method: 'POST', path: '/agent-catalog/packs/uninstall', label: 'agent pack uninstall body' },
     { method: 'POST', path: '/plans', label: 'taskGraph body' },
     { method: 'POST', path: '/plans/task_graph_1/dispatch', label: 'taskGraph dispatch body' },
     { method: 'PATCH', path: '/tasks/task_1', label: 'task update body' },
@@ -467,201 +502,116 @@ test('legacy direct run endpoints are not public runtime entrypoints', async () 
   assert.deepEqual(calls, [])
 })
 
-test('thread message endpoint only accepts user transcript messages', async () => {
-  const calls: Array<{ threadId: string; input: Record<string, unknown> }> = []
+test('thread write endpoints are not exposed to clients', async () => {
+  const calls: string[] = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      addMessage: (threadId: string, input: Record<string, unknown>) => {
-        calls.push({ threadId, input })
+      addMessage: () => {
+        calls.push('addMessage')
+        return { id: 'unexpected' }
+      },
+      createRun: () => {
+        calls.push('createRun')
+        return { id: 'unexpected' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const message = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({ content: 'Hi' }))
+  const run = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({ message: 'Hi' }))
+
+  assert.equal(message.statusCode, 404)
+  assert.equal(run.statusCode, 404)
+  assert.deepEqual(calls, [])
+})
+
+test('thread message endpoint returns a paged message view with scan stats', async () => {
+  const calls: Array<{ threadId: string; query: Record<string, unknown> }> = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      listThreadMessagesPage: (threadId: string, query: Record<string, unknown>) => {
+        calls.push({ threadId, query })
         return {
-          id: input.id ?? 'msg_user',
           threadId,
-          role: 'user',
-          content: input.content,
-          createdAt: '2026-05-19T00:00:00.000Z',
+          messages: [{
+            id: 'msg_page_1',
+            threadId,
+            role: 'user',
+            content: 'paged',
+            createdAt: '2026-05-19T00:00:00.000Z',
+          }],
+          nextAfterOrdinal: 7,
+          hasMore: true,
+          scan: {
+            durationMs: 3,
+            bytesRead: 123,
+            totalBytes: 456,
+            linesRead: 5,
+            eventsRead: 5,
+            matchedEvents: 2,
+            malformedLines: 0,
+          },
         }
       },
     },
   } as unknown as AgentServerContext)
 
-  const assistant = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
-    role: 'assistant',
-    content: 'Runtime status',
-  }))
-  const runtimeFields = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
-    role: 'user',
-    content: 'Hi',
-    runId: 'run_1',
-    metadata: { kind: 'runtime_status' },
-  }))
-  const user = await dispatch(handler, 'POST', '/threads/thread_1/messages', JSON.stringify({
-    id: ' local_msg_1 ',
-    content: 'Hi',
-    clientInput: { visibleMessage: 'Hi' },
-  }))
+  const response = await dispatch(handler, 'GET', '/threads/thread_1/messages?limit=1&afterOrdinal=4')
 
-  assert.equal(assistant.statusCode, 400)
-  assert.equal(JSON.parse(assistant.body).error, 'thread message role must be user')
-  assert.equal(runtimeFields.statusCode, 400)
-  assert.equal(JSON.parse(runtimeFields.body).error, 'thread message runtime fields are not accepted')
-  assert.equal(user.statusCode, 201)
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    threadId: 'thread_1',
+    messages: [{
+      id: 'msg_page_1',
+      threadId: 'thread_1',
+      role: 'user',
+      content: 'paged',
+      createdAt: '2026-05-19T00:00:00.000Z',
+    }],
+    nextAfterOrdinal: 7,
+    hasMore: true,
+    scan: {
+      durationMs: 3,
+      bytesRead: 123,
+      totalBytes: 456,
+      linesRead: 5,
+      eventsRead: 5,
+      matchedEvents: 2,
+      malformedLines: 0,
+    },
+  })
   assert.deepEqual(calls, [{
     threadId: 'thread_1',
-    input: {
-      id: 'local_msg_1',
-      role: 'user',
-      content: 'Hi',
-      clientInput: { visibleMessage: 'Hi' },
-    },
+    query: { afterOrdinal: 4, limit: 1 },
   }])
 })
 
-test('thread run endpoint appends a user message with the client message id and creates a run bound to that message', async () => {
+test('session run endpoint resolves the active thread and appends runtime input without a client thread target', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages: [] }),
-      addMessage: (threadId: string, input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'message', input: { threadId, ...input } })
-        return { id: input.id ?? 'msg_bound', threadId, role: 'user', content: input.content, createdAt: '2026-05-19T00:00:00.000Z' }
-      },
-      createRun: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'run', input })
-        return { id: 'run_bound', threadId: input.threadId, status: 'queued' }
-      },
-    },
-  } as unknown as AgentServerContext)
-
-  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
-    message: 'Continue safely',
-    clientInput: { visibleMessage: 'Continue safely', attachments: [] },
-    runtimeLimits: { maxIterations: 2 },
-    sourceMessageId: 'local_msg_bound',
-  }))
-
-  assert.equal(response.statusCode, 201)
-  assert.deepEqual(JSON.parse(response.body), {
-    run: { id: 'run_bound', threadId: 'thread_1', status: 'queued' },
-    message: {
-      id: 'local_msg_bound',
-      threadId: 'thread_1',
-      role: 'user',
-      content: 'Continue safely',
-      createdAt: '2026-05-19T00:00:00.000Z',
-    },
-  })
-  assert.deepEqual(calls, [
-    {
-      endpoint: 'message',
-      input: {
-        threadId: 'thread_1',
-        id: 'local_msg_bound',
-        role: 'user',
-        content: 'Continue safely',
-        clientInput: { visibleMessage: 'Continue safely', attachments: [] },
-      },
-    },
-    {
-      endpoint: 'run',
-      input: {
-        clientInput: { visibleMessage: 'Continue safely', attachments: [] },
-        runtimeLimits: { maxIterations: 2 },
-        threadId: 'thread_1',
-        sourceMessageId: 'local_msg_bound',
-        role: 'planner',
-      },
-    },
-  ])
-})
-
-test('thread run endpoint can force one diagnostic tool call without exposing a direct tool route', async () => {
-  const calls: Array<{ endpoint: string; input?: Record<string, unknown> }> = []
-  const messages = [{ id: 'msg_tool', threadId: 'thread_1', role: 'user', content: 'Run movscript_focus_get', createdAt: '2026-05-19T00:00:00.000Z' }]
-  const handler = createAgentRequestListener({
-    runtimeRouter: {
-      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages }),
-      addMessage: () => {
-        calls.push({ endpoint: 'message' })
-        return { id: 'unexpected' }
-      },
-      createToolRun: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'toolRun', input })
-        return { id: 'run_tool', threadId: input.threadId, initialUserMessageId: 'msg_tool', status: 'queued' }
-      },
-      createRun: () => {
-        calls.push({ endpoint: 'run' })
-        return { id: 'unexpected_run' }
-      },
-    },
-  } as unknown as AgentServerContext)
-
-  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
-    message: 'Run movscript_focus_get',
-    toolCall: { name: 'movscript_focus_get', args: {} },
-    approvedToolNames: ['movscript_focus_get'],
-    runtimeLimits: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
-  }))
-
-  assert.equal(response.statusCode, 201)
-  assert.deepEqual(JSON.parse(response.body), {
-    run: { id: 'run_tool', threadId: 'thread_1', initialUserMessageId: 'msg_tool', status: 'queued' },
-    message: messages[0],
-  })
-  assert.deepEqual(calls, [{
-    endpoint: 'toolRun',
-    input: {
-      toolCall: { name: 'movscript_focus_get', args: {} },
-      approvedToolNames: ['movscript_focus_get'],
-      runtimeLimits: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
-      threadId: 'thread_1',
-      message: 'Run movscript_focus_get',
-      role: 'worker',
-    },
-  }])
-})
-
-test('thread tool run response falls back to the latest user transcript message', async () => {
-  const messages = [
-    { id: 'msg_user', threadId: 'thread_1', role: 'user', content: 'Run movscript_focus_get', createdAt: '2026-05-19T00:00:00.000Z' },
-    { id: 'msg_assistant', threadId: 'thread_1', role: 'assistant', content: 'Previous answer', createdAt: '2026-05-19T00:00:01.000Z' },
-    {
-      id: 'msg_status',
-      threadId: 'thread_1',
-      role: 'assistant',
-      content: 'Generating image',
-      metadata: { kind: 'runtime_status', promptHistory: 'exclude' },
-      createdAt: '2026-05-19T00:00:02.000Z',
-    },
-  ]
-  const handler = createAgentRequestListener({
-    runtimeRouter: {
-      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:02.000Z', messages }),
-      createToolRun: (input: Record<string, unknown>) => ({ id: 'run_tool', threadId: input.threadId, status: 'queued' }),
-    },
-  } as unknown as AgentServerContext)
-
-  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
-    message: 'Run movscript_focus_get',
-    toolCall: { name: 'movscript_focus_get', args: {} },
-  }))
-
-  assert.equal(response.statusCode, 201)
-  assert.equal(JSON.parse(response.body).message.id, 'msg_user')
-})
-
-test('thread run endpoint appends runtime input to an active run instead of creating a parallel run', async () => {
-  const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
-  const handler = createAgentRequestListener({
-    runtimeRouter: {
-      getThread: (threadId: string) => ({
-        id: threadId,
-        status: 'running',
-        activeRunId: 'run_active',
-        createdAt: '2026-05-19T00:00:00.000Z',
-        updatedAt: '2026-05-19T00:00:00.000Z',
-        messages: [],
-      }),
-      getRun: (runId: string) => ({ id: runId, threadId: 'thread_1', status: 'in_progress' }),
+      getSession: (sessionId: string) => sessionId === 'session_1'
+        ? {
+            id: sessionId,
+            activeThreadId: 'thread_active',
+            interactiveThreadId: 'thread_root',
+            rootThreadId: 'thread_root',
+            createdAt: '2026-05-19T00:00:00.000Z',
+            updatedAt: '2026-05-19T00:00:00.000Z',
+          }
+        : undefined,
+      getThread: (threadId: string) => threadId === 'thread_active'
+        ? {
+            id: threadId,
+            sessionId: 'session_1',
+            status: 'running',
+            activeRunId: 'run_active',
+            createdAt: '2026-05-19T00:00:00.000Z',
+            updatedAt: '2026-05-19T00:00:00.000Z',
+            messages: [],
+          }
+        : undefined,
+      getRun: (runId: string) => ({ id: runId, sessionId: 'session_1', threadId: 'thread_active', status: 'in_progress' }),
       addMessage: (threadId: string, input: Record<string, unknown>) => {
         calls.push({ endpoint: 'message', input: { threadId, ...input } })
         return {
@@ -681,34 +631,35 @@ test('thread run endpoint appends runtime input to an active run instead of crea
     },
   } as unknown as AgentServerContext)
 
-  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
-    message: '先别继续，改成图片方案',
-    sourceMessageId: 'local_runtime_input',
+  const response = await dispatch(handler, 'POST', '/sessions/session_1/runs', JSON.stringify({
+    message: '补一句新的约束',
+    sourceMessageId: 'local_session_runtime_input',
   }))
 
   assert.equal(response.statusCode, 202)
   const body = JSON.parse(response.body)
+  assert.equal(body.run.id, 'run_active')
+  assert.equal(body.message.threadId, 'thread_active')
   assert.deepEqual(body.runtimeInput, {
     accepted: true,
     runId: 'run_active',
-    messageId: 'local_runtime_input',
-    status: 'accepted',
+    messageId: 'local_session_runtime_input',
+    deliveryStatus: 'accepted',
   })
-  assert.equal(body.run.id, 'run_active')
   assert.deepEqual(calls, [
     {
       endpoint: 'message',
       input: {
-        threadId: 'thread_1',
-        id: 'local_runtime_input',
+        threadId: 'thread_active',
+        id: 'local_session_runtime_input',
         role: 'user',
-        content: '先别继续，改成图片方案',
+        content: '补一句新的约束',
         runId: 'run_active',
         metadata: {
           kind: 'runtime_input',
           targetRunId: 'run_active',
           mode: 'soft',
-          status: 'accepted',
+          deliveryStatus: 'accepted',
         },
       },
     },
@@ -1140,7 +1091,7 @@ test('thread runtime endpoint returns not found for missing threads', async () =
   assert.equal(JSON.parse(response.body).error, 'thread not found')
 })
 
-test('thread message feed returns the latest page and paginates backward', async () => {
+test('thread timeline returns the latest page and paginates backward', async () => {
   const thread = {
     id: 'thread_1',
     sessionId: 'session_1',
@@ -1161,23 +1112,23 @@ test('thread message feed returns the latest page and paginates backward', async
     },
   } as unknown as AgentServerContext)
 
-  const latest = await dispatch(handler, 'GET', '/threads/thread_1/messages?limit=2')
+  const latest = await dispatch(handler, 'GET', '/threads/thread_1/timeline?limit=2')
   const latestBody = JSON.parse(latest.body)
 
   assert.equal(latest.statusCode, 200)
-  assert.deepEqual(latestBody.messages.map((message: { id: string }) => message.id), ['message:msg_2', 'assistant:run_2'])
+  assert.deepEqual(latestBody.items.map((item: { id: string }) => item.id), ['message:msg_2', 'assistant:run_2'])
   assert.equal(latestBody.hasMoreBefore, true)
   assert.equal(typeof latestBody.nextBefore, 'string')
 
-  const older = await dispatch(handler, 'GET', `/threads/thread_1/messages?limit=2&before=${encodeURIComponent(latestBody.nextBefore)}`)
+  const older = await dispatch(handler, 'GET', `/threads/thread_1/timeline?limit=2&before=${encodeURIComponent(latestBody.nextBefore)}`)
   const olderBody = JSON.parse(older.body)
 
   assert.equal(older.statusCode, 200)
-  assert.deepEqual(olderBody.messages.map((message: { id: string }) => message.id), ['message:msg_1'])
+  assert.deepEqual(olderBody.items.map((item: { id: string }) => item.id), ['message:msg_1'])
   assert.equal(olderBody.hasMoreBefore, false)
 })
 
-test('session message feed can project all session threads or one thread', async () => {
+test('session timeline can project all session threads or one thread', async () => {
   const snapshot = {
     session: { id: 'session_1', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:04.000Z' },
     threads: [
@@ -1210,14 +1161,14 @@ test('session message feed can project all session threads or one thread', async
     },
   } as unknown as AgentServerContext)
 
-  const all = await dispatch(handler, 'GET', '/sessions/session_1/messages?limit=10')
-  const oneThread = await dispatch(handler, 'GET', '/sessions/session_1/messages?threadId=thread_2&limit=10')
+  const all = await dispatch(handler, 'GET', '/sessions/session_1/timeline?limit=10')
+  const oneThread = await dispatch(handler, 'GET', '/sessions/session_1/timeline?threadId=thread_2&limit=10')
 
-  assert.deepEqual(JSON.parse(all.body).messages.map((message: { threadId: string }) => message.threadId), ['thread_1', 'thread_2'])
-  assert.deepEqual(JSON.parse(oneThread.body).messages.map((message: { threadId: string }) => message.threadId), ['thread_2'])
+  assert.deepEqual(JSON.parse(all.body).items.map((item: { threadId: string }) => item.threadId), ['thread_1', 'thread_2'])
+  assert.deepEqual(JSON.parse(oneThread.body).items.map((item: { threadId: string }) => item.threadId), ['thread_2'])
 })
 
-test('thread message stream emits created and updated message feed events', async () => {
+test('thread timeline stream emits created and updated timeline events', async () => {
   const calls: string[] = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
@@ -1252,7 +1203,7 @@ test('thread message stream emits created and updated message feed events', asyn
   } as unknown as AgentServerContext)
   const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
   req.method = 'GET'
-  req.url = '/threads/thread_1/messages/stream'
+  req.url = '/threads/thread_1/timeline/stream'
   req.headers = { host: '127.0.0.1' }
   let statusCode = 0
   let output = ''
@@ -1272,10 +1223,57 @@ test('thread message stream emits created and updated message feed events', asyn
   req.emit('close')
 
   assert.equal(statusCode, 200)
-  assert.match(output, /event: message\.created/)
-  assert.match(output, /event: message\.updated/)
+  assert.match(output, /event: timeline\.item\.created/)
+  assert.match(output, /event: timeline\.item\.updated/)
   assert.match(output, /"id":"assistant:run_1"/)
   assert.match(output, /"content":"Hello"/)
+  assert.deepEqual(calls, ['subscribe:thread_1', 'unsubscribe:thread_1'])
+})
+
+test('thread timeline stream asks clients to reset when Last-Event-ID is stale', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => threadId === 'thread_1'
+        ? {
+            id: threadId,
+            sessionId: 'session_1',
+            messages: [{ id: 'msg_1', threadId, role: 'user', content: 'One', createdAt: '2026-05-19T00:00:02.000Z' }],
+            createdAt: '2026-05-19T00:00:00.000Z',
+            updatedAt: '2026-05-19T00:00:02.000Z',
+          }
+        : undefined,
+      listRunsByThread: () => [],
+      subscribeThreadStream: (threadId: string) => {
+        calls.push(`subscribe:${threadId}`)
+        return () => calls.push(`unsubscribe:${threadId}`)
+      },
+    },
+  } as unknown as AgentServerContext)
+  const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
+  req.method = 'GET'
+  req.url = '/threads/thread_1/timeline/stream'
+  req.headers = { host: '127.0.0.1', 'last-event-id': '1:message:old' }
+  let statusCode = 0
+  let output = ''
+  const res = {
+    setHeader() {},
+    writeHead(code: number) {
+      statusCode = code
+    },
+    write(chunk: string) {
+      output += chunk
+    },
+    end() {},
+    writableEnded: false,
+  } as unknown as ServerResponse
+
+  await handler(req, res)
+  req.emit('close')
+
+  assert.equal(statusCode, 200)
+  assert.match(output, /event: timeline\.reset_required/)
+  assert.match(output, /"reason":"missed_events"/)
   assert.deepEqual(calls, ['subscribe:thread_1', 'unsubscribe:thread_1'])
 })
 
@@ -1379,6 +1377,101 @@ test('session stream endpoint delegates session-scoped runtime stream events', a
   assert.deepEqual(calls, ['subscribe:session_1', 'unsubscribe:session_1'])
 })
 
+test('session agent exits only after explicit stop and last subscriber disconnects', async () => {
+  const calls: string[] = []
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener({
+    sessionRuntime: {
+      paths: { sessionId: 'session_1' },
+    },
+    runtimeRouter: {
+      getSession: (sessionId: string) => sessionId === 'session_1'
+        ? { id: sessionId, rootThreadId: 'thread_1', interactiveThreadId: 'thread_1', status: 'running', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      subscribeSessionStream: (sessionId: string) => {
+        calls.push(`subscribe:${sessionId}`)
+        return () => calls.push(`unsubscribe:${sessionId}`)
+      },
+      cancelRun: (runId: string) => {
+        calls.push(`cancel:${runId}`)
+        return { id: runId, sessionId: 'session_1', threadId: 'thread_1', status: 'cancelled' }
+      },
+    },
+  } as unknown as AgentServerContext, {
+    idleShutdownDelayMs: 0,
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+  const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
+  req.method = 'GET'
+  req.url = '/sessions/session_1/stream'
+  req.headers = { host: '127.0.0.1' }
+  const res = {
+    setHeader() {},
+    writeHead() {},
+    write() {},
+    end() {},
+    writableEnded: false,
+  } as unknown as ServerResponse
+
+  await handler(req, res)
+  const cancelResponse = await dispatch(handler, 'POST', '/runs/run_1/cancel', JSON.stringify({ reason: '用户停止了当前会话。' }))
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(cancelResponse.statusCode, 200)
+  assert.equal(shutdownRequests, 0)
+
+  req.emit('close')
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(shutdownRequests, 1)
+  assert.deepEqual(calls, ['subscribe:session_1', 'cancel:run_1', 'unsubscribe:session_1'])
+})
+
+test('session lease keeps stopped agent alive until the UI releases it', async () => {
+  const calls: string[] = []
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener({
+    sessionRuntime: {
+      paths: { sessionId: 'session_1' },
+    },
+    runtimeRouter: {
+      cancelRun: (runId: string) => {
+        calls.push(`cancel:${runId}`)
+        return { id: runId, sessionId: 'session_1', threadId: 'thread_1', status: 'cancelled' }
+      },
+    },
+  } as unknown as AgentServerContext, {
+    idleShutdownDelayMs: 0,
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+
+  const lease = await dispatch(handler, 'POST', '/runtime/session/leases', JSON.stringify({
+    leaseId: 'trace-page:test',
+    ttlMs: 30_000,
+    holder: 'trace-page',
+  }))
+  assert.equal(lease.statusCode, 200)
+  assert.equal(JSON.parse(lease.body).activeLeases, 1)
+
+  const cancelResponse = await dispatch(handler, 'POST', '/runs/run_1/cancel', JSON.stringify({ reason: '用户停止了当前会话。' }))
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(cancelResponse.statusCode, 200)
+  assert.equal(shutdownRequests, 0)
+
+  const release = await dispatch(handler, 'DELETE', '/runtime/session/leases/trace-page%3Atest')
+  assert.equal(release.statusCode, 200)
+  assert.equal(JSON.parse(release.body).released, true)
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(shutdownRequests, 1)
+  assert.deepEqual(calls, ['cancel:run_1'])
+})
+
 test('session stream endpoint returns not found for missing sessions', async () => {
   const handler = createAgentRequestListener({
     runtimeRouter: {
@@ -1421,81 +1514,34 @@ test('run input endpoint preserves the client source message id', async () => {
   }])
 })
 
-test('agent pack install endpoint writes plugin skills and reloads catalog', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-server-'))
+test('agent runtime no longer exposes pack install or uninstall endpoints', async () => {
   const calls: string[] = []
-  try {
-    const handler = createAgentRequestListener({
-      pluginCatalog: { skillsDir: dir },
-      runtimeRouter: {
-        reloadAgentCatalog: () => {
-          calls.push('reload')
-          return { status: 'reloaded' }
-        },
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      reloadAgentCatalog: () => {
+        calls.push('reload')
+        return { status: 'reloaded' }
       },
-    } as unknown as AgentServerContext)
+    },
+  } as unknown as AgentServerContext)
 
-    const response = await dispatch(handler, 'POST', '/agent-catalog/packs/install', JSON.stringify({
-      pluginId: 'studio.example/plugin',
-      files: [{
-        path: 'agent-skills/SKILL.md',
-        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
-      }],
-    }))
-    const body = JSON.parse(response.body)
+  const installResponse = await dispatch(handler, 'POST', '/agent-catalog/packs/install', JSON.stringify({
+    pluginId: 'studio.example/plugin',
+    files: [{
+      path: 'agent-skills/SKILL.md',
+      content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
+    }],
+  }))
+  const uninstallResponse = await dispatch(handler, 'POST', '/agent-catalog/packs/uninstall', JSON.stringify({
+    pluginId: 'studio.example/plugin',
+  }))
 
-    assert.equal(response.statusCode, 200)
-    assert.equal(body.status, 'installed')
-    assert.equal(body.pluginId, 'studio.example/plugin')
-    assert.deepEqual(body.installedFiles, ['plugins/studio.example_plugin/SKILL.md'])
-    assert.deepEqual(body.catalog, { status: 'reloaded' })
-    assert.deepEqual(calls, ['reload'])
-    assert.match(readFileSync(join(dir, 'plugins', 'studio.example_plugin', 'SKILL.md'), 'utf8'), /Example Skill/)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
+  assert.equal(installResponse.statusCode, 404)
+  assert.equal(uninstallResponse.statusCode, 404)
+  assert.deepEqual(calls, [])
 })
 
-test('agent pack uninstall endpoint removes plugin skills and reloads catalog', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-uninstall-server-'))
-  const calls: string[] = []
-  try {
-    const handler = createAgentRequestListener({
-      pluginCatalog: { skillsDir: dir },
-      runtimeRouter: {
-        reloadAgentCatalog: () => {
-          calls.push('reload')
-          return { status: 'reloaded' }
-        },
-      },
-    } as unknown as AgentServerContext)
-
-    await dispatch(handler, 'POST', '/agent-catalog/packs/install', JSON.stringify({
-      pluginId: 'studio.example/plugin',
-      files: [{
-        path: 'agent-skills/SKILL.md',
-        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
-      }],
-    }))
-
-    const response = await dispatch(handler, 'POST', '/agent-catalog/packs/uninstall', JSON.stringify({
-      pluginId: 'studio.example/plugin',
-    }))
-    const body = JSON.parse(response.body)
-
-    assert.equal(response.statusCode, 200)
-    assert.equal(body.status, 'uninstalled')
-    assert.equal(body.pluginId, 'studio.example/plugin')
-    assert.equal(body.removed, true)
-    assert.deepEqual(body.catalog, { status: 'reloaded' })
-    assert.deepEqual(calls, ['reload', 'reload'])
-    assert.equal(existsSync(join(dir, 'plugins', 'studio.example_plugin', 'SKILL.md')), false)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('inspect endpoint lists installed pack plugins', async () => {
+test('inspect endpoint reports loaded catalog but not frontend-managed pack store plugins', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-inspect-server-'))
   try {
     const handler = createAgentRequestListener({
@@ -1523,23 +1569,13 @@ test('inspect endpoint lists installed pack plugins', async () => {
       updates: {},
     } as unknown as AgentServerContext)
 
-    await dispatch(handler, 'POST', '/agent-catalog/packs/install', JSON.stringify({
-      pluginId: 'studio.example/plugin',
-      files: [{
-        path: 'agent-skills/SKILL.md',
-        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
-      }],
-    }))
-
     const response = await dispatch(handler, 'GET', '/inspect')
     const body = JSON.parse(response.body)
 
     assert.equal(response.statusCode, 200)
     assert.equal(body.activeConfigFileId, 'config_file_active')
     assert.deepEqual(body.packs.map((pack: { id: string }) => pack.id), ['pack_1'])
-    assert.deepEqual(body.pluginCatalog.packPlugins, [
-      { pluginId: 'studio.example_plugin', path: 'plugins/studio.example_plugin' },
-    ])
+    assert.equal(body.pluginCatalog.packPlugins, undefined)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -1730,13 +1766,13 @@ test('public agent project id boundaries reject invalid project scopes', async (
     assert.equal(JSON.parse(workspace.body).error, 'workspace projectId must be a positive safe integer')
   }
   await dispatch(handler, 'GET', '/capabilities?projectId=42')
-  await dispatch(handler, 'GET', '/workspaces?projectId=42')
+  await dispatch(handler, 'GET', '/workspaces?projectId=42&current=true')
   await dispatch(handler, 'POST', '/workspace', JSON.stringify({ projectId: 42, kind: 'project_standards_workspace' }))
 
-  assert.deepEqual(calls.map((call) => [call.endpoint, call.input.projectId, call.input.currentProjectId]), [
-    ['capabilities', undefined, 42],
-    ['workspaces', 42, undefined],
-    ['workspace', 42, undefined],
+  assert.deepEqual(calls.map((call) => [call.endpoint, call.input.projectId, call.input.currentProjectId, call.input.current]), [
+    ['capabilities', undefined, 42, undefined],
+    ['workspaces', 42, undefined, true],
+    ['workspace', 42, undefined, undefined],
   ])
 })
 

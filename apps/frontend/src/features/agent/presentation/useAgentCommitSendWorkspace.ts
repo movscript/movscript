@@ -32,7 +32,6 @@ export interface UseAgentCommitSendWorkspaceInput {
   recordLiveTraceEvent: CommitAgentSendWorkspaceDeps['recordLiveTraceEvent']
   revokeAttachmentPreviewUrls: CommitAgentSendWorkspaceDeps['revokeAttachmentPreviewUrls']
   setMentionRange: CommitAgentSendWorkspaceDeps['setMentionRange']
-  assertMCPReady: CommitAgentSendWorkspaceDeps['assertMCPReady']
   refetchLocalAgentHealth: CommitAgentSendWorkspaceDeps['refetchLocalAgentHealth']
   runTouchesAgentCatalog: CommitAgentSendWorkspaceDeps['runTouchesAgentCatalog']
   refreshAgentCatalogContext: CommitAgentSendWorkspaceDeps['refreshAgentCatalogContext']
@@ -71,7 +70,6 @@ export function useAgentCommitSendWorkspace({
   recordLiveTraceEvent,
   revokeAttachmentPreviewUrls,
   setMentionRange,
-  assertMCPReady,
   refetchLocalAgentHealth,
   runTouchesAgentCatalog,
   refreshAgentCatalogContext,
@@ -103,7 +101,6 @@ export function useAgentCommitSendWorkspace({
       recordLiveTraceEvent,
       revokeAttachmentPreviewUrls,
       setMentionRange,
-      assertMCPReady,
       refetchLocalAgentHealth,
       isLocalAgentAbortError,
       thinkingStateForRun: (run) => getThinkingBubbleState(run, []),
@@ -117,7 +114,6 @@ export function useAgentCommitSendWorkspace({
     })
   }, [
     activeSendAbortControllerRef,
-    assertMCPReady,
     cancelRequestedRunIdsRef,
     clearConversationWorkspace,
     conversationId,

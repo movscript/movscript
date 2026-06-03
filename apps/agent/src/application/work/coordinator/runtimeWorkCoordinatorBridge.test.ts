@@ -63,7 +63,11 @@ test('createRuntimeWorkCoordinatorBridge records background work observations fo
     kind: 'generation_job',
     mode: 'async',
     status: 'waiting',
-    request: { prompt: 'image' },
+    request: {
+      tool: 'generation_image_generate',
+      args: { prompt: 'image' },
+      observeTool: 'generation_image_job_get',
+    },
     continuationPolicy: { mode: 'any_completed' },
     externalHandle: { provider: 'movscript', type: 'generation_job', id: 42 },
     createdAt: '2026-05-23T00:00:00.000Z',
@@ -75,7 +79,7 @@ test('createRuntimeWorkCoordinatorBridge records background work observations fo
     mcpClient: {
       initialize: async () => ({}),
       callTool: async (name) => {
-        assert.equal(name, 'generation_job_get')
+        assert.equal(name, 'generation_image_job_get')
         return { data: { jobId: 42, status: 'finished', output_resource_id: 9001 } }
       },
     },

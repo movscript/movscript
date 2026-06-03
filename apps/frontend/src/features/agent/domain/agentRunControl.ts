@@ -1,7 +1,7 @@
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import { isAgentRunTerminalStatus } from '@movscript/protocol'
 
-export const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
-export const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
+const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 
 export type RunControlRuntimePatch = {
   stopping?: boolean
@@ -24,11 +24,19 @@ export interface StopLocalRunActionDeps {
 }
 
 export function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun {
-  return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
+  return !!run && isStoppableAgentRunStatus(run.status)
 }
 
 export function isTerminalAgentRun(run: AgentRun | null | undefined): run is AgentRun {
-  return !!run && TERMINAL_AGENT_RUN_STATUSES.has(run.status)
+  return !!run && isTerminalAgentRunStatus(run.status)
+}
+
+export function isStoppableAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
+  return !!status && STOPPABLE_AGENT_RUN_STATUSES.has(status)
+}
+
+export function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
+  return isAgentRunTerminalStatus(status)
 }
 
 export function createLocalAgentStopAbortError(): Error {

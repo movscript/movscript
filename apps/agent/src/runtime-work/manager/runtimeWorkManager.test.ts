@@ -15,7 +15,7 @@ test('RuntimeWorkManager starts and waits generation job works', async () => {
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
         calls.push({ name, args })
-        if (name === 'generation_job_create') {
+        if (name === 'generation_image_generate') {
           return { data: { jobId: 42, status: 'queued', terminal: false } } as JSONValue
         }
         observed = true
@@ -28,13 +28,13 @@ test('RuntimeWorkManager starts and waits generation job works', async () => {
     threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
-    request: { prompt: 'make image', job_type: 'image' },
+    request: generationImageRequest({ prompt: 'make image' }),
   })
 
   assert.equal(work.kind, 'generation_job')
   assert.equal(work.status, 'waiting')
   assert.deepEqual(work.externalHandle, { provider: 'movscript', type: 'generation_job', id: 42 })
-  assert.equal(calls[0]?.args.wait, false)
+  assert.deepEqual(calls[0]?.args, { prompt: 'make image' })
 
   const wait = await manager.wait({ workIds: [work.id], timeoutMs: 0 })
 
@@ -42,7 +42,7 @@ test('RuntimeWorkManager starts and waits generation job works', async () => {
   assert.equal(wait.status, 'completed')
   assert.equal(wait.done, true)
   assert.equal(wait.completed[0]?.status, 'completed')
-  assert.deepEqual(calls.map((call) => call.name), ['generation_job_create', 'generation_job_get'])
+  assert.deepEqual(calls.map((call) => call.name), ['generation_image_generate', 'generation_image_job_get'])
 })
 
 test('RuntimeWorkManager completes generation job works from backend status aliases', async () => {
@@ -50,7 +50,7 @@ test('RuntimeWorkManager completes generation job works from backend status alia
     providers: [new GenerationJobWorkProvider({
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
-        if (name === 'generation_job_create') {
+        if (name === 'generation_image_generate') {
           return { data: { jobId: 43, status: 'queued', terminal: false } } as JSONValue
         }
         return { data: { jobId: args.jobId, status: 'finished', output_resource_id: 9002 } } as JSONValue
@@ -62,7 +62,7 @@ test('RuntimeWorkManager completes generation job works from backend status alia
     threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
-    request: { prompt: 'make image', job_type: 'image' },
+    request: generationImageRequest({ prompt: 'make image' }),
   })
 
   const wait = await manager.wait({ workIds: [work.id], timeoutMs: 0 })
@@ -72,13 +72,12 @@ test('RuntimeWorkManager completes generation job works from backend status alia
   assert.equal(wait.completed[0]?.status, 'completed')
 })
 
-test('RuntimeWorkManager can cancel generation job works', async () => {
+test('RuntimeWorkManager reports that generation provider works do not support cancel without a provider cancel interface', async () => {
   const manager = new RuntimeWorkManager({
     providers: [new GenerationJobWorkProvider({
       initialize: async () => ({}),
-      callTool: async (name, args = {}) => {
-        if (name === 'generation_job_create') return { data: { jobId: 77, status: 'queued', terminal: false } } as JSONValue
-        if (name === 'generation_job_cancel') return { data: { jobId: args.jobId, status: 'cancelled', terminal: true } } as JSONValue
+      callTool: async (name) => {
+        if (name === 'generation_image_generate') return { data: { jobId: 77, status: 'queued', terminal: false } } as JSONValue
         throw new Error(`unexpected tool ${name}`)
       },
     })],
@@ -88,12 +87,11 @@ test('RuntimeWorkManager can cancel generation job works', async () => {
     threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
-    request: { prompt: 'make image' },
+    request: generationImageRequest({ prompt: 'make image' }),
   })
-  const cancelled = await manager.cancel(work.id)
 
-  assert.equal(cancelled.status, 'cancelled')
-  assert.equal(manager.get(work.id).status, 'cancelled')
+  await assert.rejects(() => manager.cancel(work.id), /does not support cancel/)
+  assert.equal(manager.get(work.id).status, 'waiting')
 })
 
 test('GenerationJobWorkProvider retries once with backend suggested_fix', async () => {
@@ -120,14 +118,13 @@ test('GenerationJobWorkProvider retries once with backend suggested_fix', async 
     threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
-    request: { prompt: 'make image', aspect_ratio: 'bad' },
+    request: generationImageRequest({ prompt: 'make image', aspect_ratio: 'bad' }),
   })
 
   assert.equal(work.status, 'waiting')
   assert.equal(calls.length, 2)
-  assert.equal(calls[0]?.args.wait, false)
+  assert.equal(calls[0]?.name, 'generation_image_generate')
   assert.equal(calls[1]?.args.aspect_ratio, '16:9')
-  assert.equal(calls[1]?.args.wait, false)
   assert.equal((work.result as any).repair_note, 'Retried once with backend suggested_fix after generation parameter validation failed.')
 })
 
@@ -271,4 +268,12 @@ function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
 
 function isRunMetadata(value: unknown): value is AgentRun['metadata'] {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function generationImageRequest(args: Record<string, JSONValue>): Record<string, JSONValue> {
+  return {
+    tool: 'generation_image_generate',
+    args,
+    observeTool: 'generation_image_job_get',
+  }
 }

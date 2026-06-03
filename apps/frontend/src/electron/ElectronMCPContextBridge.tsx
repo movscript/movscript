@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { loadClientPlugins, runClientPlugin, type ClientPluginAgentToolContribution, type ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
+import type { ElectronMCPObjectSchema, ElectronMCPPluginTool } from '@/shared/contracts/electronApi'
 import type { MCPContextUpdate } from '@/shared/contracts/mcpContext'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
@@ -22,6 +24,7 @@ export function ElectronMCPContextBridge() {
   const user = useUserStore((s) => s.currentUser)
   const token = useUserStore((s) => s.token)
   const lastSentSnapshotRef = useRef('')
+  const lastSentPluginToolsRef = useRef('')
 
   const snapshot = useMemo<Omit<MCPContextUpdate, 'updatedAt'>>(() => ({
     route: {
@@ -77,5 +80,84 @@ export function ElectronMCPContextBridge() {
     })
   }, [location.hash, location.pathname, location.search, navigate])
 
+  useEffect(() => {
+    let cancelled = false
+    async function syncPluginTools() {
+      if (!window.api?.updateMCPPluginTools) return
+      const plugins = await loadClientPlugins().catch(() => [])
+      if (cancelled) return
+      const tools = plugins.flatMap(pluginMCPTools)
+      const stableTools = JSON.stringify(tools)
+      if (stableTools === lastSentPluginToolsRef.current) return
+      lastSentPluginToolsRef.current = stableTools
+      await window.api.updateMCPPluginTools(tools)
+    }
+
+    void syncPluginTools()
+    const interval = window.setInterval(() => {
+      void syncPluginTools()
+    }, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    return window.api?.onMCPPluginToolCall?.(async (call) => {
+      const plugins = await loadClientPlugins()
+      const plugin = plugins.find((item) => item.id === call.pluginId)
+      if (!plugin) throw new Error(`Plugin not installed: ${call.pluginId}`)
+      return await runClientPlugin(plugin, call.args, { toolName: call.toolName })
+    })
+  }, [])
+
   return null
+}
+
+function pluginMCPTools(plugin: ClientPluginManifest): ElectronMCPPluginTool[] {
+  return (plugin.contributes?.tools ?? [])
+    .map((tool) => pluginMCPTool(plugin, tool))
+    .filter((tool): tool is ElectronMCPPluginTool => Boolean(tool))
+}
+
+function pluginMCPTool(plugin: ClientPluginManifest, tool: ClientPluginAgentToolContribution): ElectronMCPPluginTool | undefined {
+  const name = typeof tool.name === 'string' && tool.name.trim()
+    ? tool.name.trim()
+    : typeof tool.id === 'string' && tool.id.trim()
+      ? tool.id.trim()
+      : ''
+  if (!name) return undefined
+  const outputSchema = objectSchema(tool.outputSchema)
+  return {
+    pluginId: plugin.id,
+    name,
+    description: tool.description ?? tool.title ?? plugin.description ?? name,
+    inputSchema: objectSchema(tool.inputSchema) ?? objectSchema(plugin.inputSchema) ?? emptyObjectSchema(),
+    ...(outputSchema ? { outputSchema } : {}),
+  }
+}
+
+function objectSchema(value: unknown): ElectronMCPObjectSchema | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const item = value as Record<string, unknown>
+  if (item.type !== 'object') return undefined
+  return {
+    type: 'object',
+    properties: isRecord(item.properties) ? item.properties : {},
+    ...(Array.isArray(item.required) ? { required: item.required.filter((key): key is string => typeof key === 'string') } : {}),
+    ...(typeof item.additionalProperties === 'boolean' ? { additionalProperties: item.additionalProperties } : {}),
+  }
+}
+
+function emptyObjectSchema(): ElectronMCPObjectSchema {
+  return {
+    type: 'object',
+    properties: {},
+    additionalProperties: true,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }

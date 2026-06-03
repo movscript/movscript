@@ -4,8 +4,6 @@ export type AgentCommandName =
   | 'status'
   | 'compact'
   | 'memory'
-  | 'image'
-  | 'video'
 
 export type AgentContextMode =
   | 'minimal'
@@ -83,32 +81,6 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
           'Return only the memory files opened for this run. Do not include memory content, create workspaces, search, navigate, write data, or call the model gateway.',
         ].join('\n'),
       }
-    case '/image':
-      return {
-        name: 'image',
-        rawName: firstToken,
-        payload,
-        contextMode: inferContextMode(trimmed),
-        outputMode: 'natural',
-        requiredTools: ['core_work_start'],
-        systemContract: [
-          'This is a deterministic image generation debug command.',
-          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write workspaces, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
-        ].join('\n'),
-      }
-    case '/video':
-      return {
-        name: 'video',
-        rawName: firstToken,
-        payload,
-        contextMode: inferContextMode(trimmed),
-        outputMode: 'natural',
-        requiredTools: ['core_work_start'],
-        systemContract: [
-          'This is a deterministic video generation debug command.',
-          'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write workspaces, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
-        ].join('\n'),
-      }
     default:
       return {
         name: 'chat',
@@ -122,7 +94,6 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
 }
 
 function inferContextMode(message: string): AgentContextMode {
-  if (/production|制作|编排|片段|情节|scene moment|segment/i.test(message)) return 'production_context'
   if (/项目结构|project structure|进度|progress|缺口|missing/i.test(message)) return 'project_structure'
   if (/当前|选中|这个|this entity|read entity|修改|改写/i.test(message)) return 'selected_entity'
   return 'minimal'

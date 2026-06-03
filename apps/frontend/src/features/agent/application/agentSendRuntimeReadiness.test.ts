@@ -4,13 +4,12 @@ import test from 'node:test'
 import { prepareSendRuntime, type PrepareSendRuntimeDeps } from './agentSendRuntimeReadiness'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 
-test('prepareSendRuntime starts local runtime, checks MCP, syncs model config, and marks create thread', async () => {
+test('prepareSendRuntime starts local runtime, syncs model config, and marks session run', async () => {
   const calls: string[] = []
   await prepareSendRuntime({
     workspace: workspace({ runtimeModelId: 'runtime-model' }),
     localAgentOnline: false,
     localAgentBaseURL: 'http://localhost:4123',
-    mcpEndpoint: 'http://localhost:4124',
     signal: new AbortController().signal,
     deps: depsFixture(calls),
   })
@@ -20,14 +19,11 @@ test('prepareSendRuntime starts local runtime, checks MCP, syncs model config, a
     'ensureRunning',
     'complete:local-runtime-ensure-running:completed',
     'refetchHealth',
-    'start:local-runtime-mcp-ready:http://localhost:4124',
-    'assertMCPReady',
-    'complete:local-runtime-mcp-ready:completed',
     'thinking',
     'started:http-request-local-save-model-config',
     'syncModel:runtime-model',
     'complete:http-request-local-save-model-config:completed',
-    'started:http-request-local-create-thread',
+    'started:http-request-local-session-message-run',
   ])
 })
 
@@ -44,7 +40,7 @@ test('prepareSendRuntime skips ensure-running when runtime is already online and
   assert.equal(calls.includes('ensureRunning'), false)
   assert.equal(calls.includes('refetchHealth'), false)
   assert.equal(calls.includes('syncModel:display-model'), true)
-  assert.equal(calls.includes('start:local-runtime-mcp-ready:http://localhost:4123'), true)
+  assert.equal(calls.some((call) => call.startsWith('start:local-runtime-mcp-ready')), false)
 })
 
 test('prepareSendRuntime stops after ensure-running if the send signal is aborted', async () => {
@@ -67,7 +63,6 @@ test('prepareSendRuntime stops after ensure-running if the send signal is aborte
     /stopped/,
   )
   assert.equal(calls.includes('refetchHealth'), false)
-  assert.equal(calls.includes('assertMCPReady'), false)
 })
 
 function depsFixture(calls: string[]): PrepareSendRuntimeDeps {
@@ -86,9 +81,6 @@ function depsFixture(calls: string[]): PrepareSendRuntimeDeps {
     },
     refetchLocalAgentHealth: async () => {
       calls.push('refetchHealth')
-    },
-    assertMCPReady: async () => {
-      calls.push('assertMCPReady')
     },
     syncRuntimeModelConfig: async (model) => {
       calls.push(`syncModel:${model}`)

@@ -103,7 +103,7 @@ async function mockProjectWorkspaceEntities(page: Parameters<typeof mockGenerati
 }
 
 async function mockProjectWorkspaceWorkspaces(page: Parameters<typeof mockGenerationAppShell>[0]) {
-  await page.route('http://127.0.0.1:28765/workspaces**', async (route) => {
+  await page.route(/\/workspaces(?:[/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     await route.fulfill({
       status: 200,

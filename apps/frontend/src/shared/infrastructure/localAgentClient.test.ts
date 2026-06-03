@@ -49,22 +49,58 @@ test('local agent client delegates requests through the runtime transport', asyn
   resetAgentTelemetrySink()
 })
 
-test('local agent client passes transport metadata when asking Electron to start runtime', async () => {
+test('local agent client asks Electron to start through IPC without renderer baseURL', async () => {
+  let started = false
   const requests: string[] = []
+  const transport: AgentRuntimeTransport = {
+    kind: 'electron',
+    endpointLabel: 'electron:agent-runtime',
+    request: async (path, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${path}`)
+      if (started) return jsonResponse({ ok: true, service: 'movscript-agent', mode: 'runtime' })
+      return new Response('missing', { status: 404 })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  const ensureInputs: unknown[] = []
+  const runtimeGlobal = globalThis as typeof globalThis & { window?: unknown }
+  const originalWindow = runtimeGlobal.window
+  ;(runtimeGlobal as Record<string, unknown>).window = {
+    api: {
+      ensureAgentRuntime: async (input: unknown) => {
+        ensureInputs.push(input)
+        started = true
+        return { ok: true, running: true, managed: true, started: true, baseURL: 'electron:agent-runtime', endpoint: 'electron:agent-runtime' }
+      },
+    },
+  }
+
+  try {
+    const health = await new LocalAgentClient(transport).ensureRunning()
+
+    assert.equal(health.ok, true)
+    assert.deepEqual(ensureInputs, [{}])
+    assert.deepEqual(requests, [
+      'GET /runtime/compat',
+      'GET /health',
+      'GET /runtime/compat',
+    ])
+  } finally {
+    ;(runtimeGlobal as Record<string, unknown>).window = originalWindow
+  }
+})
+
+test('local agent client passes session metadata when asking Electron to start scoped runtime', async () => {
   let started = false
   const transport: AgentRuntimeTransport = {
     kind: 'unix-socket',
     endpointLabel: 'unix:/tmp/movscript-agent.sock',
     socketPath: '/tmp/movscript-agent.sock',
-    request: async (path, init) => {
-      requests.push(`${init?.method ?? 'GET'} ${path}`)
+    request: async () => {
       if (!started) return new Response('missing', { status: 404 })
-      return jsonResponse({
-        ok: true,
-        service: 'movscript-agent',
-        mode: 'runtime',
-        mcpEndpoint: 'http://127.0.0.1:28766/mcp',
-      })
+      return jsonResponse({ ok: true, service: 'movscript-agent', mode: 'runtime' })
     },
     openEventStream: async () => {
       throw new Error('unexpected event stream request')
@@ -84,157 +120,232 @@ test('local agent client passes transport metadata when asking Electron to start
   }
 
   try {
-    const health = await new LocalAgentClient(transport).ensureRunning()
+    const health = await new LocalAgentClient(transport, {
+      workspaceDir: '/tmp/movscript-workspace',
+      sessionId: 'session_1',
+    }).ensureRunning()
 
     assert.equal(health.ok, true)
     assert.deepEqual(ensureInputs, [{
       baseURL: 'unix:/tmp/movscript-agent.sock',
       transportKind: 'unix-socket',
       socketPath: '/tmp/movscript-agent.sock',
+      workspaceDir: '/tmp/movscript-workspace',
+      sessionId: 'session_1',
     }])
-    assert.deepEqual(requests, [
-      'GET /runtime/compat',
-      'GET /health',
-      'GET /runtime/compat',
-    ])
   } finally {
     ;(runtimeGlobal as Record<string, unknown>).window = originalWindow
   }
 })
 
-test('runMessageStream reports when a saved thread id is reused', async () => {
+test('local agent client lists runtime sessions through Electron filesystem API', async () => {
+  const runtimeGlobal = globalThis as typeof globalThis & { window?: unknown }
+  const originalWindow = runtimeGlobal.window
+  const calls: unknown[] = []
+  ;(runtimeGlobal as Record<string, unknown>).window = {
+    api: {
+      listAgentRuntimeSessions: async (input: unknown) => {
+        calls.push(input)
+        return {
+          sessions: [{
+            session: {
+              id: 'session_1',
+              createdAt: '2026-06-03T09:00:00.000Z',
+              updatedAt: '2026-06-03T09:00:00.000Z',
+            },
+            paths: {
+              sessionDate: '2026/06/03',
+              sessionDir: '/tmp/ws/.movscript/agent/sessions/2026/06/03/session_1',
+              runtimePath: '/tmp/ws/.movscript/agent/sessions/2026/06/03/session_1/runtime.json',
+              lockPath: '/tmp/ws/.movscript/agent/sessions/2026/06/03/session_1/run.lock',
+              heartbeatPath: '/tmp/ws/.movscript/agent/sessions/2026/06/03/session_1/heartbeat',
+              socketPath: '/tmp/movscript-agent-501/abc.agent.sock',
+            },
+            running: true,
+            stale: false,
+          }],
+        }
+      },
+    },
+  }
+
+  try {
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).listRuntimeSessionsFromWorkspace({
+      workspaceDir: '/tmp/ws',
+    })
+
+    assert.deepEqual(calls, [{ workspaceDir: '/tmp/ws' }])
+    assert.equal(result.sessions[0]?.session.id, 'session_1')
+    assert.equal(result.sessions[0]?.running, true)
+  } finally {
+    ;(runtimeGlobal as Record<string, unknown>).window = originalWindow
+  }
+})
+
+test('local agent client lists thread messages with cursor query', async () => {
   const requests: string[] = []
-  const thread = threadFixture('thread_existing')
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/threads/thread_existing') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_existing/runs') return jsonResponse(messageRunFixture('run_1', 'thread_existing', 'completed'))
-    if (url.pathname === '/threads/thread_existing/stream') {
-      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_existing', 'completed'), 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`)
+    if (url.pathname === '/threads/thread_1/messages') {
+      return jsonResponse({
+        threadId: 'thread_1',
+        messages: [{
+          id: 'msg_1',
+          threadId: 'thread_1',
+          role: 'user',
+          content: 'paged',
+          createdAt: '2026-05-19T00:00:00.000Z',
+        }],
+        nextAfterOrdinal: 3,
+        hasMore: false,
+        scan: {
+          durationMs: 1,
+          bytesRead: 100,
+          totalBytes: 100,
+          linesRead: 2,
+          eventsRead: 2,
+          matchedEvents: 1,
+          malformedLines: 0,
+        },
       })
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessageStream({
-      threadId: 'thread_existing',
-      message: 'continue',
-    }, { timeoutMs: 1, pollMs: 1 })
+    const page = await new LocalAgentClient(fetchTransport('http://local.test')).listThreadMessages('thread_1', {
+      afterOrdinal: 2,
+      limit: 1,
+      direction: 'desc',
+    })
 
-    assert.equal(result.thread.id, 'thread_existing')
+    assert.deepEqual(requests, ['GET /threads/thread_1/messages?afterOrdinal=2&limit=1&direction=desc'])
+    assert.equal(page.messages[0]?.content, 'paged')
+    assert.equal(page.nextAfterOrdinal, 3)
+    assert.equal(page.scan.matchedEvents, 1)
+  })
+})
+
+test('runMessageStream sends messages through the scoped session runtime', async () => {
+  const requests: string[] = []
+  const runBodies: Array<Record<string, unknown>> = []
+  const sourceMessages: Array<{ messageId: string; runId: string }> = []
+  const thread = threadFixture('thread_active')
+  const run = runFixture('run_1', 'thread_active', 'completed')
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/sessions/session_1') {
+      return jsonResponse({
+        id: 'session_1',
+        activeThreadId: 'thread_active',
+        interactiveThreadId: 'thread_root',
+        rootThreadId: 'thread_root',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:01.000Z',
+      })
+    }
+    if (url.pathname === '/sessions/session_1/runs') {
+      runBodies.push(parseJSONBody(init?.body))
+      return jsonResponse({ run, message: messageFixture('msg_1', 'thread_active', 'continue') })
+    }
+    if (url.pathname === '/threads/thread_active/stream') {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1))}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    if (url.pathname === '/threads/thread_active') return jsonResponse(thread)
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).runMessageStream({
+      message: 'continue',
+      sourceMessageId: 'local_msg_1',
+      title: 'Session conversation',
+      projectId: 7,
+    }, {
+      onSourceMessage: (message, run) => {
+        sourceMessages.push({ messageId: message.id, runId: run.id })
+      },
+      timeoutMs: 1,
+      pollMs: 1,
+    })
+
+    assert.equal(result.thread.id, 'thread_active')
     assert.equal(result.sourceMessage?.id, 'msg_1')
     assert.deepEqual(result.threadResolution, {
-      requestedThreadId: 'thread_existing',
-      threadId: 'thread_existing',
+      threadId: 'thread_active',
       reusedExistingThread: true,
       createdNewThread: false,
       missingRequestedThread: false,
     })
-    assert.deepEqual(requests.slice(0, 3), [
-      'POST /threads/thread_existing/runs',
-      'GET /threads/thread_existing/stream',
-      'GET /threads/thread_existing',
-    ])
-  })
-})
-
-test('runMessageStream reports when a missing saved thread id is replaced by a new thread', async () => {
-  const requests: string[] = []
-  const thread = threadFixture('thread_new')
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_new') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_new/runs') return jsonResponse(messageRunFixture('run_1', 'thread_new', 'completed'))
-    if (url.pathname === '/threads/thread_new/stream') {
-      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_new', 'completed'), 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessageStream({
-      threadId: 'thread_missing',
-      message: 'continue',
-      title: 'Recovered thread',
-    }, { timeoutMs: 1, pollMs: 1 })
-
-    assert.equal(result.thread.id, 'thread_new')
-    assert.deepEqual(result.threadResolution, {
-      requestedThreadId: 'thread_missing',
-      threadId: 'thread_new',
-      reusedExistingThread: false,
-      createdNewThread: true,
-      missingRequestedThread: true,
-    })
     assert.deepEqual(requests.slice(0, 4), [
-      'POST /threads/thread_missing/runs',
-      'POST /threads',
-      'POST /threads/thread_new/runs',
-      'GET /threads/thread_new/stream',
+      'GET /sessions/session_1',
+      'POST /sessions/session_1/runs',
+      'GET /threads/thread_active/stream',
+      'GET /threads/thread_active',
     ])
+    assert.equal(runBodies[0]?.message, 'continue')
+    assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_1')
+    assert.equal(runBodies[0]?.activeRunMode, 'runtime_input')
+    assert.equal(runBodies[0]?.title, 'Session conversation')
+    assert.equal(runBodies[0]?.projectId, 7)
+    assert.deepEqual(sourceMessages, [{ messageId: 'msg_1', runId: 'run_1' }])
   })
 })
 
-test('runMessageStream creates provisional runtime threads before the first message', async () => {
-  const requests: string[] = []
-  const threadBodies: Array<Record<string, unknown>> = []
-  const thread = threadFixture('thread_provisional')
-  await withFetch(async (input, init) => {
-    const url = new URL(String(input))
-    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/threads' && init?.method === 'POST') {
-      threadBodies.push(parseJSONBody(init?.body))
-      return jsonResponse(thread)
-    }
-    if (url.pathname === '/threads/thread_provisional') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_provisional/runs') return jsonResponse(messageRunFixture('run_1', 'thread_provisional', 'completed'))
-    if (url.pathname === '/threads/thread_provisional/stream') {
-      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_provisional', 'completed'), 1))}\n\n`, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      })
-    }
-    return new Response('not found', { status: 404 })
-  }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessageStream({
-      message: 'start',
-      title: 'New agent space',
-    }, { timeoutMs: 1, pollMs: 1 })
-
-    assert.equal(result.thread.id, 'thread_provisional')
-    assert.equal(threadBodies[0]?.title, 'New agent space')
-    assert.equal(threadBodies[0]?.lifecycle, 'provisional')
-    assert.deepEqual(requests.slice(0, 3), [
-      'POST /threads',
-      'POST /threads/thread_provisional/runs',
-      'GET /threads/thread_provisional/stream',
-    ])
-  })
-})
-
-test('runMessageStream only replaces saved thread ids for not-found responses', async () => {
+test('runMessageStream rejects client-selected thread targets', async () => {
   const requests: string[] = []
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/threads/thread_broken/runs') return new Response('backend failed', { status: 500 })
-    if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(threadFixture('thread_new'))
     return new Response('not found', { status: 404 })
   }, async () => {
     await assert.rejects(
-      () => new LocalAgentClient('http://local.test').runMessageStream({
-        threadId: 'thread_broken',
+      () => new LocalAgentClient(fetchTransport('http://local.test'), { sessionId: 'session_1' }).runMessageStream({
+        threadId: 'thread_existing',
         message: 'continue',
       }, { timeoutMs: 1, pollMs: 1 }),
-      /local agent returned 500: backend failed/,
+      /client-selected thread/,
     )
 
-    assert.deepEqual(requests, ['POST /threads/thread_broken/runs'])
+    assert.deepEqual(requests, [])
+  })
+})
+
+test('runMessageStream requires a session runtime', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    await assert.rejects(
+      () => new LocalAgentClient(fetchTransport('http://local.test')).runMessageStream({
+        message: 'start',
+      }, { timeoutMs: 1, pollMs: 1 }),
+      /requires a session runtime/,
+    )
+
+    assert.deepEqual(requests, [])
+  })
+})
+
+test('runMessageStream only rejects thread ids before network requests', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    await assert.rejects(
+      () => new LocalAgentClient(fetchTransport('http://local.test')).runMessageStream({
+        threadId: 'thread_missing',
+        message: 'continue',
+      }, { timeoutMs: 1, pollMs: 1 }),
+      /client-selected thread/,
+    )
+
+    assert.deepEqual(requests, [])
   })
 })
 
@@ -251,7 +362,7 @@ test('local agent client unwraps JSON error response bodies', async () => {
   }, async () => {
     await assert.rejects(async () => {
       try {
-        await new LocalAgentClient('http://local.test').saveModelConfig({ model: '' })
+        await new LocalAgentClient(fetchTransport('http://local.test')).saveModelConfig({ model: '' })
       } catch (error) {
         assert.ok(error instanceof LocalAgentHTTPError)
         assert.equal(error.status, 400)
@@ -280,7 +391,7 @@ test('local agent JSON requests time out instead of hanging forever', async () =
       reject(signal.reason ?? createAbortError())
     }, { once: true })
   }), async () => {
-    const client = new LocalAgentClient('http://local.test', {
+    const client = new LocalAgentClient(fetchTransport('http://local.test'), {
       healthTimeoutMs: 5,
       requestTimeoutMs: 5,
     })
@@ -308,7 +419,7 @@ test('listThreads sends pagination query parameters', async () => {
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').listThreads({ limit: 1, cursor: 'thread_2' })
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).listThreads({ limit: 1, cursor: 'thread_2' })
 
     assert.deepEqual(requests, ['GET /threads?cursor=thread_2&limit=1'])
     assert.equal(result.total, 2)
@@ -335,7 +446,7 @@ test('updateThread patches archive and lifecycle metadata', async () => {
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').updateThread('thread_1', {
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).updateThread('thread_1', {
       archived: true,
       lifecycle: 'abandoned',
       expiresAt: '2026-06-03T00:00:00.000Z',
@@ -364,7 +475,7 @@ test('listRunsByThread reads the thread-scoped run projection endpoint', async (
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').listRunsByThread('thread_1')
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).listRunsByThread('thread_1')
 
     assert.equal(result.threadId, 'thread_1')
     assert.deepEqual(result.runs.map((run) => run.id), ['run_1'])
@@ -393,7 +504,7 @@ test('getThreadRuntime reads the combined thread runtime snapshot endpoint', asy
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').getThreadRuntime('thread_1')
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).getThreadRuntime('thread_1')
 
     assert.equal(result.entities.threads?.[0]?.id, 'thread_1')
     assert.deepEqual(result.entities.runs?.map((run) => run.id), ['run_1'])
@@ -410,10 +521,18 @@ test('runMessageStream reports thread resolution on the streaming path', async (
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
-    if (url.pathname === '/threads/thread_missing') return new Response('missing', { status: 404 })
-    if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(thread)
+    if (url.pathname === '/sessions/session_stream') {
+      return jsonResponse({
+        id: 'session_stream',
+        activeThreadId: 'thread_stream',
+        interactiveThreadId: 'thread_stream',
+        rootThreadId: 'thread_stream',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:01.000Z',
+      })
+    }
     if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_stream/runs') {
+    if (url.pathname === '/sessions/session_stream/runs') {
       runBodies.push(parseJSONBody(init?.body))
       return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
     }
@@ -425,8 +544,7 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessageStream({
-      threadId: 'thread_missing',
+    const result = await new LocalAgentClient(fetchTransport('http://local.test'), { sessionId: 'session_stream' }).runMessageStream({
       message: 'continue',
       sourceMessageId: 'local_msg_stream',
     }, {
@@ -441,17 +559,16 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     assert.equal(result.sourceMessage?.id, 'msg_stream')
     assert.equal(result.thread.id, 'thread_stream')
     assert.deepEqual(result.threadResolution, {
-      requestedThreadId: 'thread_missing',
       threadId: 'thread_stream',
-      reusedExistingThread: false,
-      createdNewThread: true,
-      missingRequestedThread: true,
+      reusedExistingThread: true,
+      createdNewThread: false,
+      missingRequestedThread: false,
     })
     assert.ok(requests.includes('GET /threads/thread_stream/stream'))
     assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
     assert.equal(runBodies[0]?.message, 'continue')
     assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_stream')
-    assert.equal(runBodies[0]?.activeRunMode, 'new_run')
+    assert.equal(runBodies[0]?.activeRunMode, 'runtime_input')
     assert.deepEqual(sourceMessages, [{ messageId: 'msg_stream', runId: 'run_stream' }])
   })
 })
@@ -463,8 +580,18 @@ test('runMessageStream falls back to run stream when thread stream is unavailabl
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/sessions/session_stream') {
+      return jsonResponse({
+        id: 'session_stream',
+        activeThreadId: 'thread_stream',
+        interactiveThreadId: 'thread_stream',
+        rootThreadId: 'thread_stream',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:01.000Z',
+      })
+    }
     if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_stream/runs') {
+    if (url.pathname === '/sessions/session_stream/runs') {
       return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
     }
     if (url.pathname === '/threads/thread_stream/stream') return new Response('not found', { status: 404 })
@@ -477,8 +604,7 @@ test('runMessageStream falls back to run stream when thread stream is unavailabl
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessageStream({
-      threadId: 'thread_stream',
+    const result = await new LocalAgentClient(fetchTransport('http://local.test'), { sessionId: 'session_stream' }).runMessageStream({
       message: 'continue',
     }, { timeoutMs: 1000, pollMs: 1 })
 
@@ -503,7 +629,7 @@ test('streamThread reads thread-scoped runtime stream events', async () => {
     return new Response('not found', { status: 404 })
   }, async () => {
     const events: Array<{ kind: string; threadId?: string }> = []
-    await new LocalAgentClient('http://local.test').streamThread('thread_stream', {
+    await new LocalAgentClient(fetchTransport('http://local.test')).streamThread('thread_stream', {
       onRuntimeEvent: (event) => events.push({ kind: event.kind, threadId: event.causality?.threadId }),
     })
 
@@ -527,13 +653,66 @@ test('streamSession reads session-scoped runtime stream events', async () => {
     return new Response('not found', { status: 404 })
   }, async () => {
     const events: Array<{ kind: string; scopeType: string; threadId?: string }> = []
-    await new LocalAgentClient('http://local.test').streamSession('session_stream', {
+    await new LocalAgentClient(fetchTransport('http://local.test')).streamSession('session_stream', {
       onRuntimeEvent: (event) => events.push({ kind: event.kind, scopeType: event.scope.type, threadId: event.causality?.threadId }),
     })
 
     assert.deepEqual(events, [{ kind: 'run.upserted', scopeType: 'session', threadId: 'thread_stream' }])
     assert.deepEqual(requests, ['GET /sessions/session_stream/stream'])
   })
+})
+
+test('streamThreadTimeline accepts only concrete timeline upserts and reset events', async () => {
+  const requests: string[] = []
+  const item = {
+    id: 'message:msg_1',
+    threadId: 'thread_1',
+    origin: 'user',
+    purpose: 'transcript',
+    surface: 'message_stream',
+    contentPromptEligibility: 'include',
+    sortRank: 10,
+    content: 'Hello',
+    createdAt: '2026-05-19T00:00:01.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+    revision: 1,
+    cursor: '1779148801000:10:message%3Amsg_1',
+    runtimeRefs: { threadId: 'thread_1', messageId: 'msg_1' },
+  }
+  const transport: AgentRuntimeTransport = {
+    kind: 'unix-socket',
+    endpointLabel: 'unix:/tmp/movscript-agent.sock',
+    request: async () => new Response('not found', { status: 404 }),
+    openEventStream: async (path) => {
+      requests.push(path)
+      return {
+        ok: true,
+        status: 200,
+        responseText: async () => '',
+        messages: async function* () {
+          yield JSON.stringify({ type: 'timeline.item.created', revision: 1, item })
+          yield JSON.stringify({ type: 'timeline.item.updated', revision: 2 })
+          yield JSON.stringify({ type: 'timeline.item.unknown', revision: 3, item })
+          yield JSON.stringify({ type: 'timeline.reset_required', revision: 4, reason: 'gap' })
+        },
+      }
+    },
+  }
+  const events: Array<{ type: string; itemId?: string; reason?: string }> = []
+
+  await new LocalAgentClient(transport).streamThreadTimeline('thread_1', {
+    onTimelineEvent: (event) => events.push({
+      type: event.type,
+      ...(event.type !== 'timeline.reset_required' ? { itemId: event.item.id } : {}),
+      ...(event.type === 'timeline.reset_required' ? { reason: event.reason } : {}),
+    }),
+  })
+
+  assert.deepEqual(requests, ['/threads/thread_1/timeline/stream'])
+  assert.deepEqual(events, [
+    { type: 'timeline.item.created', itemId: 'message:msg_1' },
+    { type: 'timeline.reset_required', reason: 'gap' },
+  ])
 })
 
 test('streamPlan reads plan-scoped runtime stream events', async () => {
@@ -551,7 +730,7 @@ test('streamPlan reads plan-scoped runtime stream events', async () => {
     return new Response('not found', { status: 404 })
   }, async () => {
     const events: Array<{ kind: string; taskGraphId?: string }> = []
-    await new LocalAgentClient('http://local.test').streamPlan('task_graph_stream', {
+    await new LocalAgentClient(fetchTransport('http://local.test')).streamPlan('task_graph_stream', {
       onRuntimeEvent: (event) => events.push({ kind: event.kind, taskGraphId: event.causality?.taskGraphId }),
     })
 
@@ -585,7 +764,7 @@ test('streamRun reconnects after a per-request stream timeout', async () => {
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').streamRun('run_reconnect', {
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).streamRun('run_reconnect', {
       timeoutMs: 1000,
       streamRequestTimeoutMs: 1,
       pollMs: 1,
@@ -596,6 +775,43 @@ test('streamRun reconnects after a per-request stream timeout', async () => {
     assert.deepEqual(requests.filter((request) => request === 'GET /runs/run_reconnect/stream'), [
       'GET /runs/run_reconnect/stream',
       'GET /runs/run_reconnect/stream',
+    ])
+  })
+})
+
+test('streamRun keeps reading after requires_action and returns the later terminal run', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/runs/run_waiting') {
+      return jsonResponse(runFixture('run_waiting', 'thread_stream', 'in_progress'))
+    }
+    if (url.pathname === '/runs/run_waiting/stream') {
+      const waiting = runFixture('run_waiting', 'thread_stream', 'requires_action')
+      const completed = runFixture('run_waiting', 'thread_stream', 'completed')
+      return new Response([
+        `data: ${JSON.stringify(runtimeRunEvent(waiting, 1))}\n\n`,
+        `data: ${JSON.stringify(runtimeRunEvent(completed, 2))}\n\n`,
+      ].join(''), {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const updates: AgentRun['status'][] = []
+    const result = await new LocalAgentClient(fetchTransport('http://local.test')).streamRun('run_waiting', {
+      timeoutMs: 1000,
+      pollMs: 1,
+      onRunUpdate: (run) => updates.push(run.status),
+    })
+
+    assert.equal(result.status, 'completed')
+    assert.deepEqual(updates, ['requires_action', 'completed'])
+    assert.deepEqual(requests, [
+      'GET /runs/run_waiting/stream',
+      'GET /runs/run_waiting',
     ])
   })
 })
@@ -740,7 +956,7 @@ test('trace reads preserve pagination and kind filters', async () => {
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const client = new LocalAgentClient('http://local.test')
+    const client = new LocalAgentClient(fetchTransport('http://local.test'))
     const page = await client.getRunTraceEvents('run_trace', {
       cursor: 'trace_0',
       limit: 25,
@@ -901,6 +1117,67 @@ function parseJSONBody(body: BodyInit | null | undefined): Record<string, unknow
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
     ? parsed as Record<string, unknown>
     : {}
+}
+
+function fetchTransport(baseURL: string): AgentRuntimeTransport {
+  const endpointLabel = baseURL.replace(/\/+$/, '')
+  return {
+    kind: 'electron',
+    endpointLabel,
+    request: (path, init) => fetch(`${endpointLabel}${path}`, init),
+    openEventStream: async (path, init) => new FetchEventStream(await fetch(`${endpointLabel}${path}`, init)),
+  }
+}
+
+class FetchEventStream {
+  readonly ok: boolean
+  readonly status: number
+
+  constructor(private readonly response: Response) {
+    this.ok = response.ok
+    this.status = response.status
+  }
+
+  responseText(): Promise<string> {
+    return this.response.text()
+  }
+
+  async *messages(): AsyncIterable<string> {
+    const body = this.response.body
+    if (!body) return
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let separatorIndex = buffer.indexOf('\n\n')
+        while (separatorIndex >= 0) {
+          const parsed = parseSSEBlock(buffer.slice(0, separatorIndex))
+          if (parsed) yield parsed
+          buffer = buffer.slice(separatorIndex + 2)
+          separatorIndex = buffer.indexOf('\n\n')
+        }
+      }
+      const tail = decoder.decode()
+      if (tail) buffer += tail
+      const parsed = parseSSEBlock(buffer)
+      if (parsed) yield parsed
+    } finally {
+      await reader.cancel().catch(() => undefined)
+    }
+  }
+}
+
+function parseSSEBlock(block: string): string | undefined {
+  const data = block
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice('data:'.length).replace(/^ /, ''))
+  return data.length ? data.join('\n') : undefined
 }
 
 async function withFetch(fetchImpl: typeof fetch, fn: () => Promise<void>): Promise<void> {

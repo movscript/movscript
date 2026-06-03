@@ -68,6 +68,7 @@ test('applyRuntimeRunCompletion creates assistant message, completion traces, me
     },
   })
 
+  assert.ok(assistant)
   assert.equal(assistant.id, 'msg_assistant')
   assert.equal(run.status, 'completed_with_warnings')
   assert.equal(run.assistantMessageId, 'msg_assistant')
@@ -133,7 +134,55 @@ test('applyRuntimeRunCompletion marks a clean run completed and stores memory id
   assert.equal(run.metadata?.assistantContentTurns, undefined)
 })
 
-test('applyRuntimeRunCompletion emits runtime status message for async work handoff without model text', () => {
+test('applyRuntimeRunCompletion keeps async handoff status separate from assistant transcript text', () => {
+  const store = new InMemoryAgentStore()
+  const thread = makeThread()
+  const run = makeRun({ status: 'in_progress' })
+  store.createThread(thread)
+  store.createRun(run)
+  const assistantMessages: AgentMessage[] = []
+
+  const assistant = applyRuntimeRunCompletion({
+    store,
+    run,
+    thread,
+    userMessage: '生成一张图',
+    assistantContents: ['我会开始生成。'],
+    finalContent: '我会开始生成。',
+    toolOutcomes: [coreWorkStartOutcome()],
+    warnings: [],
+    memories: [],
+    memoryStorePath: '/tmp/memories.json',
+    messageId: 'msg_assistant',
+    now,
+    postRunUserMessage: userMessage(),
+    recordTrace: () => {},
+    createStep: (targetRun, type) => {
+      const step: AgentRunStep = {
+        id: 'step_1',
+        runId: targetRun.id,
+        type,
+        status: 'in_progress',
+        createdAt: now,
+      }
+      targetRun.steps.push(step)
+      return step
+    },
+    emitAssistantMessage: (_run, message) => assistantMessages.push(message),
+    emitRunSnapshot: () => {},
+    deferPostRunRecords: () => {},
+  })
+
+  assert.ok(assistant)
+  assert.equal(assistant.content, '我会开始生成。')
+  assert.equal(assistant.metadata, undefined)
+  assert.deepEqual(assistantMessages.map((message) => message.id), ['msg_assistant'])
+  assert.equal(thread.runtimeStatuses?.length, 1)
+  assert.equal(thread.runtimeStatuses?.[0]?.runId, run.id)
+  assert.equal(thread.runtimeStatuses?.[0]?.status.kind, 'async_work_handoff')
+})
+
+test('applyRuntimeRunCompletion records async handoff status outside transcript messages', () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   const run = makeRun({ status: 'in_progress' })
@@ -171,13 +220,15 @@ test('applyRuntimeRunCompletion emits runtime status message for async work hand
     deferPostRunRecords: () => {},
   })
 
-  assert.match(assistant.content, /你可以继续发送消息/)
-  assert.equal(assistant.metadata?.kind, 'runtime_status')
-  assert.equal(assistant.metadata?.promptHistory, 'exclude')
-  assert.equal((assistant.metadata?.runtimeStatus as any)?.kind, 'async_work_handoff')
-  assert.equal((assistant.metadata?.runtimeStatus as any)?.workId, 'work_1')
-  assert.equal((assistant.metadata?.runtimeStatus as any)?.workKind, 'generation_job')
-  assert.equal((assistant.metadata?.runtimeStatus as any)?.workStatus, 'running')
+  assert.equal(assistant, undefined)
+  assert.equal(run.assistantMessageId, undefined)
+  assert.deepEqual(thread.messages.map((message) => message.role), ['user'])
+  assert.equal(thread.runtimeStatuses?.length, 1)
+  assert.match(thread.runtimeStatuses?.[0]?.content ?? '', /你可以继续发送消息/)
+  assert.equal(thread.runtimeStatuses?.[0]?.status.kind, 'async_work_handoff')
+  assert.equal(thread.runtimeStatuses?.[0]?.status.workId, 'work_1')
+  assert.equal(thread.runtimeStatuses?.[0]?.status.workKind, 'generation_job')
+  assert.equal(thread.runtimeStatuses?.[0]?.status.workStatus, 'running')
 })
 
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
