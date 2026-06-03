@@ -28,7 +28,7 @@ test('completeSendRunResult binds runtime thread, run state, and settled notific
   assert.equal(calls.includes('settled:request_1:completed:run_1:thread_1:0'), true)
 })
 
-test('completeSendRunResult skips thread binding for diagnostic commands', async () => {
+test('completeSendRunResult binds diagnostic command threads so local diagnostics are visible', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
 
@@ -38,8 +38,9 @@ test('completeSendRunResult skips thread binding for diagnostic commands', async
     deps,
   })
 
-  assert.equal(calls.some((call) => call.startsWith('setLocalThread')), false)
-  assert.equal(calls.some((call) => call.startsWith('runtimeThread')), false)
+  assert.equal(calls.includes('setLocalThread:thread_1'), true)
+  assert.equal(calls.includes('runtimeThread:thread_1'), true)
+  assert.equal(calls.includes('title:Thread title'), true)
 })
 
 test('completeSendRunResult resolves stream partial runs before completing state', async () => {

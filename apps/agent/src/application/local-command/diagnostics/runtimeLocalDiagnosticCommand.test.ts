@@ -149,6 +149,8 @@ test('applyRuntimeLocalDiagnosticCommand preserves warning completion status and
   const diagnostic = (completedStep?.result as any)?.diagnostic
   assert.equal(run.status, 'completed_with_warnings')
   assert.deepEqual(run.warnings, ['Focus unavailable: mcp offline'])
+  assert.equal((thread.messages.at(-1)?.metadata as any)?.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal((thread.messages.at(-1)?.metadata as any)?.contextDiagnostic?.modelGatewayCalled, false)
   assert.equal(diagnostic?.schema, 'movscript.local_context_diagnostic.v1')
   assert.equal(diagnostic?.modelGatewayCalled, false)
   assert.equal(Array.isArray(diagnostic?.messages), true)

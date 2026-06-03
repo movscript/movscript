@@ -183,7 +183,7 @@ export async function buildLocalAgentSendWorkspace(input: BuildLocalAgentSendWor
     { role: 'user' as const, content: enrichedUserContent },
   ]
   const debugMessages = options.omitDebugArtifacts ? [] : messages
-  const threadId = diagnosticCommand ? undefined : input.localThreadId || undefined
+  const threadId = input.localThreadId || undefined
   const localRuntimeProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
   const localRuntime: AgentSendWorkspace['localRuntime'] = {
     ...(threadId ? { threadId } : {}),

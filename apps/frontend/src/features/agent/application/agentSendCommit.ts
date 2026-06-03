@@ -170,14 +170,14 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
     })
     markSendPhase('prepare_runtime_done')
     markSendPhase('request_start', {
-      threadId: workspace.localRuntime?.diagnosticCommand ? undefined : workspace.localRuntime?.threadId,
+      threadId: workspace.localRuntime?.threadId,
       sourceMessageId,
       projectId: workspace.localRuntime?.projectId,
       clientInputAttachmentCount: workspace.localRuntime?.clientInput?.attachments?.length ?? 0,
       diagnosticCommand: Boolean(workspace.localRuntime?.diagnosticCommand),
     })
     const runResult = await localAgentClient.runMessageStream({
-      threadId: workspace.localRuntime?.diagnosticCommand ? undefined : workspace.localRuntime?.threadId,
+      threadId: workspace.localRuntime?.threadId,
       message: workspace.localRuntime?.clientInput?.message ?? workspace.visibleUserContent,
       sourceMessageId,
       clientInput: workspace.localRuntime?.clientInput,

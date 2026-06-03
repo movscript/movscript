@@ -13,13 +13,6 @@
       "workspace"
     ]
   },
-  "schemas": [
-    "movscript.setting_workspace.v1",
-    "movscript.asset_workspace.v1",
-    "movscript.project_standards_workspace.v1",
-    "movscript.production_workspace.v1",
-    "movscript.content_unit_workspace.v1"
-  ],
   "tools": [
     "get_workspace_model",
     "workspace_open",

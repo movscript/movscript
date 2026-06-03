@@ -195,7 +195,7 @@ test('buildLocalAgentSendWorkspace preserves explicit runtime limits overrides',
   })
 })
 
-test('buildLocalAgentSendWorkspace drops saved thread for diagnostic commands and omits debug artifacts on request', async () => {
+test('buildLocalAgentSendWorkspace preserves saved thread for diagnostic commands and omits debug artifacts on request', async () => {
   const workspace = await buildLocalAgentSendWorkspace({
     options: {
       message: '/context local',
@@ -217,7 +217,7 @@ test('buildLocalAgentSendWorkspace drops saved thread for diagnostic commands an
     httpLabels: labels,
   })
 
-  assert.equal(workspace.localRuntime?.threadId, undefined)
+  assert.equal(workspace.localRuntime?.threadId, 'thread_saved')
   assert.equal(workspace.localRuntime?.diagnosticCommand, true)
   assert.deepEqual(workspace.httpRequests, [])
   assert.deepEqual(workspace.outbound.messages, [])

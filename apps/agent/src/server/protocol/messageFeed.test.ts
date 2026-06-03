@@ -121,6 +121,48 @@ test('buildRuntimeFeedMessages keeps non-final assistant anchors separate from f
   assert.equal(feed[1]?.activity?.runId, 'run_1')
 })
 
+test('buildRuntimeFeedMessages projects context diagnostic metadata for local context commands', () => {
+  const feed = buildRuntimeFeedMessages({
+    threads: [{
+      ...thread(),
+      messages: [
+        message({
+          id: 'msg_context',
+          content: 'Model gateway messages:\n\n--- message 1: system ---\nSystem prompt',
+          runId: 'run_1',
+          metadata: {
+            contextDiagnostic: {
+              schema: 'movscript.local_context_diagnostic.v1',
+              modelGatewayCalled: false,
+              messages: [{ role: 'system', content: 'System prompt' }],
+              debugParts: [],
+              tools: {
+                available: [],
+                blocked: [],
+                discoveredCount: 0,
+                modelTools: [],
+              },
+              skills: [],
+              warnings: [],
+            },
+          },
+        }),
+      ],
+    }],
+    runs: [run({
+      id: 'run_1',
+      assistantMessageId: 'msg_context',
+      updatedAt: '2026-05-19T00:00:01.000Z',
+    })],
+  })
+
+  assert.equal(feed.length, 1)
+  assert.equal(feed[0]?.runtimeRefs.messageId, 'msg_context')
+  assert.equal(feed[0]?.meta?.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal(feed[0]?.meta?.contextDiagnostic?.modelGatewayCalled, false)
+  assert.equal(feed[0]?.meta?.contextDiagnostic?.messages[0]?.content, 'System prompt')
+})
+
 test('buildRuntimeFeedMessages attaches run activity only to final assistant messages', () => {
   const feed = buildRuntimeFeedMessages({
     threads: [{

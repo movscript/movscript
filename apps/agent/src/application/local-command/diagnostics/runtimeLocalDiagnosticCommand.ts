@@ -1,5 +1,6 @@
 import type { AgentManifest } from '../../../catalog/manifest/agentManifest.js'
 import type { AgentRuntimeContractResolver } from '../../../contracts/runtime/runtimeContract.js'
+import type { JSONValue } from '../../../shared/protocol/types.js'
 import { buildLocalDiagnosticCommand } from '../../../context/diagnostics/commands/localDiagnosticCommands.js'
 import { applyRuntimeThreadContextSummary } from '../../../context/prompt/summary/runtimeThreadContextSummary.js'
 import type { SkillDiscoverySummary } from '../../../context/prompt/builder/modelContextBuilder.js'
@@ -91,11 +92,15 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
     ...(input.memoryStorePath ? { memoryStorePath: input.memoryStorePath } : {}),
     contractResolver: input.contractResolver,
   })
+  const assistantMetadata = input.command.name === 'context' && localDiagnostic.metadata
+    ? { contextDiagnostic: localDiagnostic.metadata as unknown as JSONValue }
+    : undefined
   const assistant = createRuntimeMessage({
     threadId: input.thread.id,
     role: 'assistant',
     content: localDiagnostic.content || '（无内容）',
     runId: input.run.id,
+    ...(assistantMetadata ? { metadata: assistantMetadata } : {}),
   })
   appendThreadMessage({ thread: input.thread, message: assistant })
 

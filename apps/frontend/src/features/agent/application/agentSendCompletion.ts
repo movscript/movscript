@@ -43,16 +43,14 @@ export async function completeSendRunResult(input: {
     ? await deps.getRun(runResult.run.id).catch(() => runResult.run)
     : runResult.run
   const artifacts = extractAgentTaskArtifacts(run)
-  if (!workspace.localRuntime?.diagnosticCommand) {
-    const sessionId = thread.sessionId ?? run.sessionId
-    if (sessionId) {
-      deps.setConversationSessionId?.(deps.conversationId, sessionId)
-      deps.setConversationRuntimeSessionId?.(deps.userId, deps.conversationId, sessionId)
-    }
-    deps.setLocalThreadId(deps.conversationId, thread.id)
-    deps.setConversationRuntimeThreadId(deps.userId, deps.conversationId, thread.id)
+  const sessionId = thread.sessionId ?? run.sessionId
+  if (sessionId) {
+    deps.setConversationSessionId?.(deps.conversationId, sessionId)
+    deps.setConversationRuntimeSessionId?.(deps.userId, deps.conversationId, sessionId)
   }
-  if (!workspace.localRuntime?.diagnosticCommand && thread.title?.trim()) {
+  deps.setLocalThreadId(deps.conversationId, thread.id)
+  deps.setConversationRuntimeThreadId(deps.userId, deps.conversationId, thread.id)
+  if (thread.title?.trim()) {
     deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
   }
   if (workspace.localRuntime?.requestId) {
