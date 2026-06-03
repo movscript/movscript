@@ -18,6 +18,10 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
     const now = new Date().toISOString()
     const jobId = jobIdFromPayload(payload)
     const status = eventStatus(statusFromPayload(payload), terminalFromPayload(payload))
+    if (status === 'waiting' && jobId === undefined) throw new Error('generation_job start result must include a valid jobId')
+    if (status === 'waiting' && !request.observeTool && !monitorFromPayload(payload)?.tool) {
+      throw new Error('generation_job start result must include an observe tool')
+    }
     return {
       id: makeWorkId(),
       sessionId: input.sessionId,
@@ -39,8 +43,8 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
   }
 
   async observe(work: RuntimeWork, options: { signal?: AbortSignal } = {}): Promise<RuntimeWork> {
-    const jobId = work.externalHandle?.id
-    if (typeof jobId !== 'number') throw new Error(`generation job work has no numeric job id: ${work.id}`)
+    const jobId = idField(work.externalHandle?.id) ?? (isJSONValue(work.result) ? jobIdFromPayload(work.result) : undefined)
+    if (jobId === undefined) throw new Error(`generation job work has no numeric job id: ${work.id}`)
     const request = normalizeStartRequest(work.request)
     const observeTool = observeToolForWork(work, request)
     const args = { jobId }
@@ -51,6 +55,7 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
     return {
       ...work,
       status,
+      externalHandle: { provider: 'movscript', type: 'generation_job', id: jobId },
       result: payload,
       updatedAt: now,
       ...(status === 'completed' || status === 'failed' || status === 'cancelled' ? { completedAt: now } : {}),
@@ -149,28 +154,43 @@ function normalizePayload(value: JSONValue): JSONValue {
 }
 
 function statusFromPayload(value: JSONValue | undefined): string | undefined {
-  if (!isRecord(value)) return undefined
-  if (typeof value.status === 'string' && value.status.trim()) return value.status.trim()
-  if (isRecord(value.job) && typeof value.job.status === 'string' && value.job.status.trim()) return value.job.status.trim()
+  for (const payload of payloadRecords(value)) {
+    if (typeof payload.status === 'string' && payload.status.trim()) return payload.status.trim()
+    if (isRecord(payload.job) && typeof payload.job.status === 'string' && payload.job.status.trim()) return payload.job.status.trim()
+  }
   return undefined
 }
 
 function terminalFromPayload(value: JSONValue | undefined): boolean | undefined {
-  if (!isRecord(value)) return undefined
-  return typeof value.terminal === 'boolean' ? value.terminal : undefined
+  for (const payload of payloadRecords(value)) {
+    if (typeof payload.terminal === 'boolean') return payload.terminal
+  }
+  return undefined
 }
 
 function jobIdFromPayload(value: JSONValue | undefined): number | undefined {
-  if (!isRecord(value)) return undefined
-  return idField(value.jobId)
-    ?? idField(value.job_id)
-    ?? idField(isRecord(value.job) ? value.job.id : undefined)
+  for (const payload of payloadRecords(value)) {
+    const jobId = idField(payload.jobId)
+      ?? idField(payload.job_id)
+      ?? idField(isRecord(payload.job) ? payload.job.id : undefined)
+      ?? idField(isRecord(payload.job) ? payload.job.ID : undefined)
+    if (jobId !== undefined) return jobId
+  }
+  return undefined
 }
 
 function monitorFromPayload(value: JSONValue | undefined): { tool?: string } | undefined {
-  if (!isRecord(value) || !isRecord(value.monitor)) return undefined
-  const tool = typeof value.monitor.tool === 'string' && value.monitor.tool.trim() ? value.monitor.tool.trim() : undefined
-  return tool ? { tool } : undefined
+  for (const payload of payloadRecords(value)) {
+    if (!isRecord(payload.monitor)) continue
+    const tool = typeof payload.monitor.tool === 'string' && payload.monitor.tool.trim() ? payload.monitor.tool.trim() : undefined
+    if (tool) return { tool }
+  }
+  return undefined
+}
+
+function payloadRecords(value: JSONValue | undefined): Record<string, unknown>[] {
+  if (!isRecord(value)) return []
+  return isRecord(value.data) ? [value, value.data] : [value]
 }
 
 function idField(value: unknown): number | undefined {

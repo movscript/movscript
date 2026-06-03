@@ -3,6 +3,7 @@ import test from 'node:test'
 import { RuntimeWorkManager } from './runtimeWorkManager.js'
 import { GenerationJobWorkProvider } from '../providers/generationJobWorkProvider.js'
 import { SubagentRunWorkProvider } from '../providers/subagentRunWorkProvider.js'
+import type { RuntimeWork } from '../core/runtimeWork.js'
 import type { JSONValue } from '../../shared/protocol/types.js'
 import { MCPError } from '../../adapters/mcp/client/mcpClient.js'
 import type { AgentRun, AgentThread, CreateRunInput, CreateThreadInput } from '../../state/shared/types.js'
@@ -70,6 +71,47 @@ test('RuntimeWorkManager completes generation job works from backend status alia
   assert.equal(wait.status, 'completed')
   assert.equal(wait.done, true)
   assert.equal(wait.completed[0]?.status, 'completed')
+})
+
+test('RuntimeWorkManager observes generation job works with job id under tool result data', async () => {
+  const calls: Array<{ name: string; args: Record<string, JSONValue> }> = []
+  const manager = new RuntimeWorkManager({
+    providers: [new GenerationJobWorkProvider({
+      initialize: async () => ({}),
+      callTool: async (name, args = {}) => {
+        calls.push({ name, args })
+        return { data: { jobId: args.jobId, status: 'succeeded', terminal: true } } as JSONValue
+      },
+    })],
+  })
+
+  manager.store.create({
+    id: 'work_with_wrapped_result',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job',
+    mode: 'async',
+    status: 'waiting',
+    request: generationImageRequest({ prompt: 'make image' }),
+    result: {
+      content: [{ type: 'text', text: '图像生成任务已提交 (Job #28)' }],
+      data: {
+        status: 'submitted',
+        terminal: false,
+        jobId: 28,
+        job_id: 28,
+        monitor: { tool: 'generation_image_job_get', args: { jobId: 28 } },
+      },
+    },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  } satisfies RuntimeWork)
+
+  const wait = await manager.wait({ workIds: ['work_with_wrapped_result'], timeoutMs: 0 })
+
+  assert.equal(wait.status, 'completed')
+  assert.deepEqual(calls, [{ name: 'generation_image_job_get', args: { jobId: 28 } }])
+  assert.deepEqual(wait.completed[0]?.externalHandle, { provider: 'movscript', type: 'generation_job', id: 28 })
 })
 
 test('RuntimeWorkManager rejects generation job starts without a returned job id', async () => {
