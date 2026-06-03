@@ -139,7 +139,7 @@ export function traceToolDetail(event: AgentTraceEvent, data: Record<string, unk
   const duration = formatTraceEventDuration(event, data)
   const fields = data
     ? Object.entries(data)
-      .filter(([key]) => !['source', 'durationMs', 'sandboxed', 'args'].includes(key))
+      .filter(([key]) => !['source', 'durationMs', 'sandboxed', 'args', 'result', 'errorData'].includes(key))
       .flatMap(([key, value]) => {
         const displayValue = toolFieldValue(value)
         return displayValue ? [{ label: toolFieldLabel(key), value: displayValue, sensitive: isSensitiveFieldName(key) }] : []
@@ -156,6 +156,8 @@ export function traceToolDetail(event: AgentTraceEvent, data: Record<string, unk
     duration,
     summary: traceSummary(event),
     ...(data && Object.prototype.hasOwnProperty.call(data, 'args') ? { args: data.args } : {}),
+    ...(data && Object.prototype.hasOwnProperty.call(data, 'result') ? { result: data.result } : {}),
+    ...(data && Object.prototype.hasOwnProperty.call(data, 'errorData') ? { errorData: data.errorData } : {}),
     fields,
   }
 }

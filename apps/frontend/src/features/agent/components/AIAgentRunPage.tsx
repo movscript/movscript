@@ -1651,6 +1651,8 @@ function traceEventSearchText(event: AgentTraceEvent): string {
     toolDetail?.statusLabel,
     toolDetail?.summary ? redactAgentTraceDebugText(toolDetail.summary) : undefined,
     toolDetail?.args !== undefined ? formatAgentTraceRawJSON(toolDetail.args) : undefined,
+    toolDetail?.result !== undefined ? formatAgentTraceRawJSON(toolDetail.result) : undefined,
+    toolDetail?.errorData !== undefined ? formatAgentTraceRawJSON(toolDetail.errorData) : undefined,
     ...((toolDetail?.fields ?? []).flatMap((field) => [field.label, redactAgentTraceDebugText(field.value)])),
   ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
 }
@@ -3714,6 +3716,20 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
         <AgentRunTraceDisclosure data-testid="agent-run-tool-args" title="参数" defaultOpen>
           <AgentRunDebugCodeBlock>
             {formatAgentTraceRawJSON(detail.args)}
+          </AgentRunDebugCodeBlock>
+        </AgentRunTraceDisclosure>
+      )}
+      {detail.result !== undefined && (
+        <AgentRunTraceDisclosure data-testid="agent-run-tool-result" title="返回结果" defaultOpen>
+          <AgentRunDebugCodeBlock>
+            {formatAgentTraceRawJSON(detail.result)}
+          </AgentRunDebugCodeBlock>
+        </AgentRunTraceDisclosure>
+      )}
+      {detail.errorData !== undefined && (
+        <AgentRunTraceDisclosure data-testid="agent-run-tool-error-data" title="错误详情" defaultOpen>
+          <AgentRunDebugCodeBlock>
+            {formatAgentTraceRawJSON(detail.errorData)}
           </AgentRunDebugCodeBlock>
         </AgentRunTraceDisclosure>
       )}

@@ -132,6 +132,8 @@ export interface AgentTraceToolDetail {
   duration?: string
   summary?: string
   args?: unknown
+  result?: unknown
+  errorData?: unknown
   fields: AgentTraceToolField[]
 }
 

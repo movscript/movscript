@@ -108,7 +108,27 @@ export function ElectronMCPContextBridge() {
       const plugins = await loadClientPlugins()
       const plugin = plugins.find((item) => item.id === call.pluginId)
       if (!plugin) throw new Error(`Plugin not installed: ${call.pluginId}`)
-      return await runClientPlugin(plugin, call.args, { toolName: call.toolName })
+      console.info('[mcp-plugin-tool] call', {
+        pluginId: call.pluginId,
+        toolName: call.toolName,
+        argKeys: Object.keys(call.args ?? {}),
+      })
+      try {
+        const result = await runClientPlugin(plugin, call.args, { toolName: call.toolName })
+        console.info('[mcp-plugin-tool] result', {
+          pluginId: call.pluginId,
+          toolName: call.toolName,
+          ...summarizePluginToolResult(result),
+        })
+        return result
+      } catch (error) {
+        console.error('[mcp-plugin-tool] failed', {
+          pluginId: call.pluginId,
+          toolName: call.toolName,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
     })
   }, [])
 
@@ -160,4 +180,21 @@ function emptyObjectSchema(): ElectronMCPObjectSchema {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function summarizePluginToolResult(result: unknown): Record<string, unknown> {
+  if (!isRecord(result)) return { resultType: typeof result }
+  const data = isRecord(result.data) ? result.data : undefined
+  const job = isRecord(data?.job) ? data.job : undefined
+  const monitor = isRecord(data?.monitor) ? data.monitor : undefined
+  return {
+    hasData: Boolean(data),
+    status: typeof data?.status === 'string' ? data.status : undefined,
+    terminal: typeof data?.terminal === 'boolean' ? data.terminal : undefined,
+    jobId: data?.jobId,
+    job_id: data?.job_id,
+    monitorTool: typeof monitor?.tool === 'string' ? monitor.tool : undefined,
+    jobRawId: job?.id ?? job?.ID,
+    jobStatus: typeof job?.status === 'string' ? job.status : undefined,
+  }
 }

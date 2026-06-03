@@ -437,6 +437,7 @@ test('agentTraceView keeps behavior and impact separated', () => {
     data: {
       source: 'runtime',
       args: { scope: { projectId: 42 } },
+      result: { projectId: 42, title: '当前项目' },
       sandboxed: false,
     },
   }))
@@ -450,6 +451,7 @@ test('agentTraceView keeps behavior and impact separated', () => {
   assert.equal(view.toolDetail?.duration, '42ms')
   assert.equal(view.toolDetail?.sandboxed, '否')
   assert.deepEqual(view.toolDetail?.args, { scope: { projectId: 42 } })
+  assert.deepEqual(view.toolDetail?.result, { projectId: 42, title: '当前项目' })
 })
 
 test('agentTraceView formats trace duration without changing latency precision', () => {

@@ -8,7 +8,7 @@ import {
   summarizeToolCallTrace,
 } from './toolTrace.js'
 
-test('summarizeToolCallTrace hashes tool results without storing the full result payload', () => {
+test('summarizeToolCallTrace records tool args and results with hashes', () => {
   const summary = summarizeToolCallTrace({
     call: { name: 'core_file_read', args: { ref: 'agent://workspace/workspace_1/content' } },
     source: 'runtime',
@@ -16,13 +16,13 @@ test('summarizeToolCallTrace hashes tool results without storing the full result
     durationMs: 12,
   })
 
-  assert.equal(summary.args, undefined)
+  assert.deepEqual(summary.args, { ref: 'agent://workspace/workspace_1/content' })
   assert.match(String(summary.argsHash), /^sha256:/)
-  assert.equal(summary.argsMode, 'summary')
+  assert.equal(summary.argsMode, 'full')
   assert.equal(summary.toolName, 'core_file_read')
-  assert.equal(summary.result, undefined)
+  assert.deepEqual(summary.result, { content: 'large content' })
   assert.match(String(summary.resultHash), /^sha256:/)
-  assert.equal(summary.resultMode, 'summary')
+  assert.equal(summary.resultMode, 'full')
   assert.equal(summary.resultChars, JSON.stringify({ content: 'large content' }).length)
   assert.equal(summary.source, 'runtime')
   assert.equal(summary.durationMs, 12)
@@ -39,7 +39,7 @@ test('summarizeToolCallTrace preserves generation event summaries for generation
     result: { status: 'queued', jobId: 123, terminal: false },
   })
 
-  assert.equal(summary.result, undefined)
+  assert.deepEqual(summary.result, { status: 'queued', jobId: 123, terminal: false })
   assert.equal((summary.generation as Record<string, unknown> | undefined)?.jobId, 123)
   assert.equal((summary.generation as Record<string, unknown> | undefined)?.stage, 'created')
   assert.equal((summary.generation as Record<string, unknown> | undefined)?.terminal, false)
@@ -48,7 +48,7 @@ test('summarizeToolCallTrace preserves generation event summaries for generation
   assert.equal(contextRefs[0]?.ref.id, '123')
 })
 
-test('summarizeToolCallTrace hashes error data without storing the full error payload', () => {
+test('summarizeToolCallTrace records error data with hashes', () => {
   const summary = summarizeToolCallTrace({
     call: { name: 'tool_a', args: { id: 1 } },
     error: 'failed',
@@ -56,11 +56,11 @@ test('summarizeToolCallTrace hashes error data without storing the full error pa
   })
 
   assert.equal(summary.error, 'failed')
-  assert.equal(summary.args, undefined)
+  assert.deepEqual(summary.args, { id: 1 })
   assert.match(String(summary.argsHash), /^sha256:/)
-  assert.equal(summary.errorData, undefined)
+  assert.deepEqual(summary.errorData, { debug: 'stack detail' })
   assert.match(String(summary.errorDataHash), /^sha256:/)
-  assert.equal(summary.errorDataMode, 'summary')
+  assert.equal(summary.errorDataMode, 'full')
   assert.equal(summary.contextRefs, undefined)
 })
 

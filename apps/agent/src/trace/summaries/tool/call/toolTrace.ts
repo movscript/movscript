@@ -22,10 +22,10 @@ export function summarizeToolCallTrace(input: {
     ...(input.source ? { source: input.source } : {}),
     ...(input.call.id ? { callId: input.call.id } : {}),
     toolName: input.call.name,
-    ...summarizeJSONPayload('args', args),
-    ...(input.result !== undefined ? summarizeJSONPayload('result', input.result) : {}),
+    ...summarizeJSONPayload('args', args, { includePayload: true }),
+    ...(input.result !== undefined ? summarizeJSONPayload('result', input.result, { includePayload: true }) : {}),
     ...(input.error ? { error: input.error } : {}),
-    ...(input.errorData !== undefined ? summarizeJSONPayload('errorData', input.errorData) : {}),
+    ...(input.errorData !== undefined ? summarizeJSONPayload('errorData', input.errorData, { includePayload: true }) : {}),
     ...(input.pipeline !== undefined ? { pipeline: input.pipeline } : {}),
     ...(typeof input.sandboxed === 'boolean' ? { sandboxed: input.sandboxed } : {}),
     ...(isNonNegativeFiniteNumber(input.durationMs) ? { durationMs: input.durationMs } : {}),
@@ -115,12 +115,13 @@ function contextRefKey(ref: ContextRef): string {
   return `${ref.type}:${ref.id}:${ref.version ?? ref.hash ?? ''}`
 }
 
-function summarizeJSONPayload(prefix: string, value: JSONValue): Record<string, JSONValue> {
+function summarizeJSONPayload(prefix: string, value: JSONValue, options: { includePayload?: boolean } = {}): Record<string, JSONValue> {
   const json = stableStringify(value)
   return {
+    ...(options.includePayload ? { [prefix]: toJSONValue(value) } : {}),
     [`${prefix}Hash`]: hashString(json),
     [`${prefix}Chars`]: json.length,
-    [`${prefix}Mode`]: 'summary',
+    [`${prefix}Mode`]: options.includePayload ? 'full' : 'summary',
   }
 }
 

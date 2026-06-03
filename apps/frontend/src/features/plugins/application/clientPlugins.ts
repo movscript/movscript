@@ -595,7 +595,20 @@ export async function submitGenerationJobViaHost(req: GenerateMediaRequest): Pro
     ...(req.duration !== undefined ? { duration: req.duration } : {}),
     extra_params: JSON.stringify(req.extra_params ?? {}),
   }).then((r) => r.data)
-  return normalizeGenerationJob(job)
+  console.info('[client-plugin:generation.submit] backend job', {
+    jobType,
+    featureKey: req.feature_key ?? 'client_plugin',
+    modelId,
+    ...summarizeRawGenerationJob(job),
+  })
+  const normalized = normalizeGenerationJob(job)
+  console.info('[client-plugin:generation.submit] normalized job', {
+    jobType,
+    id: normalized.id,
+    status: normalized.status,
+    outputResourceCount: normalized.outputResourceIds?.length ?? 0,
+  })
+  return normalized
 }
 
 export async function getGenerationJobViaHost(id: number | string): Promise<GenerationJob> {
@@ -624,6 +637,18 @@ function normalizeGenerationJob(value: unknown): GenerationJob {
       ? item.output_resource_ids.map((entry) => Number(entry)).filter((entry) => Number.isInteger(entry) && entry > 0)
       : undefined,
     raw: value,
+  }
+}
+
+function summarizeRawGenerationJob(value: unknown): Record<string, unknown> {
+  const item = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  return {
+    rawID: item.ID,
+    rawId: item.id,
+    rawStatus: item.status,
+    rawJobType: item.job_type,
+    rawFeatureKey: item.feature_key,
+    rawKeys: Object.keys(item),
   }
 }
 
