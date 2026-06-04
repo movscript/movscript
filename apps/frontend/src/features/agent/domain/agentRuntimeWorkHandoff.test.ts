@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  hasRuntimeAsyncWorkHandoffActivity,
   isRuntimeAsyncWorkHandoffRun,
-  isRuntimeEmptyAssistantPlaceholder,
-  runtimeStatusMessageFromRunActivity,
-} from '@/features/agent/domain/agentRuntimeStatusMessage'
+} from '@/features/agent/domain/agentRuntimeWorkHandoff'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
 
-test('runtimeStatusMessageFromRunActivity turns core work starts into runtime handoff messages', () => {
-  const status = runtimeStatusMessageFromRunActivity({
+test('hasRuntimeAsyncWorkHandoffActivity detects core work handoffs', () => {
+  assert.equal(hasRuntimeAsyncWorkHandoffActivity({
     activity: activity({
       steps: [{
         id: 'step_1',
@@ -30,19 +29,13 @@ test('runtimeStatusMessageFromRunActivity turns core work starts into runtime ha
         completedAt: '2026-05-23T00:00:01.000Z',
       }],
     }),
-  })
-
-  assert.equal(status?.kind, 'async_work_handoff')
-  assert.equal(status?.title, '异步任务已提交')
-  assert.equal(status?.workId, 'work_1')
-  assert.equal(status?.workKind, 'generation_job')
-  assert.equal(status?.workStatus, 'running')
-  assert.match(status?.detail ?? '', /继续发送消息/)
-})
-
-test('isRuntimeEmptyAssistantPlaceholder detects empty runtime placeholders', () => {
-  assert.equal(isRuntimeEmptyAssistantPlaceholder('（无内容）'), true)
-  assert.equal(isRuntimeEmptyAssistantPlaceholder('这是 agent 的真实回复'), false)
+  }), true)
+  assert.equal(hasRuntimeAsyncWorkHandoffActivity({
+    activity: activity({
+      steps: [],
+      events: [],
+    }),
+  }), false)
 })
 
 test('isRuntimeAsyncWorkHandoffRun only unlocks terminal core work handoff runs', () => {

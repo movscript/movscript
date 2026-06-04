@@ -51,6 +51,12 @@ export function runAgentGraphPermissionTurn(
     requestedCalls: state.requestedCalls.slice(0, remaining),
     runId: input.run.id,
     makeId: options.makeId,
+    approvalOrigin: {
+      roundId: `round_${options.trace.roundIndex}`,
+      roundIndex: options.trace.roundIndex,
+      roundLabel: options.trace.roundLabel,
+      roundSource: options.trace.roundSource,
+    },
     options: {
       currentProjectId: input.context.project?.id,
       manifest: input.manifest,

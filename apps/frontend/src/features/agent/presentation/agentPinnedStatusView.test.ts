@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { resolveAgentPinnedStatusView } from '@/features/agent/domain/agentPinnedStatusView'
+import { resolveAgentPinnedStatusView } from '@/features/agent/presentation/agentPinnedStatusView'
 
 test('resolveAgentPinnedStatusView keeps the selected view while it remains available', () => {
   assert.equal(resolveAgentPinnedStatusView('plan', {

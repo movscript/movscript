@@ -41,7 +41,7 @@ import {
   type AgentActivityItem,
   type AgentActivityKind,
   type AgentActivityRound as AgentActivityRoundModel,
-} from '@/features/agent/domain/agentActivityFeed'
+} from '@/features/agent/presentation/agentActivityFeed'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { LocalAgentApprovalRequestCard, LocalAgentInputRequestCard, type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'

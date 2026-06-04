@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline, formatToolCallStreamDetail } from '@/features/agent/domain/agentRunActivityTimeline'
+import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline, formatToolCallStreamDetail } from '@/features/agent/presentation/agentRunActivityTimeline'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 test('buildAgentRunActivityTimeline creates one stable activity timeline for approvals inputs tools and generation events', () => {

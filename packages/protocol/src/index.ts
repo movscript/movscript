@@ -960,6 +960,7 @@ export interface AgentApprovalRequest {
   displayAnchor?: RuntimeDisplayAnchor
   toolName: string
   args?: Record<string, JSONValue>
+  origin?: AgentToolCallOrigin
   preview?: JSONValue
   reason: string
   risk?: string
@@ -1838,6 +1839,15 @@ export interface ToolCall {
   name: string
   args?: Record<string, JSONValue>
   arguments?: Record<string, JSONValue>
+  origin?: AgentToolCallOrigin
+}
+
+export interface AgentToolCallOrigin {
+  toolCallId?: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
 }
 
 export interface AgentTraceQuery {

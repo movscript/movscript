@@ -33,11 +33,15 @@ export function useAgentChatPresentationState({
     run: activeRun,
   })
   const conversationProjectionScrollKey = projectionItemsScrollKey(derived.conversationProjection.items)
+  const pendingRuntimeInputQueueKey = derived.pendingRuntimeInputQueue
+    .map((item) => `${item.id}:${item.timestamp}:${item.content.length}`)
+    .join('|')
 
   const scroll = useAgentConversationAutoScroll({
     conversationId,
     conversationProjectionScrollKey,
     generationProgressKey: derived.generationProgressKey,
+    pendingRuntimeInputQueueKey,
   })
 
   return {

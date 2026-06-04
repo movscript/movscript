@@ -31,7 +31,7 @@ import {
   AgentRunInteractionStatusBadge,
   AgentRunInteractionTextInput,
 } from '@movscript/ui'
-import { buildAgentRunActivityTimeline, type AgentRunActivityTimelineItem } from '@/features/agent/domain/agentRunActivityTimeline'
+import { buildAgentRunActivityTimeline, type AgentRunActivityTimelineItem } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { approvalImpactLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { agentRunStatusRecipe, agentRunInteractionActionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'

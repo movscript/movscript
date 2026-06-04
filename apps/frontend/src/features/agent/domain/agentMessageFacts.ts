@@ -1,6 +1,6 @@
 import { dedupeAttachments } from '@/features/agent/domain/agentAttachments'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
-import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity } from '@/features/agent/domain/agentRuntimeStatusMessage'
+import { hasRuntimeAsyncWorkHandoffActivity } from '@/features/agent/domain/agentRuntimeWorkHandoff'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
@@ -31,10 +31,10 @@ export function buildAgentMessageFacts(
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
   const timelineActivity = !isUser ? input.timelineActivity : undefined
-  const runtimeStatus = !isUser ? runtimeStatusMessageFromRunActivity({ activity: timelineActivity, generationJobs }) : undefined
+  const hasRuntimeWorkHandoff = !isUser ? hasRuntimeAsyncWorkHandoffActivity({ activity: timelineActivity }) : false
   const rawDisplayContent = !isUser ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
-  const displayContent = !isUser && runtimeStatus && isRuntimeEmptyAssistantPlaceholder(visibleContent)
+  const displayContent = !isUser && hasRuntimeWorkHandoff && isRuntimeEmptyAssistantPlaceholder(visibleContent)
     ? ''
     : !isUser && timelineActivity && isRequiredActionSummaryContent(visibleContent, timelineActivity)
     ? ''
@@ -51,6 +51,14 @@ export function buildAgentMessageFacts(
     generatedMediaAttachments,
     displayContent,
   }
+}
+
+function isRuntimeEmptyAssistantPlaceholder(content: string): boolean {
+  const normalized = content.trim()
+  return normalized === ''
+    || normalized === '（无内容）'
+    || normalized === '本地 Agent Runtime 没有返回 assistant 消息。'
+    || normalized === 'The local Agent runtime did not return an assistant message.'
 }
 
 function hideGeneratedResultTechnicalSummary(text: string): string {

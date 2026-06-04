@@ -15,6 +15,7 @@ import {
 import { canExecuteConcurrently } from '../../tools/rules/execution/agentGraphExecutionRules.js'
 import type { AgentGraphMakeId } from '../input/agentGraphInputRequests.js'
 import { executeToolTurn, type AgentGraphToolTurnResult } from '../../tools/turn/execution/agentGraphToolTurn.js'
+import { forcedToolCallTrace } from '../../tools/turn/forced/agentGraphForcedToolCalls.js'
 
 type ExecuteTraceBase = Pick<AgentGraphTraceInput, 'roundIndex' | 'roundLabel' | 'roundSource'>
 
@@ -114,7 +115,9 @@ export async function runAgentGraphExecuteTurn(
 
   const nextToolCallCount = state.toolCallCount + requestedCalls.length
   const nextRoundIndex = options.trace.roundIndex + 1
-  if (options.trace.roundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
+  const forcedTrace = forcedToolCallTrace(options.trace, input.forcedToolCalls)
+  const isForcedExecutionTurn = input.forcedToolCalls && input.forcedToolCalls.length > 0 && options.trace.roundIndex === forcedTrace.roundIndex
+  if (isForcedExecutionTurn) {
     const remainingApprovals = remainingPendingApprovalsAfterForcedCalls(input.run, results.map((result) => result.outcome))
     if (defaultApplyCalls.length === 0 && remainingApprovals.length > 0) {
       input.onTrace(buildApprovalStillPendingTrace(remainingApprovals, {

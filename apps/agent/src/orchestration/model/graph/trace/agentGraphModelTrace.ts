@@ -192,6 +192,7 @@ export function buildModelRoundCompletedTrace(input: {
       finish_reason: input.result.finish_reason,
       tool_calls: input.result.tool_calls.map((tc) => ({ id: tc.id, name: tc.function.name })),
       content_chars: input.result.content?.length ?? 0,
+      ...(input.result.content ? { contentPreview: previewText(input.result.content) } : {}),
       usage: input.result.usage,
       durationMs: input.durationMs,
     },
@@ -238,7 +239,13 @@ export function buildModelFinalResponseTrace(
       ...contextBundleTraceData(contextBundle),
       tool_calls: result.tool_calls.map((tc) => ({ id: tc.id, name: tc.function.name })),
       content_chars: result.content?.length ?? 0,
+      ...(result.content ? { contentPreview: previewText(result.content) } : {}),
       usage: result.usage,
     },
   }
+}
+
+function previewText(value: string): string {
+  const normalized = value.trim()
+  return normalized.length > 500 ? `${normalized.slice(0, 500)}...` : normalized
 }

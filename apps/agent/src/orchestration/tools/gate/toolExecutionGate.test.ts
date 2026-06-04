@@ -71,6 +71,13 @@ test('evaluateToolExecutionGate short-circuits user input requests before tool p
     decision,
     runId: 'run_1',
     makeId: (prefix) => `${prefix}_1`,
+    approvalOrigin: {
+      toolCallId: 'call_write',
+      roundId: 'round_2',
+      roundIndex: 2,
+      roundLabel: 'Model turn 2',
+      roundSource: 'model',
+    },
   })
   assert.deepEqual(pending.pendingApprovals, [])
   assert.equal(pending.pendingInputRequests[0]?.id, 'input_1')
@@ -98,12 +105,24 @@ test('evaluateToolExecutionGate exposes approval-required decisions for permissi
     decision,
     runId: 'run_1',
     makeId: (prefix) => `${prefix}_1`,
+    approvalOrigin: {
+      roundId: 'round_2',
+      roundIndex: 2,
+      roundLabel: 'Model turn 2',
+      roundSource: 'model',
+    },
   })
   assert.deepEqual(pending.pendingInputRequests, [])
   assert.equal(pending.pendingApprovals[0]?.id, 'approval_1')
   assert.equal(pending.pendingApprovals[0]?.toolName, 'studio_write')
   assert.equal(pending.pendingApprovals[0]?.risk, 'write')
   assert.equal(pending.pendingApprovals[0]?.permission, 'studio.write')
+  assert.deepEqual(pending.pendingApprovals[0]?.origin, {
+    roundId: 'round_2',
+    roundIndex: 2,
+    roundLabel: 'Model turn 2',
+    roundSource: 'model',
+  })
 })
 
 test('preflightToolExecutionPipeline owns pending approval materialization before graph pause', () => {

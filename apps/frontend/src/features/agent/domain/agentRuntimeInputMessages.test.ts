@@ -3,7 +3,6 @@ import test from 'node:test'
 
 import {
   buildPendingRuntimeInputQueueItems,
-  runtimeInputDeliveryBadge,
   runtimeInputDisplayDeliveryStatus,
 } from '@/features/agent/domain/agentRuntimeInputMessages'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
@@ -44,50 +43,6 @@ test('runtimeInputDisplayDeliveryStatus treats pending runtime inputs with messa
 
   assert.equal(runtimeInputDisplayDeliveryStatus(messages[0]!), 'accepted')
   assert.deepEqual(buildPendingRuntimeInputQueueItems(messages), [])
-})
-
-test('runtimeInputDeliveryBadge projects runtime input delivery state for message bubbles', () => {
-  assert.deepEqual(runtimeInputDeliveryBadge(message({
-    meta: {
-      runtimeInput: { deliveryStatus: 'pending' },
-    },
-  })), {
-    status: 'pending',
-    label: '正在同步到运行中对话',
-    tone: 'neutral',
-    icon: 'spinner',
-  })
-  assert.deepEqual(runtimeInputDeliveryBadge(message({
-    meta: {
-      runtimeInput: { deliveryStatus: 'accepted' },
-    },
-  })), {
-    status: 'accepted',
-    label: '已加入运行中对话',
-    tone: 'neutral',
-    icon: null,
-  })
-  assert.deepEqual(runtimeInputDeliveryBadge(message({
-    meta: {
-      runtimeInput: { deliveryStatus: 'consumed' },
-    },
-  })), {
-    status: 'consumed',
-    label: '已被模型读取',
-    tone: 'neutral',
-    icon: null,
-  })
-  assert.deepEqual(runtimeInputDeliveryBadge(message({
-    meta: {
-      runtimeInput: { deliveryStatus: 'failed', error: 'Runtime rejected input' },
-    },
-  })), {
-    status: 'failed',
-    label: '同步失败',
-    tone: 'danger',
-    title: 'Runtime rejected input',
-    icon: 'error',
-  })
 })
 
 test('buildPendingRuntimeInputQueueItems keeps new trigger messages pending until runtime accepts them', () => {

@@ -33,7 +33,7 @@ export function buildAgentActivityFeed(input: {
 
   const itemIndex = buildActivityItemIndex(activity)
   const rounds = filterHiddenActionItems(
-    buildRoundIndexActivityRounds(runActivityRoundIndex, snapshot.rounds, itemIndex),
+    buildRoundIndexActivityRounds(activity, runActivityRoundIndex, snapshot.rounds, itemIndex),
     input.hiddenActionItemIds,
   )
   const items = rounds.flatMap((round) => round.items)
@@ -193,6 +193,7 @@ function decisionToolLine(call: ModelDecisionToolCall): string {
 }
 
 function buildRoundIndexActivityRounds(
+  activity: ChatRunActivity,
   runActivityRoundIndex: ConversationRunActivityRoundIndex,
   modelRounds: RunActivityRoundSnapshot[],
   index: ActivityItemIndex,
@@ -245,7 +246,7 @@ function buildRoundIndexActivityRounds(
         id: round.id,
         ...(round.index !== undefined ? { index: round.index } : {}),
         ...(round.source ? { source: round.source } : {}),
-        label: activityRoundLabel(round, position, status, telemetry),
+        label: activityRoundLabel(round, position, status, telemetry, modelRoundContentPreview(activity, round.index)),
         status,
         items,
         ...(telemetry?.durationMs !== undefined ? { durationMs: telemetry.durationMs } : {}),
@@ -381,6 +382,7 @@ function activityRoundLabel(
   position: number,
   status: AgentActivityRound['status'],
   telemetry?: RunActivityRoundSnapshot,
+  contentPreview?: string,
 ): string {
   if (round.source === 'final' || round.label === 'Final response' || round.index === 999) {
     const details = compactLines([
@@ -391,7 +393,7 @@ function activityRoundLabel(
     if (status === 'failed') return `最终回复：记录失败${suffix}`
     return `最终回复：形成回复${suffix}`
   }
-  if (round.index !== undefined) return roundLabel(round.index, status, telemetry)
+  if (round.index !== undefined) return roundLabel(round.index, status, telemetry, contentPreview)
   const prefix = `运行片段 ${position + 1}`
   if (status === 'tool_calls') return `${prefix}：调用工具`
   if (status === 'final') return `${prefix}：形成回复`
@@ -399,17 +401,30 @@ function activityRoundLabel(
   return `${prefix}：运行中`
 }
 
-function roundLabel(index: number, status: AgentActivityRound['status'], telemetry?: Pick<RunActivityRoundSnapshot, 'durationMs' | 'usage'>) {
+function roundLabel(index: number, status: AgentActivityRound['status'], telemetry?: Pick<RunActivityRoundSnapshot, 'durationMs' | 'usage'>, contentPreview?: string) {
   const prefix = `第 ${index} 轮思考`
   const details = compactLines([
     telemetry?.durationMs !== undefined ? formatDuration(telemetry.durationMs) : undefined,
     telemetry?.usage ? formatTokenUsage(telemetry.usage) : undefined,
   ]).join(' · ')
   const suffix = details ? `（${details}）` : ''
+  if (contentPreview) return `${prefix}：${contentPreview}${suffix}`
   if (status === 'tool_calls') return `${prefix}：决定调用工具${suffix}`
   if (status === 'final') return `${prefix}：形成回复${suffix}`
   if (status === 'failed') return `${prefix}：请求失败${suffix}`
   return `${prefix}：请求模型中${suffix}`
+}
+
+function modelRoundContentPreview(activity: ChatRunActivity, roundIndex: number | undefined): string | undefined {
+  if (roundIndex === undefined) return undefined
+  const events = activity.events
+    .filter((event) => event.kind === 'model_call' && event.roundIndex === roundIndex)
+    .sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt) || left.id.localeCompare(right.id))
+  for (const event of [...events].reverse()) {
+    const preview = stringValue(recordValue(event.data)?.contentPreview)?.trim()
+    if (preview) return preview.length > 120 ? `${preview.slice(0, 120)}...` : preview
+  }
+  return undefined
 }
 
 function latestStatusText(activity: ChatRunActivity): string | undefined {

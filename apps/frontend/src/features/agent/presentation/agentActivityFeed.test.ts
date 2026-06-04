@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentActivityFeedMarkdown, buildAgentActivityFeed, feedTotalsLine } from '@/features/agent/domain/agentActivityFeed'
+import { agentActivityFeedMarkdown, buildAgentActivityFeed, feedTotalsLine } from '@/features/agent/presentation/agentActivityFeed'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('buildAgentActivityFeed renders read tools as plain lines', () => {
@@ -110,6 +110,35 @@ test('buildAgentActivityFeed renders plan update rationale and task counts', () 
     ],
     [],
   ])
+})
+
+test('buildAgentActivityFeed uses model content preview as round thought label', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      events: [{
+        ...modelEvent('model_response_2', 'Model HTTP response received', 2, 'completed', '2026-05-22T01:00:00.000Z'),
+        data: {
+          finish_reason: 'tool_calls',
+          content_chars: 40,
+          contentPreview: '我现在提交一个图像生成任务，并先等待结果状态。',
+          tool_calls: [{ id: 'call_work', name: 'core_work_start' }],
+        },
+      }],
+      steps: [{
+        id: 'step_work',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 2,
+        roundLabel: 'Model turn 2',
+        roundSource: 'runtime_rule',
+        toolName: 'core_work_start',
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  assert.equal(feed?.rounds[0]?.label, '第 2 轮思考：我现在提交一个图像生成任务，并先等待结果状态。')
+  assert.deepEqual(feed?.rounds.map((round) => round.index), [2])
 })
 
 test('buildAgentActivityFeed renders generation work without raw request details', () => {

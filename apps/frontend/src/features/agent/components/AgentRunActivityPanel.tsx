@@ -26,14 +26,14 @@ import {
   AgentRunActivitySummaryText,
   AgentRunActivityTitle,
 } from '@movscript/ui'
-import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/domain/agentRunActivityTimeline'
+import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/features/agent/components/AgentActivityFeed'
-import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
+import { buildAgentActivityFeed } from '@/features/agent/presentation/agentActivityFeed'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'

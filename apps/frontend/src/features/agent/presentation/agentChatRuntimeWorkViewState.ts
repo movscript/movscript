@@ -1,4 +1,4 @@
-import { isRuntimeAsyncWorkHandoffRun } from '@/features/agent/domain/agentRuntimeStatusMessage'
+import { isRuntimeAsyncWorkHandoffRun } from '@/features/agent/domain/agentRuntimeWorkHandoff'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 export interface AgentChatRuntimeWorkViewStateInput {

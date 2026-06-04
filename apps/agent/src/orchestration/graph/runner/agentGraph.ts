@@ -4,7 +4,7 @@ import type { AgentApprovalRequest, AgentInputRequest, AgentRunStatus, ToolCall,
 import {
   type RuntimeModelChatMessage,
 } from '../../../model/config/modelConfig.js'
-import { buildForcedToolCallInjection } from '../../tools/turn/forced/agentGraphForcedToolCalls.js'
+import { buildForcedToolCallInjection, forcedToolCallTrace } from '../../tools/turn/forced/agentGraphForcedToolCalls.js'
 import { runAgentGraphExecuteTurn } from '../execution/agentGraphExecuteTurn.js'
 import { callReasoningModelTurn } from '../../model/graph/call/agentGraphModelCall.js'
 import {
@@ -183,6 +183,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     return {
       history: forcedToolCallInjection.history,
       requestedCalls: forcedToolCallInjection.requestedCalls,
+      roundIndex: forcedToolCallInjection.roundIndex,
     }
   }
 
@@ -314,7 +315,12 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
-  const effectiveRoundSource = currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0
+  const forcedTrace = forcedToolCallTrace({
+    roundIndex: currentRoundIndex,
+    roundLabel,
+    roundSource: 'model' as const,
+  }, input.forcedToolCalls)
+  const effectiveRoundSource = input.forcedToolCalls && input.forcedToolCalls.length > 0 && currentRoundIndex === forcedTrace.roundIndex
     ? 'runtime_rule' as const
     : 'model' as const
   return runAgentGraphExecuteTurn(state, input, {

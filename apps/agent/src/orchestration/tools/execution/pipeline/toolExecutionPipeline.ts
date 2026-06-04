@@ -3,7 +3,7 @@ import { WorkspaceFileProvider } from '../../../../files/providers/workspaceFile
 import { isRecord } from '../../../../shared/json/jsonValue.js'
 import type { RuntimeModelChatMessage } from '../../../../model/config/modelConfig.js'
 import type { ToolSource } from '../../../../ports/tools/toolExecutionSource.js'
-import type { JSONValue, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall } from '../../../../state/shared/types.js'
+import type { AgentToolCallOrigin, JSONValue, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall } from '../../../../state/shared/types.js'
 import type { BlockedToolCall, ToolPermissionResult } from '../../../../tools/permissions/evaluation/toolPermissions.js'
 import { normalizeToolExecutionMetadata, type RegisteredTool, type ToolExecutionMetadata, type ToolRiskLevel } from '../../../../tools/registry/core/toolRegistry.js'
 import type { ToolExecutionResult, ToolExecutorOptions } from '../executor/toolExecutor.js'
@@ -77,6 +77,7 @@ export function preflightToolExecutionPipeline(input: {
   options: ToolExecutionGateOptions
   runId: string
   makeId: AgentGraphMakeId
+  approvalOrigin?: AgentToolCallOrigin
   skillRepair?: {
     capabilities: ResolvedToolCatalog
     skills: ResolvedAgentSkill[]
@@ -88,6 +89,7 @@ export function preflightToolExecutionPipeline(input: {
     decision: gate,
     runId: input.runId,
     makeId: input.makeId,
+    ...(input.approvalOrigin ? { approvalOrigin: input.approvalOrigin } : {}),
   })
   if (gate.decision === 'deny' && gate.allowedCalls.length === 0 && input.skillRepair) {
     const repairCalls = buildSkillActivationRepairCalls(gate.blockedToolCalls, {

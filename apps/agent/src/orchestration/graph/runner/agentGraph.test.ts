@@ -158,6 +158,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   const calls: string[] = []
   const traces: Array<{ kind: string; title: string; data?: unknown }> = []
   let stepArgs: Record<string, unknown> | undefined
+  let stepRound: { roundIndex: number; roundLabel: string; roundSource: string } | undefined
 
   const result = await runAgentGraphWithDefaults({
     run,
@@ -214,11 +215,23 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       waitWork: () => ({}),
       cancelWork: () => ({}),
     },
-    forcedToolCalls: [{ id: 'call_approval_1', name: 'core_work_start', args: { value: 'a' } }],
+    forcedToolCalls: [{
+      id: 'call_approval_1',
+      name: 'core_work_start',
+      args: { value: 'a' },
+      origin: {
+        toolCallId: 'call_original_2',
+        roundId: 'round_2',
+        roundIndex: 2,
+        roundLabel: 'Model turn 2',
+        roundSource: 'model',
+      },
+    }],
     approvedToolNames: ['core_work_start'],
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, data: trace.data }),
-    onStepCreate: (_type, _roundIndex, _roundLabel, _roundSource, _toolName, args) => {
+    onStepCreate: (_type, roundIndex, roundLabel, roundSource, _toolName, args) => {
       stepArgs = args
+      stepRound = { roundIndex, roundLabel, roundSource }
       return 'step_1'
     },
     onStepComplete: () => undefined,
@@ -231,6 +244,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   }
   assert.deepEqual(calls, ['core_work_start'])
   assert.deepEqual(stepArgs, { value: 'a' })
+  assert.deepEqual(stepRound, { roundIndex: 2, roundLabel: 'Model turn 2', roundSource: 'runtime_rule' })
   const completedTrace = traces.find((trace) => trace.kind === 'tool_call' && trace.title === 'Tool completed: core_work_start')
   assert.deepEqual((completedTrace?.data as any)?.args, { value: 'a' })
   assert.equal((completedTrace?.data as any)?.argsMode, 'full')

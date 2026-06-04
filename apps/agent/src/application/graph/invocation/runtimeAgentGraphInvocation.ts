@@ -305,6 +305,7 @@ function buildApprovedApprovalToolCalls(run: AgentRun): { toolCalls: ToolCall[];
       id: `call_${approval.id}`,
       name: approval.toolName,
       args: approval.args ?? {},
+      ...(approval.origin ? { origin: approval.origin } : {}),
     })
     approvalIds.push(approval.id)
   }

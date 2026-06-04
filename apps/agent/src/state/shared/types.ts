@@ -8,6 +8,7 @@ import type {
   AgentDebugContextPanel as ProtocolAgentDebugContextPanel,
   AgentDebugTool as ProtocolAgentDebugTool,
   AgentToolRuntimeExplanation as ProtocolAgentToolRuntimeExplanation,
+  AgentToolCallOrigin as ProtocolAgentToolCallOrigin,
   AgentClientInput as ProtocolAgentClientInput,
   AgentContextDiagnosticRecord as ProtocolAgentContextDiagnosticRecord,
   AgentRuntimeStatusLightState as ProtocolAgentRuntimeStatusLightState,
@@ -222,6 +223,8 @@ export type AgentInternalThreadSignal = AgentInternalRunSignal & {
 export type AgentRunPreview = ProtocolAgentRunPreview
 
 export type AgentApprovalRequest = ProtocolAgentApprovalRequest
+
+export type AgentToolCallOrigin = ProtocolAgentToolCallOrigin
 
 export type AgentInputChoice = ProtocolAgentInputChoice
 

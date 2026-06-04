@@ -194,7 +194,13 @@ export function mergePendingApprovals(existing: AgentApprovalRequest[], next: Ag
         ? nextByTool.get(approval.toolName)
         : undefined)
     if (nextApproval) matchedNextIds.add(nextApproval.id)
-    return nextApproval ? { ...approval, args: nextApproval.args, reason: nextApproval.reason, updatedAt } : approval
+    return nextApproval ? {
+      ...approval,
+      args: nextApproval.args,
+      origin: nextApproval.origin ?? approval.origin,
+      reason: nextApproval.reason,
+      updatedAt,
+    } : approval
   })
   for (const approval of next) {
     if (matchedNextIds.has(approval.id) || existingPendingIds.has(approval.id) || existingPendingSignatures.has(approvalSignature(approval))) continue

@@ -419,8 +419,39 @@ function compactRunActivityEvent(
 function compactTimelineTraceData(data: unknown): Record<string, unknown> | undefined {
   if (!isRecord(data)) return undefined
   const generation = compactGenerationTraceData(data.generation)
-  if (!generation) return undefined
-  return { generation }
+  const model = compactModelTraceData(data)
+  const runtime = compactRuntimeTraceData(data)
+  const compact = {
+    ...(generation ? { generation } : {}),
+    ...model,
+    ...runtime,
+  }
+  return Object.keys(compact).length > 0 ? compact : undefined
+}
+
+function compactModelTraceData(data: Record<string, unknown>): Record<string, unknown> {
+  const compact: Record<string, unknown> = {}
+  for (const key of ['eventType', 'finish_reason', 'content_chars', 'contentPreview']) {
+    const value = data[key]
+    if (typeof value === 'string' || typeof value === 'number') compact[key] = value
+  }
+  if (Array.isArray(data.tool_calls)) {
+    compact.tool_calls = data.tool_calls.flatMap((item) => {
+      if (!isRecord(item)) return []
+      const id = typeof item.id === 'string' ? item.id : undefined
+      const name = typeof item.name === 'string' ? item.name : undefined
+      return name ? [{ ...(id ? { id } : {}), name, ...(isRecord(item.args) ? { args: item.args } : {}) }] : []
+    })
+  }
+  if (isRecord(data.usage)) compact.usage = data.usage
+  return compact
+}
+
+function compactRuntimeTraceData(data: Record<string, unknown>): Record<string, unknown> {
+  const compact: Record<string, unknown> = {}
+  if (Array.isArray(data.forcedCalls)) compact.forcedCalls = data.forcedCalls.filter((item) => typeof item === 'string')
+  if (Array.isArray(data.origins)) compact.origins = data.origins.filter(isRecord)
+  return compact
 }
 
 function compactGenerationTraceData(value: unknown): Record<string, unknown> | undefined {
