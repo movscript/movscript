@@ -147,17 +147,26 @@ export class FileAgentToolResultStore extends InMemoryAgentToolResultStore {
 
   private load(): void {
     if (!existsSync(this.filePath)) return
+    const startedAt = Date.now()
+    let rawBytes = 0
     let parsed: unknown
     try {
-      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+      const raw = readFileSync(this.filePath, 'utf8')
+      rawBytes = Buffer.byteLength(raw)
+      parsed = JSON.parse(raw) as unknown
     } catch {
+      this.recordStorageOperation('load', 'error', Date.now() - startedAt, rawBytes)
       return
     }
-    if (!isRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.records)) return
+    if (!isRecord(parsed) || parsed.version !== 1 || !Array.isArray(parsed.records)) {
+      this.recordStorageOperation('load', 'error', Date.now() - startedAt, rawBytes)
+      return
+    }
     for (const value of parsed.records) {
       const record = normalizeToolResultRecord(value)
       if (record) super.upsertToolResult(record)
     }
+    this.recordStorageOperation('load', 'success', Date.now() - startedAt, rawBytes)
   }
 
   private persist(): void {
@@ -197,6 +206,33 @@ export class FileAgentToolResultStore extends InMemoryAgentToolResultStore {
           component: 'tool_result_store',
           kind: 'tool_results_file',
           stage: 'flush',
+          status,
+        },
+      })
+    }
+  }
+
+  private recordStorageOperation(stage: 'load', status: 'success' | 'error', durationMs: number, bytes?: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_operation_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'tool_result_store',
+        kind: 'tool_results_file',
+        stage,
+        status,
+      },
+    })
+    if (typeof bytes === 'number' && bytes >= 0) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'tool_result_store',
+          kind: 'tool_results_file',
+          stage,
           status,
         },
       })

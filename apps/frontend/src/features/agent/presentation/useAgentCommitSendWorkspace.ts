@@ -4,7 +4,7 @@ import { commitAgentSendWorkspace, type CommitAgentSendWorkspaceDeps } from '@/f
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import { toastMCPError } from './mcpStatus'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
-import { getThinkingBubbleState } from '@/features/agent/presentation/agentThinkingBubbleState'
+import { getAgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { cancelGenerationJobIfActive } from '@/features/agent/presentation/useAgentRunStopAction'
 
 export interface UseAgentCommitSendWorkspaceInput {
@@ -103,7 +103,7 @@ export function useAgentCommitSendWorkspace({
       setMentionRange,
       refetchLocalAgentHealth,
       isLocalAgentAbortError,
-      thinkingStateForRun: (run) => getThinkingBubbleState(run, []),
+      thinkingStateForRun: (run) => getAgentThinkingState(run, []),
       runTouchesAgentCatalog,
       refreshAgentCatalogContext,
       cancelGenerationJobIfActive: (state) => {

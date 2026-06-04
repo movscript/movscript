@@ -4,7 +4,7 @@ import { summarizeModelHTTPTrace } from './modelTransportTrace.js'
 import type { RuntimeModelHTTPTrace } from '../../../../model/config/modelConfig.js'
 
 describe('model transport trace domain', () => {
-  test('summarizes model HTTP payloads without retaining request or response bodies', () => {
+  test('summarizes model HTTP payloads while retaining full response bodies', () => {
     const trace: RuntimeModelHTTPTrace = {
       latencyMs: 42,
       request: {
@@ -48,8 +48,8 @@ describe('model transport trace domain', () => {
     assert.equal(summary.response.parsedBody.choiceCount, 1)
     assert.match(summary.response.bodyTextHash, /^sha256:/)
     assert.equal(summary.response.bodyTextChars, trace.response?.bodyText.length)
-    assert.equal(summary.response.bodyText, undefined)
-    assert.equal(summary.response.content, undefined)
+    assert.equal(summary.response.bodyText, trace.response?.bodyText)
+    assert.equal(summary.response.content, 'reply')
   })
 
   test('summarizes OpenAI Responses sdk_body shapes using submitted body counts', () => {

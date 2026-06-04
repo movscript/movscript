@@ -2,6 +2,8 @@ import { isTranscriptAssistantChatMessage, transcriptAssistantRelatedRunId } fro
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
+export type AgentRunInteractionDisplayAnchorPlacement = 'before' | 'after'
+
 export function buildInteractionRunsByResultMessageId({
   messages,
   interactionRuns,
@@ -30,12 +32,32 @@ export function buildInteractionRunsByResultMessageId({
       insertInteractionRun(runsByMessageId, insertedRunIds, displayAnchorMessage.id, interactionRun)
       continue
     }
-    const sourceMessageId = interactionRun.input?.sourceMessageId?.trim()
+    const sourceMessageId = normalizeId(interactionRun.input?.sourceMessageId)
     const sourceMessage = sourceMessageId ? messagesById.get(sourceMessageId) : undefined
     if (!sourceMessage) continue
     insertInteractionRun(runsByMessageId, insertedRunIds, sourceMessage.id, interactionRun)
   }
   return runsByMessageId
+}
+
+export function runInteractionDisplayAnchorPlacementForMessage(
+  interactionRun: AgentRun,
+  message: ChatMessage,
+): AgentRunInteractionDisplayAnchorPlacement | undefined {
+  const messageIds = runInteractionAnchorMessageIds(message)
+  for (const anchor of runInteractionDisplayAnchors(interactionRun)) {
+    if (!anchor.placement) continue
+    if (messageIds.has(anchor.messageId)) return anchor.placement
+  }
+  return undefined
+}
+
+export function runInteractionPlacementForMessage(
+  interactionRun: AgentRun,
+  message: ChatMessage,
+): AgentRunInteractionDisplayAnchorPlacement {
+  return runInteractionDisplayAnchorPlacementForMessage(interactionRun, message)
+    ?? (message.role === 'user' ? 'after' : 'before')
 }
 
 function buildRunInteractionAnchorMessagesById(messages: ChatMessage[]): Map<string, ChatMessage> {
@@ -49,15 +71,33 @@ function buildRunInteractionAnchorMessagesById(messages: ChatMessage[]): Map<str
 }
 
 function runInteractionDisplayAnchorMessageId(interactionRun: AgentRun): string | undefined {
-  for (const approval of interactionRun.pendingApprovals ?? []) {
-    const messageId = approval.displayAnchor?.messageId
-    if (typeof messageId === 'string' && messageId.trim()) return messageId.trim()
-  }
-  for (const request of interactionRun.pendingInputRequests ?? []) {
-    const messageId = request.displayAnchor?.messageId
-    if (typeof messageId === 'string' && messageId.trim()) return messageId.trim()
-  }
-  return undefined
+  return runInteractionDisplayAnchors(interactionRun)[0]?.messageId
+}
+
+function runInteractionDisplayAnchors(interactionRun: AgentRun): Array<{
+  messageId: string
+  placement?: AgentRunInteractionDisplayAnchorPlacement
+}> {
+  return [
+    ...(interactionRun.pendingApprovals ?? []).map((approval) => approval.displayAnchor),
+    ...(interactionRun.pendingInputRequests ?? []).map((request) => request.displayAnchor),
+  ].flatMap((anchor) => {
+    const messageId = normalizeId(anchor?.messageId)
+    if (!messageId) return []
+    return [{
+      messageId,
+      ...(anchor?.placement === 'before' || anchor?.placement === 'after'
+        ? { placement: anchor.placement }
+        : {}),
+    }]
+  })
+}
+
+function runInteractionAnchorMessageIds(message: ChatMessage): Set<string> {
+  return new Set([
+    message.id,
+    normalizeId(message.meta?.runtimeMessage?.messageId),
+  ].filter((id): id is string => Boolean(id)))
 }
 
 function insertInteractionRun(
@@ -70,4 +110,8 @@ function insertInteractionRun(
   const runs = runsByMessageId.get(messageId) ?? []
   runs.push(interactionRun)
   runsByMessageId.set(messageId, runs)
+}
+
+function normalizeId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

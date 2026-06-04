@@ -10,6 +10,7 @@ import { useAgentChatPresentationState } from '@/features/agent/presentation/use
 import { useAgentChatRuntimeState } from '@/features/agent/presentation/useAgentChatRuntimeState'
 import { useAgentChatStoreBindings } from '@/features/agent/presentation/useAgentChatStoreBindings'
 import { useAgentPlanDispatchSettings } from '@/features/agent/presentation/useAgentPlanDispatchSettings'
+import { conversationWithTimelineTranscript } from '@/features/agent/domain/agentConversationTranscript'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
 
@@ -66,15 +67,10 @@ export function useAgentChatViewController({
     localThreadId: store.localThreadId,
     requireThread: true,
   })
-  const effectiveConversation = useMemo(() => {
-    const lastMessage = timeline.transcriptMessages.at(-1)
-    return {
-      ...conv,
-      transcriptMessages: timeline.transcriptMessages,
-      transcriptMessageCount: timeline.transcriptMessages.length,
-      ...(lastMessage ? { lastTranscriptAt: lastMessage.timestamp } : {}),
-    }
-  }, [conv, timeline.transcriptMessages])
+  const effectiveConversation = useMemo(
+    () => conversationWithTimelineTranscript(conv, timeline.transcriptMessages),
+    [conv, timeline.transcriptMessages],
+  )
   const taskGraph = useAgentPlanDispatchSettings({
     settings: store.settings,
     updateSettings: store.updateSettings,

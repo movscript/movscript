@@ -339,51 +339,65 @@ export class FileAgentWorkspaceStore extends InMemoryAgentWorkspaceStore {
 
   override readWorkspaceFile(filePath: string): ReadAgentWorkspaceResult {
     this.ensureLoaded()
+    const startedAt = Date.now()
     const workspace = this.requireWorkspaceByFilePath(filePath)
     const normalizedPath = normalizeFilePath(filePath)
-    const content = readWorkspaceContent(normalizedPath, workspace.content)
-    this.lastReadContentByPath.set(normalizedPath, content)
-    return {
-      workspace: clone({ ...workspace, content }),
-      filePath: normalizedPath,
-      content,
+    try {
+      const content = readWorkspaceContent(normalizedPath, workspace.content)
+      this.lastReadContentByPath.set(normalizedPath, content)
+      this.recordStorageOperation('read', 'success', Date.now() - startedAt, Buffer.byteLength(content))
+      return {
+        workspace: clone({ ...workspace, content }),
+        filePath: normalizedPath,
+        content,
+      }
+    } catch (error) {
+      this.recordStorageOperation('read', 'error', Date.now() - startedAt)
+      throw error
     }
   }
 
   override editWorkspaceFile(filePath: string, input: EditAgentWorkspaceInput): EditAgentWorkspaceResult {
     this.ensureLoaded()
+    const startedAt = Date.now()
     const normalizedPath = normalizeFilePath(filePath)
-    const workspace = this.requireWorkspaceByFilePath(normalizedPath)
-    const currentContent = readWorkspaceContent(normalizedPath, workspace.content)
-    const lastReadContent = this.lastReadContentByPath.get(normalizedPath)
-    if (lastReadContent === undefined) {
-      throw new Error(`edit_workspace requires reading the file first: ${normalizedPath}`)
-    }
-    if (lastReadContent !== currentContent) {
-      throw new Error(`edit_workspace cannot edit stale content; read the file again: ${normalizedPath}`)
-    }
-    const oldString = normalizeEditString(input.oldString, 'old_string')
-    const newString = normalizeEditString(input.newString, 'new_string')
-    if (oldString === newString) throw new Error('edit_workspace requires new_string to differ from old_string')
-    const replaceAll = input.replaceAll === true
-    const matches = countOccurrences(currentContent, oldString)
-    if (replaceAll) {
-      if (matches === 0) throw new Error('edit_workspace old_string was not found')
-    } else if (matches !== 1) {
-      throw new Error(`edit_workspace old_string must match exactly once; found ${matches}`)
-    }
+    try {
+      const workspace = this.requireWorkspaceByFilePath(normalizedPath)
+      const currentContent = readWorkspaceContent(normalizedPath, workspace.content)
+      const lastReadContent = this.lastReadContentByPath.get(normalizedPath)
+      if (lastReadContent === undefined) {
+        throw new Error(`edit_workspace requires reading the file first: ${normalizedPath}`)
+      }
+      if (lastReadContent !== currentContent) {
+        throw new Error(`edit_workspace cannot edit stale content; read the file again: ${normalizedPath}`)
+      }
+      const oldString = normalizeEditString(input.oldString, 'old_string')
+      const newString = normalizeEditString(input.newString, 'new_string')
+      if (oldString === newString) throw new Error('edit_workspace requires new_string to differ from old_string')
+      const replaceAll = input.replaceAll === true
+      const matches = countOccurrences(currentContent, oldString)
+      if (replaceAll) {
+        if (matches === 0) throw new Error('edit_workspace old_string was not found')
+      } else if (matches !== 1) {
+        throw new Error(`edit_workspace old_string must match exactly once; found ${matches}`)
+      }
 
-    const updatedContent = replaceAll
-      ? currentContent.split(oldString).join(newString)
-      : currentContent.replace(oldString, newString)
-    writeWorkspaceContent(normalizedPath, updatedContent)
-    const updated = super.updateWorkspace(workspace.id, { content: updatedContent })
-    this.lastReadContentByPath.delete(normalizedPath)
-    this.persist()
-    return {
-      workspace: updated,
-      filePath: normalizedPath,
-      replacementCount: matches,
+      const updatedContent = replaceAll
+        ? currentContent.split(oldString).join(newString)
+        : currentContent.replace(oldString, newString)
+      writeWorkspaceContent(normalizedPath, updatedContent)
+      const updated = super.updateWorkspace(workspace.id, { content: updatedContent })
+      this.lastReadContentByPath.delete(normalizedPath)
+      this.persist()
+      this.recordStorageOperation('edit', 'success', Date.now() - startedAt, Buffer.byteLength(updatedContent))
+      return {
+        workspace: updated,
+        filePath: normalizedPath,
+        replacementCount: matches,
+      }
+    } catch (error) {
+      this.recordStorageOperation('edit', 'error', Date.now() - startedAt)
+      throw error
     }
   }
 
@@ -409,9 +423,13 @@ export class FileAgentWorkspaceStore extends InMemoryAgentWorkspaceStore {
       parsed = JSON.parse(raw) as unknown
       parseMs = Date.now() - parseStartedAt
     } catch {
+      this.recordStorageOperation('load', 'error', Date.now() - loadStartedAt, rawBytes)
       return
     }
-    if (!isRecord(parsed)) return
+    if (!isRecord(parsed)) {
+      this.recordStorageOperation('load', 'error', Date.now() - loadStartedAt, rawBytes)
+      return
+    }
     const normalizeStartedAt = Date.now()
     const workspaces = Array.isArray(parsed.workspaces) ? parsed.workspaces.flatMap((workspace) => normalizeStoredWorkspaceRecord(workspace)) : []
     const normalizeMs = Date.now() - normalizeStartedAt
@@ -440,6 +458,7 @@ export class FileAgentWorkspaceStore extends InMemoryAgentWorkspaceStore {
       `rawBytes=${rawBytes}`,
       `workspaces=${loadedWorkspaces.length}`,
     ].join(' '))
+    this.recordStorageOperation('load', 'success', Date.now() - loadStartedAt, rawBytes)
   }
 
   private syncWorkspaceContentFromFile(workspace: AgentWorkspace): AgentWorkspace {
@@ -503,6 +522,33 @@ export class FileAgentWorkspaceStore extends InMemoryAgentWorkspaceStore {
         status,
       },
     })
+  }
+
+  private recordStorageOperation(stage: 'load' | 'read' | 'edit', status: 'success' | 'error', durationMs: number, bytes?: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_operation_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'workspace_store',
+        kind: 'workspace_files',
+        stage,
+        status,
+      },
+    })
+    if (typeof bytes === 'number' && bytes >= 0) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'workspace_store',
+          kind: 'workspace_files',
+          stage,
+          status,
+        },
+      })
+    }
   }
 }
 

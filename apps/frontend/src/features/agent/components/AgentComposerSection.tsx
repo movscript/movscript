@@ -27,7 +27,7 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/features/agent/components/AgentMentionEditor'
-import type { AgentPendingRuntimeInputQueueItem } from '@/features/agent/domain/agentConversationThreadItems'
+import type { AgentPendingRuntimeInputQueueItem } from '@/features/agent/domain/agentRuntimeInputMessages'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']

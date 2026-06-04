@@ -26,7 +26,7 @@ import {
 } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
 import { type LocalAgentApprovalRequest } from '@/features/agent/components/localRuntime'
-import { formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
+import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { ResourceFileImage } from '@/shared/ui/ResourceFileImage'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type {

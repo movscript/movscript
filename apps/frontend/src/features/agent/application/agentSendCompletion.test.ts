@@ -62,6 +62,38 @@ test('completeSendRunResult resolves stream partial runs before completing state
   assert.equal(calls.includes('settled:undefined:completed:run_final:thread_1:0'), true)
 })
 
+test('completeSendRunResult keeps settled generation activity for pinned status', async () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls)
+  deps.liveEvents = () => [
+    activityEvent({ id: 'http-request-local-session-message-run' }),
+    activityEvent({
+      id: 'trace_generation_completed',
+      kind: 'tool_call',
+      title: 'Generation completed: Job #31',
+      status: 'completed',
+      data: {
+        generation: {
+          jobId: 31,
+          status: 'succeeded',
+          stage: 'completed',
+          terminal: true,
+          outputResourceId: 310,
+        },
+      },
+    }),
+  ]
+
+  await completeSendRunResult({
+    workspace: workspace(),
+    runResult: runResult(),
+    deps,
+  })
+
+  assert.equal(calls.includes('pendingHttp:1'), true)
+  assert.equal(calls.includes('liveState:0'), true)
+})
+
 test('completeSendRunResult leaves requires_action messages to the message item', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)

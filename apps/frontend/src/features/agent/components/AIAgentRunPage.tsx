@@ -1097,21 +1097,6 @@ export default function AIAgentRunPage() {
                   当前显示 {traceViewMode === 'tools' ? visibleToolCallSummaries.length : visibleEvents.length} 个
                 </AgentRunTraceMeta>
               )}
-              {traceViewMode === 'timeline' && categoryCounts.map(([category, count]) => (
-                <AgentRunTraceCategoryButton
-                  key={category}
-                  type="button"
-                  data-testid="agent-run-trace-category-filter"
-                  aria-pressed={eventCategory === category}
-                    aria-label={`按${traceCategoryLabel(category)}筛选运行事件`}
-                    onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
-                >
-                  <AgentRunPageBadge variant={eventCategory === category ? 'soft' : 'outline'}>{traceCategoryLabel(category)} {count}</AgentRunPageBadge>
-                </AgentRunTraceCategoryButton>
-              ))}
-              {traceViewMode === 'timeline' && summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
-                  <AgentRunPageBadge key={kind} variant="outline">{traceKindLabel(kind as AgentTraceEventKind)} {count}</AgentRunPageBadge>
-                ))}
             </AgentRunTraceSummary>
             <AgentRunTraceControls>
               <AgentRunTraceViewModeGroup data-testid="agent-run-trace-view-mode">
@@ -1164,6 +1149,25 @@ export default function AIAgentRunPage() {
                   技能变动
                 </AgentRunTraceViewModeButton>
               </AgentRunTraceViewModeGroup>
+              {traceViewMode === 'timeline' && (
+                <AgentRunTraceSummary className="agent-run-trace-filter-summary" data-testid="agent-run-trace-filter-summary">
+                  {categoryCounts.map(([category, count]) => (
+                    <AgentRunTraceCategoryButton
+                      key={category}
+                      type="button"
+                      data-testid="agent-run-trace-category-filter"
+                      aria-pressed={eventCategory === category}
+                      aria-label={`按${traceCategoryLabel(category)}筛选运行事件`}
+                      onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
+                    >
+                      <AgentRunPageBadge variant={eventCategory === category ? 'soft' : 'outline'}>{traceCategoryLabel(category)} {count}</AgentRunPageBadge>
+                    </AgentRunTraceCategoryButton>
+                  ))}
+                  {summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
+                    <AgentRunPageBadge key={kind} variant="outline">{traceKindLabel(kind as AgentTraceEventKind)} {count}</AgentRunPageBadge>
+                  ))}
+                </AgentRunTraceSummary>
+              )}
               {traceViewMode !== 'debug' && (
                 <AgentRunTraceSearchInput
                   data-testid="agent-run-trace-search"

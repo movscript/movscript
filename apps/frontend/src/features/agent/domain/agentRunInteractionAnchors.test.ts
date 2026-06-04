@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildInteractionRunsByResultMessageId } from './agentRunInteractionAnchors'
+import {
+  buildInteractionRunsByResultMessageId,
+  runInteractionDisplayAnchorPlacementForMessage,
+  runInteractionPlacementForMessage,
+} from './agentRunInteractionAnchors'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
@@ -175,6 +179,78 @@ test('buildInteractionRunsByResultMessageId uses input request display anchors',
 
   assert.deepEqual([...result.keys()], ['root_user'])
   assert.equal(result.get('root_user')?.[0]?.id, 'run_input')
+})
+
+test('runInteractionDisplayAnchorPlacementForMessage resolves local and runtime message anchors', () => {
+  const approvalRun = run({
+    id: 'run_approval',
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_approval',
+      displayAnchor: {
+        threadId: 'thread_1',
+        messageId: 'runtime_msg',
+        runId: 'run_approval',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+      toolName: 'generation_job_create',
+      reason: 'Needs approval',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:01.000Z',
+      updatedAt: '2026-05-19T00:00:01.000Z',
+    }],
+  })
+  const inputRun = run({
+    id: 'run_input',
+    pendingInputRequests: [{
+      id: 'input_1',
+      runId: 'run_input',
+      displayAnchor: {
+        threadId: 'thread_1',
+        messageId: 'local_msg',
+        runId: 'run_input',
+        placement: 'before',
+        reason: 'run_source_message',
+      },
+      title: 'Need input',
+      question: 'Continue?',
+      inputType: 'text',
+      choices: [],
+      allowCustomAnswer: true,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:01.000Z',
+      updatedAt: '2026-05-19T00:00:01.000Z',
+    }],
+  })
+  const anchoredMessage: ChatMessage = {
+    id: 'local_msg',
+    role: 'assistant',
+    content: 'Ready',
+    timestamp: 1,
+    meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'runtime_msg', runId: 'run_approval' } },
+  }
+
+  assert.equal(runInteractionDisplayAnchorPlacementForMessage(approvalRun, anchoredMessage), 'after')
+  assert.equal(runInteractionDisplayAnchorPlacementForMessage(inputRun, anchoredMessage), 'before')
+  assert.equal(runInteractionDisplayAnchorPlacementForMessage(inputRun, messageWithRun('other', 'run_input')), undefined)
+})
+
+test('runInteractionPlacementForMessage defaults user anchors after and assistant anchors before', () => {
+  const interactionRun = run({ id: 'run_needs_action' })
+
+  assert.equal(runInteractionPlacementForMessage(interactionRun, {
+    id: 'user_message',
+    role: 'user',
+    content: 'Start',
+    timestamp: 1,
+  }), 'after')
+  assert.equal(runInteractionPlacementForMessage(interactionRun, {
+    id: 'assistant_message',
+    role: 'assistant',
+    content: 'Ready',
+    timestamp: 2,
+  }), 'before')
 })
 
 function messageWithRun(id: string, runId: string): ChatMessage {

@@ -95,6 +95,34 @@
       ],
       "title": "Frontend Error Evidence",
       "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Agent send path latency from click/commit to key visible stages. This is client-side latency outside the model provider call.",
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=\"frontend_agent_send_stage_latency_ms\"}[$window])) by (component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=\"frontend_agent_send_stage_latency_ms\"}[$window])) by (component, kind, stage, status), 1e-9)", "legendFormat": "{{component}} {{kind}} {{stage}} {{status}} avg", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=\"frontend_agent_send_stage_latency_ms\"}) by (component, kind, stage, status)", "legendFormat": "{{component}} {{kind}} {{stage}} {{status}} max", "refId": "B" }
+      ],
+      "title": "Agent Send Stage Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "description": "Composer input handler and serialization latency. Fast samples are already sampled client-side to keep instrumentation overhead low.",
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "showPoints": "never" }, "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=~\"frontend_agent_composer_(input_latency|serialize)_ms\"}[$window])) by (metric, component, kind, stage) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=~\"frontend_agent_composer_(input_latency|serialize)_ms\"}[$window])) by (metric, component, kind, stage), 1e-9)", "legendFormat": "{{metric}} {{kind}} {{stage}} avg", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "max(movscript_agent_client_metric_milliseconds_max{metric=~\"frontend_agent_composer_(input_latency|serialize)_ms\"}) by (metric, component, kind, stage)", "legendFormat": "{{metric}} {{kind}} {{stage}} max", "refId": "B" }
+      ],
+      "title": "Composer Input Latency",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

@@ -2,12 +2,12 @@ import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { isTerminalAgentRunStatus } from '@/features/agent/domain/agentRunControl'
 
-export type AgentConversationBlock =
+export type AgentConversationLiveBlock =
   | { id: 'assistant-stream'; type: 'assistant_stream'; content: string }
   | { id: 'live-run-activity'; type: 'live_run_activity'; run: AgentRun | null; events: ChatRunActivityEvent[] }
   | { id: 'thinking'; type: 'thinking' }
 
-export interface AgentConversationPresentationInput {
+export interface AgentConversationLiveBlocksInput {
   streamingAssistantMessageId?: string | null
   streamingAssistantText: string
   pendingSendWorkspace?: unknown
@@ -19,15 +19,15 @@ export interface AgentConversationPresentationInput {
   visibleActivityEvents: ChatRunActivityEvent[]
 }
 
-export interface AgentConversationPresentation {
-  blocks: AgentConversationBlock[]
+export interface AgentConversationLiveBlocks {
+  blocks: AgentConversationLiveBlock[]
   hasStreamingAssistantContent: boolean
-  liveBlock?: AgentConversationBlock
+  primaryLiveBlock?: AgentConversationLiveBlock
 }
 
-export function buildAgentConversationPresentation(input: AgentConversationPresentationInput): AgentConversationPresentation {
+export function buildAgentConversationLiveBlocks(input: AgentConversationLiveBlocksInput): AgentConversationLiveBlocks {
   const hasStreamingAssistantContent = !!input.streamingAssistantMessageId || !!input.streamingAssistantText.trim()
-  const blocks: AgentConversationBlock[] = []
+  const blocks: AgentConversationLiveBlock[] = []
   const streamingText = input.streamingAssistantText.trim()
 
   const blockedByWorkspace = !!input.pendingSendWorkspace
@@ -40,7 +40,7 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
     && (busy || runIsNonTerminal || terminalRunNeedsResultBridge)
     && (input.visibleActivityEvents.length > 0 || !!input.activeRun)
   if (showLiveRunActivity) {
-    const block: AgentConversationBlock = {
+    const block: AgentConversationLiveBlock = {
       id: 'live-run-activity',
       type: 'live_run_activity',
       run: input.activeRun,
@@ -53,7 +53,7 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
     && (busy || !!input.hasPendingAssistantState)
     && !blockedByWorkspace
   if (showThinking) {
-    const block: AgentConversationBlock = { id: 'thinking', type: 'thinking' }
+    const block: AgentConversationLiveBlock = { id: 'thinking', type: 'thinking' }
     blocks.push(block)
   }
 
@@ -64,6 +64,6 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
   return {
     blocks,
     hasStreamingAssistantContent,
-    liveBlock: blocks.find((block) => block.type !== 'assistant_stream'),
+    primaryLiveBlock: blocks.find((block) => block.type !== 'assistant_stream'),
   }
 }

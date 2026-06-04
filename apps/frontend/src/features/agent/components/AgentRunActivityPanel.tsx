@@ -27,7 +27,7 @@ import {
   AgentRunActivityTitle,
 } from '@movscript/ui'
 import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/domain/agentRunActivityTimeline'
-import { formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
+import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/features/agent/domain/agentTimeFormat'
 import { agentRunStatusRecipe, agentRunInteractionStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'

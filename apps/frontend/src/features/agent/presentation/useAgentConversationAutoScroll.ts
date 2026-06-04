@@ -1,29 +1,15 @@
 import { useCallback, useEffect, useRef, type UIEvent } from 'react'
 
 export interface UseAgentConversationAutoScrollOptions {
-  blockCount: number
-  building: boolean
   conversationId: string
+  conversationProjectionScrollKey: string
   generationProgressKey?: string
-  hasPendingAssistantState: boolean
-  hasStreamingAssistantContent: boolean
-  loading: boolean
-  messageCount: number
-  streamingAssistantText: string
-  visibleActivityEventCount: number
 }
 
 export function useAgentConversationAutoScroll({
-  blockCount,
-  building,
   conversationId,
+  conversationProjectionScrollKey,
   generationProgressKey,
-  hasPendingAssistantState,
-  hasStreamingAssistantContent,
-  loading,
-  messageCount,
-  streamingAssistantText,
-  visibleActivityEventCount,
 }: UseAgentConversationAutoScrollOptions) {
   const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -38,16 +24,9 @@ export function useAgentConversationAutoScroll({
     if (!thread || !shouldAutoScrollRef.current) return
     thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' })
   }, [
-    blockCount,
-    building,
     conversationId,
+    conversationProjectionScrollKey,
     generationProgressKey,
-    hasPendingAssistantState,
-    hasStreamingAssistantContent,
-    loading,
-    messageCount,
-    streamingAssistantText,
-    visibleActivityEventCount,
   ])
 
   const handleThreadScroll = useCallback((event: UIEvent<HTMLDivElement>) => {

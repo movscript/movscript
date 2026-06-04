@@ -2,7 +2,7 @@ import { extractAgentTaskArtifacts, type AgentTaskArtifactRef } from '@/features
 import { threadResolutionActivityEvent, upsertActivityEvent } from '@/features/agent/application/agentSendActivity'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
 import type { AgentRun, AgentThread, RunMessageResult } from '@/shared/infrastructure/localAgentClient'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
 export interface CompleteSendRunResultDeps {
@@ -19,7 +19,7 @@ export interface CompleteSendRunResultDeps {
   setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
-  setPendingAssistantState: (state: AgentLivePendingAssistantState | null) => void
+  setPendingAssistantState: (state: AgentThinkingState | null) => void
   setLiveTraceEvents: (events: ChatRunActivityEvent[]) => void
   runTouchesAgentCatalog: (run: AgentRun) => boolean
   refreshAgentCatalogContext: () => void
@@ -57,7 +57,7 @@ export async function completeSendRunResult(input: {
     deps.setPageTaskRunning(workspace.localRuntime.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
   }
   deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
-  deps.setPendingHttpEvents([])
+  deps.setPendingHttpEvents(settledGenerationActivityEvents(deps.liveEvents()))
   deps.setPendingAssistantState(null)
   const resolutionEvent = threadResolutionActivityEvent(runResult.threadResolution)
   const liveEvents = resolutionEvent
@@ -81,4 +81,41 @@ function runtimeSendSettledStatusFromRun(run: Pick<AgentRun, 'status'>): 'comple
   if (run.status === 'failed') return 'error'
   if (run.status === 'cancelled') return 'cancelled'
   return 'completed'
+}
+
+function settledGenerationActivityEvents(events: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
+  return events.filter((event) => {
+    const data = isRecord(event.data) ? event.data : undefined
+    const generation = isRecord(data?.generation) ? data.generation : undefined
+    if (!generation) return false
+    return generation.terminal === true
+      || isSettledGenerationLifecycle(generation.status)
+      || isSettledGenerationLifecycle(generation.stage)
+  })
+}
+
+function isSettledGenerationLifecycle(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  return SETTLED_GENERATION_LIFECYCLE_STATUSES.has(value.trim().toLowerCase())
+}
+
+const SETTLED_GENERATION_LIFECYCLE_STATUSES = new Set([
+  'succeeded',
+  'succeed',
+  'success',
+  'completed',
+  'complete',
+  'done',
+  'finish',
+  'finished',
+  'failed',
+  'failure',
+  'error',
+  'cancelled',
+  'canceled',
+  'timeout',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }

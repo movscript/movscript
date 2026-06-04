@@ -7,9 +7,11 @@ import (
 )
 
 func New(cfg *config.Config) (Storage, error) {
+	var store Storage
+	var err error
 	switch cfg.StorageBackend {
 	case "minio":
-		return NewMinIOStorage(
+		store, err = NewMinIOStorage(
 			cfg.MinIOEndpoint,
 			cfg.MinIOAccessKey,
 			cfg.MinIOSecretKey,
@@ -17,8 +19,12 @@ func New(cfg *config.Config) (Storage, error) {
 			cfg.MinIOUseSSL,
 		)
 	case "filesystem":
-		return NewFileSystemStorage(cfg.FilesystemStorageRoot)
+		store, err = NewFileSystemStorage(cfg.FilesystemStorageRoot)
 	default:
 		return nil, fmt.Errorf("unsupported storage backend %q", cfg.StorageBackend)
 	}
+	if err != nil {
+		return nil, err
+	}
+	return withMetrics(store), nil
 }

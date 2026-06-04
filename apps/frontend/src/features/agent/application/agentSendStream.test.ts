@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { handleSendRunUpdate, handleSendRuntimeEvent, type AgentSendRunUpdateDeps } from '@/features/agent/application/agentSendStream'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import type { AgentRun, AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
@@ -195,7 +195,7 @@ test('handleSendRuntimeEvent forwards run upserts to the run update handler', ()
 
 function depsFixture(calls: string[], options: {
   stopRequested?: boolean
-  currentPending?: AgentLivePendingAssistantState | null
+  currentPending?: AgentThinkingState | null
   cancelledRunIds?: Set<string>
   currentRun?: AgentRun
 } = {}): AgentSendRunUpdateDeps {

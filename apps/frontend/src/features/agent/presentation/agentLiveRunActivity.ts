@@ -1,14 +1,8 @@
 import { useCallback, useMemo, useRef, useState, type SetStateAction } from 'react'
 import { liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunRuntimeTraceEvent } from '@/features/agent/domain/agentRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import type { AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
-
-export interface AgentLivePendingAssistantState {
-  status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool' | 'retrying_model'
-  toolName?: string
-  label?: string
-  reasoning?: string
-}
 
 export function mergeVisibleActivityEvents(liveTraceEvents: ChatRunActivityEvent[], pendingHttpEvents: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
   if (!pendingHttpEvents.length) return liveTraceEvents
@@ -21,7 +15,7 @@ export function mergeVisibleActivityEvents(liveTraceEvents: ChatRunActivityEvent
 
 export function useAgentLiveRunActivity() {
   const [liveTraceEvents, setLiveTraceEventsState] = useState<ChatRunActivityEvent[]>([])
-  const [pendingAssistantState, setPendingAssistantState] = useState<AgentLivePendingAssistantState | null>(null)
+  const [pendingAssistantState, setPendingAssistantState] = useState<AgentThinkingState | null>(null)
   const [pendingHttpEvents, setPendingHttpEvents] = useState<ChatRunActivityEvent[]>([])
   const liveTraceEventsRef = useRef<ChatRunActivityEvent[]>([])
 

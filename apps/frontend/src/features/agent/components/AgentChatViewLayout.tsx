@@ -6,6 +6,10 @@ import type { AgentConversationThreadSectionProps } from '@/features/agent/compo
 import type { AgentComposerSectionProps } from '@/features/agent/components/AgentComposerSection'
 import type { Conversation } from '@/features/agent/state/agentStore'
 
+export interface AgentChatThreadLayoutProps extends AgentConversationThreadSectionProps {
+  conversationStarted: boolean
+}
+
 export interface AgentChatViewLayoutProps {
   composer: AgentComposerSectionProps
   contextDiagnosticDialog: ComponentProps<typeof ContextDiagnosticDialog>
@@ -17,5 +21,5 @@ export interface AgentChatViewLayoutProps {
     onRestoreArchivedConversation?: (id: string) => void
     onRestoreLocalThread: (threadId: string, sessionId?: string) => Promise<void>
   }
-  thread: AgentConversationThreadSectionProps
+  thread: AgentChatThreadLayoutProps
 }

@@ -7,12 +7,12 @@ import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugP
 import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
 import { AgentChatHeaderActions } from '@/features/agent/components/AgentChatHeaderActions'
 import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHeaderSection'
-import { AgentConversationThreadSection, latestPlanFromTimelineItems } from '@/features/agent/components/AgentConversationThreadSection'
+import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
-import { latestTranscriptChatMessage, transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
+import { latestTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 import { listRuntimeThreadPageFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
@@ -32,7 +32,7 @@ export function AgentChatPanelLayout({
   thread,
 }: AgentChatViewLayoutProps & { host?: AgentChatHost }) {
   const { t, i18n } = useTranslation()
-  const conversationStarted = transcriptMessageCount({ transcriptMessages: thread.transcriptMessages, transcriptMessageCount: thread.transcriptMessageCount }) > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
+  const conversationStarted = thread.conversationStarted || !!debugPreview.workspace
   const emptyConversation = !conversationStarted
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
@@ -93,7 +93,7 @@ export function AgentChatPanelLayout({
       })),
   ].sort((a, b) => b.timestamp - a.timestamp), [archivedConversations, archivedRuntimeThreadIds, historyThreads, openRuntimeThreadIds])
   const hasPinnedStatus = hasAgentPinnedStatus({
-    plan: latestPlanFromTimelineItems(thread.timelineItems),
+    plan: thread.currentPlan,
     generationProgressStates: thread.generationProgressStates,
     planSnapshot: thread.activePlanSnapshot,
   })

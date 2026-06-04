@@ -1,24 +1,23 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildAgentMessagePresentation } from '@/features/agent/domain/agentMessagePresentation'
+import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
-test('buildAgentMessagePresentation keeps user attachments compact and avoids assistant sections', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts keeps user attachments compact and avoids assistant sections', () => {
+  const result = buildAgentMessageFacts(message({
     role: 'user',
     attachments: [attachment({ id: 'img_1', type: 'image' })],
   }))
 
   assert.equal(result.isUser, true)
-  assert.equal(result.showLargeMedia, false)
-  assert.equal(result.hasResultSection, false)
-  assert.equal(result.compactAttachments.length, 1)
+  assert.equal(result.messageAttachments.length, 1)
+  assert.equal(result.generatedMediaAttachments.length, 0)
   assert.equal(result.displayContent, 'Message')
 })
 
-test('buildAgentMessagePresentation promotes generated assistant media and hides technical summary', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts promotes generated assistant media and hides technical summary', () => {
+  const result = buildAgentMessageFacts(message({
     content: '成片已生成。\nOutput resources: #42\n技术细节：done',
     attachments: [attachment({
       id: 'generated-1',
@@ -28,17 +27,15 @@ test('buildAgentMessagePresentation promotes generated assistant media and hides
     })],
   }))
 
-  assert.equal(result.showLargeMedia, true)
-  assert.equal(result.hasUsableGeneratedResource, true)
   assert.equal(result.generatedMediaAttachments.length, 1)
-  assert.equal(result.compactAttachments.length, 0)
-  assert.equal(result.hasResultSection, true)
+  assert.equal(result.generatedMediaAttachments[0]?.resourceId, 42)
+  assert.equal(result.messageAttachments.length, 1)
   assert.equal(result.displayContent.includes('Output resources'), false)
   assert.equal(result.displayContent.includes('技术细节'), true)
 })
 
-test('buildAgentMessagePresentation hides technical output summaries without hydrating resources', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts hides technical output summaries without hydrating resources', () => {
+  const result = buildAgentMessageFacts(message({
     content: 'Output resources: #7, #8',
     attachments: [attachment({ id: 'existing_7', resourceId: 7 })],
   }))
@@ -47,8 +44,8 @@ test('buildAgentMessagePresentation hides technical output summaries without hyd
   assert.equal(result.messageAttachments.length, 1)
 })
 
-test('buildAgentMessagePresentation exposes assistant meta as view model fields', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts exposes assistant meta as view model fields', () => {
+  const result = buildAgentMessageFacts(message({
     meta: {
       contextLabels: ['Project'],
       generationJobs: [{
@@ -101,13 +98,10 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
   assert.equal(result.generationParamAudits[0]?.modelConfigId, 7)
   assert.equal(result.generationValidationErrors[0]?.code, 'INVALID_INPUT_COUNT')
   assert.equal(result.workspaceArtifacts[0]?.workspaceId, 'workspace_1')
-  assert.equal(result.hasResultSection, true)
-  assert.equal(result.hasProcessSection, true)
-  assert.equal(result.hasDiagnosticSection, true)
 })
 
-test('buildAgentMessagePresentation hides internal run status breadcrumbs', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts hides internal run status breadcrumbs', () => {
+  const result = buildAgentMessageFacts(message({
     meta: {
       contextLabels: ['run completed', '已恢复本地 Runtime', 'Restored Local Runtime', 'Project Alpha'],
     },
@@ -116,8 +110,8 @@ test('buildAgentMessagePresentation hides internal run status breadcrumbs', () =
   assert.deepEqual(result.contextLabels, ['Project Alpha'])
 })
 
-test('buildAgentMessagePresentation hides requires-action summary text while preserving inline activity', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts hides requires-action summary text while preserving inline activity', () => {
+  const result = buildAgentMessageFacts(message({
     content: '执行前需要确认：\n- workspace_apply: 需要正式写入项目数据',
   }), {
     timelineActivity: {
@@ -136,12 +130,11 @@ test('buildAgentMessagePresentation hides requires-action summary text while pre
   })
 
   assert.equal(result.displayContent, '')
-  assert.equal(result.hasProcessSection, true)
   assert.equal(result.timelineActivity?.approvals?.[0]?.id, 'approval_1')
 })
 
-test('buildAgentMessagePresentation hides technical final source summary blocks', () => {
-  const result = buildAgentMessagePresentation({
+test('buildAgentMessageFacts hides technical final source summary blocks', () => {
+  const result = buildAgentMessageFacts({
     id: 'assistant_1',
     role: 'assistant',
     content: [
@@ -157,8 +150,8 @@ test('buildAgentMessagePresentation hides technical final source summary blocks'
   assert.equal(result.displayContent, '生成完成。')
 })
 
-test('buildAgentMessagePresentation promotes async work handoff out of empty assistant text', () => {
-  const result = buildAgentMessagePresentation(message({
+test('buildAgentMessageFacts promotes async work handoff out of empty assistant text', () => {
+  const result = buildAgentMessageFacts(message({
     content: '（无内容）',
   }), {
     timelineActivity: {

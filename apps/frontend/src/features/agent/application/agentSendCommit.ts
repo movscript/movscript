@@ -8,7 +8,7 @@ import { handleSendAbort, handleSendFailure } from '@/features/agent/application
 import { prepareSendRuntime } from '@/features/agent/application/agentSendRuntimeReadiness'
 import { handleSendRunUpdate, handleSendRuntimeEvent, type AgentSendRunUpdateDeps } from '@/features/agent/application/agentSendStream'
 import { createLocalAgentStopAbortError } from '@/features/agent/domain/agentRunControl'
-import { localAgentClient, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from '@/shared/infrastructure/localAgentClient'
 import { syncRuntimeModelConfig } from '@/shared/infrastructure/runtimeChat'
 import type { AgentAttachment, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore, type AgentConversationRuntimeState, type AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
@@ -20,7 +20,7 @@ import {
   recordAgentPerformanceMetric,
 } from '@/features/agent/state/agentPerformanceStore'
 import type { AgentSendWorkspace } from '@/features/agent/application/agentSendWorkspace'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { runtimeAssistantProgressFromEvent } from '@movscript/event-state'
 
 type ActivityEventsAction = SetStateAction<ChatRunActivityEvent[]>
@@ -46,7 +46,7 @@ export interface CommitAgentSendWorkspaceDeps {
   setConversationRuntime: (conversationId: string, patch: ConversationRuntimePatch) => void
   setLiveTraceEvents: (action: ActivityEventsAction) => void
   setPendingHttpEvents: (action: ActivityEventsAction) => void
-  setPendingAssistantState: (state: AgentLivePendingAssistantState | null | ((current: AgentLivePendingAssistantState | null) => AgentLivePendingAssistantState | null)) => void
+  setPendingAssistantState: (state: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
   resetStreamingAssistant: (settledRunId?: string) => void
   updateStreamingAssistantText: (runId: string, text: string, roundIndex?: number) => void
   recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
@@ -54,7 +54,7 @@ export interface CommitAgentSendWorkspaceDeps {
   setMentionRange: (range: null) => void
   refetchLocalAgentHealth: () => Promise<unknown>
   isLocalAgentAbortError: (error: unknown) => boolean
-  thinkingStateForRun: (run: AgentRun) => AgentLivePendingAssistantState
+  thinkingStateForRun: (run: AgentRun) => AgentThinkingState
   runTouchesAgentCatalog: (run: AgentRun) => boolean
   refreshAgentCatalogContext: () => void
   cancelGenerationJobIfActive: AgentSendRunUpdateDeps['cancelGenerationJobIfActive']
@@ -223,6 +223,11 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
       },
       onSourceMessage: (sourceMessage, run) => {
         if (sendController.signal.aborted) return
+        bindAcceptedSourceRuntimeScope({
+          message: sourceMessage,
+          run,
+          deps,
+        })
         notifyAgentTimelineAcceptedSource(sourceMessage, run)
         markSendPhase('source_message_accepted', { threadId: sourceMessage.threadId, runId: run.id, runtimeMessageId: sourceMessage.id })
       },
@@ -373,6 +378,32 @@ export async function commitAgentSendWorkspace(workspace: AgentSendWorkspace, de
       latestStreamProgressChars,
     })
   }
+}
+
+type AcceptedSourceRuntimeScopeDeps = Pick<
+  CommitAgentSendWorkspaceDeps,
+  | 'conversationId'
+  | 'setConversationRuntimeSessionId'
+  | 'setConversationRuntimeThreadId'
+  | 'setConversationSessionId'
+  | 'setLocalThreadId'
+  | 'userId'
+>
+
+export function bindAcceptedSourceRuntimeScope(input: {
+  message: Pick<AgentMessage, 'threadId'>
+  run: Pick<AgentRun, 'sessionId'>
+  deps: AcceptedSourceRuntimeScopeDeps
+}): void {
+  const threadId = input.message.threadId.trim()
+  if (!threadId) return
+  const sessionId = input.run.sessionId?.trim()
+  if (sessionId) {
+    input.deps.setConversationSessionId?.(input.deps.conversationId, sessionId)
+    input.deps.setConversationRuntimeSessionId?.(input.deps.userId, input.deps.conversationId, sessionId)
+  }
+  input.deps.setLocalThreadId(input.deps.conversationId, threadId)
+  input.deps.setConversationRuntimeThreadId(input.deps.userId, input.deps.conversationId, threadId)
 }
 
 function schedulePostCommitFrame(operationId: string | undefined): void {

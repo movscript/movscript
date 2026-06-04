@@ -65,9 +65,13 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
       parsed = JSON.parse(raw) as unknown
       parseMs = Date.now() - parseStartedAt
     } catch {
+      this.recordStorageOperation('load', 'error', Date.now() - loadStartedAt, rawBytes)
       return
     }
-    if (!isRecord(parsed)) return
+    if (!isRecord(parsed)) {
+      this.recordStorageOperation('load', 'error', Date.now() - loadStartedAt, rawBytes)
+      return
+    }
     const normalizeStartedAt = Date.now()
     const memories = Array.isArray(parsed.memories) ? parsed.memories : []
     const normalizedMemories = memories.flatMap((memory) => normalizeMemory(memory))
@@ -85,6 +89,7 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
       `rawBytes=${rawBytes}`,
       `memories=${normalizedMemories.length}`,
     ].join(' '))
+    this.recordStorageOperation('load', 'success', Date.now() - loadStartedAt, rawBytes)
   }
 
   private persist(): void {
@@ -124,6 +129,33 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
           component: 'memory_store',
           kind: 'memory_file',
           stage: 'flush',
+          status,
+        },
+      })
+    }
+  }
+
+  private recordStorageOperation(stage: 'load', status: 'success' | 'error', durationMs: number, bytes?: number): void {
+    this.telemetry?.recordMetric({
+      name: 'movscript_agent_storage_operation_duration_ms',
+      value: Math.max(0, durationMs),
+      unit: 'ms',
+      labels: {
+        component: 'memory_store',
+        kind: 'memory_file',
+        stage,
+        status,
+      },
+    })
+    if (typeof bytes === 'number' && bytes >= 0) {
+      this.telemetry?.recordMetric({
+        name: 'movscript_agent_storage_file_bytes',
+        value: bytes,
+        unit: 'bytes',
+        labels: {
+          component: 'memory_store',
+          kind: 'memory_file',
+          stage,
           status,
         },
       })

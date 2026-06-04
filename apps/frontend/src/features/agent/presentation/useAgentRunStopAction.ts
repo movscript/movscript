@@ -8,7 +8,7 @@ import {
 } from '@/features/agent/domain/agentRunControl'
 import { localAgentClient, type AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { GenerationProgressState } from '@/features/agent/domain/agentGenerationMedia'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 
 export async function cancelGenerationJobIfActive(state: GenerationProgressState | null): Promise<void> {
   if (!state || state.terminal || state.jobId === undefined) return
@@ -31,7 +31,7 @@ export interface UseAgentRunStopActionInput {
   stopRequestedBeforeRun: boolean
   generationProgressState: GenerationProgressState | null
   activeSendAbortControllerRef: MutableRefObject<AbortController | null>
-  setPendingAssistantState: (state: AgentLivePendingAssistantState | null) => void
+  setPendingAssistantState: (state: AgentThinkingState | null) => void
   resetStreamingAssistant: () => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<StopLocalRunActionDeps['setConversationRun']>[1]) => void
   setConversationRuntime: (conversationId: string, patch: Parameters<StopLocalRunActionDeps['setConversationRuntime']>[0]) => void

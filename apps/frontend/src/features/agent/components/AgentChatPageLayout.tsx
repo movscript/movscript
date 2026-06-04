@@ -12,10 +12,9 @@ import {
 } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
-import { AgentConversationThreadSection, latestPlanFromTimelineItems } from '@/features/agent/components/AgentConversationThreadSection'
+import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
-import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentChatViewLayoutProps } from '@/features/agent/components/AgentChatViewLayout'
 import type { AgentChatHost } from '@/features/agent/components/AgentBuiltinChatShell'
 
@@ -29,10 +28,10 @@ export function AgentChatPageLayout({
 }: AgentChatViewLayoutProps & { emptyAccessory?: ReactNode; host?: AgentChatHost }) {
   const { t } = useTranslation()
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
-  const conversationStarted = transcriptMessageCount({ transcriptMessages: thread.transcriptMessages, transcriptMessageCount: thread.transcriptMessageCount }) > 0 || thread.conversationBlocks.length > 0 || !!debugPreview.workspace
-  const loadingConversationTimeline = thread.timelineLoading && !conversationStarted
+  const conversationStarted = thread.conversationStarted || !!debugPreview.workspace
+  const loadingConversationTimeline = thread.showTimelineLoading && !conversationStarted
   const hasPinnedStatus = hasAgentPinnedStatus({
-    plan: latestPlanFromTimelineItems(thread.timelineItems),
+    plan: thread.currentPlan,
     generationProgressStates: thread.generationProgressStates,
     planSnapshot: thread.activePlanSnapshot,
   })

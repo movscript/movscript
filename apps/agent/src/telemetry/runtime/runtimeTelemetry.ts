@@ -448,6 +448,10 @@ export class RuntimeTelemetryRegistry {
     lines.push('# TYPE movscript_agent_error_trace_span_total gauge')
     lines.push(`movscript_agent_error_trace_span_total ${this.spans.filter((span) => isErrorSpan(span)).length}`)
 
+    appendSummaryMetric(lines, this.metrics, 'movscript_agent_storage_flush_duration_ms', 'Agent local storage flush duration in milliseconds.')
+    appendSummaryMetric(lines, this.metrics, 'movscript_agent_storage_operation_duration_ms', 'Agent local storage operation duration in milliseconds.')
+    appendSummaryMetric(lines, this.metrics, 'movscript_agent_trace_store_operation_duration_ms', 'Agent trace store operation duration in milliseconds.')
+
     return `${lines.join('\n')}\n`
   }
 
@@ -554,6 +558,22 @@ function percentile(values: number[], ratio: number): number {
 
 function roundMetric(value: number): string {
   return Number.isFinite(value) ? value.toFixed(3).replace(/\.?0+$/, '') : '0'
+}
+
+function appendSummaryMetric(lines: string[], metrics: RuntimeTelemetryMetricSample[], name: string, help: string): void {
+  lines.push(`# HELP ${name} ${help}`)
+  lines.push(`# TYPE ${name} summary`)
+  const grouped = groupSamples(metrics.filter((sample) => sample.name === name), (sample) => stableLabels(sample.labels))
+  for (const [labelKey, samples] of grouped) {
+    const labels = labelKey ? `{${labelKey}}` : ''
+    const values = samples.map((sample) => sample.value).sort((a, b) => a - b)
+    const count = values.length
+    const sum = values.reduce((current, value) => current + value, 0)
+    lines.push(`${name}_count${labels} ${count}`)
+    lines.push(`${name}_sum${labels} ${roundMetric(sum)}`)
+    lines.push(`${name}{quantile="0.95"${labelKey ? `,${labelKey}` : ''}} ${roundMetric(percentile(values, 0.95))}`)
+    lines.push(`${name}{quantile="0.99"${labelKey ? `,${labelKey}` : ''}} ${roundMetric(percentile(values, 0.99))}`)
+  }
 }
 
 function formatMs(value: number): string {

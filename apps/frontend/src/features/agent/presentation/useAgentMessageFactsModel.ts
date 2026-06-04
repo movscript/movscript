@@ -1,0 +1,37 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import { buildAgentMessageFacts } from '@/features/agent/domain/agentMessageFacts'
+import { agentMessageBubbleModel } from '@/features/agent/presentation/agentMessageBubbleModel'
+import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
+import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
+
+export interface UseAgentMessageBubbleModelInput {
+  message: ChatMessage
+  timelineActivity?: ChatRunActivity
+  liveInteractionRun?: AgentRun | null
+  liveInteractionEvents?: ChatRunActivityEvent[]
+  hiddenActivityActionItemIds?: Set<string>
+}
+
+export function useAgentMessageFactsModel(message: ChatMessage, timelineActivity?: ChatRunActivity) {
+  return useMemo(() => buildAgentMessageFacts(message, { timelineActivity }), [message, timelineActivity])
+}
+
+export function useAgentMessageBubbleModel({
+  message,
+  timelineActivity,
+  liveInteractionRun,
+  liveInteractionEvents,
+  hiddenActivityActionItemIds,
+}: UseAgentMessageBubbleModelInput) {
+  const { i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const time = useMemo(() => new Date(message.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }), [locale, message.timestamp])
+  const facts = useAgentMessageFactsModel(message, timelineActivity)
+  return useMemo(() => agentMessageBubbleModel(facts, message, {
+    time,
+    liveInteractionRun,
+    liveInteractionEvents,
+    hiddenActivityActionItemIds,
+  }), [hiddenActivityActionItemIds, liveInteractionEvents, liveInteractionRun, message, facts, time])
+}

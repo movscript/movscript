@@ -89,32 +89,60 @@ export class FileTraceStore {
   }
 
   listRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
-    const limit = normalizeTraceLimit(query.limit)
-    const events = this.readRunTraceEvents(runId)
-      .filter((event) => !query.kind || event.kind === query.kind)
-      .sort(compareTraceOrder)
-    const cursorIndex = query.cursor ? events.findIndex((event) => event.id === query.cursor) : -1
-    if (query.cursor && cursorIndex < 0) return []
-    const startIndex = cursorIndex >= 0 ? cursorIndex + 1 : 0
-    return events.slice(startIndex, startIndex + limit).map(clone)
+    const startedAt = Date.now()
+    try {
+      const limit = normalizeTraceLimit(query.limit)
+      const events = this.readRunTraceEvents(runId)
+        .filter((event) => !query.kind || event.kind === query.kind)
+        .sort(compareTraceOrder)
+      const cursorIndex = query.cursor ? events.findIndex((event) => event.id === query.cursor) : -1
+      if (query.cursor && cursorIndex < 0) {
+        this.recordTraceStoreOperation('list', 'success', Date.now() - startedAt)
+        return []
+      }
+      const startIndex = cursorIndex >= 0 ? cursorIndex + 1 : 0
+      const page = events.slice(startIndex, startIndex + limit).map(clone)
+      this.recordTraceStoreOperation('list', 'success', Date.now() - startedAt)
+      return page
+    } catch (error) {
+      this.recordTraceStoreOperation('list', 'error', Date.now() - startedAt)
+      throw error
+    }
   }
 
   getRunTraceEventData(runId: string, eventId: string): unknown | undefined {
-    const event = this.readRunTraceEvents(runId).find((item) => item.id === eventId)
-    if (!event) return undefined
-    const data = event.data
-    if (!isRecord(data)) return data === undefined ? undefined : clone(data)
-    const dataRef = typeof data.dataRef === 'string' ? data.dataRef : undefined
-    const dataEncoding = typeof data.dataEncoding === 'string' ? data.dataEncoding : undefined
-    if (data.persistedTraceTruncated === true && dataRef && dataEncoding === 'gzip') {
-      const rootPath = resolve(this.rootDir)
-      const blobPath = resolve(this.rootDir, dataRef)
-      const relativeBlobPath = relative(rootPath, blobPath)
-      if (relativeBlobPath.startsWith('..') || relativeBlobPath.startsWith('/') || relativeBlobPath === '') return clone(data)
-      const parsed = parseJSON(gunzipSync(readFileSync(blobPath)).toString('utf8'))
-      return parsed === undefined ? clone(data) : parsed
+    const startedAt = Date.now()
+    try {
+      const event = this.readRunTraceEvents(runId).find((item) => item.id === eventId)
+      if (!event) {
+        this.recordTraceStoreOperation('read_data', 'success', Date.now() - startedAt)
+        return undefined
+      }
+      const data = event.data
+      if (!isRecord(data)) {
+        this.recordTraceStoreOperation('read_data', 'success', Date.now() - startedAt)
+        return data === undefined ? undefined : clone(data)
+      }
+      const dataRef = typeof data.dataRef === 'string' ? data.dataRef : undefined
+      const dataEncoding = typeof data.dataEncoding === 'string' ? data.dataEncoding : undefined
+      if (data.persistedTraceTruncated === true && dataRef && dataEncoding === 'gzip') {
+        const rootPath = resolve(this.rootDir)
+        const blobPath = resolve(this.rootDir, dataRef)
+        const relativeBlobPath = relative(rootPath, blobPath)
+        if (relativeBlobPath.startsWith('..') || relativeBlobPath.startsWith('/') || relativeBlobPath === '') {
+          this.recordTraceStoreOperation('read_data', 'success', Date.now() - startedAt)
+          return clone(data)
+        }
+        const parsed = parseJSON(gunzipSync(readFileSync(blobPath)).toString('utf8'))
+        this.recordTraceStoreOperation('read_data', 'success', Date.now() - startedAt)
+        return parsed === undefined ? clone(data) : parsed
+      }
+      this.recordTraceStoreOperation('read_data', 'success', Date.now() - startedAt)
+      return clone(data)
+    } catch (error) {
+      this.recordTraceStoreOperation('read_data', 'error', Date.now() - startedAt)
+      throw error
     }
-    return clone(data)
   }
 
   countRunTraceEvents(runId: string, query: Pick<AgentTraceQuery, 'kind'> = {}): number {
@@ -318,7 +346,7 @@ export class FileTraceStore {
     return new Set(eventIds)
   }
 
-  private recordTraceStoreOperation(stage: 'append' | 'persist_index', status: 'success' | 'error', durationMs: number): void {
+  private recordTraceStoreOperation(stage: 'append' | 'persist_index' | 'list' | 'read_data', status: 'success' | 'error', durationMs: number): void {
     this.telemetry?.recordMetric({
       name: 'movscript_agent_trace_store_operation_duration_ms',
       value: Math.max(0, durationMs),
@@ -390,7 +418,7 @@ function compactModelCallTraceData(
     if (Object.keys(compactRequest).length > 0) out.request = compactRequest
   }
   if (response) {
-    const compactResponse: Record<string, JSONValue> = copyPrimitiveFields(response, new Set(['bodyText', 'content']))
+    const compactResponse: Record<string, JSONValue> = copyPrimitiveFields(response)
     if (typeof response.bodyText === 'string') compactResponse.bodyTextChars = response.bodyText.length
     if (typeof response.content === 'string') compactResponse.contentChars = response.content.length
     if (parsedBody) {

@@ -76,6 +76,13 @@ import { projectListQueryKey } from '@/features/project/application/projectQueri
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentConversationTabRuntimeStatusLights } from '@/features/agent/presentation/useAgentConversationTabRuntimeStatusLights'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
+import {
+  AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
+  AGENT_MODE_CONTENT_PANEL_MAX_WIDTH,
+  AGENT_MODE_CONTENT_PANEL_MIN_WIDTH,
+  AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY,
+  clampAgentModeContentPanelWidth,
+} from '@/features/agent/presentation/agentModePanelSizing'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
@@ -90,10 +97,6 @@ const AGENT_SIDEBAR_DEFAULT_WIDTH = 288
 const AGENT_SIDEBAR_MIN_WIDTH = 180
 const AGENT_SIDEBAR_MAX_WIDTH = 420
 const AGENT_SIDEBAR_COLLAPSED_WIDTH = 0
-export const AGENT_MODE_CONTENT_PANEL_WIDTH_STORAGE_KEY = 'movscript-agent-mode-content-panel-width'
-export const AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH = 380
-export const AGENT_MODE_CONTENT_PANEL_MIN_WIDTH = 200
-export const AGENT_MODE_CONTENT_PANEL_MAX_WIDTH = 1500
 
 interface PaintDiagnosticRow {
   selector: string
@@ -120,10 +123,6 @@ function readLastAgentModeActiveThreadId(userId: string) {
 
 function writeLastAgentModeActiveThreadId(userId: string, threadId: string | null) {
   writeAgentActiveConversationId(userId, threadId)
-}
-
-export function clampAgentModeContentPanelWidth(width: number) {
-  return Math.min(AGENT_MODE_CONTENT_PANEL_MAX_WIDTH, Math.max(AGENT_MODE_CONTENT_PANEL_MIN_WIDTH, width))
 }
 
 function agentModeRenderDiagnosticsEnabled() {

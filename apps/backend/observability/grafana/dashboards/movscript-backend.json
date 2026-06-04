@@ -969,6 +969,132 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
+      "description": "Database query latency by normalized SQL operation and status. This excludes model-provider latency and shows persistence cost inside backend request handling.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sum(rate(movscript_db_query_duration_milliseconds_sum[5m])) by (operation, status) / clamp_min(sum(rate(movscript_db_query_duration_milliseconds_count[5m])) by (operation, status), 1e-9)",
+          "legendFormat": "{{operation}} {{status}} avg",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "max(movscript_db_query_duration_milliseconds_max) by (operation, status)",
+          "legendFormat": "{{operation}} {{status}} max",
+          "refId": "B"
+        }
+      ],
+      "title": "Database Query Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "Object storage boundary latency and payload size by backend and operation.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "sum(rate(movscript_object_storage_operation_duration_milliseconds_sum[5m])) by (backend, operation, status) / clamp_min(sum(rate(movscript_object_storage_operation_duration_milliseconds_count[5m])) by (backend, operation, status), 1e-9)",
+          "legendFormat": "{{backend}} {{operation}} {{status}} avg",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "expr": "max(movscript_object_storage_operation_duration_milliseconds_max) by (backend, operation, status)",
+          "legendFormat": "{{backend}} {{operation}} {{status}} max",
+          "refId": "B"
+        }
+      ],
+      "title": "Object Storage Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
       "description": "Active Prometheus alerts loaded with the MovScript observability stack. New rules appear automatically through the ALERTS metric.",
       "fieldConfig": {
         "defaults": {
@@ -980,7 +1106,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 87
       },
       "id": 21,
       "options": {

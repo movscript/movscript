@@ -1,7 +1,7 @@
 import { extractAgentTaskArtifacts } from '@/features/agent/domain/agentArtifacts'
 import { generationProgressFromEvents } from '@/features/agent/domain/agentGenerationMedia'
 import { isStoppableAgentRun, isTerminalAgentRun, type RunControlRuntimePatch } from '@/features/agent/domain/agentRunControl'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
+import type { AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { setActivityEventStatus } from '@/features/agent/application/agentSendActivity'
 import type { AgentRun, AgentRuntimeEventV2 } from '@/shared/infrastructure/localAgentClient'
 import type { AgentPageTaskState } from '@/features/agent/state/agentSessionStore'
@@ -14,8 +14,8 @@ export interface AgentSendRunUpdateDeps {
   liveEvents: () => ChatRunActivityEvent[]
   cancelledRunIds: Set<string>
   getConversationRuntime: () => { stopRequested?: boolean; run?: AgentRun } | undefined
-  setPendingAssistantState: (value: AgentLivePendingAssistantState | null | ((current: AgentLivePendingAssistantState | null) => AgentLivePendingAssistantState | null)) => void
-  thinkingStateForRun: (run: AgentRun) => AgentLivePendingAssistantState
+  setPendingAssistantState: (value: AgentThinkingState | null | ((current: AgentThinkingState | null) => AgentThinkingState | null)) => void
+  thinkingStateForRun: (run: AgentRun) => AgentThinkingState
   runTouchesAgentCatalog: (run: AgentRun) => boolean
   refreshAgentCatalogContext: () => void
   setPageTaskRunning: (requestId: string, patch: Partial<AgentPageTaskState>) => void
@@ -127,10 +127,10 @@ function runHasPendingUserInteraction(run: AgentRun): boolean {
 }
 
 function mergePendingAssistantState(
-  current: AgentLivePendingAssistantState | null,
-  next: AgentLivePendingAssistantState,
+  current: AgentThinkingState | null,
+  next: AgentThinkingState,
   run: AgentRun,
-): AgentLivePendingAssistantState {
+): AgentThinkingState {
   if (
     current?.status === 'preparing_tool_call'
     && next.status === 'thinking'

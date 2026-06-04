@@ -7,7 +7,7 @@ This feature keeps runtime facts, timeline projection, and UI render surfaces on
 - Chat timeline renders only timeline items with `purpose: "transcript"` and `surface: "message_stream"` for one runtime thread. `purpose: "transcript"` means conversation text, not prompt eligibility; only `contentPromptEligibility: "include"` can enter model history. The chat view calls `useAgentTimeline` with `requireThread: true`; it must not fall back to session-level message aggregation.
 - Thread binding is resolved through `resolveAgentChatRuntimeBindingIds`. Persisted local bindings win, then conversation runtime fields, then the timeline stays empty until a thread is known.
 - Runtime status, plan revisions, and diagnostics stay in raw timeline state for their owning surfaces. They must carry explicit timeline semantics: `origin`, `purpose`, `surface`, and `contentPromptEligibility`; plan revisions come from `thread.planRevisions`, not assistant message anchors.
-- Live run activity belongs in `AgentConversationPresentation` blocks scoped to the active run. It is inserted after the run's user messages and before assistant output.
+- Live run activity belongs in `AgentConversationLiveBlocks` blocks scoped to the active run. It is inserted after the run's user messages and before assistant output.
 - Historical run activity attached to a final assistant answer is rendered as a collapsed process summary, not as a replay of every thinking/tool round.
 - Pinned generation status reads generation activity from current-thread messages and live activity events. It is a top status surface, not a chat bubble source.
 - Runtime input answers and approval echoes are filtered only from projected transcript evidence. Non-transcript anchors must not hide user messages.

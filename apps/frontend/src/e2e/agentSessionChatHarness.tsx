@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import '@/index.css'
 import '@/i18n'
 import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
+import { buildAgentConversationProjection } from '@/features/agent/domain/agentConversationProjection'
 import type { PlanDispatchSettings } from '@/features/agent/application/agentPlanActions'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
@@ -18,56 +19,63 @@ const queryClient = new QueryClient({
 })
 
 function AgentSessionChatHarness() {
+  const transcriptMessages = [
+    message({
+      id: 'local_user',
+      role: 'user',
+      content: 'Start worker task',
+      meta: {
+        runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker' },
+        runtimeInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', deliveryStatus: 'accepted' },
+      },
+    }),
+    message({
+      id: 'assistant_result',
+      role: 'assistant',
+      content: 'Worker reported result',
+      timestamp: 2,
+      meta: {
+        runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_result', runId: 'run_worker' },
+      },
+    }),
+  ]
+  const interactionRunsByResultMessageId = new Map([
+    ['local_user', [run({
+      id: 'run_worker',
+      pendingApprovals: [approval({
+        id: 'approval_worker',
+        runId: 'run_worker',
+        toolName: 'movscript_test_tool',
+        args: { marker: 'worker-approval-marker' },
+        reason: 'Worker needs confirmation',
+      })],
+    })]],
+  ])
+
   return (
     <QueryClientProvider client={queryClient}>
       <main className="h-screen bg-background p-4 text-foreground">
         <AgentConversationThreadSection
-          activeRun={null}
           approvingLocalRun={false}
           bottomRef={createRef<HTMLDivElement>()}
           conversationId="agent-session-chat-harness"
-          conversationBlocks={[]}
+          conversationProjection={buildAgentConversationProjection({
+            activeRun: null,
+            liveBlocks: [],
+            transcriptMessages,
+            timelineItems: [],
+            runInteractions: {
+              answerEchoMessageIds: new Set(),
+              runsByResultMessageId: interactionRunsByResultMessageId,
+              standaloneRuns: [],
+            },
+          })}
+          currentPlan={undefined}
           generationProgressStates={[]}
-          timelineItems={[]}
-          transcriptMessages={[
-            message({
-              id: 'local_user',
-              role: 'user',
-              content: 'Start worker task',
-              meta: {
-                runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker' },
-                runtimeInput: { threadId: 'thread_interactive', messageId: 'msg_user', runId: 'run_worker', deliveryStatus: 'accepted' },
-              },
-            }),
-            message({
-              id: 'assistant_result',
-              role: 'assistant',
-              content: 'Worker reported result',
-              timestamp: 2,
-              meta: {
-                runtimeMessage: { threadId: 'thread_interactive', messageId: 'msg_result', runId: 'run_worker' },
-              },
-            }),
-          ]}
+          showTimelineLoading={false}
           planActionBusy={false}
           planDispatchSettings={planDispatchSettings()}
-          showLocalRunInteraction
-          thinkingState={{ status: 'thinking' }}
           threadRef={createRef<HTMLDivElement>()}
-          runInteractionAnswerEchoes={new Set()}
-          interactionRunsByResultMessageId={new Map([
-            ['local_user', [run({
-              id: 'run_worker',
-              pendingApprovals: [approval({
-                id: 'approval_worker',
-                runId: 'run_worker',
-                toolName: 'movscript_test_tool',
-                args: { marker: 'worker-approval-marker' },
-                reason: 'Worker needs confirmation',
-              })],
-            })]],
-          ])}
-          interactionRunsWithoutResultMessage={[]}
           onAcceptPlanReview={() => {}}
           onAnswerLocalRunInput={() => {}}
           onApproveLocalRun={() => {}}

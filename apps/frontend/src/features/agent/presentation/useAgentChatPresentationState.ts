@@ -1,7 +1,7 @@
 import { useAgentActivePlanSnapshot } from '@/features/agent/presentation/useAgentActivePlanSnapshot'
 import { useAgentChatDerivedState, type UseAgentChatDerivedStateOptions } from '@/features/agent/presentation/useAgentChatDerivedState'
 import { useAgentConversationAutoScroll } from '@/features/agent/presentation/useAgentConversationAutoScroll'
-import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
+import { projectionItemsScrollKey } from '@/features/agent/presentation/agentConversationProjectionScrollKey'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 interface UseAgentChatPresentationStateInput extends Omit<UseAgentChatDerivedStateOptions, 'activePlanSnapshot' | 'run'> {
@@ -32,18 +32,12 @@ export function useAgentChatPresentationState({
     activePlanSnapshot,
     run: activeRun,
   })
+  const conversationProjectionScrollKey = projectionItemsScrollKey(derived.conversationProjection.items)
 
   const scroll = useAgentConversationAutoScroll({
-    blockCount: derived.conversationPresentation.blocks.length,
-    building: derived.buildingSendWorkspace,
     conversationId,
+    conversationProjectionScrollKey,
     generationProgressKey: derived.generationProgressKey,
-    hasPendingAssistantState: !!derivedInput.pendingAssistantState,
-    hasStreamingAssistantContent: derived.hasStreamingAssistantContent,
-    loading: derived.loading,
-    messageCount: transcriptMessageCount({ transcriptMessages: derivedInput.messages }),
-    streamingAssistantText: derivedInput.streamingAssistantText,
-    visibleActivityEventCount: derivedInput.visibleActivityEvents.length,
   })
 
   return {

@@ -946,6 +946,10 @@
   padding: 0;
 }
 
+.agent-run-trace-filter-summary {
+  width: 100%;
+}
+
 .agent-run-trace-controls {
   display: flex;
   width: 100%;
@@ -963,16 +967,29 @@
 .agent-run-trace-view-mode {
   display: flex;
   height: 32px;
+  align-items: stretch;
   overflow: hidden;
+  padding: 0;
   font-size: var(--ms-text-label);
   line-height: var(--ms-leading-label);
 }
 
 .agent-run-trace-view-mode__button {
+  position: relative;
+  display: inline-flex;
   height: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
   border-radius: 0;
   padding-inline: var(--ms-space-2);
   color: var(--ms-color-muted-foreground);
+  line-height: 1;
+}
+
+.agent-run-trace-view-mode__button:focus-visible {
+  z-index: 1;
+  outline-offset: -2px;
 }
 
 .agent-run-trace-view-mode__button + .agent-run-trace-view-mode__button {

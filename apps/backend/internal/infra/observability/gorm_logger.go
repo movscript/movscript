@@ -55,9 +55,20 @@ func (l GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql s
 		return
 	}
 	elapsed := time.Since(begin)
+	sql, rows := fc()
+	status := "success"
+	if err != nil && !errors.Is(err, gormlogger.ErrRecordNotFound) {
+		status = "error"
+	} else if elapsed >= l.slowThreshold && l.slowThreshold > 0 {
+		status = "slow"
+	}
+	DefaultDBMetrics().RecordQuery(DBQuerySample{
+		Operation: sqlOperation(sql),
+		Status:    status,
+		Duration:  elapsed,
+	})
 	switch {
 	case err != nil && l.level >= gormlogger.Error && !errors.Is(err, gormlogger.ErrRecordNotFound):
-		sql, rows := fc()
 		WithRequest(ctx).Error(
 			"db_query_error",
 			slog.String("error", err.Error()),
@@ -66,7 +77,6 @@ func (l GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql s
 			slog.String("sql", sanitizeSQL(sql)),
 		)
 	case elapsed >= l.slowThreshold && l.slowThreshold > 0 && l.level >= gormlogger.Warn:
-		sql, rows := fc()
 		WithRequest(ctx).Warn(
 			"db_slow_query",
 			slog.Float64("threshold_ms", float64(l.slowThreshold.Microseconds())/1000.0),
@@ -75,6 +85,21 @@ func (l GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql s
 			slog.String("sql", sanitizeSQL(sql)),
 		)
 	}
+}
+
+func sqlOperation(sql string) string {
+	sql = strings.TrimSpace(sql)
+	if sql == "" {
+		return "unknown"
+	}
+	for _, token := range strings.Fields(sql) {
+		token = strings.Trim(token, " \t\r\n(),;")
+		if token == "" {
+			continue
+		}
+		return token
+	}
+	return "unknown"
 }
 
 func formatGormMessage(msg string, data ...interface{}) string {

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildAgentThreadRenderWindow } from './agentMessageRenderWindow.ts'
+
+import { buildAgentThreadRenderWindow } from '@/features/agent/components/AgentThreadRenderWindow'
 
 function items(count: number) {
   return Array.from({ length: count }, (_, index) => ({ id: `item-${index + 1}` }))

@@ -20,6 +20,8 @@ import {
 const REPORT_DEBOUNCE_MS = 2_000
 const RUNTIME_TELEMETRY_POLL_MS = 15_000
 const MAX_BATCH_ITEMS = 40
+const MAX_PENDING_ITEMS = 400
+const MAX_RUNTIME_DEDUP_IDS = 2_000
 
 let reporterInstalled = false
 let flushTimer: ReturnType<typeof setTimeout> | undefined
@@ -148,24 +150,24 @@ export function resetAgentTelemetryReporterForTest(): void {
 }
 
 function queueOperation(operation: AgentPerformanceOperation): void {
-  pendingOperations.push(operation)
+  enqueuePending(pendingOperations, operation)
   scheduleFlush()
 }
 
 function queueLongTask(task: AgentPerformanceLongTask): void {
-  pendingLongTasks.push(task)
+  enqueuePending(pendingLongTasks, task)
   scheduleFlush()
 }
 
 function queueMetric(metric: AgentPerformanceMetricSample): void {
   if (!reportableMetric(metric)) return
-  pendingMetrics.push(metric)
+  enqueuePending(pendingMetrics, metric)
   scheduleFlush()
 }
 
 function queueLog(log: AgentPerformanceLogEntry): void {
   if (!reportableLog(log)) return
-  pendingLogs.push(log)
+  enqueuePending(pendingLogs, log)
   scheduleFlush()
 }
 
@@ -173,9 +175,8 @@ function queueRuntimeMetrics(metrics: AgentRuntimeTelemetryMetricSample[]): void
   for (const metric of metrics) {
     if (!reportableMetric(metric)) continue
     const id = runtimeMetricId(metric)
-    if (sentRuntimeMetricIds.has(id)) continue
-    sentRuntimeMetricIds.add(id)
-    pendingMetrics.push({
+    if (!rememberRuntimeId(sentRuntimeMetricIds, id)) continue
+    enqueuePending(pendingMetrics, {
       id,
       name: metric.name,
       unit: metric.unit,
@@ -191,9 +192,8 @@ function queueRuntimeLogs(logs: AgentRuntimeTelemetryLogEntry[]): void {
     const kind = runtimeLogKind(log)
     if (!kind) continue
     const id = runtimeLogId(log, kind)
-    if (sentRuntimeLogIds.has(id)) continue
-    sentRuntimeLogIds.add(id)
-    pendingLogs.push({
+    if (!rememberRuntimeId(sentRuntimeLogIds, id)) continue
+    enqueuePending(pendingLogs, {
       id,
       level: log.level,
       details: {
@@ -203,6 +203,24 @@ function queueRuntimeLogs(logs: AgentRuntimeTelemetryLogEntry[]): void {
     })
   }
   scheduleFlush()
+}
+
+function enqueuePending<T>(queue: T[], item: T): void {
+  queue.push(item)
+  if (queue.length > MAX_PENDING_ITEMS) {
+    queue.splice(0, queue.length - MAX_PENDING_ITEMS)
+  }
+}
+
+function rememberRuntimeId(ids: Set<string>, id: string): boolean {
+  if (ids.has(id)) return false
+  ids.add(id)
+  while (ids.size > MAX_RUNTIME_DEDUP_IDS) {
+    const oldest = ids.values().next().value
+    if (oldest === undefined) break
+    ids.delete(oldest)
+  }
+  return true
 }
 
 function scheduleFlush(): void {

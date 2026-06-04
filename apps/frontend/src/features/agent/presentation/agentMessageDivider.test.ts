@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentMessageDividerLabel } from '@/features/agent/domain/agentMessageDivider'
+import { agentMessageDividerLabel } from '@/features/agent/presentation/agentMessageDivider'
 import type { ChatRunActivity } from '@/features/agent/state/agentStore'
 
 test('agentMessageDividerLabel counts model-only replies as one call', () => {

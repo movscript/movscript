@@ -116,6 +116,55 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 	}
 }
 
+func TestMigration000026ChecksumCompatibility(t *testing.T) {
+	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
+
+	var migration Migration
+	for _, registered := range RegisteredMigrations() {
+		if registered.Version == "000026" {
+			migration = registered
+			break
+		}
+	}
+	if migration.Version == "" {
+		t.Fatal("migration 000026 is not registered")
+	}
+	if migration.Name != "add_creative_reference_workspace_client_id" {
+		t.Fatalf("migration 000026 name = %q, want add_creative_reference_workspace_client_id", migration.Name)
+	}
+	if got := migrationChecksum(migration); got != "9ef89e5d9815ae4eeb9e5c49c78db4628107ed2b28858351476bb1ab08bea628" {
+		t.Fatalf("migration 000026 checksum = %q", got)
+	}
+	if !acceptsLegacyMigrationChecksum(migration, legacyChecksum) {
+		t.Fatal("migration 000026 should accept previously published proposal_client_id checksum")
+	}
+}
+
+func TestRunMigrationsAcceptsMigration000026LegacyChecksum(t *testing.T) {
+	const legacyChecksum = "e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201"
+
+	db := testutil.OpenSQLite(t, "migrations_000026_legacy_checksum.db", &AppliedMigration{})
+	for _, migration := range RegisteredMigrations() {
+		checksum := migrationChecksum(migration)
+		if migration.Version == "000026" {
+			checksum = legacyChecksum
+		}
+		record := AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  checksum,
+			AppliedAt: time.Now().UTC(),
+		}
+		if err := db.Create(&record).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+}
+
 func TestMigration000029ChecksumCompatibility(t *testing.T) {
 	var migration Migration
 	for _, registered := range RegisteredMigrations() {

@@ -56,6 +56,7 @@ export const AGENT_TELEMETRY_REPORTABLE_METRICS = [
   'movscript_agent_operation_phase_delta_ms',
   'movscript_agent_storage_file_bytes',
   'movscript_agent_storage_flush_duration_ms',
+  'movscript_agent_storage_operation_duration_ms',
   'movscript_agent_trace_store_operation_duration_ms',
   'movscript_agent_trace_span_duration_ms',
   'movscript_agent_trace_event_total',

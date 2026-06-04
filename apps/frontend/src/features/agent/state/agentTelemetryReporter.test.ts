@@ -67,3 +67,51 @@ test('agent telemetry reporter posts allowlisted metrics with auth headers', asy
     globalThis.fetch = originalFetch
   }
 })
+
+test('agent telemetry reporter bounds pending metric queue', async () => {
+  const originalUserState = useUserStore.getState()
+  const originalFetch = globalThis.fetch
+  const reportedValues: number[] = []
+
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+    for (const metric of body?.metrics ?? []) {
+      reportedValues.push(metric.value)
+    }
+    return {
+      ok: true,
+      status: 202,
+      json: async () => ({ recorded: body?.metrics?.length ?? 0 }),
+    } as Response
+  }) as typeof fetch
+
+  try {
+    resetAgentTelemetryReporterForTest()
+    useUserStore.setState({
+      currentUser: { ID: 1, username: 'tester', system_role: 'user' },
+      currentOrgID: 42,
+      token: 'test-token',
+    })
+    for (let index = 0; index < 405; index += 1) {
+      queueAgentTelemetryMetricForTest({
+        id: `metric_${index}`,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        name: 'frontend_storage_operation_duration_ms',
+        value: index,
+        unit: 'ms',
+        labels: { component: 'agent_panel', kind: 'agent_store', stage: 'set', status: 'success' },
+      })
+    }
+    for (let index = 0; index < 10; index += 1) {
+      await flushAgentTelemetryForTest()
+    }
+
+    assert.equal(reportedValues.length, 400)
+    assert.equal(reportedValues[0], 5)
+    assert.equal(reportedValues.at(-1), 404)
+  } finally {
+    resetAgentTelemetryReporterForTest()
+    useUserStore.setState(originalUserState, true)
+    globalThis.fetch = originalFetch
+  }
+})

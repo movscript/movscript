@@ -1,11 +1,15 @@
 import { reasoningTextFromStreamEvent, toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'
-import type { AgentLivePendingAssistantState } from '@/features/agent/presentation/agentLiveRunActivity'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-export type ThinkingBubbleState = AgentLivePendingAssistantState
+export interface AgentThinkingState {
+  status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool' | 'retrying_model'
+  toolName?: string
+  label?: string
+  reasoning?: string
+}
 
-export function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActivityEvent[]): ThinkingBubbleState {
+export function getAgentThinkingState(run: AgentRun | null, events: ChatRunActivityEvent[]): AgentThinkingState {
   const retryStatus = latestModelRetryStatus(events)
   if (retryStatus) return { status: 'retrying_model', label: retryStatus }
   const reasoning = latestReasoningStatus(events)
@@ -26,9 +30,10 @@ export function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActi
     ? run.steps.some((step) => step.type === 'tool_call' && new Date(step.createdAt).getTime() >= eventMs)
     : false
   if (hasNewerToolStep) return { status: 'thinking', ...(reasoning ? { reasoning } : {}) }
+  const toolName = toolNameFromToolCallStreamEvent(latestToolCallEvent)
   return {
     status: 'preparing_tool_call',
-    ...(toolNameFromToolCallStreamEvent(latestToolCallEvent) ? { toolName: toolNameFromToolCallStreamEvent(latestToolCallEvent) } : {}),
+    ...(toolName ? { toolName } : {}),
     ...(reasoning ? { reasoning } : {}),
   }
 }

@@ -67,8 +67,8 @@ Grafana provisions all JSON dashboards under `grafana/dashboards`. The current d
 
 - `MovScript Overview`: first-screen system health, HTTP/Agent/frontend status, and active alerts.
 - `MovScript Agent`: Agent client operations, runtime spans, phase latency, slow stages, local storage/trace store health, and failure evidence.
-- `MovScript Frontend`: Web Vitals, frontend errors, network latency, Long Task, and frontend storage latency.
-- `MovScript Backend`: HTTP traffic, route latency/errors, shot vector metrics, and placeholders for DB/job/external/AI provider metrics.
+- `MovScript Frontend`: Web Vitals, frontend errors, network latency, Long Task, frontend storage latency, Agent send-stage latency, and composer input latency.
+- `MovScript Backend`: HTTP traffic, route latency/errors, DB query latency, object storage latency, shot vector metrics, and runtime compatibility panels.
 - `MovScript Infrastructure`: host CPU/memory/disk/network, container CPU/memory, and scrape target health.
 - `MovScript Alerts`: firing/pending alerts, telemetry rejection, down targets, and alert evidence.
 - `Movscript Backend`: legacy combined dashboard retained temporarily for compatibility while the split dashboards settle.
@@ -113,6 +113,8 @@ The desktop Agent UI reports a small, privacy-safe telemetry batch to `POST /api
 - operation kind, status, duration, and slow-operation flag
 - phase names and phase durations
 - browser Long Task duration
+- frontend send-stage latency, local runtime storage latency, trace-store latency, and storage file sizes
+- sampled composer input latency and bounded telemetry queues so monitoring cannot grow without limit during degraded network conditions
 
 It does not report prompts, tool arguments, model responses, user text, run IDs, or request IDs. The backend aggregates the batch in memory and emits Prometheus metrics from `GET /metrics`, so Grafana reads the same backend scrape target as the rest of the observability stack. The old user-facing Agent performance page is not required for normal users.
 
@@ -123,16 +125,26 @@ sum(rate(movscript_http_requests_total[5m])) by (route, status_class)
 histogram_quantile(0.95, sum(rate(movscript_http_request_duration_milliseconds_bucket[5m])) by (le, route))
 sum(rate(movscript_shot_vector_operations_total[5m])) by (operation, status)
 sum(rate(movscript_shot_vector_documents_processed_total[5m])) by (operation)
+sum(rate(movscript_db_query_duration_milliseconds_sum[5m])) by (operation, status)
+  / sum(rate(movscript_db_query_duration_milliseconds_count[5m])) by (operation, status)
+sum(rate(movscript_object_storage_operation_duration_milliseconds_sum[5m])) by (backend, operation, status)
+  / sum(rate(movscript_object_storage_operation_duration_milliseconds_count[5m])) by (backend, operation, status)
 sum(rate(movscript_agent_client_operations_total[5m])) by (kind, status)
 sum(rate(movscript_agent_client_telemetry_batches_total[5m])) by (status)
 sum(rate(movscript_agent_client_telemetry_samples_total[5m])) by (status)
 sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="frontend_agent_network_request_duration_ms"}[5m])) by (route_group, status_class)
   / sum(rate(movscript_agent_client_metric_milliseconds_count{metric="frontend_agent_network_request_duration_ms"}[5m])) by (route_group, status_class)
+sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="frontend_agent_send_stage_latency_ms"}[5m])) by (component, kind, stage, status)
+  / sum(rate(movscript_agent_client_metric_milliseconds_count{metric="frontend_agent_send_stage_latency_ms"}[5m])) by (component, kind, stage, status)
+sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=~"frontend_agent_composer_(input_latency|serialize)_ms"}[5m])) by (metric, kind, stage)
+  / sum(rate(movscript_agent_client_metric_milliseconds_count{metric=~"frontend_agent_composer_(input_latency|serialize)_ms"}[5m])) by (metric, kind, stage)
 max(movscript_agent_client_metric_milliseconds_max{metric=~"frontend_web_vital_.*_ms"}) by (metric, vital)
 max(movscript_agent_client_metric_score_max{metric="frontend_web_vital_cls_score"}) by (metric, vital)
 sum(rate(movscript_agent_client_metric_count_total{metric="frontend_ui_errors_total"}[5m])) by (area, kind, level)
 sum(rate(movscript_agent_client_metric_milliseconds_sum{metric="movscript_agent_trace_span_duration_ms"}[5m])) by (kind, status)
   / sum(rate(movscript_agent_client_metric_milliseconds_count{metric="movscript_agent_trace_span_duration_ms"}[5m])) by (kind, status)
+sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=~"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)"}[5m])) by (metric, component, kind, stage, status)
+  / sum(rate(movscript_agent_client_metric_milliseconds_count{metric=~"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)"}[5m])) by (metric, component, kind, stage, status)
 sum(rate(movscript_agent_client_slow_operations_total[5m])) by (kind, status)
 sum(rate(movscript_agent_client_operation_duration_milliseconds_sum[5m])) by (kind, status)
   / sum(rate(movscript_agent_client_operation_duration_milliseconds_count[5m])) by (kind, status)

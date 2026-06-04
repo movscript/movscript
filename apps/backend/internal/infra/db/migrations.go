@@ -1169,6 +1169,9 @@ func acceptsLegacyMigrationChecksum(migration Migration, checksum string) bool {
 		"000010": {
 			"117f6dcc99612418640970bab33d24a3c08a183fc4b886e97e534ba061be11ad": {},
 		},
+		"000026": {
+			"e4e05244263a33a3df407e96f831a0a49c93e634d0c958eada3b9a268fa00201": {},
+		},
 		"000029": {
 			"83ca864fb52dea985df41af68e5ffe03843c3beadeebb74a5dc04c23873f8972": {},
 		},

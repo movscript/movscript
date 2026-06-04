@@ -6,6 +6,8 @@ import type { PlanDispatchSettings } from '@/features/agent/application/agentPla
 import type { AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import type { Project } from '@/types'
+import { buildAgentChatThreadViewState } from '@/features/agent/presentation/agentChatThreadViewState'
+import { conversationHasTranscriptMessages } from '@/features/agent/domain/agentConversationTranscript'
 
 interface BuildAgentChatViewLayoutPropsInput {
   activeLocalRun: AgentRun | null
@@ -66,6 +68,14 @@ export function buildAgentChatViewLayoutProps({
   updateWorkspace,
   updateTaskGraphDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput) {
+  const threadViewState = buildAgentChatThreadViewState({
+    activeRun: activeLocalRun,
+    conversationProjection: presentation.conversationProjection,
+    hasTranscriptMessages: conversationHasTranscriptMessages(conv),
+    timelineItems,
+    timelineLoading,
+  })
+
   return {
     debugPreview: {
       workspace: runtime.pendingSendWorkspace,
@@ -99,26 +109,18 @@ export function buildAgentChatViewLayoutProps({
     },
     thread: {
       activePlanSnapshot: presentation.activePlanSnapshot,
-      activeRun: activeLocalRun,
       approvingLocalRun: presentation.approvingLocalRun,
       bottomRef: presentation.bottomRef,
       conversationId: conv.id,
-      conversationBlocks: presentation.conversationPresentation.blocks,
+      conversationProjection: presentation.conversationProjection,
+      conversationStarted: threadViewState.conversationStarted,
+      currentPlan: threadViewState.currentPlan,
       generationProgressStates: presentation.generationProgressStates,
-      timelineLoading,
-      timelineItems,
-      transcriptMessages: conv.transcriptMessages,
-      transcriptMessageCount: conv.transcriptMessageCount,
-      lastTranscriptAt: conv.lastTranscriptAt,
+      showTimelineLoading: threadViewState.showTimelineLoading,
       planActionBusy,
       planDispatchSettings,
       projectId: currentProject?.ID,
-      showLocalRunInteraction: presentation.showLocalRunInteraction,
-      thinkingState: presentation.thinkingState,
       threadRef: presentation.threadRef,
-      runInteractionAnswerEchoes: presentation.runInteractionAnswerEchoes,
-      interactionRunsByResultMessageId: presentation.interactionRunsByResultMessageId,
-      interactionRunsWithoutResultMessage: presentation.interactionRunsWithoutResultMessage,
       onAcceptPlanReview: interaction.acceptPlanTaskReview,
       onAnswerLocalRunInput: interaction.answerLocalRunInput,
       onApproveLocalRun: interaction.approveLocalRun,

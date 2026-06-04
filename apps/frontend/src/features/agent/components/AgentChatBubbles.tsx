@@ -1,4 +1,4 @@
-import React, { type ReactNode, useMemo, useState } from 'react'
+import React, { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
 import {
@@ -20,9 +20,9 @@ import {
   AgentModelSetupCalloutTitle,
   Button,
 } from '@movscript/ui'
-import { agentMessageDividerLabel, formatAgentDividerTime } from '@/features/agent/domain/agentMessageDivider'
+import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
 import { toolNameFromToolCallStreamEvent } from '@/features/agent/domain/agentRunActivity'
-import { type ThinkingBubbleState } from '@/features/agent/presentation/agentThinkingBubbleState'
+import { type AgentThinkingState } from '@/features/agent/domain/agentThinkingState'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
@@ -35,18 +35,20 @@ import {
 } from '@/features/agent/components/AgentMessageContent'
 import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWorkspaceResultCards'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
-import { buildAgentActivityFeed } from '@/features/agent/domain/agentActivityFeed'
-import { transcriptAssistantRuntimeMessageRunId } from '@/features/agent/domain/agentMessageBoundaries'
-import { runtimeInputDisplayDeliveryStatus } from '@/features/agent/domain/agentConversationThreadItems'
 import { RunActivityTitleBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
-import { shallowReferenceArrayEqual } from '@/features/agent/presentation/agentMessageRenderMemo'
-import { useAgentMessagePresentationModel } from '@/features/agent/presentation/useAgentMessagePresentationModel'
+import { shallowReferenceArrayEqual } from '@/features/agent/components/AgentRenderEquality'
+import { useAgentMessageBubbleModel } from '@/features/agent/presentation/useAgentMessageFactsModel'
 import type { AgentRun } from '@/shared/infrastructure/localAgentClient'
 import type { AgentInputAnswer } from '@/features/agent/domain/agentRunInteraction'
 import type { ChatMessage, ChatRunActivity, ChatRunActivityEvent } from '@/features/agent/state/agentStore'
 
-export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: ThinkingBubbleState }) {
+type MessageBubbleModel = ReturnType<typeof useAgentMessageBubbleModel>
+type MessageBubbleFooterModel = MessageBubbleModel['footer']
+type MessageBubbleActivityModel = MessageBubbleModel['activity']
+type MessageBubbleSectionsModel = MessageBubbleModel['sections']
+
+export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: AgentThinkingState }) {
   const reasoning = state.reasoning?.trim() ?? ''
   const toolLabel = state.toolName ? agentToolNameLabel(state.toolName) : undefined
   const label = state.status === 'calling_tool'
@@ -81,7 +83,7 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
   )
 }
 
-function fallbackThinkingDetail(state: ThinkingBubbleState): string {
+function fallbackThinkingDetail(state: AgentThinkingState): string {
   if (state.status === 'calling_tool' || state.status === 'preparing_tool_call') return ''
   if (state.status === 'preparing_request') return '正在准备请求'
   if (state.status === 'retrying_model') return state.label ?? '模型请求重试中'
@@ -113,75 +115,43 @@ export const MessageBubble = React.memo(function MessageBubble({
   onAnswerLocalRunInput,
   hiddenActivityActionItemIds,
 }: MessageBubbleProps) {
-  const { t, i18n } = useTranslation()
-  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const [copied, setCopied] = useState(false)
-  const isUser = msg.role === 'user'
-  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const time = useMemo(() => new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }), [locale, msg.timestamp])
-  const presentation = useAgentMessagePresentationModel(msg, timelineActivity)
-  const runtimeInput = msg.meta?.runtimeInput
-  const runtimeRunId = transcriptAssistantRuntimeMessageRunId(msg)
-  const runtimeInputDeliveryStatus = runtimeInputDisplayDeliveryStatus(msg)
-  const runtimeInputDeliveryLabel = runtimeInputDeliveryStatus === 'pending'
-    ? '正在同步到运行中对话'
-    : runtimeInputDeliveryStatus === 'accepted'
-      ? '已加入运行中对话'
-      : runtimeInputDeliveryStatus === 'consumed'
-        ? '已被模型读取'
-        : runtimeInputDeliveryStatus === 'failed' ? '同步失败' : undefined
   const {
-    contextLabels,
-    workspaceArtifacts,
-    generationJobs,
-    generationParamAudits,
-    generationValidationErrors,
-    timelineActivity: historicalTimelineActivity,
-    messageAttachments,
-    generatedMediaAttachments,
-    compactAttachments,
-    displayContent,
-    showModelSetupAction,
-    showLargeMedia,
-    hasResultSection,
-    hasDiagnosticSection,
-  } = presentation
-  const activityFeedRun = !isUser ? liveInteractionRun ?? null : null
-  const hasActivityContent = useMemo(() => !isUser && (
-    activityFeedRun
-      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveInteractionEvents, hiddenActivityActionItemIds)
-      : !!historicalTimelineActivity && runActivityHasVisibleContent(historicalTimelineActivity, undefined, undefined, hiddenActivityActionItemIds)
-  ), [activityFeedRun, hiddenActivityActionItemIds, historicalTimelineActivity, isUser, liveInteractionEvents])
-  const hasMessageBody = isUser
-    ? !!displayContent.trim() || compactAttachments.length > 0
-    : hasActivityContent
-      || !!displayContent.trim()
-      || showModelSetupAction
-      || hasResultSection
-      || hasDiagnosticSection
-  const hasFooter = contextLabels.length > 0 || !!runtimeInputDeliveryLabel
-  const assistantHeadLabel = !isUser ? agentMessageDividerLabel(time, historicalTimelineActivity) : undefined
+    shell,
+    footer,
+    sections,
+    activity,
+    action,
+    visibility,
+  } = useAgentMessageBubbleModel({
+    message: msg,
+    timelineActivity,
+    liveInteractionRun,
+    liveInteractionEvents,
+    hiddenActivityActionItemIds,
+  })
 
-  if (!hasMessageBody && !hasFooter) return null
+  if (!visibility.hasRenderableBubble) return null
 
   function copy() {
-    navigator.clipboard.writeText(msg.content)
+    if (action.kind !== 'copy') return
+    navigator.clipboard.writeText(action.text)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
   return (
     <AgentChatMessage
-      role={isUser ? 'user' : 'assistant'}
-      avatar={isUser ? '我' : <Bot size={14} />}
-      author={isUser ? 'You' : undefined}
-      time={isUser ? time : undefined}
-      data-agent-message-id={msg.id}
-      data-agent-runtime-thread-id={msg.meta?.runtimeMessage?.threadId}
-      data-agent-runtime-message-id={msg.meta?.runtimeMessage?.messageId}
-      data-agent-runtime-run-id={runtimeRunId}
-      head={assistantHeadLabel ? <AgentMessageHeadLabel>{assistantHeadLabel}</AgentMessageHeadLabel> : undefined}
-      actions={isUser ? (
+      role={shell.role}
+      avatar={shell.avatar === 'user' ? '我' : <Bot size={14} />}
+      author={shell.author}
+      time={shell.time}
+      data-agent-message-id={shell.messageId}
+      data-agent-runtime-thread-id={shell.runtimeThreadId}
+      data-agent-runtime-message-id={shell.runtimeMessageId}
+      data-agent-runtime-run-id={shell.runtimeRunId}
+      head={shell.headLabel ? <AgentMessageHeadLabel>{shell.headLabel}</AgentMessageHeadLabel> : undefined}
+      actions={action.kind === 'copy' ? (
         <Button
           size="icon-xs"
           variant="ghost"
@@ -191,52 +161,106 @@ export const MessageBubble = React.memo(function MessageBubble({
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
         </Button>
-      ) : hasActivityContent && !activityFeedRun ? (
-        <AgentActivityDividerMenu activity={historicalTimelineActivity} />
+      ) : action.kind === 'activityMenu' ? (
+        <AgentActivityDividerMenu activity={action.activity} />
       ) : undefined}
-      footer={(contextLabels.length > 0 || runtimeInputDeliveryLabel) && (
-        <AgentChatFooterBadges align={isUser ? 'end' : 'start'}>
-          {runtimeInputDeliveryLabel && (
-            <AgentChatTinyStatusBadge
-              tone={runtimeInputDeliveryStatus === 'failed' ? 'danger' : runtimeInputDeliveryStatus === 'pending' ? 'neutral' : 'neutral'}
-              title={runtimeInput?.error}
-            >
-              {runtimeInputDeliveryStatus === 'pending' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
-              {runtimeInputDeliveryStatus === 'failed' && <AlertCircle size={10} className="mr-1 inline" />}
-              {runtimeInputDeliveryLabel}
-            </AgentChatTinyStatusBadge>
-          )}
-          {contextLabels.map((label) => (
-            <AgentChatTinyBadge key={label}>
-              {label}
-            </AgentChatTinyBadge>
-          ))}
-        </AgentChatFooterBadges>
-      )}
+      footer={<MessageBubbleFooter footer={footer} />}
     >
-      {!isUser && hasActivityContent && activityFeedRun && (
+      <MessageBubbleActivity
+        activity={activity}
+        liveInteractionEvents={liveInteractionEvents}
+        approvingLocalRun={approvingLocalRun}
+        onApproveLocalRun={onApproveLocalRun}
+        onRejectLocalRun={onRejectLocalRun}
+        onAnswerLocalRunInput={onAnswerLocalRunInput}
+        hiddenActivityActionItemIds={hiddenActivityActionItemIds}
+      />
+      <MessageBubbleSections sections={sections} projectId={projectId} />
+    </AgentChatMessage>
+  )
+}, areMessageBubblePropsEqual)
+
+function MessageBubbleFooter({ footer }: { footer: MessageBubbleFooterModel }) {
+  if (!footer.hasFooter) return null
+  return (
+    <AgentChatFooterBadges align={footer.align}>
+      {footer.runtimeInputBadge && (
+        <AgentChatTinyStatusBadge
+          tone={footer.runtimeInputBadge.tone}
+          title={footer.runtimeInputBadge.title}
+        >
+          {footer.runtimeInputBadge.icon === 'spinner' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
+          {footer.runtimeInputBadge.icon === 'error' && <AlertCircle size={10} className="mr-1 inline" />}
+          {footer.runtimeInputBadge.label}
+        </AgentChatTinyStatusBadge>
+      )}
+      {footer.contextLabels.map((label) => (
+        <AgentChatTinyBadge key={label}>
+          {label}
+        </AgentChatTinyBadge>
+      ))}
+    </AgentChatFooterBadges>
+  )
+}
+
+function MessageBubbleActivity({
+  activity,
+  liveInteractionEvents,
+  approvingLocalRun,
+  onApproveLocalRun,
+  onRejectLocalRun,
+  onAnswerLocalRunInput,
+  hiddenActivityActionItemIds,
+}: {
+  activity: MessageBubbleActivityModel
+  liveInteractionEvents: ChatRunActivityEvent[]
+  approvingLocalRun: boolean
+  onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
+  onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
+  onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  hiddenActivityActionItemIds?: Set<string>
+}) {
+  const liveRun = activity.liveRun
+  return (
+    <React.Fragment>
+      {liveRun && (
         <AgentActivityFeedView
           activity={undefined}
-          run={activityFeedRun}
+          run={liveRun}
           events={liveInteractionEvents}
-          className={displayContent ? 'mb-2' : undefined}
+          className={activity.className}
           approving={approvingLocalRun}
-          onApprove={onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
-          onReject={onRejectLocalRun ? (approvalIds) => onRejectLocalRun(activityFeedRun.id, approvalIds) : undefined}
-          onAnswerInput={onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(activityFeedRun.id, requestId, answer) : undefined}
+          onApprove={onApproveLocalRun ? (approvalIds) => onApproveLocalRun(liveRun.id, approvalIds) : undefined}
+          onReject={onRejectLocalRun ? (approvalIds) => onRejectLocalRun(liveRun.id, approvalIds) : undefined}
+          onAnswerInput={onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(liveRun.id, requestId, answer) : undefined}
           approvalDetails={localAgentApprovalDetails}
           hiddenActionItemIds={hiddenActivityActionItemIds}
         />
       )}
-      {!isUser && hasActivityContent && !activityFeedRun && historicalTimelineActivity && (
+      {activity.historicalActivity && (
         <RunActivityTitleBubble
-          activity={historicalTimelineActivity}
+          activity={activity.historicalActivity}
           title="运行过程"
-          className={displayContent ? 'mb-2' : undefined}
+          className={activity.className}
         />
       )}
-      {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
-      {showModelSetupAction && (
+    </React.Fragment>
+  )
+}
+
+function MessageBubbleSections({
+  sections,
+  projectId,
+}: {
+  sections: MessageBubbleSectionsModel
+  projectId?: number
+}) {
+  const { t } = useTranslation()
+  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
+  return (
+    <React.Fragment>
+      {sections.showContent && <MarkdownContent text={sections.contentText} attachments={sections.contentAttachments} />}
+      {sections.showModelSetupAction && (
         <AgentModelSetupCallout>
           <AgentModelSetupCalloutBody>
             <AgentModelSetupCalloutIcon>
@@ -255,35 +279,35 @@ export const MessageBubble = React.memo(function MessageBubble({
           </AgentModelSetupCalloutBody>
         </AgentModelSetupCallout>
       )}
-      {hasResultSection && (
+      {sections.showResultSection && (
         <AgentChatResultStack>
-          {showLargeMedia && <GeneratedResultCard attachments={generatedMediaAttachments} projectId={projectId} />}
-          <AgentWorkspaceResultCards artifacts={workspaceArtifacts} />
-          {compactAttachments.length > 0 && (
-            <AgentChatAttachmentGrid columns={compactAttachments.length > 1 ? 2 : 1}>
-              {compactAttachments.map((attachment) => (
+          {sections.showLargeMedia && <GeneratedResultCard attachments={sections.largeMediaAttachments} projectId={projectId} />}
+          <AgentWorkspaceResultCards artifacts={sections.workspaceArtifacts} />
+          {sections.showCompactAttachmentGrid && (
+            <AgentChatAttachmentGrid columns={sections.compactAttachmentColumns}>
+              {sections.compactAttachments.map((attachment) => (
                 <AttachmentPreview key={attachment.id} attachment={attachment} compact />
               ))}
             </AgentChatAttachmentGrid>
           )}
         </AgentChatResultStack>
       )}
-      {hasDiagnosticSection && (
-        <AgentMessageSection title={t('agents.chat.messageSections.diagnostics')} tone="diagnostic" defaultOpen={!displayContent}>
-          <GenerationValidationErrorCard errors={generationValidationErrors} />
-          <GenerationParamAuditCard audits={generationParamAudits} />
+      {sections.showDiagnosticSection && (
+        <AgentMessageSection title={t('agents.chat.messageSections.diagnostics')} tone="diagnostic" defaultOpen={sections.diagnosticDefaultOpen}>
+          <GenerationValidationErrorCard errors={sections.diagnosticValidationErrors} />
+          <GenerationParamAuditCard audits={sections.diagnosticParamAudits} />
         </AgentMessageSection>
       )}
-      {isUser && compactAttachments.length > 0 && (
-        <AgentChatAttachmentGrid columns={compactAttachments.length > 1 ? 2 : 1}>
-          {compactAttachments.map((attachment) => (
+      {sections.showUserAttachmentGrid && (
+        <AgentChatAttachmentGrid columns={sections.userAttachmentColumns}>
+          {sections.userAttachments.map((attachment) => (
             <AttachmentPreview key={attachment.id} attachment={attachment} compact />
           ))}
         </AgentChatAttachmentGrid>
       )}
-    </AgentChatMessage>
+    </React.Fragment>
   )
-}, areMessageBubblePropsEqual)
+}
 
 function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbleProps) {
   return prev.msg === next.msg
@@ -296,16 +320,6 @@ function areMessageBubblePropsEqual(prev: MessageBubbleProps, next: MessageBubbl
     && prev.onRejectLocalRun === next.onRejectLocalRun
     && prev.onAnswerLocalRunInput === next.onAnswerLocalRunInput
     && prev.hiddenActivityActionItemIds === next.hiddenActivityActionItemIds
-}
-
-function runActivityHasVisibleContent(
-  activity?: ChatRunActivity,
-  run?: AgentRun | null,
-  events?: ChatRunActivityEvent[],
-  hiddenActionItemIds?: Set<string>,
-): boolean {
-  const feed = buildAgentActivityFeed({ activity, run, events, hiddenActionItemIds })
-  return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
 }
 
 export function StreamingAssistantBubble({ content }: { content: string }) {

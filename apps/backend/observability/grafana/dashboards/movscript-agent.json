@@ -87,8 +87,10 @@
       "id": 7,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_flush_duration_ms{quantile=\"0.95\"}", "legendFormat": "flush {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_trace_store_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "trace {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_flush_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped flush {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_storage_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped storage {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "movscript_agent_trace_store_operation_duration_ms{quantile=\"0.95\"}", "legendFormat": "scraped trace {{component}} {{kind}} {{stage}} {{status}} p95", "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "Prometheus" }, "expr": "sum(rate(movscript_agent_client_metric_milliseconds_sum{metric=~\"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)\"}[$window])) by (metric, component, kind, stage, status) / clamp_min(sum(rate(movscript_agent_client_metric_milliseconds_count{metric=~\"movscript_agent_(storage_flush_duration_ms|storage_operation_duration_ms|trace_store_operation_duration_ms)\"}[$window])) by (metric, component, kind, stage, status), 1e-9)", "legendFormat": "forwarded {{metric}} {{component}} {{kind}} {{stage}} {{status}} avg", "refId": "D" }
       ],
       "title": "Agent Storage Latency",
       "type": "timeseries"

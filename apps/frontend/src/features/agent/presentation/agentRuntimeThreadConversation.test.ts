@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { conversationFromRuntimeThreadSummary } from '@/features/agent/presentation/agentRuntimeThreadConversation'
+import {
+  conversationFromRuntimeThreadSummary,
+} from '@/features/agent/presentation/agentRuntimeThreadConversation'
 import type { AgentThreadSummary } from '@/shared/infrastructure/localAgentClient'
 
 test('conversationFromRuntimeThreadSummary prefers frontend metadata title', () => {

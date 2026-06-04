@@ -9,53 +9,16 @@ import {
 } from './features/app-shell/components/Sidebar'
 import { Header } from './features/app-shell/components/Header'
 import { AccountSettingsDialog } from './features/app-shell/components/AccountSettingsDialog'
-import { AIAgentPanel } from './features/agent/components/AIAgentPanel'
 import { WorkspaceShell } from '@movscript/ui'
 import { Toaster } from './shared/ui/Toaster'
 import { useProjectStore } from './shared/infrastructure/session/projectStore'
 import { useUserStore } from './shared/infrastructure/session/userStore'
 import { useAppSettingsStore } from './shared/infrastructure/appSettingsStore'
 import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from '@/shared/infrastructure/backendBoot'
-import PreProductionPage from './pages/pre-production/PreProductionPage'
-import TasksPage from './pages/project/tasks/TasksPage'
-import AuthPage from './pages/AuthPage'
-import OnboardingPage from './pages/onboarding/OnboardingPage'
-import AppSettingsPage from './pages/app-settings/AppSettingsPage'
-import CanvasListPage from './pages/canvas/CanvasListPage'
-import CanvasEditorPage from './pages/canvas/CanvasEditorPage'
-import RefImageGenPage from './pages/tools/RefImageGenPage'
-import RefVideoGenPage from './pages/tools/RefVideoGenPage'
-import MotionImitationPage from './pages/tools/MotionImitationPage'
-import StyleTransferPage from './pages/tools/StyleTransferPage'
-import MultiAnglePage from './pages/tools/MultiAnglePage'
-import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
-import { ContentUnitWorkbenchPage } from './features/content/components/ContentUnitWorkbenchPage'
-import OrgSelectPage from './pages/org/OrgSelectPage'
-import InvitePage from './pages/auth/InvitePage'
-import ResourcesPage from './pages/resources/ResourcesPage'
-import ExternalResourcesPage from './pages/resources/ExternalResourcesPage'
-import ShotLibraryPage from './pages/shot-library/ShotLibraryPage'
-import JobsPage from './pages/jobs/JobsPage'
-import PluginToolPage from './pages/plugins/PluginToolPage'
-import GlobalHomePage from './pages/home/GlobalHomePage'
-import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
 import {
   AGENT_MODE_CONTENT_PANEL_DEFAULT_WIDTH,
   clampAgentModeContentPanelWidth,
-  ProjectAgentContentPanel,
-  ProjectAgentModeSidebar,
-} from './features/agent/components/ProjectAgentModePage'
-import AgentModePage from './pages/agent-mode/AgentModePage'
-import AgentModeCanvasListPage from './pages/agent-mode/AgentModeCanvasListPage'
-import ScriptsPage from './pages/scripts/ScriptsPage'
-import DeliveryPage from './pages/project/delivery/DeliveryPage'
-import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPage'
-import AIWorkspacesPage from './pages/agent/AIWorkspacesPage'
-import AgentConsolePage from './pages/agent/AgentConsolePage'
-import AIAgentRunPage from './pages/agent/AIAgentRunPage'
-import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
-import AgentRunsPage from './pages/agent/AgentRunsPage'
-import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
+} from './features/agent/presentation/agentModePanelSizing'
 import i18n from './i18n'
 import { ElectronMCPContextBridge } from './electron/ElectronMCPContextBridge'
 import { AlertTriangle, ArrowLeft, BriefcaseBusiness, Clapperboard, HardDrive, Image as ImageIcon, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Play, Plug, Plus, Save, Video, Workflow, Zap, type LucideIcon } from 'lucide-react'
@@ -65,9 +28,6 @@ import { ROUTES } from './routes/projectRoutes'
 import { canvasBackPath, getAppRouteSurface, routeForWorkMode, type AppRouteSurface } from './routes/appRouteModel'
 import { useCanvasHeaderStore } from './features/canvas/presentation/canvasHeaderStore'
 import { useInlineTitleEditor } from './features/canvas/presentation/useInlineTitleEditor'
-import { installAgentPerformanceObservers } from './features/agent/state/agentPerformanceStore'
-import { installAgentTelemetryReporter } from './features/agent/state/agentTelemetryReporter'
-import { ensureBundledClientPluginsInstalled } from './features/plugins/application/builtinClientPlugins'
 import { useAgentPanelUiStore } from './features/agent/presentation/agentPanelUiStore'
 import { useHasOpenAgentConversations } from './features/agent/presentation/useHasOpenAgentConversations'
 import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, AppErrorFallback, AppRouteViewport, AppWindowIconButton, Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Label, Textarea, UiDebugInspector } from '@movscript/ui'
@@ -75,6 +35,45 @@ import { useAppShellDialogStore, type AccountSettingsDialogTab } from './feature
 import { api } from './shared/infrastructure/api'
 import { projectListQueryKey } from './features/project/application/projectQueries'
 import type { Project } from './types'
+
+const AIAgentPanel = React.lazy(() => import('./features/agent/components/AIAgentPanel').then((module) => ({ default: module.AIAgentPanel })))
+const ProjectAgentContentPanel = React.lazy(() => import('./features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentContentPanel })))
+const ProjectAgentModeSidebar = React.lazy(() => import('./features/agent/components/ProjectAgentModePage').then((module) => ({ default: module.ProjectAgentModeSidebar })))
+
+const PreProductionPage = React.lazy(() => import('./pages/pre-production/PreProductionPage'))
+const TasksPage = React.lazy(() => import('./pages/project/tasks/TasksPage'))
+const AuthPage = React.lazy(() => import('./pages/AuthPage'))
+const OnboardingPage = React.lazy(() => import('./pages/onboarding/OnboardingPage'))
+const AppSettingsPage = React.lazy(() => import('./pages/app-settings/AppSettingsPage'))
+const CanvasListPage = React.lazy(() => import('./pages/canvas/CanvasListPage'))
+const CanvasEditorPage = React.lazy(() => import('./pages/canvas/CanvasEditorPage'))
+const RefImageGenPage = React.lazy(() => import('./pages/tools/RefImageGenPage'))
+const RefVideoGenPage = React.lazy(() => import('./pages/tools/RefVideoGenPage'))
+const MotionImitationPage = React.lazy(() => import('./pages/tools/MotionImitationPage'))
+const StyleTransferPage = React.lazy(() => import('./pages/tools/StyleTransferPage'))
+const MultiAnglePage = React.lazy(() => import('./pages/tools/MultiAnglePage'))
+const ProductionOrchestrationPage = React.lazy(() => import('./pages/project/production/ProductionOrchestrationPage'))
+const ContentUnitWorkbenchPage = React.lazy(() => import('./features/content/components/ContentUnitWorkbenchPage').then((module) => ({ default: module.ContentUnitWorkbenchPage })))
+const OrgSelectPage = React.lazy(() => import('./pages/org/OrgSelectPage'))
+const InvitePage = React.lazy(() => import('./pages/auth/InvitePage'))
+const ResourcesPage = React.lazy(() => import('./pages/resources/ResourcesPage'))
+const ExternalResourcesPage = React.lazy(() => import('./pages/resources/ExternalResourcesPage'))
+const ShotLibraryPage = React.lazy(() => import('./pages/shot-library/ShotLibraryPage'))
+const JobsPage = React.lazy(() => import('./pages/jobs/JobsPage'))
+const PluginToolPage = React.lazy(() => import('./pages/plugins/PluginToolPage'))
+const GlobalHomePage = React.lazy(() => import('./pages/home/GlobalHomePage'))
+const ProjectStandardsPage = React.lazy(() => import('./pages/project/standards/ProjectStandardsPage'))
+const AgentModePage = React.lazy(() => import('./pages/agent-mode/AgentModePage'))
+const AgentModeCanvasListPage = React.lazy(() => import('./pages/agent-mode/AgentModeCanvasListPage'))
+const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
+const DeliveryPage = React.lazy(() => import('./pages/project/delivery/DeliveryPage'))
+const DeliveryWorkbenchPage = React.lazy(() => import('./pages/project/delivery/DeliveryWorkbenchPage'))
+const AIWorkspacesPage = React.lazy(() => import('./pages/agent/AIWorkspacesPage'))
+const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
+const AIAgentRunPage = React.lazy(() => import('./pages/agent/AIAgentRunPage'))
+const AIAgentSettingsPage = React.lazy(() => import('./pages/agent/AIAgentSettingsPage'))
+const AgentRunsPage = React.lazy(() => import('./pages/agent/AgentRunsPage'))
+const ClientPluginsPage = React.lazy(() => import('./pages/plugins/ClientPluginsPage'))
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -218,6 +217,25 @@ function LoadingScreen({ fullScreen = false }: { fullScreen?: boolean }) {
       {i18n.t('common.loading')}
     </div>
   )
+}
+
+function RouteSuspense({ children, fullScreen = false }: { children: React.ReactNode; fullScreen?: boolean }) {
+  return (
+    <React.Suspense fallback={<LoadingScreen fullScreen={fullScreen} />}>
+      {children}
+    </React.Suspense>
+  )
+}
+
+function scheduleIdleTask(callback: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  const idleCallback = window.requestIdleCallback
+  if (idleCallback) {
+    const id = idleCallback(callback, { timeout: 2000 })
+    return () => window.cancelIdleCallback?.(id)
+  }
+  const id = window.setTimeout(callback, 250)
+  return () => window.clearTimeout(id)
 }
 
 function ProjectGuard({ children }: { children: React.ReactNode }) {
@@ -726,7 +744,9 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
         <WorkspaceShell
           surface={shellSurface}
           sidebar={(
-            <ProjectAgentModeSidebar />
+            <React.Suspense fallback={null}>
+              <ProjectAgentModeSidebar />
+            </React.Suspense>
           )}
           leftHeader={agentLeftHeader}
           centerHeader={agentCenterHeader}
@@ -735,14 +755,18 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           rightSlotStyle={agentRightSlotStyle}
           rightPaneCollapsed={agentModeContentPanelCollapsed}
           assistantPanel={(
-            <ProjectAgentContentPanel
-              collapsed={agentModeContentPanelCollapsed}
-              onWidthChange={handleAgentModeContentPanelWidthChange}
-            />
+            <React.Suspense fallback={null}>
+              <ProjectAgentContentPanel
+                collapsed={agentModeContentPanelCollapsed}
+                onWidthChange={handleAgentModeContentPanelWidthChange}
+              />
+            </React.Suspense>
           )}
         >
           <AppRouteViewport scroll="auto">
-            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+            <RouteErrorBoundary>
+              <RouteSuspense>{children}</RouteSuspense>
+            </RouteErrorBoundary>
           </AppRouteViewport>
         </WorkspaceShell>
       ) : (
@@ -760,12 +784,18 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           rightHeader={detailRightHeader}
           leftSlotStyle={detailLeftSlotStyle}
           rightSlotStyle={detailRightSlotStyle}
-          assistantPanel={detailAgentPanelOpen || hasOpenConversations ? <AIAgentPanel /> : undefined}
+          assistantPanel={detailAgentPanelOpen || hasOpenConversations ? (
+            <React.Suspense fallback={null}>
+              <AIAgentPanel />
+            </React.Suspense>
+          ) : undefined}
           leftPaneHidden={detailSidebarHidden}
           rightPaneCollapsed={!detailRightPaneOpen}
         >
           <AppRouteViewport scroll="auto">
-            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+            <RouteErrorBoundary>
+              <RouteSuspense>{children}</RouteSuspense>
+            </RouteErrorBoundary>
           </AppRouteViewport>
         </WorkspaceShell>
       )}
@@ -804,14 +834,27 @@ export default function App() {
   const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
   useEffect(() => {
-    installAgentTelemetryReporter()
-    installAgentPerformanceObservers()
+    return scheduleIdleTask(() => {
+      void Promise.all([
+        import('./features/agent/state/agentTelemetryReporter'),
+        import('./features/agent/state/agentPerformanceStore'),
+      ]).then(([telemetry, performance]) => {
+        telemetry.installAgentTelemetryReporter()
+        performance.installAgentPerformanceObservers()
+      }).catch((error) => {
+        console.warn('[agent] failed to install telemetry observers', error)
+      })
+    })
   }, [])
 
   useEffect(() => {
     if (!settingsHydrated) return
-    void ensureBundledClientPluginsInstalled().catch((error) => {
-      console.warn('[plugins] failed to install bundled client plugins', error)
+    return scheduleIdleTask(() => {
+      void import('./features/plugins/application/builtinClientPlugins').then((module) => {
+        return module.ensureBundledClientPluginsInstalled()
+      }).catch((error) => {
+        console.warn('[plugins] failed to install bundled client plugins', error)
+      })
     })
   }, [settingsHydrated])
 
@@ -827,12 +870,14 @@ export default function App() {
           <Toaster />
           <UiDebugInspector />
           <BackendBootOverlay />
-          <Routes>
-            <Route path={ROUTES.invite} element={<InvitePage />} />
-            <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
-          </Routes>
+          <RouteSuspense fullScreen>
+            <Routes>
+              <Route path={ROUTES.invite} element={<InvitePage />} />
+              <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
+            </Routes>
+          </RouteSuspense>
         </AppRouter>
       </ErrorBoundary>
     )
@@ -847,33 +892,36 @@ export default function App() {
         <BackendBootOverlay />
         <AccountSettingsDialog />
         <ProjectRequiredDialog />
-        <Routes>
-          <Route path={ROUTES.canvasEditor} element={
-            <OrgGuard>
-              <WorkspaceShell
-                surface="canvas"
-                header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} centerContent={<CanvasHeaderTitle />} />}
-              >
-                <AppRouteViewport scroll="owned">
-                  <RouteErrorBoundary>
-                    <CanvasEditorPage embeddedInShell />
-                  </RouteErrorBoundary>
-                </AppRouteViewport>
-              </WorkspaceShell>
-            </OrgGuard>
-          } />
-          <Route path={ROUTES.orgSelect} element={
-            <ShellLayout requireOrg={false}>
-              <RouteContentShell width="wide"><OrgSelectPage /></RouteContentShell>
-            </ShellLayout>
-          } />
-          {/* Invite page - accessible when logged in */}
-          <Route path={ROUTES.invite} element={<InvitePage />} />
-          <Route path={ROUTES.appSettings} element={<AccountSettingsRoute tab="settings" />} />
-          {/* All other pages use the shell layout */}
-          <Route path="*" element={
-            <ShellLayout>
-              <Routes>
+        <RouteSuspense fullScreen>
+          <Routes>
+            <Route path={ROUTES.canvasEditor} element={
+              <OrgGuard>
+                <WorkspaceShell
+                  surface="canvas"
+                  header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} centerContent={<CanvasHeaderTitle />} />}
+                >
+                  <AppRouteViewport scroll="owned">
+                    <RouteErrorBoundary>
+                      <RouteSuspense>
+                        <CanvasEditorPage embeddedInShell />
+                      </RouteSuspense>
+                    </RouteErrorBoundary>
+                  </AppRouteViewport>
+                </WorkspaceShell>
+              </OrgGuard>
+            } />
+            <Route path={ROUTES.orgSelect} element={
+              <ShellLayout requireOrg={false}>
+                <RouteContentShell width="wide"><OrgSelectPage /></RouteContentShell>
+              </ShellLayout>
+            } />
+            {/* Invite page - accessible when logged in */}
+            <Route path={ROUTES.invite} element={<InvitePage />} />
+            <Route path={ROUTES.appSettings} element={<AccountSettingsRoute tab="settings" />} />
+            {/* All other pages use the shell layout */}
+            <Route path="*" element={
+              <ShellLayout>
+                <Routes>
                 <Route path={ROUTES.root} element={<GlobalHomePage />} />
                 <Route path={ROUTES.projects} element={<GlobalHomePage />} />
                 <Route path="/admin/*" element={<Navigate to={ROUTES.root} replace />} />
@@ -934,10 +982,11 @@ export default function App() {
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
               <Route path="/agents" element={<Navigate to={ROUTES.agentConsole} replace />} />
-              </Routes>
-            </ShellLayout>
-          } />
-        </Routes>
+                </Routes>
+              </ShellLayout>
+            } />
+          </Routes>
+        </RouteSuspense>
       </AppRouter>
     </ErrorBoundary>
   )

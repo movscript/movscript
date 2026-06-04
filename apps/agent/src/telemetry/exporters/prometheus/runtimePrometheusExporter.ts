@@ -131,6 +131,12 @@ function renderStorageMetrics(registry: Registry, snapshot: RuntimeTelemetrySnap
   renderSummaryMetric(
     registry,
     snapshot,
+    'movscript_agent_storage_operation_duration_ms',
+    'Agent local storage operation duration in milliseconds.',
+  )
+  renderSummaryMetric(
+    registry,
+    snapshot,
     'movscript_agent_trace_store_operation_duration_ms',
     'Agent trace store operation duration in milliseconds.',
   )

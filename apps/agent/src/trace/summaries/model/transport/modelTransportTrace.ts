@@ -47,11 +47,12 @@ function summarizeModelHTTPResponse(response: NonNullable<RuntimeModelHTTPTrace[
     statusText: response.statusText,
     ok: response.ok,
     headers: response.headers,
+    bodyText,
     bodyTextHash: hashString(bodyText),
     bodyTextChars: bodyText.length,
     parsedBody: summarizeParsedModelBody(response.parsedBody),
+    content: response.content,
     contentChars: response.content?.length,
-    contentMode: 'summary',
   })
 }
 

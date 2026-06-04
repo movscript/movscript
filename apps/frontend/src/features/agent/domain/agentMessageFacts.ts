@@ -1,12 +1,11 @@
 import { dedupeAttachments } from '@/features/agent/domain/agentAttachments'
 import { isGeneratedResultAttachment } from '@/features/agent/domain/agentGeneratedResultAttachments'
 import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity } from '@/features/agent/domain/agentRuntimeStatusMessage'
-import { needsModelSetupAction } from '@/shared/domain/actionableErrors'
 import type { AgentAttachment, ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 type ChatMessageMeta = NonNullable<ChatMessage['meta']>
 
-export interface AgentMessagePresentation {
+export interface AgentMessageFacts {
   contextLabels: string[]
   workspaceArtifacts: NonNullable<ChatMessageMeta['workspaceArtifacts']>
   isUser: boolean
@@ -16,29 +15,17 @@ export interface AgentMessagePresentation {
   timelineActivity?: ChatRunActivity
   messageAttachments: AgentAttachment[]
   generatedMediaAttachments: AgentAttachment[]
-  compactAttachments: AgentAttachment[]
   displayContent: string
-  showModelSetupAction: boolean
-  showLargeMedia: boolean
-  hasUsableGeneratedResource: boolean
-  hasResultSection: boolean
-  hasProcessSection: boolean
-  hasDiagnosticSection: boolean
 }
 
-export function buildAgentMessagePresentation(
+export function buildAgentMessageFacts(
   msg: ChatMessage,
   input: { timelineActivity?: ChatRunActivity } = {},
-): AgentMessagePresentation {
+): AgentMessageFacts {
   const isUser = msg.role === 'user'
   const messageAttachments = dedupeAttachments(msg.attachments ?? [])
   const mediaAttachments = messageAttachments.filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
   const generatedMediaAttachments = mediaAttachments.filter(isGeneratedResultAttachment)
-  const nonGeneratedMediaAttachments = mediaAttachments.filter((attachment) => !isGeneratedResultAttachment(attachment))
-  const otherAttachments = messageAttachments.filter((attachment) => attachment.type !== 'image' && attachment.type !== 'video')
-  const showLargeMedia = !isUser && generatedMediaAttachments.length > 0
-  const hasUsableGeneratedResource = generatedMediaAttachments.some((attachment) => attachment.resourceId !== undefined)
-  const compactAttachments = showLargeMedia ? [...nonGeneratedMediaAttachments, ...otherAttachments] : messageAttachments
   const workspaceArtifacts = !isUser ? msg.meta?.workspaceArtifacts ?? [] : []
   const generationJobs = !isUser ? msg.meta?.generationJobs ?? [] : []
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
@@ -52,20 +39,6 @@ export function buildAgentMessagePresentation(
     : !isUser && timelineActivity && isRequiredActionSummaryContent(visibleContent, timelineActivity)
     ? ''
     : visibleContent
-  const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
-  const hasResultSection = !isUser && (
-    showLargeMedia
-    || compactAttachments.length > 0
-    || workspaceArtifacts.length > 0
-  )
-  const hasProcessSection = !isUser && (
-    !!timelineActivity
-    || generationJobs.length > 0
-  )
-  const hasDiagnosticSection = !isUser && (
-    generationValidationErrors.length > 0
-    || generationParamAudits.length > 0
-  )
   return {
     contextLabels: visibleContextLabels(msg.meta?.contextLabels ?? [], isUser),
     workspaceArtifacts,
@@ -76,18 +49,11 @@ export function buildAgentMessagePresentation(
     timelineActivity,
     messageAttachments,
     generatedMediaAttachments,
-    compactAttachments,
     displayContent,
-    showModelSetupAction,
-    showLargeMedia,
-    hasUsableGeneratedResource,
-    hasResultSection,
-    hasProcessSection,
-    hasDiagnosticSection,
   }
 }
 
-export function hideGeneratedResultTechnicalSummary(text: string): string {
+function hideGeneratedResultTechnicalSummary(text: string): string {
   const hiddenLine = /^(?:Command:\s*\/(?:image|video)\b.*|Run:\s*\S+|Thread:\s*\S+|Job\s+#\d+|Status:\s*\S+|Output resources?:\s*#?\d+(?:\s*,\s*#?\d+)*)\s*$/i
   return text
     .split('\n')

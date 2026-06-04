@@ -1,39 +1,23 @@
 import { useMemo } from 'react'
 import { actionableRunsForTaskGraph, interactionRunsForTaskGraph } from '@/features/agent/domain/agentPlanUi'
-import { firstPendingInputRequest, runInteractionAnswerEchoesForMessages, interactionRunsForChat } from '@/features/agent/domain/agentRunInteraction'
-import { buildInteractionRunsByResultMessageId } from '@/features/agent/domain/agentRunInteractionAnchors'
-import type { AgentTaskGraphSnapshot, AgentRun, AgentTimelineItem } from '@/shared/infrastructure/localAgentClient'
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import { firstPendingInputRequest, interactionRunsForChat } from '@/features/agent/domain/agentRunInteraction'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@/shared/infrastructure/localAgentClient'
 
 interface UseAgentChatRunInteractionStateInput {
   activePlanSnapshot?: AgentTaskGraphSnapshot
-  messages: ChatMessage[]
   run: AgentRun | null
   submittedInteractionRuns: AgentRun[]
-  timelineItems: AgentTimelineItem[]
 }
 
 export function useAgentChatRunInteractionState({
   activePlanSnapshot,
-  messages,
   run,
   submittedInteractionRuns,
-  timelineItems,
 }: UseAgentChatRunInteractionStateInput) {
   const actionableLocalRuns = useMemo(() => actionableRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const planInteractionRuns = useMemo(() => interactionRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const actionableLocalRun = actionableLocalRuns[0] ?? null
   const interactionRuns = useMemo(() => interactionRunsForChat(submittedInteractionRuns, planInteractionRuns), [planInteractionRuns, submittedInteractionRuns])
-  const interactionRunsByResultMessageId = useMemo(
-    () => buildInteractionRunsByResultMessageId({ messages, interactionRuns }),
-    [messages, interactionRuns],
-  )
-  const interactionRunsWithoutResultMessage = useMemo(() => {
-    const insertedRunIds = new Set(Array.from(interactionRunsByResultMessageId.values()).flat().map((interactionRun) => interactionRun.id))
-    return interactionRuns.filter((interactionRun) => !insertedRunIds.has(interactionRun.id))
-  }, [interactionRuns, interactionRunsByResultMessageId])
-  const timelineActivities = useMemo(() => timelineItems.flatMap((item) => item.activity ? [item.activity] : []), [timelineItems])
-  const runInteractionAnswerEchoes = useMemo(() => runInteractionAnswerEchoesForMessages(messages, interactionRuns, timelineActivities), [messages, interactionRuns, timelineActivities])
   const activePendingInputRequest = firstPendingInputRequest(actionableLocalRun)
   const answeringPendingInput = !!activePendingInputRequest
   const canAnswerPendingInputWithText = !!activePendingInputRequest
@@ -45,10 +29,6 @@ export function useAgentChatRunInteractionState({
     activePendingInputRequest,
     answeringPendingInput,
     canAnswerPendingInputWithText,
-    showLocalRunInteraction: interactionRuns.length > 0,
-    runInteractionAnswerEchoes,
     interactionRuns,
-    interactionRunsByResultMessageId,
-    interactionRunsWithoutResultMessage,
   }
 }

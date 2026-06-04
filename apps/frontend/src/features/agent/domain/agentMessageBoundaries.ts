@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@/features/agent/state/agentStore'
+import type { ChatMessage, ChatRunActivity } from '@/features/agent/state/agentStore'
 
 export function isTranscriptAssistantChatMessage(message: Pick<ChatMessage, 'role' | 'meta'>): boolean {
   return message.role === 'assistant'
@@ -9,9 +9,52 @@ export function transcriptAssistantRuntimeMessageRunId(message: Pick<ChatMessage
   return normalizeRunId(message.meta?.runtimeMessage?.runId)
 }
 
+export function assistantMessageCompletesStreamingRun(message: Pick<ChatMessage, 'role' | 'meta'>, runId: string): boolean {
+  return transcriptAssistantRuntimeMessageRunId(message) === normalizeRunId(runId)
+}
+
+export function streamingAssistantRunIdFromMessageId(messageId: string): string | undefined {
+  return messageId.startsWith('stream-') ? normalizeRunId(messageId.slice('stream-'.length)) : undefined
+}
+
+export function visibleStreamingAssistantTextForTranscript(input: {
+  transcriptMessages: Array<Pick<ChatMessage, 'role' | 'meta'>>
+  streamingAssistantMessageId?: string | null
+  streamingAssistantText: string
+}): string {
+  const streamingRunId = input.streamingAssistantMessageId
+    ? streamingAssistantRunIdFromMessageId(input.streamingAssistantMessageId)
+    : undefined
+  if (!streamingRunId) return input.streamingAssistantText
+  const hasFinalAssistantMessage = input.transcriptMessages.some((message) => assistantMessageCompletesStreamingRun(message, streamingRunId))
+  return hasFinalAssistantMessage ? '' : input.streamingAssistantText
+}
+
 export function transcriptAssistantRelatedRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
   if (!isTranscriptAssistantChatMessage(message)) return undefined
   return normalizeRunId(message.meta?.runtimeMessage?.runId)
+}
+
+export function transcriptUserRelatedRunId(message: Pick<ChatMessage, 'role' | 'meta'>): string | undefined {
+  if (message.role !== 'user') return undefined
+  return normalizeRunId(message.meta?.runtimeInput?.runId)
+    ?? normalizeRunId(message.meta?.runtimeMessage?.runId)
+}
+
+export function transcriptMessageItemRelatedRunId(item: {
+  message: Pick<ChatMessage, 'role' | 'meta'>
+  timelineActivity?: Pick<ChatRunActivity, 'runId'>
+}): string | undefined {
+  return transcriptAssistantRelatedRunId(item.message)
+    ?? normalizeRunId(item.timelineActivity?.runId)
+}
+
+export function transcriptMessageItemThreadRunId(item: {
+  message: Pick<ChatMessage, 'role' | 'meta'>
+  timelineActivity?: Pick<ChatRunActivity, 'runId'>
+}): string | undefined {
+  return transcriptUserRelatedRunId(item.message)
+    ?? transcriptMessageItemRelatedRunId(item)
 }
 
 export function transcriptMessageCount(input: { transcriptMessageCount?: number; transcriptMessages: Array<Pick<ChatMessage, 'role' | 'meta'>> }): number {
