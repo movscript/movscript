@@ -984,7 +984,13 @@
   border-radius: 0;
   padding-inline: var(--ms-space-2);
   color: var(--ms-color-muted-foreground);
-  line-height: 1;
+  line-height: var(--ms-leading-label);
+}
+
+.agent-run-trace-view-mode__button > .ms-button__content {
+  height: 100%;
+  align-items: center;
+  line-height: inherit;
 }
 
 .agent-run-trace-view-mode__button:focus-visible {

@@ -4,6 +4,7 @@ import { createAgentBrowserAPI } from './api/agentBrowser'
 import { createAgentCatalogPackStoreAPI } from './api/agentCatalogPackStore'
 import { createAgentRuntimeAPI } from './api/agentRuntime'
 import { createBackendAPI } from './api/backend'
+import { createCodexAppServerAPI } from './api/codexAppServer'
 import { createDialogAPI } from './api/dialog'
 import { createMCPAPI } from './api/mcp'
 import { createSettingsAPI } from './api/settings'
@@ -21,6 +22,7 @@ export function createElectronAPI(ipcRenderer: IpcRenderer, platform: NodeJS.Pla
     ...createAgentBrowserAPI(ipcRenderer),
     ...createAgentCatalogPackStoreAPI(ipcRenderer),
     ...createAgentRuntimeAPI(ipcRenderer),
+    ...createCodexAppServerAPI(ipcRenderer),
     ...createVideoAPI(ipcRenderer),
   }
 }

@@ -1,7 +1,5 @@
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
 import type { AgentRuntimeContract } from '../../../contracts/runtime/runtimeContract.js'
-import type { AgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
-import type { ReferenceManager } from '../../../reference/manager/referenceManager.js'
 import type { MemoryManager } from '../../../memory/manager/memoryManager.js'
 import type { MCPClient } from '../../../adapters/mcp/client/mcpClient.js'
 import { runAgentGraph } from '../../../orchestration/graph/runner/agentGraph.js'
@@ -40,9 +38,6 @@ import type { AgentMemory } from '../../../memory/shared/types.js'
 import type { AgentCommandRuntime } from '../../../context/command/commandRouter.js'
 import type { RuntimeLayerResolution } from '../../../skills/resolution/layers/runtimeLayerResolver.js'
 import type { RuntimeModelAuthContext } from '../../../model/config/modelConfig.js'
-import type { WorkspaceApplyPort } from '../../../ports/workspace/apply/workspaceApplyPort.js'
-import type { WorkspaceApplyPreviewPort } from '../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
-import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
@@ -76,11 +71,7 @@ export async function invokeRuntimeAgentGraph(input: {
   auth: RuntimeModelAuthContext
   runtimeLimits: AgentRun['runtimeLimits']
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
-  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  workspaceApplyPort: WorkspaceApplyPort
-  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
-  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
@@ -88,7 +79,6 @@ export async function invokeRuntimeAgentGraph(input: {
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   contractResolver: AgentRuntimeContractResolver
   memoryManager: MemoryManager
-  referenceManager: ReferenceManager
   catalogManager: AgentCatalogToolManager
   toolResultStore?: AgentToolResultStore
   catalogSnapshots: RuntimeCatalogSnapshotRegistry
@@ -176,11 +166,7 @@ export async function invokeRuntimeAgentGraph(input: {
     config: modelConfig,
     auth: input.auth,
     runtimeLimits: input.runtimeLimits,
-    workspaceStore: input.workspaceStore,
     externalToolGatewayPort: input.externalToolGatewayPort,
-    workspaceApplyPort: input.workspaceApplyPort,
-    workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
     resourceFilePort: input.resourceFilePort,
     imageProcessingPort: input.imageProcessingPort,
     videoFrameExtractionPort: input.videoFrameExtractionPort,
@@ -188,7 +174,6 @@ export async function invokeRuntimeAgentGraph(input: {
     runtimeToolHandlers: input.runtimeToolHandlers,
     contractResolver: input.contractResolver,
     memoryManager: input.memoryManager,
-    referenceManager: input.referenceManager,
     catalogManager: input.catalogManager,
     ...(input.toolResultStore ? { toolResultStore: input.toolResultStore } : {}),
     onCatalogRefresh: async () => refreshGraphCatalog(input),

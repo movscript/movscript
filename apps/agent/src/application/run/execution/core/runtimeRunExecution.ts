@@ -1,16 +1,12 @@
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
-import type { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import type { AgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
 import type { MCPClient } from '../../../../adapters/mcp/client/mcpClient.js'
 import type { AgentCatalogToolManager } from '../../../../orchestration/tools/execution/executor/toolExecutor.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
 import type { AgentCapabilitiesResponse, JSONValue } from '../../../../state/shared/types.js'
-import type { WorkspaceApplyPort } from '../../../../ports/workspace/apply/workspaceApplyPort.js'
-import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
-import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
+import type { RuntimeFocusContextPort } from '../../../../ports/context/focusContextPort.js'
 import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
 import type { RuntimeToolHandlerRegistry } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
@@ -49,17 +45,13 @@ export interface RuntimeRunExecutionDependencies {
   runSteps: RuntimeRunStepBridge
   postRunRecords: RuntimePostRunRecordsBridge
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
-  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  workspaceApplyPort: WorkspaceApplyPort
-  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
-  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
+  focusContextPort: RuntimeFocusContextPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
   memoryStore: AgentMemoryStore
   memoryManager: MemoryManager
-  referenceManager: ReferenceManager
   contractResolver: AgentRuntimeContractResolver
   catalogManager: AgentCatalogToolManager
   toolResultStore?: AgentToolResultStore
@@ -167,7 +159,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       setupRound,
       timestampMs: Date.now,
       now: isoNow,
-      mcpClient: input.mcpClient,
+      focusContextPort: input.focusContextPort,
       memoryManager: input.memoryManager,
       signal: input.signal,
       recordTrace: (targetRun, trace) => input.streams.recordTraceEvent(targetRun, trace),
@@ -229,17 +221,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       memoryStore: input.memoryStore,
       contractResolver: input.contractResolver,
       catalogSnapshot,
-      workspaceStore: input.workspaceStore,
-      externalToolGatewayPort: input.externalToolGatewayPort,
-      workspaceApplyPort: input.workspaceApplyPort,
-      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
-      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
-      resourceFilePort: input.resourceFilePort,
-      imageProcessingPort: input.imageProcessingPort,
-      videoFrameExtractionPort: input.videoFrameExtractionPort,
       memoryManager: input.memoryManager,
-      runtimeToolHandlers: input.runtimeToolHandlers,
-      referenceManager: input.referenceManager,
       catalogManager: input.catalogManager,
       signal: input.signal,
       now: isoNow,
@@ -260,18 +242,13 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       catalogSnapshots: input.catalogSnapshots,
       auth: input.runAuth.get(run.id),
       mcpClient: input.mcpClient,
-      workspaceStore: input.workspaceStore,
       externalToolGatewayPort: input.externalToolGatewayPort,
-      workspaceApplyPort: input.workspaceApplyPort,
-      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
-      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
       contractResolver: input.contractResolver,
       runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,
-      referenceManager: input.referenceManager,
       catalogManager: input.catalogManager,
       ...(input.toolResultStore ? { toolResultStore: input.toolResultStore } : {}),
       ...(clientInput ? { clientInput } : {}),

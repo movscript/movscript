@@ -385,7 +385,8 @@ test('buildAgentActivityFeed groups tool calls by model http round', () => {
     status: round.status,
     itemCount: round.items.length,
   })), [
-    { label: '第 1 轮思考：决定调用工具', status: 'tool_calls', itemCount: 2 },
+    { label: '第 1 轮思考：决定调用工具', status: 'tool_calls', itemCount: 4 },
+    { label: '第 2 轮思考：形成回复', status: 'final', itemCount: 2 },
   ])
 })
 
@@ -410,7 +411,7 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
   })
 
   const round = feed?.rounds[0]
-  const item = round?.items[0]
+  const item = round?.items.find((candidate) => candidate.type === 'decision')
   assert.equal(round?.label, '第 1 轮思考：决定调用工具')
   assert.equal(item?.type, 'decision')
   assert.equal(item?.type === 'decision' ? item.title : '', '模型决定调用 3 个工具')
@@ -464,8 +465,122 @@ test('buildAgentActivityFeed shows model round latency and token usage', () => {
     }),
   })
 
-  assert.deepEqual(feed?.rounds, [])
+  assert.deepEqual(feed?.rounds.map((round) => ({
+    label: round.label,
+    status: round.status,
+    itemCount: round.items.length,
+    usage: round.usage,
+  })), [{
+    label: '第 1 轮思考：形成回复（1.2s · 1,234 tokens，in 1,200 / out 34，cache 900）',
+    status: 'final',
+    itemCount: 2,
+    usage: {
+      inputTokens: 1200,
+      outputTokens: 34,
+      cachedInputTokens: 900,
+      totalTokens: 1234,
+    },
+  }])
+  assert.deepEqual(feed?.rounds[0]?.items.map((item) => item.type === 'line' ? item.text : item.id), [
+    '模型 HTTP 请求已发送',
+    '模型 HTTP 响应：已完成；1,234 tokens，in 1,200 / out 34，cache 900',
+  ])
   assert.equal(feed ? feedTotalsLine(feed) : undefined, '累计：模型 1 次 · 2.0s · 1,234 tokens，in 1,200 / out 34，cache 900')
+})
+
+test('buildAgentActivityFeed keeps every model http response as a visible thought round', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      events: [
+        modelEvent('model_req_1', 'Model HTTP request sent', 1, 'started', '2026-05-22T01:00:00.000Z'),
+        modelResponseEvent('model_res_1', 1, '2026-05-22T01:00:01.000Z', { input_tokens: 100, output_tokens: 10 }),
+        modelEvent('model_req_2', 'Model HTTP request sent', 2, 'started', '2026-05-22T01:00:02.000Z'),
+        modelResponseEvent('model_res_2', 2, '2026-05-22T01:00:03.000Z', { input_tokens: 120, output_tokens: 12 }),
+        modelEvent('model_req_3', 'Model HTTP request sent', 3, 'started', '2026-05-22T01:00:04.000Z'),
+        modelResponseEvent('model_res_3', 3, '2026-05-22T01:00:05.000Z', { input_tokens: 140, output_tokens: 14 }),
+        modelEvent('model_req_4', 'Model HTTP request sent', 4, 'started', '2026-05-22T01:00:06.000Z'),
+        modelResponseEvent('model_res_4', 4, '2026-05-22T01:00:07.000Z', { input_tokens: 160, output_tokens: 16 }),
+      ],
+    }),
+  })
+
+  assert.deepEqual(feed?.rounds.map((round) => round.index), [1, 2, 3, 4])
+  assert.deepEqual(feed?.rounds.map((round) => round.label), [
+    '第 1 轮思考：形成回复（1.0s · 110 tokens，in 100 / out 10）',
+    '第 2 轮思考：形成回复（1.0s · 132 tokens，in 120 / out 12）',
+    '第 3 轮思考：形成回复（1.0s · 154 tokens，in 140 / out 14）',
+    '第 4 轮思考：形成回复（1.0s · 176 tokens，in 160 / out 16）',
+  ])
+  assert.equal(feed?.totals.modelCallCount, 4)
+  assert.deepEqual(feed?.rounds.map((round) => round.items.length), [2, 2, 2, 2])
+})
+
+test('buildAgentActivityFeed renders runtime status changes beside model http and tool activity', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      events: [
+        {
+          id: 'run_started',
+          kind: 'run',
+          title: 'Run started',
+          status: 'started',
+          roundIndex: 0,
+          roundLabel: 'Setup',
+          roundSource: 'setup',
+          summary: 'Thread thread_test entered the agentic loop.',
+          createdAt: '2026-05-22T01:00:00.000Z',
+        },
+        modelEvent('model_req_1', 'Model HTTP request sent', 1, 'started', '2026-05-22T01:00:01.000Z'),
+        modelResponseEvent('model_res_1', 1, '2026-05-22T01:00:02.000Z', { input_tokens: 100, output_tokens: 10 }),
+        {
+          id: 'runtime_status',
+          kind: 'run',
+          title: 'Runtime status recorded',
+          status: 'completed',
+          summary: '异步任务已提交',
+          createdAt: '2026-05-22T01:00:03.000Z',
+        },
+        {
+          id: 'run_finished',
+          kind: 'run',
+          title: 'Run finished',
+          status: 'completed',
+          summary: 'Run completed with 1 step(s).',
+          createdAt: '2026-05-22T01:00:04.000Z',
+        },
+      ],
+      steps: [{
+        id: 'step_work',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'core_work_start',
+        args: { kind: 'generation_job' },
+        result: { workId: 'work_1' },
+        createdAt: '2026-05-22T01:00:02.500Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.rounds.map((round) => ({
+    label: round.label,
+    status: round.status,
+    items: round.items.map((item) => item.type === 'line' ? item.text : item.type === 'block' || item.type === 'decision' ? item.title : item.id),
+  })), [{
+    label: '运行准备：运行中',
+    status: 'thinking',
+    items: ['运行开始：Thread thread_test entered the agentic loop.'],
+  }, {
+    label: '第 1 轮思考：决定调用工具（1.0s · 110 tokens，in 100 / out 10）',
+    status: 'tool_calls',
+    items: [
+      '模型 HTTP 请求已发送',
+      '模型 HTTP 响应：已完成；110 tokens，in 100 / out 10',
+      '提交异步任务',
+      '运行状态已记录：异步任务已提交',
+      '运行完成：Run completed with 1 step(s).',
+    ],
+  }])
 })
 
 test('buildAgentActivityFeed prefers explicit model round duration records', () => {
@@ -493,7 +608,21 @@ test('buildAgentActivityFeed prefers explicit model round duration records', () 
     }),
   })
 
-  assert.deepEqual(feed?.rounds, [])
+  assert.deepEqual(feed?.rounds.map((round) => ({
+    label: round.label,
+    status: round.status,
+    itemCount: round.items.length,
+    usage: round.usage,
+  })), [{
+    label: '第 1 轮思考：形成回复（1.2s · 42 tokens，in 40 / out 2）',
+    status: 'final',
+    itemCount: 1,
+    usage: {
+      inputTokens: 40,
+      outputTokens: 2,
+      totalTokens: 42,
+    },
+  }])
   assert.equal(feed ? feedTotalsLine(feed) : undefined, '累计：模型 1 次 · 2.0s · 42 tokens，in 40 / out 2')
 })
 
@@ -738,6 +867,41 @@ test('buildAgentActivityFeed hides action items already rendered by standalone i
   ])
 })
 
+test('buildAgentActivityFeed keeps model round telemetry when hidden action cards move elsewhere', () => {
+  const feed = buildAgentActivityFeed({
+    hiddenActionItemIds: new Set(['approval-approval_1']),
+    activity: activity({
+      events: [
+        modelEvent('model_req_1', 'Model HTTP request sent', 1, 'started', '2026-05-22T01:00:00.000Z'),
+        modelResponseEvent('model_res_1', 1, '2026-05-22T01:00:01.000Z', { input_tokens: 100, output_tokens: 10 }),
+      ],
+      approvals: [{
+        id: 'approval_1',
+        toolName: 'candidate_asset_slot_attach',
+        reason: '需要确认写入素材候选',
+        permission: 'asset_candidate.write',
+        risk: 'write',
+        status: 'pending',
+        createdAt: '2026-05-22T01:00:00.500Z',
+        updatedAt: '2026-05-22T01:00:00.500Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.rounds.map((round) => ({
+    label: round.label,
+    status: round.status,
+    itemTexts: round.items.map((item) => item.type === 'line' ? item.text : item.id),
+  })), [{
+    label: '第 1 轮思考：形成回复（1.0s · 110 tokens，in 100 / out 10）',
+    status: 'final',
+    itemTexts: [
+      '模型 HTTP 请求已发送',
+      '模型 HTTP 响应：已完成；110 tokens，in 100 / out 10',
+    ],
+  }])
+})
+
 test('buildAgentActivityFeed keeps model tool-call order with approval rows', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
@@ -825,5 +989,14 @@ function modelEvent(id: string, title: string, roundIndex: number, status: 'star
     roundIndex,
     roundLabel: `Model turn ${roundIndex}`,
     createdAt,
+  }
+}
+
+function modelResponseEvent(id: string, roundIndex: number, createdAt: string, usage: { input_tokens: number; output_tokens: number }) {
+  return {
+    ...modelEvent(id, 'Model HTTP response received', roundIndex, 'completed', createdAt),
+    completedAt: createdAt,
+    durationMs: 1000,
+    data: { usage },
   }
 }

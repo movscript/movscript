@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, normalize, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { resolveAgentCatalogPackStoreDirs } from '@movscript/agent-runtime'
 import {
@@ -47,6 +48,7 @@ export interface AgentPluginCatalog {
   builtinPacksDir: string
   configFilesDir: string
   builtinConfigFilesDir: string
+  codexSkillRoots: string[]
   packs: CapabilityPack[]
   configFiles: AgentConfigFile[]
   layeredSkills: SkillDefinition[]
@@ -76,6 +78,7 @@ export function loadAgentPluginCatalog(options: {
   builtinPacksDir?: string
   configFilesDir?: string
   builtinConfigFilesDir?: string
+  codexSkillRoots?: string[]
   baseManifest?: AgentManifest
   baseTools?: RegisteredTool[]
 } = {}): AgentPluginCatalog {
@@ -87,6 +90,7 @@ export function loadAgentPluginCatalog(options: {
   const builtinPacksDir = options.builtinPacksDir ?? resolveBuiltinAgentPacksDir()
   const configFilesDir = options.configFilesDir ?? resolveAgentConfigFilesDir()
   const builtinConfigFilesDir = options.builtinConfigFilesDir ?? resolveBuiltinAgentConfigFilesDir()
+  const codexSkillRoots = options.codexSkillRoots ?? resolveDefaultCodexSkillRoots()
   const builtinPackResult = loadPackDirectory(builtinPacksDir)
   const localPackResult = loadPackDirectory(packsDir)
   const builtinConfigFileResult = loadConfigFileDirectory(builtinConfigFilesDir)
@@ -97,7 +101,10 @@ export function loadAgentPluginCatalog(options: {
   ])
   const builtinLayeredSkillResult = loadLayeredSkillsForPacks(builtinSkillsDir, builtinPackResult.packs, 'builtin')
   const localLayeredSkillResult = loadLayeredSkillsForPacks(skillsDir, localPackResult.packs, 'local')
-  const localStandaloneCodexSkillResult = loadStandaloneCodexSkills(skillsDir)
+  const localStandaloneCodexSkillResult = loadStandaloneCodexSkills([
+    skillsDir,
+    ...codexSkillRoots,
+  ])
   const builtinLayeredToolResult = loadLayeredToolsForPacks(builtinToolsDir, builtinPackResult.packs, 'runtime')
   const localLayeredToolResult = loadLayeredToolsForPacks(toolsDir, localPackResult.packs, 'local')
   const layeredSkills = dedupeLayeredSkills([
@@ -164,6 +171,7 @@ export function loadAgentPluginCatalog(options: {
     builtinPacksDir,
     configFilesDir,
     builtinConfigFilesDir,
+    codexSkillRoots,
     packs,
     configFiles,
     layeredSkills,
@@ -324,6 +332,38 @@ export function resolveBuiltinAgentConfigFilesDir(): string {
   return resolveCatalogDir('config-files')
 }
 
+export interface ResolveDefaultCodexSkillRootsInput {
+  env?: NodeJS.ProcessEnv
+  homeDir?: string
+  cwd?: string
+}
+
+export function resolveDefaultCodexSkillRoots(input: ResolveDefaultCodexSkillRootsInput = {}): string[] {
+  const env = input.env ?? process.env
+  const home = input.homeDir ?? env.HOME ?? homedir()
+  const cwd = input.cwd ?? process.cwd()
+  return dedupePaths([
+    ...(env.CODEX_HOME ? [resolve(env.CODEX_HOME, 'skills')] : []),
+    ...(home ? [
+      resolve(home, '.codex', 'skills'),
+      resolve(home, '.agents', 'skills'),
+    ] : []),
+    ...resolveProjectAgentSkillRoots(cwd),
+  ]).filter((dir) => existsSync(dir))
+}
+
+function resolveProjectAgentSkillRoots(cwd: string): string[] {
+  const roots: string[] = []
+  let current = resolve(cwd)
+  while (true) {
+    roots.push(resolve(current, '.agents', 'skills'))
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return roots.reverse()
+}
+
 function resolveCatalogDir(kind: 'skills' | 'tools' | 'packs' | 'config-files'): string {
   const moduleDir = dirname(fileURLToPath(import.meta.url))
   const candidates = [
@@ -382,15 +422,17 @@ function loadLayeredSkillsForPacks(rootDir: string, packs: CapabilityPack[], fal
   return { skills: dedupeLayeredSkills(skills), warnings, paths }
 }
 
-function loadStandaloneCodexSkills(rootDir: string): { skills: SkillDefinition[]; warnings: string[]; paths: Record<string, string> } {
+function loadStandaloneCodexSkills(rootDirs: string[]): { skills: SkillDefinition[]; warnings: string[]; paths: Record<string, string> } {
   const warnings: string[] = []
   const skills: SkillDefinition[] = []
   const paths: Record<string, string> = {}
-  for (const filePath of listPluginCodexSkillFiles(rootDir)) {
-    const skill = normalizeCodexSkillFile(filePath, warnings, 'local')
-    if (!skill) continue
-    skills.push(skill)
-    paths[skill.id] = filePath
+  for (const rootDir of dedupePaths(rootDirs)) {
+    for (const filePath of listPluginCodexSkillFiles(rootDir)) {
+      const skill = normalizeCodexSkillFile(filePath, warnings, 'local')
+      if (!skill) continue
+      skills.push(skill)
+      paths[skill.id] = filePath
+    }
   }
   return { skills: dedupeLayeredSkills(skills), warnings, paths }
 }
@@ -946,4 +988,8 @@ function dedupeLayeredTools(tools: ToolDefinition[]): ToolDefinition[] {
   const byName = new Map<string, ToolDefinition>()
   for (const tool of tools) byName.set(tool.name, tool)
   return Array.from(byName.values())
+}
+
+function dedupePaths(paths: string[]): string[] {
+  return Array.from(new Set(paths.map((path) => resolve(path))))
 }

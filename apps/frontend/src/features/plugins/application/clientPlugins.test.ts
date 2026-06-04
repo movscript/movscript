@@ -2,96 +2,102 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  compileClientPlugin,
-  runClientPlugin,
-  type ClientPluginManifest,
+  extractMovpkgAgentCatalogFiles,
+  readPluginArchiveManifest,
 } from './clientPlugins'
 
-test('runClientPlugin dispatches named provider calls to agentTools', async () => {
-  const plugin = executableTestPlugin()
-
-  const result = await runClientPlugin(plugin, { prompt: 'make image' }, { toolName: 'generation_image_generate' })
-  assert.deepEqual(result.data, {
-    mode: 'agent-tool',
-    toolName: 'generation_image_generate',
-    prompt: 'make image',
-    hasGenerationHost: true,
+test('reads Codex plugin archive manifest without MovScript manifest.json', async () => {
+  const zip = fakeZip({
+    '.codex-plugin/plugin.json': JSON.stringify({
+      name: 'story-pack',
+      version: '1.0.0',
+      description: 'Codex story skills.',
+      skills: './skills',
+      mcpServers: './mcp.json',
+    }),
+    'mcp.json': JSON.stringify({
+      mcpServers: {
+        story: {
+          command: 'story-mcp',
+          label: 'Story MCP',
+          endpointEnv: 'STORY_MCP_ENDPOINT',
+          tools: [{ name: 'story_outline', description: 'Outline story.' }],
+        },
+      },
+    }),
+    'skills/story/SKILL.md': '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
   })
 
-  const fallback = await runClientPlugin(plugin, { prompt: 'canvas run' })
-  assert.deepEqual(fallback.data, {
-    mode: 'default-run',
-    prompt: 'canvas run',
-  })
-})
+  const manifest = await readPluginArchiveManifest(zip, { name: 'story-pack.zip' })
 
-test('compileClientPlugin dispatches named provider compile calls to agentTools', async () => {
-  const plugin = executableTestPlugin()
-
-  const spec = await compileClientPlugin(plugin, { prompt: 'compile image' }, { toolName: 'generation_image_generate' })
-  assert.deepEqual(spec, {
-    executor: 'ai_model',
-    capability: 'image',
-    prompt: 'compile image',
-    featureKey: 'test.provider',
-  })
-
-  const fallback = await compileClientPlugin(plugin, { prompt: 'compile default' })
-  assert.deepEqual(fallback, {
-    executor: 'ai_model',
-    capability: 'video',
-    prompt: 'compile default',
-    featureKey: 'default.provider',
-  })
-})
-
-function executableTestPlugin(): ClientPluginManifest {
-  return {
+  assert.deepEqual(manifest, {
     schema: 'movscript.clientPlugin.v1',
-    id: 'test.provider',
-    name: 'Test Provider',
+    id: 'story-pack',
+    name: 'story-pack',
     version: '1.0.0',
+    description: 'Codex story skills.',
     contributes: {
-      tools: [{
-        id: 'generation_image_generate',
-        title: 'Image Generate',
-        inputSchema: { type: 'object', properties: {} },
+      agentSkills: [{ path: './skills' }],
+      mcpServers: [{
+        id: 'story',
+        label: 'Story MCP',
+        endpointEnv: 'STORY_MCP_ENDPOINT',
+        tools: [{ name: 'story_outline', description: 'Outline story.' }],
       }],
     },
-    bundle: `
-      var agentTools = {
-        generation_image_generate: {
-          compile: function(args) {
-            return {
-              executor: 'ai_model',
-              capability: 'image',
-              prompt: args.prompt,
-              featureKey: 'test.provider'
-            };
-          },
-          run: async function(mov, args) {
-            return {
-              data: {
-                mode: 'agent-tool',
-                toolName: 'generation_image_generate',
-                prompt: args.prompt,
-                hasGenerationHost: !!mov.generation
-              }
-            };
-          }
-        }
-      };
-      async function run(_mov, args) {
-        return { data: { mode: 'default-run', prompt: args.prompt } };
-      }
-      function compile(args) {
-        return {
-          executor: 'ai_model',
-          capability: 'video',
-          prompt: args.prompt,
-          featureKey: 'default.provider'
-        };
-      }
-    `,
+    codex: {
+      name: 'story-pack',
+      version: '1.0.0',
+      description: 'Codex story skills.',
+      skills: './skills',
+      mcpServers: './mcp.json',
+    },
+    manifestFormat: 'codex',
+    bundle: undefined,
+    sourceUrl: 'story-pack.zip',
+    installedAt: manifest.installedAt,
+  })
+})
+
+test('maps Codex plugin skills directory into agent catalog files', async () => {
+  const zip = fakeZip({
+    '.codex-plugin/plugin.json': JSON.stringify({ name: 'story-pack', skills: './skills' }),
+    'skills/story/SKILL.md': '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
+    'skills/README.md': 'Shared notes.',
+  })
+
+  const files = await extractMovpkgAgentCatalogFiles(zip, {
+    name: 'story-pack',
+    skills: './skills',
+  })
+
+  assert.deepEqual(files, [
+    {
+      path: 'agent-skills/README.md',
+      content: 'Shared notes.',
+    },
+    {
+      path: 'agent-skills/story/SKILL.md',
+      content: '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
+    },
+  ])
+})
+
+function fakeZip(files: Record<string, string>) {
+  return {
+    file(path: string) {
+      if (!(path in files)) return null
+      return fakeEntry(files[path] ?? '')
+    },
+    forEach(callback: (relativePath: string, file: { dir: boolean; async: (type: 'text' | 'base64') => Promise<string> }) => void) {
+      for (const [path, content] of Object.entries(files)) callback(path, fakeEntry(content))
+    },
+  }
+}
+
+function fakeEntry(content: string) {
+  return {
+    dir: false,
+    async: async (type: 'text' | 'base64') => type === 'base64' ? Buffer.from(content).toString('base64') : content,
   }
 }

@@ -10,8 +10,7 @@ This directory is the active namespace for the agent architecture.
 | `orchestration/` | Agent loop/graph, model turn -> permission gates -> tool execution control flow, split by graph/model/tools | Tool business logic, persistence implementation |
 | `state/` | Run/thread types, task graph projection, subagent helpers, trace builders, stores | LLM decisions, tool execution side effects |
 | `context/` | Current UI/project/selection context shaping, prompt context text, command/input normalization, runtime context extraction | Project writes, model calls |
-| `tools/` | Tool registry, permissions, permission gates, runtime/MCP tool execution, runtime tool handlers split by registry/permissions/catalog/calls/handlers | Agent run lifecycle, workspace persistence |
-| `workspaces/` | Local workspace lifecycle, workspace creation, apply preview, runtime workspace normalization, backend apply client boundary | LLM planning, tool authorization |
+| `tools/` | Tool registry, permissions, permission gates, runtime/MCP/plugin tool execution, runtime tool handlers split by registry/permissions/catalog/calls/handlers | Agent run lifecycle, workspace persistence, business service ownership |
 | `memory/` | Memory store, memory types, and memory manager | Prompt compilation rules, formal project writes |
 | `catalog/` | Manifest defaults, catalog loading/reload, registry state/types, inspect views, validation | Runtime execution decisions, model/tool side effects |
 | `model/` | Model config, model client adapter, model router, provider schema projection | Tool permission rules, domain state machines |
@@ -29,8 +28,8 @@ This directory is the active namespace for the agent architecture.
 | `bootstrap/` | Process startup composition helpers, split by entrypoint surface such as `server/` | Request handling, runtime use case decisions |
 | `cli/` | CLI command implementation and local command parsing | Long-running server composition, HTTP route ownership |
 | `contracts/` | Extension contracts used by domain-specific agents, split by contract surface such as `runtime/` | Hardcoded domain branches inside core runtime |
-| `ports/` | Runtime-facing interfaces split by capability, such as workspace/files/media/project/runtime/tools | Concrete business implementations or external transport details |
-| `adapters/` | External adapter boundaries split by capability, such as workspace/files/media/project/MCP | Core business rules |
+| `ports/` | Runtime-facing interfaces split by capability, such as files/media/runtime/tools | Concrete business implementations or external transport details |
+| `adapters/` | External adapter boundaries split by capability, such as files/media/backend/MCP | Core business rules |
 
 ## Rules
 
@@ -43,7 +42,7 @@ This directory is the active namespace for the agent architecture.
 7. Public run creation has one path: `/threads/{id}/runs` through `AgentRuntimeRouter`. Do not reintroduce public `/runs`, `/runs/tool`, or `/context` compatibility endpoints.
 8. Agent capability expansion flows through skills, not direct tool self-loading: a run may activate skills, but tools still require catalog/config-file/manifest authorization and the final `applyToolPermissions` gate.
 9. Orchestration calls external tools through `ExternalToolGatewayPort`; it must not initialize MCP or translate MCP tool names directly.
-10. Workspace apply flows call backend writes/previews through workspace ports. Application/domain code must not branch on backend transport errors such as HTTP client classes.
+10. Workspace lifecycle, workspace apply, reference lookup, and other business/domain tools are external MCP/plugin capabilities. The agent runtime must not provide local fallback implementations for them.
 11. `orchestration/graph/runner/agentGraph.ts` is the graph runner, not the owner of model transport, tool permission, execute-turn aggregation, trace payload formatting, or result DTO shaping.
 12. Graph contracts live in `orchestration/graph/types/agentGraphTypes.ts`; graph helpers should import `AgentGraphInput` and `AgentGraphTraceInput` from that module instead of depending on the runner.
 13. Trace events are observability records, not context storage. They should carry ids, refs, hashes, counts, status, and short summaries by default.
@@ -57,7 +56,7 @@ Detailed behavior belongs in focused helpers:
 
 - `orchestration/model/graph/input/agentGraphModelInput.ts`, `orchestration/model/graph/context/agentGraphModelTurnContext.ts`, and `orchestration/model/graph/call/agentGraphModelCall.ts` prepare prompts and call the reasoning model.
 - `orchestration/model/permissions/turn/agentGraphPermissionTurn.ts` applies tool permissions, user-input pauses, approvals, and skill activation repair.
-- `orchestration/graph/execution/agentGraphExecuteTurn.ts` executes approved tool turns, handles catalog refresh, queues default workspace apply calls, and resolves remaining approvals.
+- `orchestration/graph/execution/agentGraphExecuteTurn.ts` executes approved tool turns, handles catalog refresh, and resolves remaining approvals.
 - `orchestration/graph/result/agentGraphResult.ts` shapes the final graph result and assistant-content fallback.
 - `orchestration/graph/types/agentGraphTypes.ts` owns shared graph input/trace contracts.
 
@@ -67,23 +66,18 @@ New graph behavior should extend one of these helpers or add a similarly focused
 
 Runtime tools are split into layered responsibilities:
 
-- `orchestration/tools/execution/toolExecutor.ts` owns permission interception, runtime handler lookup, and fallback to `ExternalToolGatewayPort`.
+- `orchestration/tools/execution/toolExecutor.ts` owns permission interception, runtime handler lookup, and explicit routing to `ExternalToolGatewayPort` for MCP/plugin tools. Registered runtime tools do not silently fall back to external tools.
 - `tools/registry/` owns registered tool definitions, names, execution metadata, and risk defaults.
 - `tools/permissions/` owns authorization, approval, sandbox, and unavailable-reason decisions.
-- `orchestration/tools/rules/` owns graph-local execution rules such as default workspace apply queueing and concurrency.
+- `orchestration/tools/rules/` owns graph-local execution rules such as forced approvals and concurrency.
 - `tools/catalog/` owns capability and visible-tool projections from catalog/config-file/runtime context.
 - `tools/calls/` owns normalized tool-call input and rollback metadata records.
 - `tools/handlers/` owns runtime tool behavior and only talks to injected ports.
-- `adapters/{workspace,files,media,project,mcp}/` owns concrete MCP/backend transport calls and transport-specific error normalization.
+- `adapters/{files,media,backend,mcp}/` owns concrete MCP/backend transport calls and transport-specific error normalization.
 
 This keeps new tools from adding `if (toolName === ...)` branches in orchestration. Add a tool handler for runtime behavior, or add an external gateway adapter for transport fallback behavior.
 
-Workspace apply has two separate boundaries:
-
-- `WorkspaceApplyPort` / `WorkspaceApplyPreviewPort` for model-visible runtime apply tools.
-- `RuntimeWorkspaceBackendApplyPort` for UI/application workspace operations that need backend apply or preview behavior.
-
-Both boundaries return transport-neutral results to application/domain code. Backend HTTP error details are normalized inside adapters before crossing into these layers.
+Workspace file management is owned by the MovScript frontend. The agent process does not persist workspace records, hydrate workspace snapshots, or implement model-visible workspace lifecycle tools. When a workspace is needed, frontend MCP/plugin tools expose `.movscript` files and the agent edits those files through the provided file boundary.
 
 ## Catalog and Skill Boundaries
 
@@ -108,19 +102,13 @@ Both boundaries return transport-neutral results to application/domain code. Bac
 - `model/router/` owns capability routing over configured models.
 - `model/schema/` owns provider-specific tool schema projection.
 
-`workspaces/` keeps local workspace state separate from backend apply behavior:
-
-- `workspaces/store/` owns persisted local workspace records and validation.
-- `workspaces/apply/` owns local apply preview/review helpers.
-- `workspaces/workspace/` owns workspace workspace creation and workspace snapshot normalization.
-- `workspaces/runtime/` owns runtime workspace input/content normalization.
-- `workspaces/adapters/` owns backend and MCP apply clients.
+`workspaces/` no longer owns local workspace state in the agent and should not be reintroduced as a runtime tool implementation layer. Frontend MCP owns workspace files, workspace model lookup, and review/apply handoff. Backend/resource clients live under generic adapter paths and must not encode workspace lifecycle behavior. Media code depends on `ResourceFileDownloadPort`, not backend/apply clients.
 
 `memory/` is split into `memory/store/`, `memory/manager/`, and `memory/shared/` so persistence, write rules, and shared memory DTOs do not grow in one flat namespace.
 
 Supporting runtime modules follow the same split:
 
-- `reference/loading/`, `reference/store/`, `reference/search/`, `reference/manager/`, and `reference/shared/` separate file loading, storage, query ranking, facade behavior, and DTOs.
+- `reference/loading/`, `reference/store/`, `reference/search/`, `reference/manager/`, and `reference/shared/` are offline/reference-library helpers. Runtime model-visible reference tools are provided by MCP/plugins and observed through context ledger traces, not by injecting `ReferenceManager` into graph execution.
 - `files/core/` owns canonical refs, edit primitives, and the file-system facade; `files/providers/` owns concrete file providers.
 - `generation/events/`, `generation/errors/`, and `generation/repair/` separate lifecycle projection, backend error normalization, and retry repair.
 - `media/image/` and `media/video/` keep image preprocessing and video frame extraction independent.
@@ -164,7 +152,7 @@ Exceptions must be explicit and narrow. If a caller needs the full body of an HT
 
 ## Runtime Router and Thread Runtime
 
-`application/router/runtimeRouter.ts` is the process-wide application router. It is the only facade that the HTTP server and UI-facing entrypoints should call directly, and it should stay a composition boundary over focused runtime bridges. Runtime use cases live in application sublayers such as `run/`, `thread/`, `taskgraph/`, `catalog/`, `work/`, `stream/`, `workspace/`, `memory/`, `read/`, `graph/`, `local-command/`, and `shared/`; new runtime modules should join the matching sublayer instead of growing the application root.
+`application/router/runtimeRouter.ts` is the process-wide application router. It is the only facade that the HTTP server and UI-facing entrypoints should call directly, and it should stay a composition boundary over focused runtime bridges. Runtime use cases live in application sublayers such as `run/`, `thread/`, `taskgraph/`, `catalog/`, `work/`, `stream/`, `memory/`, `read/`, `graph/`, `local-command/`, and `shared/`; new runtime modules should join the matching sublayer instead of growing the application root. Workspace use cases belong to frontend MCP/file management, not an agent runtime sublayer.
 
 `src/server.ts` and `src/cli.ts` are thin executable shims. HTTP implementation lives in `server/server.ts`, which should stay a composition root rather than the owner of runtime protocol projections. CLI command behavior lives in `cli/cli.ts`. Runtime snapshot DTO mapping lives in `server/protocol/runtimeProtocol.ts`; SSE subscription and event streaming lives in `server/streams/runtimeStreams.ts`; shared HTTP helpers live in `server/core/http.ts`.
 

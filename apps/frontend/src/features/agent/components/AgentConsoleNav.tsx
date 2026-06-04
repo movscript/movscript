@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Blocks, ClipboardList, FileSearch, ListTree, Settings } from 'lucide-react'
+import { BarChart3, Blocks, ClipboardList, FileSearch, FolderTree, ListTree, Settings } from 'lucide-react'
 import {
   AgentConsoleNavItem,
   AgentConsoleNavLinkWrapper,
@@ -35,6 +35,12 @@ const agentConsoleSections = [
     label: '运行记录',
     description: 'Run 列表与 trace 入口',
     icon: ListTree,
+  },
+  {
+    to: ROUTES.agentFiles,
+    label: 'MovScript 文件',
+    description: '.movscript 文件浏览与文本编辑',
+    icon: FolderTree,
   },
   {
     to: ROUTES.agentWorkspaces,

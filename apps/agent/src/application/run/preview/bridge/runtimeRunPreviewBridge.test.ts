@@ -9,14 +9,14 @@ test('createRuntimeRunPreviewBridge wires preview dependencies and identity fact
   const bridge = createRuntimeRunPreviewBridge({
     store: { label: 'store' } as never,
     mcpClient: { label: 'mcp' } as never,
-    memoryManager: { label: 'memory' } as never,
-    workspaceStore: { label: 'workspace' } as never,
-    catalogSnapshots: { current: { label: 'catalog' } } as never,
+    focusContextPort: { label: 'focus' } as never,
+    memoryManager: { label: 'memory' } as never,    catalogSnapshots: { current: { label: 'catalog' } } as never,
     contractResolver: { label: 'contracts' } as never,
     updateState: { checkedAt: 'now' } as never,
     previewRequest: async (input) => {
       calls.push(`message:${input.previewInput.message}`)
       calls.push(`catalog:${(input.catalogSnapshot as never as { label: string }).label}`)
+      calls.push(`focus:${(input.focusContextPort as never as { label: string }).label}`)
       calls.push(`updates:${String((input.updateState as never as { checkedAt?: string })?.checkedAt)}`)
       calls.push(`ids:${input.makePreviewId().startsWith('preview_')}:${input.makeApprovalId().startsWith('approval_')}`)
       calls.push(`now:${typeof input.now()}`)
@@ -28,6 +28,7 @@ test('createRuntimeRunPreviewBridge wires preview dependencies and identity fact
   assert.deepEqual(calls, [
     'message:hello',
     'catalog:catalog',
+    'focus:focus',
     'updates:now',
     'ids:true:true',
     'now:string',

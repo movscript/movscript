@@ -139,6 +139,84 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
+      name: 'workspace_file_list',
+      description: 'List files under the frontend-owned MovScript agent workspace directory (.movscript). Paths are relative to that root.',
+      inputSchema: objectSchema(
+        {
+          path: { type: 'string', description: 'Optional relative directory or file path under the .movscript workspace root.' },
+          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        }
+      ),
+      outputSchema: objectSchema(
+        {
+          rootPath: { type: 'string' },
+          path: { type: 'string' },
+          entries: { type: 'array', items: { type: 'object' } },
+        },
+        ['rootPath', 'path', 'entries']
+      ),
+    },
+    {
+      name: 'workspace_file_read',
+      description: 'Read a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript).',
+      inputSchema: objectSchema(
+        {
+          path: { type: 'string', description: 'Relative file path under the .movscript workspace root.' },
+          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        },
+        ['path']
+      ),
+      outputSchema: objectSchema(
+        {
+          rootPath: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+          size: { type: 'number' },
+          updatedAt: { type: 'string' },
+        },
+        ['rootPath', 'path', 'content', 'size', 'updatedAt']
+      ),
+    },
+    {
+      name: 'workspace_file_write',
+      description: 'Write a UTF-8 text file under the frontend-owned MovScript agent workspace directory (.movscript). Use this for staged workspace JSON files, not direct backend entity mutation.',
+      inputSchema: objectSchema(
+        {
+          path: { type: 'string', description: 'Relative file path under the .movscript workspace root.' },
+          content: { type: 'string', description: 'Full UTF-8 file content to write.' },
+          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        },
+        ['path', 'content']
+      ),
+      outputSchema: objectSchema(
+        {
+          rootPath: { type: 'string' },
+          path: { type: 'string' },
+          content: { type: 'string' },
+          size: { type: 'number' },
+          updatedAt: { type: 'string' },
+        },
+        ['rootPath', 'path', 'content', 'size', 'updatedAt']
+      ),
+    },
+    {
+      name: 'workspace_file_delete',
+      description: 'Delete a file or directory under the frontend-owned MovScript agent workspace directory (.movscript). The workspace root itself cannot be deleted.',
+      inputSchema: objectSchema(
+        {
+          path: { type: 'string', description: 'Relative file or directory path under the .movscript workspace root.' },
+          workspaceDir: { type: 'string', description: 'Optional parent workspace directory. Defaults to the desktop agent workspace.' },
+        },
+        ['path']
+      ),
+      outputSchema: objectSchema(
+        {
+          ok: { type: 'boolean' },
+        },
+        ['ok']
+      ),
+    },
+    {
       name: 'movscript_project_create',
       description: 'Create a formal MovScript project. Use only when the user explicitly asks to create a new project or confirms the project name.',
       inputSchema: objectSchema(

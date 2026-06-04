@@ -19,6 +19,7 @@ export interface SpawnAgentRuntimeInput {
   session?: {
     workspaceDir: string
     sessionId: string
+    agentRuntimeDirName?: string
   }
   onExit?: (child: ChildProcess, code: number | null, signal: NodeJS.Signals | null) => void
 }

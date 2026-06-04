@@ -55,11 +55,11 @@ test('createRuntimeTraceReadBridge reads trace events, pages, and summaries', ()
   assert.equal(summary.latestEvent?.id, 'trace_3')
 
   const debugView = bridge.getRunTraceDebugView(run.id)
-  assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v1')
+  assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v2')
   assert.equal(debugView.trace.loaded, 3)
   assert.equal(debugView.trace.hasMore, false)
   assert.equal(debugView.coverage.loadedLabel, '3 / 3')
-  assert.equal(debugView.bundle.schema, 'movscript.agent-run-debug-bundle.v1')
+  assert.equal(debugView.bundle.schema, 'movscript.agent-run-debug-bundle.v2')
 
   const ledger = bridge.getRunDebugLedger(run.id)
   assert.equal(ledger.schema, 'movscript.agent.run-debug-ledger.v1')
@@ -226,9 +226,10 @@ test('createRuntimeTraceReadBridge hydrates compact trace data for debug views',
   const debugView = bridge.getRunTraceDebugView(run.id)
   const debugEventData = debugView.events[0]?.data as any
   assert.equal(debugEventData.request.body.sdk_body.input[0].content, 'full request content')
-  assert.equal(debugView.modelCalls[0]?.messageCount, '1')
-  assert.equal(debugView.modelCalls[0]?.toolCount, '1')
-  assert.deepEqual(debugView.modelCallContexts[0]?.modelEventIds, ['trace_1'])
+  const roundFrame = debugView.runtimeFrames.find((frame) => frame.kind === 'round')
+  assert.equal(roundFrame?.modelCalls[0]?.messageCount, '1')
+  assert.equal(roundFrame?.modelCalls[0]?.toolCount, '1')
+  assert.deepEqual(roundFrame?.modelContext[0]?.modelEventIds, ['trace_1'])
 })
 
 test('createRuntimeTraceReadBridge validates run existence before reading traces', () => {

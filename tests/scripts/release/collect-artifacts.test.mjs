@@ -17,9 +17,9 @@ test('isReleaseAsset accepts distributables and latest metadata only', () => {
   assert.equal(isReleaseAsset('notes.txt'), false)
 })
 
-test('defaultArtifactSources can skip plugin dist directories', () => {
+test('defaultArtifactSources collects desktop release artifacts', () => {
   const root = resolve('/repo')
-  assert.deepEqual(defaultArtifactSources(root, { MOVSCRIPT_COLLECT_PLUGINS: '0' }), [
+  assert.deepEqual(defaultArtifactSources(root), [
     resolve(root, 'apps/frontend/release'),
   ])
 })
@@ -28,24 +28,19 @@ test('collectArtifacts copies release assets and writes sorted checksums', async
   const root = await mkdtemp(join(tmpdir(), 'movscript-collect-artifacts-'))
   try {
     const frontend = join(root, 'apps/frontend/release')
-    const plugin = join(root, 'plugins/image-generator/dist')
     await mkdir(frontend, { recursive: true })
-    await mkdir(plugin, { recursive: true })
     await writeFile(join(frontend, 'Movscript.dmg'), 'desktop dmg')
     await writeFile(join(frontend, 'Movscript.dmg.blockmap'), 'ignored blockmap')
     await writeFile(join(frontend, 'latest.yml'), 'channel metadata')
-    await writeFile(join(plugin, 'image-generator.movpkg'), 'plugin package')
 
     const result = collectArtifacts(root)
 
     assert.deepEqual(result.copied.map((path) => basename(path)).sort(), [
       'Movscript.dmg',
-      'image-generator.movpkg',
       'latest.yml',
     ])
     const checksums = await readFile(result.checksumPath, 'utf8')
     assert.match(checksums, new RegExp(`${sha256(join(frontend, 'Movscript.dmg'))}  Movscript\\.dmg`))
-    assert.match(checksums, new RegExp(`${sha256(join(plugin, 'image-generator.movpkg'))}  image-generator\\.movpkg`))
     assert.doesNotMatch(checksums, /blockmap/)
   } finally {
     await rm(root, { recursive: true, force: true })
@@ -56,13 +51,13 @@ test('collectArtifacts rejects duplicate release artifact names', async () => {
   const root = await mkdtemp(join(tmpdir(), 'movscript-collect-artifacts-dupe-'))
   try {
     const first = join(root, 'apps/frontend/release')
-    const second = join(root, 'plugins/video-generator/dist')
+    const second = join(root, 'other-release')
     await mkdir(first, { recursive: true })
     await mkdir(second, { recursive: true })
     await writeFile(join(first, 'Movscript.zip'), 'first')
     await writeFile(join(second, 'Movscript.zip'), 'second')
 
-    assert.throws(() => collectArtifacts(root), /Duplicate release artifact name: Movscript\.zip/)
+    assert.throws(() => collectArtifacts(root, { sources: [first, second] }), /Duplicate release artifact name: Movscript\.zip/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -106,13 +101,14 @@ test('collectArtifacts still rejects duplicate names after prefixing', async () 
   const root = await mkdtemp(join(tmpdir(), 'movscript-collect-artifacts-prefix-dupe-'))
   try {
     const first = join(root, 'apps/frontend/release')
-    const second = join(root, 'plugins/video-generator/dist')
+    const second = join(root, 'other-release')
     await mkdir(first, { recursive: true })
     await mkdir(second, { recursive: true })
     await writeFile(join(first, 'release.movpkg'), 'first')
     await writeFile(join(second, 'release.movpkg'), 'second')
 
     assert.throws(() => collectArtifacts(root, {
+      sources: [first, second],
       env: { MOVSCRIPT_ARTIFACT_PREFIX: 'plugins' },
     }), /Duplicate release artifact name: plugins-release\.movpkg/)
   } finally {

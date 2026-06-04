@@ -118,7 +118,7 @@ export function modelCallTokenUsage(modelCalls: AgentModelCallSummary[]): { inpu
   return { input, output, total, label }
 }
 
-export function buildModelCallContexts(input: {
+export function buildModelContextViews(input: {
   modelCalls: AgentModelCallSummary[]
   events: AgentTraceEvent[]
   messageWriteFromEvent: (event: AgentTraceEvent) => AgentMessageWriteView | undefined

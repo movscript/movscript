@@ -5,16 +5,10 @@ import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
-  Atom,
-  Bot,
-  Cable,
   Clapperboard,
   CirclePlay,
-  Component,
-  FlaskConical,
   FolderArchive,
   FolderOpen,
-  Gem,
   Hammer,
   Home,
   Images,
@@ -22,14 +16,11 @@ import {
   ListTodo,
   Move,
   Palette,
-  Plug,
-  Puzzle,
   Radar,
   ScanSearch,
   ScrollText,
   Shapes,
   Telescope,
-  Tag,
   ToyBrick,
   Truck,
   Video,
@@ -65,30 +56,11 @@ import {
   clampAppSidebarWidth,
   useResizablePanel,
 } from '@movscript/ui'
-import { isClientPluginRunnable, loadClientPlugins } from '@/features/plugins/application/clientPlugins'
 import { projectWorkbenchDefinitions } from '@/features/project-workbenches/domain/projectWorkbenchRegistry'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
-
-const PLUGIN_NAV_ICONS: LucideIcon[] = [
-  Puzzle,
-  Plug,
-  Cable,
-  Component,
-  Wrench,
-  Bot,
-  Atom,
-  Tag,
-  FlaskConical,
-  Gem,
-  Hammer,
-  Radar,
-  ScanSearch,
-  Telescope,
-  ToyBrick,
-]
 
 export const SIDEBAR_WIDTH_STORAGE_KEY = APP_SIDEBAR_WIDTH_STORAGE_KEY
 export const SIDEBAR_DEFAULT_WIDTH = APP_SIDEBAR_DEFAULT_WIDTH
@@ -166,9 +138,6 @@ export function Sidebar({
     collapseMode: 'after-min',
     ariaLabel: '调整左侧栏宽度',
   })
-
-  const [installedPlugins, setInstalledPlugins] = useState<import('@/features/plugins/application/clientPlugins').ClientPluginManifest[]>([])
-  useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
 
   const { isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
@@ -249,9 +218,6 @@ export function Sidebar({
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
-          {installedPlugins.filter(isClientPluginRunnable).map((plugin, index) => (
-            <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
-          ))}
         </AppSidebarSection>
 
         <AppSidebarDivider collapsed={collapsed} />

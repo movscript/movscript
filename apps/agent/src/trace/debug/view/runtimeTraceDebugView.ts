@@ -3,8 +3,8 @@ import type { AgentRunTraceSummary } from '@movscript/protocol'
 import {
   AGENT_DEBUG_FIELD_GUIDE,
   DEBUG_BUNDLE_CAPABILITIES,
-  DEBUG_BUNDLE_SCHEMA,
-  DEBUG_BUNDLE_SCHEMA_URL,
+  DEBUG_BUNDLE_SCHEMA_V2,
+  DEBUG_BUNDLE_SCHEMA_URL_V2,
 } from './runtime-trace-debug-view/contract.js'
 import {
   buildDebugCoverageSummary,
@@ -18,13 +18,16 @@ import {
   messageWriteFromEvent,
 } from './runtime-trace-debug-view/eventViews.js'
 import {
-  buildModelCallContexts,
+  buildModelContextViews,
   buildModelCallSummaries,
 } from './runtime-trace-debug-view/modelCalls.js'
 import {
   buildPromptDetails,
-  buildRoundContextUpdateViews,
+  buildRuntimeContextProjectionViews,
 } from './runtime-trace-debug-view/promptContext.js'
+import {
+  buildRuntimeFrames,
+} from './runtime-trace-debug-view/runtimeFrames.js'
 import {
   buildDebugReportText,
   debugBundleRunSnapshot,
@@ -32,7 +35,7 @@ import {
 } from './runtime-trace-debug-view/report.js'
 import {
   buildContextMutationViews,
-  buildRoundContextChangeViews,
+  buildRuntimeContextDiffWindowViews,
   buildRuntimeSummary,
   buildSkillTraceSummary,
   correlatePromptDetailsWithRuntimeState,
@@ -57,13 +60,21 @@ export type {
   AgentPromptDetailView,
   AgentPromptHistoryProjectionView,
   AgentPromptSkillStateView,
-  AgentRoundContextChangeView,
-  AgentRoundContextUpdateView,
+  AgentRuntimeContextDiffWindowView,
+  AgentRuntimeContextProjectionView,
+  AgentRuntimeContextChangeView,
+  AgentRuntimeContextDiffView,
+  AgentRuntimeFrame,
+  AgentRuntimeFrameFocus,
+  AgentRuntimeFrameKind,
+  AgentRuntimeFinalizeFrame,
+  AgentRuntimeRoundFrame,
+  AgentRuntimeSetupFrame,
   AgentRunRuntimeSummary,
   AgentRuntimeSkillOmissionView,
   AgentSkillContextProjectionView,
   AgentSkillTraceEntry,
-  AgentSkillTraceSummary,
+  AgentRuntimeSkillTraceSummary,
   AgentToolCallView,
   AgentTraceDebugView,
   AgentTraceRefView,
@@ -81,17 +92,17 @@ export function buildRuntimeTraceDebugView(input: {
   const coverage = buildDebugCoverageSummary({ events, total: input.summary.total, modelCalls })
   const readinessChecklist = buildDebugReadinessChecklist(coverage)
   const basePromptDetails = buildPromptDetails(events)
-  const roundContextUpdates = buildRoundContextUpdateViews(events)
+  const contextProjections = buildRuntimeContextProjectionViews(events)
   const contextMutations = buildContextMutationViews(events)
-  const roundContextChanges = buildRoundContextChangeViews({ events, roundContextUpdates, contextMutations })
+  const contextDiffWindows = buildRuntimeContextDiffWindowViews({ events, contextProjections, contextMutations })
   const messageWrites = buildMessageWrites(events)
   const toolCalls = buildToolCalls(events)
-  const modelCallContexts = buildModelCallContexts({ modelCalls, events, messageWriteFromEvent })
-  const skillTimeline = buildSkillTraceSummary(events)
+  const modelContext = buildModelContextViews({ modelCalls, events, messageWriteFromEvent })
+  const skillTrace = buildSkillTraceSummary(events)
   const promptDetails = correlatePromptDetailsWithRuntimeState({
     promptDetails: basePromptDetails,
     events,
-    skillTimeline,
+    skillTrace,
     contextMutations,
   })
   const attentionEvents = buildAttentionEvents(events)
@@ -99,10 +110,24 @@ export function buildRuntimeTraceDebugView(input: {
   const runtimeSummary = buildRuntimeSummary({
     events,
     promptDetails,
-    skillTimeline,
+    skillTrace,
     toolCalls,
     contextMutations,
-    roundContextUpdates,
+    contextProjections,
+    pendingActions,
+  })
+  const runtimeFrames = buildRuntimeFrames({
+    events,
+    promptDetails,
+    contextProjections,
+    contextDiffWindows,
+    contextMutations,
+    modelCalls,
+    modelContext,
+    skillTrace: skillTrace.entries,
+    messageWrites,
+    toolCalls,
+    attentionEvents,
     pendingActions,
   })
   const trace = {
@@ -118,8 +143,8 @@ export function buildRuntimeTraceDebugView(input: {
     events,
   })
   const bundle = {
-    schema: DEBUG_BUNDLE_SCHEMA,
-    schemaUrl: DEBUG_BUNDLE_SCHEMA_URL,
+    schema: DEBUG_BUNDLE_SCHEMA_V2,
+    schemaUrl: DEBUG_BUNDLE_SCHEMA_URL_V2,
     generatedAt,
     capabilities: DEBUG_BUNDLE_CAPABILITIES,
     runId: input.run.id,
@@ -129,37 +154,22 @@ export function buildRuntimeTraceDebugView(input: {
     fieldGuide: AGENT_DEBUG_FIELD_GUIDE,
     coverage,
     readinessChecklist,
-    modelCalls,
-    modelCallContexts,
     runtimeSummary,
-    roundContextUpdates,
-    roundContextChanges,
-    promptDetails,
-    contextMutations,
-    messageWrites,
-    toolCalls,
+    runtimeFrames,
     attentionEvents,
     pendingActions,
     events,
   }
   return {
-    schema: 'movscript.agent-trace-debug-view.v1',
+    schema: 'movscript.agent-trace-debug-view.v2',
     generatedAt,
     runId: input.run.id,
     run: input.run,
     trace,
     coverage,
     readinessChecklist,
-    modelCalls,
-    modelCallContexts,
     runtimeSummary,
-    skillTimeline,
-    roundContextUpdates,
-    roundContextChanges,
-    promptDetails,
-    contextMutations,
-    messageWrites,
-    toolCalls,
+    runtimeFrames,
     attentionEvents,
     pendingActions,
     fieldGuide: AGENT_DEBUG_FIELD_GUIDE,

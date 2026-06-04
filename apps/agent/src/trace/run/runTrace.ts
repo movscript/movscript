@@ -9,10 +9,10 @@ import type {
 } from '../../state/shared/types.js'
 import type { AgentRunRoundInfo } from '../../state/run/core/round/runRound.js'
 
-const MAX_TRACE_DATA_DEPTH = 20
-const MAX_TRACE_ARRAY_ITEMS = 200
-const MAX_TRACE_OBJECT_KEYS = 200
-const MAX_TRACE_STRING_CHARS = 200_000
+const MAX_VOLATILE_TRACE_DATA_DEPTH = 20
+const MAX_VOLATILE_TRACE_ARRAY_ITEMS = 200
+const MAX_VOLATILE_TRACE_OBJECT_KEYS = 200
+const MAX_VOLATILE_TRACE_STRING_CHARS = 200_000
 
 export interface BuildRunStepInput {
   id: string
@@ -107,7 +107,7 @@ export function appendTraceEvent(input: AppendTraceEventInput): AgentTraceEvent 
     ...(input.parentAgentId ? { parentAgentId: input.parentAgentId } : {}),
     ...(input.stepId ? { stepId: input.stepId } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
-    ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
+    ...(input.data !== undefined ? { data: toFullJSONValue(input.data) } : {}),
     ...(isNonNegativeFiniteNumber(input.durationMs) ? { durationMs: input.durationMs } : {}),
     ...(input.completedAt ? { completedAt: input.completedAt } : {}),
   }
@@ -168,11 +168,15 @@ export function buildVolatileTraceEvent(input: BuildVolatileTraceEventInput): Ag
     roundSource: input.roundSource,
     createdAt: input.now,
     ...(input.summary ? { summary: input.summary } : {}),
-    ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
+    ...(input.data !== undefined ? { data: toVolatileJSONValue(input.data) } : {}),
   }
 }
 
-function toJSONValue(value: unknown): JSONValue {
+function toFullJSONValue(value: unknown): JSONValue {
+  return toJSONValue(value, { ancestors: new WeakSet<object>() })
+}
+
+function toVolatileJSONValue(value: unknown): JSONValue {
   return toBoundedJSONValue(value, { depth: 0, ancestors: new WeakSet<object>() })
 }
 
@@ -180,22 +184,47 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
 }
 
-function toBoundedJSONValue(value: unknown, state: { depth: number; ancestors: WeakSet<object> }): JSONValue {
+function toJSONValue(value: unknown, state: { ancestors: WeakSet<object> }): JSONValue {
   if (value === undefined) return null
   if (value === null || typeof value === 'boolean') return value
-  if (typeof value === 'string') return value.length > MAX_TRACE_STRING_CHARS
-    ? `${value.slice(0, MAX_TRACE_STRING_CHARS)}... [truncated ${value.length - MAX_TRACE_STRING_CHARS} chars]`
-    : value
+  if (typeof value === 'string') return value
   if (typeof value === 'number') return Number.isFinite(value) ? value : String(value)
   if (typeof value === 'bigint') return value.toString()
-  if (state.depth >= MAX_TRACE_DATA_DEPTH) return '[Trace data truncated: max depth exceeded]'
   if (Array.isArray(value)) {
     if (state.ancestors.has(value)) return '[Circular]'
     state.ancestors.add(value)
-    const items = value.slice(0, MAX_TRACE_ARRAY_ITEMS).map((item) => toBoundedJSONValue(item, { depth: state.depth + 1, ancestors: state.ancestors }))
+    const items = value.map((item) => toJSONValue(item, state))
     state.ancestors.delete(value)
-    return value.length > MAX_TRACE_ARRAY_ITEMS
-      ? [...items, `[Trace data truncated: ${value.length - MAX_TRACE_ARRAY_ITEMS} more items]`]
+    return items
+  }
+  if (!isRecord(value)) return String(value)
+  if (state.ancestors.has(value)) return '[Circular]'
+  state.ancestors.add(value)
+  const out: Record<string, JSONValue> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (item === undefined) continue
+    out[key] = toJSONValue(item, state)
+  }
+  state.ancestors.delete(value)
+  return out
+}
+
+function toBoundedJSONValue(value: unknown, state: { depth: number; ancestors: WeakSet<object> }): JSONValue {
+  if (value === undefined) return null
+  if (value === null || typeof value === 'boolean') return value
+  if (typeof value === 'string') return value.length > MAX_VOLATILE_TRACE_STRING_CHARS
+    ? `${value.slice(0, MAX_VOLATILE_TRACE_STRING_CHARS)}... [truncated ${value.length - MAX_VOLATILE_TRACE_STRING_CHARS} chars]`
+    : value
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value)
+  if (typeof value === 'bigint') return value.toString()
+  if (state.depth >= MAX_VOLATILE_TRACE_DATA_DEPTH) return '[Trace data truncated: max depth exceeded]'
+  if (Array.isArray(value)) {
+    if (state.ancestors.has(value)) return '[Circular]'
+    state.ancestors.add(value)
+    const items = value.slice(0, MAX_VOLATILE_TRACE_ARRAY_ITEMS).map((item) => toBoundedJSONValue(item, { depth: state.depth + 1, ancestors: state.ancestors }))
+    state.ancestors.delete(value)
+    return value.length > MAX_VOLATILE_TRACE_ARRAY_ITEMS
+      ? [...items, `[Trace data truncated: ${value.length - MAX_VOLATILE_TRACE_ARRAY_ITEMS} more items]`]
       : items
   }
   if (!isRecord(value)) return String(value)
@@ -203,11 +232,11 @@ function toBoundedJSONValue(value: unknown, state: { depth: number; ancestors: W
   state.ancestors.add(value)
   const out: Record<string, JSONValue> = {}
   const entries = Object.entries(value)
-  for (const [key, item] of entries.slice(0, MAX_TRACE_OBJECT_KEYS)) {
+  for (const [key, item] of entries.slice(0, MAX_VOLATILE_TRACE_OBJECT_KEYS)) {
     if (item === undefined) continue
     out[key] = toBoundedJSONValue(item, { depth: state.depth + 1, ancestors: state.ancestors })
   }
-  if (entries.length > MAX_TRACE_OBJECT_KEYS) out.__truncatedKeys = entries.length - MAX_TRACE_OBJECT_KEYS
+  if (entries.length > MAX_VOLATILE_TRACE_OBJECT_KEYS) out.__truncatedKeys = entries.length - MAX_VOLATILE_TRACE_OBJECT_KEYS
   state.ancestors.delete(value)
   return out
 }

@@ -282,23 +282,25 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
     generatedAt: '2026-01-01T00:00:10.000Z',
   })
 
-  assert.equal(view.schema, 'movscript.agent-trace-debug-view.v1')
+  assert.equal(view.schema, 'movscript.agent-trace-debug-view.v2')
   assert.equal(view.generatedAt, '2026-01-01T00:00:10.000Z')
   assert.equal(view.trace.loaded, events.length)
   assert.equal(view.coverage.loadedLabel, '13 / 13')
-  assert.equal(view.modelCalls[0]?.status, 'complete')
-  assert.equal(view.modelCalls[0]?.model, 'gpt-test')
-  assert.equal(view.modelCalls[0]?.messageCount, '1')
-  assert.equal(view.modelCalls[0]?.toolCount, '1')
-  assert.equal(view.modelCalls[0]?.hasRequestPayload, true)
-  assert.equal(view.modelCalls[0]?.hasResponseBody, true)
+  const roundFrame = view.runtimeFrames.find((frame) => frame.kind === 'round')
+  assert.equal(roundFrame?.kind, 'round')
+  assert.equal(roundFrame?.modelCalls[0]?.status, 'complete')
+  assert.equal(roundFrame?.modelCalls[0]?.model, 'gpt-test')
+  assert.equal(roundFrame?.modelCalls[0]?.messageCount, '1')
+  assert.equal(roundFrame?.modelCalls[0]?.toolCount, '1')
+  assert.equal(roundFrame?.modelCalls[0]?.hasRequestPayload, true)
+  assert.equal(roundFrame?.modelCalls[0]?.hasResponseBody, true)
   assert.equal(view.readinessChecklist.find((item) => item.id === 'request_payload')?.label, '请求摘要可追踪')
   assert.equal(view.readinessChecklist.find((item) => item.id === 'response_body')?.label, '响应摘要可追踪')
   assert.equal(view.coverage.tokenUsageLabel, '12 tokens，in 10 / out 2')
-  assert.equal(view.promptDetails[0]?.totalChars, '1200')
-  assert.equal(view.promptDetails[0]?.contextBundle?.id, 'ctxb_1')
-  assert.equal(view.promptDetails[0]?.contextBundle?.hash, 'sha256:prompt')
-  assert.deepEqual(view.promptDetails[0]?.budgetDecisions.map((decision) => ({
+  assert.equal(roundFrame?.context.prompt?.totalChars, '1200')
+  assert.equal(roundFrame?.context.prompt?.contextBundle?.id, 'ctxb_1')
+  assert.equal(roundFrame?.context.prompt?.contextBundle?.hash, 'sha256:prompt')
+  assert.deepEqual(roundFrame?.context.prompt?.budgetDecisions.map((decision) => ({
     action: decision.action,
     stage: decision.stage,
     partId: decision.partId,
@@ -318,7 +320,7 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
     { skillId: 'skill.trigger', stage: 'trigger_not_matched' },
     { skillId: 'skill.dep', stage: 'dependency_inactive' },
   ])
-  assert.deepEqual(view.promptDetails[0]?.runtimeSkillState, {
+  assert.deepEqual(roundFrame?.context.prompt?.runtimeSkillState, {
     activeSkillIds: ['skill_pre'],
     loadedSkillIds: ['skill_pre'],
     unloadedSkillIds: ['skill_a'],
@@ -335,7 +337,7 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
     }],
     sourceEventId: 'trace_0',
   })
-  assert.deepEqual(view.promptDetails[0]?.contextLedgerState, {
+  assert.deepEqual(roundFrame?.context.prompt?.contextLedgerState, {
     mutationCount: 1,
     mutationEventIds: ['trace_00'],
     latestMutationEventId: 'trace_00',
@@ -350,8 +352,8 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
   assert.equal(view.runtimeSummary.tools.sourceEventId, 'trace_1')
   assert.equal(view.runtimeSummary.context.promptEventId, 'trace_1')
   assert.equal(view.runtimeSummary.context.contextMutationCount, 2)
-  assert.equal(view.runtimeSummary.context.roundContextUpdateCount, 1)
-  assert.equal(view.runtimeSummary.context.latestRoundContextUpdate?.eventId, 'trace_10')
+  assert.equal(view.runtimeSummary.context.contextProjectionCount, 1)
+  assert.equal(view.runtimeSummary.context.latestContextProjection?.eventId, 'trace_10')
   assert.equal(view.runtimeSummary.context.historicalVisualProjection?.includedInlineImageCount, 1)
   assert.equal(view.runtimeSummary.context.latestMutationReason, 'reference refreshed')
   assert.deepEqual(view.runtimeSummary.context.historyProjection, {
@@ -372,29 +374,27 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
   })
   assert.equal(view.runtimeSummary.context.toolLoopProjection?.messageCount, 2)
   assert.equal(view.runtimeSummary.context.attachmentProjection?.inlineImageCount, 1)
-  assert.equal(view.roundContextUpdates[0]?.historicalVisualProjection?.candidateCount, 2)
-  assert.equal(view.roundContextChanges[0]?.round.eventId, 'trace_10')
-  assert.equal(view.roundContextChanges[0]?.mutationCount, 1)
-  assert.deepEqual(view.roundContextChanges[0]?.mutationEventIds, ['trace_00'])
-  assert.deepEqual(view.roundContextChanges[0]?.appendedContextKeys, ['reference:brief:sha256:pre'])
-  assert.equal((view.bundle.roundContextChanges as any[])[0]?.mutationCount, 1)
-  assert.equal(view.messageWrites[0]?.messageId, 'msg_1')
-  assert.equal(view.messageWrites[0]?.contentHash, 'sha256:assistant')
-  assert.equal(view.toolCalls.length, 2)
-  assert.equal(view.toolCalls[0]?.resultHash, 'sha256:tool')
-  assert.equal(view.toolCalls[0]?.refs[0]?.key, 'tool_result:call_1:sha256:tool')
-  const laterContextMutation = view.contextMutations.find((mutation) => mutation.eventId === 'trace_7')
+  assert.equal(roundFrame?.context.projection?.historicalVisualProjection?.candidateCount, 2)
+  assert.equal(roundFrame?.context.projection?.eventId, 'trace_10')
+  assert.equal(roundFrame?.context.diff.mutationCount, 2)
+  assert.deepEqual(roundFrame?.context.diff.mutationEventIds, ['trace_00', 'trace_7'])
+  assert.deepEqual(roundFrame?.context.diff.appendedContextKeys, ['reference:brief:sha256:pre', 'reference:storyboard.rhythm.basic:sha256:old'])
+  const bundledContextFrame = (view.bundle.runtimeFrames as any[]).find((frame) => frame.context?.diff)
+  assert.equal(bundledContextFrame?.context?.diff?.mutationCount, 2)
+  assert.equal(roundFrame?.messageWrites[0]?.messageId, 'msg_1')
+  assert.equal(roundFrame?.messageWrites[0]?.contentHash, 'sha256:assistant')
+  assert.equal(roundFrame?.toolCalls.length, 2)
+  assert.equal(roundFrame?.toolCalls[0]?.resultHash, 'sha256:tool')
+  assert.equal(roundFrame?.toolCalls[0]?.refs[0]?.key, 'tool_result:call_1:sha256:tool')
+  const laterContextMutation = roundFrame?.context.diff.mutations.find((mutation) => mutation.eventId === 'trace_7')
   assert.equal(laterContextMutation?.total, 2)
   assert.equal(laterContextMutation?.latest?.type, 'amend')
   assert.equal(laterContextMutation?.affectedContextKeys.includes('reference:storyboard.rhythm.basic:sha256:new'), true)
   assert.equal(laterContextMutation?.refs[0]?.key, 'reference:storyboard.rhythm.basic:sha256:new')
-  assert.deepEqual((view.bundle.contextMutations as any[]).find((mutation) => mutation.eventId === 'trace_7')?.amendedContextKeys, [
-    'reference:storyboard.rhythm.basic:sha256:new',
-    'reference:storyboard.rhythm.basic:sha256:old',
-  ])
+  assert.equal((view.bundle.runtimeFrames as any[])[0]?.events.some((event: any) => event.id === 'trace_7'), true)
   assert.equal(view.attentionEvents[0]?.eventId, 'trace_6')
   assert.deepEqual(view.pendingActions.map((action) => action.id), ['approval_1', 'input_1'])
-  assert.equal(view.bundle.schema, 'movscript.agent-run-debug-bundle.v1')
+  assert.equal(view.bundle.schema, 'movscript.agent-run-debug-bundle.v2')
   assert.match(view.reportText, /AgentRun 调试摘要/)
 })
 
@@ -436,11 +436,12 @@ test('buildRuntimeTraceDebugView summarizes OpenAI Responses sdk_body payloads',
     generatedAt: '2026-01-01T00:00:10.000Z',
   })
 
-  assert.equal(view.modelCalls[0]?.model, 'gpt-5.2')
-  assert.equal(view.modelCalls[0]?.messageCount, '1')
-  assert.equal(view.modelCalls[0]?.toolCount, '1')
-  assert.equal(view.modelCalls[0]?.hasRequestPayload, true)
-  assert.equal(view.modelCalls[0]?.hasResponseBody, true)
+  const roundFrame = view.runtimeFrames.find((frame) => frame.kind === 'round')
+  assert.equal(roundFrame?.modelCalls[0]?.model, 'gpt-5.2')
+  assert.equal(roundFrame?.modelCalls[0]?.messageCount, '1')
+  assert.equal(roundFrame?.modelCalls[0]?.toolCount, '1')
+  assert.equal(roundFrame?.modelCalls[0]?.hasRequestPayload, true)
+  assert.equal(roundFrame?.modelCalls[0]?.hasResponseBody, true)
   assert.equal(view.coverage.requestPayloadsLabel, '1')
   assert.equal(view.coverage.httpResponseBodiesLabel, '1')
 })

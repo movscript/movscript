@@ -162,6 +162,38 @@ export interface AgentRuntimeSessionLease {
   holder?: string
 }
 
+export interface AgentPluginFileManifest {
+  id: string
+  name: string
+  version: string
+  [key: string]: unknown
+}
+
+export interface AgentPluginFile {
+  path: string
+  content: string
+}
+
+export interface AgentPluginFileList {
+  path: string
+  plugins: AgentPluginFileManifest[]
+}
+
+export interface AgentPluginFileInstallInput {
+  plugin: AgentPluginFileManifest
+  agentCatalogFiles?: AgentPluginFile[]
+}
+
+export interface AgentPluginFileInstallResult extends AgentPluginFileList {
+  plugin?: AgentPluginFileManifest
+  agentCatalogPackInstall?: unknown
+}
+
+export interface AgentPluginFileRemoveResult extends AgentPluginFileList {
+  removed: boolean
+  agentCatalogPackUninstall?: unknown
+}
+
 export type AgentRuntimeLimitsOverride = Partial<Pick<AgentRuntimeLimits, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'execution'>>
 
 export interface AgentThreadListQuery {
@@ -477,7 +509,7 @@ export interface AgentRunDebugEvidence {
 }
 
 export interface AgentTraceDebugView {
-  schema: 'movscript.agent-trace-debug-view.v1'
+  schema: 'movscript.agent-trace-debug-view.v2'
   generatedAt: string
   runId: string
   run: AgentRun
@@ -496,47 +528,6 @@ export interface AgentTraceDebugView {
     issues: string[]
   }
   readinessChecklist: Array<{ id: string; label: string; status: 'ok' | 'warning'; detail: string; action: string }>
-  modelCalls: Array<{
-    id: string
-    label: string
-    roundId?: string
-    roundIndex?: number
-    roundLabel?: string
-    correlateByEventWindow?: boolean
-    eventIds: string[]
-    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
-    statusLabel: string
-    requestEventId?: string
-    responseEventId?: string
-    resultEventId?: string
-    model?: string
-    messageCount?: string
-    toolCount?: string
-    httpStatus?: string
-    latency?: string
-    responseChars?: string
-    inputTokens?: string
-    outputTokens?: string
-    retryCount?: string
-    error?: string
-    issue?: string
-    hasRequestPayload: boolean
-    hasResponseBody: boolean
-  }>
-  modelCallContexts: Array<{
-    callId: string
-    label: string
-    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
-    statusLabel: string
-    correlationLabel: string
-    requestEventId?: string
-    responseEventId?: string
-    resultEventId?: string
-    modelEventIds: string[]
-    toolCalls: Array<{ eventId: string; toolName?: string; status: string; statusLabel: string; summary?: string }>
-    messageWrites: Array<{ eventId: string; messageId?: string; source?: string; sourceLabel?: string; contentChars: number; contentPreview?: string }>
-    issue?: string
-  }>
   runtimeSummary: {
     skills: {
       activeSkillIds: string[]
@@ -588,8 +579,8 @@ export interface AgentTraceDebugView {
     context: {
       promptEventId?: string
       contextMutationCount: number
-      roundContextUpdateCount: number
-      latestRoundContextUpdate?: {
+      contextProjectionCount: number
+      latestContextProjection?: {
         eventId: string
         title: string
         roundId?: string
@@ -632,140 +623,7 @@ export interface AgentTraceDebugView {
       attachmentProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
     }
   }
-  roundContextUpdates: Array<{
-    eventId: string
-    title: string
-    roundId?: string
-    roundIndex?: number
-    roundLabel?: string
-    messageCount?: string
-    systemMessageCount?: string
-    promptChars?: string
-    historyProjection?: {
-      inputCount: number
-      retainedCount: number
-      compactedCount: number
-      filteredCount: number
-      summaryChars: number
-      decisions: Array<Record<string, unknown>>
-    }
-    toolLoopProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
-    historicalVisualProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
-    attachmentProjection?: Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
-  }>
-  roundContextChanges: Array<{
-    round: AgentTraceDebugView['roundContextUpdates'][number]
-    previousRoundEventId?: string
-    mutationCount: number
-    appended: number
-    amended: number
-    deleted: number
-    affectedContextKeys: string[]
-    appendedContextKeys: string[]
-    amendedContextKeys: string[]
-    deletedContextKeys: string[]
-    latestMutationReason?: string
-    mutationEventIds: string[]
-    mutations: AgentTraceDebugView['contextMutations']
-  }>
-  skillTimeline: {
-    timeline: Array<{
-      eventId: string
-      createdAt: string
-      eventType: string
-      title: string
-      summary?: string
-      activeSkillIds: string[]
-      loadedSkillIds: string[]
-      unloadedSkillIds: string[]
-      availableSkillIds: string[]
-      omissions: Array<{
-        skillId: string
-        name: string
-        stage: string
-        reason: string
-        matched?: boolean
-        selected?: boolean
-        triggerReason?: string
-        dependencyIds: string[]
-        missingDependencyIds: string[]
-        inactiveDependencyIds: string[]
-        conflictSkillIds: string[]
-      }>
-    }>
-    currentActiveSkillIds: string[]
-    currentLoadedSkillIds: string[]
-    currentUnloadedSkillIds: string[]
-    currentAvailableSkillIds: string[]
-    currentOmissions: Array<{
-      skillId: string
-      name: string
-      stage: string
-      reason: string
-      matched?: boolean
-      selected?: boolean
-      triggerReason?: string
-      dependencyIds: string[]
-      missingDependencyIds: string[]
-      inactiveDependencyIds: string[]
-      conflictSkillIds: string[]
-    }>
-  }
-  promptDetails: Array<{
-    eventId: string
-    title: string
-    totalChars?: string
-    budgetDecisions: Array<{
-      action: string
-      stage?: string
-      partId: string
-      reason?: string
-      originalChars?: string
-      renderedChars?: string
-    }>
-    runtimeSkillState?: {
-      activeSkillIds: string[]
-      loadedSkillIds: string[]
-      unloadedSkillIds: string[]
-      availableSkillIds: string[]
-      omissions: Array<{
-        skillId: string
-        name: string
-        stage: string
-        reason: string
-        matched?: boolean
-        selected?: boolean
-        triggerReason?: string
-        dependencyIds: string[]
-        missingDependencyIds: string[]
-        inactiveDependencyIds: string[]
-        conflictSkillIds: string[]
-      }>
-      sourceEventId?: string
-    }
-    contextLedgerState?: {
-      mutationCount: number
-      mutationEventIds: string[]
-      latestMutationEventId?: string
-      latestMutationReason?: string
-    }
-  }>
-  contextMutations: Array<{
-    eventId: string
-    title: string
-    total: number
-    appended: number
-    amended: number
-    deleted: number
-    affectedContextKeys: string[]
-    appendedContextKeys: string[]
-    amendedContextKeys: string[]
-    deletedContextKeys: string[]
-    latest?: { id: string; type: 'append' | 'amend' | 'delete'; createdAt: string; reason?: string }
-    refs: Array<{ kind: 'context_bundle' | 'context' | 'content_hash' | 'result_hash'; label: string; key?: string; id?: string; type?: string; hash?: string }>
-  }>
-  messageWrites: unknown[]
-  toolCalls: unknown[]
+  runtimeFrames: AgentRuntimeFrame[]
   attentionEvents: Array<{
     eventId: string
     createdAt: string
@@ -784,6 +642,248 @@ export interface AgentTraceDebugView {
   events: AgentTraceEvent[]
   reportText: string
   bundle: Record<string, unknown>
+}
+
+export type AgentRuntimeFrameFocus = 'context' | 'model' | 'tool' | 'skill' | 'message' | 'approval' | 'attention' | 'raw'
+export type AgentRuntimeFrame = AgentRuntimeSetupFrame | AgentRuntimeRoundFrame | AgentRuntimeFinalizeFrame
+
+export interface AgentRuntimeFrameBase {
+  id: string
+  kind: 'setup' | 'round' | 'finalize'
+  label: string
+  startedAt: string
+  completedAt?: string
+  durationMs?: number
+  status: AgentTraceEvent['status']
+  focus: AgentRuntimeFrameFocus[]
+  eventIds: string[]
+  events: AgentTraceEvent[]
+  attentionEvents: AgentTraceDebugView['attentionEvents']
+}
+
+export interface AgentRuntimeSetupFrame extends AgentRuntimeFrameBase {
+  kind: 'setup'
+  skills: AgentRuntimeSkillTraceEntry[]
+  contextMutations: AgentRuntimeContextMutation[]
+}
+
+export interface AgentRuntimeRoundFrame extends AgentRuntimeFrameBase {
+  kind: 'round'
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  context: {
+    projection?: AgentRuntimeRoundContextProjection
+    prompt?: AgentRuntimePromptDetail
+    diff: AgentRuntimeContextDiff
+  }
+  skills: AgentRuntimeSkillTraceEntry[]
+  modelCalls: AgentRuntimeModelCall[]
+  modelContext: AgentRuntimeModelCallContext[]
+  toolCalls: AgentRuntimeToolCall[]
+  messageWrites: AgentRuntimeMessageWrite[]
+  approvals: AgentTraceDebugView['attentionEvents']
+}
+
+export interface AgentRuntimeFinalizeFrame extends AgentRuntimeFrameBase {
+  kind: 'finalize'
+  messageWrites: AgentRuntimeMessageWrite[]
+  pendingActions: unknown[]
+}
+
+export interface AgentRuntimeContextDiff {
+  previousContextProjectionEventId?: string
+  mutationCount: number
+  appended: number
+  amended: number
+  deleted: number
+  affectedContextKeys: string[]
+  appendedContextKeys: string[]
+  amendedContextKeys: string[]
+  deletedContextKeys: string[]
+  latestMutationReason?: string
+  mutationEventIds: string[]
+  changes: Array<{
+    eventId: string
+    op: 'append' | 'amend' | 'delete' | 'unknown'
+    key: string
+    reason?: string
+    ref?: AgentRuntimeTraceRef
+    before?: AgentRuntimeTraceRef
+    after?: AgentRuntimeTraceRef
+    preview?: string
+    raw?: unknown
+  }>
+  mutations: AgentRuntimeContextMutation[]
+}
+
+export type AgentRuntimeTraceRef = { kind: 'context_bundle' | 'context' | 'content_hash' | 'result_hash'; label: string; key?: string; id?: string; type?: string; hash?: string }
+export type AgentRuntimeContextMutation = { eventId: string; title: string; total: number; appended: number; amended: number; deleted: number; affectedContextKeys: string[]; appendedContextKeys: string[]; amendedContextKeys: string[]; deletedContextKeys: string[]; latest?: { id: string; type: 'append' | 'amend' | 'delete'; createdAt: string; reason?: string }; refs: AgentRuntimeTraceRef[] }
+export interface AgentRuntimeHistoryProjection {
+  inputCount: number
+  retainedCount: number
+  compactedCount: number
+  filteredCount: number
+  summaryChars: number
+  decisions: Array<Record<string, unknown>>
+}
+export type AgentRuntimeGenericProjection = Record<string, unknown> & { decisions: Array<Record<string, unknown>> }
+export type AgentRuntimeRoundContextProjection = Record<string, unknown> & {
+  eventId: string
+  title: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  messageCount?: string
+  systemMessageCount?: string
+  promptChars?: string
+  contextBundle?: AgentRuntimeTraceRef
+  historyProjection?: AgentRuntimeHistoryProjection
+  toolLoopProjection?: AgentRuntimeGenericProjection
+  historicalVisualProjection?: AgentRuntimeGenericProjection
+  attachmentProjection?: AgentRuntimeGenericProjection
+}
+export interface AgentRuntimeSkillOmission {
+  skillId: string
+  name: string
+  stage: string
+  reason: string
+  matched?: boolean
+  selected?: boolean
+  triggerReason?: string
+  dependencyIds: string[]
+  missingDependencyIds: string[]
+  inactiveDependencyIds: string[]
+  conflictSkillIds: string[]
+}
+export interface AgentRuntimeSkillContextProjection {
+  skillId: string
+  name: string
+  activationReason?: string
+  contextBehavior?: string
+  includedInPrompt: boolean
+  promptPartId?: string
+  promptLayer?: string
+  promptKind?: string
+  renderedChars?: string
+  omittedReason?: string
+  omittedStage?: string
+  originalChars?: string
+  priority?: string
+}
+export interface AgentRuntimePromptDetail {
+  eventId: string
+  title: string
+  contextBundle?: AgentRuntimeTraceRef
+  totalChars?: string
+  messageCount?: string
+  systemMessageCount?: string
+  blockedToolCount?: string
+  skills: string[]
+  skillContextProjection: AgentRuntimeSkillContextProjection[]
+  tools: string[]
+  layers: Array<{ label: string; value: string }>
+  contextLayers: Array<{ label: string; value: string }>
+  partGroups: Array<{ contextLayer: string; count: number; chars: string; partIds: string[] }>
+  parts: Array<{ id: string; layer?: string; contextLayer?: string; chars?: string }>
+  budgetDecisions: Array<{ action: string; stage?: string; partId: string; reason?: string; originalChars?: string; renderedChars?: string }>
+  historyProjection?: AgentRuntimeHistoryProjection
+  toolLoopProjection?: AgentRuntimeGenericProjection
+  historicalVisualProjection?: AgentRuntimeGenericProjection
+  attachmentProjection?: AgentRuntimeGenericProjection
+  runtimeSkillState?: {
+    activeSkillIds: string[]
+    loadedSkillIds: string[]
+    unloadedSkillIds: string[]
+    availableSkillIds: string[]
+    omissions: AgentRuntimeSkillOmission[]
+    sourceEventId?: string
+  }
+  contextLedgerState?: {
+    mutationCount: number
+    mutationEventIds: string[]
+    latestMutationEventId?: string
+    latestMutationReason?: string
+  }
+}
+export type AgentRuntimeSkillTraceEntry = {
+  eventId: string
+  createdAt: string
+  eventType: string
+  title: string
+  summary?: string
+  activeSkillIds: string[]
+  loadedSkillIds: string[]
+  unloadedSkillIds: string[]
+  availableSkillIds: string[]
+  omissions: AgentRuntimeSkillOmission[]
+}
+export interface AgentRuntimeModelCall {
+  id: string
+  label: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  correlateByEventWindow?: boolean
+  eventIds: string[]
+  status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
+  statusLabel: string
+  requestEventId?: string
+  responseEventId?: string
+  resultEventId?: string
+  model?: string
+  messageCount?: string
+  toolCount?: string
+  httpStatus?: string
+  latency?: string
+  responseChars?: string
+  inputTokens?: string
+  outputTokens?: string
+  retryCount?: string
+  error?: string
+  issue?: string
+  hasRequestPayload: boolean
+  hasResponseBody: boolean
+}
+export interface AgentRuntimeModelCallContext {
+  callId: string
+  label: string
+  status: AgentRuntimeModelCall['status']
+  statusLabel: string
+  correlationLabel: string
+  requestEventId?: string
+  responseEventId?: string
+  resultEventId?: string
+  modelEventIds: string[]
+  toolCalls: Array<{ eventId: string; toolName?: string; status: string; statusLabel: string; summary?: string }>
+  messageWrites: Array<{ eventId: string; messageId?: string; source?: string; sourceLabel?: string; contentChars: number; contentPreview?: string }>
+  issue?: string
+}
+export interface AgentRuntimeToolCall {
+  eventId: string
+  toolName?: string
+  title: string
+  status: AgentTraceEvent['status']
+  statusLabel: string
+  source?: string
+  sandboxed?: boolean
+  durationMs?: number
+  summary?: string
+  argsPreview?: string
+  dataPreview?: string
+  resultHash?: string
+  resultChars?: number
+  refs: AgentRuntimeTraceRef[]
+}
+export interface AgentRuntimeMessageWrite {
+  eventId: string
+  messageId?: string
+  source?: string
+  sourceLabel?: string
+  contentChars: number
+  contentPreview?: string
+  contentHash?: string
+  refs: AgentRuntimeTraceRef[]
 }
 
 export interface AgentRunGenerationView {

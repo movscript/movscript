@@ -4,8 +4,8 @@ import { parseAgentCommand } from '../../../../context/command/commandRouter.js'
 import { buildPromptMemoryIndex } from '../../../../context/prompt/hygiene/promptHygiene.js'
 import { extractAgentContext, isValidAgentProjectId } from '../../../../context/runtime/runtimeContext.js'
 import { modelTurnContext } from '../../../../context/prompt/turn/modelTurnContext.js'
-import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
+import type { RuntimeFocusContextPort } from '../../../../ports/context/focusContextPort.js'
 import { planPreviewToolRequests } from '../../../../orchestration/model/planning/preview/previewPlanner.js'
 import { resolveRuntimeLayers } from '../../../../skills/resolution/layers/runtimeLayerResolver.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
@@ -29,8 +29,8 @@ import { runtimeLimitDefaultsFromConfigFile } from '../../shared/configFileRunti
 export async function buildRuntimeRunPreview(input: {
   store: Pick<AgentStore, 'getThread'>
   mcpClient: Pick<import('../../../../adapters/mcp/client/mcpClient.js').MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
+  focusContextPort: RuntimeFocusContextPort
   memoryManager: MemoryManager
-  workspaceStore: AgentWorkspaceStore
   catalogSnapshot: AgentRuntimeCatalogSnapshot
   contractResolver: AgentRuntimeContractResolver
   updateState?: AgentCapabilitiesResponse['updates']
@@ -52,8 +52,7 @@ export async function buildRuntimeRunPreview(input: {
     inputManifest: input.previewInput.agentManifest,
     activeAgentManifest: input.catalogSnapshot.activeAgentManifest,
   })
-  await input.mcpClient.initialize()
-  const contextResult = await input.mcpClient.callTool('get_focus_context', {})
+  const contextResult = await input.focusContextPort.getFocusContext()
   const context = extractAgentContext(contextResult)
   const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
   const relevantMemories = shouldLoadRuntimeMemories(command, message)
@@ -119,7 +118,6 @@ export async function buildRuntimeRunPreview(input: {
       command,
       currentProjectId,
       registry: input.catalogSnapshot.toolRegistry,
-      workspaceStore: input.workspaceStore,
       contractResolver: input.contractResolver,
       makeApprovalId: input.makeApprovalId,
       now: input.now,

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BackendApplyAuthContext, BackendApplyClient, BackendResourceFileDownloadResult } from '../../workspaces/adapters/backend/backendApplyClient.js'
+import type { ResourceFileDownloadAuthContext, ResourceFileDownloadPort, ResourceFileDownloadResult } from '../../ports/files/resourceDownloadPort.js'
 
 export type VideoFrameExtractionMode = 'overview' | 'timestamps' | 'range' | 'burst'
 export type VideoFrameOutputLayout = 'individual' | 'contact_sheet' | 'both'
@@ -22,8 +22,8 @@ export interface VideoFrameExtractionRequest {
   outputLayout?: VideoFrameOutputLayout
   maxWidth: number
   imageFormat: 'jpeg' | 'png'
-  backendApplyClient: Pick<BackendApplyClient, 'downloadResourceFile'>
-  auth?: BackendApplyAuthContext
+  resourceFileDownloader: ResourceFileDownloadPort
+  auth?: ResourceFileDownloadAuthContext
   signal?: AbortSignal
 }
 
@@ -62,7 +62,7 @@ export interface VideoFrameExtraction {
   resourceId: number
   frameCount: number
   frames: ExtractedVideoFrame[]
-  download: BackendResourceFileDownloadResult
+  download: ResourceFileDownloadResult
   durationSec?: number
   video?: VideoFrameSourceMetadata
   sampling: VideoFrameSamplingPlan
@@ -82,7 +82,7 @@ export async function extractVideoFramesFromBackendResource(input: VideoFrameExt
   const dir = await mkdtemp(join(tmpdir(), 'movscript-video-frames-'))
   const inputPath = join(dir, `resource-${input.resourceId}.video`)
   try {
-    const download = await input.backendApplyClient.downloadResourceFile(input.resourceId, inputPath, input.auth, { signal: input.signal })
+    const download = await input.resourceFileDownloader.downloadResourceFile(input.resourceId, inputPath, input.auth, { signal: input.signal })
     if (!download.performed) {
       throw new Error(download.skippedReason ?? 'backend resource download was not performed')
     }

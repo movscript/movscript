@@ -67,8 +67,8 @@ import type { JSONValue, MCPResource, MCPTool } from '../../shared/protocol/type
 import type { AgentManifest } from '../../catalog/manifest/agentManifest.js'
 import type { RegisteredTool } from '../../tools/registry/core/toolRegistry.js'
 import type { AgentCatalogStateStore } from '../../catalog/registry/state/catalogState.js'
-import type { AgentWorkspaceStore } from '../../workspaces/store/workspaceStore.js'
-import type { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
+import type { ResourceFileDownloadPort } from '../../ports/files/resourceDownloadPort.js'
+import type { RuntimeFocusContextPort } from '../../ports/context/focusContextPort.js'
 import type { AgentRuntimeContractResolver } from '../../contracts/runtime/runtimeContract.js'
 import type { AgentUpdateState } from '../../updates/policy/updatePolicy.js'
 
@@ -311,17 +311,13 @@ export interface AgentRuntimeRouterOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('../store/core/store.js').AgentStore
   toolResultStore?: import('../store/tool-results/toolResultStore.js').AgentToolResultStore
-  workspaceStore?: AgentWorkspaceStore
-  backendApplyClient?: BackendApplyClient
+  resourceFileDownloadPort?: ResourceFileDownloadPort
   externalToolGatewayPort?: import('../../ports/tools/externalToolGatewayPort.js').ExternalToolGatewayPort
-  workspaceApplyPort?: import('../../ports/workspace/apply/workspaceApplyPort.js').WorkspaceApplyPort
-  workspaceApplyPreviewPort?: import('../../ports/workspace/preview/workspaceApplyPreviewPort.js').WorkspaceApplyPreviewPort
-  workspaceSnapshotHydrationPort?: import('../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js').WorkspaceWorkspaceSnapshotHydrationPort
+  focusContextPort?: RuntimeFocusContextPort
   resourceFilePort?: import('../../ports/files/resourceFilePort.js').CoreResourceFilePort
   imageProcessingPort?: import('../../ports/media/imageProcessingPort.js').CoreImageProcessingPort
   videoFrameExtractionPort?: import('../../ports/media/videoFrameExtractionPort.js').CoreVideoFrameExtractionPort
   runtimeToolHandlers?: import('../../ports/runtime/runtimeToolHandlerPort.js').RuntimeToolHandlerRegistry
-  referenceManager?: import('../../reference/manager/referenceManager.js').ReferenceManager
   memoryStore?: import('../../memory/store/in-memory/memoryStore.js').AgentMemoryStore
   activeAgentManifest?: AgentManifest
   toolRegistry?: import('../../tools/registry/core/toolRegistry.js').ToolRegistry

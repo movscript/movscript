@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  AlertCircle, Blocks, Download, Loader2, Plus, Search, Store, Trash2, ExternalLink, Play, Upload,
+  AlertCircle, Blocks, Download, Loader2, Plus, Search, Store, Trash2, ExternalLink, Upload,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -9,9 +8,7 @@ import {
   saveClientPlugin,
   removeClientPlugin,
   isClientPluginRemovable,
-  isClientPluginRunnable,
   migrateFromLocalStorage,
-  installPluginFromURL,
   installPluginFromFile,
   type ClientPluginManifest,
 } from '@/features/plugins/application/clientPlugins'
@@ -55,81 +52,19 @@ import {
   PluginSearchIconSlot,
   PluginTabGroup,
   PluginTagMeta,
-  PluginToneText,
 } from '@movscript/ui'
 import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 
 type Tab = 'installed' | 'marketplace'
 
-// ── Install from URL dialog ───────────────────────────────────────────────────
-
-function InstallURLDialog({ onInstalled, onClose }: {
-  onInstalled: (plugin: ClientPluginManifest) => void
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string>()
-
-  async function handleInstall() {
-    if (!url.trim()) return
-    setLoading(true)
-    setError(undefined)
-    try {
-      const plugin = await installPluginFromURL(url.trim())
-      onInstalled(plugin)
-    } catch (err: any) {
-      setError(t('plugins.errors.installFailed', { message: err?.message ?? 'unknown error' }))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <PluginDialogOverlay onClick={onClose}>
-      <PluginDialogSurface
-        className="mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <PluginDialogTitle>{t('plugins.installFromUrlTitle')}</PluginDialogTitle>
-        <PluginDialogDescription>{t('plugins.installFromUrlDescription')}</PluginDialogDescription>
-        <Input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder={t('plugins.urlPlaceholder')}
-          className="type-body mb-3"
-          onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
-          autoFocus
-        />
-        {error && (
-          <PluginToneText tone="danger" className="mb-3 flex items-center gap-1.5 type-label">
-            <AlertCircle size={14} />
-            {error}
-          </PluginToneText>
-        )}
-        <PluginDialogActions>
-          <Button size="sm" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button size="sm" onClick={handleInstall} disabled={loading || !url.trim()}>
-            {loading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Download size={14} className="mr-1.5" />}
-            {loading ? t('plugins.installing') : t('plugins.install')}
-          </Button>
-        </PluginDialogActions>
-      </PluginDialogSurface>
-    </PluginDialogOverlay>
-  )
-}
-
 // ── Installed plugin card ─────────────────────────────────────────────────────
 
-function PluginCard({ plugin, onRemove, onOpen }: {
+function PluginCard({ plugin, onRemove }: {
   plugin: ClientPluginManifest
   onRemove: () => void
-  onOpen: () => void
 }) {
   const { t } = useTranslation()
   const removable = isClientPluginRemovable(plugin)
-  const runnable = isClientPluginRunnable(plugin)
   return (
     <PluginCardSurface>
       <PluginCardHeader>
@@ -163,14 +98,7 @@ function PluginCard({ plugin, onRemove, onOpen }: {
 
       <PluginCardFooter>
         <PluginCardId>{plugin.id}</PluginCardId>
-        {runnable ? (
-          <Button size="sm" onClick={onOpen}>
-            <Play size={12} className="mr-1.5" />
-            {t('plugins.open')}
-          </Button>
-        ) : (
-          <PluginStatusMeta>{t('plugins.agentSkills')}</PluginStatusMeta>
-        )}
+        <PluginStatusMeta>{t('plugins.agentSkills')}</PluginStatusMeta>
       </PluginCardFooter>
     </PluginCardSurface>
   )
@@ -283,10 +211,8 @@ function MarketplaceView({ installedIds, onInstall }: {
 
 export default function ClientPluginsPage() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('installed')
   const [plugins, setPlugins] = useState<ClientPluginManifest[]>([])
-  const [showURLDialog, setShowURLDialog] = useState(false)
   const [migrationNote, setMigrationNote] = useState<string>()
   const [fileInstalling, setFileInstalling] = useState(false)
   const [fileError, setFileError] = useState<string>()
@@ -328,7 +254,6 @@ export default function ClientPluginsPage() {
 
   function handleInstalled(plugin: ClientPluginManifest) {
     setPlugins((prev) => [...prev.filter((p) => p.id !== plugin.id), plugin])
-    setShowURLDialog(false)
   }
 
   function handleMarketplaceInstall(plugin: ClientPluginManifest) {
@@ -353,8 +278,6 @@ export default function ClientPluginsPage() {
 
   return (
     <PluginPageLayout>
-      {showURLDialog && <InstallURLDialog onInstalled={handleInstalled} onClose={() => setShowURLDialog(false)} />}
-
       <PluginPageHeader>
         <PluginPageHeaderInner>
           <PluginPageHeaderCopy>
@@ -363,7 +286,7 @@ export default function ClientPluginsPage() {
               <h1 className="type-title font-semibold text-foreground">{t('plugins.title')}</h1>
             </PluginPageHeaderTitleRow>
             <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">
-              管理应用插件、画布节点、工具页，以及可安装到 Agent 的 Skills 和工具扩展。
+              前端只管理 agent 插件文件和配置，插件运行、嵌入与工具扩展由 agent 侧处理。
             </p>
           </PluginPageHeaderCopy>
           <PluginPageHeaderActions>
@@ -379,10 +302,6 @@ export default function ClientPluginsPage() {
                 ? <Loader2 size={14} className="mr-1.5 animate-spin" />
                 : <Upload size={14} className="mr-1.5" />}
               {t('plugins.installFromFile')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowURLDialog(true)}>
-              <Download size={14} className="mr-1.5" />
-              {t('plugins.installFromUrl')}
             </Button>
           </PluginPageHeaderActions>
         </PluginPageHeaderInner>
@@ -455,10 +374,6 @@ export default function ClientPluginsPage() {
                     <Upload size={14} className="mr-1.5" />
                     {t('plugins.installFromFile')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setShowURLDialog(true)}>
-                    <Download size={14} className="mr-1.5" />
-                    {t('plugins.installFromUrl')}
-                  </Button>
                   <Button size="sm" onClick={() => setTab('marketplace')}>
                     <Store size={14} className="mr-1.5" />
                     {t('plugins.browseMarketplace')}
@@ -473,7 +388,6 @@ export default function ClientPluginsPage() {
                   key={plugin.id}
                   plugin={plugin}
                   onRemove={() => handleRemove(plugin.id)}
-                  onOpen={() => navigate(`/tools/plugin/${encodeURIComponent(plugin.id)}`)}
                 />
               ))}
             </PluginPageCardGrid>

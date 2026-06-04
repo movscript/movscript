@@ -6,7 +6,7 @@ import type {
 
 type AgentRuntimeStreamMessageHandler = (message: ElectronAgentRuntimeStreamMessage) => void
 
-export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage' | 'listAgentRuntimeSessions' | 'getAgentWorkspaceConfig' | 'saveAgentWorkspaceConfig'> {
+export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage' | 'listAgentRuntimeSessions' | 'getAgentWorkspaceConfig' | 'saveAgentWorkspaceConfig' | 'listAgentWorkspaceFiles' | 'readAgentWorkspaceFile' | 'writeAgentWorkspaceFile' | 'deleteAgentWorkspaceFile'> {
   const streamMessageHandlers = new Set<AgentRuntimeStreamMessageHandler>()
   let streamMessageListenerInstalled = false
   const streamMessageListener = (_event: unknown, message: ElectronAgentRuntimeStreamMessage) => {
@@ -31,6 +31,10 @@ export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAP
     listAgentRuntimeSessions: (input) => ipcRenderer.invoke('agent:runtime-list-sessions', input),
     getAgentWorkspaceConfig: (input) => ipcRenderer.invoke('agent:workspace-config-get', input),
     saveAgentWorkspaceConfig: (input) => ipcRenderer.invoke('agent:workspace-config-save', input),
+    listAgentWorkspaceFiles: (input) => ipcRenderer.invoke('agent:workspace-files-list', input),
+    readAgentWorkspaceFile: (input) => ipcRenderer.invoke('agent:workspace-files-read', input),
+    writeAgentWorkspaceFile: (input) => ipcRenderer.invoke('agent:workspace-files-write', input),
+    deleteAgentWorkspaceFile: (input) => ipcRenderer.invoke('agent:workspace-files-delete', input),
     onAgentRuntimeStreamMessage: (handler: AgentRuntimeStreamMessageHandler) => {
       streamMessageHandlers.add(handler)
       ensureStreamMessageListener()

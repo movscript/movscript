@@ -1401,7 +1401,7 @@
       },
       "toolConsole": {
         "warning": "Only external MCP tools with source=mcp are listed here. Calls are still forwarded by Agent Runtime, but local Runtime workspace / memory / taskGraph tools are hidden.",
-        "runtimeBoundary": "Workspace capabilities currently live in Agent Runtime local tools, such as get_workspace_model, workspace_open, and workspace_validate. They are not external MCP calls and should be verified in a separate Workspace Runtime debug entry.",
+        "runtimeBoundary": "Workspace capabilities are served by the frontend MCP/file manager boundary. Agent Runtime no longer owns workspace_open, workspace_validate, or workspace_apply local tools.",
         "tool": "MCP tool",
         "args": "JSON args",
         "run": "Run Tool",
@@ -1604,6 +1604,16 @@
       "copySettingsStatus": "Copy Status",
       "settingsStatusCopied": "Status Copied",
       "refresh": "Refresh",
+      "agentRuntimeLabel": "Agent",
+      "selectAgentRuntime": "Select Agent",
+      "agentRuntimeProfiles": {
+        "movscriptAgent": "MovScript Agent",
+        "codex": "Codex"
+      },
+      "agentRuntimeProfileDescriptions": {
+        "movscriptAgent": "Configures sessions and config files under .movscript/movscript-agent.",
+        "codex": "Configures sessions and config files under .movscript/.codex."
+      },
       "modelPanel": "Runtime Model",
       "modelLabel": "Runtime text model",
       "modelHelp": "When Base URL is empty or points to the MovScript backend, select an enabled backend text/reasoning model and save it into Runtime model settings.",
@@ -3635,12 +3645,12 @@
   },
   "plugins": {
     "title": "Plugins",
-    "subtitle": "Plugin install, execution, and deletion stay in this client (IndexedDB)",
+    "subtitle": "Plugin install, listing, and deletion are forwarded to the agent plugin files.",
     "installed": "Installed",
     "sample": "Reference Image",
     "empty": "No plugins installed yet",
     "insertTitle": "Paste Manifest",
-    "insertDescription": "Paste a client plugin manifest JSON. Saving writes only to this client's IndexedDB.",
+    "insertDescription": "Paste a plugin manifest JSON. Saving writes it to the agent plugin files.",
     "save": "Save",
     "noSelection": "No plugin selected",
     "selectHint": "Select a plugin on the left or install one first",

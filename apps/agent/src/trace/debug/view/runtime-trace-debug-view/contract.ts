@@ -1,18 +1,15 @@
 import type { AgentDebugFieldGuideItem } from './types.js'
 
-export const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
-export const DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json'
+export const DEBUG_BUNDLE_SCHEMA_V2 = 'movscript.agent-run-debug-bundle.v2'
+export const DEBUG_BUNDLE_SCHEMA_URL_V2 = 'https://movscript.dev/schemas/agent-run-debug-bundle-v2.schema.json'
 export const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
   'readinessChecklist',
   'runtimeSummary',
-  'roundContextUpdates',
-  'roundContextChanges',
-  'modelCallContexts',
-  'promptDetails',
-  'contextMutations',
-  'messageWrites',
-  'toolCalls',
+  'runtimeFrames',
+  'fullDebugEvents',
+  'fullContextDiffs',
+  'fullPromptPayloads',
   'attentionEvents',
   'pendingActions',
   'fieldGuide',

@@ -6,9 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { AgentRuntimeRouter } from '../../application/router/runtimeRouter.js'
 import { InMemoryAgentMemoryStore } from '../../memory/store/in-memory/memoryStore.js'
 import { InMemoryAgentStore } from '../../state/store/core/store.js'
-import { InMemoryAgentWorkspaceStore } from '../../workspaces/store/workspaceStore.js'
-import { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
-import type { ApplyWorkspaceReview } from '../../workspaces/apply/workspaceApply.js'
+import type { ResourceFileDownloadPort } from '../../ports/files/resourceDownloadPort.js'
 import { DEFAULT_AGENT_MANIFEST } from '../../catalog/manifest/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from '../../contracts/runtime/runtimeContract.js'
 import { InMemoryAgentCatalogStateStore } from '../../catalog/registry/state/catalogState.js'
@@ -40,26 +38,20 @@ class StubMCPClient {
   }
 }
 
-class StubBackendApplyClient extends BackendApplyClient {
-  readonly calls: ApplyWorkspaceReview[] = []
-
-  override async applyReview(review: ApplyWorkspaceReview) {
-    this.calls.push(review)
+const disabledResourceFileDownloadPort: ResourceFileDownloadPort = {
+  async downloadResourceFile() {
     return {
-      performed: true,
-      method: 'PATCH' as const,
-      url: 'http://backend/api/v1/projects/42/entities/content-units/7',
-      payload: { description: review.proposedValue },
+      performed: false,
+      skippedReason: 'resource download disabled in test',
     }
-  }
+  },
 }
 
 test('memories endpoints stay project-scoped', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -104,8 +96,7 @@ test('memory list accepts non-project scopes without server errors', async () =>
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -141,8 +132,7 @@ test('create memory requires projectId through the HTTP layer', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -185,13 +175,12 @@ test('create memory requires projectId through the HTTP layer', async () => {
   }
 })
 
-test('workspace apply endpoint is an application-layer action outside agent runs', async () => {
-  const backendApplyClient = new StubBackendApplyClient()
+test('workspace apply endpoint moved out of Agent HTTP API', async () => {
+  const resourceFileDownloadPort = disabledResourceFileDownloadPort
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient,
+    resourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -200,25 +189,14 @@ test('workspace apply endpoint is an application-layer action outside agent runs
     updateState: buildUpdateState(),
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
-  const workspace = runtime.createLocalWorkspace({
-    projectId: 42,
-    kind: 'content_unit_workspace',
-    title: 'Description update',
-    content: 'New description',
-    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
-  })
 
-  const res = await dispatch(handler, 'POST', `/workspaces/${workspace.id}/apply`, {
+  const res = await dispatch(handler, 'POST', '/workspaces/legacy-workspace/apply', {
     currentValue: 'Old description',
   })
-  const json = JSON.parse(res.body) as { status: string; workspace: { status: string; metadata?: { lastApplyStatus?: string } } }
+  const json = JSON.parse(res.body) as { error: string; replacement: string }
 
-  assert.equal(res.statusCode, 200)
-  assert.equal(json.status, 'applied')
-  assert.equal(json.workspace.status, 'workspace')
-  assert.equal(json.workspace.metadata?.lastApplyStatus, 'applied')
-  assert.equal(runtime.getWorkspace(workspace.id)?.status, 'workspace')
-  assert.equal(backendApplyClient.calls.length, 1)
+  assert.equal(res.statusCode, 410)
+  assert.equal(json.error, 'agent workspace API has moved to the frontend MCP/file manager boundary')
   assert.equal(runtime.listRuns().length, 0)
 })
 
@@ -226,8 +204,7 @@ test('run updateTaskGraph endpoint uses taskGraph root planner when called on a 
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -269,8 +246,7 @@ test('HTTP updateTaskGraph rejects invalid addTasks without partial task creatio
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -348,8 +324,7 @@ test('legacy public run endpoint is no longer an execution entrypoint', async ()
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -375,8 +350,7 @@ test('legacy public tool run endpoint is no longer an execution entrypoint', asy
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -409,8 +383,7 @@ test('HTTP taskGraph creation rejects invalid task graphs without writing taskGr
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -476,8 +449,7 @@ test('HTTP taskGraph snapshot exposes reusable summary', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -539,8 +511,7 @@ test('HTTP cancel-tree only accepts the taskGraph root planner run', async () =>
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store,
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -593,8 +564,7 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -640,8 +610,7 @@ test('HTTP task update cannot corrupt the task graph', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -718,8 +687,7 @@ test('runtime shutdown endpoint accepts local non-browser management requests', 
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -746,8 +714,7 @@ test('runtime shutdown endpoint rejects cross-site browser requests', async () =
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloadPort: disabledResourceFileDownloadPort,
     memoryStore: new InMemoryAgentMemoryStore(),
     activeAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: { get: () => undefined, list: () => [] } as never,
@@ -788,7 +755,7 @@ function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerConte
     client: new StubMCPClient() as never,
     toolProviderRegistry: new MCPToolProviderRegistry(),
     runtimeRouter,
-    backendApplyClient: new BackendApplyClient(),
+    resourceFileDownloader: disabledResourceFileDownloadPort,
     modelConfigStore: new RuntimeModelConfigStore('/tmp/model-config.json'),
     telemetry: new RuntimeTelemetryRegistry(),
     pluginCatalog: {

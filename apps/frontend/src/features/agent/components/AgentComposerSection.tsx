@@ -78,6 +78,9 @@ export interface AgentComposerSectionProps {
   onSend: () => void
   onStopLocalRun: () => void
   onUploadFiles: (files: FileList) => void
+  showAttachmentTools?: boolean
+  showDebugPreview?: boolean
+  showMentionTools?: boolean
 }
 
 export function AgentComposerSection({
@@ -118,6 +121,9 @@ export function AgentComposerSection({
   onSend,
   onStopLocalRun,
   onUploadFiles,
+  showAttachmentTools = true,
+  showDebugPreview = true,
+  showMentionTools = true,
 }: AgentComposerSectionProps) {
   const { t } = useTranslation()
   const editorDisabled = buildingSendWorkspace || (answeringPendingInput && !canAnswerPendingInputWithText)
@@ -309,39 +315,45 @@ export function AgentComposerSection({
         </div>
         <AgentComposerToolbar>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            <AgentComposerAction
-              onClick={() => fileRef.current?.click()}
-              disabled={answeringPendingInput || uploading || loading || buildingSendWorkspace}
-              aria-label={t('agents.chat.uploadAttachment')}
-              title={t('agents.chat.uploadAttachment')}
-            >
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            </AgentComposerAction>
-            <AgentComposerAction
-              onClick={addMentionTrigger}
-              disabled={answeringPendingInput || buildingSendWorkspace}
-              aria-label={t('shared.genInput.mention')}
-              title={t('shared.genInput.mention')}
-            >
-              <AtSign size={14} />
-            </AgentComposerAction>
+            {showAttachmentTools ? (
+              <AgentComposerAction
+                onClick={() => fileRef.current?.click()}
+                disabled={answeringPendingInput || uploading || loading || buildingSendWorkspace}
+                aria-label={t('agents.chat.uploadAttachment')}
+                title={t('agents.chat.uploadAttachment')}
+              >
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              </AgentComposerAction>
+            ) : null}
+            {showMentionTools ? (
+              <AgentComposerAction
+                onClick={addMentionTrigger}
+                disabled={answeringPendingInput || buildingSendWorkspace}
+                aria-label={t('shared.genInput.mention')}
+                title={t('shared.genInput.mention')}
+              >
+                <AtSign size={14} />
+              </AgentComposerAction>
+            ) : null}
             {composerAttachmentsCount > 0 && (
               <Badge className="max-w-24 truncate type-tiny">
                 {t('agents.chat.attachmentsCount', { count: composerAttachmentsCount })}
               </Badge>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant={debugBeforeSend ? 'soft' : 'ghost'}
-              onClick={() => onDebugBeforeSendChange(!debugBeforeSend)}
-              disabled={answeringPendingInput}
-              className="px-2 type-tiny"
-              title={t('agents.chat.previewPayload')}
-            >
-              <Eye size={12} />
-              {t('agents.chat.debugPreview')}
-            </Button>
+            {showDebugPreview ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={debugBeforeSend ? 'soft' : 'ghost'}
+                onClick={() => onDebugBeforeSendChange(!debugBeforeSend)}
+                disabled={answeringPendingInput}
+                className="px-2 type-tiny"
+                title={t('agents.chat.previewPayload')}
+              >
+                <Eye size={12} />
+                {t('agents.chat.debugPreview')}
+              </Button>
+            ) : null}
             {canStopLocalRun && (
               <AgentComposerAction
                 onClick={onStopLocalRun}

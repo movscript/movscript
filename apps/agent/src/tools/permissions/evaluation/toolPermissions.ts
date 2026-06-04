@@ -53,6 +53,23 @@ export function applyToolPermissions(
       continue
     }
     if (!tool) {
+      if (catalogTool && isCatalogExternalTool(catalogTool)) {
+        const grant = findToolGrant(manifest, call.name)
+        if (grant?.mode === 'deny' || !grant) {
+          block(call, 'not_granted', `${call.name} 未被当前 agent manifest 授权`)
+          continue
+        }
+        if (
+          catalogTool.requiresApproval
+          && !approvedToolNames.has(call.name)
+          && !isAutoApprovedByRuntimeLimits(catalogToolRisk(catalogTool), options.approvalMode)
+        ) {
+          block(call, 'approval_required', `${call.name} 需要用户确认后才能执行`)
+          continue
+        }
+        toolCalls.push(call)
+        continue
+      }
       block(call, 'unknown_tool', `${call.name} 未注册到当前 agent 工具表中`)
       continue
     }
@@ -104,6 +121,21 @@ export function applyToolPermissions(
     const blockedTool = registry.get(call.name)
     blockedToolCalls.push({ call, reason, message, ...(blockedTool ? { tool: blockedTool } : {}) })
   }
+}
+
+function isCatalogExternalTool(tool: ResolvedToolCatalog['available'][number]): boolean {
+  return tool.source === 'mcp' || tool.source === 'plugin'
+}
+
+function catalogToolRisk(tool: ResolvedToolCatalog['available'][number]): RegisteredTool['risk'] {
+  return tool.risk === 'read'
+    || tool.risk === 'write'
+    || tool.risk === 'destructive'
+    || tool.risk === 'generate'
+    || tool.risk === 'workspace'
+    || tool.risk === 'ui'
+    ? tool.risk
+    : 'write'
 }
 
 function explicitReadProjectId(tool: RegisteredTool, call: ToolCall): number | undefined {

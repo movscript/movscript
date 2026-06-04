@@ -1,5 +1,5 @@
-import type { JSONValue } from '../../../../../shared/protocol/types.js'
 import type { NormalizedClientInput } from '../../../../../context/input/client/normalizeClientInput.js'
+import type { RuntimeFocusContextPort } from '../../../../../ports/context/focusContextPort.js'
 import type { AgentCommandRuntime } from '../../../../../context/command/commandRouter.js'
 import {
   extractAgentContext,
@@ -54,10 +54,7 @@ export async function resolveRuntimeRunContextPackage(input: {
   setupRound: AgentRunRoundInfo
   timestampMs: () => number
   now: () => string
-  mcpClient: {
-    initialize(options?: { signal?: AbortSignal }): Promise<unknown>
-    callTool(name: string, args?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue>
-  }
+  focusContextPort: RuntimeFocusContextPort
   memoryManager: Pick<MemoryManager, 'loadRelevantMemories'>
   signal?: AbortSignal
   recordTrace: (run: AgentRun, trace: RuntimeRunContextPackageTraceInput) => void
@@ -69,7 +66,7 @@ export async function resolveRuntimeRunContextPackage(input: {
     setupRound: input.setupRound,
     timestampMs: input.timestampMs,
     now: input.now,
-    mcpClient: input.mcpClient,
+    focusContextPort: input.focusContextPort,
     signal: input.signal,
     recordTrace: input.recordTrace,
     updateRun: (targetRun) => input.store.updateRun(targetRun),

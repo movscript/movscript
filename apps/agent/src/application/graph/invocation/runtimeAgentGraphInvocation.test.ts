@@ -4,8 +4,6 @@ import { DEFAULT_AGENT_MANIFEST } from '../../../catalog/manifest/agentManifest.
 import { createEmptyCatalogRegistry } from '../../../catalog/registry/core/registry.js'
 import type { AgentCommandRuntime } from '../../../context/command/commandRouter.js'
 import type { AgentRuntimeContract, AgentRuntimeContractResolver } from '../../../contracts/runtime/runtimeContract.js'
-import { InMemoryAgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
-import { ReferenceManager } from '../../../reference/manager/referenceManager.js'
 import { MemoryManager } from '../../../memory/manager/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../../../memory/store/in-memory/memoryStore.js'
 import type { AgentGraphInput } from '../../../orchestration/graph/types/agentGraphTypes.js'
@@ -29,26 +27,13 @@ import {
   type RuntimeAgentGraphInvocationTraceInput,
 } from './runtimeAgentGraphInvocation.js'
 import {
-  createDefaultWorkspaceApplyPort,
-  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
 } from '../../shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultWorkspaceApplyBackend = {
-  async applyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-  async previewApplyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
-const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
-const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 
 const setupRound = { roundId: 'round_0', roundIndex: 0, roundLabel: 'Setup', roundSource: 'setup' as const }
 const command: AgentCommandRuntime = {
@@ -311,19 +296,12 @@ function baseInvocationInput(run: AgentRun, options: { currentPlan?: AgentPlan }
     userMessage: 'hello',
     auth: {},
     runtimeLimits: run.runtimeLimits,
-    mcpClient,
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    workspaceApplyPort: defaultWorkspaceApplyPort,
-    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
-    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    mcpClient,    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),    resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     registry: new StaticToolRegistry([tool('tool_a')]),
     runtimeToolHandlers: defaultRuntimeToolHandlers,
     contractResolver: emptyContractResolver(),
     memoryManager,
-    referenceManager: new ReferenceManager({ listLocalReferenceSets: () => [], search: () => [] } as any),
     catalogManager: emptyCatalogManager(),
     catalogSnapshots: new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
       id: 'snapshot_1',

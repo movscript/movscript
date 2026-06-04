@@ -9,7 +9,7 @@ test('image preprocessing reuses immutable backend resource bytes for repeated r
   let downloads = 0
   let sharpFactoryLoads = 0
   const port = createSharpImageProcessingPort({
-    backendApplyClient: {
+    resourceFileDownloader: {
       downloadResourceFile: async (resourceId, targetPath) => {
         downloads += 1
         assert.equal(resourceId, 42)

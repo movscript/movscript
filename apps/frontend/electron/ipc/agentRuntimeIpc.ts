@@ -38,29 +38,29 @@ export function registerAgentRuntimeIpcHandlers(): void {
   ipcMain.handle('agent:runtime-close-event-stream', (_event, input?: ElectronAgentRuntimeStreamCloseInput) => {
     closeAgentRuntimeEventStream(input)
   })
-  ipcMain.handle('agent:runtime-list-sessions', (_event, input?: { workspaceDir?: string }) => {
-    return { sessions: listAgentSessionRuntimeSummaries(input?.workspaceDir || resolveDesktopDefaultAgentWorkspaceDir()) }
+  ipcMain.handle('agent:runtime-list-sessions', (_event, input?: { workspaceDir?: string; agentRuntimeDirName?: string }) => {
+    return { sessions: listAgentSessionRuntimeSummaries(input?.workspaceDir || resolveDesktopDefaultAgentWorkspaceDir(), { runtimeDirName: input?.agentRuntimeDirName }) }
   })
-  ipcMain.handle('agent:workspace-config-get', (_event, input?: { workspaceDir?: string }) => {
-    return readWorkspaceConfig(input?.workspaceDir)
+  ipcMain.handle('agent:workspace-config-get', (_event, input?: { workspaceDir?: string; agentRuntimeDirName?: string }) => {
+    return readWorkspaceConfig(input)
   })
   ipcMain.handle('agent:workspace-config-save', (_event, input: ElectronAgentWorkspaceConfigSaveInput) => {
     return saveWorkspaceConfig(input)
   })
 }
 
-function workspaceConfigPath(workspaceDir?: string) {
-  const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir || resolveDesktopDefaultAgentWorkspaceDir())
+function workspaceConfigPath(input?: { workspaceDir?: string; agentRuntimeDirName?: string }) {
+  const paths = resolveAgentWorkspaceRuntimePaths(input?.workspaceDir || resolveDesktopDefaultAgentWorkspaceDir(), { runtimeDirName: input?.agentRuntimeDirName })
   ensureAgentWorkspaceRuntime(paths)
   return paths.configPath
 }
 
-function readWorkspaceConfig(workspaceDir?: string): AgentWorkspaceConfig {
-  return readAgentWorkspaceConfig(workspaceConfigPath(workspaceDir))
+function readWorkspaceConfig(input?: { workspaceDir?: string; agentRuntimeDirName?: string }): AgentWorkspaceConfig {
+  return readAgentWorkspaceConfig(workspaceConfigPath(input))
 }
 
 function saveWorkspaceConfig(input: ElectronAgentWorkspaceConfigSaveInput): AgentWorkspaceConfig {
-  const configPath = workspaceConfigPath(input.workspaceDir)
+  const configPath = workspaceConfigPath(input)
   const current = readAgentWorkspaceConfig(configPath)
   const next: AgentWorkspaceConfig = {
     ...current,

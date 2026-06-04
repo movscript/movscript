@@ -94,6 +94,45 @@ test('completeSendRunResult keeps settled generation activity for pinned status'
   assert.equal(calls.includes('liveState:0'), true)
 })
 
+test('completeSendRunResult keeps model telemetry activity until timeline history catches up', async () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls)
+  deps.liveEvents = () => [
+    activityEvent({ id: 'runtime_status_local' }),
+    activityEvent({
+      id: 'model_req_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      status: 'started',
+      roundIndex: 1,
+    }),
+    activityEvent({
+      id: 'model_res_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      status: 'completed',
+      roundIndex: 1,
+      durationMs: 1234,
+      data: {
+        usage: {
+          input_tokens: 100,
+          output_tokens: 10,
+        },
+      },
+    }),
+  ]
+
+  await completeSendRunResult({
+    workspace: workspace(),
+    runResult: runResult(),
+    deps,
+  })
+
+  assert.equal(calls.includes('pendingHttp:2'), true)
+  assert.equal(calls.includes('pendingHttpIds:model_req_1,model_res_1'), true)
+  assert.equal(calls.includes('liveState:0'), true)
+})
+
 test('completeSendRunResult leaves requires_action messages to the message item', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
@@ -166,6 +205,7 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     },
     setPendingHttpEvents: (events) => {
       calls.push(`pendingHttp:${events.length}`)
+      calls.push(`pendingHttpIds:${events.map((event) => event.id).join(',')}`)
     },
     setPendingAssistantState: (state) => {
       calls.push(`pending:${state?.status ?? 'null'}`)

@@ -26,7 +26,7 @@ test('runtime port values encode typed dialog input', () => {
 test('runtimeInputPortsForNode returns required unconnected ports only', () => {
   const node = {
     id: 'target',
-    type: 'plugin_card',
+    type: 'ref_image_gen',
     position: { x: 0, y: 0 },
     data: {
       inputPorts: [

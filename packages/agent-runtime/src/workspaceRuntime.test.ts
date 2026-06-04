@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import {
+  CODEX_AGENT_RUNTIME_DIR_NAME,
   ensureAgentSessionRuntime,
   listAgentSessionRecords,
   listAgentSessionRuntimeSummaries,
@@ -31,6 +32,32 @@ test('resolves session data under year month day folders and keeps socket path s
     assert.equal(paths.runtimeLogPath, join(paths.sessionDir, 'rollout-2026-06-03-session_abc.jsonl'))
     assert.match(paths.socketPath, /[/\\]movscript-agent-[^/\\]+[/\\][a-f0-9]{16}\.agent\.sock$/)
     assert.ok(paths.socketPath.length < 104, `socket path should stay below common Unix socket limits: ${paths.socketPath}`)
+  } finally {
+    rmSync(workspaceDir, { force: true, recursive: true })
+  }
+})
+
+test('resolves agent runtime profile data under isolated movscript folders', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-profile-'))
+  try {
+    const movscript = resolveAgentSessionRuntimePaths({
+      workspaceDir,
+      sessionId: 'session_movscript',
+      createdAt: '2026-06-03T09:00:00.000Z',
+      runtimeDirName: 'movscript-agent',
+    })
+    const codex = resolveAgentSessionRuntimePaths({
+      workspaceDir,
+      sessionId: 'session_codex',
+      createdAt: '2026-06-03T09:00:00.000Z',
+      runtimeDirName: CODEX_AGENT_RUNTIME_DIR_NAME,
+    })
+
+    assert.equal(movscript.agentDir, join(workspaceDir, '.movscript', 'movscript-agent'))
+    assert.equal(codex.agentDir, join(workspaceDir, '.movscript', '.codex'))
+    assert.equal(movscript.configPath, join(workspaceDir, '.movscript', 'movscript-agent', 'config.json'))
+    assert.equal(codex.configPath, join(workspaceDir, '.movscript', '.codex', 'config.json'))
+    assert.notEqual(movscript.sessionsDir, codex.sessionsDir)
   } finally {
     rmSync(workspaceDir, { force: true, recursive: true })
   }

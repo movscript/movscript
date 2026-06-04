@@ -57,7 +57,7 @@ export async function completeSendRunResult(input: {
     deps.setPageTaskRunning(workspace.localRuntime.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
   }
   deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
-  deps.setPendingHttpEvents(settledGenerationActivityEvents(deps.liveEvents()))
+  deps.setPendingHttpEvents(settledBridgeActivityEvents(deps.liveEvents()))
   deps.setPendingAssistantState(null)
   const resolutionEvent = threadResolutionActivityEvent(runResult.threadResolution)
   const liveEvents = resolutionEvent
@@ -83,8 +83,9 @@ function runtimeSendSettledStatusFromRun(run: Pick<AgentRun, 'status'>): 'comple
   return 'completed'
 }
 
-function settledGenerationActivityEvents(events: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
+function settledBridgeActivityEvents(events: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
   return events.filter((event) => {
+    if (isModelTelemetryBridgeEvent(event)) return true
     const data = isRecord(event.data) ? event.data : undefined
     const generation = isRecord(data?.generation) ? data.generation : undefined
     if (!generation) return false
@@ -92,6 +93,18 @@ function settledGenerationActivityEvents(events: ChatRunActivityEvent[]): ChatRu
       || isSettledGenerationLifecycle(generation.status)
       || isSettledGenerationLifecycle(generation.stage)
   })
+}
+
+function isModelTelemetryBridgeEvent(event: ChatRunActivityEvent): boolean {
+  return event.kind === 'model_call' && (
+    event.title === 'Model round started'
+    || event.title === 'Model round completed'
+    || event.title === 'Model HTTP request sent'
+    || event.title === 'Model HTTP response received'
+    || event.title === 'Model HTTP call failed'
+    || event.title === 'Model retry scheduled'
+    || event.title === 'Model HTTP retry scheduled'
+  )
 }
 
 function isSettledGenerationLifecycle(value: unknown): boolean {

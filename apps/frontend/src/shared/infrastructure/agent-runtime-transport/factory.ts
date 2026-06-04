@@ -8,6 +8,7 @@ export function createElectronAgentRuntimeTransport(input: ElectronAgentRuntimeE
 
 export function createAgentRuntimeTransport(config: AgentRuntimeTransportConfig): AgentRuntimeTransport {
   return createElectronAgentRuntimeTransport({
+    ...(config.agentRuntimeDirName ? { agentRuntimeDirName: config.agentRuntimeDirName } : {}),
     ...(config.workspaceDir ? { workspaceDir: config.workspaceDir } : {}),
     ...(config.sessionId ? { sessionId: config.sessionId } : {}),
   })

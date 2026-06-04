@@ -7,6 +7,7 @@ const source = readFileSync(new URL('./runtimeRouter.ts', import.meta.url), 'utf
 const applicationFiles = listApplicationFiles(applicationDir)
 const bridgeModuleNames = applicationFiles
   .filter((file) => /(^|\/)runtime.+Bridge\.ts$/.test(file))
+  .filter((file) => file !== 'workspace/bridge/runtimeWorkspaceOperationsBridge.ts')
   .map((file) => file.replace(/\.ts$/, ''))
   .sort()
 
@@ -56,6 +57,7 @@ const facadeDelegates = [
   ['getSession', 'this.threads.getSession(id)'],
   ['listThreads', 'this.threads.listThreads()'],
   ['listThreadSummaries', 'this.threads.listThreadSummaries()'],
+  ['listThreadMessagesPage', 'messageStore.listThreadMessagesPage'],
   ['getThread', 'this.threads.getThread(id)'],
   ['getThreadRuntimeSnapshot', 'this.runtimeSnapshots.getThreadRuntimeSnapshot(threadId)'],
   ['getSessionRuntimeSnapshot', 'this.runtimeSnapshots.getSessionRuntimeSnapshot(sessionId)'],
@@ -105,14 +107,14 @@ const facadeDelegates = [
   ['listMemories', 'this.memories.listMemories(query)'],
   ['listMemorySummaries', 'this.memories.listMemorySummaries(query)'],
   ['getMemory', 'this.memories.getMemory(projectId, id)'],
-  ['listWorkspaces', 'this.workspaces.listWorkspaces(query)'],
-  ['createLocalWorkspace', 'this.workspaces.createLocalWorkspace(input)'],
-  ['getWorkspace', 'this.workspaces.getWorkspace(id)'],
-  ['updateWorkspace', 'this.workspaces.updateWorkspace(input)'],
-  ['previewApplyWorkspace', 'this.workspaces.previewApplyWorkspace(input)'],
-  ['simulateApplyWorkspace', 'this.workspaces.simulateApplyWorkspace(input)'],
-  ['applyWorkspaceFromUI', 'this.workspaces.applyWorkspaceFromUI(input)'],
-  ['rejectWorkspace', 'this.workspaces.rejectWorkspace(input)'],
+  ['listWorkspaces', 'throw workspaceApiMovedError()'],
+  ['createLocalWorkspace', 'throw workspaceApiMovedError()'],
+  ['getWorkspace', 'throw workspaceApiMovedError()'],
+  ['updateWorkspace', 'throw workspaceApiMovedError()'],
+  ['previewApplyWorkspace', 'throw workspaceApiMovedError()'],
+  ['simulateApplyWorkspace', 'throw workspaceApiMovedError()'],
+  ['applyWorkspaceFromUI', 'throw workspaceApiMovedError()'],
+  ['rejectWorkspace', 'throw workspaceApiMovedError()'],
   ['createMemory', 'this.memories.createMemory(input)'],
   ['deleteMemory', 'this.memories.deleteMemory(projectId, id)'],
   ['flushPostRunRecords', 'this.postRunRecords.flush()'],

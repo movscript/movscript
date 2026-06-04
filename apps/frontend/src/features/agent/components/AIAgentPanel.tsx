@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
-import { AgentBuiltinChatShell } from '@/features/agent/components/AgentBuiltinChatShell'
+import { useEffect, useMemo, useState } from 'react'
+import { AgentUnifiedChatShell } from '@/features/agent/components/AgentUnifiedChatShell'
 import { useAIAgentPanelDockController } from '@/features/agent/presentation/useAIAgentPanelDockController'
 import { useHasOpenAgentConversations } from '@/features/agent/presentation/useHasOpenAgentConversations'
+import {
+  resolveNewConversationAgentProvider,
+  useAgentProviderConfigStore,
+} from '@/features/agent/state/agentProviderConfigStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { AgentPanelShell } from '@movscript/ui'
 
@@ -9,6 +13,9 @@ export function AIAgentPanel() {
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
   const hasOpenConversations = useHasOpenAgentConversations(userId)
+  const agentProviderSettings = useAgentProviderConfigStore((s) => s.settings)
+  const activeProvider = useMemo(() => resolveNewConversationAgentProvider(agentProviderSettings), [agentProviderSettings])
+  const usesRuntimeConversationIndex = activeProvider.kind !== 'codex'
   const {
     dockLayout,
     handlePendingPanelActionSettled,
@@ -45,10 +52,10 @@ export function AIAgentPanel() {
 
   if (!renderPanel) return null
 
-  if (!hasOpenConversations && open && !pendingPanelAction && !pendingThreadIdToOpen) {
+  if (usesRuntimeConversationIndex && !hasOpenConversations && open && !pendingPanelAction && !pendingThreadIdToOpen) {
     return (
       <div className="hidden">
-        <AgentBuiltinChatShell
+        <AgentUnifiedChatShell
           userId={userId}
           onCollapse={toggleOpen}
           pendingStartupStatus={pendingPanelAction}
@@ -71,7 +78,7 @@ export function AIAgentPanel() {
       panelWidth={animatedOpen ? panelWidth : 0}
       resizeHandleProps={resizeHandleProps}
     >
-      <AgentBuiltinChatShell
+      <AgentUnifiedChatShell
         userId={userId}
         onCollapse={toggleOpen}
         showCollapse={false}

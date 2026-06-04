@@ -132,13 +132,12 @@ import { buildApprovalImpactSummary, type AgentApprovalImpactSummary } from '@/f
 import { buildRunConfigurationSnapshotView, type AgentRunConfigurationSnapshotView } from '@/features/agent/domain/agent-run-page/runConfigurationSnapshot'
 import { fallbackToolCallSummaries, formatAgentTraceRawJSON, searchTextToken, toolCallSearchText, toolCallSummariesFromUnknown, type AgentToolCallSummary } from '@/features/agent/domain/agent-run-page/toolCallSummaries'
 import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/features/agent/domain/agentRunUi'
-import { modelRequestMessagesFromPayload } from '@/features/agent/domain/agent-run-ui/traceDetails'
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/features/agent/domain/agentTraceDebugData'
 import { agentToolCallStatusRecipe } from '@/features/agent/presentation/agentSemanticUi'
 import { useAgentRuntimeSessionLease } from '@/features/agent/presentation/useAgentRuntimeSessionLease'
 import { isRecord } from '@/shared/domain/jsonValue'
-import { isLocalAgentNotFoundError, localAgentClient, type AgentRun, type AgentRunDebugEvidence, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
+import { isLocalAgentNotFoundError, localAgentClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/shared/infrastructure/localAgentClient'
 import { UrlImage } from '@/shared/ui/UrlMedia'
 import { agentRunPath } from '@/routes/projectRoutes'
 
@@ -148,18 +147,15 @@ const AGENT_RUN_UI_CONTRACT_MARKERS = [
   'ring-1 ring-primary/30',
   "open={defaultDetailOpen || view.category === 'http'}",
 ] as const
-const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
+const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v2'
 const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
   'readinessChecklist',
   'runtimeSummary',
-  'roundContextUpdates',
-  'roundContextChanges',
-  'modelCallContexts',
-  'promptDetails',
-  'contextMutations',
-  'messageWrites',
-  'toolCalls',
+  'runtimeFrames',
+  'fullDebugEvents',
+  'fullContextDiffs',
+  'fullPromptPayloads',
   'attentionEvents',
   'pendingActions',
   'fieldGuide',
@@ -180,14 +176,6 @@ const EMPTY_DEBUG_COVERAGE: AgentDebugCoverageSummary = {
   issues: [],
 }
 
-const EMPTY_SKILL_TRACE_SUMMARY: AgentSkillTraceSummary = {
-  timeline: [],
-  currentActiveSkillIds: [],
-  currentLoadedSkillIds: [],
-  currentUnloadedSkillIds: [],
-  currentAvailableSkillIds: [],
-  currentOmissions: [],
-}
 const EMPTY_RUNTIME_SUMMARY: AgentRunRuntimeSummary = {
   skills: {
     activeSkillIds: [],
@@ -209,7 +197,7 @@ const EMPTY_RUNTIME_SUMMARY: AgentRunRuntimeSummary = {
   },
   context: {
     contextMutationCount: 0,
-    roundContextUpdateCount: 0,
+    contextProjectionCount: 0,
   },
 }
 
@@ -218,22 +206,20 @@ interface LoadedTraceEventsResult {
   hasMore: boolean
 }
 
-type AgentModelCallContextView = AgentTraceDebugView['modelCallContexts'][number]
+type AgentRuntimeRoundFrame = Extract<AgentTraceDebugView['runtimeFrames'][number], { kind: 'round' }>
+type AgentRuntimeLens = 'all' | AgentTraceDebugView['runtimeFrames'][number]['focus'][number]
 type AgentDebugCoverageSummary = AgentTraceDebugView['coverage']
 type AgentDebugReadinessItem = AgentTraceDebugView['readinessChecklist'][number]
 type AgentDebugAttentionEvent = AgentTraceDebugView['attentionEvents'][number]
-type AgentModelCallSummary = AgentTraceDebugView['modelCalls'][number]
+type AgentModelCallSummary = AgentRuntimeRoundFrame['modelCalls'][number]
 type AgentRunRuntimeSummary = AgentTraceDebugView['runtimeSummary']
-type AgentSkillTraceSummary = AgentTraceDebugView['skillTimeline']
-type AgentContextMutationView = AgentTraceDebugView['contextMutations'][number]
-type AgentRoundContextUpdateView = AgentTraceDebugView['roundContextUpdates'][number]
-type AgentRoundContextChangeView = AgentTraceDebugView['roundContextChanges'][number]
-type AgentPromptDebugDetail = AgentTraceDebugView['promptDetails'][number]
+type AgentContextMutationView = AgentRuntimeRoundFrame['context']['diff']['mutations'][number]
+type AgentPromptDebugDetail = NonNullable<AgentRuntimeRoundFrame['context']['prompt']>
 type AgentTraceEventView = ReturnType<typeof agentTraceView>
 type AgentModelRequestMessageView = NonNullable<AgentTraceEventView['modelDetail']>['messages'][number]
 type AgentPromptDetailDisplay = NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> & Partial<Pick<AgentPromptDebugDetail, 'budgetDecisions' | 'runtimeSkillState' | 'contextLedgerState'>>
 type AgentTraceEventDisplayView = Omit<AgentTraceEventView, 'promptDetail'> & { promptDetail?: AgentPromptDetailDisplay }
-type AgentTraceViewMode = 'debug' | 'runtime' | 'context' | 'timeline' | 'tools' | 'skills'
+type AgentTraceViewMode = AgentRuntimeLens
 
 interface AgentDebugHotspot {
   id: string
@@ -264,7 +250,7 @@ export default function AIAgentRunPage() {
     workspaceDir: runtimeWorkspaceDir,
     holder: 'trace-page',
   })
-  const [traceViewMode, setTraceViewMode] = useState<AgentTraceViewMode>('debug')
+  const [traceViewMode, setTraceViewMode] = useState<AgentTraceViewMode>('all')
   const [eventKind, setEventKind] = useState<'all' | AgentTraceEventKind>('all')
   const [eventCategory, setEventCategory] = useState<'all' | AgentTraceCategory>('all')
   const [eventSearch, setEventSearch] = useState('')
@@ -337,8 +323,8 @@ export default function AIAgentRunPage() {
     })
   }, [eventCategory, eventKind, eventSearch, events])
   const toolCallSummaries = useMemo<AgentToolCallSummary[]>(() => (
-    toolCallSummariesFromUnknown(debugViewQuery.data?.toolCalls) ?? fallbackToolCallSummaries(events)
-  ), [debugViewQuery.data?.toolCalls, events])
+    toolCallSummariesFromUnknown((debugViewQuery.data?.runtimeFrames ?? []).flatMap((frame) => frame.kind === 'round' ? frame.toolCalls : [])) ?? fallbackToolCallSummaries(events)
+  ), [debugViewQuery.data?.runtimeFrames, events])
   const visibleToolCallSummaries = useMemo(() => {
     const needle = eventSearch.trim().toLowerCase()
     if (!needle) return toolCallSummaries
@@ -354,40 +340,32 @@ export default function AIAgentRunPage() {
     }
     return Array.from(counts.entries()).sort(([left], [right]) => traceCategoryLabel(left).localeCompare(traceCategoryLabel(right), 'zh-CN'))
   }, [events])
+  const runtimeFrames = debugViewQuery.data?.runtimeFrames ?? []
+  const runtimeRoundFrames = useMemo(() => runtimeFrames.filter((frame): frame is AgentRuntimeRoundFrame => frame.kind === 'round'), [runtimeFrames])
+  const promptDetails = useMemo(() => runtimeRoundFrames.flatMap((frame) => frame.context.prompt ? [frame.context.prompt] : []), [runtimeRoundFrames])
   const promptDebugDetailByEventId = useMemo(() => new Map(
-    (debugViewQuery.data?.promptDetails ?? []).map((detail) => [detail.eventId, detail]),
-  ), [debugViewQuery.data?.promptDetails])
+    promptDetails.map((detail) => [detail.eventId, detail]),
+  ), [promptDetails])
   const visibleTraceViews = useMemo(() => visibleEvents.map((event) => ({
     event,
     view: mergePromptDebugDetail(agentTraceView(event), promptDebugDetailByEventId.get(event.id)),
   })), [promptDebugDetailByEventId, visibleEvents])
+  const visibleRuntimeFrames = useMemo(() => {
+    const needle = eventSearch.trim().toLowerCase()
+    return runtimeFrames.filter((frame) => {
+      if (traceViewMode !== 'all' && traceViewMode !== 'raw' && !frame.focus.includes(traceViewMode)) return false
+      if (!needle) return true
+      return runtimeFrameSearchText(frame).includes(needle)
+    })
+  }, [eventSearch, runtimeFrames, traceViewMode])
   const debugViewEvents = debugViewQuery.data?.events ?? events
   const runtimeSummary = debugViewQuery.data?.runtimeSummary ?? EMPTY_RUNTIME_SUMMARY
-  const skillTraceSummary = debugViewQuery.data?.skillTimeline ?? EMPTY_SKILL_TRACE_SUMMARY
-  const promptDetails = debugViewQuery.data?.promptDetails ?? []
   const approvalImpactSummary = useMemo(
     () => buildApprovalImpactSummary(runQuery.data, debugViewEvents),
     [debugViewEvents, runQuery.data],
   )
-  const modelCallSummaries = (debugViewQuery.data?.modelCalls ?? []) as AgentModelCallSummary[]
-  const modelCallContexts = debugViewQuery.data?.modelCallContexts ?? []
+  const modelCallSummaries = runtimeRoundFrames.flatMap((frame) => frame.modelCalls) as AgentModelCallSummary[]
   const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
-  const contextMutations = debugViewQuery.data?.contextMutations ?? []
-  const roundContextUpdates = debugViewQuery.data?.roundContextUpdates ?? []
-  const roundContextChanges = debugViewQuery.data?.roundContextChanges ?? []
-  const modelRequestEvidenceQuery = useQuery({
-    queryKey: ['agent-run-model-request-evidence', runtimeClient.baseURL, runtimeSessionId ?? null, runtimeWorkspaceDir ?? null, runId],
-    queryFn: async () => {
-      const refs = await runtimeClient.findRunDebugEvidenceRefs(runId, { kind: 'model_request' })
-      const evidence = await Promise.all(refs.evidenceRefs.map((ref) => runtimeClient.getRunDebugEvidence(runId, ref.evidenceId)))
-      return evidence
-    },
-    enabled: !!runId && traceViewMode === 'context' && roundContextChanges.length > 0,
-    retry: false,
-  })
-  const modelRequestEvidenceByEventId = useMemo(() => new Map(
-    (modelRequestEvidenceQuery.data ?? []).map((evidence) => [evidence.eventId, evidence]),
-  ), [modelRequestEvidenceQuery.data])
   const debugHotspots = useMemo(
     () => buildDebugHotspots({
       events: debugViewEvents,
@@ -426,7 +404,7 @@ export default function AIAgentRunPage() {
   const workerRunCanBeCancelled = canCancelWorkerRun(runQuery.data)
   const traceHasUnloadedEvents = hasUnloadedTraceEvents({ loaded: events.length, total: traceTotal, hasMore })
   const traceFiltersActive = eventSearch.trim() !== ''
-    || (traceViewMode === 'timeline' && (eventKind !== 'all' || eventCategory !== 'all'))
+    || (traceViewMode === 'raw' && (eventKind !== 'all' || eventCategory !== 'all'))
   const debugCoverageSummary = (debugViewQuery.data?.coverage ?? EMPTY_DEBUG_COVERAGE) as AgentDebugCoverageSummary
   const debugReadinessChecklist = (debugViewQuery.data?.readinessChecklist ?? []) as AgentDebugReadinessItem[]
   const debugReportText = debugViewQuery.data?.reportText ?? ''
@@ -477,7 +455,7 @@ export default function AIAgentRunPage() {
     loadingEventsRef.current = false
     setTraceLoadError(null)
     initialTraceLoadRunIdRef.current = null
-    setTraceViewMode('debug')
+    setTraceViewMode('all')
     setEventKind('all')
     setEventCategory('all')
     setEventSearch('')
@@ -615,7 +593,7 @@ export default function AIAgentRunPage() {
   }
 
   function focusTraceEvent(eventId: string) {
-    setTraceViewMode('timeline')
+    setTraceViewMode('raw')
     const nextUrl = buildTraceEventLink({
       origin: window.location.origin,
       pathname: window.location.pathname,
@@ -637,6 +615,7 @@ export default function AIAgentRunPage() {
     setEventSearch('')
     setEventKind('all')
     setEventCategory('attention')
+    setTraceViewMode('attention')
   }
 
   async function copyDebugReport() {
@@ -1094,7 +1073,7 @@ export default function AIAgentRunPage() {
               )}
               {events.length > 0 && traceFiltersActive && (
                 <AgentRunTraceMeta data-testid="agent-run-trace-visible-count">
-                  当前显示 {traceViewMode === 'tools' ? visibleToolCallSummaries.length : visibleEvents.length} 个
+                  当前显示 {traceViewMode === 'raw' ? visibleEvents.length : visibleRuntimeFrames.length} 个
                 </AgentRunTraceMeta>
               )}
             </AgentRunTraceSummary>
@@ -1102,19 +1081,11 @@ export default function AIAgentRunPage() {
               <AgentRunTraceViewModeGroup data-testid="agent-run-trace-view-mode">
                 <AgentRunTraceViewModeButton
                   type="button"
-                  variant={traceViewMode === 'debug' ? 'soft' : 'ghost'}
-                  aria-pressed={traceViewMode === 'debug'}
-                  onClick={() => setTraceViewMode('debug')}
+                  variant={traceViewMode === 'all' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'all'}
+                  onClick={() => setTraceViewMode('all')}
                 >
-                  调试
-                </AgentRunTraceViewModeButton>
-                <AgentRunTraceViewModeButton
-                  type="button"
-                  variant={traceViewMode === 'runtime' ? 'soft' : 'ghost'}
-                  aria-pressed={traceViewMode === 'runtime'}
-                  onClick={() => setTraceViewMode('runtime')}
-                >
-                  运行时
+                  全部
                 </AgentRunTraceViewModeButton>
                 <AgentRunTraceViewModeButton
                   type="button"
@@ -1122,34 +1093,58 @@ export default function AIAgentRunPage() {
                   aria-pressed={traceViewMode === 'context'}
                   onClick={() => setTraceViewMode('context')}
                 >
-                  上下文变动
+                  上下文
                 </AgentRunTraceViewModeButton>
                 <AgentRunTraceViewModeButton
                   type="button"
-                  variant={traceViewMode === 'timeline' ? 'soft' : 'ghost'}
-                  aria-pressed={traceViewMode === 'timeline'}
-                  onClick={() => setTraceViewMode('timeline')}
+                  variant={traceViewMode === 'model' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'model'}
+                  onClick={() => setTraceViewMode('model')}
                 >
-                  时间线
+                  模型
                 </AgentRunTraceViewModeButton>
                 <AgentRunTraceViewModeButton
                   type="button"
-                  variant={traceViewMode === 'tools' ? 'soft' : 'ghost'}
-                  aria-pressed={traceViewMode === 'tools'}
-                  onClick={() => setTraceViewMode('tools')}
+                  variant={traceViewMode === 'tool' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'tool'}
+                  onClick={() => setTraceViewMode('tool')}
                 >
-                  工具调用
+                  工具
                 </AgentRunTraceViewModeButton>
                 <AgentRunTraceViewModeButton
                   type="button"
-                  variant={traceViewMode === 'skills' ? 'soft' : 'ghost'}
-                  aria-pressed={traceViewMode === 'skills'}
-                  onClick={() => setTraceViewMode('skills')}
+                  variant={traceViewMode === 'skill' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'skill'}
+                  onClick={() => setTraceViewMode('skill')}
                 >
-                  技能变动
+                  技能
+                </AgentRunTraceViewModeButton>
+                <AgentRunTraceViewModeButton
+                  type="button"
+                  variant={traceViewMode === 'approval' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'approval'}
+                  onClick={() => setTraceViewMode('approval')}
+                >
+                  审批
+                </AgentRunTraceViewModeButton>
+                <AgentRunTraceViewModeButton
+                  type="button"
+                  variant={traceViewMode === 'attention' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'attention'}
+                  onClick={() => setTraceViewMode('attention')}
+                >
+                  异常
+                </AgentRunTraceViewModeButton>
+                <AgentRunTraceViewModeButton
+                  type="button"
+                  variant={traceViewMode === 'raw' ? 'soft' : 'ghost'}
+                  aria-pressed={traceViewMode === 'raw'}
+                  onClick={() => setTraceViewMode('raw')}
+                >
+                  原始事件
                 </AgentRunTraceViewModeButton>
               </AgentRunTraceViewModeGroup>
-              {traceViewMode === 'timeline' && (
+              {traceViewMode === 'raw' && (
                 <AgentRunTraceSummary className="agent-run-trace-filter-summary" data-testid="agent-run-trace-filter-summary">
                   {categoryCounts.map(([category, count]) => (
                     <AgentRunTraceCategoryButton
@@ -1168,16 +1163,14 @@ export default function AIAgentRunPage() {
                   ))}
                 </AgentRunTraceSummary>
               )}
-              {traceViewMode !== 'debug' && (
-                <AgentRunTraceSearchInput
-                  data-testid="agent-run-trace-search"
-                  value={eventSearch}
-                  onChange={(event) => setEventSearch(event.target.value)}
-                  placeholder="搜索事件"
-                  aria-label="搜索运行事件"
-                />
-              )}
-              {traceViewMode === 'timeline' && (
+              <AgentRunTraceSearchInput
+                data-testid="agent-run-trace-search"
+                value={eventSearch}
+                onChange={(event) => setEventSearch(event.target.value)}
+                placeholder={traceViewMode === 'raw' ? '搜索原始事件' : '搜索 runtime round'}
+                aria-label="搜索运行调试内容"
+              />
+              {traceViewMode === 'raw' && (
                 <>
                   <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
                     <AgentRunTraceSelectTrigger aria-label="按事件类型筛选"><SelectValue /></AgentRunTraceSelectTrigger>
@@ -1268,75 +1261,28 @@ export default function AIAgentRunPage() {
                 </AgentRunInlineActionButton>
               </AgentRunTraceCallout>
             )}
-            {traceViewMode === 'skills' && (
-              <SkillTracePanel summary={skillTraceSummary} onFocusEvent={focusTraceEvent} />
-            )}
-            {traceViewMode === 'runtime' && (
-              <>
-                <RunRuntimeSummaryPanel
-                  summary={runtimeSummary}
-                  promptDetails={promptDetails}
-                  approvalImpactSummary={approvalImpactSummary}
-                  onFocusEvent={focusTraceEvent}
-                />
-                {roundContextUpdates.length > 0 && <RoundContextUpdatesPanel updates={roundContextUpdates} onFocusEvent={focusTraceEvent} />}
-              </>
-            )}
-            {traceViewMode === 'context' && (
-              <RoundContextChangesPanel
-                changes={roundContextChanges}
-                contextMutations={contextMutations}
-                roundContextUpdates={roundContextUpdates}
-                modelCallContexts={modelCallContexts}
-                modelRequestEvidenceByEventId={modelRequestEvidenceByEventId}
-                events={debugViewEvents}
+            {traceViewMode !== 'raw' && (
+              <RuntimeFramesPanel
+                frames={visibleRuntimeFrames}
+                allFrameCount={runtimeFrames.length}
+                lens={traceViewMode}
                 loading={debugViewQuery.isLoading || loadingEvents}
-                requestEvidenceLoading={modelRequestEvidenceQuery.isLoading}
-                onFocusEvent={focusTraceEvent}
-              />
-            )}
-            {traceViewMode === 'tools' && (
-              <ToolCallProcessPanel
-                toolCalls={toolCallSummaries}
-                visibleToolCalls={visibleToolCallSummaries}
-                events={debugViewEvents}
-                search={eventSearch}
-                loading={debugViewQuery.isLoading || loadingEvents}
-                traceHasUnloadedEvents={traceHasUnloadedEvents}
-                onFocusEvent={focusTraceEvent}
-                onLoadAll={() => loadEvents('all')}
-                onClearSearch={() => setEventSearch('')}
-              />
-            )}
-            {traceViewMode === 'debug' && (
-              <DebugWorkbenchPanel
-                hotspots={debugHotspots}
-                summary={debugCoverageSummary}
-                readinessChecklist={debugReadinessChecklist}
+                runtimeSummary={runtimeSummary}
                 attentionEvents={attentionEvents}
-                contextMutations={contextMutations}
-                toolCalls={toolCallSummaries}
-                modelCalls={modelCallSummaries}
-                loading={debugViewQuery.isLoading || loadingEvents}
-                traceHasUnloadedEvents={traceHasUnloadedEvents}
                 copied={debugReportCopied}
                 copyError={debugReportCopyError}
                 bundleCopied={debugBundleCopied}
                 bundleCopyError={debugBundleCopyError}
-                loadingAll={loadingEvents}
                 bundleCopyDisabledReason={debugViewQuery.data ? null : '运行调试视图加载中，暂不能复制调试包。'}
+                loadingAll={loadingEvents}
                 onFocusEvent={focusTraceEvent}
                 onShowAttentionEvents={showAttentionEvents}
-                onOpenRuntime={() => setTraceViewMode('runtime')}
-                onOpenContext={() => setTraceViewMode('context')}
-                onOpenTimeline={() => setTraceViewMode('timeline')}
-                onOpenTools={() => setTraceViewMode('tools')}
                 onCopy={copyDebugReport}
                 onCopyBundle={copyDebugBundle}
                 onLoadAll={() => loadEvents('all')}
               />
             )}
-            {traceViewMode === 'timeline' && debugViewQuery.data && (
+            {traceViewMode === 'raw' && debugViewQuery.data && (
               <DebugCoveragePanel
                 summary={debugCoverageSummary}
                 readinessChecklist={debugReadinessChecklist}
@@ -1352,19 +1298,10 @@ export default function AIAgentRunPage() {
                 onLoadAll={() => loadEvents('all')}
               />
             )}
-            {traceViewMode === 'timeline' && attentionEvents.length > 0 && (
+            {traceViewMode === 'raw' && attentionEvents.length > 0 && (
               <AttentionEventsPanel events={attentionEvents} onFocusEvent={focusTraceEvent} onShowAttentionEvents={showAttentionEvents} />
             )}
-            {traceViewMode === 'timeline' && contextMutations.length > 0 && (
-              <ContextMutationPanel mutations={contextMutations} onFocusEvent={focusTraceEvent} />
-            )}
-            {traceViewMode === 'timeline' && roundContextUpdates.length > 0 && (
-              <RoundContextUpdatesPanel updates={roundContextUpdates} onFocusEvent={focusTraceEvent} />
-            )}
-            {traceViewMode === 'timeline' && modelCallSummaries.length > 0 && (
-              <ModelCallSummaryPanel summaries={modelCallSummaries} contexts={modelCallContexts} events={debugViewEvents} onFocusEvent={focusTraceEvent} />
-            )}
-            {traceViewMode === 'timeline' && visibleTraceViews.map(({ event, view }) => {
+            {traceViewMode === 'raw' && visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
               const eventDuration = formatTraceEventDuration(event)
               const defaultDetailOpen = isLinkedEvent || view.category === 'attention'
@@ -1450,8 +1387,8 @@ export default function AIAgentRunPage() {
                 </AgentRunTraceEventCard>
               )
             })}
-            {traceViewMode === 'timeline' && events.length === 0 && <AgentRunTraceStateMessage>尚未加载运行事件。</AgentRunTraceStateMessage>}
-            {traceViewMode === 'timeline' && events.length > 0 && visibleEvents.length === 0 && (
+            {traceViewMode === 'raw' && events.length === 0 && <AgentRunTraceStateMessage>尚未加载运行事件。</AgentRunTraceStateMessage>}
+            {traceViewMode === 'raw' && events.length > 0 && visibleEvents.length === 0 && (
               <AgentRunTraceEmptyState data-testid="agent-run-trace-empty-state">
                 <AgentRunTraceFeedbackTitle>没有符合当前筛选条件的事件</AgentRunTraceFeedbackTitle>
                 <AgentRunTraceFeedbackDescription>
@@ -1483,7 +1420,7 @@ export default function AIAgentRunPage() {
                 </AgentRunTraceFeedbackActions>
               </AgentRunTraceEmptyState>
             )}
-            {traceViewMode === 'timeline' && hasMore && (
+            {traceViewMode === 'raw' && hasMore && (
               <AgentRunPageActionButton type="button" variant="ghost" aria-label="加载更多运行事件" onClick={() => loadEvents('more')} disabled={loadingEvents}>
                 {loadingEvents ? <AgentRunIcon icon={Loader2} spinning /> : <History size={14} />}
                 加载更多
@@ -1661,6 +1598,34 @@ function traceEventSearchText(event: AgentTraceEvent): string {
   ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
 }
 
+function runtimeFrameSearchText(frame: AgentTraceDebugView['runtimeFrames'][number]): string {
+  return [
+    frame.id,
+    frame.kind,
+    frame.label,
+    frame.status,
+    frame.focus.join(' '),
+    ...frame.eventIds,
+    ...frame.attentionEvents.flatMap((event) => [event.title, event.summary, event.error]),
+    ...frame.events.flatMap((event) => [event.title, event.summary, event.kind, event.toolName]),
+    ...(frame.kind === 'round' ? [
+      frame.roundId,
+      String(frame.roundIndex ?? ''),
+      frame.roundLabel,
+      frame.context.projection?.title,
+      frame.context.projection?.promptChars,
+      frame.context.prompt?.title,
+      frame.context.prompt?.totalChars,
+      ...frame.context.diff.affectedContextKeys,
+      ...frame.context.diff.changes.flatMap((change) => [change.op, change.key, change.reason, change.preview, change.ref?.label, change.before?.label, change.after?.label]),
+      ...frame.skills.flatMap((skill) => [skill.title, skill.summary, ...skill.activeSkillIds, ...skill.loadedSkillIds, ...skill.unloadedSkillIds]),
+      ...frame.modelCalls.flatMap((call) => [call.label, call.statusLabel, String(call.model ?? ''), String(call.issue ?? ''), String(call.error ?? '')]),
+      ...frame.toolCalls.flatMap((tool) => [tool.title, tool.toolName, tool.statusLabel, String(tool.summary ?? '')]),
+      ...frame.messageWrites.flatMap((write) => [write.messageId, write.contentPreview]),
+    ] : []),
+  ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
+}
+
 function mergePromptDebugDetail(view: AgentTraceEventView, debugDetail?: AgentPromptDebugDetail): AgentTraceEventDisplayView {
   if (!view.promptDetail || !debugDetail) return view
   return {
@@ -1721,183 +1686,416 @@ function mergeTraceEvents(current: AgentTraceEvent[], incoming: AgentTraceEvent[
   ]
 }
 
-function DebugWorkbenchPanel({
-  hotspots,
-  summary,
-  readinessChecklist,
-  attentionEvents,
-  contextMutations,
-  toolCalls,
-  modelCalls,
+function RuntimeFramesPanel({
+  frames,
+  allFrameCount,
+  lens,
   loading,
-  traceHasUnloadedEvents,
+  runtimeSummary,
+  attentionEvents,
   copied,
   copyError,
   bundleCopied,
   bundleCopyError,
-  loadingAll,
   bundleCopyDisabledReason,
+  loadingAll,
   onFocusEvent,
   onShowAttentionEvents,
-  onOpenRuntime,
-  onOpenContext,
-  onOpenTimeline,
-  onOpenTools,
   onCopy,
   onCopyBundle,
   onLoadAll,
 }: {
-  hotspots: AgentDebugHotspot[]
-  summary: AgentDebugCoverageSummary
-  readinessChecklist: AgentDebugReadinessItem[]
-  attentionEvents: AgentDebugAttentionEvent[]
-  contextMutations: AgentContextMutationView[]
-  toolCalls: AgentToolCallSummary[]
-  modelCalls: AgentModelCallSummary[]
+  frames: AgentTraceDebugView['runtimeFrames']
+  allFrameCount: number
+  lens: AgentTraceViewMode
   loading: boolean
-  traceHasUnloadedEvents: boolean
+  runtimeSummary: AgentRunRuntimeSummary
+  attentionEvents: AgentDebugAttentionEvent[]
   copied: boolean
   copyError: string | null
   bundleCopied: boolean
   bundleCopyError: string | null
-  loadingAll: boolean
   bundleCopyDisabledReason: string | null
+  loadingAll: boolean
   onFocusEvent: (eventId: string) => void
   onShowAttentionEvents: () => void
-  onOpenRuntime: () => void
-  onOpenContext: () => void
-  onOpenTimeline: () => void
-  onOpenTools: () => void
   onCopy: () => void
   onCopyBundle: () => void
   onLoadAll: () => void
 }) {
-  const failedTools = toolCalls.filter((toolCall) => toolCall.status === 'failed').length
-  const blockedTools = toolCalls.filter((toolCall) => toolCall.status === 'blocked').length
-  const modelIssues = modelCalls.filter((call) => call.issue || call.error || call.status === 'failed').length
-  const slowestTool = toolCalls
-    .filter((toolCall) => typeof toolCall.durationMs === 'number')
-    .sort((left, right) => (right.durationMs ?? 0) - (left.durationMs ?? 0))[0]
-  const blockingItems = readinessChecklist.filter((item) => item.status !== 'ok')
+  const roundFrames = frames.filter((frame): frame is AgentRuntimeRoundFrame => frame.kind === 'round')
+  const modelCallCount = roundFrames.reduce((sum, frame) => sum + frame.modelCalls.length, 0)
+  const toolCallCount = roundFrames.reduce((sum, frame) => sum + frame.toolCalls.length, 0)
+  const contextChangeCount = roundFrames.reduce((sum, frame) => sum + frame.context.diff.changes.length, 0)
   const bundleCopyDisabled = loadingAll || bundleCopyDisabledReason !== null
   return (
-    <AgentRunDebugSection data-testid="agent-run-debug-workbench">
+    <AgentRunDebugSection data-testid="agent-run-runtime-frames">
       <AgentRunDebugPanel variant="subtle">
         <AgentRunDebugHeader>
           <AgentRunDebugHeaderCopy>
-            <AgentRunDebugTitle>调试工作台</AgentRunDebugTitle>
-            <AgentRunDebugDescription>先看异常、慢调用和缺失信息；需要上下文时再定位到时间线事件</AgentRunDebugDescription>
+            <AgentRunDebugTitle>Runtime Frames</AgentRunDebugTitle>
+            <AgentRunDebugDescription>以 runtime round 为主线组织上下文、模型、工具、技能、审批和原始事件</AgentRunDebugDescription>
           </AgentRunDebugHeaderCopy>
           <AgentRunDebugActions>
             {loading && <AgentRunPageBadge variant="outline">加载中</AgentRunPageBadge>}
-            <AgentRunDebugActionButton variant="outline" onClick={onOpenRuntime}>
-              运行时
+            <AgentRunPageBadge variant="outline">{frames.length} / {allFrameCount} frame</AgentRunPageBadge>
+            {lens !== 'all' && <AgentRunPageBadge variant="soft">{runtimeLensLabel(lens)}</AgentRunPageBadge>}
+            {attentionEvents.length > 0 && (
+              <AgentRunDebugActionButton variant="outline" onClick={onShowAttentionEvents}>
+                只看异常
+              </AgentRunDebugActionButton>
+            )}
+            <AgentRunDebugActionButton variant="ghost" onClick={onCopy}>
+              <Copy size={10} />
+              {copied ? '摘要已复制' : '复制摘要'}
             </AgentRunDebugActionButton>
-            <AgentRunDebugActionButton variant="outline" onClick={onOpenContext}>
-              上下文变动
-            </AgentRunDebugActionButton>
-            <AgentRunDebugActionButton variant="outline" onClick={onOpenTimeline}>
-              打开时间线
-            </AgentRunDebugActionButton>
-            <AgentRunDebugActionButton variant="outline" onClick={onOpenTools}>
-              工具过程
+            <AgentRunDebugActionButton
+              variant="ghost"
+              onClick={onCopyBundle}
+              disabled={bundleCopyDisabled}
+              title={bundleCopyDisabledReason ?? undefined}
+            >
+              {loadingAll ? <AgentRunIcon icon={Loader2} size={10} spinning /> : <Copy size={10} />}
+              {bundleCopied ? '调试包已复制' : '复制 v2 调试包'}
             </AgentRunDebugActionButton>
           </AgentRunDebugActions>
         </AgentRunDebugHeader>
         <AgentRunDebugMetricGrid>
-          <DebugCoverageMetric label="需关注" value={String(attentionEvents.length)} />
-          <DebugCoverageMetric label="失败工具" value={String(failedTools)} />
-          <DebugCoverageMetric label="阻塞工具" value={String(blockedTools)} />
-          <DebugCoverageMetric label="模型问题" value={String(modelIssues)} />
-          <DebugCoverageMetric label="上下文变动" value={String(contextMutations.length)} />
-          <DebugCoverageMetric label="最慢工具" value={slowestTool?.durationMs !== undefined ? formatDurationMs(slowestTool.durationMs) : '-'} />
+          <DebugCoverageMetric label="Round" value={String(roundFrames.length)} />
+          <DebugCoverageMetric label="模型调用" value={String(modelCallCount)} />
+          <DebugCoverageMetric label="工具调用" value={String(toolCallCount)} />
+          <DebugCoverageMetric label="上下文 diff" value={String(contextChangeCount)} />
+          <DebugCoverageMetric label="激活技能" value={String(runtimeSummary.skills.activeSkillIds.length)} />
+          <DebugCoverageMetric label="异常" value={String(attentionEvents.length)} />
         </AgentRunDebugMetricGrid>
+        {copyError && <AgentRunTraceCallout role="alert" tone="danger" compact>摘要复制失败：{copyError}</AgentRunTraceCallout>}
+        {bundleCopyError && <AgentRunTraceCallout role="alert" tone="danger" compact>调试包复制失败：{bundleCopyError}</AgentRunTraceCallout>}
+        {bundleCopyDisabledReason && !bundleCopyError && <AgentRunDebugStatusNote>{bundleCopyDisabledReason}</AgentRunDebugStatusNote>}
+        {allFrameCount === 0 && !loading && (
+          <AgentRunTraceEmptyState data-testid="agent-run-runtime-frames-empty">
+            当前运行没有 runtime frame。请刷新或确认服务端已经生成 v2 调试视图。
+          </AgentRunTraceEmptyState>
+        )}
+        {allFrameCount > 0 && frames.length === 0 && (
+          <AgentRunTraceEmptyState data-testid="agent-run-runtime-frames-filter-empty">
+            当前 lens 没有匹配的 runtime frame。
+          </AgentRunTraceEmptyState>
+        )}
       </AgentRunDebugPanel>
 
+      {frames.length > 0 && (
+        <AgentRunDebugList>
+          {frames.map((frame, index) => (
+            <RuntimeFrameCard key={frame.id} frame={frame} index={index} onFocusEvent={onFocusEvent} onLoadAll={onLoadAll} loadingAll={loadingAll} />
+          ))}
+        </AgentRunDebugList>
+      )}
+    </AgentRunDebugSection>
+  )
+}
+
+function RuntimeFrameCard({
+  frame,
+  index,
+  onFocusEvent,
+  onLoadAll,
+  loadingAll,
+}: {
+  frame: AgentTraceDebugView['runtimeFrames'][number]
+  index: number
+  onFocusEvent: (eventId: string) => void
+  onLoadAll: () => void
+  loadingAll: boolean
+}) {
+  const tone = frame.status === 'failed' ? 'danger' : frame.status === 'blocked' ? 'warning' : 'neutral'
+  return (
+    <AgentRunDebugHotspotCard data-testid="agent-run-runtime-frame" tone={tone}>
+      <AgentRunDebugHeader>
+        <AgentRunDebugHeaderCopy>
+          <AgentRunDebugTitle>{frame.label}</AgentRunDebugTitle>
+          <AgentRunDebugDescription>{frame.kind} · {formatAgentRunTimestamp(frame.startedAt)}</AgentRunDebugDescription>
+        </AgentRunDebugHeaderCopy>
+        <AgentRunDebugActions>
+          <AgentRunPageBadge variant="outline">#{index + 1}</AgentRunPageBadge>
+          <AgentRunPageBadge variant={frame.status === 'completed' ? 'outline' : 'soft'}>{traceEventStatusLabel(frame.status)}</AgentRunPageBadge>
+          {frame.eventIds[0] && (
+            <AgentRunTraceEventActionButton onClick={() => onFocusEvent(frame.eventIds[0]!)}>
+              定位首事件
+            </AgentRunTraceEventActionButton>
+          )}
+        </AgentRunDebugActions>
+      </AgentRunDebugHeader>
+      <AgentRunDebugTags>
+        {frame.focus.filter((focus) => focus !== 'raw').map((focus) => <AgentRunPageBadge key={focus} variant="outline">{runtimeLensLabel(focus)}</AgentRunPageBadge>)}
+        <AgentRunPageBadge variant="outline">事件 {frame.eventIds.length}</AgentRunPageBadge>
+        {frame.durationMs !== undefined && <AgentRunPageBadge variant="outline">耗时 {formatDurationMs(frame.durationMs)}</AgentRunPageBadge>}
+      </AgentRunDebugTags>
+      {frame.kind === 'round' && <RuntimeRoundFrameDetail frame={frame} onFocusEvent={onFocusEvent} />}
+      {frame.kind === 'setup' && (
+        <AgentRunDebugStack>
+          <RuntimeSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
+          <RuntimeContextMutationList mutations={frame.contextMutations} onFocusEvent={onFocusEvent} />
+        </AgentRunDebugStack>
+      )}
+      {frame.kind === 'finalize' && (
+        <AgentRunDebugStack>
+          <RuntimeMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
+          {frame.pendingActions.length > 0 && <AgentRunTraceDetailLine label="待处理动作" value={String(frame.pendingActions.length)} />}
+        </AgentRunDebugStack>
+      )}
+      <AgentRunTraceDisclosure title="原始事件 ID">
+        <AgentRunDebugTags>
+          {frame.eventIds.slice(0, 16).map((eventId) => (
+            <AgentRunPageBadge key={eventId} variant="outline">{eventId}</AgentRunPageBadge>
+          ))}
+          {frame.eventIds.length > 16 && <AgentRunPageBadge variant="outline">+{frame.eventIds.length - 16}</AgentRunPageBadge>}
+        </AgentRunDebugTags>
+        {frame.eventIds.length === 0 && (
+          <AgentRunDebugActionButton variant="outline" onClick={onLoadAll} disabled={loadingAll}>
+            {loadingAll ? <AgentRunIcon icon={Loader2} size={10} spinning /> : <History size={10} />}
+            加载事件
+          </AgentRunDebugActionButton>
+        )}
+      </AgentRunTraceDisclosure>
+    </AgentRunDebugHotspotCard>
+  )
+}
+
+function RuntimeRoundFrameDetail({ frame, onFocusEvent }: { frame: AgentRuntimeRoundFrame; onFocusEvent: (eventId: string) => void }) {
+  return (
+    <AgentRunDebugStack>
       <AgentRunDebugSplit>
-        <AgentRunDebugPanel>
+        <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-context">
           <AgentRunDebugHeader>
-            <AgentRunDebugHeaderCopy>
-              <AgentRunDebugTitle>优先排查</AgentRunDebugTitle>
-              <AgentRunDebugDescription>按失败、阻塞、慢调用和模型异常排序</AgentRunDebugDescription>
-            </AgentRunDebugHeaderCopy>
-            <AgentRunPageBadge variant={hotspots.length > 0 ? 'soft' : 'outline'}>{hotspots.length} 项</AgentRunPageBadge>
+            <AgentRunDebugTitle>上下文</AgentRunDebugTitle>
+            {frame.context.projection && (
+              <AgentRunTraceEventActionButton onClick={() => onFocusEvent(frame.context.projection!.eventId)}>
+                定位投影
+              </AgentRunTraceEventActionButton>
+            )}
           </AgentRunDebugHeader>
-          {hotspots.length > 0 ? (
-            <AgentRunDebugList>
-              {hotspots.slice(0, 10).map((hotspot) => (
-                <DebugHotspotItem key={hotspot.id} hotspot={hotspot} onFocusEvent={onFocusEvent} />
-              ))}
-              {hotspots.length > 10 && <AgentRunTraceStateMessage>还有 {hotspots.length - 10} 项，可进入时间线继续筛选。</AgentRunTraceStateMessage>}
-            </AgentRunDebugList>
+          <AgentRunDebugMetricGrid>
+            <DebugCoverageMetric label="变动" value={String(frame.context.diff.mutationCount)} />
+            <DebugCoverageMetric label="append" value={String(frame.context.diff.appended)} />
+            <DebugCoverageMetric label="amend" value={String(frame.context.diff.amended)} />
+            <DebugCoverageMetric label="delete" value={String(frame.context.diff.deleted)} />
+            <DebugCoverageMetric label="Prompt 字符" value={frame.context.projection?.promptChars ?? frame.context.prompt?.totalChars ?? '-'} />
+          </AgentRunDebugMetricGrid>
+          {frame.context.diff.latestMutationReason && <AgentRunTraceDetailLine label="最新原因" value={redactAgentTraceDebugText(frame.context.diff.latestMutationReason)} />}
+          {frame.context.diff.changes.length > 0 ? (
+            <AgentRunTraceDisclosure title="上下文 diff" defaultOpen>
+              <AgentRunDebugList>
+                {frame.context.diff.changes.slice(0, 12).map((change, index) => (
+                  <AgentRunTraceContextRow key={`${change.eventId}:${change.key}:${index}`}>
+                    <AgentRunTraceContextKey>{contextChangeOpLabel(change.op)}</AgentRunTraceContextKey>
+                    <AgentRunTraceContextValue>
+                      {redactAgentTraceDebugText([
+                        change.key,
+                        change.after?.label ? `after ${change.after.label}` : undefined,
+                        change.before?.label ? `before ${change.before.label}` : undefined,
+                        change.preview,
+                      ].filter(Boolean).join(' · '))}
+                    </AgentRunTraceContextValue>
+                  </AgentRunTraceContextRow>
+                ))}
+              </AgentRunDebugList>
+            </AgentRunTraceDisclosure>
           ) : (
-            <AgentRunDebugMutedNote>
-              当前已加载 trace 中没有明显失败、阻塞或慢调用。可以继续看时间线，或加载全部事件确认没有遗漏。
-            </AgentRunDebugMutedNote>
+            <AgentRunDebugMutedNote>本轮没有上下文账本变动。</AgentRunDebugMutedNote>
           )}
         </AgentRunDebugPanel>
 
-        <AgentRunDebugStack>
-          <AgentRunDebugPanel>
-            <AgentRunDebugTitle>下一步</AgentRunDebugTitle>
-            <AgentRunDebugActionList>
-              {attentionEvents.length > 0 && (
-                <AgentRunDebugActionButton variant="outline" onClick={onShowAttentionEvents}>
-                  只看需关注事件
-                </AgentRunDebugActionButton>
-              )}
-              {traceHasUnloadedEvents && (
-                <AgentRunDebugActionButton variant="outline" onClick={onLoadAll} disabled={loadingAll}>
-                  {loadingAll ? <AgentRunIcon icon={Loader2} size={10} spinning /> : <History size={10} />}
-                  加载全部事件
-                </AgentRunDebugActionButton>
-              )}
-              <AgentRunDebugActionButton variant="ghost" onClick={onCopy}>
-                <Copy size={10} />
-                {copied ? '摘要已复制' : '复制调试摘要'}
-              </AgentRunDebugActionButton>
-              <AgentRunDebugActionButton
-                variant="ghost"
-                onClick={onCopyBundle}
-                disabled={bundleCopyDisabled}
-                title={bundleCopyDisabledReason ?? undefined}
-              >
-                {loadingAll ? <AgentRunIcon icon={Loader2} size={10} spinning /> : <Copy size={10} />}
-                {bundleCopied ? '调试包已复制' : '复制脱敏调试包'}
-              </AgentRunDebugActionButton>
-            </AgentRunDebugActionList>
-            {copyError && <AgentRunTraceCallout role="alert" tone="danger" compact>摘要复制失败：{copyError}</AgentRunTraceCallout>}
-            {bundleCopyError && <AgentRunTraceCallout role="alert" tone="danger" compact>调试包复制失败：{bundleCopyError}</AgentRunTraceCallout>}
-            {bundleCopyDisabledReason && !bundleCopyError && <AgentRunDebugStatusNote>{bundleCopyDisabledReason}</AgentRunDebugStatusNote>}
-          </AgentRunDebugPanel>
-
-          <AgentRunDebugPanel>
-            <AgentRunDebugHeader>
-              <AgentRunDebugTitle>覆盖状态</AgentRunDebugTitle>
-              {summary.issues.length > 0 ? <AgentRunPageBadge>需补全</AgentRunPageBadge> : <AgentRunPageBadge variant="outline">信息完整</AgentRunPageBadge>}
-            </AgentRunDebugHeader>
-            <AgentRunDebugMetricGrid>
-              <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
-              <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
-              <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
-              <DebugCoverageMetric label="Token" value={summary.tokenUsageLabel} />
-              <DebugCoverageMetric label="请求/响应" value={`${summary.requestPayloadsLabel} / ${summary.httpResponseBodiesLabel}`} />
-            </AgentRunDebugMetricGrid>
-            {blockingItems.length > 0 && (
-              <AgentRunDebugReadinessList>
-                {blockingItems.slice(0, 3).map((item) => (
-                  <AgentRunTraceCallout key={item.id} tone="warning" compact>
-                    <AgentRunTraceFeedbackTitle>{item.label}</AgentRunTraceFeedbackTitle>
-                    {item.action}
-                  </AgentRunTraceCallout>
-                ))}
-              </AgentRunDebugReadinessList>
-            )}
-          </AgentRunDebugPanel>
-        </AgentRunDebugStack>
+        <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-model">
+          <AgentRunDebugHeader>
+            <AgentRunDebugTitle>模型</AgentRunDebugTitle>
+            <AgentRunPageBadge variant="outline">{frame.modelCalls.length} 次</AgentRunPageBadge>
+          </AgentRunDebugHeader>
+          {frame.modelCalls.length > 0 ? (
+            <AgentRunDebugList>
+              {frame.modelCalls.map((call) => (
+                <AgentRunDebugStatusNote key={call.id}>
+                  <AgentRunDebugHeader>
+                    <AgentRunDebugHeaderCopy>
+                      <AgentRunDebugTitle>{call.label}</AgentRunDebugTitle>
+                      <AgentRunDebugDescription>{[String(call.model ?? ''), String(call.latency ?? ''), String(call.httpStatus ? `HTTP ${call.httpStatus}` : '')].filter(Boolean).join(' · ')}</AgentRunDebugDescription>
+                    </AgentRunDebugHeaderCopy>
+                    <AgentRunPageBadge variant={call.status === 'complete' ? 'outline' : 'soft'}>{call.statusLabel}</AgentRunPageBadge>
+                  </AgentRunDebugHeader>
+                  <AgentRunDebugTags>
+                    {call.messageCount && <AgentRunPageBadge variant="outline">消息 {String(call.messageCount)}</AgentRunPageBadge>}
+                    {call.toolCount && <AgentRunPageBadge variant="outline">工具 {String(call.toolCount)}</AgentRunPageBadge>}
+                    {call.inputTokens && <AgentRunPageBadge variant="outline">in {String(call.inputTokens)}</AgentRunPageBadge>}
+                    {call.outputTokens && <AgentRunPageBadge variant="outline">out {String(call.outputTokens)}</AgentRunPageBadge>}
+                  </AgentRunDebugTags>
+                  {call.issue && <AgentRunTraceDetailLine label="问题" value={redactAgentTraceDebugText(String(call.issue))} />}
+                </AgentRunDebugStatusNote>
+              ))}
+            </AgentRunDebugList>
+          ) : (
+            <AgentRunDebugMutedNote>本轮没有模型调用。</AgentRunDebugMutedNote>
+          )}
+        </AgentRunDebugPanel>
       </AgentRunDebugSplit>
-    </AgentRunDebugSection>
+
+      <RuntimeToolList calls={frame.toolCalls} onFocusEvent={onFocusEvent} />
+      <RuntimeSkillList skills={frame.skills} onFocusEvent={onFocusEvent} />
+      <RuntimeMessageWriteList writes={frame.messageWrites} onFocusEvent={onFocusEvent} />
+      {frame.approvals.length > 0 && (
+        <AgentRunDebugPanel variant="card">
+          <AgentRunDebugTitle>审批/输入</AgentRunDebugTitle>
+          <AgentRunDebugList>
+            {frame.approvals.map((event) => (
+              <AgentRunDebugStatusNote key={event.eventId}>
+                <AgentRunDebugHeader>
+                  <AgentRunDebugTitle>{event.title}</AgentRunDebugTitle>
+                  <AgentRunTraceEventActionButton onClick={() => onFocusEvent(event.eventId)}>定位</AgentRunTraceEventActionButton>
+                </AgentRunDebugHeader>
+                {event.summary && <AgentRunTraceDetailLine label="摘要" value={redactAgentTraceDebugText(event.summary)} />}
+              </AgentRunDebugStatusNote>
+            ))}
+          </AgentRunDebugList>
+        </AgentRunDebugPanel>
+      )}
+    </AgentRunDebugStack>
   )
+}
+
+function RuntimeToolList({ calls, onFocusEvent }: { calls: AgentRuntimeRoundFrame['toolCalls']; onFocusEvent: (eventId: string) => void }) {
+  if (calls.length === 0) return null
+  return (
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-tools">
+      <AgentRunDebugHeader>
+        <AgentRunDebugTitle>工具</AgentRunDebugTitle>
+        <AgentRunPageBadge variant="outline">{calls.length} 次</AgentRunPageBadge>
+      </AgentRunDebugHeader>
+      <AgentRunDebugList>
+        {calls.map((call) => (
+          <AgentRunDebugStatusNote key={call.eventId}>
+            <AgentRunDebugHeader>
+              <AgentRunDebugHeaderCopy>
+                <AgentRunDebugTitle>{call.toolName ? agentToolNameLabel(call.toolName) : call.title}</AgentRunDebugTitle>
+                <AgentRunDebugDescription>{call.toolName ?? call.eventId}</AgentRunDebugDescription>
+              </AgentRunDebugHeaderCopy>
+              <AgentRunTraceEventActionButton onClick={() => onFocusEvent(call.eventId)}>定位</AgentRunTraceEventActionButton>
+            </AgentRunDebugHeader>
+            <AgentRunDebugTags>
+              <AgentRunPageBadge variant={call.status === 'completed' ? 'outline' : 'soft'}>{call.statusLabel}</AgentRunPageBadge>
+              {call.durationMs !== undefined && <AgentRunPageBadge variant="outline">耗时 {formatDurationMs(Number(call.durationMs))}</AgentRunPageBadge>}
+            </AgentRunDebugTags>
+            {call.summary && <AgentRunTraceDetailLine label="摘要" value={redactAgentTraceDebugText(String(call.summary))} />}
+            {call.argsPreview && <AgentRunTraceDetailLine label="参数" value={redactAgentTraceDebugText(String(call.argsPreview))} />}
+            {call.dataPreview && <AgentRunTraceDetailLine label="结果" value={redactAgentTraceDebugText(String(call.dataPreview))} />}
+          </AgentRunDebugStatusNote>
+        ))}
+      </AgentRunDebugList>
+    </AgentRunDebugPanel>
+  )
+}
+
+function RuntimeSkillList({ skills, onFocusEvent }: { skills: AgentRuntimeRoundFrame['skills']; onFocusEvent: (eventId: string) => void }) {
+  if (skills.length === 0) return null
+  return (
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-skills">
+      <AgentRunDebugHeader>
+        <AgentRunDebugTitle>技能状态</AgentRunDebugTitle>
+        <AgentRunPageBadge variant="outline">{skills.length} 次</AgentRunPageBadge>
+      </AgentRunDebugHeader>
+      <AgentRunDebugList>
+        {skills.map((skill) => (
+          <AgentRunDebugStatusNote key={skill.eventId}>
+            <AgentRunDebugHeader>
+              <AgentRunDebugHeaderCopy>
+                <AgentRunDebugTitle>{skill.title}</AgentRunDebugTitle>
+                <AgentRunDebugDescription>{formatAgentRunTimestamp(skill.createdAt)}</AgentRunDebugDescription>
+              </AgentRunDebugHeaderCopy>
+              <AgentRunTraceEventActionButton onClick={() => onFocusEvent(skill.eventId)}>定位</AgentRunTraceEventActionButton>
+            </AgentRunDebugHeader>
+            <AgentRunDebugTags>
+              <AgentRunPageBadge variant="outline">激活 {skill.activeSkillIds.length}</AgentRunPageBadge>
+              <AgentRunPageBadge variant="outline">加载 {skill.loadedSkillIds.length}</AgentRunPageBadge>
+              <AgentRunPageBadge variant="outline">卸载 {skill.unloadedSkillIds.length}</AgentRunPageBadge>
+              <AgentRunPageBadge variant="outline">可用 {skill.availableSkillIds.length}</AgentRunPageBadge>
+            </AgentRunDebugTags>
+            {skill.activeSkillIds.length > 0 && <SkillIdList label="激活" ids={skill.activeSkillIds} compact />}
+            {skill.summary && <AgentRunTraceDetailLine label="摘要" value={redactAgentTraceDebugText(skill.summary)} />}
+          </AgentRunDebugStatusNote>
+        ))}
+      </AgentRunDebugList>
+    </AgentRunDebugPanel>
+  )
+}
+
+function RuntimeMessageWriteList({ writes, onFocusEvent }: { writes: AgentRuntimeRoundFrame['messageWrites']; onFocusEvent: (eventId: string) => void }) {
+  if (writes.length === 0) return null
+  return (
+    <AgentRunDebugPanel variant="card" data-testid="agent-run-runtime-frame-messages">
+      <AgentRunDebugHeader>
+        <AgentRunDebugTitle>消息写入</AgentRunDebugTitle>
+        <AgentRunPageBadge variant="outline">{writes.length} 条</AgentRunPageBadge>
+      </AgentRunDebugHeader>
+      <AgentRunDebugList>
+        {writes.map((write) => (
+          <AgentRunDebugStatusNote key={write.eventId}>
+            <AgentRunDebugHeader>
+              <AgentRunDebugHeaderCopy>
+                <AgentRunDebugTitle>{write.messageId ?? write.eventId}</AgentRunDebugTitle>
+                <AgentRunDebugDescription>{write.contentChars} chars</AgentRunDebugDescription>
+              </AgentRunDebugHeaderCopy>
+              <AgentRunTraceEventActionButton onClick={() => onFocusEvent(write.eventId)}>定位</AgentRunTraceEventActionButton>
+            </AgentRunDebugHeader>
+            {write.contentPreview && <AgentRunTraceDetailLine label="预览" value={redactAgentTraceDebugText(write.contentPreview)} />}
+          </AgentRunDebugStatusNote>
+        ))}
+      </AgentRunDebugList>
+    </AgentRunDebugPanel>
+  )
+}
+
+function RuntimeContextMutationList({ mutations, onFocusEvent }: { mutations: AgentContextMutationView[]; onFocusEvent: (eventId: string) => void }) {
+  if (mutations.length === 0) return null
+  return (
+    <AgentRunDebugPanel variant="card">
+      <AgentRunDebugTitle>Setup 上下文变动</AgentRunDebugTitle>
+      <AgentRunDebugList>
+        {mutations.map((mutation) => (
+          <AgentRunDebugStatusNote key={mutation.eventId}>
+            <AgentRunDebugHeader>
+              <AgentRunDebugTitle>{mutation.title}</AgentRunDebugTitle>
+              <AgentRunTraceEventActionButton onClick={() => onFocusEvent(mutation.eventId)}>定位</AgentRunTraceEventActionButton>
+            </AgentRunDebugHeader>
+            <AgentRunDebugTags>
+              <AgentRunPageBadge variant="outline">append {mutation.appended}</AgentRunPageBadge>
+              <AgentRunPageBadge variant="outline">amend {mutation.amended}</AgentRunPageBadge>
+              <AgentRunPageBadge variant="outline">delete {mutation.deleted}</AgentRunPageBadge>
+            </AgentRunDebugTags>
+          </AgentRunDebugStatusNote>
+        ))}
+      </AgentRunDebugList>
+    </AgentRunDebugPanel>
+  )
+}
+
+function runtimeLensLabel(lens: AgentTraceViewMode): string {
+  switch (lens) {
+    case 'all': return '全部'
+    case 'context': return '上下文'
+    case 'model': return '模型'
+    case 'tool': return '工具'
+    case 'skill': return '技能'
+    case 'message': return '消息'
+    case 'approval': return '审批'
+    case 'attention': return '异常'
+    case 'raw': return '原始事件'
+  }
+}
+
+function contextChangeOpLabel(op: AgentRuntimeRoundFrame['context']['diff']['changes'][number]['op']): string {
+  switch (op) {
+    case 'append': return '新增'
+    case 'amend': return '更新'
+    case 'delete': return '删除'
+    default: return '变动'
+  }
 }
 
 function DebugHotspotItem({ hotspot, onFocusEvent }: { hotspot: AgentDebugHotspot; onFocusEvent: (eventId: string) => void }) {
@@ -2267,14 +2465,14 @@ function RunRuntimeSummaryPanel({
         </AgentRunDebugHeader>
         <AgentRunDebugMetricGrid>
           <DebugCoverageMetric label="上下文变动" value={String(summary.context.contextMutationCount)} />
-          <DebugCoverageMetric label="Round 更新" value={String(summary.context.roundContextUpdateCount)} />
+          <DebugCoverageMetric label="上下文投影" value={String(summary.context.contextProjectionCount)} />
           <DebugCoverageMetric label="Prompt 事件" value={promptEventId ?? '-'} />
           {promptBudgetDetail?.totalChars && <DebugCoverageMetric label="Prompt 字符" value={promptBudgetDetail.totalChars} />}
           <DebugCoverageMetric label="Prompt 预算裁剪" value={String(promptBudgetDecisions.length)} />
-          {summary.context.latestRoundContextUpdate && (
+          {summary.context.latestContextProjection && (
             <>
-              <DebugCoverageMetric label="最近轮次" value={summary.context.latestRoundContextUpdate.roundLabel ?? String(summary.context.latestRoundContextUpdate.roundIndex ?? '-')} />
-              <DebugCoverageMetric label="投影消息" value={summary.context.latestRoundContextUpdate.messageCount ?? '-'} />
+              <DebugCoverageMetric label="最近轮次" value={summary.context.latestContextProjection.roundLabel ?? String(summary.context.latestContextProjection.roundIndex ?? '-')} />
+              <DebugCoverageMetric label="投影消息" value={summary.context.latestContextProjection.messageCount ?? '-'} />
             </>
           )}
           {summary.context.historyProjection && (
@@ -2349,313 +2547,6 @@ function RunRuntimeSummaryPanel({
         <RuntimeProjectionDecisionList title="附件投影" projection={summary.context.attachmentProjection} testId="agent-run-runtime-attachment-projection" />
       </AgentRunDebugPanel>
     </AgentRunDebugSection>
-  )
-}
-
-function RoundContextUpdatesPanel({ updates, onFocusEvent }: { updates: AgentRoundContextUpdateView[]; onFocusEvent: (eventId: string) => void }) {
-  return (
-    <AgentRunDebugPanel data-testid="agent-run-round-context-updates" variant="subtle">
-      <AgentRunDebugHeader>
-        <AgentRunDebugHeaderCopy>
-          <AgentRunDebugTitle>Round 上下文更新</AgentRunDebugTitle>
-          <AgentRunDebugDescription>每轮模型调用前的历史、tool loop、历史图片和当前附件投影</AgentRunDebugDescription>
-        </AgentRunDebugHeaderCopy>
-        <AgentRunPageBadge variant="outline">{updates.length} 轮</AgentRunPageBadge>
-      </AgentRunDebugHeader>
-      <AgentRunDebugList>
-        {updates.slice(0, 8).map((update) => (
-          <AgentRunTraceContextGroup key={update.eventId} data-testid="agent-run-round-context-update-item" variant="card">
-            <AgentRunTraceContextGroupLabel>
-              {update.roundLabel ?? update.title}
-            </AgentRunTraceContextGroupLabel>
-            <AgentRunTraceEventMeta>
-              {update.messageCount && <AgentRunTraceEventMetaItem>{update.messageCount} 条消息</AgentRunTraceEventMetaItem>}
-              {update.systemMessageCount && <AgentRunTraceEventMetaItem>{update.systemMessageCount} 条系统消息</AgentRunTraceEventMetaItem>}
-              {update.promptChars && <AgentRunTraceEventMetaItem>{update.promptChars} 字符</AgentRunTraceEventMetaItem>}
-              {update.historicalVisualProjection && <AgentRunTraceEventMetaItem>历史图片 {String(projectionNumber(update.historicalVisualProjection, 'includedInlineImageCount'))}/{String(projectionNumber(update.historicalVisualProjection, 'candidateCount'))}</AgentRunTraceEventMetaItem>}
-              {update.attachmentProjection && <AgentRunTraceEventMetaItem>当前内联图 {String(projectionNumber(update.attachmentProjection, 'inlineImageCount'))}</AgentRunTraceEventMetaItem>}
-            </AgentRunTraceEventMeta>
-            <AgentRunTraceContextGroupItems>
-              {update.historyProjection && (
-                <AgentRunTraceContextRow>
-                  <AgentRunTraceContextKey>历史</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>保留 {update.historyProjection.retainedCount}/{update.historyProjection.inputCount}，压缩 {update.historyProjection.compactedCount}，过滤 {update.historyProjection.filteredCount}</AgentRunTraceContextValue>
-                </AgentRunTraceContextRow>
-              )}
-              {update.historicalVisualProjection && (
-                <AgentRunTraceContextRow>
-                  <AgentRunTraceContextKey>历史图片</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>候选 {String(projectionNumber(update.historicalVisualProjection, 'candidateCount'))}，内联 {String(projectionNumber(update.historicalVisualProjection, 'includedInlineImageCount'))}，元数据 {String(projectionNumber(update.historicalVisualProjection, 'metadataOnlyCount'))}，丢弃 {String(projectionNumber(update.historicalVisualProjection, 'droppedCount'))}</AgentRunTraceContextValue>
-                </AgentRunTraceContextRow>
-              )}
-            </AgentRunTraceContextGroupItems>
-            <RuntimeProjectionDecisionList title="历史图片决策" projection={update.historicalVisualProjection} testId="agent-run-round-context-historical-visual-decisions" />
-            <RuntimeProjectionDecisionList title="当前附件决策" projection={update.attachmentProjection} testId="agent-run-round-context-attachment-decisions" />
-            <AgentRunTraceEventActionButton
-              type="button"
-              aria-label={`定位上下文更新事件 ${update.eventId}`}
-              onClick={() => onFocusEvent(update.eventId)}
-            >
-              定位
-            </AgentRunTraceEventActionButton>
-          </AgentRunTraceContextGroup>
-        ))}
-      </AgentRunDebugList>
-      {updates.length > 8 && <AgentRunTraceStateMessage>还有 {updates.length - 8} 轮上下文更新，请复制调试包查看完整列表。</AgentRunTraceStateMessage>}
-    </AgentRunDebugPanel>
-  )
-}
-
-function RoundContextChangesPanel({
-  changes,
-  contextMutations,
-  roundContextUpdates,
-  modelCallContexts,
-  modelRequestEvidenceByEventId,
-  events,
-  loading,
-  requestEvidenceLoading,
-  onFocusEvent,
-}: {
-  changes: AgentRoundContextChangeView[]
-  contextMutations: AgentContextMutationView[]
-  roundContextUpdates: AgentRoundContextUpdateView[]
-  modelCallContexts: AgentModelCallContextView[]
-  modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>
-  events: AgentTraceEvent[]
-  loading: boolean
-  requestEvidenceLoading: boolean
-  onFocusEvent: (eventId: string) => void
-}) {
-  const eventsById = new Map(events.map((event) => [event.id, event]))
-  return (
-    <AgentRunDebugSection data-testid="agent-run-round-context-changes">
-      <AgentRunDebugPanel variant="subtle">
-        <AgentRunDebugHeader>
-          <AgentRunDebugHeaderCopy>
-            <AgentRunDebugTitle>上下文变动视图</AgentRunDebugTitle>
-            <AgentRunDebugDescription>按 round 展示模型调用前发送的上下文投影，以及自上一轮以来的 context key 变动</AgentRunDebugDescription>
-          </AgentRunDebugHeaderCopy>
-          <AgentRunDebugActions>
-            {loading && <AgentRunPageBadge variant="outline">加载中</AgentRunPageBadge>}
-            <AgentRunPageBadge variant="outline">{changes.length} 轮</AgentRunPageBadge>
-          </AgentRunDebugActions>
-        </AgentRunDebugHeader>
-        <AgentRunDebugMetricGrid>
-          <DebugCoverageMetric label="Round 投影" value={String(roundContextUpdates.length)} />
-          <DebugCoverageMetric label="Context 事件" value={String(contextMutations.length)} />
-          <DebugCoverageMetric label="关联变动" value={String(changes.reduce((sum, change) => sum + change.mutationCount, 0))} />
-          <DebugCoverageMetric label="append" value={String(changes.reduce((sum, change) => sum + change.appended, 0))} />
-          <DebugCoverageMetric label="amend" value={String(changes.reduce((sum, change) => sum + change.amended, 0))} />
-          <DebugCoverageMetric label="delete" value={String(changes.reduce((sum, change) => sum + change.deleted, 0))} />
-        </AgentRunDebugMetricGrid>
-      </AgentRunDebugPanel>
-
-      {changes.length === 0 && !loading && (
-        <AgentRunTraceEmptyState data-testid="agent-run-round-context-changes-empty">
-          已加载 trace 中还没有 round 级上下文投影事件。旧运行可能只有上下文变动链，尚不能按 round 对齐。
-        </AgentRunTraceEmptyState>
-      )}
-
-      {changes.length > 0 && (
-        <AgentRunDebugList>
-          {changes.slice(0, 12).map((change, index) => {
-            const requestContexts = modelRequestContextsForRound({
-              change,
-              nextChange: changes[index + 1],
-              modelCallContexts,
-              modelRequestEvidenceByEventId,
-              eventsById,
-            })
-            return (
-              <AgentRunTraceContextGroup key={change.round.eventId} data-testid="agent-run-round-context-change-item" variant="card">
-                <AgentRunTraceContextGroupLabel>
-                  {change.round.roundLabel ?? change.round.title}
-                </AgentRunTraceContextGroupLabel>
-                <AgentRunTraceEventMeta>
-                  {change.round.messageCount && <AgentRunTraceEventMetaItem>{change.round.messageCount} 条消息</AgentRunTraceEventMetaItem>}
-                  {change.round.systemMessageCount && <AgentRunTraceEventMetaItem>{change.round.systemMessageCount} 条系统消息</AgentRunTraceEventMetaItem>}
-                  {change.round.promptChars && <AgentRunTraceEventMetaItem>{change.round.promptChars} 字符</AgentRunTraceEventMetaItem>}
-                  {requestContexts.length > 0 && <AgentRunTraceEventMetaItem>请求上下文 {requestContexts.reduce((sum, context) => sum + context.messages.length, 0)} 条</AgentRunTraceEventMetaItem>}
-                  {requestContexts.some((context) => context.imageCount > 0) && <AgentRunTraceEventMetaItem>图片 {requestContexts.reduce((sum, context) => sum + context.imageCount, 0)} 张</AgentRunTraceEventMetaItem>}
-                  <AgentRunTraceEventMetaItem>变动 {change.mutationCount} 次</AgentRunTraceEventMetaItem>
-                  <AgentRunTraceEventMetaItem>append {change.appended}</AgentRunTraceEventMetaItem>
-                  <AgentRunTraceEventMetaItem>amend {change.amended}</AgentRunTraceEventMetaItem>
-                  <AgentRunTraceEventMetaItem>delete {change.deleted}</AgentRunTraceEventMetaItem>
-                </AgentRunTraceEventMeta>
-                {change.latestMutationReason && (
-                  <AgentRunDebugHotspotSummary>{redactAgentTraceDebugText(change.latestMutationReason)}</AgentRunDebugHotspotSummary>
-                )}
-                <AgentRunTraceContextGroupItems>
-                  {change.round.historyProjection && (
-                    <AgentRunTraceContextRow>
-                      <AgentRunTraceContextKey>发送历史</AgentRunTraceContextKey>
-                      <AgentRunTraceContextValue>保留 {change.round.historyProjection.retainedCount}/{change.round.historyProjection.inputCount}，压缩 {change.round.historyProjection.compactedCount}，过滤 {change.round.historyProjection.filteredCount}</AgentRunTraceContextValue>
-                    </AgentRunTraceContextRow>
-                  )}
-                  {change.round.toolLoopProjection && (
-                    <AgentRunTraceContextRow>
-                      <AgentRunTraceContextKey>Tool loop</AgentRunTraceContextKey>
-                      <AgentRunTraceContextValue>{String(projectionNumber(change.round.toolLoopProjection, 'messageCount'))} 条，{String(projectionNumber(change.round.toolLoopProjection, 'chars'))} 字符</AgentRunTraceContextValue>
-                    </AgentRunTraceContextRow>
-                  )}
-                  {change.round.historicalVisualProjection && (
-                    <AgentRunTraceContextRow>
-                      <AgentRunTraceContextKey>历史图片</AgentRunTraceContextKey>
-                      <AgentRunTraceContextValue>候选 {String(projectionNumber(change.round.historicalVisualProjection, 'candidateCount'))}，内联 {String(projectionNumber(change.round.historicalVisualProjection, 'includedInlineImageCount'))}，元数据 {String(projectionNumber(change.round.historicalVisualProjection, 'metadataOnlyCount'))}</AgentRunTraceContextValue>
-                    </AgentRunTraceContextRow>
-                  )}
-                  {change.round.attachmentProjection && (
-                    <AgentRunTraceContextRow>
-                      <AgentRunTraceContextKey>当前附件</AgentRunTraceContextKey>
-                      <AgentRunTraceContextValue>附件 {String(projectionNumber(change.round.attachmentProjection, 'attachmentCount'))}，内联图片 {String(projectionNumber(change.round.attachmentProjection, 'inlineImageCount'))}，元数据 {String(projectionNumber(change.round.attachmentProjection, 'metadataOnlyCount'))}</AgentRunTraceContextValue>
-                    </AgentRunTraceContextRow>
-                  )}
-                  {change.affectedContextKeys.slice(0, 8).map((key) => (
-                    <AgentRunTraceContextRow key={`${change.round.eventId}:key:${key}`}>
-                      <AgentRunTraceContextKey>{contextKeyChangeTypeLabel(change, key)}</AgentRunTraceContextKey>
-                      <AgentRunTraceContextValue>{redactAgentTraceDebugText(key)}</AgentRunTraceContextValue>
-                    </AgentRunTraceContextRow>
-                  ))}
-                </AgentRunTraceContextGroupItems>
-                {requestContexts.length > 0 ? (
-                  <AgentRunDebugList data-testid="agent-run-round-concrete-context">
-                    {requestContexts.map((context) => (
-                      <AgentRunTraceDisclosure key={`${change.round.eventId}:${context.eventId}`} title={`具体上下文 · ${context.label}`} defaultOpen>
-                        <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(context.eventId)}>
-                          定位模型请求
-                        </AgentRunTraceEventActionButton>
-                        <ModelRequestMessageList messages={context.messages} />
-                      </AgentRunTraceDisclosure>
-                    ))}
-                  </AgentRunDebugList>
-                ) : (
-                  <AgentRunDebugStatusNote>{requestEvidenceLoading ? '正在加载模型请求 payload...' : '这轮尚未关联到模型请求 payload；请确认 trace 已加载完整，或打开时间线中的模型请求事件查看原始负载。'}</AgentRunDebugStatusNote>
-                )}
-                {change.mutations.length > 0 && (
-                  <AgentRunDebugList data-testid="agent-run-round-context-change-mutations">
-                    {change.mutations.slice(0, 4).map((mutation) => (
-                      <AgentRunDebugStatusNote key={`${change.round.eventId}:${mutation.eventId}`}>
-                        <AgentRunDebugHeader>
-                          <AgentRunDebugHeaderCopy>
-                            <AgentRunDebugTitle>{mutation.latest ? `${mutation.latest.type} · ${mutation.latest.id}` : mutation.title}</AgentRunDebugTitle>
-                            <AgentRunDebugDescription>{mutation.eventId}</AgentRunDebugDescription>
-                          </AgentRunDebugHeaderCopy>
-                          <AgentRunDebugTags>
-                            <AgentRunPageBadge variant="outline">append {mutation.appended}</AgentRunPageBadge>
-                            <AgentRunPageBadge variant="outline">amend {mutation.amended}</AgentRunPageBadge>
-                            <AgentRunPageBadge variant="outline">delete {mutation.deleted}</AgentRunPageBadge>
-                          </AgentRunDebugTags>
-                        </AgentRunDebugHeader>
-                        {mutation.latest?.reason && <AgentRunTraceDetailLine label="原因" value={redactAgentTraceDebugText(mutation.latest.reason)} />}
-                        <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(mutation.eventId)}>
-                          定位变动
-                        </AgentRunTraceEventActionButton>
-                      </AgentRunDebugStatusNote>
-                    ))}
-                  </AgentRunDebugList>
-                )}
-                <AgentRunDebugActions>
-                  <AgentRunTraceEventActionButton type="button" onClick={() => onFocusEvent(change.round.eventId)}>
-                    定位 Round
-                  </AgentRunTraceEventActionButton>
-                </AgentRunDebugActions>
-              </AgentRunTraceContextGroup>
-            )
-          })}
-        </AgentRunDebugList>
-      )}
-      {changes.length > 12 && <AgentRunTraceStateMessage>还有 {changes.length - 12} 轮上下文变动，请复制调试包查看完整列表。</AgentRunTraceStateMessage>}
-    </AgentRunDebugSection>
-  )
-}
-
-function modelRequestContextsForRound(input: {
-  change: AgentRoundContextChangeView
-  nextChange?: AgentRoundContextChangeView
-  modelCallContexts: AgentModelCallContextView[]
-  modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>
-  eventsById: Map<string, AgentTraceEvent>
-}): Array<{ eventId: string; label: string; messages: AgentModelRequestMessageView[]; imageCount: number }> {
-  const roundEvent = input.eventsById.get(input.change.round.eventId)
-  const nextRoundEvent = input.nextChange ? input.eventsById.get(input.nextChange.round.eventId) : undefined
-  if (!roundEvent) return []
-  const candidates = input.modelCallContexts.flatMap((context) => {
-    const eventIds = uniqueStableStrings([context.requestEventId, ...context.modelEventIds])
-    return eventIds.flatMap((eventId) => {
-      if (!eventId) return []
-      const event = input.eventsById.get(eventId)
-      if (!event || event.kind !== 'model_call') return []
-      if (!modelEventBelongsToRound(event, roundEvent, nextRoundEvent)) return []
-      const messages = modelRequestMessagesForEvent(event, input.modelRequestEvidenceByEventId)
-      if (messages.length === 0) return []
-      return [{
-        eventId,
-        label: context.label,
-        messages,
-        imageCount: messages.reduce((sum, message) => sum + message.imageCount, 0),
-      }]
-    })
-  })
-  for (const [eventId, evidence] of input.modelRequestEvidenceByEventId.entries()) {
-    const event = input.eventsById.get(eventId)
-    if (!event || event.kind !== 'model_call') continue
-    if (!modelEventBelongsToRound(event, roundEvent, nextRoundEvent)) continue
-    const messages = modelRequestMessagesFromPayload(evidence.value)
-    if (messages.length === 0) continue
-    candidates.push({
-      eventId,
-      label: '模型请求负载',
-      messages,
-      imageCount: messages.reduce((sum, message) => sum + message.imageCount, 0),
-    })
-  }
-  const seen = new Set<string>()
-  return candidates.filter((candidate) => {
-    if (seen.has(candidate.eventId)) return false
-    seen.add(candidate.eventId)
-    return true
-  })
-}
-
-function modelRequestMessagesForEvent(event: AgentTraceEvent, modelRequestEvidenceByEventId: Map<string, AgentRunDebugEvidence>): AgentModelRequestMessageView[] {
-  const detail = agentTraceView(event).modelDetail
-  if (detail?.messages.length) return detail.messages
-  const evidence = modelRequestEvidenceByEventId.get(event.id)
-  return evidence ? modelRequestMessagesFromPayload(evidence.value) : []
-}
-
-function modelEventBelongsToRound(event: AgentTraceEvent, roundEvent: AgentTraceEvent, nextRoundEvent: AgentTraceEvent | undefined): boolean {
-  if (roundEvent.roundId && event.roundId === roundEvent.roundId) return true
-  if (roundEvent.roundIndex !== undefined && event.roundIndex === roundEvent.roundIndex) return true
-  if (event.createdAt < roundEvent.createdAt) return false
-  return nextRoundEvent ? event.createdAt < nextRoundEvent.createdAt : true
-}
-
-function uniqueStableStrings(values: Array<string | undefined>): string[] {
-  const seen = new Set<string>()
-  return values.flatMap((value) => {
-    if (!value || seen.has(value)) return []
-    seen.add(value)
-    return [value]
-  })
-}
-
-function ModelRequestMessageList({ messages }: { messages: AgentModelRequestMessageView[] }) {
-  return (
-    <AgentRunDebugList data-testid="agent-run-round-request-messages">
-      {messages.map((message) => (
-        <AgentRunTraceContextGroup key={`${message.index}:${message.role}`} data-testid="agent-run-round-request-message" variant="card">
-          <AgentRunTraceContextGroupLabel>{message.index}. {message.roleLabel}</AgentRunTraceContextGroupLabel>
-          <AgentRunTraceEventMeta>
-            <AgentRunTraceEventMetaItem>{message.contentChars} 字符</AgentRunTraceEventMetaItem>
-            {message.parts.length > 0 && <AgentRunTraceEventMetaItem>{message.parts.length} 个部件</AgentRunTraceEventMetaItem>}
-            {message.imageCount > 0 && <AgentRunTraceEventMetaItem>{message.imageCount} 张图片</AgentRunTraceEventMetaItem>}
-          </AgentRunTraceEventMeta>
-          <ModelMessageParts message={message} />
-        </AgentRunTraceContextGroup>
-      ))}
-    </AgentRunDebugList>
   )
 }
 
@@ -2748,13 +2639,6 @@ function projectionNumber(projection: Record<string, unknown>, key: string): num
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-function contextKeyChangeTypeLabel(change: AgentRoundContextChangeView, key: string): string {
-  if (change.deletedContextKeys.includes(key)) return 'delete'
-  if (change.amendedContextKeys.includes(key)) return 'amend'
-  if (change.appendedContextKeys.includes(key)) return 'append'
-  return 'key'
-}
-
 function historyProjectionActionLabel(action: string): string {
   if (action === 'compact') return '历史压缩'
   if (action === 'drop') return '历史过滤'
@@ -2784,68 +2668,6 @@ function RuntimeNameList({ label, names, tone, compact = true }: { label: string
       </AgentRunDebugTags>
     </AgentRunDebugTagGroup>
   )
-}
-
-function SkillTracePanel({ summary, onFocusEvent }: { summary: AgentSkillTraceSummary; onFocusEvent: (eventId: string) => void }) {
-  const latest = summary.timeline.at(-1)
-  return (
-    <AgentRunDebugSection data-testid="agent-run-skill-trace-panel">
-      <AgentRunDebugMetricGrid>
-        <SkillTraceMetric label="当前激活" value={summary.currentActiveSkillIds.length} />
-        <SkillTraceMetric label="显式加载" value={summary.currentLoadedSkillIds.length} />
-        <SkillTraceMetric label="显式卸载" value={summary.currentUnloadedSkillIds.length} />
-        <SkillTraceMetric label="目录可用" value={summary.currentAvailableSkillIds.length} />
-      </AgentRunDebugMetricGrid>
-      {latest && (
-        <AgentRunDebugPanel>
-          <AgentRunDebugHeader>
-            <AgentRunDebugHeaderCopy>
-              <AgentRunDebugTitle>最新技能状态</AgentRunDebugTitle>
-              <AgentRunDebugDescription>{formatAgentRunTimestamp(latest.createdAt)}</AgentRunDebugDescription>
-            </AgentRunDebugHeaderCopy>
-            <AgentRunDebugActionButton variant="ghost" onClick={() => onFocusEvent(latest.eventId)}>
-              定位事件
-            </AgentRunDebugActionButton>
-          </AgentRunDebugHeader>
-          <SkillIdList label="激活技能" ids={latest.activeSkillIds} />
-          <SkillIdList label="显式加载" ids={latest.loadedSkillIds} />
-          <SkillIdList label="显式卸载" ids={latest.unloadedSkillIds} />
-        </AgentRunDebugPanel>
-      )}
-      {summary.timeline.length > 0 ? (
-        <AgentRunDebugList>
-          {summary.timeline.map((entry) => (
-            <AgentRunDebugRowButton
-              key={entry.eventId}
-              data-testid="agent-run-skill-trace-event"
-              onClick={() => onFocusEvent(entry.eventId)}
-            >
-              <AgentRunTraceEventHeader>
-                <AgentRunTraceEventTitle>{entry.title}</AgentRunTraceEventTitle>
-                <AgentRunTraceEventMetaItem>{formatAgentRunTimestamp(entry.createdAt)}</AgentRunTraceEventMetaItem>
-              </AgentRunTraceEventHeader>
-              <AgentRunDebugTags>
-                <AgentRunPageBadge variant="outline">激活 {entry.activeSkillIds.length}</AgentRunPageBadge>
-                <AgentRunPageBadge variant="outline">加载 {entry.loadedSkillIds.length}</AgentRunPageBadge>
-                <AgentRunPageBadge variant="outline">卸载 {entry.unloadedSkillIds.length}</AgentRunPageBadge>
-                <AgentRunPageBadge variant="outline">可用 {entry.availableSkillIds.length}</AgentRunPageBadge>
-              </AgentRunDebugTags>
-              {entry.summary && <AgentRunDebugHotspotSummary>{redactAgentTraceDebugText(entry.summary)}</AgentRunDebugHotspotSummary>}
-              <SkillIdList label="激活" ids={entry.activeSkillIds} compact />
-            </AgentRunDebugRowButton>
-          ))}
-        </AgentRunDebugList>
-      ) : (
-        <AgentRunTraceEmptyState data-testid="agent-run-skill-trace-empty">
-          已加载事件里还没有技能状态事件。
-        </AgentRunTraceEmptyState>
-      )}
-    </AgentRunDebugSection>
-  )
-}
-
-function SkillTraceMetric({ label, value }: { label: string; value: number }) {
-  return <AgentRunDebugMetric label={label} value={value} />
 }
 
 function SkillIdList({ label, ids, compact = false }: { label: string; ids: string[]; compact?: boolean }) {
@@ -3088,263 +2910,6 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
         <AgentRunTraceStateMessage>还有 {events.length - 8} 个需关注事件，请用事件筛选查看。</AgentRunTraceStateMessage>
       )}
     </AgentRunDebugHotspotCard>
-  )
-}
-
-function ContextMutationPanel({ mutations, onFocusEvent }: { mutations: AgentContextMutationView[]; onFocusEvent: (eventId: string) => void }) {
-  return (
-    <AgentRunDebugPanel data-testid="agent-run-context-mutations" variant="subtle">
-      <AgentRunDebugHeader>
-        <AgentRunDebugHeaderCopy>
-          <AgentRunDebugTitle>上下文变动链</AgentRunDebugTitle>
-          <AgentRunDebugDescription>按 context key 展示 append / amend / delete，不包含上下文正文</AgentRunDebugDescription>
-        </AgentRunDebugHeaderCopy>
-        <AgentRunPageBadge variant="outline">{mutations.length} 次</AgentRunPageBadge>
-      </AgentRunDebugHeader>
-      <AgentRunDebugList>
-        {mutations.slice(0, 8).map((mutation) => (
-          <AgentRunTraceContextGroup key={mutation.eventId} data-testid="agent-run-context-mutation-item" variant="card">
-            <AgentRunTraceContextGroupLabel>
-              {mutation.latest ? `${mutation.latest.type} · ${mutation.latest.id}` : mutation.title}
-            </AgentRunTraceContextGroupLabel>
-            <AgentRunTraceEventMeta>
-              <AgentRunTraceEventMetaItem>总计 {mutation.total}</AgentRunTraceEventMetaItem>
-              <AgentRunTraceEventMetaItem>append {mutation.appended}</AgentRunTraceEventMetaItem>
-              <AgentRunTraceEventMetaItem>amend {mutation.amended}</AgentRunTraceEventMetaItem>
-              <AgentRunTraceEventMetaItem>delete {mutation.deleted}</AgentRunTraceEventMetaItem>
-            </AgentRunTraceEventMeta>
-            {mutation.latest?.reason && <AgentRunDebugHotspotSummary>{redactAgentTraceDebugText(mutation.latest.reason)}</AgentRunDebugHotspotSummary>}
-            <AgentRunTraceContextGroupItems>
-              {mutation.affectedContextKeys.slice(0, 6).map((key) => (
-                <AgentRunTraceContextRow key={`${mutation.eventId}:${key}`}>
-                  <AgentRunTraceContextKey>key</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>{redactAgentTraceDebugText(key)}</AgentRunTraceContextValue>
-                </AgentRunTraceContextRow>
-              ))}
-              {mutation.refs.slice(0, 4).map((ref, index) => (
-                <AgentRunTraceContextRow key={`${mutation.eventId}:ref:${ref.key ?? ref.id ?? index}`}>
-                  <AgentRunTraceContextKey>{ref.type ?? ref.kind}</AgentRunTraceContextKey>
-                  <AgentRunTraceContextValue>{redactAgentTraceDebugText([ref.key, ref.hash].filter(Boolean).join(' · ') || ref.label)}</AgentRunTraceContextValue>
-                </AgentRunTraceContextRow>
-              ))}
-            </AgentRunTraceContextGroupItems>
-            <AgentRunTraceEventActionButton
-              type="button"
-              aria-label={`定位上下文变动事件 ${mutation.eventId}`}
-              onClick={() => onFocusEvent(mutation.eventId)}
-            >
-              定位
-            </AgentRunTraceEventActionButton>
-          </AgentRunTraceContextGroup>
-        ))}
-      </AgentRunDebugList>
-      {mutations.length > 8 && <AgentRunTraceStateMessage>还有 {mutations.length - 8} 次上下文变动，请复制调试包查看完整列表。</AgentRunTraceStateMessage>}
-    </AgentRunDebugPanel>
-  )
-}
-
-function ModelCallSummaryPanel({
-  summaries,
-  contexts,
-  events,
-  onFocusEvent,
-}: {
-  summaries: AgentModelCallSummary[]
-  contexts: AgentModelCallContextView[]
-  events: AgentTraceEvent[]
-  onFocusEvent: (eventId: string) => void
-}) {
-  const contextsByCallId = new Map(contexts.map((context) => [context.callId, context]))
-  return (
-    <AgentRunDebugPanel data-testid="agent-run-model-call-summary" variant="subtle">
-      <AgentRunDebugHeader>
-        <AgentRunDebugHeaderCopy>
-          <AgentRunDebugTitle>大模型调用总览</AgentRunDebugTitle>
-          <AgentRunDebugDescription>由 Agent 服务端归并请求、响应、历史写入和工具调用</AgentRunDebugDescription>
-        </AgentRunDebugHeaderCopy>
-        <AgentRunPageBadge variant="outline">{summaries.length} 次调用</AgentRunPageBadge>
-      </AgentRunDebugHeader>
-      <AgentRunDebugList>
-        {summaries.map((summary) => {
-          const debugContext = contextsByCallId.get(summary.id) ?? fallbackModelCallContext(summary)
-          return (
-            <AgentRunTraceDisclosure
-              key={summary.id}
-              data-testid="agent-run-model-call-summary-item"
-              summary={(
-                <>
-                  <AgentRunDebugHotspotTitle>{summary.label}</AgentRunDebugHotspotTitle>
-                  <AgentRunPageBadge variant={summary.status === 'complete' ? 'outline' : 'soft'}>{summary.statusLabel}</AgentRunPageBadge>
-                  {summary.model && <AgentRunTraceEventMetaItem>模型 {summary.model}</AgentRunTraceEventMetaItem>}
-                  {summary.roundLabel && <AgentRunTraceEventMetaItem>原始轮次 {summary.roundLabel}</AgentRunTraceEventMetaItem>}
-                </>
-              )}
-            >
-              <AgentRunTraceEventActions>
-                {summary.requestEventId && (
-                  <AgentRunTraceEventActionButton
-                    aria-label={`定位${summary.label}的模型请求事件`}
-                    onClick={() => onFocusEvent(summary.requestEventId!)}
-                  >
-                    请求
-                  </AgentRunTraceEventActionButton>
-                )}
-                {summary.responseEventId && (
-                  <AgentRunTraceEventActionButton
-                    aria-label={`定位${summary.label}的模型响应事件`}
-                    onClick={() => onFocusEvent(summary.responseEventId!)}
-                  >
-                    响应
-                  </AgentRunTraceEventActionButton>
-                )}
-                {summary.resultEventId && (
-                  <AgentRunTraceEventActionButton
-                    aria-label={`定位${summary.label}的模型结果事件`}
-                    onClick={() => onFocusEvent(summary.resultEventId!)}
-                  >
-                    结果
-                  </AgentRunTraceEventActionButton>
-                )}
-              </AgentRunTraceEventActions>
-              <AgentRunTraceEventMeta>
-                {summary.messageCount && <AgentRunTraceEventMetaItem>消息 {summary.messageCount}</AgentRunTraceEventMetaItem>}
-                {summary.toolCount && <AgentRunTraceEventMetaItem>工具定义 {summary.toolCount}</AgentRunTraceEventMetaItem>}
-                {debugContext.toolCalls.length > 0 && <AgentRunTraceEventMetaItem>工具调用 {debugContext.toolCalls.length}</AgentRunTraceEventMetaItem>}
-                {debugContext.messageWrites.length > 0 && <AgentRunTraceEventMetaItem>历史写入 {debugContext.messageWrites.length}</AgentRunTraceEventMetaItem>}
-                {summary.httpStatus && <AgentRunTraceEventMetaItem>HTTP {summary.httpStatus}</AgentRunTraceEventMetaItem>}
-                {summary.latency && <AgentRunTraceEventMetaItem>{summary.latency}</AgentRunTraceEventMetaItem>}
-                {summary.status !== 'result_only' && <AgentRunTraceEventMetaItem>{summary.hasRequestPayload ? '请求负载已存' : '请求负载缺失'}</AgentRunTraceEventMetaItem>}
-                {summary.responseEventId && <AgentRunTraceEventMetaItem>{summary.hasResponseBody ? '响应正文已存' : '响应正文缺失'}</AgentRunTraceEventMetaItem>}
-                {summary.retryCount && <AgentRunTraceEventMetaItem>重试 {summary.retryCount} 次</AgentRunTraceEventMetaItem>}
-                {summary.error && <AgentRunToneText as="span" tone="danger">错误 {summary.error}</AgentRunToneText>}
-                {summary.responseChars && <AgentRunTraceEventMetaItem>回复 {summary.responseChars} 字符</AgentRunTraceEventMetaItem>}
-                {summary.inputTokens && <AgentRunTraceEventMetaItem>请求 {summary.inputTokens} token</AgentRunTraceEventMetaItem>}
-                {summary.outputTokens && <AgentRunTraceEventMetaItem>回复 {summary.outputTokens} token</AgentRunTraceEventMetaItem>}
-              </AgentRunTraceEventMeta>
-              {summary.issue && <AgentRunTraceCallout tone="warning" compact>{summary.issue}</AgentRunTraceCallout>}
-              {debugContext.issue && <AgentRunTraceCallout tone="warning" compact>{debugContext.issue}</AgentRunTraceCallout>}
-              <ModelCallInlineDebug summary={summary} context={debugContext} events={events} onFocusEvent={onFocusEvent} />
-            </AgentRunTraceDisclosure>
-          )
-        })}
-      </AgentRunDebugList>
-    </AgentRunDebugPanel>
-  )
-}
-
-function fallbackModelCallContext(summary: AgentModelCallSummary): AgentModelCallContextView {
-  return {
-    callId: summary.id,
-    label: summary.label,
-    status: summary.status,
-    statusLabel: summary.statusLabel,
-    correlationLabel: 'Agent 调试视图未返回关联上下文',
-    ...(summary.requestEventId ? { requestEventId: summary.requestEventId } : {}),
-    ...(summary.responseEventId ? { responseEventId: summary.responseEventId } : {}),
-    ...(summary.resultEventId ? { resultEventId: summary.resultEventId } : {}),
-    modelEventIds: summary.eventIds,
-    toolCalls: [],
-    messageWrites: [],
-    ...(summary.issue ? { issue: summary.issue } : {}),
-  }
-}
-
-function ModelCallInlineDebug({
-  summary,
-  context,
-  events,
-  onFocusEvent,
-}: {
-  summary: AgentModelCallSummary
-  context: AgentModelCallContextView
-  events: AgentTraceEvent[]
-  onFocusEvent: (eventId: string) => void
-}) {
-  const eventsById = new Map(events.map((event) => [event.id, event]))
-  const modelDetails = context.modelEventIds
-    .flatMap((eventId) => eventsById.get(eventId) ?? [])
-    .map((event) => ({ event, detail: agentTraceView(event).modelDetail }))
-    .filter((entry): entry is { event: AgentTraceEvent; detail: NonNullable<ReturnType<typeof agentTraceView>['modelDetail']> } => !!entry.detail)
-  return (
-    <AgentRunDebugPanel data-testid="agent-run-model-call-inline-debug" variant="subtle">
-      <AgentRunDebugHeader>
-        <AgentRunDebugTitle>本轮详情</AgentRunDebugTitle>
-        <AgentRunDebugDescription>关联方式：{context.correlationLabel}</AgentRunDebugDescription>
-      </AgentRunDebugHeader>
-      {modelDetails.length > 0 && (
-        <AgentRunDebugList>
-          {modelDetails.map(({ event, detail }) => (
-            <AgentRunTraceDisclosure
-              key={event.id}
-              data-testid="agent-run-model-call-inline-http-detail"
-              defaultOpen={event.id === summary.requestEventId || event.id === summary.responseEventId}
-              title={detail.title}
-            >
-              <AgentRunTraceEventActionButton
-                aria-label={`定位${summary.label}的${detail.title}事件`}
-                onClick={() => onFocusEvent(event.id)}
-              >
-                定位
-              </AgentRunTraceEventActionButton>
-              <ModelCallDetail detail={detail} />
-            </AgentRunTraceDisclosure>
-          ))}
-        </AgentRunDebugList>
-      )}
-      <ModelCallRelatedItems title="历史写入" emptyText="没有找到同轮 assistant 历史写入。" items={context.messageWrites.map((item) => ({
-        eventId: item.eventId,
-        title: item.sourceLabel ?? item.source ?? item.messageId ?? 'Assistant history write',
-        summary: item.contentPreview,
-        meta: `${item.contentChars} 字符`,
-      }))} onFocusEvent={onFocusEvent} />
-      <ModelCallRelatedItems title="工具调用" emptyText="没有找到同轮工具调用。" items={context.toolCalls.map((item) => ({
-        eventId: item.eventId,
-        title: item.toolName ? agentToolNameLabel(item.toolName) : 'Tool call',
-        summary: item.summary,
-        meta: item.statusLabel,
-      }))} onFocusEvent={onFocusEvent} />
-    </AgentRunDebugPanel>
-  )
-}
-
-function ModelCallRelatedItems({
-  title,
-  emptyText,
-  items,
-  onFocusEvent,
-}: {
-  title: string
-  emptyText: string
-  items: Array<{ eventId: string; title: string; summary?: string; meta?: string }>
-  onFocusEvent: (eventId: string) => void
-}) {
-  return (
-    <AgentRunDebugPanel data-testid={`agent-run-model-call-related-${title}`} variant="subtle">
-      <AgentRunDebugHeader>
-        <AgentRunDebugTitle>{title}</AgentRunDebugTitle>
-        <AgentRunPageBadge variant="outline">{items.length}</AgentRunPageBadge>
-      </AgentRunDebugHeader>
-      {items.length === 0 ? (
-        <AgentRunTraceStateMessage>{emptyText}</AgentRunTraceStateMessage>
-      ) : (
-        <AgentRunDebugList>
-          {items.map((item) => (
-              <AgentRunDebugHotspotCard key={item.eventId} variant="card" tone="neutral">
-                <AgentRunDebugHotspotLayout>
-                  <AgentRunDebugHotspotBody>
-                    <AgentRunDebugHotspotTitle>{item.title}</AgentRunDebugHotspotTitle>
-                    {item.meta && <AgentRunDebugHotspotMeta><AgentRunDebugHotspotMetaItem>{item.meta}</AgentRunDebugHotspotMetaItem></AgentRunDebugHotspotMeta>}
-                    {item.summary && <AgentRunDebugHotspotSummary>{redactAgentTraceDebugText(item.summary)}</AgentRunDebugHotspotSummary>}
-                  </AgentRunDebugHotspotBody>
-                  <AgentRunTraceEventActionButton onClick={() => onFocusEvent(item.eventId)}>
-                    定位
-                  </AgentRunTraceEventActionButton>
-                </AgentRunDebugHotspotLayout>
-              </AgentRunDebugHotspotCard>
-            ))}
-        </AgentRunDebugList>
-      )}
-    </AgentRunDebugPanel>
   )
 }
 

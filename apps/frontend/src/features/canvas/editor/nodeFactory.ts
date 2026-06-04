@@ -1,7 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 
 import type { Canvas, CanvasNodeData, CanvasType, NodeType, RawResource } from '@/types'
-import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import { createCanvasNodeData } from '@/features/canvas/domain/graph'
 import { normalizedCanvasNodeStyle } from '@/features/canvas/domain/layout'
 import { edgeConnectionKey } from '@/features/canvas/domain/ports'
@@ -139,33 +138,5 @@ export function createWorkflowReferenceCanvasNode({
       outputPorts: ports.outputs,
     },
     style: normalizedCanvasNodeStyle('canvas'),
-  }
-}
-
-export function createPluginCanvasNode({
-  plugin,
-  position,
-}: {
-  plugin: ClientPluginManifest
-  position: { x: number; y: number }
-}): Node {
-  const contribution = plugin.contributes?.canvasNodes?.[0]
-  return {
-    id: createCanvasNodeId(),
-    type: 'plugin_card',
-    position,
-    data: {
-      source: 'manual',
-      ...(contribution?.defaultData ?? {}),
-      label: contribution?.title ?? plugin.name,
-      pluginId: plugin.id,
-      pluginName: plugin.name,
-      pluginVersion: plugin.version,
-      pluginRuntime: 'trusted_local',
-      pluginArgs: {},
-      inputPorts: contribution?.inputs,
-      outputPorts: contribution?.outputs,
-    },
-    style: normalizedCanvasNodeStyle('plugin_card'),
   }
 }

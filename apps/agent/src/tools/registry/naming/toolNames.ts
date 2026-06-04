@@ -9,6 +9,8 @@ export function publicToolName(name: string): string {
 }
 
 export function runtimeToolName(name: string): string {
+  const mcpRuntimeName = mcpVirtualRuntimeToolName(name)
+  if (mcpRuntimeName) return mcpRuntimeName
   return RUNTIME_TOOL_NAME_ALIASES[name] ?? name
 }
 
@@ -17,4 +19,9 @@ export function formatToolNameForDisplay(name: string): string {
   return publicName.startsWith('movscript_')
     ? `movscript.${publicName.slice('movscript_'.length)}`
     : publicName
+}
+
+function mcpVirtualRuntimeToolName(name: string): string | undefined {
+  const match = /^mcp__.+?__(.+)$/.exec(name)
+  return match?.[1]
 }

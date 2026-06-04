@@ -163,15 +163,6 @@ function describeToolOutcome(outcome: ToolCallOutcome): string {
 function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
   const toolName = publicToolName(call.name)
-  if (call.name === 'workspace_open') {
-    const workspaceId = isRecord(parsed) && (typeof parsed.workspaceId === 'string' ? parsed.workspaceId : typeof parsed.id === 'string' ? parsed.id : '')
-    const label = typeof workspaceId === 'string' && workspaceId.length > 0 ? ` ${workspaceId}` : ''
-    const isWorkspace = isRecord(parsed) && typeof parsed.workspaceRef === 'string'
-    return isWorkspace ? `创建对话工作区workspace${label}。` : `创建本地workspace${label}。`
-  }
-  if (call.name === 'workspace_validate') {
-    return `workspace apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
-  }
   if (call.name === 'core_work_start') {
     const work = isRecord(parsed) && isRecord(parsed.work) ? parsed.work : {}
     const kind = typeof work.kind === 'string' ? work.kind : 'runtime'

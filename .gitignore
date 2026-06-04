@@ -13,6 +13,7 @@ apps/frontend/src/api/generated.ts
 apps/frontend/vendor/ffmpeg/*/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
+.movscript-dev
 
 # Go
 apps/backend/uploads/

@@ -11,6 +11,7 @@ import {
 import type { AgentRuntimeControlTransportInput } from './control-transport'
 
 export interface AgentRuntimeSessionInput {
+  agentRuntimeDirName?: string
   workspaceDir?: string
   sessionId?: string
 }
@@ -26,7 +27,7 @@ export function resolveAgentRuntimeSession(input: AgentRuntimeSessionInput = {})
   const sessionId = input.sessionId?.trim()
   if (!sessionId) return undefined
   const workspaceDir = input.workspaceDir || resolveDesktopDefaultAgentWorkspaceDir()
-  const paths = resolveAgentSessionRuntimePaths({ workspaceDir, sessionId })
+  const paths = resolveAgentSessionRuntimePaths({ workspaceDir, sessionId, runtimeDirName: input.agentRuntimeDirName })
   ensureAgentSessionRuntime(paths)
   return {
     workspaceDir: paths.workspaceDir,
@@ -53,7 +54,7 @@ export function resolveAgentRuntimeTransportInputForSession<T extends AgentRunti
 }
 
 export function agentRuntimeSessionKey(session: ResolvedAgentRuntimeSession): string {
-  return `${session.workspaceDir}\n${session.sessionId}`
+  return `${session.paths.agentDir}\n${session.sessionId}`
 }
 
 export function isAgentRuntimeSessionReusable(session: ResolvedAgentRuntimeSession): boolean {

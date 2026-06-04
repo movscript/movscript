@@ -1,0 +1,26 @@
+{
+  "name": "movscript",
+  "version": "0.1.0",
+  "description": "MovScript workspace skills backed by the frontend MCP server.",
+  "keywords": [
+    "workspace",
+    "files",
+    "frontend-mcp",
+    "movscript"
+  ],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "MovScript",
+    "shortDescription": "Edit MovScript workspace files.",
+    "longDescription": "Installs MovScript workspace editing guidance and connects to the MovScript frontend MCP server. Workspace content lives as files under the frontend-owned .movscript directory; review/apply remains a UI boundary.",
+    "developerName": "MovScript",
+    "category": "Productivity",
+    "capabilities": [
+      "workspace files",
+      "workspace model contract",
+      "review handoff"
+    ],
+    "defaultPrompt": "Use MovScript's frontend workspace model contract, edit the workspace file, then hand off review/apply to the MovScript UI."
+  }
+}

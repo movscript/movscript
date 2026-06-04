@@ -7,6 +7,7 @@ import type { ContextLedger, ContextMutation, ContextMutationSummary, ContextRef
 import { normalizeContextSource, normalizeEvidenceLevel, sourceBoundaryForContextRef } from '../source/sourceBoundary.js'
 import { refKey } from '../retrieval/retrievedContextStore.js'
 import { isValidAgentEntityId } from '../../runtime/runtimeContext.js'
+import { runtimeToolName } from '../../../tools/registry/naming/toolNames.js'
 
 const MAX_CONTEXT_MUTATIONS = 500
 
@@ -356,6 +357,7 @@ function buildRetrievedRecord(input: {
 function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONValue | undefined): number {
   const payload = unwrapResult(result)
   if (ref.type === 'reference') {
+    if (runtimeToolName(call.name) === 'reference_search') return 0
     const item = findRefPayload(ref, payload)
     return positiveNumberField(item, 'charCount')
       ?? stringLengthField(item, 'content')
@@ -371,7 +373,6 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
       ?? 0
   }
   if (ref.type === 'workspace') {
-    if (call.name === 'workspace_open' || call.name === 'workspace_validate') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(item, 'body')

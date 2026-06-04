@@ -49,6 +49,48 @@ test('local agent client delegates requests through the runtime transport', asyn
   resetAgentTelemetrySink()
 })
 
+test('local agent client delegates plugin file management to agent runtime endpoints', async () => {
+  const requests: Array<{ method: string; path: string; body: Record<string, unknown> }> = []
+  const transport: AgentRuntimeTransport = {
+    kind: 'electron',
+    endpointLabel: 'electron:agent-runtime',
+    request: async (path, init) => {
+      const method = init?.method
+      const body = parseJSONBody(init?.body)
+      requests.push({ method: method ?? 'GET', path, body })
+      if (path === '/plugins' && !method) return jsonResponse({ path: '/agent/plugins.json', plugins: [] })
+      if (path === '/plugins' && method === 'POST') return jsonResponse({ path: '/agent/plugins.json', plugins: [body.plugin] })
+      if (path === '/plugins/install') return jsonResponse({ path: '/agent/plugins.json', plugin: body.plugin, plugins: [body.plugin] })
+      if (path === '/plugins/plugin.image' && init?.method === 'DELETE') return jsonResponse({ path: '/agent/plugins.json', plugins: [], removed: true })
+      return new Response('missing', { status: 404 })
+    },
+    openEventStream: async () => {
+      throw new Error('unexpected event stream request')
+    },
+  }
+  const client = new LocalAgentClient(transport)
+  const plugin = { id: 'plugin.image', name: 'Image Plugin', version: '1.0.0' }
+
+  assert.deepEqual(await client.listPlugins(), { path: '/agent/plugins.json', plugins: [] })
+  await client.savePlugin(plugin)
+  await client.installPlugin({ plugin, agentCatalogFiles: [{ path: 'agent-skills/SKILL.md', content: 'Use it.' }] })
+  assert.deepEqual(await client.removePlugin('plugin.image'), { path: '/agent/plugins.json', plugins: [], removed: true })
+
+  assert.deepEqual(requests, [
+    { method: 'GET', path: '/plugins', body: {} },
+    { method: 'POST', path: '/plugins', body: { plugin } },
+    {
+      method: 'POST',
+      path: '/plugins/install',
+      body: {
+        plugin,
+        agentCatalogFiles: [{ path: 'agent-skills/SKILL.md', content: 'Use it.' }],
+      },
+    },
+    { method: 'DELETE', path: '/plugins/plugin.image', body: {} },
+  ])
+})
+
 test('local agent client asks Electron to start through IPC without renderer baseURL', async () => {
   let started = false
   const requests: string[] = []
@@ -81,7 +123,14 @@ test('local agent client asks Electron to start through IPC without renderer bas
     const health = await new LocalAgentClient(transport).ensureRunning()
 
     assert.equal(health.ok, true)
-    assert.deepEqual(ensureInputs, [{}])
+    const ensureInput = ensureInputs[0] as { source?: unknown }
+    const ensureSource = ensureInput.source
+    if (typeof ensureSource !== 'string') assert.fail('expected ensureAgentRuntime source metadata')
+    assert.equal(ensureSource.startsWith('global at '), true)
+    assert.deepEqual(ensureInputs.map((input) => {
+      const { source: _source, ...rest } = input as Record<string, unknown>
+      return rest
+    }), [{}])
     assert.deepEqual(requests, [
       'GET /runtime/compat',
       'GET /health',
@@ -126,7 +175,14 @@ test('local agent client passes session metadata when asking Electron to start s
     }).ensureRunning()
 
     assert.equal(health.ok, true)
-    assert.deepEqual(ensureInputs, [{
+    const ensureInput = ensureInputs[0] as { source?: unknown }
+    const ensureSource = ensureInput.source
+    if (typeof ensureSource !== 'string') assert.fail('expected ensureAgentRuntime source metadata')
+    assert.equal(ensureSource.startsWith('session:session_1 at '), true)
+    assert.deepEqual(ensureInputs.map((input) => {
+      const { source: _source, ...rest } = input as Record<string, unknown>
+      return rest
+    }), [{
       baseURL: 'unix:/tmp/movscript-agent.sock',
       transportKind: 'unix-socket',
       socketPath: '/tmp/movscript-agent.sock',
@@ -839,7 +895,7 @@ test('trace reads preserve pagination and kind filters', async () => {
     }
     if (url.pathname === '/runs/run_trace/trace/debug-view') {
       return jsonResponse({
-        schema: 'movscript.agent-trace-debug-view.v1',
+        schema: 'movscript.agent-trace-debug-view.v2',
         generatedAt: '2026-01-01T00:00:00.000Z',
         runId: 'run_trace',
         run: runFixture('run_trace', 'thread_1', 'completed'),
@@ -858,8 +914,6 @@ test('trace reads preserve pagination and kind filters', async () => {
           issues: [],
         },
         readinessChecklist: [],
-        modelCalls: [],
-        modelCallContexts: [],
         runtimeSummary: {
           skills: {
             activeSkillIds: [],
@@ -881,29 +935,16 @@ test('trace reads preserve pagination and kind filters', async () => {
           },
           context: {
             contextMutationCount: 0,
-            roundContextUpdateCount: 0,
+            contextProjectionCount: 0,
           },
         },
-        roundContextUpdates: [],
-        roundContextChanges: [],
-        skillTimeline: {
-          timeline: [],
-          currentActiveSkillIds: [],
-          currentLoadedSkillIds: [],
-          currentUnloadedSkillIds: [],
-          currentAvailableSkillIds: [],
-          currentOmissions: [],
-        },
-        promptDetails: [],
-        contextMutations: [],
-        messageWrites: [],
-        toolCalls: [],
+        runtimeFrames: [],
         attentionEvents: [],
         pendingActions: [],
         fieldGuide: [],
         events: [traceEvent('trace_1')],
         reportText: 'AgentRun 调试摘要\n',
-        bundle: { schema: 'movscript.agent-run-debug-bundle.v1' },
+        bundle: { schema: 'movscript.agent-run-debug-bundle.v2' },
       })
     }
     if (url.pathname === '/runs/run_trace/debug-evidence-refs') {
@@ -975,7 +1016,7 @@ test('trace reads preserve pagination and kind filters', async () => {
     assert.equal(page.events[0].durationMs, 42)
     assert.equal(summary.latestEvent?.durationMs, 42)
     assert.equal(summary.total, 1)
-    assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v1')
+    assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v2')
     assert.equal(debugView.events[0].id, 'trace_1')
     assert.equal(evidenceRefs.evidenceRefs[0]?.evidenceId, 'trace_1:tool_result')
     assert.equal(generationView.schema, 'movscript.agent-run-generation-view.v1')

@@ -5,13 +5,13 @@ import type {
   AgentGenericPromptProjectionView,
   AgentPromptDetailView,
   AgentPromptHistoryProjectionView,
-  AgentRoundContextUpdateView,
+  AgentRuntimeContextProjectionView,
   AgentSkillContextProjectionView,
 } from './types.js'
 import { arrayValue, numberValue, recordValue, stringList, stringValue } from './values.js'
 
-export function buildRoundContextUpdateViews(events: AgentTraceEvent[]): AgentRoundContextUpdateView[] {
-  return events.flatMap((event): AgentRoundContextUpdateView[] => {
+export function buildRuntimeContextProjectionViews(events: AgentTraceEvent[]): AgentRuntimeContextProjectionView[] {
+  return events.flatMap((event): AgentRuntimeContextProjectionView[] => {
     if (event.kind !== 'context') return []
     const data = recordValue(event.data)
     const eventType = stringValue(data?.eventType) ?? stringValue(data?.contextEventType)

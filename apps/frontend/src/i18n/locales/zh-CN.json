@@ -1401,7 +1401,7 @@
       },
       "toolConsole": {
         "warning": "这里仅列出 source=mcp 的外部 MCP 工具。调用仍由 Agent Runtime 转发执行，但不会显示 Runtime 本地 workspace / memory / taskGraph 工具。",
-        "runtimeBoundary": "Workspace 相关能力目前属于 Agent Runtime 本地工具，例如 get_workspace_model、workspace_open、workspace_validate；它们不属于外部 MCP 调用，应放在单独的 Workspace Runtime 调试入口里验证。",
+        "runtimeBoundary": "Workspace 相关能力由 frontend MCP/文件管理边界提供。Agent Runtime 不再拥有 workspace_open、workspace_validate、workspace_apply 这些本地工具。",
         "tool": "MCP 工具",
         "args": "JSON 参数",
         "run": "执行工具",
@@ -1604,6 +1604,16 @@
       "copySettingsStatus": "复制状态",
       "settingsStatusCopied": "状态已复制",
       "refresh": "刷新",
+      "agentRuntimeLabel": "Agent",
+      "selectAgentRuntime": "选择 Agent",
+      "agentRuntimeProfiles": {
+        "movscriptAgent": "MovScript Agent",
+        "codex": "Codex"
+      },
+      "agentRuntimeProfileDescriptions": {
+        "movscriptAgent": "配置 .movscript/movscript-agent 下的会话和配置文件。",
+        "codex": "配置 .movscript/.codex 下的会话和配置文件。"
+      },
       "modelPanel": "Runtime 模型",
       "modelLabel": "Runtime 文本模型",
       "modelHelp": "Base URL 留空或指向 MovScript 后端时，可从后端已启用的 text/reasoning 能力模型中选择，并保存为 Runtime 模型设置。",
@@ -3519,12 +3529,12 @@
   },
   "plugins": {
     "title": "插件",
-    "subtitle": "插件安装、脚本执行和删除都保存在当前客户端（IndexedDB）",
+    "subtitle": "插件安装、查询和删除都会转发给 agent 的插件文件管理。",
     "installed": "已安装",
     "sample": "参考生图",
     "empty": "还没有安装插件",
     "insertTitle": "粘贴 Manifest",
-    "insertDescription": "粘贴客户端插件 manifest JSON，保存后写入本机 IndexedDB。",
+    "insertDescription": "粘贴插件 manifest JSON，保存后写入 agent 插件文件。",
     "save": "保存",
     "noSelection": "未选择插件",
     "selectHint": "先在左侧选择或安装一个插件",

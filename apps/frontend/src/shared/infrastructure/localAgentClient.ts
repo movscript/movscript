@@ -98,6 +98,12 @@ import type {
   AgentToolCall,
   AgentRuntimeSessionSummary,
   AgentRuntimeSessionLease,
+  AgentPluginFileInstallInput,
+  AgentPluginFileInstallResult,
+  AgentPluginFile,
+  AgentPluginFileList,
+  AgentPluginFileManifest,
+  AgentPluginFileRemoveResult,
   AgentRuntimeLimitsOverride,
   AgentThreadListQuery,
   AgentThreadMessagesPage,
@@ -243,6 +249,12 @@ export type {
   AgentWorkspaceRuntimeConfig,
   AgentWorkspaceRuntimeConfigSaveInput,
   AgentRuntimeSessionLease,
+  AgentPluginFileInstallInput,
+  AgentPluginFileInstallResult,
+  AgentPluginFile,
+  AgentPluginFileList,
+  AgentPluginFileManifest,
+  AgentPluginFileRemoveResult,
   RunMessageOptions,
   ThreadStreamOptions,
   SessionStreamOptions,
@@ -255,6 +267,7 @@ export function canStartLocalAgentFromClient(): boolean {
 export class LocalAgentClient {
   readonly baseURL: string
   readonly transportKind: AgentRuntimeTransport['kind']
+  readonly agentRuntimeDirName?: string
   readonly workspaceDir?: string
   readonly sessionId?: string
   private readonly transport: AgentRuntimeTransport
@@ -263,11 +276,12 @@ export class LocalAgentClient {
 
   constructor(
     transport?: AgentRuntimeTransport,
-    options: { healthTimeoutMs?: number; requestTimeoutMs?: number; transport?: AgentRuntimeTransport; workspaceDir?: string; sessionId?: string } = {},
+    options: { healthTimeoutMs?: number; requestTimeoutMs?: number; transport?: AgentRuntimeTransport; agentRuntimeDirName?: string; workspaceDir?: string; sessionId?: string } = {},
   ) {
-    this.transport = transport ?? options.transport ?? runtimeLocalAgentTransport({ workspaceDir: options.workspaceDir, sessionId: options.sessionId })
+    this.transport = transport ?? options.transport ?? runtimeLocalAgentTransport({ agentRuntimeDirName: options.agentRuntimeDirName, workspaceDir: options.workspaceDir, sessionId: options.sessionId })
     this.baseURL = this.transport.endpointLabel
     this.transportKind = this.transport.kind
+    this.agentRuntimeDirName = options.agentRuntimeDirName
     this.workspaceDir = options.workspaceDir
     this.sessionId = options.sessionId
     this.healthTimeoutMs = normalizePositiveTimeoutMs(options.healthTimeoutMs) ?? DEFAULT_LOCAL_AGENT_HEALTH_TIMEOUT_MS
@@ -278,6 +292,7 @@ export class LocalAgentClient {
     return new LocalAgentClient(undefined, {
       healthTimeoutMs: this.healthTimeoutMs,
       requestTimeoutMs: this.requestTimeoutMs,
+      agentRuntimeDirName: this.agentRuntimeDirName,
       workspaceDir: input.workspaceDir,
       sessionId: input.sessionId,
     })
@@ -300,11 +315,14 @@ export class LocalAgentClient {
     return this.getJSON('/runtime/telemetry', { auth: false, signal })
   }
 
-  async listRuntimeSessionsFromWorkspace(input: { workspaceDir?: string } = {}): Promise<{ sessions: AgentRuntimeSessionSummary[] }> {
+  async listRuntimeSessionsFromWorkspace(input: { workspaceDir?: string; agentRuntimeDirName?: string } = {}): Promise<{ sessions: AgentRuntimeSessionSummary[] }> {
     if (typeof window === 'undefined' || typeof window.api?.listAgentRuntimeSessions !== 'function') {
       return { sessions: [] }
     }
-    return window.api.listAgentRuntimeSessions(input)
+    return window.api.listAgentRuntimeSessions({
+      ...(input.agentRuntimeDirName ?? this.agentRuntimeDirName ? { agentRuntimeDirName: input.agentRuntimeDirName ?? this.agentRuntimeDirName } : {}),
+      ...(input.workspaceDir ?? this.workspaceDir ? { workspaceDir: input.workspaceDir ?? this.workspaceDir } : {}),
+    })
   }
 
   acquireRuntimeSessionLease(input: { leaseId: string; ttlMs?: number; holder?: string }, signal?: AbortSignal): Promise<AgentRuntimeSessionLease> {
@@ -331,6 +349,7 @@ export class LocalAgentClient {
       const status = await ensureAgentRuntime({
         ...(this.transport.kind === 'unix-socket' ? { baseURL: this.baseURL, transportKind: this.transport.kind } : {}),
         ...(this.transport.socketPath ? { socketPath: this.transport.socketPath } : {}),
+        ...(this.agentRuntimeDirName ? { agentRuntimeDirName: this.agentRuntimeDirName } : {}),
         ...(this.workspaceDir ? { workspaceDir: this.workspaceDir } : {}),
         ...(this.sessionId ? { sessionId: this.sessionId } : {}),
         source: this.ensureSourceLabel(),
@@ -480,6 +499,25 @@ export class LocalAgentClient {
     return this.postJSON('/agent-skills/instructions', input, signal)
   }
 
+  listPlugins(signal?: AbortSignal): Promise<AgentPluginFileList> {
+    return this.getJSON('/plugins', { signal })
+  }
+
+  savePlugin(plugin: AgentPluginFileManifest, signal?: AbortSignal): Promise<AgentPluginFileList> {
+    return this.postJSON('/plugins', { plugin }, signal, { backendContext: false })
+  }
+
+  installPlugin(input: AgentPluginFileInstallInput, signal?: AbortSignal): Promise<AgentPluginFileInstallResult> {
+    return this.postJSON('/plugins/install', {
+      plugin: input.plugin,
+      agentCatalogFiles: input.agentCatalogFiles ?? [],
+    }, signal, { backendContext: false })
+  }
+
+  removePlugin(pluginId: string, signal?: AbortSignal): Promise<AgentPluginFileRemoveResult> {
+    return this.deleteJSON(`/plugins/${encodeURIComponent(pluginId)}`, signal)
+  }
+
   getModelConfig(): Promise<RuntimeModelConfigPublic> {
     return withRuntimeModelConfigError(this.getJSON('/model-config', { auth: false }))
   }
@@ -503,6 +541,7 @@ export class LocalAgentClient {
   async getWorkspaceConfig(input: { workspaceDir?: string } = {}): Promise<AgentWorkspaceRuntimeConfig> {
     if (typeof window !== 'undefined' && typeof window.api?.getAgentWorkspaceConfig === 'function') {
       return window.api.getAgentWorkspaceConfig({
+        ...(this.agentRuntimeDirName ? { agentRuntimeDirName: this.agentRuntimeDirName } : {}),
         ...(input.workspaceDir ?? this.workspaceDir ? { workspaceDir: input.workspaceDir ?? this.workspaceDir } : {}),
       })
     }
@@ -515,6 +554,7 @@ export class LocalAgentClient {
   async saveWorkspaceConfig(input: AgentWorkspaceRuntimeConfigSaveInput): Promise<AgentWorkspaceRuntimeConfig> {
     if (typeof window !== 'undefined' && typeof window.api?.saveAgentWorkspaceConfig === 'function') {
       return window.api.saveAgentWorkspaceConfig({
+        ...(this.agentRuntimeDirName ? { agentRuntimeDirName: this.agentRuntimeDirName } : {}),
         ...(this.workspaceDir ? { workspaceDir: this.workspaceDir } : {}),
         ...input,
       })
@@ -1117,13 +1157,13 @@ export class LocalAgentClient {
     }
   }
 
-  private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+  private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal, options: { backendContext?: boolean } = {}): Promise<T> {
     const request = createLocalAgentRequestSignal(signal, this.requestTimeoutMs)
     try {
       const res = await this.requestMeasured(path, {
         method: 'POST',
         headers: this.authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(this.withBackendContext(body)),
+        body: JSON.stringify(options.backendContext === false ? body : this.withBackendContext(body)),
         signal: request.signal,
       })
       if (!res.ok) throw await localAgentResponseError(res)

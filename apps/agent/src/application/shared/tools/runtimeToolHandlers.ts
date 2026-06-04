@@ -1,25 +1,18 @@
 import { createMCPResourceFilePort } from '../../../adapters/files/mcpResourceFileAdapter.js'
+import { createExternalToolFocusContextPort } from '../../../adapters/mcp/focus/mcpFocusContextAdapter.js'
 import { createMCPExternalToolGatewayPort } from '../../../adapters/mcp/gateway/mcpExternalToolGatewayAdapter.js'
 import { createBackendVideoFrameExtractionPort, type BackendVideoFrameExtractor } from '../../../adapters/media/backendVideoFrameExtractionAdapter.js'
-import { createApplicationWorkspaceApplyPort } from '../../../adapters/workspace/apply/applicationWorkspaceApplyAdapter.js'
-import { createBackendWorkspaceApplyPreviewPort } from '../../../adapters/workspace/preview/backendWorkspaceApplyPreviewAdapter.js'
-import { createBackendRuntimeWorkspaceApplyWriterPort } from '../../../adapters/workspace/backend/backendRuntimeWorkspaceApplyAdapter.js'
-import { createMCPWorkspaceSnapshotHydrationPort } from '../../../adapters/workspace/hydration/mcpWorkspaceSnapshotHydrationAdapter.js'
 import { createCoreFileToolHandler } from '../../../tools/handlers/core/files/fileToolHandler.js'
 import { createCoreImageToolHandler } from '../../../tools/handlers/core/images/imageToolHandler.js'
 import { createCoreVideoFrameToolHandler } from '../../../tools/handlers/core/video/videoFrameToolHandler.js'
 import { createCoreMemoryToolHandler } from '../../../tools/handlers/core/memory/memoryToolHandler.js'
 import { createCoreRuntimeControlToolHandler } from '../../../tools/handlers/core/runtime-control/runtimeControlToolHandler.js'
-import { createWorkspaceOpenToolHandler } from '../../../tools/handlers/workspaces/open/workspaceOpenToolHandler.js'
-import { createWorkspaceApplyToolHandler } from '../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.js'
-import type { WorkspaceApplyPort } from '../../../ports/workspace/apply/workspaceApplyPort.js'
-import type { WorkspaceApplyPreviewPort } from '../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
 import type { MCPClient } from '../../../adapters/mcp/client/mcpClient.js'
-import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
-import type { BackendApplyClient } from '../../../workspaces/adapters/backend/backendApplyClient.js'
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
+import type { ResourceFileDownloadPort } from '../../../ports/files/resourceDownloadPort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
+import type { RuntimeFocusContextPort } from '../../../ports/context/focusContextPort.js'
 import type { ExternalToolGatewayPort } from '../../../ports/tools/externalToolGatewayPort.js'
 import {
   createRuntimeToolHandlerRegistry,
@@ -34,8 +27,6 @@ export function createDefaultRuntimeToolHandlerRegistry(): RuntimeToolHandlerReg
     createCoreVideoFrameToolHandler(),
     createCoreMemoryToolHandler(),
     createCoreRuntimeControlToolHandler(),
-    createWorkspaceApplyToolHandler(),
-    createWorkspaceOpenToolHandler(),
   ])
 }
 
@@ -45,22 +36,10 @@ export function createDefaultExternalToolGatewayPort(
   return createMCPExternalToolGatewayPort(mcpClient)
 }
 
-export function createDefaultWorkspaceApplyPort(
-  backendApplyClient: Pick<BackendApplyClient, 'applyReview'>,
-): WorkspaceApplyPort {
-  return createApplicationWorkspaceApplyPort(createBackendRuntimeWorkspaceApplyWriterPort(backendApplyClient))
-}
-
-export function createDefaultWorkspaceApplyPreviewPort(
-  backendApplyClient: Pick<BackendApplyClient, 'previewApplyReview'>,
-): WorkspaceApplyPreviewPort {
-  return createBackendWorkspaceApplyPreviewPort(backendApplyClient)
-}
-
-export function createDefaultWorkspaceSnapshotHydrationPort(
-  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>,
-): WorkspaceWorkspaceSnapshotHydrationPort {
-  return createMCPWorkspaceSnapshotHydrationPort(mcpClient)
+export function createDefaultFocusContextPort(
+  externalToolGatewayPort: ExternalToolGatewayPort,
+): RuntimeFocusContextPort {
+  return createExternalToolFocusContextPort(externalToolGatewayPort)
 }
 
 export function createDefaultResourceFilePort(
@@ -70,14 +49,14 @@ export function createDefaultResourceFilePort(
 }
 
 export function createDefaultVideoFrameExtractionPort(
-  backendApplyClient: Pick<BackendApplyClient, 'downloadResourceFile'>,
+  resourceFileDownloader: ResourceFileDownloadPort,
   extractor?: BackendVideoFrameExtractor,
 ): CoreVideoFrameExtractionPort {
-  return createBackendVideoFrameExtractionPort(backendApplyClient, extractor)
+  return createBackendVideoFrameExtractionPort(resourceFileDownloader, extractor)
 }
 
 export function createDefaultImageProcessingPort(
-  backendApplyClient: Pick<BackendApplyClient, 'downloadResourceFile'>,
+  resourceFileDownloader: ResourceFileDownloadPort,
 ): CoreImageProcessingPort {
-  return createSharpImageProcessingPort({ backendApplyClient })
+  return createSharpImageProcessingPort({ resourceFileDownloader })
 }

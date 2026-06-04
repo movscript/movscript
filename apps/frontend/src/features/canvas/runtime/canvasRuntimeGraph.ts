@@ -104,11 +104,6 @@ export function canvasNodeOutputValue(
   }
 
   const data = node.data as Partial<CanvasNodeData>
-  if (node.type === 'plugin_card') {
-    const pluginOutput = pluginPortOutputValueFromUnknown(data.pluginResultData, port, input.resourceById)
-    if (pluginOutput) return pluginOutput
-  }
-
   const resourceId = data.resource?.ID
     ?? (data.resourceId ? input.resourceById?.get(data.resourceId)?.ID : undefined)
     ?? data.resourceId
@@ -116,17 +111,6 @@ export function canvasNodeOutputValue(
     const resource = data.resource ?? input.resourceById?.get(resourceId)
     const type = canvasOutputValueType(node, port, resource)
     return { type, resource_id: resourceId, resource }
-  }
-
-  const pluginOutputResourceId = outputResourceIdsFromUnknown(data.pluginResultData)[0]
-  if (pluginOutputResourceId) {
-    const resource = outputResourceFromUnknown(data.pluginResultData, pluginOutputResourceId)
-      ?? input.resourceById?.get(pluginOutputResourceId)
-    return {
-      type: canvasOutputValueType(node, port, resource),
-      resource_id: pluginOutputResourceId,
-      resource,
-    }
   }
 
   const text = data.textContent ?? data.inputValue
@@ -154,71 +138,6 @@ export function reusableCanvasNodeOutputValues(
   outputs.value = outputs.value ?? primary
   outputs[node.id] = outputs[node.id] ?? primary
   return outputs
-}
-
-export function outputResourceIdsFromUnknown(value: unknown): number[] {
-  const ids: number[] = []
-  collectOutputResourceIds(value, ids)
-  return uniquePositiveNumbers(ids)
-}
-
-export function outputResourceFromUnknown(value: unknown, resourceId?: number): RawResource | undefined {
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const resource = outputResourceFromUnknown(item, resourceId)
-      if (resource) return resource
-    }
-    return undefined
-  }
-  if (!isRecord(value)) return undefined
-  const candidates = [value.output_resource, value.outputResource, value.resource]
-  for (const candidate of candidates) {
-    if (!isRawResourceLike(candidate)) continue
-    const id = positiveInteger((candidate as { ID?: unknown; id?: unknown }).ID ?? (candidate as { id?: unknown }).id)
-    if (resourceId && id !== resourceId) continue
-    return candidate as RawResource
-  }
-  return undefined
-}
-
-function pluginPortOutputValueFromUnknown(
-  value: unknown,
-  portId: string,
-  resourceById: Map<number, RawResource> | undefined,
-): CanvasPortValue | undefined {
-  if (!isRecord(value) || !isRecord(value.outputs)) return undefined
-  const candidate = value.outputs[portId]
-  if (!isRecord(candidate)) return undefined
-
-  const type = typeof candidate.type === 'string' ? candidate.type as CanvasPortType : undefined
-  const resourceId = positiveInteger(candidate.resource_id ?? candidate.resourceId)
-  const resource = outputResourceFromUnknown(candidate, resourceId) ?? (resourceId ? resourceById?.get(resourceId) : undefined)
-  if (type === 'json') {
-    return {
-      type,
-      ...(resourceId ? { resource_id: resourceId } : {}),
-      ...(resource ? { resource } : {}),
-      json: candidate.json ?? candidate.value ?? candidate.data,
-    }
-  }
-  if (type === 'number' && typeof candidate.number === 'number') return { type, number: candidate.number }
-  if (type === 'boolean' && typeof candidate.boolean === 'boolean') return { type, boolean: candidate.boolean }
-  if (type === 'text') {
-    return {
-      type,
-      ...(resourceId ? { resource_id: resourceId } : {}),
-      ...(resource ? { resource } : {}),
-      ...(typeof candidate.text === 'string' ? { text: candidate.text } : {}),
-    }
-  }
-  if (type && MEDIA_PORT_TYPES.has(type)) {
-    return {
-      type,
-      ...(resourceId ? { resource_id: resourceId } : {}),
-      ...(resource ? { resource } : {}),
-    }
-  }
-  return undefined
 }
 
 export function valuesHaveRuntimeValue(values: CanvasPortValue[] | undefined) {
@@ -313,38 +232,8 @@ function canvasOutputValueType(node: Node, portId: string, resource: RawResource
 
 function isReusablePersistedCanvasOutput(node: Node, value: CanvasPortValue) {
   const data = node.data as Partial<CanvasNodeData>
-  if (node.type === 'plugin_card') {
-    return value.resource_id !== undefined || value.text !== undefined || value.json !== undefined
-  }
   if (data.source !== 'ai') return false
   return value.resource_id !== undefined || value.text !== undefined
-}
-
-function collectOutputResourceIds(value: unknown, ids: number[]) {
-  if (Array.isArray(value)) {
-    for (const item of value) collectOutputResourceIds(item, ids)
-    return
-  }
-  if (!isRecord(value)) return
-  appendPositiveNumber(ids, value.output_resource_id)
-  appendPositiveNumber(ids, value.outputResourceId)
-  appendPositiveNumbers(ids, value.output_resource_ids)
-  appendPositiveNumbers(ids, value.outputResourceIds)
-  for (const candidate of [value.output_resource, value.outputResource]) {
-    if (!isRecord(candidate)) continue
-    appendPositiveNumber(ids, candidate.ID)
-    appendPositiveNumber(ids, candidate.id)
-  }
-}
-
-function appendPositiveNumbers(ids: number[], value: unknown) {
-  if (!Array.isArray(value)) return
-  for (const item of value) appendPositiveNumber(ids, item)
-}
-
-function appendPositiveNumber(ids: number[], value: unknown) {
-  const id = positiveInteger(value)
-  if (id) ids.push(id)
 }
 
 function positiveInteger(value: unknown) {
@@ -354,22 +243,4 @@ function positiveInteger(value: unknown) {
       ? Number(value)
       : NaN
   return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined
-}
-
-function uniquePositiveNumbers(values: number[]) {
-  const seen = new Set<number>()
-  return values.filter((value) => {
-    if (!Number.isInteger(value) || value <= 0 || seen.has(value)) return false
-    seen.add(value)
-    return true
-  })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object')
-}
-
-function isRawResourceLike(value: unknown): value is RawResource {
-  if (!isRecord(value)) return false
-  return Boolean(positiveInteger(value.ID ?? value.id))
 }

@@ -61,9 +61,6 @@ function buildCatalogRefreshCapabilitySnapshot(capabilities: ResolvedToolCatalog
     'core_skill_update',
     'core_catalog_inspect',
     'get_focus_context',
-    'workspace_open',
-    'workspace_validate',
-    'workspace_apply',
     'core_user_input_request',
   ]
   return {

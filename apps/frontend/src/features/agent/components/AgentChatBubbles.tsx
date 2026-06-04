@@ -35,7 +35,6 @@ import {
 } from '@/features/agent/components/AgentMessageContent'
 import { AgentWorkspaceResultCards } from '@/features/agent/components/AgentWorkspaceResultCards'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/features/agent/components/AgentActivityFeed'
-import { RunActivityTitleBubble } from '@/features/agent/components/AgentRunActivityPanel'
 import { localAgentApprovalDetails } from '@/features/agent/components/AgentRunInteractionBubble'
 import { shallowReferenceArrayEqual } from '@/features/agent/components/AgentRenderEquality'
 import { useAgentMessageBubbleModel } from '@/features/agent/presentation/useAgentMessageFactsModel'
@@ -238,10 +237,10 @@ function MessageBubbleActivity({
         />
       )}
       {activity.historicalActivity && (
-        <RunActivityTitleBubble
+        <AgentActivityFeedView
           activity={activity.historicalActivity}
-          title="运行过程"
           className={activity.className}
+          hiddenActionItemIds={hiddenActivityActionItemIds}
         />
       )}
     </React.Fragment>

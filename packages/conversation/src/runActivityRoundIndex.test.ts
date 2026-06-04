@@ -221,6 +221,30 @@ test('buildAgentRunActivityRoundIndex preserves final round metadata', () => {
   assert.equal(roundIndex.rounds[0]?.source, 'final')
 })
 
+test('buildAgentRunActivityRoundIndex does not create an indexed final round for unrounded completion events', () => {
+  const roundIndex = buildAgentRunActivityRoundIndex(activity({
+    events: [{
+      id: 'event_assistant',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      status: 'completed',
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }, {
+      id: 'event_finished',
+      kind: 'run',
+      title: 'Run finished',
+      status: 'completed',
+      createdAt: '2026-05-22T01:00:01.000Z',
+    }],
+  }))
+
+  assert.deepEqual(roundIndex.rounds.map((round) => ({
+    id: round.id,
+    index: round.index,
+    source: round.source,
+  })), [{ id: 'round-unknown', index: undefined, source: undefined }])
+})
+
 function activity(overrides: Partial<AgentTimelineActivity> = {}): AgentTimelineActivity {
   return {
     runId: 'run_1',

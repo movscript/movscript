@@ -2,14 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 import { buildModelToolResultContext } from '../../../../context/tool-result/toolResultContext.js'
-import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import {
-  createDefaultWorkspaceApplyPort,
-  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
-  createDefaultRuntimeToolHandlerRegistry,
   createDefaultVideoFrameExtractionPort,
 } from '../../../../application/shared/tools/runtimeToolHandlers.js'
 import { createRuntimeToolHandlerRegistry } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
@@ -177,10 +172,6 @@ function buildGraphInput(input: {
     byName: { [toolName]: tool },
   }
   const traces: Array<{ data?: unknown }> = []
-  const workspaceApplyBackend = {
-    async applyReview(): Promise<any> { return { performed: false } },
-    async previewApplyReview(): Promise<any> { return { performed: false } },
-  }
   return {
     traces,
     run: input.run,
@@ -197,16 +188,12 @@ function buildGraphInput(input: {
     config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
     auth: {},
     runtimeLimits,
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     externalToolGatewayPort: createDefaultExternalToolGatewayPort({
       initialize: async () => null,
       callTool: async () => {
         throw new Error('external gateway should not run')
       },
     }),
-    workspaceApplyPort: createDefaultWorkspaceApplyPort(workspaceApplyBackend),
-    workspaceApplyPreviewPort: createDefaultWorkspaceApplyPreviewPort(workspaceApplyBackend),
-    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort({ initialize: async () => null, callTool: async () => null }),
     resourceFilePort: createDefaultResourceFilePort({ initialize: async () => null }),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false }) }),
     registry,

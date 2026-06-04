@@ -35,6 +35,7 @@ export type Conversation = AgentConversation
 export type ConversationWorkspace = AgentConversationWorkspace
 
 export interface AgentSettings {
+  activeAgentRuntimeId: AgentSettingsAgentRuntimeId
   modelId: number | null
   includeProjectContext: boolean
   includeRecentResources: boolean
@@ -46,6 +47,8 @@ export interface AgentSettings {
   lastImportBackup: AgentSettingsImportBackup | null
   lastConfigFileBackup: AgentSettingsConfigFileBackup | null
 }
+
+export type AgentSettingsAgentRuntimeId = 'movscript-agent' | 'codex'
 
 export type AgentToolPermissionsFilterPresetFilter = 'all' | 'available' | 'blocked' | 'config_file_granted' | 'requires_approval' | 'write_risk'
 
@@ -109,6 +112,7 @@ function genId() {
 }
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  activeAgentRuntimeId: 'movscript-agent',
   modelId: null,
   includeProjectContext: true,
   includeRecentResources: true,
@@ -243,6 +247,7 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
   const timeoutOptions = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]
   return {
     ...merged,
+    activeAgentRuntimeId: normalizeAgentSettingsAgentRuntimeId(merged.activeAgentRuntimeId),
     modelId: normalizePersistedModelId(merged.modelId),
     includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
     includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
@@ -260,6 +265,10 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
       ? Number(merged.planWorkerTimeoutMs)
       : DEFAULT_AGENT_SETTINGS.planWorkerTimeoutMs,
   }
+}
+
+function normalizeAgentSettingsAgentRuntimeId(value: unknown): AgentSettingsAgentRuntimeId {
+  return value === 'codex' ? 'codex' : 'movscript-agent'
 }
 
 function normalizeToolPermissionsFilterPresets(value: unknown): AgentToolPermissionsFilterPreset[] {

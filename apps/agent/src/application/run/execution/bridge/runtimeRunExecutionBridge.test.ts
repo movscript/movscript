@@ -20,11 +20,10 @@ test('createRuntimeRunExecutionBridge binds runtime execution dependencies', asy
     runSteps: { label: 'runSteps' },
     postRunRecords: { label: 'postRunRecords' },
     mcpClient: { label: 'mcpClient' },
-    workspaceStore: { label: 'workspaceStore' },
     externalToolGatewayPort: { label: 'externalToolGatewayPort' },
+    focusContextPort: { label: 'focusContextPort' },
     memoryStore: { label: 'memoryStore' },
     memoryManager: { label: 'memoryManager' },
-    referenceManager: { label: 'referenceManager' },
     contractResolver: { label: 'contractResolver' },
     catalogManager: { label: 'catalogManager' },
     updateState: { label: 'updateState' },
@@ -50,11 +49,10 @@ test('createRuntimeRunExecutionBridge binds runtime execution dependencies', asy
   assert.equal(captured?.runSteps, dependencies.runSteps)
   assert.equal(captured?.postRunRecords, dependencies.postRunRecords)
   assert.equal(captured?.mcpClient, dependencies.mcpClient)
-  assert.equal(captured?.workspaceStore, dependencies.workspaceStore)
   assert.equal(captured?.externalToolGatewayPort, dependencies.externalToolGatewayPort)
+  assert.equal(captured?.focusContextPort, dependencies.focusContextPort)
   assert.equal(captured?.memoryStore, dependencies.memoryStore)
   assert.equal(captured?.memoryManager, dependencies.memoryManager)
-  assert.equal(captured?.referenceManager, dependencies.referenceManager)
   assert.equal(captured?.contractResolver, dependencies.contractResolver)
   assert.equal(captured?.catalogManager, dependencies.catalogManager)
   assert.equal(captured?.updateState, dependencies.updateState)

@@ -113,6 +113,89 @@ test('telemetry endpoints expose runtime snapshot and prometheus-compatible metr
   assert.match(metrics.body, /movscript_agent_trace_span_duration_ms_count\{kind="tool_call",status="completed",tool_name="movscript_focus_get"\} 1/)
 })
 
+test('plugin run endpoint executes plugin bundle in agent runtime', async () => {
+  const handler = createAgentRequestListener({
+    telemetry: new RuntimeTelemetryRegistry(),
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/plugins/run', JSON.stringify({
+    plugin: {
+      id: 'test.provider',
+      name: 'Test Provider',
+      version: '1.0.0',
+      bundle: `
+        var agentTools = {
+          generation_image_generate: {
+            run: async function(mov, args) {
+              return {
+                data: {
+                  toolName: 'generation_image_generate',
+                  prompt: args.prompt,
+                  hasGenerationHost: !!mov.generation
+                }
+              };
+            }
+          }
+        };
+      `,
+    },
+    args: { prompt: 'make image' },
+    toolName: 'generation_image_generate',
+    backendAPIBaseURL: 'http://backend.test/api/v1',
+  }))
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    data: {
+      toolName: 'generation_image_generate',
+      prompt: 'make image',
+      hasGenerationHost: true,
+    },
+  })
+})
+
+test('plugin file endpoints install, list, and delete agent-side plugin files', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugin-routes-'))
+  try {
+    const handler = createAgentRequestListener({
+      telemetry: new RuntimeTelemetryRegistry(),
+      paths: {
+        runtimeDataDir: dir,
+        memoryPath: join(dir, 'memory.json'),
+        runtimeLogPath: join(dir, 'runtime-log.jsonl'),
+        workspacePath: join(dir, 'workspaces.json'),
+        toolResultPath: join(dir, 'tool-results.json'),
+        catalogStatePath: join(dir, 'catalog-state.json'),
+        modelConfigPath: join(dir, 'model-config.json'),
+      },
+    } as unknown as AgentServerContext)
+
+    const install = await dispatch(handler, 'POST', '/plugins/install', JSON.stringify({
+      plugin: {
+        id: 'story-pack',
+        name: 'Story Pack',
+        version: '1.0.0',
+        manifestFormat: 'codex',
+      },
+      agentCatalogFiles: [{
+        path: 'agent-skills/story/SKILL.md',
+        content: '---\nname: Story\ndescription: Story skill.\n---\nUse story.',
+      }],
+    }))
+    const list = await dispatch(handler, 'GET', '/plugins')
+    const deleted = await dispatch(handler, 'DELETE', '/plugins/story-pack')
+    const finalList = await dispatch(handler, 'GET', '/plugins')
+
+    assert.equal(install.statusCode, 200)
+    assert.equal(JSON.parse(install.body).plugin.id, 'story-pack')
+    assert.deepEqual(JSON.parse(list.body).plugins.map((plugin: { id: string }) => plugin.id), ['story-pack'])
+    assert.equal(JSON.parse(deleted.body).removed, true)
+    assert.deepEqual(JSON.parse(finalList.body).plugins, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime health endpoints split liveness, compatibility, and heavier capabilities', async () => {
   const toolProviderRegistry = new MCPToolProviderRegistry('http://127.0.0.1:18765/mcp')
   const handler = createAgentRequestListener({
@@ -140,7 +223,7 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
       current: { policyVersion: 'test-policy' },
       policy: { channel: 'stable' },
     },
-    backendApplyClient: { isEnabled: () => true },
+    resourceFileDownloader: { isEnabled: () => true },
     modelConfigStore: {
       getPublicConfig: () => {
         throw new Error('health must not read model config')
@@ -186,6 +269,7 @@ test('runtime health endpoints split liveness, compatibility, and heavier capabi
   assert.equal(capabilitiesBody.pluginCatalog.skillCount, 1)
   assert.equal(capabilitiesBody.pluginCatalog.toolCount, 1)
   assert.equal(capabilitiesBody.paths.workspacePath, '/tmp/agent-workspaces.json')
+  assert.equal(capabilitiesBody.resourceFileDownloadEnabled, true)
   assert.equal(capabilitiesBody.toolProviders.length, 1)
   assert.equal(capabilitiesBody.toolProviders[0].providerId, 'default')
 })
@@ -408,11 +492,6 @@ test('model config endpoint can clear saved config', async () => {
 test('write endpoints reject non-object request bodies before touching runtime dependencies', async () => {
   const handler = createAgentRequestListener({} as unknown as AgentServerContext)
   const cases: Array<{ method: string; path: string; label: string }> = [
-    { method: 'PATCH', path: '/workspaces/workspace_1', label: 'workspace update body' },
-    { method: 'POST', path: '/workspaces/workspace_1/apply-preview', label: 'apply preview body' },
-    { method: 'POST', path: '/workspaces/workspace_1/apply-simulate', label: 'apply simulate body' },
-    { method: 'POST', path: '/workspaces/workspace_1/apply', label: 'workspace apply body' },
-    { method: 'POST', path: '/workspaces/workspace_1/reject', label: 'workspace rejection body' },
     { method: 'POST', path: '/threads', label: 'thread body' },
     { method: 'PATCH', path: '/threads/thread_1', label: 'thread update body' },
     { method: 'POST', path: '/sessions/session_1/runs', label: 'session run body' },
@@ -1742,69 +1821,37 @@ test('public agent project id boundaries reject invalid project scopes', async (
         calls.push({ endpoint: 'capabilities', input })
         return { ok: true }
       },
-      listWorkspaces: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'workspaces', input })
-        return []
-      },
-      createLocalWorkspace: (input: Record<string, unknown>) => {
-        calls.push({ endpoint: 'workspace', input })
-        return { id: 'workspace_1', ...input }
-      },
     },
   } as unknown as AgentServerContext)
 
   for (const invalidProjectId of ['0', '42.5']) {
     const capabilities = await dispatch(handler, 'GET', `/capabilities?projectId=${invalidProjectId}`)
-    const workspaces = await dispatch(handler, 'GET', `/workspaces?projectId=${invalidProjectId}`)
-    const workspace = await dispatch(handler, 'POST', '/workspace', JSON.stringify({ projectId: Number(invalidProjectId), kind: 'project_standards_workspace' }))
 
     assert.equal(capabilities.statusCode, 400)
     assert.equal(JSON.parse(capabilities.body).error, 'projectId must be a positive safe integer')
-    assert.equal(workspaces.statusCode, 400)
-    assert.equal(JSON.parse(workspaces.body).error, 'projectId must be a positive safe integer')
-    assert.equal(workspace.statusCode, 400)
-    assert.equal(JSON.parse(workspace.body).error, 'workspace projectId must be a positive safe integer')
   }
   await dispatch(handler, 'GET', '/capabilities?projectId=42')
-  await dispatch(handler, 'GET', '/workspaces?projectId=42&current=true')
-  await dispatch(handler, 'POST', '/workspace', JSON.stringify({ projectId: 42, kind: 'project_standards_workspace' }))
 
   assert.deepEqual(calls.map((call) => [call.endpoint, call.input.projectId, call.input.currentProjectId, call.input.current]), [
     ['capabilities', undefined, 42, undefined],
-    ['workspaces', 42, undefined, true],
-    ['workspace', 42, undefined, undefined],
   ])
 })
 
-test('workspace creation drops invalid numeric business reference ids', async () => {
-  const calls: Array<Record<string, unknown>> = []
-  const handler = createAgentRequestListener({
-    runtimeRouter: {
-      createLocalWorkspace: (input: Record<string, unknown>) => {
-        calls.push(input)
-        return { id: 'workspace_1', ...input }
-      },
-    },
-  } as unknown as AgentServerContext)
+test('legacy workspace HTTP API has moved to frontend MCP/file management', async () => {
+  const handler = createAgentRequestListener({} as unknown as AgentServerContext)
 
-  const response = await dispatch(handler, 'POST', '/workspace', JSON.stringify({
-    kind: 'project_standards_workspace',
-    content: 'Workspace',
-    source: {
-      entityType: 'scene_moment',
-      entityId: 0,
-      pageEntityType: 'production',
-      pageEntityId: 7.5,
-      pageKey: 'production',
-    },
-  }))
+  for (const [method, path] of [
+    ['POST', '/workspace'],
+    ['GET', '/workspaces'],
+    ['GET', '/workspaces/workspace_1'],
+    ['PATCH', '/workspaces/workspace_1'],
+    ['POST', '/workspaces/workspace_1/apply'],
+  ] as const) {
+    const response = await dispatch(handler, method, path, method === 'GET' ? undefined : JSON.stringify({ any: true }))
 
-  assert.equal(response.statusCode, 200)
-  assert.deepEqual(calls[0]?.source, {
-    entityType: 'scene_moment',
-    pageEntityType: 'production',
-    pageKey: 'production',
-  })
+    assert.equal(response.statusCode, 410)
+    assert.equal(JSON.parse(response.body).replacement, 'Use frontend MCP workspace_file_* tools or Electron agent workspace file APIs.')
+  }
 })
 
 test('public agent query limit boundaries are normalized before runtime calls', async () => {
@@ -1823,18 +1870,13 @@ test('public agent query limit boundaries are normalized before runtime calls', 
   } as unknown as AgentServerContext)
 
   for (const limit of ['0', '2.8', 'Infinity', '999']) {
-    await dispatch(handler, 'GET', `/workspaces?limit=${limit}`)
     await dispatch(handler, 'GET', `/memories?projectId=42&limit=${limit}`)
   }
 
   assert.deepEqual(calls.map((call) => [call.endpoint, call.input.limit]), [
-    ['workspaces', 1],
     ['memories', 1],
-    ['workspaces', 2],
     ['memories', 2],
-    ['workspaces', undefined],
     ['memories', undefined],
-    ['workspaces', 100],
     ['memories', 100],
   ])
 })

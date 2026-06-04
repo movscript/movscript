@@ -131,7 +131,7 @@ export function applyRuntimeRunRequiredActionFlow(input: {
     runId: input.run.id,
     now: input.projectionNow ?? input.now,
   })
-  input.emitRunSnapshot(input.run, { done: true })
+  input.emitRunSnapshot(input.run, { done: false })
   return input.run
 }
 

@@ -55,13 +55,14 @@ export interface AgentRuntimeStatus {
   transportKind: AgentRuntimeControlTransportKind
   endpoint: string
   socketPath?: string
+  agentRuntimeDirName?: string
   workspaceDir?: string
   sessionId?: string
   pid?: number
   error?: string
 }
 
-export async function ensureAgentRuntimeRunning(input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string } = {}): Promise<AgentRuntimeStatus> {
+export async function ensureAgentRuntimeRunning(input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; agentRuntimeDirName?: string; workspaceDir?: string; sessionId?: string; source?: string } = {}): Promise<AgentRuntimeStatus> {
   const session = resolveAgentRuntimeSession(input)
   if (session) return ensureSessionAgentRuntimeRunning(input, session)
   const startedAt = Date.now()
@@ -121,7 +122,7 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string; trans
 }
 
 async function ensureSessionAgentRuntimeRunning(
-  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string },
+  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; agentRuntimeDirName?: string; workspaceDir?: string; sessionId?: string; source?: string },
   session: NonNullable<ReturnType<typeof resolveAgentRuntimeSession>>,
 ): Promise<AgentRuntimeStatus> {
   const key = agentRuntimeSessionKey(session)
@@ -135,7 +136,7 @@ async function ensureSessionAgentRuntimeRunning(
 }
 
 async function ensureSessionAgentRuntimeRunningOnce(
-  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; workspaceDir?: string; sessionId?: string; source?: string },
+  input: { baseURL?: string; transportKind?: AgentRuntimeControlTransportKind; socketPath?: string; agentRuntimeDirName?: string; workspaceDir?: string; sessionId?: string; source?: string },
   session: NonNullable<ReturnType<typeof resolveAgentRuntimeSession>>,
 ): Promise<AgentRuntimeStatus> {
   const key = agentRuntimeSessionKey(session)
@@ -253,6 +254,7 @@ async function startSessionAgentRuntime(
       session: {
         workspaceDir: session.workspaceDir,
         sessionId: session.sessionId,
+        agentRuntimeDirName: session.paths.runtimeDirName,
       },
       onExit: (exitedChild) => {
         if (sessionProcs.get(key) === exitedChild) sessionProcs.delete(key)
@@ -309,6 +311,6 @@ function runtimeStatus(
     transportKind: transport.kind,
     endpoint: transport.endpointLabel,
     ...(transport.socketPath ? { socketPath: transport.socketPath } : {}),
-    ...(session ? { workspaceDir: session.workspaceDir, sessionId: session.sessionId } : {}),
+    ...(session ? { workspaceDir: session.workspaceDir, sessionId: session.sessionId, agentRuntimeDirName: session.paths.runtimeDirName } : {}),
   }
 }

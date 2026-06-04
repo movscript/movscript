@@ -1,4 +1,5 @@
 import type { JSONValue } from '../../../../shared/protocol/types.js'
+import type { RuntimeFocusContextPort } from '../../../../ports/context/focusContextPort.js'
 import type { AgentRun, AgentTraceEvent, AgentTraceEventKind } from '../../../../state/shared/types.js'
 import type { AgentRunRoundInfo } from '../../../../state/run/core/round/runRound.js'
 import type { NormalizedClientInput } from '../../../../context/input/client/normalizeClientInput.js'
@@ -31,18 +32,14 @@ export async function resolveRuntimeFocusContext(input: {
   setupRound: AgentRunRoundInfo
   timestampMs: () => number
   now: () => string
-  mcpClient: {
-    initialize(options?: { signal?: AbortSignal }): Promise<unknown>
-    callTool(name: string, args?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue>
-  }
+  focusContextPort: RuntimeFocusContextPort
   signal?: AbortSignal
   recordTrace: (run: AgentRun, trace: RuntimeFocusContextTraceInput) => void
   updateRun: (run: AgentRun) => void
 }): Promise<RuntimeFocusContextResult> {
   const contextStartedAt = input.timestampMs()
   try {
-    await input.mcpClient.initialize({ signal: input.signal })
-    const contextResult = await input.mcpClient.callTool('get_focus_context', {}, { signal: input.signal })
+    const contextResult = await input.focusContextPort.getFocusContext({ signal: input.signal })
     return {
       contextResult,
       contextStartedAt,
@@ -59,7 +56,7 @@ export async function resolveRuntimeFocusContext(input: {
       status: diagnosticCommand ? 'blocked' : 'failed',
       round: input.setupRound,
       data: {
-        source: 'mcp_focus',
+        source: 'external_focus_context',
         endpoint: 'get_focus_context',
         error: contextError,
         durationMs: contextDurationMs,

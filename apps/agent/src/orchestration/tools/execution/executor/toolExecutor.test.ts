@@ -3,18 +3,11 @@ import test from 'node:test'
 
 import { MCPError } from '../../../../adapters/mcp/client/mcpClient.js'
 import type { AgentRun, JSONValue } from '../../../../state/shared/types.js'
-import { InMemoryReferenceStore, ReferenceManager } from '../../../../reference/index.js'
 import { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
-import { InMemoryAgentWorkspaceStore, validateWorkspace } from '../../../../workspaces/store/workspaceStore.js'
 import { executeTool } from './toolExecutor.js'
-import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
-import { workspaceContentFileRef } from '../../../../files/providers/workspaceFileProvider.js'
 import {
-  createDefaultWorkspaceApplyPort,
-  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
@@ -24,55 +17,7 @@ import { createRuntimeToolHandlerRegistry } from '../../../../ports/runtime/runt
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const storyboardRhythmContent = '分镜节奏基础正文。短剧内容单元需要明确节拍、转折和信息递进，避免每个镜头只重复同一个动作。'
-const storyboardHookContent = '短剧钩子正文。开场要用具体冲突、反常动作或强目标建立观看理由，并在二十字后仍有足够内容用于截断测试。'
 
-function createTestReferenceManager(): ReferenceManager {
-  return new ReferenceManager(new InMemoryReferenceStore({
-    referenceSets: [{
-      id: 'film.reference.storyboard',
-      version: '1.0.0',
-      domain: 'storyboard',
-      name: 'Storyboard Test Reference',
-      tags: ['test'],
-      chunkIds: ['storyboard.rhythm.basic', 'storyboard.hook.short_drama'],
-    }],
-    chunks: [{
-      id: 'storyboard.rhythm.basic',
-      localReferenceSetId: 'film.reference.storyboard',
-      domain: 'storyboard',
-      title: '分镜节奏基础',
-      tags: ['rhythm'],
-      summary: '用于测试分镜节奏参考搜索。',
-      content: storyboardRhythmContent,
-      sourcePath: '/test/reference/storyboard/rhythm.md',
-      contentHash: 'sha256:rhythm',
-      charCount: storyboardRhythmContent.length,
-    }, {
-      id: 'storyboard.hook.short_drama',
-      localReferenceSetId: 'film.reference.storyboard',
-      domain: 'storyboard',
-      title: '短剧钩子',
-      tags: ['hook'],
-      summary: '用于测试短剧钩子参考读取。',
-      content: storyboardHookContent,
-      sourcePath: '/test/reference/storyboard/hook.md',
-      contentHash: 'sha256:hook',
-      charCount: storyboardHookContent.length,
-    }],
-  }))
-}
-
-const defaultWorkspaceApplyBackend = {
-  async applyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-  async previewApplyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
-const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
-const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 
 function testRun(): AgentRun {
   return {
@@ -96,10 +41,6 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
     run: testRun(),
     mcpClient,
     externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    workspaceStore: {} as never,
-    workspaceApplyPort: defaultWorkspaceApplyPort,
-    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
     resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     registry: { get: () => undefined, list: () => [] },
@@ -307,6 +248,98 @@ test('executeTool pipeline normalizes legacy call arguments and records runtime 
   ])
 })
 
+test('executeTool does not fall back to MCP for registered runtime tools without executors', async () => {
+  let externalCalled = false
+  const result = await executeTool({
+    name: 'studio_missing_runtime_executor',
+    args: { value: 'nope' },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        externalCalled = true
+        return { ok: false }
+      },
+    }),
+    registry: new StaticToolRegistry([{
+      name: 'studio_missing_runtime_executor',
+      description: 'Runtime tool missing an executor.',
+      permission: 'studio.read',
+      risk: 'read',
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        properties: { value: { type: 'string' } },
+      },
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    }]),
+    runtimeToolHandlers: createRuntimeToolHandlerRegistry([]),
+  })
+
+  assert.equal(externalCalled, false)
+  assert.equal(result.source, 'runtime')
+  assert.equal((result.errorData as any)?.code, 'runtime_tool_executor_missing')
+  assert.equal(result.pipeline?.route, 'runtime')
+  assert.equal(result.pipeline?.stages.some((stage) => stage.name === 'external_gateway' && stage.status === 'skipped'), true)
+})
+
+test('executeTool routes registered MCP and plugin tools through the external gateway', async () => {
+  const externalCalls: string[] = []
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(name: string): Promise<JSONValue> {
+        externalCalls.push(name)
+        return { routed: name }
+      },
+    }),
+    registry: new StaticToolRegistry([
+      {
+        name: 'studio_mcp_tool',
+        description: 'MCP-owned tool.',
+        permission: 'studio.mcp',
+        risk: 'read',
+        source: 'mcp',
+        inputSchema: {},
+        projectScoped: false,
+        requiresApprovalByDefault: false,
+      },
+      {
+        name: 'studio_plugin_tool',
+        description: 'Plugin-owned external tool.',
+        permission: 'studio.plugin',
+        risk: 'read',
+        source: 'plugin',
+        pluginId: 'studio.plugin',
+        inputSchema: {},
+        projectScoped: false,
+        requiresApprovalByDefault: false,
+      },
+    ]),
+    runtimeToolHandlers: createRuntimeToolHandlerRegistry([{
+      toolNames: ['studio_mcp_tool', 'studio_plugin_tool'],
+      execute() {
+        throw new Error('external tools should not be claimed by runtime handlers')
+      },
+    }]),
+  }
+
+  const mcpResult = await executeTool({ name: 'studio_mcp_tool', args: {} }, options)
+  const pluginResult = await executeTool({ name: 'studio_plugin_tool', args: {} }, options)
+
+  assert.deepEqual(externalCalls, ['studio_mcp_tool', 'studio_plugin_tool'])
+  assert.equal(mcpResult.source, 'mcp')
+  assert.equal(pluginResult.source, 'mcp')
+  assert.equal(mcpResult.pipeline?.route, 'external')
+  assert.equal(pluginResult.pipeline?.route, 'external')
+  assert.equal(pluginResult.pipeline?.stages.some((stage) => stage.name === 'runtime_handler' && stage.status === 'skipped'), true)
+})
+
 test('executeTool permission gate blocks ungranted calls before runtime handlers execute', async () => {
   let runtimeCalled = false
   const result = await executeTool({
@@ -356,43 +389,32 @@ test('executeTool permission gate blocks ungranted calls before runtime handlers
   assert.equal(result.pipeline?.stages.some((stage) => stage.name === 'permission_gate' && stage.status === 'failed'), true)
 })
 
-test('executeTool serves runtime reference search and bounded get', async () => {
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime reference tools')
-      },
-    }),
-    referenceManager: createTestReferenceManager(),
-  }
+test('executeTool routes reference tools through the external gateway', async () => {
+  const calls: string[] = []
+  const options = testOptions({
+    async initialize(): Promise<JSONValue> {
+      return {}
+    },
+    async callTool(name: string): Promise<JSONValue> {
+      calls.push(name)
+      return { ok: true, tool: name }
+    },
+  })
 
   const search = await executeTool({
     name: 'reference_search',
     args: { query: '关键帧 分镜', domain: 'storyboard', limit: 2 },
   }, options)
-  const results = (search.result as any)?.results as any[]
-  assert.equal(Array.isArray(results), true)
-  assert.equal(results.length > 0, true)
-  assert.equal(results.some((result) => result.content !== undefined), false)
-  assert.equal(typeof results[0]!.title, 'string')
-  assert.equal(results[0]!.kind, 'text')
-  assert.equal(results[0]!.source, 'local_reference')
-  assert.equal(results[0]!.metadata?.domain, 'storyboard')
-  assert.match(results[0]!.metadata?.contentHash, /^sha256:/)
-  assert.equal(typeof results[0]!.metadata?.sourcePath, 'string')
-
   const body = await executeTool({
     name: 'reference_get',
-    args: { id: results[0]!.id, maxChars: 32 },
+    args: { id: 'local_reference:storyboard.hook.short_drama', maxChars: 32 },
   }, options)
-  assert.equal(`local_reference:${(body.result as any)?.id}`, results[0]!.id)
-  assert.equal((body.result as any)?.domain, 'storyboard')
-  assert.match((body.result as any)?.contentHash, /^sha256:/)
-  assert.equal(typeof (body.result as any)?.sourcePath, 'string')
-  assert.equal(((body.result as any)?.content as string).length <= 32, true)
+
+  assert.deepEqual(calls, ['reference_search', 'reference_get'])
+  assert.equal(search.source, 'mcp')
+  assert.equal(body.source, 'mcp')
+  assert.equal(search.pipeline?.route, 'external')
+  assert.equal(body.pipeline?.route, 'external')
 })
 
 test('executeTool extracts local video frames and returns image parts only through supplemental model messages', async () => {
@@ -469,706 +491,37 @@ test('executeTool extracts local video frames and returns image parts only throu
   assert.equal(supplemental?.content.filter((part: any) => part.type === 'image').length, 2)
 })
 
-test('executeTool creates content unit workspace workspaces after media workspace deprecation', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
+test('executeTool routes workspace tools through the external gateway', async () => {
+  const calls: string[] = []
+  const options = testOptions({
+    async initialize(): Promise<JSONValue> {
+      return {}
+    },
+    async callTool(name: string): Promise<JSONValue> {
+      calls.push(name)
+      return { ok: true, tool: name }
+    },
+  })
+
+  const opened = await executeTool({
     name: 'workspace_open',
     args: {
       kind: 'content_unit_workspace',
       workspace: true,
       projectId: 1,
-      content: JSON.stringify({
-        schema: 'movscript.content_unit_workspace.v1',
-        scope: 'content_unit_workspace',
-        workspace: {
-          units: [{
-            title: 'Opening shot',
-            kind: 'shot',
-            description: 'Character enters the room.',
-          }],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace creation')
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.equal(workspaceStore.listWorkspaces()[0]?.kind, 'content_unit_workspace')
-})
-
-test('executeTool rejects workspace-kind workspace creation without content instead of creating an empty workspace', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  await assert.rejects(
-    executeTool({
-      name: 'workspace_open',
-      args: {
-        kind: 'asset_workspace',
-        projectId: 42,
-        seedMode: 'editable_snapshot',
-        hydrate: true,
-      },
-    }, {
-      ...testOptions({
-        async initialize(): Promise<JSONValue> {
-          return {}
-        },
-        async callTool(): Promise<JSONValue> {
-          throw new Error('MCP should not be called when workspace content is missing')
-        },
-      }),
-      workspaceStore,
-    }),
-    /create_workspace requires content/,
-  )
-
-  assert.equal(workspaceStore.listWorkspaces().length, 0)
-})
-
-test('executeTool hydrates missing asset workspace rows into workspace during workspace creation', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-          asset_slots: [],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        calls.push({ name: 'initialize' })
-        return {}
-      },
-      async callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue> {
-        calls.push({ name, args })
-        return {
-          seed: {
-            data: {
-              asset_slots: [{
-                id: 9,
-                owner: { type: 'creative_reference', id: 7 },
-                name: 'Existing portrait',
-                kind: 'image',
-                status: 'needed',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.equal(calls.some((call) => call.name === 'get_workspace_model'), true)
-  const mcpCall = calls.find((call) => call.name === 'get_workspace_model')
-  assert.deepEqual(mcpCall?.args, {
-    kind: 'asset_workspace',
-    target: {
-      projectId: 42,
-    },
-    seedMode: 'editable_snapshot',
-    hydrate: true,
-  })
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
-  assert.deepEqual((workspace.metadata as any)?.seed.data.asset_slots.map((slot: any) => slot.id), [9])
-})
-
-test('executeTool seeds omitted asset workspace snapshot from current project data', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        slot: {
-          ID: 9,
-          project_id: 42,
-          owner: { Type: 'creative_reference', ID: 7 },
-          name: 'Existing portrait',
-          Kind: 'image',
-          CreatedAt: '2026-05-21T00:00:00Z',
-          UpdatedAt: '2026-05-21T00:00:00Z',
-        },
-        workspace: {
-          creative_references: [],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        return {
-          seed: {
-            data: {
-              asset_slots: [{
-                workspace_client_id: 'slot-existing-9',
-                ID: 9,
-                project_id: 42,
-                owner_type: 'creative_reference',
-                owner_id: 7,
-                creative_reference_id: 7,
-                name: 'Existing portrait',
-                kind: 'image',
-                resource_id: 12,
-                resource: { ID: 12, name: 'raw.png' },
-                locked_asset_slot_id: 13,
-                locked_asset_slot: { ID: 13, name: 'Candidate', kind: 'image' },
-                status: 'needed',
-                CreatedAt: '2026-05-21T00:00:00Z',
-                UpdatedAt: '2026-05-21T00:00:00Z',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
-  assert.deepEqual(content.workspace.asset_slots[0], {
-    client_id: 'slot-existing-9',
-    id: 9,
-    creative_reference_id: 7,
-    owner_type: 'creative_reference',
-    owner_id: 7,
-    kind: 'image',
-    name: 'Existing portrait',
-    status: 'needed',
-    resource_id: 12,
-    locked_asset_slot_id: 13,
-  })
-  assert.deepEqual(content.slot, {
-    id: 9,
-    owner: { type: 'creative_reference', id: 7 },
-    kind: 'image',
-    name: 'Existing portrait',
-  })
-  assert.equal(validateWorkspace(workspace).ok, true)
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
-})
-
-test('executeTool normalizes hydrated setting workspace rows during workspace creation', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'setting_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
-        scope: 'setting_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        return {
-          seed: {
-            data: {
-              creative_references: [{
-                ID: 14,
-                project_id: 42,
-                workspace_client_id: 'cr_tongzilou_old_room',
-                kind: 'location',
-                name: '筒子楼老屋/旧屋',
-                description: '周建国一家1982年初居住的狭小旧屋。',
-                content: '需要保持空间连续性。',
-                importance: 'core',
-                status: 'needs_review',
-                profile_json: '',
-                tags_json: '',
-                CreatedAt: '2026-05-21T00:00:00Z',
-                UpdatedAt: '2026-05-21T00:00:00Z',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.deepEqual(content.workspace.creative_references, [{
-    client_id: 'cr_tongzilou_old_room',
-    id: 14,
-    kind: 'location',
-    name: '筒子楼老屋/旧屋',
-    description: '周建国一家1982年初居住的狭小旧屋。',
-    content: '需要保持空间连续性。',
-    importance: 'core',
-    status: 'needs_review',
-    profile_json: '',
-    tags_json: '',
-  }])
-  assert.equal(validateWorkspace(workspace).ok, true)
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
-})
-
-test('executeTool merges new-only asset workspace snapshots onto hydrated project data', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-          asset_slots: [{
-            client_id: 'new-slot',
-            owner: { type: 'creative_reference', id: 7 },
-            name: 'New cane detail',
-            kind: 'image',
-          }],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        return {
-          seed: {
-            data: {
-              asset_slots: [{
-                id: 9,
-                owner: { type: 'creative_reference', id: 7 },
-                name: 'Existing portrait',
-                kind: 'image',
-                status: 'needed',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Existing portrait', 'New cane detail'])
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal(validateWorkspace(workspace).ok, true)
-})
-
-test('executeTool falls back to asset slot query when workspace model seed omits asset slots', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const calls: string[] = []
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(name: string): Promise<JSONValue> {
-        calls.push(name)
-        if (name === 'get_workspace_model') {
-          return { seed: { data: {}, warnings: ['asset_slots: backend timeout'] } }
-        }
-        if (name === 'movscript_asset_slot_query') {
-          return {
-            asset_slots: [{
-              id: 9,
-              owner: { type: 'creative_reference', id: 7 },
-              name: 'Existing portrait',
-              kind: 'image',
-              status: 'needed',
-            }],
-          }
-        }
-        throw new Error(`unexpected tool ${name}`)
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(calls, ['get_workspace_model', 'movscript_asset_slot_query'])
-  const content = JSON.parse(workspaceStore.listWorkspaces()[0]!.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.id), [9])
-})
-
-test('executeTool unwraps MCP tool data while hydrating asset workspace snapshots', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        return {
-          content: [{ type: 'text', text: 'wrapped MCP result' }],
-          data: {
-            seed: {
-              data: {
-                asset_slots: [{
-                  id: 9,
-                  name: 'Wrapped portrait',
-                  kind: 'image',
-                  status: 'needed',
-                }],
-              },
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const content = JSON.parse(workspaceStore.listWorkspaces()[0]!.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Wrapped portrait'])
-})
-
-test('executeTool hydrates missing setting workspace rows into workspace during workspace creation', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'setting_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
-        scope: 'setting_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(name: string): Promise<JSONValue> {
-        assert.equal(name, 'get_workspace_model')
-        return {
-          seed: {
-            data: {
-              creative_references: [{
-                id: 7,
-                name: 'Existing hero',
-                kind: 'person',
-                status: 'active',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.creative_references.map((reference: any) => reference.id), [7])
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
-})
-
-test('executeTool seeds omitted setting workspace snapshot from current project data', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'setting_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
-        scope: 'setting_workspace',
-        mode: 'snapshot',
-        workspace: {},
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(name: string): Promise<JSONValue> {
-        assert.equal(name, 'get_workspace_model')
-        return {
-          seed: {
-            data: {
-              creative_references: [{
-                id: 7,
-                name: 'Existing hero',
-                kind: 'person',
-                status: 'active',
-              }],
-            },
-          },
-        }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.deepEqual(content.workspace.creative_references.map((reference: any) => reference.id), [7])
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-  assert.equal((workspace.metadata as any)?.workspaceSnapshotSeeded, true)
-})
-
-test('executeTool does not duplicate workspace rows that already have backend ids', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'asset_workspace',
-      workspace: true,
-      projectId: 42,
-      content: JSON.stringify({
-        schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-        scope: 'asset_workspace',
-        mode: 'snapshot',
-        workspace: {
-          creative_references: [],
-          asset_slots: [{
-            id: 9,
-            name: 'Existing portrait',
-            kind: 'image',
-          }],
-          candidate_plans: [],
-        },
-      }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        return { seed: { data: { asset_slots: [{ id: 9, name: 'Existing portrait', kind: 'image' }] } } }
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  const workspace = workspaceStore.listWorkspaces()[0]!
-  const content = JSON.parse(workspace.content)
-  assert.equal(content.snapshot_base, undefined)
-  assert.equal((workspace.metadata as any)?.workspaceBaseHydrated, true)
-})
-
-test('executeTool reports automatic snapshot base hydration failures clearly', async () => {
-  await assert.rejects(
-    () => executeTool({
-      name: 'workspace_open',
-      args: {
-        kind: 'asset_workspace',
-        workspace: true,
-        projectId: 42,
-        content: JSON.stringify({
-          schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-          scope: 'asset_workspace',
-          mode: 'snapshot',
-          workspace: {
-            creative_references: [],
-            asset_slots: [],
-            candidate_plans: [],
-          },
-        }),
-      },
-    }, {
-      ...testOptions({
-        async initialize(): Promise<JSONValue> {
-          return {}
-        },
-        async callTool(): Promise<JSONValue> {
-          return { seed: { data: {} } }
-        },
-      }),
-      workspaceStore: new InMemoryAgentWorkspaceStore(),
-    }),
-    /could not hydrate workspace\.asset_slots automatically: hydrated seed did not include asset_slots/,
-  )
-})
-
-test('executeTool edits workspace files with explicit file revision preconditions', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const workspace = workspaceStore.createWorkspace({
-    projectId: 42,
-    kind: 'asset_workspace',
-    title: 'Asset requirements',
-    content: JSON.stringify({
-      schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-      scope: 'asset_workspace',
-      mode: 'snapshot',
-      workspace: {
-        creative_references: [],
-        asset_slots: [{
-          id: 9,
-          owner: { type: 'creative_reference', id: 7 },
-          name: 'Existing portrait',
-          kind: 'image',
-          status: 'needed',
-        }],
-        candidate_plans: [],
-      },
-    }),
-  })
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace file tools')
-      },
-    }),
-    workspaceStore,
-  }
-
-  await assert.rejects(
-    () => executeTool({
-      name: 'core_file_edit',
-      args: {
-        ref: workspaceContentFileRef(workspace.id),
-        baseRevision: 'sha256:stale',
-        edits: [{
-          type: 'replace_text',
-          oldText: '"asset_slots":[]',
-          newText: '"asset_slots":[{"name":"New slot","kind":"image"}]',
-        }],
-      },
-    }, options),
-    /baseRevision mismatch/,
-  )
-
-  const read = await executeTool({
-    name: 'core_file_read',
-    args: { ref: workspaceContentFileRef(workspace.id), jsonPointer: '/workspace/asset_slots' },
-  }, options)
-
-  assert.equal((read.result as any)?.status, 'read')
-  assert.equal((read.result as any)?.value.length, 1)
-
-  const original = workspaceStore.getWorkspace(workspace.id)?.content ?? ''
-  const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"TaskGraph A"}]')
-  const edited = await executeTool({
-    name: 'core_file_edit',
-    args: {
-      ref: workspaceContentFileRef(workspace.id),
-      baseRevision: (read.result as any).revision,
-      edits: [{
-        type: 'replace_text',
-        oldText: original,
-        newText: next,
-      }],
+      content: JSON.stringify({ workspace: {} }),
     },
   }, options)
+  const applied = await executeTool({
+    name: 'workspace_apply',
+    args: { workspaceId: 'workspace_1' },
+  }, options)
 
-  assert.equal((edited.result as any)?.status, 'edited')
-  const content = JSON.parse(workspaceStore.getWorkspace(workspace.id)?.content ?? '{}')
-  assert.deepEqual(content.workspace.asset_slots.map((slot: any) => slot.name), ['Existing portrait'])
-  assert.deepEqual(content.workspace.candidate_plans.map((taskGraph: any) => taskGraph.name), ['TaskGraph A'])
+  assert.deepEqual(calls, ['workspace_open', 'workspace_apply'])
+  assert.equal(opened.source, 'mcp')
+  assert.equal(applied.source, 'mcp')
+  assert.equal(opened.pipeline?.route, 'external')
+  assert.equal(applied.pipeline?.route, 'external')
 })
 
 test('executeTool delegates agent file tools to the injected file system without requiring a workspace', async () => {
@@ -1311,235 +664,6 @@ test('executeTool reads and searches readonly movscript resources through core f
   )
 })
 
-test('executeTool applies valid workspace workspaces through runtime apply tool', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const workspace = workspaceStore.createWorkspace({
-    projectId: 42,
-    kind: 'asset_workspace',
-    title: 'Asset candidates',
-    content: JSON.stringify({
-      schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-      scope: 'asset_workspace',
-      assetSlotId: 9,
-      slot: { id: 9, name: 'Hero portrait', kind: 'image' },
-      workspace: {
-        creative_references: [],
-        asset_slots: [],
-        candidate_plans: [{
-          output_kind: 'image',
-          prompt: 'Hero portrait candidate',
-          input_resource_ids: [],
-          acceptance_criteria: ['Matches project style'],
-        }],
-      },
-    }),
-    target: {
-      projectId: 42,
-      entityType: 'project',
-      entityId: 42,
-      field: 'workspace',
-    },
-  })
-
-  const result = await executeTool({
-    name: 'workspace_apply',
-    args: { workspaceId: workspace.id },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace apply')
-      },
-    }),
-    workspaceStore,
-    workspaceApplyPort: createDefaultWorkspaceApplyPort({
-      async applyReview(): Promise<any> {
-        throw new Error('backend apply should be skipped for asset planning workspaces without asset slots')
-      },
-    }),
-  })
-
-  assert.equal((result.result as any)?.status, 'applied')
-  const applied = workspaceStore.getWorkspace(workspace.id)
-  assert.equal(applied?.status, 'workspace')
-  assert.equal((applied?.metadata as any)?.lastApplyStatus, 'applied')
-  assert.equal((applied?.metadata as any)?.appliedBy, 'movscript-agent')
-})
-
-test('executeTool ignores non-plain runtime workspace source and metadata records', async () => {
-  class RuntimeRecord {
-    injected = 'runtime'
-  }
-
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'runtime_note',
-      title: 'Runtime workspace',
-      content: 'Workspace content',
-      source: new RuntimeRecord() as unknown as JSONValue,
-      metadata: new RuntimeRecord() as unknown as JSONValue,
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace creation')
-      },
-    }),
-    workspaceStore,
-  })
-
-  const workspace = workspaceStore.listWorkspaces()[0]
-  assert.equal((result.result as any)?.workspaceId, workspace?.id)
-  assert.deepEqual(workspace?.source, {
-    runId: 'run-1',
-    threadId: 'thread-1',
-  })
-  assert.equal(workspace?.metadata, undefined)
-})
-
-test('executeTool drops invalid numeric page entity ids from runtime workspace source', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const run = testRun()
-  run.metadata = {
-    clientInput: {
-      uiSnapshot: {
-        pageContext: {
-          pageKey: 'production',
-          pageEntityType: 'production',
-          pageEntityId: 7.5,
-        },
-        selection: {
-          entityType: 'production',
-          entityId: Number.NaN,
-        },
-      },
-    },
-  }
-
-  await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'runtime_note',
-      title: 'Runtime workspace',
-      content: 'Workspace content',
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace creation')
-      },
-    }),
-    run,
-    workspaceStore,
-  })
-
-  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.source, {
-    runId: 'run-1',
-    threadId: 'thread-1',
-  })
-})
-
-test('executeTool ignores invalid project ids for generic workspaces', async () => {
-  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
-    const workspaceStore = new InMemoryAgentWorkspaceStore()
-    const result = await executeTool({
-      name: 'workspace_open',
-      args: {
-        kind: 'custom_workspace',
-        workspace: true,
-        projectId,
-        content: JSON.stringify({ workspace: {} }),
-      },
-    }, {
-      ...testOptions({
-        async initialize(): Promise<JSONValue> {
-          return {}
-        },
-        async callTool(): Promise<JSONValue> {
-          throw new Error('MCP should not be called for runtime workspace creation')
-        },
-      }),
-      workspaceStore,
-    })
-    assert.equal((result.result as any)?.status, 'created')
-    assert.equal(workspaceStore.listWorkspaces()[0]?.projectId, undefined)
-  }
-})
-
-test('executeTool ignores productionId when inferring generic workspace targets', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'custom_workspace',
-      workspace: true,
-      projectId: 42,
-      productionId: '7',
-      content: JSON.stringify({ workspace: {} }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace creation')
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
-    projectId: 42,
-    field: 'workspace',
-  })
-})
-
-test('executeTool drops invalid numeric entity ids from explicit workspace targets', async () => {
-  const workspaceStore = new InMemoryAgentWorkspaceStore()
-  const result = await executeTool({
-    name: 'workspace_open',
-    args: {
-      kind: 'custom_workspace',
-      workspace: true,
-      projectId: 42,
-      target: {
-        entityType: 'custom_entity',
-        entityId: 7.5,
-        field: 'workspace',
-      },
-      content: JSON.stringify({ workspace: {} }),
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime workspace creation')
-      },
-    }),
-    workspaceStore,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(workspaceStore.listWorkspaces()[0]?.target, {
-    entityType: 'custom_entity',
-    field: 'workspace',
-  })
-})
-
 test('executeTool rejects invalid project ids for memory tools', async () => {
   const memoryManager = new MemoryManager(new InMemoryAgentMemoryStore())
   const options = {
@@ -1585,88 +709,6 @@ test('executeTool rejects invalid project ids for memory tools', async () => {
       /delete_memory requires projectId/,
     )
   }
-})
-
-test('executeTool enforces per-run reference character budget', async () => {
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime reference tools')
-      },
-    }),
-    run: {
-      ...testRun(),
-      metadata: {
-        limits: { maxReferenceCharsPerRun: 50, maxReferenceChunksPerRun: 3 },
-        contextLedger: {
-          schema: 'movscript.context-ledger.v1',
-          retrieved: [{
-            ref: { type: 'reference', id: 'storyboard.rhythm.basic' },
-            source: 'reference',
-            evidence: 'advisory',
-            title: '分镜节奏基础',
-            summary: 'reference_get result reference (runtime)',
-            charCount: 30,
-            retrievedAt: new Date(0).toISOString(),
-            usedInPrompt: true,
-          }],
-        },
-      },
-    },
-    referenceManager: createTestReferenceManager(),
-  }
-
-  const body = await executeTool({
-    name: 'reference_get',
-    args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
-  }, options)
-
-  assert.equal(((body.result as any)?.content as string).length <= 20, true)
-  assert.equal((body.result as any)?.truncated, true)
-})
-
-test('executeTool enforces per-run reference chunk budget', async () => {
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime reference tools')
-      },
-    }),
-    run: {
-      ...testRun(),
-      metadata: {
-        limits: { maxReferenceCharsPerRun: 8000, maxReferenceChunksPerRun: 1 },
-        contextLedger: {
-          schema: 'movscript.context-ledger.v1',
-          retrieved: [{
-            ref: { type: 'reference', id: 'storyboard.rhythm.basic' },
-            source: 'reference',
-            evidence: 'advisory',
-            title: '分镜节奏基础',
-            summary: 'reference_get result reference (runtime)',
-            charCount: 120,
-            retrievedAt: new Date(0).toISOString(),
-            usedInPrompt: true,
-          }],
-        },
-      },
-    },
-    referenceManager: createTestReferenceManager(),
-  }
-
-  await assert.rejects(
-    () => executeTool({
-      name: 'reference_get',
-      args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
-    }, options),
-    /reference chunk budget exceeded/,
-  )
 })
 
 test('executeTool propagates MCP validation errors without repair', async () => {

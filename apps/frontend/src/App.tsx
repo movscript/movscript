@@ -70,6 +70,7 @@ const DeliveryPage = React.lazy(() => import('./pages/project/delivery/DeliveryP
 const DeliveryWorkbenchPage = React.lazy(() => import('./pages/project/delivery/DeliveryWorkbenchPage'))
 const AIWorkspacesPage = React.lazy(() => import('./pages/agent/AIWorkspacesPage'))
 const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
+const AgentWorkspaceFilesPage = React.lazy(() => import('./pages/agent/AgentWorkspaceFilesPage'))
 const AIAgentRunPage = React.lazy(() => import('./pages/agent/AIAgentRunPage'))
 const AIAgentSettingsPage = React.lazy(() => import('./pages/agent/AIAgentSettingsPage'))
 const AgentRunsPage = React.lazy(() => import('./pages/agent/AgentRunsPage'))
@@ -976,6 +977,7 @@ export default function App() {
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
+              <Route path={ROUTES.agentFiles} element={<AgentWorkspaceFilesPage />} />
               <Route path={ROUTES.agentWorkspaces} element={<AIWorkspacesPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />

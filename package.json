@@ -8,6 +8,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm --filter @movscript/event-state test && pnpm --filter @movscript/conversation test && pnpm --filter @movscript/desktop test && pnpm --filter @movscript/admin test",
     "test:scripts": "node scripts/run-node-tests.mjs --suite scripts",
+    "codex:install-plugin": "node scripts/install-codex-plugin.mjs",
+    "sync:codex-protocol": "node scripts/sync-codex-app-server-protocol.mjs",
     "release": "node scripts/release/release-workflow.mjs"
   },
   "testSuites": {

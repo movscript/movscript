@@ -1,5 +1,4 @@
 import { AgentFileSystem } from '../../../../files/core/system/agentFileSystem.js'
-import { WorkspaceFileProvider } from '../../../../files/providers/workspaceFileProvider.js'
 import { isRecord } from '../../../../shared/json/jsonValue.js'
 import type { RuntimeModelChatMessage } from '../../../../model/config/modelConfig.js'
 import type { ToolSource } from '../../../../ports/tools/toolExecutionSource.js'
@@ -36,6 +35,7 @@ export interface ToolExecutionPipelineSnapshot {
   toolName: string
   registered: boolean
   source: ToolSource
+  route: ToolExecutionRoute
   execution: ToolExecutionMetadata
   stages: ToolExecutionPipelineStage[]
 }
@@ -139,14 +139,16 @@ export async function runToolExecutionPipeline(call: ToolCall, options: ToolExec
   let effectiveCall = call
   let args = normalizeToolArgs(effectiveCall)
   const tool = options.registry.get(call.name)
-  const source = initialToolSource(tool)
+  const hasRuntimeExecutor = Boolean(options.runtimeToolHandlers.get(call.name))
+  const source = initialToolSource(tool, hasRuntimeExecutor)
+  const route = toolExecutionRoute(tool, hasRuntimeExecutor)
   const execution = tool ? tool.execution ?? normalizeToolExecutionMetadata(undefined, tool.risk) : normalizeToolExecutionMetadata(undefined, 'write')
   const stages: ToolExecutionPipelineStage[] = []
 
   stages.push({
     name: 'resolve',
     status: tool ? 'completed' : 'skipped',
-    message: tool ? `registered:${tool.source ?? 'runtime'}` : 'tool is not registered; external gateway may still handle it',
+    message: tool ? `registered:${tool.source ?? 'runtime'} route:${route}` : `unregistered route:${route}`,
   })
 
   const validation = validateToolInput(tool, args)
@@ -161,7 +163,7 @@ export async function runToolExecutionPipeline(call: ToolCall, options: ToolExec
       error: validation.message,
       errorData: validation.errorData,
       source,
-      pipeline: pipelineSnapshot(call.name, tool, source, execution, stages),
+      pipeline: pipelineSnapshot(call.name, tool, source, route, execution, stages),
     }
   }
 
@@ -180,7 +182,7 @@ export async function runToolExecutionPipeline(call: ToolCall, options: ToolExec
         reason: permissionGate.reason,
       },
       source,
-      pipeline: pipelineSnapshot(call.name, tool, source, execution, stages),
+      pipeline: pipelineSnapshot(call.name, tool, source, route, execution, stages),
     }
   }
   if (permissionGate.status === 'allowed') {
@@ -210,28 +212,43 @@ export async function runToolExecutionPipeline(call: ToolCall, options: ToolExec
       result: buildSandboxResult(call.name, args),
       sandboxed: true,
       source: 'sandbox',
-      pipeline: pipelineSnapshot(call.name, tool, 'sandbox', execution, stages),
+      pipeline: pipelineSnapshot(call.name, tool, 'sandbox', route, execution, stages),
     }
   }
   stages.push({ name: 'sandbox', status: 'skipped' })
 
-  const runtimeResult = await executeRuntimeHandler(effectiveCall, args, options)
-  if (runtimeResult.handled) {
-    stages.push({ name: 'runtime_handler', status: 'completed' })
-    stages.push({ name: 'external_gateway', status: 'skipped', message: 'runtime handler produced result' })
+  if (route === 'runtime') {
+    const runtimeResult = await executeRuntimeHandler(effectiveCall, args, options)
+    if (runtimeResult.handled) {
+      stages.push({ name: 'runtime_handler', status: 'completed' })
+      stages.push({ name: 'external_gateway', status: 'skipped', message: 'runtime executor produced result' })
+      stages.push({ name: 'result_shaping', status: 'completed', message: execution.resultRefStrategy ?? 'auto' })
+      return {
+        call: effectiveCall,
+        result: runtimeResult.result,
+        supplementalMessages: runtimeResult.supplementalMessages,
+        source: 'runtime',
+        pipeline: pipelineSnapshot(call.name, tool, 'runtime', route, execution, stages),
+      }
+    }
+    stages.push({ name: 'runtime_handler', status: 'failed', message: 'registered runtime tool has no runtime executor' })
+    stages.push({ name: 'external_gateway', status: 'skipped', message: 'runtime tools do not fall back to external gateway' })
     stages.push({ name: 'result_shaping', status: 'completed', message: execution.resultRefStrategy ?? 'auto' })
     return {
       call: effectiveCall,
-      result: runtimeResult.result,
-      supplementalMessages: runtimeResult.supplementalMessages,
+      error: `Runtime tool ${call.name} is registered but no runtime executor is available.`,
+      errorData: {
+        code: 'runtime_tool_executor_missing',
+        toolName: call.name,
+      },
       source: 'runtime',
-      pipeline: pipelineSnapshot(call.name, tool, 'runtime', execution, stages),
+      pipeline: pipelineSnapshot(call.name, tool, 'runtime', route, execution, stages),
     }
   }
-  stages.push({ name: 'runtime_handler', status: 'skipped', message: 'no runtime handler matched' })
+  stages.push({ name: 'runtime_handler', status: 'skipped', message: 'external tool route' })
 
   throwIfAborted(options.signal)
-  const result = await options.externalToolGatewayPort.executeTool(call.name, args, { signal: options.signal })
+  const result = await options.externalToolGatewayPort.executeTool(effectiveCall.name, args, { signal: options.signal })
   throwIfAborted(options.signal)
   stages.push({ name: 'external_gateway', status: 'completed' })
   stages.push({ name: 'result_shaping', status: 'completed', message: execution.resultRefStrategy ?? 'auto' })
@@ -239,7 +256,7 @@ export async function runToolExecutionPipeline(call: ToolCall, options: ToolExec
     call: effectiveCall,
     result,
     source: 'mcp',
-    pipeline: pipelineSnapshot(call.name, tool, 'mcp', execution, stages),
+    pipeline: pipelineSnapshot(call.name, tool, 'mcp', route, execution, stages),
   }
 }
 
@@ -292,10 +309,18 @@ function normalizeToolArgs(call: ToolCall): Record<string, JSONValue> {
   return call.args ?? call.arguments ?? {}
 }
 
-function initialToolSource(tool: RegisteredTool | undefined): ToolSource {
-  if (!tool) return 'mcp'
+function initialToolSource(tool: RegisteredTool | undefined, hasRuntimeExecutor: boolean): ToolSource {
+  if (!tool) return hasRuntimeExecutor ? 'runtime' : 'mcp'
   if (tool.source === 'mcp') return 'mcp'
+  if (tool.source === 'plugin') return 'mcp'
   return 'runtime'
+}
+
+type ToolExecutionRoute = 'runtime' | 'external'
+
+function toolExecutionRoute(tool: RegisteredTool | undefined, hasRuntimeExecutor: boolean): ToolExecutionRoute {
+  if (!tool) return hasRuntimeExecutor ? 'runtime' : 'external'
+  return tool.source === 'mcp' || tool.source === 'plugin' ? 'external' : 'runtime'
 }
 
 function validateToolInput(tool: RegisteredTool | undefined, args: Record<string, JSONValue>): {
@@ -454,24 +479,17 @@ async function executeRuntimeHandler(
 ): Promise<{ handled: true; result: JSONValue; supplementalMessages?: RuntimeModelChatMessage[] } | { handled: false }> {
   const runtimeToolHandler = options.runtimeToolHandlers.get(call.name)
   if (!runtimeToolHandler) return { handled: false }
-  const fileSystem = options.fileSystem ?? new AgentFileSystem([
-    new WorkspaceFileProvider(options.workspaceStore),
-  ])
+  const fileSystem = options.fileSystem ?? new AgentFileSystem([])
   const handlerResult = await runtimeToolHandler.execute({
     call,
     args,
     run: options.run,
-    workspaceStore: options.workspaceStore,
-    workspaceApplyPort: options.workspaceApplyPort,
-    workspaceApplyPreviewPort: options.workspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: options.workspaceSnapshotHydrationPort,
     resourceFilePort: options.resourceFilePort,
     imageProcessingPort: options.imageProcessingPort,
     videoFrameExtractionPort: options.videoFrameExtractionPort,
     fileSystem,
     registry: options.registry,
     memoryManager: options.memoryManager,
-    referenceManager: options.referenceManager,
     catalogManager: options.catalogManager,
     sandboxMode: options.sandboxMode,
     signal: options.signal,
@@ -489,6 +507,7 @@ function pipelineSnapshot(
   toolName: string,
   tool: RegisteredTool | undefined,
   source: ToolSource,
+  route: ToolExecutionRoute,
   execution: ToolExecutionMetadata,
   stages: ToolExecutionPipelineStage[],
 ): ToolExecutionPipelineSnapshot {
@@ -496,6 +515,7 @@ function pipelineSnapshot(
     toolName,
     registered: Boolean(tool),
     source,
+    route,
     execution,
     stages,
   }

@@ -6,7 +6,6 @@ import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManifest.js'
 import { buildLayeredCatalogRegistry } from '../../../../catalog/registry/core/registry.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../../../../contracts/runtime/runtimeContract.js'
-import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
 import type { AgentMemory } from '../../../../memory/shared/types.js'
 import type { MCPResource, MCPTool } from '../../../../state/shared/types.js'
 import { DEFAULT_TOOL_REGISTRY } from '../../../../tools/registry/core/toolRegistry.js'
@@ -81,14 +80,18 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
           return []
         },
       },
+      focusContextPort: {
+        async getFocusContext() {
+          calls.push('focusContext')
+          return { data: { focus: { project: { id: 42 } } } }
+        },
+      },
       memoryManager: {
         loadRelevantMemories(query: unknown) {
           memoryQueries.push(query)
           return memories
         },
-      } as never,
-      workspaceStore: new InMemoryAgentWorkspaceStore(),
-      catalogSnapshot,
+      } as never,      catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: {
         threadId: thread.id,
@@ -140,8 +143,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.deepEqual(memoryQueries, [])
     assert.deepEqual(calls, [
       'getThread:thread_1',
-      'initialize',
-      'callTool:get_focus_context:{}',
+      'focusContext',
       'initialize',
       'listTools',
       'listResources',
@@ -202,13 +204,16 @@ test('buildRuntimeRunPreview uses active config file runtime limits by default',
           return []
         },
       },
+      focusContextPort: {
+        async getFocusContext() {
+          return { data: { focus: { project: { id: 42 } } } }
+        },
+      },
       memoryManager: {
         loadRelevantMemories() {
           return []
         },
-      } as never,
-      workspaceStore: new InMemoryAgentWorkspaceStore(),
-      catalogSnapshot,
+      } as never,      catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: { message: 'preview configured limits', runtimeLimits: { maxIterations: 9 } },
       makePreviewId: () => 'preview_config_limits',
@@ -260,14 +265,17 @@ test('buildRuntimeRunPreview ignores invalid focus project ids at preview bounda
           return []
         },
       },
+      focusContextPort: {
+        async getFocusContext() {
+          return { data: { focus: { project: { id: '42' } } } }
+        },
+      },
       memoryManager: {
         loadRelevantMemories(query: unknown) {
           memoryQueries.push(query)
           return []
         },
-      } as never,
-      workspaceStore: new InMemoryAgentWorkspaceStore(),
-      catalogSnapshot,
+      } as never,      catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
       previewInput: { message: 'memory preview scope check', agentManifest: DEFAULT_AGENT_MANIFEST },
       makePreviewId: () => 'preview_invalid_project',

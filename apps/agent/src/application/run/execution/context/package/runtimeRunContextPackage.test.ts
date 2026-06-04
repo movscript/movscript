@@ -31,7 +31,7 @@ test('resolveRuntimeRunContextPackage extracts project context and skips memorie
     setupRound,
     timestampMs: makeClock(1000, 1015, 1020, 1028, 1031),
     now: () => '2026-01-01T00:00:01.015Z',
-    mcpClient: new FakeFocusClient({
+    focusContextPort: new FakeFocusContextPort({
       data: {
         snapshot: {
           project: { id: 42 },
@@ -78,7 +78,7 @@ test('resolveRuntimeRunContextPackage loads scoped memories for memory-related r
     setupRound,
     timestampMs: makeClock(1100, 1115, 1120, 1128, 1131),
     now: () => '2026-01-01T00:00:01.115Z',
-    mcpClient: new FakeFocusClient({
+    focusContextPort: new FakeFocusContextPort({
       data: {
         snapshot: {
           project: { id: 42 },
@@ -119,7 +119,7 @@ test('resolveRuntimeRunContextPackage keeps thread project unchanged when focus 
     setupRound,
     timestampMs: makeClock(2000, 2003, 2005, 2005, 2005),
     now: () => '2026-01-01T00:00:02.003Z',
-    mcpClient: new FakeFocusClient({ data: { snapshot: { route: { pathname: '/agent' } } } }),
+    focusContextPort: new FakeFocusContextPort({ data: { snapshot: { route: { pathname: '/agent' } } } }),
     memoryManager: {
       loadRelevantMemories: (query) => {
         loadedQueries.push(query)
@@ -153,7 +153,7 @@ test('resolveRuntimeRunContextPackage ignores invalid focus project ids at the p
     setupRound,
     timestampMs: makeClock(3000, 3001, 3002, 3003),
     now: () => '2026-01-01T00:00:03.001Z',
-    mcpClient: new FakeFocusClient({ data: { snapshot: { project: { id: 42.5 } } } }),
+    focusContextPort: new FakeFocusContextPort({ data: { snapshot: { project: { id: 42.5 } } } }),
     memoryManager: {
       loadRelevantMemories: (query) => {
         loadedQueries.push(query)
@@ -213,12 +213,10 @@ function makeClock(...values: number[]): () => number {
   return () => values[Math.min(index++, values.length - 1)] ?? 0
 }
 
-class FakeFocusClient {
+class FakeFocusContextPort {
   constructor(private readonly result: JSONValue) {}
 
-  async initialize(): Promise<void> {}
-
-  async callTool(): Promise<JSONValue> {
+  async getFocusContext(): Promise<JSONValue> {
     return this.result
   }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentInputRequest } from '../../../state/shared/types.js'
-import { formatInputAnswerMessage, mergePendingInputRequests, normalizeWorkspaceQuery } from './normalizeRunInput.js'
+import { formatInputAnswerMessage, mergePendingInputRequests } from './normalizeRunInput.js'
 
 test('mergePendingInputRequests updates matching pending requests and preserves resolved history', () => {
   const existing: AgentInputRequest[] = [
@@ -49,30 +49,6 @@ test('formatInputAnswerMessage includes selected choices and custom text', () =>
   assert.match(message, /- 剧本：处理剧本文本。/)
   assert.match(message, /输入：同时检查引用。/)
   assert.doesNotMatch(message, /素材/)
-})
-
-test('normalizeWorkspaceQuery drops invalid numeric entity reference ids', () => {
-  assert.deepEqual(normalizeWorkspaceQuery({
-    projectId: 42,
-    sourceEntityType: 'scene',
-    sourceEntityId: 0,
-    pageEntityType: 'production',
-    pageEntityId: 7.5,
-    current: true,
-  }), {
-    projectId: 42,
-    sourceEntityType: 'scene',
-    pageEntityType: 'production',
-    current: true,
-  })
-
-  assert.deepEqual(normalizeWorkspaceQuery({
-    sourceEntityId: 'scene_1',
-    pageEntityId: 'production_1',
-  }), {
-    sourceEntityId: 'scene_1',
-    pageEntityId: 'production_1',
-  })
 })
 
 function buildInputRequest(input: {

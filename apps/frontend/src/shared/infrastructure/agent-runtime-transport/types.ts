@@ -1,6 +1,7 @@
 export type AgentRuntimeTransportKind = 'electron' | 'unix-socket'
 
 export interface AgentRuntimeTransportConfig {
+  agentRuntimeDirName?: string
   workspaceDir?: string
   sessionId?: string
 }

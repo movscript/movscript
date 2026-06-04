@@ -157,7 +157,7 @@ test('appendTraceEvent records only non-negative trace durations', () => {
   assert.equal(negativeDuration.durationMs, undefined)
 })
 
-test('appendTraceEvent bounds recursive trace data without throwing', () => {
+test('appendTraceEvent stores full debug trace data without artificial bounds', () => {
   const run = buildRun()
   const circular: Record<string, unknown> = { name: 'root' }
   circular.self = circular
@@ -185,10 +185,12 @@ test('appendTraceEvent bounds recursive trace data without throwing', () => {
   const data = event.data as Record<string, any>
 
   assert.equal(data.circular.self, '[Circular]')
-  assert.match(JSON.stringify(data.deep), /max depth exceeded/)
-  assert.equal(data.manyItems.length, 201)
-  assert.match(data.manyItems.at(-1), /5 more items/)
-  assert.match(data.longText, /truncated 10 chars/)
+  let cursor = data.deep
+  for (let index = 0; index < 24; index += 1) cursor = cursor.child
+  assert.deepEqual(cursor, { leaf: true })
+  assert.equal(data.manyItems.length, 205)
+  assert.equal(data.manyItems.at(-1), 204)
+  assert.equal(data.longText.length, 200_010)
   assert.equal(data.nonFinite, 'NaN')
   assert.equal(data.big, '123')
 })

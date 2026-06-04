@@ -368,10 +368,6 @@ export function collectArtifacts(root = repoRoot, options = {}) {
 export function defaultArtifactSources(root = repoRoot, env = process.env) {
   return [
     resolve(root, 'apps/frontend/release'),
-    ...(env.MOVSCRIPT_COLLECT_PLUGINS === '0' ? [] : [
-      resolve(root, 'plugins/image-generator/dist'),
-      resolve(root, 'plugins/video-generator/dist'),
-    ]),
   ]
 }
 

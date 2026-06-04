@@ -1,7 +1,7 @@
 import type { AgentRun, AgentTraceEvent } from '../../../../state/shared/types.js'
 
 export interface AgentTraceDebugView {
-  schema: 'movscript.agent-trace-debug-view.v1'
+  schema: 'movscript.agent-trace-debug-view.v2'
   generatedAt: string
   runId: string
   run: AgentRun
@@ -12,22 +12,91 @@ export interface AgentTraceDebugView {
   }
   coverage: AgentDebugCoverageSummary
   readinessChecklist: AgentDebugReadinessItem[]
-  modelCalls: AgentModelCallSummary[]
-  modelCallContexts: AgentModelCallContextView[]
   runtimeSummary: AgentRunRuntimeSummary
-  skillTimeline: AgentSkillTraceSummary
-  roundContextUpdates: AgentRoundContextUpdateView[]
-  roundContextChanges: AgentRoundContextChangeView[]
-  promptDetails: AgentPromptDetailView[]
-  contextMutations: AgentContextMutationView[]
-  messageWrites: AgentMessageWriteView[]
-  toolCalls: AgentToolCallView[]
+  runtimeFrames: AgentRuntimeFrame[]
   attentionEvents: AgentDebugAttentionEvent[]
   pendingActions: AgentPendingActionView[]
   fieldGuide: AgentDebugFieldGuideItem[]
   events: AgentTraceEvent[]
   reportText: string
   bundle: Record<string, unknown>
+}
+
+export type AgentRuntimeFrameKind = 'setup' | 'round' | 'finalize'
+export type AgentRuntimeFrameFocus = 'context' | 'model' | 'tool' | 'skill' | 'message' | 'approval' | 'attention' | 'raw'
+
+interface AgentRuntimeFrameBase {
+  id: string
+  kind: AgentRuntimeFrameKind
+  label: string
+  startedAt: string
+  completedAt?: string
+  durationMs?: number
+  status: AgentTraceEvent['status']
+  focus: AgentRuntimeFrameFocus[]
+  eventIds: string[]
+  events: AgentTraceEvent[]
+  attentionEvents: AgentDebugAttentionEvent[]
+}
+
+export interface AgentRuntimeSetupFrame extends AgentRuntimeFrameBase {
+  kind: 'setup'
+  skills: AgentSkillTraceEntry[]
+  contextMutations: AgentContextMutationView[]
+}
+
+export interface AgentRuntimeRoundFrame extends AgentRuntimeFrameBase {
+  kind: 'round'
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  context: {
+    projection?: AgentRuntimeContextProjectionView
+    prompt?: AgentPromptDetailView
+    diff: AgentRuntimeContextDiffView
+  }
+  skills: AgentSkillTraceEntry[]
+  modelCalls: AgentModelCallSummary[]
+  modelContext: AgentModelCallContextView[]
+  toolCalls: AgentToolCallView[]
+  messageWrites: AgentMessageWriteView[]
+  approvals: AgentDebugAttentionEvent[]
+}
+
+export interface AgentRuntimeFinalizeFrame extends AgentRuntimeFrameBase {
+  kind: 'finalize'
+  messageWrites: AgentMessageWriteView[]
+  pendingActions: AgentPendingActionView[]
+}
+
+export type AgentRuntimeFrame = AgentRuntimeSetupFrame | AgentRuntimeRoundFrame | AgentRuntimeFinalizeFrame
+
+export interface AgentRuntimeContextDiffView {
+  previousContextProjectionEventId?: string
+  mutationCount: number
+  appended: number
+  amended: number
+  deleted: number
+  affectedContextKeys: string[]
+  appendedContextKeys: string[]
+  amendedContextKeys: string[]
+  deletedContextKeys: string[]
+  latestMutationReason?: string
+  mutationEventIds: string[]
+  changes: AgentRuntimeContextChangeView[]
+  mutations: AgentContextMutationView[]
+}
+
+export interface AgentRuntimeContextChangeView {
+  eventId: string
+  op: 'append' | 'amend' | 'delete' | 'unknown'
+  key: string
+  reason?: string
+  ref?: AgentTraceRefView
+  before?: AgentTraceRefView
+  after?: AgentTraceRefView
+  preview?: string
+  raw?: unknown
 }
 
 export interface AgentDebugCoverageSummary {
@@ -114,8 +183,8 @@ export interface AgentSkillTraceEntry {
   omissions: AgentRuntimeSkillOmissionView[]
 }
 
-export interface AgentSkillTraceSummary {
-  timeline: AgentSkillTraceEntry[]
+export interface AgentRuntimeSkillTraceSummary {
+  entries: AgentSkillTraceEntry[]
   currentActiveSkillIds: string[]
   currentLoadedSkillIds: string[]
   currentUnloadedSkillIds: string[]
@@ -148,8 +217,8 @@ export interface AgentRunRuntimeSummary {
   context: {
     promptEventId?: string
     contextMutationCount: number
-    roundContextUpdateCount: number
-    latestRoundContextUpdate?: AgentRoundContextUpdateView
+    contextProjectionCount: number
+    latestContextProjection?: AgentRuntimeContextProjectionView
     latestMutationReason?: string
     historyProjection?: AgentPromptHistoryProjectionView
     toolLoopProjection?: AgentGenericPromptProjectionView
@@ -158,7 +227,7 @@ export interface AgentRunRuntimeSummary {
   }
 }
 
-export interface AgentRoundContextUpdateView {
+export interface AgentRuntimeContextProjectionView {
   eventId: string
   title: string
   roundId?: string
@@ -174,9 +243,9 @@ export interface AgentRoundContextUpdateView {
   attachmentProjection?: AgentGenericPromptProjectionView
 }
 
-export interface AgentRoundContextChangeView {
-  round: AgentRoundContextUpdateView
-  previousRoundEventId?: string
+export interface AgentRuntimeContextDiffWindowView {
+  projection: AgentRuntimeContextProjectionView
+  previousContextProjectionEventId?: string
   mutationCount: number
   appended: number
   amended: number

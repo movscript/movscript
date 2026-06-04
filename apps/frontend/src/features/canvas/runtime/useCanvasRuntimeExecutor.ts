@@ -99,8 +99,7 @@ export function useCanvasRuntimeExecutor({
       return { [node.type]: value, result: value, value }
     }
     if (node.type === 'plugin_card') {
-      const resultText = data.pluginResultText
-      return resultText ? { result: { type: 'text', text: resultText }, text: { type: 'text', text: resultText } } : {}
+      throw new Error(t('canvas.editor.errors.pluginNodesDisabled', { defaultValue: 'Canvas plugin nodes are disabled' }))
     }
     if (node.type === 'canvas') {
       if (!data.referencedCanvasId) {

@@ -70,12 +70,19 @@ import { AgentConsoleNav } from '@/features/agent/components/AgentConsoleNav'
 import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
 import { runRoleLabel, runStatusLabel } from '@/features/agent/domain/agentRunUi'
 import {
+  failedAgentChatCapabilityProbeResult,
+  probeAgentChatDataSourceCapabilities,
+  type AgentChatCapabilityProbeItem,
+  type AgentChatCapabilityProbeResult,
+} from '@/features/agent/application/agentChatCapabilityProbe'
+import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
+import {
   agentOptionalStatusRecipe,
   agentReadinessStatusRecipe,
   agentRunStatusRecipe,
   agentSeverityStatusRecipe,
 } from '@/features/agent/presentation/agentSemanticUi'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
+import { localAgentClient, type AgentRuntimeSessionSummary, type AgentThreadClearResult } from '@/shared/infrastructure/localAgentClient'
 import { listRuntimeRunSummariesFromWorkspace, listRuntimeThreadSummariesFromWorkspace, type AgentWorkspaceRunListItem } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import {
   DEFAULT_GENERATION_TOOLS_SETTINGS,
@@ -87,6 +94,15 @@ import {
   type GenerationToolServerType,
   type GenerationToolsSettings,
 } from '@/shared/infrastructure/generationToolsStore'
+import {
+  DEFAULT_AGENT_PROVIDER_SETTINGS,
+  enabledAgentProviders,
+  normalizeAgentProviderSettings,
+  resolveCodexAppServerProfile,
+  useAgentProviderConfigStore,
+  type AgentProviderConfig,
+  type AgentProviderSettings,
+} from '@/features/agent/state/agentProviderConfigStore'
 
 type ConsoleIssueTone = AgentConsoleIssueTone
 
@@ -184,7 +200,14 @@ export default function AgentConsolePage() {
     }
     setClearingHistory(true)
     try {
-      throw new Error('清空历史已改为按 workspace/session 文件执行，不能再连接全局 agent runtime。文件级清理入口尚未接入。')
+      const result = await clearWorkspaceSessionThreadHistory(runtimeSessions)
+      setClearConfirming(false)
+      setClearHistoryResult(`已清空 ${result.threadCount} 个会话、${result.runCount} 个 Run。`)
+      await Promise.all([
+        runtimeSessionsQuery.refetch(),
+        runsQuery.refetch(),
+        threadsQuery.refetch(),
+      ])
     } catch (error) {
       setClearHistoryError(errorMessage(error))
     } finally {
@@ -267,6 +290,14 @@ export default function AgentConsolePage() {
         </AgentConsoleMetricGrid>
 
         <AgentConsoleSectionSpacer>
+          <AgentProvidersPanel />
+        </AgentConsoleSectionSpacer>
+
+        <AgentConsoleSectionSpacer>
+          <AgentCapabilityProbePanel />
+        </AgentConsoleSectionSpacer>
+
+        <AgentConsoleSectionSpacer>
           <LocalGenerationToolsPanel />
         </AgentConsoleSectionSpacer>
 
@@ -334,6 +365,355 @@ export default function AgentConsolePage() {
         </AgentConsoleMainGrid>
       </AgentPageShellBody>
     </AgentPageShell>
+  )
+}
+
+function AgentCapabilityProbePanel() {
+  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
+  const providers = useMemo(() => enabledAgentProviders(normalizeAgentProviderSettings(savedSettings)), [savedSettings])
+  const probeQuery = useQuery({
+    queryKey: ['agent-console-provider-capability-probe', providers.map(agentProviderProbeKey).join('|')],
+    queryFn: async () => Promise.all(providers.map(async (provider) => {
+      try {
+        const dataSource = await createAgentChatDataSourceForProvider(provider)
+        return await probeAgentChatDataSourceCapabilities({ provider, dataSource })
+      } catch (error) {
+        return failedAgentChatCapabilityProbeResult({ provider, error })
+      }
+    })),
+    enabled: false,
+    retry: false,
+  })
+  const results = probeQuery.data ?? []
+  const supportedCount = results.reduce((count, result) => count + result.supportedCount, 0)
+  const warningCount = results.reduce((count, result) => count + result.warningCount, 0)
+  const readiness = agentReadinessStatusRecipe(results.length > 0 && warningCount === 0)
+
+  return (
+    <ConsolePanel
+      title="Agent 数据流与能力探针"
+      icon={<Cable size={14} />}
+      action={
+        <AgentConsolePanelActions>
+          {results.length > 0 ? (
+            <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
+              {supportedCount} 个入口 / {warningCount} 项需关注
+            </AgentConsoleStatusBadge>
+          ) : null}
+          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void probeQuery.refetch()} disabled={probeQuery.isFetching || providers.length === 0}>
+            <AgentConsoleIcon icon={RefreshCw} size={14} spinning={probeQuery.isFetching} />
+            {probeQuery.isFetching ? '探测中' : '刷新 Agent 能力'}
+          </AgentConsoleActionButton>
+        </AgentConsolePanelActions>
+      }
+    >
+      <AgentConsoleIntroRow>
+        <AgentConsoleDescription>
+          通过统一 AgentChatDataSource capability 探测每个已启用 Agent。Codex 会按 profile 启动 app-server；MovScript Agent 走本地 runtime adapter；后续 Agent 只需要实现同一组能力入口。
+        </AgentConsoleDescription>
+        <AgentConsoleToolbar>
+          <AgentConsoleStatusBadge intent={providers.length > 0 ? 'success' : 'warning'} emphasis="soft">
+            {providers.length > 0 ? `${providers.length} 个 Agent 可探测` : '没有已启用 Agent'}
+          </AgentConsoleStatusBadge>
+        </AgentConsoleToolbar>
+      </AgentConsoleIntroRow>
+
+      {probeQuery.error ? (
+        <AgentConsoleInlineError>{errorMessage(probeQuery.error)}</AgentConsoleInlineError>
+      ) : results.length === 0 ? (
+        <EmptyText>点击刷新后，控制台会通过统一数据源读取线程、模型、配置、插件、Skills、账号、MCP 和 realtime 能力摘要。</EmptyText>
+      ) : (
+        <AgentConsoleGrid columns="server" data-testid="agent-console-capability-probe-grid">
+          {results.map((result) => <AgentCapabilityProbeCard key={result.providerId} result={result} />)}
+        </AgentConsoleGrid>
+      )}
+    </ConsolePanel>
+  )
+}
+
+function AgentCapabilityProbeCard({ result }: { result: AgentChatCapabilityProbeResult }) {
+  const readiness = agentReadinessStatusRecipe(result.ok)
+  return (
+    <AgentConsoleLocalToolCard invalid={!result.ok}>
+      <AgentConsoleLocalToolHeader>
+        <AgentConsoleLocalToolCopy>
+          <AgentConsoleLocalToolTitle>{result.providerLabel}</AgentConsoleLocalToolTitle>
+          <AgentConsoleLocalToolDetail>{result.dataSourceLabel} / {result.providerKind}</AgentConsoleLocalToolDetail>
+        </AgentConsoleLocalToolCopy>
+        <AgentConsoleLocalToolControls>
+          <AgentConsoleStatusBadge intent={readiness.intent} emphasis={readiness.emphasis}>
+            {result.ok ? '能力正常' : `${result.warningCount} 项需关注`}
+          </AgentConsoleStatusBadge>
+        </AgentConsoleLocalToolControls>
+      </AgentConsoleLocalToolHeader>
+      <AgentConsoleLocalToolFields>
+        <AgentConsoleStack>
+          {result.items.map((item) => (
+            <AgentConsoleTestResult key={item.id} tone={capabilityProbeItemTone(item)}>
+              {item.label} · {item.method}：{item.detail}
+            </AgentConsoleTestResult>
+          ))}
+        </AgentConsoleStack>
+      </AgentConsoleLocalToolFields>
+    </AgentConsoleLocalToolCard>
+  )
+}
+
+function capabilityProbeItemTone(item: AgentChatCapabilityProbeItem): 'success' | 'warning' | 'danger' {
+  if (item.tone === 'ready') return 'success'
+  if (item.tone === 'warning') return 'warning'
+  return 'danger'
+}
+
+function agentProviderProbeKey(provider: AgentProviderConfig): string {
+  const profile = provider.kind === 'codex' ? resolveCodexAppServerProfile(provider) : undefined
+  return [
+    provider.id,
+    provider.kind,
+    provider.enabled ? 'enabled' : 'disabled',
+    provider.label,
+    profile?.id ?? '',
+    profile?.executablePath ?? '',
+    profile?.codexHome ?? '',
+    profile?.workspaceDir ?? '',
+  ].join(':')
+}
+
+function AgentProvidersPanel() {
+  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
+  const savedAt = useAgentProviderConfigStore((state) => state.savedAt)
+  const setSettings = useAgentProviderConfigStore((state) => state.setSettings)
+  const resetSettings = useAgentProviderConfigStore((state) => state.reset)
+  const [form, setForm] = useState<AgentProviderSettings>(() => normalizeAgentProviderSettings(savedSettings))
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setForm(normalizeAgentProviderSettings(savedSettings))
+  }, [savedSettings])
+
+  const enabledProviders = enabledAgentProviders(form)
+  const invalidProviders = form.providers.filter((provider) => provider.enabled && !agentProviderIsValid(provider))
+  const canSave = enabledProviders.length > 0 && invalidProviders.length === 0
+  const enabledRecipe = agentOptionalStatusRecipe(enabledProviders.length > 0)
+
+  function patchProvider(id: string, patch: Partial<AgentProviderConfig>) {
+    setForm((current) => normalizeAgentProviderSettings({
+      ...current,
+      providers: current.providers.map((provider) => provider.id === id ? { ...provider, ...patch } : provider),
+      defaultProviderId: patch.enabled === false && current.defaultProviderId === id
+        ? enabledProviders.find((provider) => provider.id !== id)?.id ?? current.defaultProviderId
+        : current.defaultProviderId,
+      newConversationProviderId: patch.enabled === false && current.newConversationProviderId === id
+        ? undefined
+        : current.newConversationProviderId,
+    }))
+  }
+
+  function save() {
+    if (!canSave) return
+    setSettings(form)
+    setSaved(true)
+    window.setTimeout(() => setSaved(false), 1800)
+  }
+
+  function reset() {
+    resetSettings()
+    setForm(normalizeAgentProviderSettings(DEFAULT_AGENT_PROVIDER_SETTINGS))
+    setSaved(false)
+  }
+
+  return (
+    <ConsolePanel
+      title="Agent 提供方"
+      icon={<Bot size={14} />}
+      action={
+        <AgentConsolePanelActions>
+          {saved && <AgentConsoleSavedText>已保存</AgentConsoleSavedText>}
+          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={reset}>重置</AgentConsoleActionButton>
+          <AgentConsoleActionButton type="button" size="sm" onClick={save} disabled={!canSave}>保存</AgentConsoleActionButton>
+        </AgentConsolePanelActions>
+      }
+    >
+      <AgentConsoleIntroRow>
+        <AgentConsoleDescription>
+          配置前端可用于新建会话的 Agent。默认 Agent 会作为新建会话选择项的初始值；会话创建时仍可临时切换到其他已启用 Agent。
+        </AgentConsoleDescription>
+        <AgentConsoleToolbar>
+          <AgentConsoleStatusBadge intent={enabledRecipe.intent} emphasis={enabledRecipe.emphasis}>
+            {enabledProviders.length > 0 ? `${enabledProviders.length} 个 Agent 已启用` : '未启用'}
+          </AgentConsoleStatusBadge>
+          <AgentConsoleSelectField
+            label="默认 Agent"
+            value={form.defaultProviderId}
+            onChange={(event) => setForm((current) => normalizeAgentProviderSettings({
+              ...current,
+              defaultProviderId: event.target.value,
+            }))}
+          >
+            {form.providers.filter((provider) => provider.enabled).map((provider) => (
+              <option key={provider.id} value={provider.id}>{provider.label}</option>
+            ))}
+          </AgentConsoleSelectField>
+        </AgentConsoleToolbar>
+      </AgentConsoleIntroRow>
+
+      {!canSave && (
+        <AgentConsoleCallout tone="danger" compact>
+          至少需要启用一个 Agent；Codex 的 CODEX_HOME 由 MovScript 管理并隔离。Codex provider 会按 profile 启动 app-server。
+        </AgentConsoleCallout>
+      )}
+
+      <AgentConsoleGrid columns="server">
+        {form.providers.map((provider) => (
+          <AgentProviderCard
+            key={provider.id}
+            provider={provider}
+            isDefault={form.defaultProviderId === provider.id}
+            onDefault={() => setForm((current) => normalizeAgentProviderSettings({ ...current, defaultProviderId: provider.id }))}
+            onPatch={(patch) => patchProvider(provider.id, patch)}
+          />
+        ))}
+      </AgentConsoleGrid>
+
+      {savedAt ? (
+        <AgentConsoleSavedAt>
+          上次保存：{new Date(savedAt).toLocaleString()}
+        </AgentConsoleSavedAt>
+      ) : null}
+    </ConsolePanel>
+  )
+}
+
+function AgentProviderCard({
+  provider,
+  isDefault,
+  onPatch,
+  onDefault,
+}: {
+  provider: AgentProviderConfig
+  isDefault: boolean
+  onPatch: (patch: Partial<AgentProviderConfig>) => void
+  onDefault: () => void
+}) {
+  const invalid = provider.enabled && !agentProviderIsValid(provider)
+  const defaultRecipe = agentReadinessStatusRecipe(true)
+  const title = provider.kind === 'codex' ? 'Codex' : 'MovScript Agent'
+  const codexProfile = provider.kind === 'codex' ? resolveCodexAppServerProfile(provider) : undefined
+  const codexStatusQuery = useQuery({
+    queryKey: ['agent-console-codex-app-server-status', codexProfile?.id],
+    queryFn: async () => {
+      if (!codexProfile) throw new Error('Codex profile is required')
+      const status = await window.api?.getCodexAppServerStatus?.({ profileId: codexProfile.id })
+      return status ?? {
+        ok: false,
+        running: false,
+        managed: false,
+        profileId: codexProfile.id,
+        error: '当前运行环境不支持 Codex app-server 管理。',
+      }
+    },
+    enabled: provider.kind === 'codex' && provider.enabled,
+    retry: false,
+  })
+  const detail = provider.kind === 'codex'
+    ? '按 profile 启动 Codex app-server；可以使用本机 codex 可执行文件，但 CODEX_HOME 固定在 MovScript 管理目录。'
+    : '使用 MovScript 本地 agent runtime，会话走当前工作区 runtime。'
+  const codexStatus = codexStatusQuery.data
+  const codexRunning = Boolean(codexStatus?.running && codexStatus.ok)
+
+  async function ensureCodex() {
+    if (!codexProfile) return
+    await window.api?.ensureCodexAppServer?.({
+      profile: codexProfile,
+    })
+    await codexStatusQuery.refetch()
+  }
+
+  async function stopCodex() {
+    if (!codexProfile) return
+    await window.api?.stopCodexAppServer?.({ profileId: codexProfile.id })
+    await codexStatusQuery.refetch()
+  }
+
+  function patchCodexProfile(patch: Partial<NonNullable<AgentProviderConfig['codexProfile']>>) {
+    if (!codexProfile) return
+    onPatch({ codexProfile: { ...codexProfile, ...patch } })
+  }
+
+  return (
+    <AgentConsoleLocalToolCard invalid={invalid}>
+      <AgentConsoleLocalToolHeader>
+        <AgentConsoleLocalToolCopy>
+          <AgentConsoleLocalToolTitle>{provider.label || title}</AgentConsoleLocalToolTitle>
+          <AgentConsoleLocalToolDetail>{detail}</AgentConsoleLocalToolDetail>
+        </AgentConsoleLocalToolCopy>
+        <AgentConsoleLocalToolControls>
+          {isDefault && <AgentConsoleStatusBadge intent={defaultRecipe.intent} emphasis={defaultRecipe.emphasis}>默认</AgentConsoleStatusBadge>}
+          <AgentConsoleEnableCheckbox
+            checked={provider.enabled}
+            onCheckedChange={(checked) => onPatch({ enabled: checked })}
+            aria-label={`${provider.label || title} 启用状态`}
+          />
+        </AgentConsoleLocalToolControls>
+      </AgentConsoleLocalToolHeader>
+
+      <AgentConsoleLocalToolFields disabled={!provider.enabled}>
+        <LocalToolField label="显示名称" value={provider.label} onChange={(value) => onPatch({ label: value })} />
+        {provider.kind === 'codex' && codexProfile ? (
+          <>
+            <LocalToolField
+              label="Codex 显示名称"
+              value={codexProfile.label}
+              onChange={(value) => patchCodexProfile({ label: value })}
+            />
+            <LocalToolField
+              label="Codex 可执行文件"
+              value={codexProfile.executablePath ?? ''}
+              onChange={(value) => patchCodexProfile({ executablePath: value })}
+              placeholder="留空时使用 PATH 中的 codex"
+            />
+            <AgentConsoleCallout compact>
+              CODEX_HOME 由 MovScript 管理：{codexProfile.codexHome}
+            </AgentConsoleCallout>
+            <LocalToolField
+              label="工作目录"
+              value={codexProfile.workspaceDir ?? ''}
+              onChange={(value) => patchCodexProfile({ workspaceDir: value })}
+              placeholder="留空时使用当前应用工作目录"
+            />
+            <AgentConsoleCallout compact tone={codexRunning ? 'success' : codexStatus?.error ? 'warning' : 'neutral'}>
+              {codexRunning
+                ? `运行中：${codexStatus?.endpoint ?? '-'} / CODEX_HOME=${codexStatus?.codexHome ?? codexProfile.codexHome}`
+                : codexStatus?.error ?? 'Codex app-server 尚未启动。'}
+            </AgentConsoleCallout>
+          </>
+        ) : (
+          <AgentConsoleCallout compact>
+            MovScript Agent 由 Electron 按 session/workspace 拉起，不需要在这里配置 endpoint。
+          </AgentConsoleCallout>
+        )}
+        <AgentConsoleLocalToolActions>
+          {invalid ? (
+            <AgentConsoleTestResult tone="danger">
+              Codex provider 配置不完整。
+            </AgentConsoleTestResult>
+          ) : null}
+          {provider.kind === 'codex' ? (
+            <>
+              <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void ensureCodex()} disabled={!provider.enabled || invalid || codexStatusQuery.isFetching}>
+                {codexRunning ? '重连 / 确认运行' : '启动 app-server'}
+              </AgentConsoleActionButton>
+              <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={() => void stopCodex()} disabled={!codexRunning || codexStatusQuery.isFetching}>
+                停止
+              </AgentConsoleActionButton>
+            </>
+          ) : null}
+          <AgentConsoleActionButton type="button" size="sm" variant="outline" onClick={onDefault} disabled={!provider.enabled}>
+            {isDefault ? '当前默认' : '设为默认'}
+          </AgentConsoleActionButton>
+        </AgentConsoleLocalToolActions>
+      </AgentConsoleLocalToolFields>
+    </AgentConsoleLocalToolCard>
   )
 }
 
@@ -621,6 +1001,12 @@ function isHTTPBaseURL(value: string): boolean {
   return trimmed.startsWith('http://') || trimmed.startsWith('https://')
 }
 
+function agentProviderIsValid(provider: AgentProviderConfig): boolean {
+  if (provider.kind !== 'codex') return true
+  const profile = resolveCodexAppServerProfile(provider)
+  return Boolean(profile.id.trim() && profile.codexHome.trim())
+}
+
 function timeoutIsValid(value: number): boolean {
   return Number.isFinite(value) && value >= 1000 && value <= 600000
 }
@@ -706,6 +1092,43 @@ function ManagementLink({ to, icon, title, detail }: { to: string; icon: React.R
       <Link to={to} />
     </AgentConsoleManagementLink>
   )
+}
+
+async function clearWorkspaceSessionThreadHistory(sessions: AgentRuntimeSessionSummary[]): Promise<{ threadCount: number; runCount: number }> {
+  const scopedSessions = sessions
+    .map((session) => ({
+      sessionId: session.session.id.trim(),
+      workspaceDir: session.workspaceDir?.trim(),
+    }))
+    .filter((session) => session.sessionId)
+
+  if (scopedSessions.length === 0) {
+    throw new Error('没有可清理的 workspace session 索引。请先刷新控制台。')
+  }
+
+  const results = await Promise.all(scopedSessions.map((session) => (
+    localAgentClient
+      .forSession({
+        sessionId: session.sessionId,
+        ...(session.workspaceDir ? { workspaceDir: session.workspaceDir } : {}),
+      })
+      .deleteAllThreads()
+  )))
+
+  return summarizeThreadClearResults(results)
+}
+
+function summarizeThreadClearResults(results: AgentThreadClearResult[]): { threadCount: number; runCount: number } {
+  const deletedThreadIds = new Set<string>()
+  const deletedRunIds = new Set<string>()
+  for (const result of results) {
+    for (const threadId of result.deletedThreadIds) deletedThreadIds.add(threadId)
+    for (const runId of result.deletedRunIds) deletedRunIds.add(runId)
+  }
+  return {
+    threadCount: deletedThreadIds.size,
+    runCount: deletedRunIds.size,
+  }
 }
 
 function HistoryClearControl({

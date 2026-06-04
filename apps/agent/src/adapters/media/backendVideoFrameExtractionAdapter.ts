@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
-import type { BackendApplyClient } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import { extractVideoFramesFromBackendResource, type VideoFrameExtraction, type VideoFrameExtractionRequest } from '../../media/video/videoFrameExtraction.js'
 import { isValidAgentReferenceId } from '../../context/runtime/runtimeContext.js'
 import { isJSONRecord } from '../../shared/json/jsonValue.js'
 import type { CoreVideoFrameExtractionPort } from '../../ports/media/videoFrameExtractionPort.js'
+import type { ResourceFileDownloadPort } from '../../ports/files/resourceDownloadPort.js'
 import type { AgentRun, JSONValue } from '../../state/shared/types.js'
 
 export type BackendVideoFrameExtractor = (input: VideoFrameExtractionRequest) => Promise<VideoFrameExtraction>
@@ -11,7 +11,7 @@ export type BackendVideoFrameExtractor = (input: VideoFrameExtractionRequest) =>
 const MAX_VIDEO_FRAME_EXTRACTION_CACHE_ENTRIES = 32
 
 export function createBackendVideoFrameExtractionPort(
-  backendApplyClient: Pick<BackendApplyClient, 'downloadResourceFile'>,
+  resourceFileDownloader: ResourceFileDownloadPort,
   extractor: BackendVideoFrameExtractor = extractVideoFramesFromBackendResource,
 ): CoreVideoFrameExtractionPort {
   const cache = new Map<string, Promise<VideoFrameExtraction>>()
@@ -33,7 +33,7 @@ export function createBackendVideoFrameExtractionPort(
         ...(input.outputLayout ? { outputLayout: input.outputLayout } : {}),
         maxWidth: input.maxWidth,
         imageFormat: input.imageFormat,
-        backendApplyClient,
+        resourceFileDownloader,
         auth,
         signal: input.signal,
       }

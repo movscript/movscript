@@ -224,7 +224,7 @@ function AgentActivityRoundSection({
         </AgentActivityRoundItems>
       ) : (
         <AgentActivityRoundEmpty>
-          {round.status === 'final' ? '形成最终回复。' : '正在等待模型返回。'}
+          {round.status === 'thinking' ? '正在等待运行事件。' : '本轮没有记录可展示的明细。'}
         </AgentActivityRoundEmpty>
       )}
     </AgentActivityRound>

@@ -3,14 +3,10 @@ import { runtimeModelTextContent } from '../../../messages/model/modelMessage.js
 import type { AgentApprovalRequest, AgentInputRequest, AgentRunStatus, ToolCall, ToolCallOutcome } from '../../../state/shared/types.js'
 import type { AgentGraphInput, AgentGraphTraceInput } from '../types/agentGraphTypes.js'
 import { buildCatalogRefreshTrace, isCatalogMutationTool } from '../../model/catalog/agentGraphCatalogRefreshTrace.js'
-import {
-  buildDefaultWorkspaceApplyCalls,
-  remainingPendingApprovalsAfterForcedCalls,
-} from '../../tools/rules/workspace-apply/agentGraphWorkspaceApplyRules.js'
+import { remainingPendingApprovalsAfterForcedCalls } from '../../tools/rules/forced-approvals/agentGraphForcedApprovalRules.js'
 import {
   buildApprovalStillPendingTrace,
   buildConcurrentReadToolsTrace,
-  buildDefaultWorkspaceApplyQueuedTrace,
 } from './agentGraphExecuteTrace.js'
 import { canExecuteConcurrently } from '../../tools/rules/execution/agentGraphExecutionRules.js'
 import type { AgentGraphMakeId } from '../input/agentGraphInputRequests.js'
@@ -69,7 +65,6 @@ export async function runAgentGraphExecuteTurn(
       throwIfAborted(input.signal)
       const result = await executeOne(call)
       results.push(result)
-      if (call.name === 'workspace_apply' && result.outcome.error) break
     }
   }
 
@@ -99,27 +94,13 @@ export async function runAgentGraphExecuteTurn(
     { role: 'tool', tool_call_id: toolCall.id ?? options.makeId('call'), content: runtimeModelTextContent(content) },
     ...(supplementalMessages ?? []),
   ]))
-  const defaultApplyCalls = buildDefaultWorkspaceApplyCalls({
-    outcomes: results.map((result) => result.outcome),
-    registry: input.registry,
-    manifest: input.manifest,
-    userMessage: input.userMessage,
-    makeId: options.makeId,
-  })
-  if (defaultApplyCalls.length > 0) {
-    input.onTrace(buildDefaultWorkspaceApplyQueuedTrace(defaultApplyCalls, {
-      ...options.trace,
-      roundSource: 'runtime_rule',
-    }))
-  }
-
   const nextToolCallCount = state.toolCallCount + requestedCalls.length
   const nextRoundIndex = options.trace.roundIndex + 1
   const forcedTrace = forcedToolCallTrace(options.trace, input.forcedToolCalls)
   const isForcedExecutionTurn = input.forcedToolCalls && input.forcedToolCalls.length > 0 && options.trace.roundIndex === forcedTrace.roundIndex
   if (isForcedExecutionTurn) {
     const remainingApprovals = remainingPendingApprovalsAfterForcedCalls(input.run, results.map((result) => result.outcome))
-    if (defaultApplyCalls.length === 0 && remainingApprovals.length > 0) {
+    if (remainingApprovals.length > 0) {
       input.onTrace(buildApprovalStillPendingTrace(remainingApprovals, {
         ...options.trace,
         roundSource: 'approval',
@@ -141,9 +122,7 @@ export async function runAgentGraphExecuteTurn(
       warnings,
       toolCallCount: nextToolCallCount,
       roundIndex: nextRoundIndex,
-      ...(defaultApplyCalls.length > 0
-        ? { requestedCalls: defaultApplyCalls }
-        : { requestedCalls: [] }),
+      requestedCalls: [],
     }
   }
 
@@ -153,7 +132,7 @@ export async function runAgentGraphExecuteTurn(
     warnings,
     toolCallCount: nextToolCallCount,
     roundIndex: nextRoundIndex,
-    requestedCalls: defaultApplyCalls,
+    requestedCalls: [],
   }
 }
 

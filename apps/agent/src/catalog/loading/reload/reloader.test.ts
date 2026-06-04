@@ -79,6 +79,7 @@ function testCatalog(input: { version: string; tools: string[] }): AgentPluginCa
     builtinPacksDir: '',
     configFilesDir: '',
     builtinConfigFilesDir: '',
+    codexSkillRoots: [],
     packs: [],
     configFiles: [],
     layeredSkills: [],

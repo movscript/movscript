@@ -4,9 +4,6 @@ import { DEFAULT_AGENT_MANIFEST } from '../../../../catalog/manifest/agentManife
 import { createEmptyCatalogRegistry } from '../../../../catalog/registry/core/registry.js'
 import { parseAgentCommand } from '../../../../context/command/commandRouter.js'
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import { InMemoryAgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
-import { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
-import { EMPTY_REFERENCE_STORE } from '../../../../reference/store/referenceStore.js'
 import { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
 import { InMemoryAgentStore } from '../../../../state/store/core/store.js'
@@ -23,26 +20,13 @@ import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core
 import { applyRuntimeRunLocalCommandHandling } from './runtimeRunLocalCommandHandling.js'
 import type { RuntimeRunSetupResolution } from '../setup/resolution/runtimeRunSetupResolution.js'
 import {
-  createDefaultWorkspaceApplyPort,
-  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
 } from '../../../shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultWorkspaceApplyBackend = {
-  async applyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-  async previewApplyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
-const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
-const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 
 test('applyRuntimeRunLocalCommandHandling handles diagnostic commands through the dispatch boundary', async () => {
   const store = new InMemoryAgentStore()
@@ -57,7 +41,6 @@ test('applyRuntimeRunLocalCommandHandling handles diagnostic commands through th
 
   assert.equal(handled, true)
   assert.equal(run.status, 'completed')
-  assert.equal(store.getThread(thread.id)?.messages.at(-1)?.role, 'assistant')
 })
 
 test('applyRuntimeRunLocalCommandHandling does not execute generation slash commands locally', async () => {
@@ -99,17 +82,10 @@ function baseInput(
     userMessage: message,
     memoryStore,
     contractResolver: emptyContractResolver(),
-    catalogSnapshot: catalogSnapshot(),
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
-    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    workspaceApplyPort: defaultWorkspaceApplyPort,
-    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
-    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    catalogSnapshot: catalogSnapshot(),    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),    resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     memoryManager,
     runtimeToolHandlers: defaultRuntimeToolHandlers,
-    referenceManager: new ReferenceManager(EMPTY_REFERENCE_STORE),
     catalogManager: {} as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
     now: () => '2026-01-01T00:00:01.000Z',
     timestampMs: monotonicClock(1000, 1010, 1020, 1030),

@@ -488,36 +488,6 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
-  plugins/image-generator:
-    devDependencies:
-      '@movscript/cli':
-        specifier: workspace:*
-        version: link:../../apps/cli
-      '@movscript/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-
-  plugins/video-generator:
-    devDependencies:
-      '@movscript/cli':
-        specifier: workspace:*
-        version: link:../../apps/cli
-      '@movscript/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-
-  plugins/voiceover-generator:
-    devDependencies:
-      '@movscript/cli':
-        specifier: workspace:*
-        version: link:../../apps/cli
-      '@movscript/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-      typescript:
-        specifier: ^5.8.0
-        version: 5.9.3
-
 packages:
 
   7zip-bin@5.2.0:

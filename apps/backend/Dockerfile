@@ -17,8 +17,6 @@ COPY packages/plugin-sdk/examples/scene-summary/package.json ./packages/plugin-s
 COPY packages/tokens/package.json ./packages/tokens/package.json
 COPY packages/theme/package.json ./packages/theme/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
-COPY plugins/image-generator/package.json ./plugins/image-generator/package.json
-COPY plugins/video-generator/package.json ./plugins/video-generator/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @movscript/admin... --store-dir /pnpm/store
 COPY packages ./packages

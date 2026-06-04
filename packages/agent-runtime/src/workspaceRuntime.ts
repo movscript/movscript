@@ -5,6 +5,8 @@ import { createHash } from 'node:crypto'
 
 export const AGENT_WORKSPACE_DIR_NAME = '.movscript'
 export const AGENT_RUNTIME_DIR_NAME = 'agent'
+export const MOVSCRIPT_AGENT_RUNTIME_DIR_NAME = 'movscript-agent'
+export const CODEX_AGENT_RUNTIME_DIR_NAME = '.codex'
 export const AGENT_SESSIONS_DIR_NAME = 'sessions'
 export const AGENT_CACHE_DIR_NAME = 'cache'
 export const AGENT_RUN_DIR_NAME = 'run'
@@ -20,6 +22,7 @@ export const SESSION_SOCKET_FILE_NAME = 'agent.sock'
 export interface AgentWorkspaceRuntimePaths {
   workspaceDir: string
   rootDir: string
+  runtimeDirName: string
   agentDir: string
   configPath: string
   cacheDir: string
@@ -145,12 +148,14 @@ export interface AgentSessionRunSummary {
   steps: unknown[]
 }
 
-export function resolveAgentWorkspaceRuntimePaths(workspaceDir = process.cwd()): AgentWorkspaceRuntimePaths {
+export function resolveAgentWorkspaceRuntimePaths(workspaceDir = process.cwd(), input: { runtimeDirName?: string } = {}): AgentWorkspaceRuntimePaths {
   const rootDir = resolve(workspaceDir)
-  const agentDir = join(rootDir, AGENT_WORKSPACE_DIR_NAME, AGENT_RUNTIME_DIR_NAME)
+  const runtimeDirName = normalizeAgentRuntimeDirName(input.runtimeDirName) ?? AGENT_RUNTIME_DIR_NAME
+  const agentDir = join(rootDir, AGENT_WORKSPACE_DIR_NAME, runtimeDirName)
   return {
     workspaceDir: rootDir,
     rootDir,
+    runtimeDirName,
     agentDir,
     configPath: join(agentDir, AGENT_CONFIG_FILE_NAME),
     cacheDir: join(agentDir, AGENT_CACHE_DIR_NAME),
@@ -159,8 +164,8 @@ export function resolveAgentWorkspaceRuntimePaths(workspaceDir = process.cwd()):
   }
 }
 
-export function resolveAgentSessionRuntimePaths(input: { workspaceDir?: string; sessionId: string; createdAt?: string | Date }): AgentSessionRuntimePaths {
-  const workspacePaths = resolveAgentWorkspaceRuntimePaths(input.workspaceDir)
+export function resolveAgentSessionRuntimePaths(input: { workspaceDir?: string; sessionId: string; createdAt?: string | Date; runtimeDirName?: string }): AgentSessionRuntimePaths {
+  const workspacePaths = resolveAgentWorkspaceRuntimePaths(input.workspaceDir, { runtimeDirName: input.runtimeDirName })
   const sessionId = sanitizeSessionId(input.sessionId)
   const sessionDate = findExistingSessionDate(workspacePaths.sessionsDir, sessionId)
     ?? sessionDatePath(input.createdAt ?? new Date())
@@ -364,16 +369,16 @@ export function releaseAgentSessionLockFile(paths: AgentSessionRuntimePaths): vo
   }
 }
 
-export function listAgentSessionRecords(workspaceDir = process.cwd()): AgentSessionRecord[] {
-  const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir)
+export function listAgentSessionRecords(workspaceDir = process.cwd(), input: { runtimeDirName?: string } = {}): AgentSessionRecord[] {
+  const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir, input)
   if (!existsSync(paths.sessionsDir)) return []
   return listSessionDirs(paths.sessionsDir)
     .flatMap((sessionDir) => readAgentSessionRecord(join(sessionDir, SESSION_FILE_NAME)) ?? fallbackAgentSessionRecordFromDir(sessionDir) ?? [])
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
-export function listAgentSessionRuntimeSummaries(workspaceDir = process.cwd(), input: { staleAfterMs?: number } = {}): AgentSessionRuntimeSummary[] {
-  const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir)
+export function listAgentSessionRuntimeSummaries(workspaceDir = process.cwd(), input: { staleAfterMs?: number; runtimeDirName?: string } = {}): AgentSessionRuntimeSummary[] {
+  const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir, input)
   if (!existsSync(paths.sessionsDir)) return []
   return listSessionDirs(paths.sessionsDir)
     .flatMap((sessionDir) => {
@@ -383,6 +388,7 @@ export function listAgentSessionRuntimeSummaries(workspaceDir = process.cwd(), i
         workspaceDir,
         sessionId: session.id,
         createdAt: session.createdAt,
+        runtimeDirName: input.runtimeDirName,
       })
       const health = getAgentSessionRuntimeHealth(sessionPaths, input)
       const state = readAgentSessionRuntimeLogSummary(sessionPaths.runtimeLogPath, session.id)
@@ -423,6 +429,14 @@ export function resolveAgentRuntimeSocketDir(): string {
 
 export function fallbackUserAgentWorkspaceDir(): string {
   return join(homedir(), AGENT_WORKSPACE_DIR_NAME)
+}
+
+export function normalizeAgentRuntimeDirName(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  if (!/^[a-zA-Z0-9._-]{1,64}$/.test(trimmed)) return undefined
+  if (trimmed === '.' || trimmed === '..' || trimmed.includes('/') || trimmed.includes('\\')) return undefined
+  return trimmed
 }
 
 function readAgentSessionRecord(sessionPath: string): AgentSessionRecord | undefined {

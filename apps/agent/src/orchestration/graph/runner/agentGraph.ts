@@ -274,7 +274,7 @@ function resolveModelCallResult(
 
   input.onTrace(buildModelFinalResponseTrace(modelResult, modelTurnContext.contextBundle, modelTrace))
 
-  if (modelResult.finish_reason === 'stop' || modelResult.tool_calls.length === 0) {
+  if (modelResult.tool_calls.length === 0) {
     const finalResult = modelResult
     const modelWarnings = 'warnings' in finalResult && Array.isArray(finalResult.warnings) ? finalResult.warnings : []
     return {

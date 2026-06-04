@@ -46,8 +46,10 @@ import {
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
-import { AgentBuiltinChatShell } from '@/features/agent/components/AgentBuiltinChatShell'
+import { AgentUnifiedChatShell } from '@/features/agent/components/AgentUnifiedChatShell'
 import { AgentBrowserPanel } from '@/features/agent/components/AgentBrowserPanel'
+import { ACTIVE_CODEX_THREAD_STORAGE_KEY, CODEX_THREAD_OPEN_EVENT, openCodexThread } from '@/features/agent/components/CodexThreadChatShell'
+import { createAgentChatDataSourceForProvider } from '@/features/agent/application/agentChatDataSourceFactory'
 import { openAgentPanelThread, AGENT_PANEL_THREAD_EVENT } from '@/features/agent/application/agentPanelBridge'
 import {
   listRuntimeSessionSummariesFromWorkspace,
@@ -84,8 +86,14 @@ import {
   clampAgentModeContentPanelWidth,
 } from '@/features/agent/presentation/agentModePanelSizing'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
+import type { AgentChatThread } from '@/features/agent/domain/agentChatProtocol'
 import type { Conversation } from '@/features/agent/state/agentStore'
 import { useAgentSessionStore } from '@/features/agent/state/agentSessionStore'
+import {
+  enabledAgentProviders,
+  resolveNewConversationAgentProvider,
+  useAgentProviderConfigStore,
+} from '@/features/agent/state/agentProviderConfigStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import type { Project } from '@/types'
@@ -123,6 +131,11 @@ function readLastAgentModeActiveThreadId(userId: string) {
 
 function writeLastAgentModeActiveThreadId(userId: string, threadId: string | null) {
   writeAgentActiveConversationId(userId, threadId)
+}
+
+function readCodexActiveThreadId() {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(ACTIVE_CODEX_THREAD_STORAGE_KEY)?.trim() || null
 }
 
 function agentModeRenderDiagnosticsEnabled() {
@@ -306,6 +319,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const [historyOpen, setHistoryOpen] = useState(true)
   const [showAllChatConversations, setShowAllChatConversations] = useState(false)
   const [showAllHistoryConversations, setShowAllHistoryConversations] = useState(false)
+  const [codexActiveThreadId, setCodexActiveThreadId] = useState(() => readCodexActiveThreadId())
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return AGENT_SIDEBAR_DEFAULT_WIDTH
@@ -326,6 +340,11 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     ariaLabel: '调整左侧栏宽度',
   })
   const renderedSidebarWidth = sidebarCollapsed ? AGENT_SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+  const agentProviderSettings = useAgentProviderConfigStore((s) => s.settings)
+  const setNewConversationProviderId = useAgentProviderConfigStore((s) => s.setNewConversationProviderId)
+  const availableAgentProviders = useMemo(() => enabledAgentProviders(agentProviderSettings), [agentProviderSettings])
+  const newConversationProvider = useMemo(() => resolveNewConversationAgentProvider(agentProviderSettings), [agentProviderSettings])
+  const codexMode = newConversationProvider.kind === 'codex'
 
   useEffect(() => {
     window.localStorage.setItem(AGENT_SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
@@ -343,13 +362,37 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const { data: localThreads = [], isLoading: localThreadsLoading, refetch: refetchLocalThreads } = useQuery<AgentThreadSummary[]>({
     queryKey: ['local-agent-threads', localAgentClient.baseURL, 'agent-mode-sidebar'],
     queryFn: () => listRuntimeThreadSummariesFromWorkspace({ includeProvisional: true }),
+    enabled: !codexMode,
     retry: false,
   })
   const { data: localSessions = [] } = useQuery<AgentSessionSummary[]>({
     queryKey: ['local-agent-sessions', localAgentClient.baseURL, 'agent-mode-sidebar'],
     queryFn: () => listRuntimeSessionSummariesFromWorkspace(),
+    enabled: !codexMode,
     retry: false,
   })
+  const { data: codexThreads = [], isLoading: codexThreadsLoading, refetch: refetchCodexThreads } = useQuery<AgentChatThread[]>({
+    queryKey: ['codex-agent-threads', newConversationProvider.id, 'agent-mode-sidebar'],
+    queryFn: async () => {
+      const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider)
+      const page = await dataSource.listThreads({ limit: 50 })
+      return page.threads
+    },
+    enabled: codexMode,
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (!codexMode) return undefined
+    function handleCodexThreadOpen(event: Event) {
+      const threadId = (event as CustomEvent<{ threadId?: string }>).detail?.threadId?.trim()
+      if (threadId) setCodexActiveThreadId(threadId)
+      void refetchCodexThreads()
+    }
+    window.addEventListener(CODEX_THREAD_OPEN_EVENT, handleCodexThreadOpen)
+    setCodexActiveThreadId(readCodexActiveThreadId())
+    return () => window.removeEventListener(CODEX_THREAD_OPEN_EVENT, handleCodexThreadOpen)
+  }, [codexMode, refetchCodexThreads])
 
   const conversations = useMemo(() => {
     return localThreads.map((thread) => conversationFromRuntimeThreadSummary(thread, t))
@@ -471,13 +514,26 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
     : historyItems.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenHistoryItemCount = Math.max(0, historyItems.length - visibleHistoryItems.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const primaryConversationId = activeConversationId && openConversationIds.includes(activeConversationId)
-    ? activeConversationId
-    : openConversations[0]?.id ?? openConversationIds[0]
+  const primaryConversationId = useMemo(() => {
+    if (codexMode) {
+      return codexActiveThreadId && codexThreads.some((thread) => thread.id === codexActiveThreadId)
+        ? codexActiveThreadId
+        : codexThreads[0]?.id
+    }
+    return activeConversationId && openConversationIds.includes(activeConversationId)
+      ? activeConversationId
+      : openConversations[0]?.id ?? openConversationIds[0]
+  }, [activeConversationId, codexActiveThreadId, codexMode, codexThreads, openConversationIds, openConversations])
   const hasWorkspaceSessionHistory = localSessions.length > 0 || localThreads.length > 0
-  const primaryShowsConversations = Boolean(primaryConversationId) || hasWorkspaceSessionHistory
+  const primaryShowsConversations = Boolean(primaryConversationId) || hasWorkspaceSessionHistory || (codexMode && codexThreadsLoading)
 
   function openConversationHome() {
+    navigate(ROUTES.project.agent)
+  }
+
+  function selectCodexThread(threadId: string) {
+    setCodexActiveThreadId(threadId)
+    openCodexThread(threadId)
     navigate(ROUTES.project.agent)
   }
 
@@ -498,6 +554,20 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   }
 
   async function startNewConversation() {
+    if (codexMode) {
+      try {
+        const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider)
+        const thread = await dataSource.startThread({
+          ...(project?.ID ? { projectId: project.ID } : {}),
+        })
+        openCodexThread(thread.id)
+        navigate(ROUTES.project.agent)
+      } catch (error) {
+        console.error('[agent] failed to start Codex thread', error)
+      }
+      return
+    }
+
     try {
       const thread = await startSharedProvisionalConversation({
         ...(project?.ID ? { projectId: project.ID } : {}),
@@ -529,6 +599,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
       })
       writeLastAgentModeActiveThreadId(userId, thread.id)
       void refetchLocalThreads()
+      void queryClient.invalidateQueries({ queryKey: ['local-agent-sessions', localAgentClient.baseURL] })
       navigate(ROUTES.project.agent)
     } catch (error) {
       console.error('[agent] failed to start provisional conversation', error)
@@ -676,8 +747,31 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
             </AgentModeProjectMenuContent>
           </DropdownMenu>
         ) : null}
+        {!sidebarCollapsed ? (
+          <div className="px-2 pb-2">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">新建会话 Agent</label>
+            <select
+              value={newConversationProvider.id}
+              onChange={(event) => setNewConversationProviderId(event.currentTarget.value)}
+              className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground"
+              aria-label="选择新建会话使用的 Agent"
+            >
+              {availableAgentProviders.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}{provider.kind === 'codex' ? ' · Codex' : ' · MovScript'}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        <AgentModeCompactNavItem onClick={startNewConversation}>
+          <AgentModeIconSlot><Plus size={12} /></AgentModeIconSlot>
+          新建 {newConversationProvider.label} 会话
+        </AgentModeCompactNavItem>
         <AgentModePrimaryNavItem
-          onClick={primaryConversationId ? () => selectConversation(primaryConversationId) : primaryShowsConversations ? openConversationHome : startNewConversation}
+          onClick={primaryConversationId
+            ? codexMode ? () => selectCodexThread(primaryConversationId) : () => selectConversation(primaryConversationId)
+            : primaryShowsConversations ? openConversationHome : startNewConversation}
           title={primaryShowsConversations
             ? t('agents.chat.agentModeSidebar.conversations')
             : t('agents.chat.agentModeSidebar.newConversation')}
@@ -750,11 +844,33 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
         <AgentSidebarGroup
           title={t('agents.chat.agentModeSidebar.conversations')}
           icon={<MessageSquare size={13} />}
-          trailing={chatConversations.length > 0 ? `${chatConversations.length}` : undefined}
+          trailing={codexMode ? codexThreads.length > 0 ? `${codexThreads.length}` : undefined : chatConversations.length > 0 ? `${chatConversations.length}` : undefined}
           open={conversationsOpen}
           onOpenChange={setConversationsOpen}
         >
-          {sortedChatConversations.length === 0 ? (
+          {codexMode ? (
+            codexThreads.length === 0 ? (
+              <AgentModeCompactNavItem
+                onClick={startNewConversation}
+              >
+                <AgentModeIconSlot><Plus size={12} /></AgentModeIconSlot>
+                {codexThreadsLoading ? t('common.loadingShort') : t('agents.chat.agentModeSidebar.startConversation')}
+              </AgentModeCompactNavItem>
+            ) : (
+              <AgentModeGroupList nested>
+                {codexThreads.map((thread) => (
+                  <CodexSidebarThread
+                    key={thread.id}
+                    thread={thread}
+                    active={thread.id === codexActiveThreadId}
+                    locale={locale}
+                    now={relativeTimeNow}
+                    onClick={() => selectCodexThread(thread.id)}
+                  />
+                ))}
+              </AgentModeGroupList>
+            )
+          ) : sortedChatConversations.length === 0 ? (
             <AgentModeCompactNavItem
               onClick={startNewConversation}
             >
@@ -1002,6 +1118,44 @@ function AgentSidebarConversation({
   )
 }
 
+function CodexSidebarThread({
+  thread,
+  active,
+  locale,
+  now,
+  onClick,
+}: {
+  thread: AgentChatThread
+  active: boolean
+  locale: string
+  now: number
+  onClick: () => void
+}) {
+  const relativeTime = formatAgentRelativeTime(thread.updatedAt * 1000, locale, now)
+  const runtimeState = thread.status === 'running' ? 'active' : thread.status === 'failed' ? 'waiting' : 'stopped'
+  return (
+    <AgentModeConversationRow>
+      <AgentModeConversationItem
+        onClick={onClick}
+        active={active}
+        icon={(
+          <span className="agent-mode-conversation__icon-stack">
+            <span
+              className="agent-mode-conversation-runtime-light"
+              data-runtime-state={runtimeState}
+              aria-hidden="true"
+              title={`Codex ${thread.status}`}
+            />
+          </span>
+        )}
+        title={thread.name || thread.preview || 'Untitled Codex thread'}
+        description={thread.preview || 'Codex'}
+        meta={relativeTime}
+      />
+    </AgentModeConversationRow>
+  )
+}
+
 function ProjectAgentChatSurface({ userId }: { userId: string }) {
   const activeConversationId = useAgentSessionStore((s) => s.activeConversationIdsByUser?.[userId] ?? null)
   const setActiveConversation = useAgentSessionStore((s) => s.setActiveConversation)
@@ -1053,7 +1207,7 @@ function ProjectAgentChatSurface({ userId }: { userId: string }) {
   return (
     <AgentModeChatSurface>
       <AgentModeChatSurfaceInner>
-        <AgentBuiltinChatShell
+        <AgentUnifiedChatShell
           userId={userId}
           onCollapse={() => { }}
           showCollapse={false}

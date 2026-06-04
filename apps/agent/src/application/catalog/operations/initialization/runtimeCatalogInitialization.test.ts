@@ -98,6 +98,7 @@ function makeCatalog(version: string, warnings: string[] = []): AgentPluginCatal
     builtinPacksDir: `/tmp/${version}/builtin-packs`,
     configFilesDir: `/tmp/${version}/configFiles`,
     builtinConfigFilesDir: `/tmp/${version}/builtin-configFiles`,
+    codexSkillRoots: [],
     packs: [],
     configFiles: [],
     layeredSkills: [],

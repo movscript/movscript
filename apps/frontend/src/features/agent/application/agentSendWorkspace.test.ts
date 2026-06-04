@@ -296,6 +296,7 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
 
 function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {
   return {
+    activeAgentRuntimeId: 'movscript-agent',
     modelId: 7,
     includeProjectContext: true,
     includeRecentResources: false,

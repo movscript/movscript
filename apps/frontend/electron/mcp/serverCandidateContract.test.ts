@@ -8,6 +8,7 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   const toolRegistrySource = readFileSync(resolve('electron/mcp/toolRegistry.ts'), 'utf8')
   const generationToolDefinitionModuleSources = [
     'candidateToolDefinitions',
+    'generationToolDefinitions',
     'modelToolDefinitions',
   ].map((name) => readFileSync(resolve(`electron/mcp/tools/${name}.ts`), 'utf8')).join('\n')
   const toolSchemaSource = readFileSync(resolve('electron/mcp/tools/schema.ts'), 'utf8')
@@ -48,9 +49,11 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   assert.match(toolCallRouterSource, /case 'candidate_asset_slot_attach':/)
   assert.match(toolCallRouterSource, /case 'candidate_keyframe_attach':/)
 
-  assert.match(toolRegistrySource, /listMCPPluginTools/)
-  assert.match(toolCallRouterSource, /findMCPPluginTool\(name\)/)
-  assert.match(toolCallRouterSource, /callMCPPluginTool/)
+  assert.match(toolRegistrySource, /generationTools\(\)/)
+  assert.match(toolCallRouterSource, /case 'generation_image_generate':/)
+  assert.match(toolCallRouterSource, /case 'generation_video_generate':/)
+  assert.match(toolCallRouterSource, /generateImage\(args\)/)
+  assert.match(toolCallRouterSource, /generateVideo\(args\)/)
   assert.match(mcpContractSource, /generation_model_list/)
   assert.match(imageGenerateTool.description, /provider job/)
   assert.match(videoGenerateTool.description, /provider job/)

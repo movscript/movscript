@@ -150,6 +150,7 @@ function makeCatalog(input: {
     builtinPacksDir: '/tmp/builtin-packs',
     configFilesDir: '/tmp/configFiles',
     builtinConfigFilesDir: '/tmp/builtin-configFiles',
+    codexSkillRoots: [],
     packs: [],
     configFiles: [],
     layeredSkills: input.skills ?? [],

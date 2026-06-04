@@ -1,7 +1,7 @@
 import type { AgentMemory } from '../../../../memory/shared/types.js'
 import { applyRuntimeThreadContextSummary } from '../../../../context/prompt/summary/runtimeThreadContextSummary.js'
 import { projectRunOntoThread } from '../../../../state/run/projection/thread/runProjection.js'
-import { buildRunRound, type AgentRunRoundInfo } from '../../../../state/run/core/round/runRound.js'
+import type { AgentRunRoundInfo } from '../../../../state/run/core/round/runRound.js'
 import { applyRunCompletion } from '../../../../state/run/status/lifecycle/runStatus.js'
 import type { AgentStore } from '../../../../state/store/core/store.js'
 import { completeRunStep } from '../../../../state/run/status/trace/runTrace.js'
@@ -56,14 +56,13 @@ export function applyRuntimeRunCompletion(input: {
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
   deferPostRunRecords: (runId: string, input: {
-    round: AgentRunRoundInfo
+    round?: AgentRunRoundInfo
     userMessage: AgentMessage
     projectId?: number
     toolOutcomes: ToolCallOutcome[]
     warnings: string[]
   }) => void
 }): AgentMessage | undefined {
-  const finalRound = buildRunRound(999, 'Final response', 'final')
   const visibleModelContent = combineAssistantTurnContents(input.assistantContents, input.finalContent)
   const finalAssistantContent = buildFinalAssistantContent({
     userMessage: input.userMessage,
@@ -78,7 +77,7 @@ export function applyRuntimeRunCompletion(input: {
   const assistantContent = finalAssistantContent || (!runtimeStatus ? '（无内容）' : '')
   let assistant: AgentMessage | undefined
   let runtimeStatusRecord: AgentRuntimeStatusRecord | undefined
-  const step = input.createStep(input.run, assistantContent ? 'message' : 'tool_call', finalRound)
+  const step = input.createStep(input.run, assistantContent ? 'message' : 'tool_call')
 
   if (runtimeStatus) {
     runtimeStatusRecord = createRuntimeStatusRecord(input, runtimeStatus)
@@ -104,7 +103,6 @@ export function applyRuntimeRunCompletion(input: {
       title: 'Assistant message created',
       summary: formatAssistantMessageTraceSummary(assistant.content),
       status: 'completed',
-      round: finalRound,
       stepId: step.id,
       data: summarizeAssistantMessageTrace({
         messageId: assistant.id,
@@ -113,14 +111,14 @@ export function applyRuntimeRunCompletion(input: {
       }),
     })
     if (runtimeStatusRecord) {
-      recordRuntimeStatusTrace(input, runtimeStatusRecord, finalRound, step.id)
+      recordRuntimeStatusTrace(input, runtimeStatusRecord, step.id)
     }
   } else if (runtimeStatusRecord) {
     completeRunStep(step, {
       completedAt: input.stepCompletedAt ?? input.now,
       result: runtimeStatusStepResult(runtimeStatusRecord),
     })
-    recordRuntimeStatusTrace(input, runtimeStatusRecord, finalRound, step.id)
+    recordRuntimeStatusTrace(input, runtimeStatusRecord, step.id)
   }
 
   applyRunCompletion(input.run, {
@@ -138,7 +136,6 @@ export function applyRuntimeRunCompletion(input: {
     title: 'Run finished',
     summary: `Run ${input.run.status} with ${input.run.steps.length} step(s).`,
     status: input.warnings.length > 0 ? 'info' : 'completed',
-    round: finalRound,
     data: {
       status: input.run.status,
       warningCount: input.warnings.length,
@@ -154,7 +151,6 @@ export function applyRuntimeRunCompletion(input: {
   if (assistant) input.emitAssistantMessage(input.run, assistant)
   input.emitRunSnapshot(input.run, { done: true })
   input.deferPostRunRecords(input.run.id, {
-    round: finalRound,
     userMessage: input.postRunUserMessage,
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     toolOutcomes: input.toolOutcomes,
@@ -193,7 +189,6 @@ function appendRuntimeStatusRecord(thread: AgentThread, runtimeStatusRecord: Age
 function recordRuntimeStatusTrace(
   input: Pick<Parameters<typeof applyRuntimeRunCompletion>[0], 'run' | 'recordTrace'>,
   runtimeStatusRecord: AgentRuntimeStatusRecord,
-  finalRound: AgentRunRoundInfo,
   stepId: string,
 ): void {
   input.recordTrace(input.run, {
@@ -203,7 +198,6 @@ function recordRuntimeStatusTrace(
       ? runtimeStatusRecord.status.title
       : runtimeStatusRecord.status.label,
     status: 'completed',
-    round: finalRound,
     stepId,
     data: runtimeStatusStepResult(runtimeStatusRecord),
   })

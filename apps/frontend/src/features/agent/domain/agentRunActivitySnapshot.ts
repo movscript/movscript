@@ -136,6 +136,7 @@ function isModelRoundTelemetryEvent(event: ChatRunActivityEvent): boolean {
     || event.title === 'Model HTTP response received'
     || event.title === 'Model HTTP call failed'
     || event.title === 'Model retry scheduled'
+    || event.title === 'Model HTTP retry scheduled'
 }
 
 function activityTotals(activity: ChatRunActivity, rounds: RunActivityRoundSnapshot[]): RunActivityTotals {
@@ -227,14 +228,14 @@ function sumRoundUsage(rounds: RunActivityRoundSnapshot[]): RunActivityTokenUsag
   }
 }
 
-function modelEventDurationMs(event: ChatRunActivityEvent): number | undefined {
+export function modelEventDurationMs(event: ChatRunActivityEvent): number | undefined {
   if (typeof event.durationMs === 'number' && Number.isFinite(event.durationMs) && event.durationMs >= 0) return event.durationMs
   const data = recordValue(event.data)
   const durationMs = numberValue(data?.durationMs) ?? numberValue(data?.latencyMs)
   return durationMs !== undefined && durationMs >= 0 ? durationMs : undefined
 }
 
-function modelEventUsage(event: ChatRunActivityEvent): RunActivityTokenUsage | undefined {
+export function modelEventUsage(event: ChatRunActivityEvent): RunActivityTokenUsage | undefined {
   const data = recordValue(event.data)
   const response = recordValue(data?.response)
   const parsedBody = recordValue(response?.parsedBody)

@@ -3,9 +3,15 @@ import {
   findToolGrant,
   type AgentManifest,
 } from '../../../catalog/manifest/agentManifest.js'
-import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from '../../registry/core/toolRegistry.js'
+import {
+  DEFAULT_TOOL_REGISTRY,
+  StaticToolRegistry,
+  mergeRegisteredTools,
+  type RegisteredTool,
+  type ToolRegistry,
+} from '../../registry/core/toolRegistry.js'
 import { publicToolName } from '../../registry/naming/toolNames.js'
-import { buildMCPVirtualPack } from '../../../catalog/loading/mcp/mcpVirtualPack.js'
+import { buildMCPVirtualPack, mcpPublicToolName } from '../../../catalog/loading/mcp/mcpVirtualPack.js'
 import type {
   AgentCapabilitiesResponse,
   AgentDebugTool,
@@ -62,8 +68,8 @@ export async function resolveAgentCapabilities(options: {
   const mcpPack = connected && tools.length > 0
     ? buildMCPVirtualPack({ serverId: 'default', tools })
     : undefined
-  const registryTools = mcpPack
-    ? [...registry.list(), ...mcpPack.tools.map((tool): RegisteredTool => ({
+  const mcpRegisteredTools = mcpPack
+    ? mcpPack.tools.map((tool): RegisteredTool => ({
       name: tool.name,
       description: tool.description,
       permission: tool.permission,
@@ -76,8 +82,14 @@ export async function resolveAgentCapabilities(options: {
       defaults: tool.defaults,
       mcpServerId: tool.mcpServerId,
       capability: tool.capability,
-    }))]
+    }))
+    : []
+  const registryTools = mcpRegisteredTools.length > 0
+    ? mergeRegisteredTools(registry.list(), mcpRegisteredTools)
     : registry.list()
+  const resolvedRegistry = mcpRegisteredTools.length > 0
+    ? new StaticToolRegistry(registryTools)
+    : registry
 
   return {
     activeAgentManifest: options.manifest,
@@ -92,7 +104,7 @@ export async function resolveAgentCapabilities(options: {
     registry: registryTools,
     resolvedTools: resolveToolCatalog({
       mcpTools: tools,
-      registry,
+      registry: resolvedRegistry,
       manifest: options.manifest,
       currentProjectId: options.currentProjectId,
       mcpConnected: connected,
@@ -144,7 +156,11 @@ export function resolveToolCatalog(options: {
   runRole?: AgentRunRole
 }): ResolvedToolCatalog {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
-  const mcpByName = new Map(options.mcpTools.map((tool) => [publicToolName(tool.name), tool]))
+  const mcpByName = new Map<string, MCPTool>()
+  for (const tool of options.mcpTools) {
+    mcpByName.set(publicToolName(tool.name), tool)
+    mcpByName.set(mcpPublicToolName('default', tool.name), tool)
+  }
   const names = new Set<string>([
     ...registry.list().map((tool) => tool.name),
     ...options.manifest.tools.map((tool) => publicToolName(tool.name)),

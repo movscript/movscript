@@ -33,9 +33,13 @@ export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | nu
   })
   if (workbenchReviewPath) return workbenchReviewPath
 
+  if (workspace.kind === 'project_standards_workspace') {
+    return withRouteParams(ROUTES.project.standards, { workspaceId: workspace.id })
+  }
+
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.preProduction, { workspaceId: workspace.id, asset_slot_id: assetSlotId })
+    return withRouteParams(ROUTES.project.preProduction, { view: 'review', workspaceId: workspace.id, asset_slot_id: assetSlotId })
   }
 
   if (sourceEntityType === 'project' || targetEntityType === 'project') {
@@ -44,7 +48,12 @@ export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | nu
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.productionOrchestration, { workspaceId: workspace.id, content_unit_id: contentUnitId })
+    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, content_unit_id: contentUnitId })
+  }
+
+  if (targetEntityType === 'scene_moment' || sourceEntityType === 'scene_moment') {
+    const sceneMomentId = sourceEntityId ?? targetEntityId
+    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, scene_moment_id: sceneMomentId })
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -58,7 +67,7 @@ export function buildWorkspaceReviewPath(workspace: AgentWorkspace): string | nu
       || contentUnitRelatedKinds.includes(workspace.kind)
     )
   ) {
-    return withRouteParams(ROUTES.project.productionOrchestration, { productionId, workspaceId: workspace.id })
+    return withRouteParams(ROUTES.project.productionOrchestration, { view: 'review', workspaceId: workspace.id, productionId })
   }
 
   return null

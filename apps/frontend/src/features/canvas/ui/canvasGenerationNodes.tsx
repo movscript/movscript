@@ -6,7 +6,7 @@ import {
   FileText, Loader2, Play,
   Sparkles, X,
   Image, Video, Brush, Camera, Layers3, ImagePlus,
-	  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
+	  Palette, PersonStanding, RotateCw, Wrench,
 	  Workflow,
 	} from 'lucide-react'
 import { api } from '@/shared/infrastructure/api'
@@ -19,7 +19,6 @@ import {
   canvasToolActionCardLabels,
   nodeStatusLabel,
   paramTypeText,
-  pluginConfigItems,
   portLabelText,
   resolvePorts,
   selectedCanvasModel,
@@ -505,37 +504,6 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
         secondaryAction={{ id: 'variant', label: '变体', icon: ImagePlus, disabled: true }}
         footer={data.error ? <CanvasNodeFooterText tone="danger">{data.error}</CanvasNodeFooterText> : undefined}
-        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
-      />
-    </ToolCardNodeFrame>
-  )
-}
-
-export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
-  const { t } = useTranslation()
-  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const isRunning = status === 'pending' || status === 'running'
-  return (
-    <ToolCardNodeFrame nodeType="plugin_card" data={data}>
-      <CanvasToolActionCard
-        source="plugin"
-        tone="cyan"
-        icon={Puzzle}
-        title={data.label || data.pluginName || t('canvas.nodeLabels.plugin_card')}
-        subtitle={[
-          data.pluginId || t('plugins.notFound'),
-          data.pluginVersion ? `v${data.pluginVersion}` : null,
-          data.pluginRuntime,
-        ].filter(Boolean).join(' · ')}
-        status={nodeStatusLabel(status)}
-        selected={selected}
-        labels={canvasToolActionCardLabels(t)}
-        inputs={toolInputSlots('plugin_card', data, t)}
-        configs={pluginConfigItems(data)}
-        outputs={toolOutputSlots('plugin_card', data, t)}
-        primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
-        secondaryAction={{ id: 'config', label: '配置', icon: Wrench, disabled: true }}
-        footer={data.pluginResultText ? <CanvasNodeFooterText>{data.pluginResultText}</CanvasNodeFooterText> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </ToolCardNodeFrame>

@@ -77,7 +77,6 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
     },
   })
 
-  const finalRound = buildRunRound(999, 'Final response', 'final')
   const localDiagnostic = buildLocalDiagnosticCommand({
     command: input.command,
     run: input.run,
@@ -96,7 +95,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
   })
   const isContextDiagnostic = input.command.name === 'context' && localDiagnostic.metadata
   let assistant: AgentMessage | undefined
-  const step = input.createStep(input.run, isContextDiagnostic ? 'tool_call' : 'message', finalRound)
+  const step = input.createStep(input.run, isContextDiagnostic ? 'tool_call' : 'message', localRound)
 
   if (isContextDiagnostic) {
     const diagnostic = localDiagnostic.metadata as unknown as AgentContextDiagnosticRecord['diagnostic']
@@ -127,7 +126,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
       title: 'Context diagnostic recorded',
       summary: 'Runtime context diagnostic recorded without creating a transcript message.',
       status: 'completed',
-      round: finalRound,
+      round: localRound,
       stepId: step.id,
       data: {
         contextDiagnosticId: contextDiagnostic.id,
@@ -155,7 +154,7 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
       title: 'Assistant message created',
       summary: formatAssistantMessageTraceSummary(assistant.content),
       status: 'completed',
-      round: finalRound,
+      round: localRound,
       stepId: step.id,
       data: summarizeAssistantMessageTrace({
         messageId: assistant.id,
@@ -180,7 +179,6 @@ export function applyRuntimeLocalDiagnosticCommand(input: {
     title: 'Run finished',
     summary: `Run ${input.run.status}; no model gateway call was needed.`,
     status: input.run.warnings && input.run.warnings.length > 0 ? 'info' : 'completed',
-    round: finalRound,
     data: { status: input.run.status, warningCount: input.run.warnings?.length ?? 0, modelGatewayCalled: false },
   })
   projectRunOntoThread(input.thread, input.run)

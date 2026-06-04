@@ -4,14 +4,12 @@ import {
   canvasTextNodeEditState,
   createCanvasEdgeId,
   createPaletteCanvasNode,
-  createPluginCanvasNode,
   createResourceCanvasNode,
   createWorkflowReferenceCanvasNode,
   isPaletteNodeTypeAvailable,
   readOnlyMediaPortPatch,
 } from './nodeFactory'
 import type { Canvas, RawResource } from '@/types'
-import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 
 const t = (_key: string, options?: any) => options?.defaultValue ?? _key
 
@@ -125,31 +123,6 @@ test('isPaletteNodeTypeAvailable limits workflow IO and hides resource sink', ()
   assert.equal(isPaletteNodeTypeAvailable('input', 'inspiration'), false)
   assert.equal(isPaletteNodeTypeAvailable('output', 'workflow'), true)
   assert.equal(isPaletteNodeTypeAvailable('resource_sink', 'workflow'), false)
-})
-
-test('createPluginCanvasNode keeps contribution defaults and ports', () => {
-  const plugin = {
-    schema: 'movscript.clientPlugin.v1',
-    id: 'local.echo',
-    name: 'Echo',
-    version: '1.0.0',
-    contributes: {
-      canvasNodes: [{
-        type: 'echo',
-        title: 'Echo Node',
-        defaultData: { pluginArgs: { mode: 'short' } },
-        inputs: [{ id: 'text', type: 'text' }],
-        outputs: [{ id: 'result', type: 'text' }],
-      }],
-    },
-  } as ClientPluginManifest
-  const node = createPluginCanvasNode({ plugin, position: { x: 0, y: 0 } })
-
-  assert.equal(node.type, 'plugin_card')
-  assert.equal((node.data as any).label, 'Echo Node')
-  assert.deepEqual((node.data as any).pluginArgs, {})
-  assert.deepEqual((node.data as any).inputPorts, [{ id: 'text', type: 'text' }])
-  assert.deepEqual((node.data as any).outputPorts, [{ id: 'result', type: 'text' }])
 })
 
 test('createCanvasEdgeId includes semantic connection identity', () => {

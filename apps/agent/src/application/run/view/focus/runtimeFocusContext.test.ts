@@ -21,7 +21,7 @@ test('resolveRuntimeFocusContext returns MCP focus result and timing on success'
     setupRound,
     timestampMs: makeClock(1000, 1015),
     now: () => '2026-01-01T00:00:01.015Z',
-    mcpClient: new FakeFocusClient({ snapshot: { route: { pathname: '/projects' } } }),
+    focusContextPort: new FakeFocusContextPort({ snapshot: { route: { pathname: '/projects' } } }),
     recordTrace: (_run, trace) => traces.push(trace),
     updateRun: (targetRun) => updated.push(targetRun.id),
   })
@@ -46,7 +46,7 @@ test('resolveRuntimeFocusContext records failed focus and rethrows for normal co
       setupRound,
       timestampMs: makeClock(1000, 1025),
       now: () => '2026-01-01T00:00:01.025Z',
-      mcpClient: new FakeFocusClient(undefined, new Error('mcp offline')),
+      focusContextPort: new FakeFocusContextPort(undefined, new Error('mcp offline')),
       recordTrace: (_run, trace) => traces.push(trace),
       updateRun: (targetRun) => updated.push(targetRun.id),
     }),
@@ -77,7 +77,7 @@ test('resolveRuntimeFocusContext falls back to client input snapshot for local d
     setupRound,
     timestampMs: makeClock(1000, 1030),
     now: () => '2026-01-01T00:00:01.030Z',
-    mcpClient: new FakeFocusClient(undefined, new Error('mcp offline')),
+    focusContextPort: new FakeFocusContextPort(undefined, new Error('mcp offline')),
     recordTrace: (_run, trace) => traces.push(trace),
     updateRun: () => {},
   })
@@ -111,17 +111,13 @@ function makeClock(...values: number[]): () => number {
   return () => values[Math.min(index++, values.length - 1)] ?? 0
 }
 
-class FakeFocusClient {
+class FakeFocusContextPort {
   constructor(
     private readonly result?: JSONValue,
     private readonly error?: Error,
   ) {}
 
-  async initialize(): Promise<void> {
-    if (this.error) throw this.error
-  }
-
-  async callTool(): Promise<JSONValue> {
+  async getFocusContext(): Promise<JSONValue> {
     if (this.error) throw this.error
     return this.result ?? {}
   }

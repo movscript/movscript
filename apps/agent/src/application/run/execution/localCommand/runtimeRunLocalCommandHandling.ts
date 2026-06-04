@@ -1,6 +1,4 @@
 import type { AgentRuntimeContractResolver } from '../../../../contracts/runtime/runtimeContract.js'
-import type { AgentWorkspaceStore } from '../../../../workspaces/store/workspaceStore.js'
-import type { ReferenceManager } from '../../../../reference/manager/referenceManager.js'
 import type { MemoryManager } from '../../../../memory/manager/memoryManager.js'
 import { memoryStorePath, type AgentMemoryStore } from '../../../../memory/store/in-memory/memoryStore.js'
 import type { AgentMemory } from '../../../../memory/shared/types.js'
@@ -19,14 +17,6 @@ import type { AgentCommandRuntime } from '../../../../context/command/commandRou
 import type { AgentRuntimeCatalogSnapshot } from '../../../catalog/snapshot/core/runtimeCatalogSnapshot.js'
 import { applyRuntimeLocalCommandDispatch, type RuntimeLocalCommandTraceInput } from '../../../local-command/dispatch/runtimeLocalCommandDispatch.js'
 import type { RuntimeRunSetupResolution } from '../setup/resolution/runtimeRunSetupResolution.js'
-import type { WorkspaceApplyPort } from '../../../../ports/workspace/apply/workspaceApplyPort.js'
-import type { WorkspaceApplyPreviewPort } from '../../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
-import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
-import type { CoreResourceFilePort } from '../../../../ports/files/resourceFilePort.js'
-import type { CoreImageProcessingPort } from '../../../../ports/media/imageProcessingPort.js'
-import type { CoreVideoFrameExtractionPort } from '../../../../ports/media/videoFrameExtractionPort.js'
-import type { RuntimeToolHandlerRegistry } from '../../../../ports/runtime/runtimeToolHandlerPort.js'
-import type { ExternalToolGatewayPort } from '../../../../ports/tools/externalToolGatewayPort.js'
 
 export interface RuntimeRunLocalCommandHandlingTraceInput {
   kind: AgentTraceEventKind
@@ -52,17 +42,12 @@ export async function applyRuntimeRunLocalCommandHandling(input: {
   memoryStore: AgentMemoryStore
   contractResolver: AgentRuntimeContractResolver
   catalogSnapshot: AgentRuntimeCatalogSnapshot
-  workspaceStore: AgentWorkspaceStore
-  externalToolGatewayPort: ExternalToolGatewayPort
-  workspaceApplyPort: WorkspaceApplyPort
-  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
-  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
-  resourceFilePort: CoreResourceFilePort
-  imageProcessingPort?: CoreImageProcessingPort
-  videoFrameExtractionPort: CoreVideoFrameExtractionPort
+  externalToolGatewayPort?: unknown
+  resourceFilePort?: unknown
+  imageProcessingPort?: unknown
+  videoFrameExtractionPort?: unknown
   memoryManager: MemoryManager
-  runtimeToolHandlers: RuntimeToolHandlerRegistry
-  referenceManager: ReferenceManager
+  runtimeToolHandlers?: unknown
   catalogManager: AgentCatalogToolManager
   signal?: AbortSignal
   now: () => string

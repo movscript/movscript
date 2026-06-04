@@ -18,7 +18,7 @@ const registry = new StaticToolRegistry([
     description: 'Create a local workspace artifact.',
     permission: 'workspace.write',
     risk: 'workspace',
-    source: 'runtime',
+    source: 'mcp',
     projectScoped: true,
     requiresApprovalByDefault: false,
   },
@@ -59,6 +59,7 @@ const registry = new StaticToolRegistry([
     description: 'Apply a workspace.',
     permission: 'workspace.apply',
     risk: 'write',
+    source: 'mcp',
     projectScoped: false,
     requiresApprovalByDefault: true,
   },
@@ -72,6 +73,14 @@ const registry = new StaticToolRegistry([
   },
 ])
 
+const scriptReadManifest = {
+  ...DEFAULT_AGENT_MANIFEST,
+  tools: [
+    ...DEFAULT_AGENT_MANIFEST.tools,
+    { name: 'movscript_script_locate', mode: 'allow' as const, approval: 'never' as const },
+  ],
+}
+
 test('tool permissions injects current projectId into project scoped tools', () => {
   const result = applyToolPermissions([
     { name: 'movscript_script_locate', args: { limit: 10 } },
@@ -80,9 +89,9 @@ test('tool permissions injects current projectId into project scoped tools', () 
     currentProjectId: 42,
     registry,
     manifest: {
-      ...DEFAULT_AGENT_MANIFEST,
+      ...scriptReadManifest,
       tools: [
-        ...DEFAULT_AGENT_MANIFEST.tools,
+        ...scriptReadManifest.tools,
         { name: 'workspace_open', mode: 'allow', approval: 'never' },
       ],
     },
@@ -96,7 +105,7 @@ test('tool permissions injects current projectId into project scoped tools', () 
 test('tool permissions blocks project scoped tools without a current project', () => {
   const result = applyToolPermissions([
     { name: 'movscript_script_locate', args: { limit: 10 } },
-  ], { registry })
+  ], { registry, manifest: scriptReadManifest })
 
   assert.deepEqual(result.toolCalls, [])
   assert.deepEqual(result.warnings, ['当前没有选中项目'])
@@ -105,7 +114,7 @@ test('tool permissions blocks project scoped tools without a current project', (
 test('tool permissions allows explicit projectId for read-only project scoped tools without a current project', () => {
   const result = applyToolPermissions([
     { name: 'movscript_script_locate', args: { projectId: 42, limit: 10 } },
-  ], { registry })
+  ], { registry, manifest: scriptReadManifest })
 
   assert.deepEqual(result.warnings, [])
   assert.equal(result.blockedToolCalls.length, 0)
@@ -136,7 +145,7 @@ test('tool permissions blocks project scoped tools with invalid current project 
   for (const currentProjectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     const result = applyToolPermissions([
       { name: 'movscript_script_locate', args: { limit: 10 } },
-    ], { currentProjectId, registry })
+    ], { currentProjectId, registry, manifest: scriptReadManifest })
 
     assert.deepEqual(result.toolCalls, [])
     assert.deepEqual(result.warnings, ['当前没有选中项目'])

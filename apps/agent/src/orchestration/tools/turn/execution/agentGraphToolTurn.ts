@@ -104,18 +104,13 @@ export async function executeToolTurn(input: AgentGraphInput, options: {
   try {
     const execResult = await executeTool(call, {
       run: input.run,
-      workspaceStore: input.workspaceStore,
       externalToolGatewayPort: input.externalToolGatewayPort,
-      workspaceApplyPort: input.workspaceApplyPort,
-      workspaceApplyPreviewPort: input.workspaceApplyPreviewPort,
-      workspaceSnapshotHydrationPort: input.workspaceSnapshotHydrationPort,
       resourceFilePort: input.resourceFilePort,
       imageProcessingPort: input.imageProcessingPort,
       videoFrameExtractionPort: input.videoFrameExtractionPort,
       registry: input.registry,
       runtimeToolHandlers: input.runtimeToolHandlers,
       memoryManager: input.memoryManager,
-      referenceManager: input.referenceManager,
       catalogManager: input.catalogManager,
       sandboxMode: input.runtimeLimits.sandboxMode === true,
       permissionGate: {

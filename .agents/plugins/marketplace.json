@@ -1,0 +1,20 @@
+{
+  "name": "movscript-core",
+  "interface": {
+    "displayName": "MovScript Core"
+  },
+  "plugins": [
+    {
+      "name": "movscript",
+      "source": {
+        "source": "local",
+        "path": "./plugins/movscript"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

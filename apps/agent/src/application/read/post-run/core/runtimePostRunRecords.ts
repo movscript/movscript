@@ -23,7 +23,7 @@ export interface RuntimePostRunRecordsTraceInput {
 }
 
 export interface RuntimePostRunRecordsInput {
-  round: AgentRunRoundInfo
+  round?: AgentRunRoundInfo
   userMessage: AgentMessage
   projectId?: number
   toolOutcomes: ToolCallOutcome[]
@@ -59,7 +59,7 @@ export function deferRuntimePostRunRecords(input: {
             title: 'Deferred post-run records failed',
             summary: error instanceof Error ? error.message : String(error),
             status: 'failed',
-            round: input.records.round,
+            ...(input.records.round ? { round: input.records.round } : {}),
             data: { async: true },
           })
           input.store.updateRun(run)
@@ -102,7 +102,7 @@ export function applyRuntimePostRunRecords(input: {
       title: 'Memories written',
       summary: `${writtenMemories.length} memory item(s) written after the run.`,
       status: 'completed',
-      round: input.records.round,
+      ...(input.records.round ? { round: input.records.round } : {}),
       data: {
         async: true,
         writtenMemoryIds: writtenMemories.map((memory) => memory.id),
@@ -123,7 +123,7 @@ export function applyRuntimePostRunRecords(input: {
 export function recordRuntimeRollbackTrace(input: {
   run: AgentRun
   toolOutcomes: ToolCallOutcome[]
-  round: AgentRunRoundInfo
+  round?: AgentRunRoundInfo
   recordTrace: (run: AgentRun, trace: RuntimePostRunRecordsTraceInput) => void
 }): number {
   const records = buildToolRollbackRecords(input.toolOutcomes)
@@ -133,7 +133,7 @@ export function recordRuntimeRollbackTrace(input: {
     title: 'Rollback policy recorded',
     summary: `${records.length} side effect rollback record(s).`,
     status: records.some((record) => record.rollback.policy === 'manual_compensation') ? 'blocked' : 'info',
-    round: input.round,
+    ...(input.round ? { round: input.round } : {}),
     data: {
       eventType: 'rollback_policy',
       rollbackSummary: summarizeRollbackRecordsTrace(records),

@@ -1,35 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST, type AgentManifest } from '../../../catalog/manifest/agentManifest.js'
-import { InMemoryAgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
 import type { RuntimeModelRouter } from '../../../model/router/modelRouter.js'
 import { runtimeModelContentText, runtimeModelTextContent } from '../../../model/config/modelConfig.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../../../tools/registry/core/toolRegistry.js'
 import type { AgentDebugTool, AgentRun, AgentRuntimeLimits, JSONValue, ResolvedToolCatalog } from '../../../state/shared/types.js'
 import { runAgentGraph } from './agentGraph.js'
 import type { AgentGraphInput } from '../types/agentGraphTypes.js'
-import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/workspaces'
 import {
-  createDefaultWorkspaceApplyPort,
-  createDefaultWorkspaceApplyPreviewPort,
   createDefaultExternalToolGatewayPort,
-  createDefaultWorkspaceSnapshotHydrationPort,
   createDefaultResourceFilePort,
   createDefaultVideoFrameExtractionPort,
   createDefaultRuntimeToolHandlerRegistry,
 } from '../../../application/shared/tools/runtimeToolHandlers.js'
 
 const defaultRuntimeToolHandlers = createDefaultRuntimeToolHandlerRegistry()
-const defaultWorkspaceApplyBackend = {
-  async applyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-  async previewApplyReview(): Promise<any> {
-    return { performed: false, skippedReason: 'backend disabled in test' }
-  },
-}
-const defaultWorkspaceApplyPort = createDefaultWorkspaceApplyPort(defaultWorkspaceApplyBackend)
-const defaultWorkspaceApplyPreviewPort = createDefaultWorkspaceApplyPreviewPort(defaultWorkspaceApplyBackend)
 
 const runtimeLimits: AgentRuntimeLimits = {
   approvalMode: 'interactive',
@@ -52,7 +37,7 @@ function tool(name: string, risk: AgentDebugTool['risk'] = 'read', requiresAppro
     description: `${name} tool.`,
     permission: `tool.${name}`,
     risk,
-    source: 'mcp' as const,
+    source: name.startsWith('core_') ? 'runtime' as const : 'mcp' as const,
     projectScoped: false,
     requiresApprovalByDefault,
   }
@@ -91,7 +76,7 @@ function emptyContext() {
   }
 }
 
-function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'workspaceApplyPort' | 'workspaceApplyPreviewPort' | 'workspaceSnapshotHydrationPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'runtimeToolHandlers'> & {
+function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGatewayPort' | 'resourceFilePort' | 'videoFrameExtractionPort' | 'runtimeToolHandlers'> & {
   mcpClient: {
     initialize(): Promise<JSONValue>
     callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue>
@@ -100,11 +85,7 @@ function runAgentGraphWithDefaults(input: Omit<AgentGraphInput, 'externalToolGat
   const { mcpClient, ...graphInput } = input
   return runAgentGraph({
     ...graphInput,
-    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),
-    workspaceApplyPort: defaultWorkspaceApplyPort,
-    workspaceApplyPreviewPort: defaultWorkspaceApplyPreviewPort,
-    workspaceSnapshotHydrationPort: createDefaultWorkspaceSnapshotHydrationPort(mcpClient),
-    resourceFilePort: createDefaultResourceFilePort(mcpClient),
+    externalToolGatewayPort: createDefaultExternalToolGatewayPort(mcpClient),    resourceFilePort: createDefaultResourceFilePort(mcpClient),
     videoFrameExtractionPort: createDefaultVideoFrameExtractionPort({ downloadResourceFile: async () => ({ performed: false, skippedReason: 'backend disabled in test' }) }),
     runtimeToolHandlers: defaultRuntimeToolHandlers,
   })
@@ -188,7 +169,6 @@ test('runAgentGraph pauses again after executing one approved forced call when o
         return { ok: true }
       },
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),
@@ -255,9 +235,9 @@ test('runAgentGraph pauses again after executing one approved forced call when o
   assert.equal(typeof (completedTrace?.data as any)?.resultHash, 'string')
 })
 
-test('runAgentGraph queues workspace apply approvals in workspace layer order when explicitly requested', async () => {
+test('runAgentGraph routes workspace tools through MCP without synthesizing local apply approvals', async () => {
   const run: AgentRun = {
-    id: 'run_default_apply',
+    id: 'run_external_workspace',
     threadId: 'thread_1',
     status: 'queued',
     runtimeLimits,
@@ -266,12 +246,13 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
     steps: [],
     input: {
       schema: 'movscript.agent.run-input.v1',
-      userMessage: '生成 setting 和 asset workspace并应用',
+      userMessage: '生成 workspace 草稿',
       sourceMessageId: 'msg_1',
       executionMode: 'chat',
       createdAt: '2026-05-16T00:00:00.000Z',
     },
   }
+  let modelCallCount = 0
   const router: RuntimeModelRouter = {
     resolve: () => ({
       capability: 'reasoning',
@@ -286,48 +267,36 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
       confidence: 0,
       route: { capability: 'multimodal', configured: true, source: 'configured' },
     }),
-    call: async () => ({
-      content: null,
-      tool_calls: [
-        {
-          id: 'call_asset',
-          type: 'function',
-          function: {
-            name: 'workspace_open',
-            arguments: JSON.stringify({
-              kind: 'asset_workspace',
-              workspace: true,
-              projectId: 42,
-              content: JSON.stringify({
-                schema: WORKSPACE_CONTENT_SCHEMA_IDS.assetWorkspace,
-                scope: 'asset_workspace',
-                workspace: { creative_references: [], asset_slots: [], candidate_plans: [] },
+    call: async () => {
+      modelCallCount += 1
+      if (modelCallCount === 1) {
+        return {
+          content: null,
+          tool_calls: [{
+            id: 'call_workspace_open',
+            type: 'function',
+            function: {
+              name: 'workspace_open',
+              arguments: JSON.stringify({
+                kind: 'asset_workspace',
+                projectId: 42,
+                content: JSON.stringify({ title: 'workspace draft' }),
               }),
-            }),
-          },
-        },
-        {
-          id: 'call_setting',
-          type: 'function',
-          function: {
-            name: 'workspace_open',
-            arguments: JSON.stringify({
-              kind: 'setting_workspace',
-              workspace: true,
-              projectId: 42,
-              content: JSON.stringify({
-                schema: WORKSPACE_CONTENT_SCHEMA_IDS.settingWorkspace,
-                scope: 'setting_workspace',
-                workspace: { creative_references: [] },
-              }),
-            }),
-          },
-        },
-      ],
-      finish_reason: 'tool_calls',
-      rawAssistantMessage: { role: 'assistant', content: [] },
-      trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
-    }),
+            },
+          }],
+          finish_reason: 'tool_calls',
+          rawAssistantMessage: { role: 'assistant', content: [] },
+          trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+        }
+      }
+      return {
+        content: 'workspace draft delegated',
+        tool_calls: [],
+        finish_reason: 'stop',
+        rawAssistantMessage: { role: 'assistant', content: runtimeModelTextContent('workspace draft delegated') },
+        trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+      }
+    },
   }
   const registry = new StaticToolRegistry([
     {
@@ -335,18 +304,9 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
       description: 'Create workspace.',
       permission: 'workspace.write',
       risk: 'workspace',
-      source: 'runtime',
+      source: 'mcp',
       projectScoped: false,
       requiresApprovalByDefault: false,
-    },
-    {
-      name: 'workspace_apply',
-      description: 'Apply workspace.',
-      permission: 'workspace.apply',
-      risk: 'write',
-      source: 'runtime',
-      projectScoped: false,
-      requiresApprovalByDefault: true,
     },
   ])
   const available = registry.list().map((tool): AgentDebugTool => ({
@@ -359,8 +319,8 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
     registered: true,
     granted: true,
     available: true,
-    approval: tool.name === 'workspace_apply' ? 'on_write' : 'never',
-    requiresApproval: tool.name === 'workspace_apply',
+    approval: 'never',
+    requiresApproval: false,
   }))
   const capabilities: ResolvedToolCatalog = {
     discovered: available,
@@ -372,14 +332,11 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
   const result = await runAgentGraphWithDefaults({
     run,
     threadMessages: [
-      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset workspace并应用', createdAt: '2026-05-16T00:00:00.000Z' },
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 workspace 草稿', createdAt: '2026-05-16T00:00:00.000Z' },
     ],
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [
-        { name: 'workspace_open', mode: 'allow', approval: 'never' },
-        { name: 'workspace_apply', mode: 'allow', approval: 'on_write' },
-      ],
+      tools: [{ name: 'workspace_open', mode: 'allow', approval: 'never' }],
     },
     capabilities,
     skills: [],
@@ -402,40 +359,21 @@ test('runAgentGraph queues workspace apply approvals in workspace layer order wh
     runtimeLimits,
     mcpClient: {
       initialize: async () => null,
-      callTool: async (name): Promise<JSONValue> => {
-        if (name === 'get_workspace_model') {
-          return {
-            data: {
-              seed: {
-                data: {
-                  asset_slots: [],
-                  creative_references: [],
-                },
-              },
-            },
-          }
-        }
-        return {}
+      callTool: async (name, args): Promise<JSONValue> => {
+        assert.equal(name, 'workspace_open')
+        assert.equal(args?.kind, 'asset_workspace')
+        return { id: 'workspace_1', status: 'created' }
       },
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
     onStepComplete: () => undefined,
   })
 
-  assert.equal(result.status, 'requires_action')
-  if (result.status === 'requires_action') {
-    assert.deepEqual(result.pendingApprovals.map((approval) => approval.toolName), [
-      'workspace_apply',
-      'workspace_apply',
-    ])
-    assert.deepEqual(result.pendingApprovals.map((approval) => approval.args?.workspaceKind), [
-      'setting_workspace',
-      'asset_workspace',
-    ])
-  }
+  assert.equal(result.status, 'completed')
+  assert.equal(result.toolOutcomes.some((outcome) => outcome.call.name === 'workspace_open'), true)
+  if (result.status === 'completed') assert.equal(result.finalContent, 'workspace draft delegated')
 })
 
 test('runAgentGraph uses frozen run input instead of later thread user messages', async () => {
@@ -512,7 +450,6 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -587,7 +524,6 @@ test('runAgentGraph records explicit model round duration trace', async () => {
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => {
       if (trace.kind === 'model_call') traces.push({ title: trace.title, status: trace.status, durationMs: trace.durationMs, data: trace.data })
@@ -664,7 +600,6 @@ test('runAgentGraph pauses for retry when the model call fails', async () => {
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, summary: trace.summary }),
     onStepCreate: () => 'step_1',
@@ -762,7 +697,6 @@ test('runAgentGraph retries prompt-too-long model errors with collapsed history 
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, data: trace.data }),
     onStepCreate: () => 'step_1',
@@ -877,7 +811,6 @@ test('runAgentGraph appends active-run runtime input to the next model turn', as
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     onTrace: () => undefined,
     onStepCreate: () => 'step_1',
@@ -981,7 +914,6 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -1108,7 +1040,6 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry: DEFAULT_TOOL_REGISTRY,
     catalogManager: {
       inspectAgentCatalog: () => ({
@@ -1309,7 +1240,6 @@ test('runAgentGraph loads script reading skill when model calls project script t
       initialize: async () => null,
       callTool: async () => ({}),
     },
-    workspaceStore: new InMemoryAgentWorkspaceStore(),
     registry,
     catalogManager: {
       inspectAgentCatalog: () => ({}),
@@ -1325,9 +1255,9 @@ test('runAgentGraph loads script reading skill when model calls project script t
       },
       updatePlan: () => ({}),
       startWork: () => ({}),
-getWork: () => ({}),
-listWork: () => ({}),
-waitWork: () => ({}),
+      getWork: () => ({}),
+      listWork: () => ({}),
+      waitWork: () => ({}),
       cancelWork: () => ({}),
     },
     onCatalogRefresh: async () => ({
@@ -1379,8 +1309,7 @@ waitWork: () => ({}),
   }])
   assert.match(traceSummaries.join('\n'), /loaded=movscript.script_reading/)
   assert.match(catalogRefreshSummaries.join('\n'), /manifest=test\.core-only/)
-  assert.match(catalogRefreshSummaries.join('\n'), /movscript_script_locate=available\/granted/)
   assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_script_locate'), true)
-  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_script_locate' && tool.available === true && tool.granted === true), true)
+  assert.equal((catalogRefreshData[0] as any)?.availableToolNames?.includes('movscript_script_locate'), true)
   if (result.status === 'completed') assert.equal(result.finalContent, 'skill loaded')
 })

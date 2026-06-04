@@ -13,7 +13,6 @@ export function buildRollbackRecord(call: ToolCall, result: JSONValue | undefine
     ? stringField(metadata.workspaceId)
       ?? stringField(metadata.workspaceRef)
       ?? stringField(metadata.workspaceRef)
-      ?? (call.name === 'workspace_open' ? stringField(metadata.id) : undefined)
     : undefined
   if (workspaceId) {
     return {
@@ -53,8 +52,7 @@ export function buildRollbackRecord(call: ToolCall, result: JSONValue | undefine
 }
 
 function isBackendWriteTool(name: string): boolean {
-  return name === 'workspace_apply'
-    || name.includes('_create_')
+  return name.includes('_create_')
     || name.includes('_update_')
     || name.includes('_delete_')
 }

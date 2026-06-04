@@ -19,7 +19,7 @@ test('applyRuntimeRunCompletion creates assistant message, completion traces, me
   const traces: RuntimeRunCompletionTraceInput[] = []
   const snapshots: string[] = []
   const assistantMessages: AgentMessage[] = []
-  const postRuns: Array<{ runId: string; warningCount: number; userMessageId: string; projectId?: number }> = []
+  const postRuns: Array<{ runId: string; warningCount: number; userMessageId: string; hasRound: boolean; projectId?: number }> = []
   let completedStep: AgentRunStep | undefined
 
   const assistant = applyRuntimeRunCompletion({
@@ -63,6 +63,7 @@ test('applyRuntimeRunCompletion creates assistant message, completion traces, me
         runId,
         warningCount: input.warnings.length,
         userMessageId: input.userMessage.id,
+        hasRound: input.round !== undefined,
         ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
       })
     },
@@ -78,16 +79,19 @@ test('applyRuntimeRunCompletion creates assistant message, completion traces, me
   assert.equal(thread.activeRunId, undefined)
   assert.equal(thread.messages.at(-1)?.id, 'msg_assistant')
   assert.equal(completedStep?.status, 'completed')
+  assert.equal(completedStep?.roundIndex, undefined)
   assert.deepEqual(completedStep?.result, { messageId: 'msg_assistant' })
   assert.equal(traces[0]?.kind, 'assistant')
+  assert.equal(traces[0]?.round, undefined)
   assert.equal(traces[0]?.stepId, 'step_1')
   assert.equal(traces[0]?.summary, `Assistant message created (${assistant.content.length} chars).`)
   assert.doesNotMatch(traces[0]?.summary ?? '', /Final answer/)
   assert.equal(traces[1]?.kind, 'run')
+  assert.equal(traces[1]?.round, undefined)
   assert.equal(traces[1]?.status, 'info')
   assert.deepEqual(assistantMessages.map((message) => message.id), ['msg_assistant'])
   assert.deepEqual(snapshots, ['completed_with_warnings:true'])
-  assert.deepEqual(postRuns, [{ runId: 'run_1', warningCount: 1, userMessageId: 'msg_user', projectId: 42 }])
+  assert.deepEqual(postRuns, [{ runId: 'run_1', warningCount: 1, userMessageId: 'msg_user', hasRound: false, projectId: 42 }])
 })
 
 test('applyRuntimeRunCompletion marks a clean run completed and stores memory ids without assistant turn metadata', () => {

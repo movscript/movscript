@@ -5,75 +5,12 @@ import {
   type AgentTraceEventKind,
   type AgentTraceQuery,
 } from '@movscript/protocol'
-import type { AgentRuntimeRouter } from '../../../application/router/runtimeRouter.js'
 import type { RuntimeDebugEvidenceRefQuery } from '../../../application/read/trace/runtimeTraceReadBridge.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from '../../../context/runtime/runtimeContext.js'
-import { normalizeWorkspaceKind, normalizeWorkspaceStatus } from '../../../workspaces/store/workspaceStore.js'
-import { isValidMemoryProjectId } from '../../../memory/shared/types.js'
+import { isValidMemoryProjectId, type CreateMemoryInput, type MemoryQuery } from '../../../memory/shared/types.js'
 import { isRecord } from '../../../shared/json/jsonValue.js'
 import type { JSONValue } from '../../../shared/protocol/types.js'
 import { AgentHTTPError } from '../../core/http.js'
-
-export function normalizeWorkspaceBody(body: unknown): Record<string, JSONValue> {
-  if (!isRecord(body)) throw new AgentHTTPError(400, 'workspace body must be an object')
-  const projectId = normalizeWorkspaceBodyProjectId(body.projectId)
-  return {
-    ...(projectId !== undefined ? { projectId } : {}),
-    kind: normalizeWorkspaceKind(body.kind),
-    title: typeof body.title === 'string' ? body.title : 'Untitled workspace',
-    content: typeof body.content === 'string' ? body.content : '',
-    ...(isRecord(body.source) ? { source: normalizeWorkspaceSource(body.source) } : {}),
-    ...(isRecord(body.target) ? { target: body.target as Record<string, JSONValue> } : {}),
-    ...(isRecord(body.metadata) ? { metadata: body.metadata as Record<string, JSONValue> } : {}),
-  }
-}
-
-export function normalizeWorkspaceQuery(url: URL): Parameters<AgentRuntimeRouter['listWorkspaces']>[0] {
-  const projectId = url.searchParams.get('projectId')
-  const parsedProjectId = parseOptionalProjectIdParam(projectId)
-  const kind = normalizeWorkspaceKind(url.searchParams.get('kind'))
-  const status = normalizeWorkspaceStatus(url.searchParams.get('status'))
-  const statuses = url.searchParams.getAll('status').flatMap((item) => {
-    const parsed = normalizeWorkspaceStatus(item)
-    return parsed ? [parsed] : []
-  })
-  const threadId = url.searchParams.get('threadId')
-  const runId = url.searchParams.get('runId')
-  const sourceEntityType = url.searchParams.get('sourceEntityType')
-  const sourceEntityId = url.searchParams.get('sourceEntityId')
-  const pageKey = url.searchParams.get('pageKey')
-  const pageType = url.searchParams.get('pageType')
-  const pageRoute = url.searchParams.get('pageRoute')
-  const pageEntityType = url.searchParams.get('pageEntityType')
-  const pageEntityId = url.searchParams.get('pageEntityId')
-  const current = parseOptionalBooleanParam(url.searchParams.get('current'))
-  const limit = url.searchParams.get('limit')
-  const parsedLimit = parseLimitParam(limit, 100)
-  return {
-    ...(parsedProjectId !== undefined ? { projectId: parsedProjectId } : {}),
-    ...(url.searchParams.has('kind') ? { kind } : {}),
-    ...(statuses.length > 1 ? { statuses: Array.from(new Set(statuses)) } : status ? { status } : {}),
-    ...(threadId ? { threadId } : {}),
-    ...(runId ? { runId } : {}),
-    ...(sourceEntityType ? { sourceEntityType } : {}),
-    ...(sourceEntityId ? { sourceEntityId } : {}),
-    ...(pageKey ? { pageKey } : {}),
-    ...(pageType ? { pageType } : {}),
-    ...(pageRoute ? { pageRoute } : {}),
-    ...(pageEntityType ? { pageEntityType } : {}),
-    ...(pageEntityId ? { pageEntityId } : {}),
-    ...(current !== undefined ? { current } : {}),
-    ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
-  }
-}
-
-function parseOptionalBooleanParam(value: string | null): boolean | undefined {
-  if (value === null || value.trim() === '') return undefined
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'true') return true
-  if (normalized === 'false') return false
-  throw new AgentHTTPError(400, 'boolean query parameter must be true or false')
-}
 
 export function parseOptionalProjectIdParam(value: string | null): number | undefined {
   if (value === null || value.trim() === '') return undefined
@@ -82,13 +19,7 @@ export function parseOptionalProjectIdParam(value: string | null): number | unde
   throw new AgentHTTPError(400, 'projectId must be a positive safe integer')
 }
 
-function normalizeWorkspaceBodyProjectId(value: unknown): number | undefined {
-  if (value === undefined || value === null) return undefined
-  if (isValidAgentProjectId(value)) return value
-  throw new AgentHTTPError(400, 'workspace projectId must be a positive safe integer')
-}
-
-export function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['listMemories']>[0] | undefined {
+export function normalizeMemoryQuery(url: URL): MemoryQuery | undefined {
   const scope = url.searchParams.get('scope')
   if (scope === 'global' || scope === 'thread') return undefined
   const projectId = normalizeMemoryProjectId(url)
@@ -105,7 +36,7 @@ export function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['l
   }
 }
 
-export function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntimeRouter['createMemory']>[0] {
+export function normalizeMemoryBody(body: Record<string, unknown>): CreateMemoryInput {
   const projectId = isValidMemoryProjectId(body.projectId) ? body.projectId : undefined
   const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'workspace' || body.kind === 'decision' || body.kind === 'warning'
     ? body.kind

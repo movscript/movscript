@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { BackendApplyAuthContext, BackendApplyClient, BackendResourceFileDownloadResult } from '../../workspaces/adapters/backend/backendApplyClient.js'
 import type {
   CoreImageInspectionResult,
   CoreImageOutputFormat,
@@ -11,6 +10,7 @@ import type {
   CoreImageProcessingRequest,
   CoreImageProcessingResult,
 } from '../../ports/media/imageProcessingPort.js'
+import type { ResourceFileDownloadAuthContext, ResourceFileDownloadPort, ResourceFileDownloadResult } from '../../ports/files/resourceDownloadPort.js'
 import type { AgentRun, JSONValue } from '../../state/shared/types.js'
 import { isJSONRecord } from '../../shared/json/jsonValue.js'
 import { isValidAgentReferenceId } from '../../context/runtime/runtimeContext.js'
@@ -40,12 +40,8 @@ interface LoadedImageBytes {
   warnings: string[]
 }
 
-export interface ImagePreprocessingBackendClient {
-  downloadResourceFile: Pick<BackendApplyClient, 'downloadResourceFile'>['downloadResourceFile']
-}
-
 export interface ImagePreprocessingPortOptions {
-  backendApplyClient: ImagePreprocessingBackendClient
+  resourceFileDownloader: ResourceFileDownloadPort
   processorFactory?: ImageProcessorFactory
 }
 
@@ -67,7 +63,7 @@ export function createSharpImageProcessingPort(options: ImagePreprocessingPortOp
   const sourceCache = new Map<string, Promise<LoadedImageBytes>>()
   return {
     async inspect(input) {
-      const loaded = await loadImageBytes(input, options.backendApplyClient, sourceCache)
+      const loaded = await loadImageBytes(input, options.resourceFileDownloader, sourceCache)
       const sharp = await (options.processorFactory ?? loadSharp)()
       const metadata = await sharp(loaded.bytes, { animated: false }).metadata()
       return {
@@ -84,7 +80,7 @@ export function createSharpImageProcessingPort(options: ImagePreprocessingPortOp
       }
     },
     async process(input) {
-      const loaded = await loadImageBytes(input, options.backendApplyClient, sourceCache)
+      const loaded = await loadImageBytes(input, options.resourceFileDownloader, sourceCache)
       const preset = normalizePreset(input.preset)
       const resolved = resolveOutputOptions(input, preset)
       const cacheKey = JSON.stringify({
@@ -157,7 +153,7 @@ export function createSharpImageProcessingPort(options: ImagePreprocessingPortOp
 
 async function loadImageBytes(
   input: CoreImageProcessingRequest,
-  backendApplyClient: ImagePreprocessingBackendClient,
+  resourceFileDownloader: ResourceFileDownloadPort,
   sourceCache: Map<string, Promise<LoadedImageBytes>>,
 ): Promise<LoadedImageBytes> {
   if (input.dataUrl) {
@@ -178,7 +174,7 @@ async function loadImageBytes(
   const cached = sourceCache.get(cacheKey)
   if (cached) return cached
 
-  const loadPromise = loadBackendResourceImageBytes(resourceInput, backendApplyClient)
+  const loadPromise = loadBackendResourceImageBytes(resourceInput, resourceFileDownloader)
     .catch((error) => {
       sourceCache.delete(cacheKey)
       throw error
@@ -189,13 +185,13 @@ async function loadImageBytes(
 
 async function loadBackendResourceImageBytes(
   input: CoreImageProcessingRequest & { resourceId: number },
-  backendApplyClient: ImagePreprocessingBackendClient,
+  resourceFileDownloader: ResourceFileDownloadPort,
 ): Promise<LoadedImageBytes> {
   const dir = await mkdtemp(join(tmpdir(), 'movscript-agent-image-'))
   const targetPath = join(dir, `resource-${input.resourceId}`)
-  let download: BackendResourceFileDownloadResult | undefined
+  let download: ResourceFileDownloadResult | undefined
   try {
-    download = await backendApplyClient.downloadResourceFile(input.resourceId, targetPath, backendAuthFromRun(input.run), { signal: input.signal })
+    download = await resourceFileDownloader.downloadResourceFile(input.resourceId, targetPath, backendAuthFromRun(input.run), { signal: input.signal })
     if (!download.performed || !download.path) {
       throw new Error(download.skippedReason ?? 'backend resource download did not return a file')
     }
@@ -273,7 +269,7 @@ function sha256(bytes: Buffer): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
 }
 
-function backendAuthFromRun(run: AgentRun): BackendApplyAuthContext {
+function backendAuthFromRun(run: AgentRun): ResourceFileDownloadAuthContext {
   const user = userFromRunContext(run)
   return {
     ...(isValidAgentReferenceId(user?.id) ? { userId: user.id } : {}),

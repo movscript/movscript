@@ -3,8 +3,12 @@ import { IncomingMessage, ServerResponse, type Server } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import {
+  installAgentCatalogPack,
+  resolveAgentCatalogPackStoreDirs,
   touchAgentSessionHeartbeat,
+  uninstallAgentCatalogPack,
   writeAgentSessionRuntimeRecord,
+  type AgentCatalogPackFile,
 } from '@movscript/agent-runtime'
 import {
   createAgentServerContext,
@@ -52,12 +56,22 @@ import {
 import { handleModelConfigRoutes } from '../routes/modelConfigRoutes.js'
 import { resolveAgentRuntimeServerTransport } from '../transports/runtimeServerTransport.js'
 import {
+  compileAgentClientPlugin,
+  dispatchAgentClientPluginHostCall,
+  runAgentClientPlugin,
+  type AgentClientPluginManifest,
+} from '../../plugins/runtime/clientPluginRuntime.js'
+import {
+  listClientPluginsFromStore,
+  normalizeStoredClientPluginManifest,
+  removeClientPluginFromStore,
+  saveClientPluginToStore,
+} from '../../plugins/store/clientPluginFileStore.js'
+import {
   activeAgentConfigFileId,
   asDirectToolRun,
   asPlannerUserRun,
   normalizeDebugEvidenceRefQuery,
-  normalizeWorkspaceBody,
-  normalizeWorkspaceQuery,
   normalizeMemoryBody,
   normalizeMemoryProjectId,
   normalizeMemoryQuery,
@@ -299,6 +313,48 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         requestStartedAt,
       })) return
 
+      if (req.method === 'POST' && url.pathname === '/plugins/run') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin execution is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin execution rejects cross-site browser requests' })
+          return
+        }
+        const body = withRequestAuth(await readOptionalJSONObject(req, 'plugin run body'), req)
+        writeJSON(res, 200, await runAgentClientPlugin(normalizeClientPluginRunBody(body)))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/plugins/compile') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin compilation is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin compilation rejects cross-site browser requests' })
+          return
+        }
+        const body = withRequestAuth(await readOptionalJSONObject(req, 'plugin compile body'), req)
+        writeJSON(res, 200, { result: await compileAgentClientPlugin(normalizeClientPluginRunBody(body)) })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/plugins/host-call') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin host calls are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin host calls reject cross-site browser requests' })
+          return
+        }
+        const body = withRequestAuth(await readOptionalJSONObject(req, 'plugin host call body'), req)
+        writeJSON(res, 200, { result: await dispatchAgentClientPluginHostCall(normalizeClientPluginHostCallBody(body)) })
+        return
+      }
+
       if (req.method === 'GET' && url.pathname === '/inspect') {
         await context.client.initialize()
         const [resources, tools] = await Promise.all([
@@ -348,6 +404,73 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/skills') {
         writeJSON(res, 200, { skills: context.runtimeRouter.listSkillCatalog() })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/plugins') {
+        writeJSON(res, 200, listClientPluginsFromStore(context.paths.runtimeDataDir))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/plugins') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes reject cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'plugin save body')
+        writeJSON(res, 200, saveClientPluginToStore(context.paths.runtimeDataDir, normalizeStoredClientPluginManifest(body.plugin ?? body)))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/plugins/install') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes reject cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'plugin install body')
+        const plugin = normalizeStoredClientPluginManifest(body.plugin)
+        const files = normalizeAgentCatalogPackFiles(body.agentCatalogFiles)
+        const dirs = resolveAgentCatalogPackStoreDirs({ dataDir: context.paths.runtimeDataDir })
+        const agentCatalogPackInstall = files.length > 0
+          ? installAgentCatalogPack({ pluginId: plugin.id, files, dirs })
+          : undefined
+        const stored = saveClientPluginToStore(context.paths.runtimeDataDir, {
+          ...plugin,
+          ...(agentCatalogPackInstall ? { agentCatalogPackInstall } : {}),
+        })
+        writeJSON(res, 200, {
+          ...stored,
+          plugin: stored.plugins.find((item) => item.id === plugin.id),
+          ...(agentCatalogPackInstall ? { agentCatalogPackInstall } : {}),
+        })
+        return
+      }
+
+      const pluginMatch = url.pathname.match(/^\/plugins\/([^/]+)$/)
+      if (pluginMatch && req.method === 'DELETE') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'plugin file changes reject cross-site browser requests' })
+          return
+        }
+        const pluginId = decodeURIComponent(pluginMatch[1] ?? '')
+        const dirs = resolveAgentCatalogPackStoreDirs({ dataDir: context.paths.runtimeDataDir })
+        const agentCatalogPackUninstall = uninstallAgentCatalogPack({ pluginId, dirs })
+        writeJSON(res, 200, {
+          ...removeClientPluginFromStore(context.paths.runtimeDataDir, pluginId),
+          agentCatalogPackUninstall,
+        })
         return
       }
 
@@ -443,74 +566,11 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      if (req.method === 'POST' && url.pathname === '/workspace') {
-        const body = normalizeWorkspaceBody(await readJSON(req))
-        const result = context.runtimeRouter.createLocalWorkspace(body)
-        writeJSON(res, 200, result)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/workspaces') {
-        writeJSON(res, 200, { workspaces: context.runtimeRouter.listWorkspaces(normalizeWorkspaceQuery(url)) })
-        return
-      }
-
-      const workspaceMatch = url.pathname.match(/^\/workspaces\/([^/]+)$/)
-      if (workspaceMatch && req.method === 'GET') {
-        const workspace = context.runtimeRouter.getWorkspace(workspaceMatch[1])
-        if (!workspace) {
-          writeJSON(res, 404, { error: 'workspace not found' })
-          return
-        }
-        writeJSON(res, 200, workspace)
-        return
-      }
-      if (workspaceMatch && req.method === 'PATCH') {
-        const body = await readOptionalJSONObject(req, 'workspace update body')
-        writeJSON(res, 200, context.runtimeRouter.updateWorkspace({
-          workspaceId: workspaceMatch[1],
-          ...body,
-        }))
-        return
-      }
-
-      const workspaceApplyPreviewMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply-preview$/)
-      if (workspaceApplyPreviewMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'apply preview body')
-        writeJSON(res, 200, context.runtimeRouter.previewApplyWorkspace({
-          workspaceId: workspaceApplyPreviewMatch[1],
-          ...body,
-        }))
-        return
-      }
-
-      const workspaceApplySimulateMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply-simulate$/)
-      if (workspaceApplySimulateMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'apply simulate body')
-        writeJSON(res, 200, await context.runtimeRouter.simulateApplyWorkspace({
-          workspaceId: workspaceApplySimulateMatch[1],
-          ...withRequestAuth(body, req),
-        }))
-        return
-      }
-
-      const workspaceApplyMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/apply$/)
-      if (workspaceApplyMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'workspace apply body')
-        writeJSON(res, 200, await context.runtimeRouter.applyWorkspaceFromUI({
-          workspaceId: workspaceApplyMatch[1],
-          ...withRequestAuth(body, req),
-        }))
-        return
-      }
-
-      const workspaceRejectMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/reject$/)
-      if (workspaceRejectMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'workspace rejection body')
-        writeJSON(res, 200, context.runtimeRouter.rejectWorkspace({
-          workspaceId: workspaceRejectMatch[1],
-          reason: body.reason,
-        }))
+      if (url.pathname === '/workspace' || url.pathname === '/workspaces' || url.pathname.startsWith('/workspaces/')) {
+        writeJSON(res, 410, {
+          error: 'agent workspace API has moved to the frontend MCP/file manager boundary',
+          replacement: 'Use frontend MCP workspace_file_* tools or Electron agent workspace file APIs.',
+        })
         return
       }
 
@@ -1460,6 +1520,75 @@ function toolRunResponseMessage(thread: { messages: Array<{ id: string; role: st
     if (explicit) return explicit
   }
   return [...thread.messages].reverse().find((message) => message.role === 'user')
+}
+
+function normalizeClientPluginRunBody(body: Record<string, unknown>): {
+  plugin: AgentClientPluginManifest
+  args: Record<string, unknown>
+  toolName?: string
+  auth: { backendAuthToken?: string; backendAPIBaseURL?: string }
+} {
+  const plugin = normalizeClientPluginManifest(body.plugin)
+  const args = isRecord(body.args) ? body.args : {}
+  return {
+    plugin,
+    args,
+    ...(typeof body.toolName === 'string' && body.toolName.trim() ? { toolName: body.toolName.trim() } : {}),
+    auth: {
+      ...(typeof body.backendAuthToken === 'string' && body.backendAuthToken.trim() ? { backendAuthToken: body.backendAuthToken.trim() } : {}),
+      ...(typeof body.backendAPIBaseURL === 'string' && body.backendAPIBaseURL.trim() ? { backendAPIBaseURL: body.backendAPIBaseURL.trim().replace(/\/+$/, '') } : {}),
+    },
+  }
+}
+
+function normalizeClientPluginHostCallBody(body: Record<string, unknown>): {
+  method: string
+  args: unknown[]
+  auth: { backendAuthToken?: string; backendAPIBaseURL?: string }
+} {
+  const method = typeof body.method === 'string' ? body.method.trim() : ''
+  if (!method) throw new AgentHTTPError(400, 'plugin host method is required')
+  return {
+    method,
+    args: Array.isArray(body.args) ? body.args : [],
+    auth: {
+      ...(typeof body.backendAuthToken === 'string' && body.backendAuthToken.trim() ? { backendAuthToken: body.backendAuthToken.trim() } : {}),
+      ...(typeof body.backendAPIBaseURL === 'string' && body.backendAPIBaseURL.trim() ? { backendAPIBaseURL: body.backendAPIBaseURL.trim().replace(/\/+$/, '') } : {}),
+    },
+  }
+}
+
+function normalizeClientPluginManifest(value: unknown): AgentClientPluginManifest {
+  if (!isRecord(value)) throw new AgentHTTPError(400, 'plugin must be an object')
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  const name = typeof value.name === 'string' ? value.name.trim() : ''
+  const version = typeof value.version === 'string' ? value.version.trim() : ''
+  const bundle = typeof value.bundle === 'string' ? value.bundle : undefined
+  const bundleUrl = typeof value.bundleUrl === 'string' ? value.bundleUrl : undefined
+  if (!id) throw new AgentHTTPError(400, 'plugin.id is required')
+  if (!name) throw new AgentHTTPError(400, 'plugin.name is required')
+  if (!version) throw new AgentHTTPError(400, 'plugin.version is required')
+  return {
+    id,
+    name,
+    version,
+    ...(bundle !== undefined ? { bundle } : {}),
+    ...(bundleUrl !== undefined ? { bundleUrl } : {}),
+  }
+}
+
+function normalizeAgentCatalogPackFiles(value: unknown): AgentCatalogPackFile[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw new AgentHTTPError(400, 'agentCatalogFiles must be an array')
+  return value.map((item) => {
+    if (!isRecord(item)) throw new AgentHTTPError(400, 'agentCatalogFiles entries must be objects')
+    if (typeof item.path !== 'string' || !item.path.trim()) throw new AgentHTTPError(400, 'agentCatalogFiles.path is required')
+    if (typeof item.content !== 'string') throw new AgentHTTPError(400, 'agentCatalogFiles.content must be a string')
+    return {
+      path: item.path,
+      content: item.content,
+    }
+  })
 }
 
 if (isMainModule()) {

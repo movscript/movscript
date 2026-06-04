@@ -14,10 +14,6 @@ import type {
 
 type CanvasTranslator = (key: string, options?: any) => string
 
-type PluginConfigData = Pick<CanvasNodeData, 'pluginArgs'> & {
-  pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
-}
-
 type ResourceSelectionData = Pick<CanvasNodeData, 'inputResourceIds' | 'prompt'> & {
   availableResources?: RawResource[]
   referenceResources?: RawResource[]
@@ -134,20 +130,6 @@ function slotStateFromStatus(status: CanvasNodeData['status'], hasValue?: boolea
   if (status === 'failed') return 'failed'
   if (status === 'pending' || status === 'running') return 'pending'
   return hasValue ? 'ready' : 'empty'
-}
-
-export function pluginConfigItems(data: PluginConfigData): CanvasToolConfigItem[] {
-  const args = (data.pluginArgs ?? {}) as Record<string, unknown>
-  const schemaEntries = Object.entries(data.pluginInputProperties ?? {})
-  const argEntries = Object.entries(args).map(([name, value]) => [name, { title: name, default: value }] as const)
-  return (schemaEntries.length > 0 ? schemaEntries : argEntries)
-    .map(([name, prop]) => {
-      const value = args[name] ?? prop.default
-      return { id: name, label: prop.title || name, value }
-    })
-    .filter((item) => item.value !== undefined && item.value !== null && String(item.value).trim() !== '')
-    .slice(0, 3)
-    .map((item) => ({ id: item.id, label: item.label, value: String(item.value) }))
 }
 
 export function canvasToolActionCardLabels(t: CanvasTranslator): CanvasToolActionCardLabels {

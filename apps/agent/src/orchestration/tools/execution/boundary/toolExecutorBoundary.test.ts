@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import test from 'node:test'
 
 const toolExecutorSource = readFileSync(new URL('../executor/toolExecutor.ts', import.meta.url), 'utf8')
@@ -7,15 +7,20 @@ const toolExecutionPipelineSource = readFileSync(new URL('../pipeline/toolExecut
 const agentGraphSource = readFileSync(new URL('../../../graph/runner/agentGraph.ts', import.meta.url), 'utf8')
 const agentGraphPermissionTurnSource = readFileSync(new URL('../../../model/permissions/turn/agentGraphPermissionTurn.ts', import.meta.url), 'utf8')
 const toolExecutionGateSource = readFileSync(new URL('../../gate/toolExecutionGate.ts', import.meta.url), 'utf8')
+const runtimeToolHandlerPortSource = readFileSync(new URL('../../../../ports/runtime/runtimeToolHandlerPort.ts', import.meta.url), 'utf8')
+const agentGraphTypesSource = readFileSync(new URL('../../../graph/types/agentGraphTypes.ts', import.meta.url), 'utf8')
 const runtimeToolHandlersSource = readFileSync(new URL('../../../../application/shared/tools/runtimeToolHandlers.ts', import.meta.url), 'utf8')
-const runtimeWorkspaceOperationsSource = readFileSync(new URL('../../../../application/workspace/operations/runtimeWorkspaceOperations.ts', import.meta.url), 'utf8')
 const mcpExternalToolGatewaySource = readFileSync(new URL('../../../../adapters/mcp/gateway/mcpExternalToolGatewayAdapter.ts', import.meta.url), 'utf8')
+const mcpFocusContextAdapterSource = readFileSync(new URL('../../../../adapters/mcp/focus/mcpFocusContextAdapter.ts', import.meta.url), 'utf8')
 const fileHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/files/fileToolHandler.ts', import.meta.url), 'utf8')
 const memoryHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/memory/memoryToolHandler.ts', import.meta.url), 'utf8')
 const videoFrameHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/video/videoFrameToolHandler.ts', import.meta.url), 'utf8')
 const runtimeControlHandlerSource = readFileSync(new URL('../../../../tools/handlers/core/runtime-control/runtimeControlToolHandler.ts', import.meta.url), 'utf8')
-const workspaceApplyHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.ts', import.meta.url), 'utf8')
-const workspaceCreateHandlerSource = readFileSync(new URL('../../../../tools/handlers/workspaces/create/workspaceCreateToolHandler.ts', import.meta.url), 'utf8')
+const runtimeFocusContextSource = readFileSync(new URL('../../../../application/run/view/focus/runtimeFocusContext.ts', import.meta.url), 'utf8')
+const runtimeRunPreviewSource = readFileSync(new URL('../../../../application/run/preview/core/runtimeRunPreview.ts', import.meta.url), 'utf8')
+const imagePreprocessingSource = readFileSync(new URL('../../../../media/image/imagePreprocessing.ts', import.meta.url), 'utf8')
+const videoFrameExtractionSource = readFileSync(new URL('../../../../media/video/videoFrameExtraction.ts', import.meta.url), 'utf8')
+const backendVideoFrameExtractionAdapterSource = readFileSync(new URL('../../../../adapters/media/backendVideoFrameExtractionAdapter.ts', import.meta.url), 'utf8')
 
 test('legacy business tools are not registered by runtime handlers', () => {
   for (const toolName of ['movscript_project_standards_get', 'reference_search', 'reference_get']) {
@@ -28,6 +33,21 @@ test('legacy business tools are not registered by runtime handlers', () => {
       runtimeToolHandlersSource.includes(toolName),
       false,
       `${toolName} should be provided by MCP or installed plugins, not runtime handlers`,
+    )
+  }
+})
+
+test('reference tools are provided externally instead of by runtime context managers', () => {
+  for (const source of [
+    runtimeToolHandlerPortSource,
+    toolExecutorSource,
+    toolExecutionPipelineSource,
+    agentGraphTypesSource,
+  ]) {
+    assert.equal(
+      source.includes('referenceManager') || source.includes('ReferenceManager'),
+      false,
+      'reference business access should stay behind MCP/plugins, not runtime tool context',
     )
   }
 })
@@ -127,105 +147,76 @@ test('core video frame handler extracts frames through a port', () => {
   )
 })
 
-test('workspace apply tools are implemented behind the workspace tool handler boundary', () => {
-  for (const toolName of ['workspace_validate', 'workspace_apply']) {
+test('media runtime code depends on resource download ports instead of backend apply clients', () => {
+  for (const source of [
+    imagePreprocessingSource,
+    videoFrameExtractionSource,
+    backendVideoFrameExtractionAdapterSource,
+    runtimeToolHandlersSource,
+  ]) {
+    assert.equal(
+      source.includes('BackendApplyClient') || source.includes('backendApplyClient'),
+      false,
+      'media runtime code should depend on ResourceFileDownloadPort, not backend apply clients',
+    )
+    assert.equal(
+      source.includes('ResourceFileDownloadPort'),
+      true,
+      'media runtime code should expose resource download as a narrow port',
+    )
+  }
+})
+
+test('workspace lifecycle tools are not implemented by agent runtime handlers', () => {
+  for (const toolName of ['workspace_open', 'workspace_validate', 'workspace_apply']) {
     assert.equal(
       toolExecutorSource.includes(`if (toolName === '${toolName}')`),
       false,
       `toolExecutor should not directly branch on ${toolName}`,
     )
     assert.equal(
-      workspaceApplyHandlerSource.includes(`'${toolName}'`),
-      true,
-      `${toolName} should be registered by the workspace apply handler`,
+      runtimeToolHandlersSource.includes(toolName),
+      false,
+      `${toolName} should be provided by frontend MCP/plugins, not agent runtime handlers`,
     )
   }
-})
-
-test('workspace apply handler applies and previews through ports', () => {
   assert.equal(
-    workspaceApplyHandlerSource.includes('BackendApplyClient'),
+    existsSync(new URL('../../../../tools/handlers/workspaces/open/workspaceOpenToolHandler.ts', import.meta.url)),
     false,
-    'workspaceApplyToolHandler should not depend on the backend apply client type',
+    'workspace_open runtime handler should not exist in the agent',
   )
   assert.equal(
-    workspaceApplyHandlerSource.includes('BackendApplyHTTPError'),
+    existsSync(new URL('../../../../tools/handlers/workspaces/apply/workspaceApplyToolHandler.ts', import.meta.url)),
     false,
-    'workspaceApplyToolHandler should not handle backend transport errors directly',
-  )
-  assert.equal(
-    workspaceApplyHandlerSource.includes('backendApplyClient'),
-    false,
-    'workspaceApplyToolHandler should not access the backend apply client directly',
-  )
-  assert.equal(
-    workspaceApplyHandlerSource.includes('workspaceApplyPort.apply'),
-    true,
-    'workspaceApplyToolHandler should apply workspaces through WorkspaceApplyPort',
-  )
-  assert.equal(
-    workspaceApplyHandlerSource.includes('workspaceApplyPreviewPort.previewApplyReview'),
-    true,
-    'workspaceApplyToolHandler should preview backend apply through WorkspaceApplyPreviewPort',
+    'workspace apply runtime handler should not exist in the agent',
   )
 })
 
-test('runtime workspace operations apply through backend ports', () => {
+test('agent runtime no longer owns workspace operations or workspace services', () => {
   assert.equal(
-    runtimeWorkspaceOperationsSource.includes('BackendApplyHTTPError'),
+    existsSync(new URL('../../../../application/workspace/operations/runtimeWorkspaceOperations.ts', import.meta.url)),
     false,
-    'runtimeWorkspaceOperations should not handle backend transport errors directly',
+    'runtime workspace operations should not exist in the agent',
   )
   assert.equal(
-    runtimeWorkspaceOperationsSource.includes('BackendApplyClient'),
+    existsSync(new URL('../../../../application/workspace/bridge/runtimeWorkspaceOperationsBridge.ts', import.meta.url)),
     false,
-    'runtimeWorkspaceOperations should not depend on the backend apply client type',
+    'runtime workspace operations bridge should not exist in the agent',
   )
   assert.equal(
-    runtimeWorkspaceOperationsSource.includes('backendApplyClient'),
+    existsSync(new URL('../../../../workspaces/store/workspaceStore.ts', import.meta.url)),
     false,
-    'runtimeWorkspaceOperations should not access backend apply clients directly',
+    'agent workspace store should not exist',
   )
   assert.equal(
-    runtimeWorkspaceOperationsSource.includes('backendApplyPort.previewApplyReview'),
-    true,
-    'runtimeWorkspaceOperations should preview backend apply through RuntimeWorkspaceBackendApplyPort',
-  )
-  assert.equal(
-    runtimeWorkspaceOperationsSource.includes('backendApplyPort.applyReview'),
-    true,
-    'runtimeWorkspaceOperations should apply backend writes through RuntimeWorkspaceBackendApplyPort',
-  )
-})
-
-test('workspace open tool is implemented behind the workspace tool handler boundary', () => {
-  assert.equal(
-    toolExecutorSource.includes("if (toolName === 'workspace_open')"),
+    existsSync(new URL('../../../../workspaces/workspace/workspaceWorkspaceCreationService.ts', import.meta.url)),
     false,
-    'toolExecutor should not directly branch on workspace_open',
+    'agent workspace creation services should not exist',
   )
   assert.equal(
-    workspaceCreateHandlerSource.includes("'workspace_open'"),
-    true,
-    'workspace_open should be registered by the workspace open handler',
-  )
-})
-
-test('workspace open handler stays a thin runtime adapter', () => {
-  assert.equal(
-    workspaceCreateHandlerSource.split(/\r?\n/).length <= 80,
-    true,
-    'workspaceCreateToolHandler should delegate workspace creation to domain services',
-  )
-  assert.equal(
-    workspaceCreateHandlerSource.includes('WORKSPACE_CONTENT_SCHEMA_IDS'),
+    existsSync(new URL('../../../../workspaces/apply/workspaceApply.ts', import.meta.url)),
     false,
-    'workspaceCreateToolHandler should not own workspace schema validation',
-  )
-  assert.equal(
-    workspaceCreateHandlerSource.includes('hydrateProjectLayer'),
-    false,
-    'workspaceCreateToolHandler should not own workspace snapshot hydration',
+    'agent workspace apply helpers should not exist',
   )
 })
 
@@ -237,7 +228,7 @@ test('toolExecutor has no legacy local runtime tool name branches', () => {
   )
 })
 
-test('runtime tool execution uses an explicit handler registry before MCP fallback', () => {
+test('runtime tool execution uses explicit source routes', () => {
   assert.equal(
     runtimeToolHandlersSource.includes('createRuntimeToolHandlerRegistry'),
     true,
@@ -249,9 +240,14 @@ test('runtime tool execution uses an explicit handler registry before MCP fallba
     'tool execution pipeline should resolve runtime handlers through the handler registry',
   )
   assert.equal(
-    toolExecutionPipelineSource.indexOf('executeRuntimeHandler(call') < toolExecutionPipelineSource.indexOf('externalToolGatewayPort.executeTool'),
+    toolExecutionPipelineSource.includes("tool.source === 'mcp' || tool.source === 'plugin' ? 'external' : 'runtime'"),
     true,
-    'tool execution pipeline should attempt runtime handlers before external tool fallback',
+    'tool execution pipeline should route MCP and plugin tools to the external gateway explicitly',
+  )
+  assert.equal(
+    toolExecutionPipelineSource.includes('runtime tools do not fall back to external gateway'),
+    true,
+    'runtime tools should not implicitly fall back to MCP when no runtime executor exists',
   )
 })
 
@@ -275,6 +271,26 @@ test('toolExecutor calls external tools through a gateway port', () => {
     mcpExternalToolGatewaySource.includes('runtimeToolName'),
     true,
     'MCP tool name translation belongs in the MCP external tool gateway adapter',
+  )
+})
+
+test('frontend focus context is accessed through a port backed by the external tool gateway', () => {
+  for (const source of [runtimeFocusContextSource, runtimeRunPreviewSource]) {
+    assert.equal(
+      source.includes(".callTool('get_focus_context'") || source.includes('.callTool("get_focus_context"'),
+      false,
+      'application focus context code should not call the MCP transport directly',
+    )
+    assert.equal(
+      source.includes('focusContextPort.getFocusContext'),
+      true,
+      'application focus context code should depend on RuntimeFocusContextPort',
+    )
+  }
+  assert.equal(
+    mcpFocusContextAdapterSource.includes('externalToolGatewayPort.executeTool'),
+    true,
+    'focus context adapter should use ExternalToolGatewayPort to reach frontend/plugin tools',
   )
 })
 
@@ -812,19 +828,6 @@ test('tool handlers depend on runtime ports instead of orchestration internals',
       /from ['"][^'"]*orchestration\//.test(source),
       false,
       `${fileURL.pathname} should depend on runtime ports instead of importing orchestration directly`,
-    )
-  }
-})
-
-test('workspace workspace services do not import MCP transport directly', () => {
-  const workspaceFiles = listTypeScriptFiles(new URL('../../../../workspaces/workspace/', import.meta.url))
-  assert.ok(workspaceFiles.length > 0, 'workspace workspace files should be present')
-  for (const fileURL of workspaceFiles) {
-    const source = readFileSync(fileURL, 'utf8')
-    assert.equal(
-      /from ['"][^'"]*mcpClient/.test(source),
-      false,
-      `${fileURL.pathname} should use ports instead of importing the MCP client transport`,
     )
   }
 })

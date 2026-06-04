@@ -123,6 +123,37 @@ test('deferRuntimePostRunRecords records rollback traces even when memory write 
   assert.deepEqual(traces.map((trace) => trace.title), ['Rollback policy recorded'])
 })
 
+test('deferRuntimePostRunRecords records post-run traces without a synthetic final round', async () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun('completed')
+  store.createRun(run)
+  const traces: RuntimePostRunRecordsTraceInput[] = []
+  const tracked: Promise<void>[] = []
+
+  deferRuntimePostRunRecords({
+    store,
+    memoryManager: {
+      extractAndWriteMemories: () => [memory('memory_1')],
+    },
+    tasks: {
+      track: (task) => tracked.push(task),
+    },
+    runId: run.id,
+    records: {
+      userMessage: message(),
+      projectId: 7,
+      toolOutcomes: [rollbackOutcome('reversible')],
+      warnings: [],
+    },
+    defer: (callback) => callback(),
+    recordTrace: (_run, trace) => traces.push(trace),
+  })
+  await Promise.all(tracked)
+
+  assert.deepEqual(traces.map((trace) => trace.title), ['Memories written', 'Rollback policy recorded'])
+  assert.deepEqual(traces.map((trace) => trace.round), [undefined, undefined])
+})
+
 test('deferRuntimePostRunRecords skips non-terminal successful runs', async () => {
   const store = new InMemoryAgentStore()
   const run = makeRun('in_progress')

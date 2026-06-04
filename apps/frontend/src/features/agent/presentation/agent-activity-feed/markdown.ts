@@ -13,7 +13,7 @@ export function agentActivityFeedMarkdown(feed: AgentActivityFeed): string {
   for (const round of rounds) {
     lines.push(`- ${round.label}`)
     if (round.items.length === 0) {
-      lines.push(`  - ${round.status === 'final' ? '形成最终回复' : '思考中'}`)
+      lines.push(`  - ${round.status === 'thinking' ? '等待运行事件' : '没有记录可展示的明细'}`)
       continue
     }
     for (const item of round.items) {

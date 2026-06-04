@@ -22,8 +22,11 @@ test('normalizes a valid current agent manifest', () => {
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 
-test('active manifest does not grant generic workspace creation', () => {
+test('active manifest does not own workspace protocol tools', () => {
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'get_workspace_model'), false)
   assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'workspace_open'), false)
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'workspace_validate'), false)
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'workspace_apply'), false)
 })
 
 test('falls back to active manifest for unsupported input', () => {

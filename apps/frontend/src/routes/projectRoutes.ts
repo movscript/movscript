@@ -14,6 +14,7 @@ export const ROUTES = {
   jobs: '/jobs',
   plugins: '/agent/plugins',
   agentConsole: '/agent',
+  agentFiles: '/agent/files',
   agentWorkspaces: '/agent/workspaces',
   agentSettings: '/agent/settings',
   agentRuns: '/agent/runs',

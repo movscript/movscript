@@ -28,7 +28,7 @@ import { api } from '@/shared/infrastructure/api'
 import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, RawResource } from '@/types'
 import {
 	TextNode, ImageNode, VideoNode, ToolNode,
-	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode,
+	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode,
 } from '@/features/canvas/ui/CanvasNodes'
 import { ContextMenu } from '@/features/canvas/ui/ContextMenu'
 import { useCanvasWorkflowReferencePorts } from '@/features/canvas/integrations/workflowReferences'
@@ -38,8 +38,6 @@ import {
   uploadCanvasResourceFile,
   useCanvasResourceIntegration,
 } from '@/features/canvas/integrations/resources'
-import { useCanvasClientPlugins } from '@/features/canvas/integrations/clientPlugins'
-import type { ClientPluginManifest } from '@/features/plugins/application/clientPlugins'
 import { toast } from '@/shared/ui/toastStore'
 import { useCanvasHeaderStore } from '@/features/canvas/presentation/canvasHeaderStore'
 import {
@@ -76,7 +74,6 @@ import {
   createCanvasEdgeId,
   createCanvasNodeId,
   createPaletteCanvasNode,
-  createPluginCanvasNode,
   createResourceCanvasNode,
   createWorkflowReferenceCanvasNode,
   isPaletteNodeTypeAvailable,
@@ -167,7 +164,6 @@ import {
   Workflow,
   Zap,
   Lightbulb,
-  Puzzle,
   Ungroup,
 } from 'lucide-react'
 
@@ -188,7 +184,6 @@ const nodeTypes = {
   text_gen: TextGenNode,
   ai_gen: AIGenNode,
   group: GroupNode,
-  plugin_card: PluginCardNode,
 }
 
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
@@ -477,16 +472,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     removeFailedMessage: t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }),
   })
   const {
-    clientPlugins,
-    runLocalPluginNode,
-  } = useCanvasClientPlugins({
-    nodes,
-    edges,
-    setNodes,
-    resourceById: canvasNodeResourceById,
-    pluginNotFoundMessage: t('plugins.notFound'),
-  })
-  const {
     executeCanvasRuntime,
     submitRunNode,
   } = useCanvasRuntimeExecutor({
@@ -701,18 +686,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.errors.workflowReferenceFailed', { defaultValue: 'Failed to add workflow reference.' }))
     }
   }, [id, screenToFlowPosition, setNodes, t])
-
-  const addPluginNodeAt = useCallback((plugin: ClientPluginManifest, clientPosition?: { x: number; y: number }) => {
-    const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
-    const screenPosition = clientPosition ?? (
-      fallbackRect
-        ? { x: fallbackRect.left + fallbackRect.width / 2, y: fallbackRect.top + fallbackRect.height / 2 }
-        : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    )
-    const position = screenToFlowPosition(screenPosition)
-    const newNode = createPluginCanvasNode({ plugin, position })
-    setNodes((prev) => [...prev, newNode])
-  }, [screenToFlowPosition, setNodes])
 
   // Add node from context menu
   const addNode = useCallback((type: NodeType) => {
@@ -1012,16 +985,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       }
       return
     }
-    const pluginPayload = e.dataTransfer.getData('application/canvas-plugin')
-    if (pluginPayload) {
-      try {
-        const plugin = JSON.parse(pluginPayload) as ClientPluginManifest
-        addPluginNodeAt(plugin, { x: e.clientX, y: e.clientY })
-      } catch {
-        // Ignore malformed drag data from outside the app.
-      }
-      return
-    }
     const workflowCanvasPayload = e.dataTransfer.getData('application/canvas-workflow')
     if (workflowCanvasPayload) {
       const clientPosition = { x: e.clientX, y: e.clientY }
@@ -1036,10 +999,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const type = e.dataTransfer.getData('application/canvas-node-type') as NodeType
     if (!type || !CANVAS_NODE_META[type]) return
     addNodeAt(type, { x: e.clientX, y: e.clientY })
-  }, [addNodeAt, addPluginNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
+  }, [addNodeAt, addResourceNodeAt, addWorkflowReferenceNodeAt, uploadDroppedFilesToCanvas])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-plugin') || e.dataTransfer.types.includes('application/canvas-workflow')) {
+    if (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('application/canvas-node-type') || e.dataTransfer.types.includes('application/canvas-resource') || e.dataTransfer.types.includes('application/canvas-workflow')) {
       e.preventDefault()
       e.dataTransfer.dropEffect = 'copy'
       setDropActive(true)
@@ -1105,7 +1068,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   const nodesWithHandlers = useMemo(() => {
     const nodeById = new Map(nodes.map((node) => [node.id, node]))
-    const pluginById = new Map(clientPlugins.map((plugin) => [plugin.id, plugin]))
     const incomingEdgesByTarget = new Map<string, Edge[]>()
     for (const edge of edges) {
       const incoming = incomingEdgesByTarget.get(edge.target)
@@ -1126,9 +1088,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         seenReferenceResourceIds.add(resource.ID)
         referenceResources.push(resource)
       }
-      const plugin = n.type === 'plugin_card' && data.pluginId
-        ? pluginById.get(data.pluginId)
-        : undefined
       return {
         ...n,
         data: {
@@ -1140,8 +1099,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           canvasDebug,
           canvasOverviewMode,
           canvasMediaLightweightMode,
-          ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
-          onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
+          onRun: n.type !== 'group' && n.type !== 'plugin_card' ? () => runNode(n.id) : undefined,
           onUpdateContent: (content: string) => {
             const currentData = n.data as Partial<CanvasNodeData>
             if (n.type === 'text' && (currentData.resourceId || currentData.resource)) {
@@ -1169,7 +1127,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         }
       }
     })
-  }, [canvasDebug, canvasMediaLightweightMode, canvasNodeResourceById, canvasNodeResources, canvasOverviewMode, clientPlugins, edges, id, nodes, runLocalPluginNode, runNode, updateNodeData])
+  }, [canvasDebug, canvasMediaLightweightMode, canvasNodeResourceById, canvasNodeResources, canvasOverviewMode, edges, id, nodes, runNode, updateNodeData])
 
   const topLevelSelectedNodes = useMemo(
     () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n))),
@@ -1534,28 +1492,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                     </CanvasPaletteCollapsedGroup>
                   )
                 })}
-                {clientPlugins.length > 0 && (
-                  <CanvasPaletteCollapsedGroup separated>
-                    <CanvasPaletteCollapsedItems>
-                      {clientPlugins.map((plugin) => (
-                        <CanvasPaletteCollapsedItemButton
-                          key={plugin.id}
-                          type="button"
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('application/canvas-plugin', JSON.stringify(plugin))
-                            e.dataTransfer.effectAllowed = 'copy'
-                          }}
-                          onClick={() => addPluginNodeAt(plugin)}
-                          title={plugin.name}
-                          aria-label={plugin.name}
-                        >
-                          <Puzzle size={14} />
-                        </CanvasPaletteCollapsedItemButton>
-                      ))}
-                    </CanvasPaletteCollapsedItems>
-                  </CanvasPaletteCollapsedGroup>
-                )}
               </CanvasPaletteCollapsedBody>
             ) : (
               <CanvasPaletteExpandedBody>
@@ -1594,35 +1530,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
                       </CanvasPaletteSection>
                     )
                   })}
-                  <CanvasPaletteSection>
-                    <CanvasPaletteSectionHeader>
-                      <CanvasPaletteSectionTitle>{t('canvas.catalog.categories.plugins.title')}</CanvasPaletteSectionTitle>
-                      <CanvasPaletteSectionDescription>{t('canvas.catalog.categories.plugins.description')}</CanvasPaletteSectionDescription>
-                    </CanvasPaletteSectionHeader>
-                    <CanvasPaletteItemGrid>
-                      {clientPlugins.length === 0 && (
-                        <CanvasPaletteEmpty>
-                          {t('canvas.pluginCard.noPlugins')}
-                        </CanvasPaletteEmpty>
-                      )}
-                      {clientPlugins.map((plugin) => (
-                        <CanvasPaletteItemButton
-                          key={plugin.id}
-                          type="button"
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('application/canvas-plugin', JSON.stringify(plugin))
-                            e.dataTransfer.effectAllowed = 'copy'
-                          }}
-                          onClick={() => addPluginNodeAt(plugin)}
-                          icon={<Puzzle size={14} />}
-                          title={plugin.name}
-                          description={plugin.description || t('canvas.pluginCard.localRuntime')}
-                          dragHandle={<GripVertical size={14} />}
-                        />
-                      ))}
-                    </CanvasPaletteItemGrid>
-                  </CanvasPaletteSection>
                 </CanvasPaletteSections>
               </CanvasPaletteExpandedBody>
             )}

@@ -10,13 +10,14 @@ test('default agent catalog keeps business tools out of builtin packs', () => {
 
   assert.ok(registry.packs.has('core.pack.agent'))
   assert.ok(registry.packs.has('generation.pack.media'))
-  assert.ok(registry.packs.has('workspace.pack.lifecycle'))
+  assert.equal(registry.packs.has('workspace.pack.lifecycle'), false)
   assert.ok(registry.tools.has('generation_model_list'))
   assert.ok(registry.tools.has('generation_image_generate'))
   assert.ok(registry.tools.has('generation_video_generate'))
-  assert.ok(registry.tools.has('workspace_open'))
-  assert.ok(registry.tools.has('workspace_validate'))
-  assert.ok(registry.tools.has('workspace_apply'))
+  assert.equal(registry.tools.has('get_workspace_model'), false)
+  assert.equal(registry.tools.has('workspace_open'), false)
+  assert.equal(registry.tools.has('workspace_validate'), false)
+  assert.equal(registry.tools.has('workspace_apply'), false)
   assert.equal(registry.packs.has('movscript.pack.workspace'), false)
 
   for (const toolName of [
@@ -33,24 +34,25 @@ test('default agent catalog keeps business tools out of builtin packs', () => {
   assert.deepEqual(catalog.catalogIssues.filter((issue) => issue.level === 'error'), [])
 })
 
-test('base config enables generic packs and generic workspace protocol tools', () => {
+test('base config enables generic packs without owning workspace protocol tools', () => {
   const catalog = loadAgentPluginCatalog()
   const baseConfig = catalog.configFiles.find((configFile) => configFile.id === 'movscript.config_file.base')
   assert.ok(baseConfig)
   assert.deepEqual(baseConfig.enabledPackIds, [
     'core.pack.agent',
     'generation.pack.media',
-    'workspace.pack.lifecycle',
   ])
   assert.equal(baseConfig.skillIds.includes('core.generation.image'), true)
   assert.equal(baseConfig.skillIds.includes('core.generation.video'), true)
-  assert.equal(baseConfig.skillIds.includes('workspace.lifecycle_support'), true)
+  assert.equal(baseConfig.skillIds.includes('workspace.lifecycle_support'), false)
   assert.equal(baseConfig.skillIds.some((id) => id.startsWith('movscript.')), false)
   assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'generation_model_list'), true)
   assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'generation_image_generate'), true)
   assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'generation_video_generate'), true)
-  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'workspace_open'), true)
-  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'get_workspace_model'), true)
+  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'workspace_open'), false)
+  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'get_workspace_model'), false)
+  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'workspace_validate'), false)
+  assert.equal(baseConfig.toolGrants.some((grant) => grant.name === 'workspace_apply'), false)
   assert.equal(baseConfig.toolGrants.some((grant) => grant.name.startsWith('movscript_')), false)
   assert.deepEqual(baseConfig.metadata?.promptOptions, { finalSourceBlock: true })
 })

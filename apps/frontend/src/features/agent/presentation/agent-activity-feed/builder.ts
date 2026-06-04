@@ -1,5 +1,10 @@
 import { agentToolNameLabel } from '@/features/agent/domain/agentToolDisplay'
-import { buildRunActivitySnapshot, type RunActivityRoundSnapshot } from '@/features/agent/domain/agentRunActivitySnapshot'
+import {
+  buildRunActivitySnapshot,
+  modelEventDurationMs,
+  modelEventUsage,
+  type RunActivityRoundSnapshot,
+} from '@/features/agent/domain/agentRunActivitySnapshot'
 import {
   buildAgentRunActivityRoundIndex as buildConversationRunActivityRoundIndex,
   type AgentRunActivityRoundIndex as ConversationRunActivityRoundIndex,
@@ -52,11 +57,54 @@ export function buildAgentActivityFeed(input: {
 function filterHiddenActionItems(rounds: AgentActivityRound[], hiddenActionItemIds: Set<string> | undefined): AgentActivityRound[] {
   if (!hiddenActionItemIds || hiddenActionItemIds.size === 0) return rounds
   return rounds
-    .map((round) => ({
-      ...round,
-      items: round.items.filter((item) => !hiddenActionItemIds.has(item.id)),
-    }))
-    .filter((round) => round.items.length > 0 || round.status === 'failed')
+    .map((round) => activityRoundAfterHiddenActionItems(round, hiddenActionItemIds))
+    .filter(roundHasRenderableActivity)
+}
+
+function activityRoundAfterHiddenActionItems(round: AgentActivityRound, hiddenActionItemIds: Set<string>): AgentActivityRound {
+  const items = round.items.filter((item) => !hiddenActionItemIds.has(item.id))
+  if (items.length === round.items.length) return round
+  const status = visibleActivityRoundStatus(round, items)
+  return {
+    ...round,
+    status,
+    label: status === round.status ? round.label : visibleActivityRoundLabel(round, status),
+    items,
+  }
+}
+
+function visibleActivityRoundStatus(round: AgentActivityRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
+  if (round.status === 'failed') return 'failed'
+  if (items.some(isToolCallRoundActivityItem)) return 'tool_calls'
+  if (items.some(isFailedRuntimeLineItem)) return 'failed'
+  if (items.some(isTerminalRuntimeLineItem)) return 'final'
+  if (round.status === 'final' || round.durationMs !== undefined || round.usage) return 'final'
+  return 'thinking'
+}
+
+function visibleActivityRoundLabel(round: AgentActivityRound, status: AgentActivityRound['status']): string {
+  const telemetry = {
+    ...(round.durationMs !== undefined ? { durationMs: round.durationMs } : {}),
+    ...(round.usage ? { usage: round.usage } : {}),
+  }
+  if (round.source === 'final' || round.index === 999) {
+    const details = compactLines([
+      round.durationMs !== undefined ? formatDuration(round.durationMs) : undefined,
+      round.usage ? formatTokenUsage(round.usage) : undefined,
+    ]).join(' · ')
+    const suffix = details ? `（${details}）` : ''
+    if (status === 'failed') return `最终回复：记录失败${suffix}`
+    return `最终回复：形成回复${suffix}`
+  }
+  const runtimeSource = runtimeRoundSource(round)
+  if (runtimeSource) {
+    return runtimeRoundLabel(round.label, runtimeSource, status, telemetry)
+  }
+  if (round.index !== undefined) return roundLabel(round.index, status, telemetry)
+  if (status === 'tool_calls') return '运行片段：调用工具'
+  if (status === 'final') return '运行片段：形成回复'
+  if (status === 'failed') return '运行片段：请求失败'
+  return '运行片段：运行中'
 }
 
 interface ActivityItemIndex {
@@ -73,7 +121,10 @@ function buildActivityItemIndex(activity: ChatRunActivity): ActivityItemIndex {
     actionItems,
     actionItemsById: new Map(actionItems.map((item) => [item.id, item])),
     decisionsById: new Map(modelDecisionItems(activity).map((item) => [item.id, item])),
-    systemItems: systemActivityItems(activity),
+    systemItems: [
+      ...systemActivityItems(activity),
+      ...modelHttpActivityItems(activity),
+    ].sort(compareActivityItems),
     toolsById: new Map(toolActivityRecords(activity).map((record) => [record.id, toolActivityItem(record)])),
   }
 }
@@ -253,7 +304,14 @@ function buildRoundIndexActivityRounds(
         ...(telemetry?.usage ? { usage: telemetry.usage } : {}),
       }
     })
-    .filter((round) => round.items.length > 0 || round.status === 'failed')
+    .filter(roundHasRenderableActivity)
+}
+
+function roundHasRenderableActivity(round: AgentActivityRound): boolean {
+  return round.items.length > 0
+    || round.status === 'failed'
+    || round.durationMs !== undefined
+    || !!round.usage
 }
 
 function systemActivityRoundId(
@@ -324,7 +382,7 @@ function systemActivityItems(activity: ChatRunActivity): AgentActivityLineItem[]
     return [{
       id: `event-${event.id}`,
       type: 'line',
-      kind: 'system',
+      kind: event.status === 'failed' || text.startsWith('运行失败') ? 'error' : 'system',
       text,
       ...(data ? { detail: { result: data } } : {}),
       status: event.status,
@@ -334,6 +392,47 @@ function systemActivityItems(activity: ChatRunActivity): AgentActivityLineItem[]
       ...(event.roundLabel ? { roundLabel: event.roundLabel } : {}),
     }]
   })
+}
+
+function modelHttpActivityItems(activity: ChatRunActivity): AgentActivityLineItem[] {
+  return activity.events.flatMap((event) => {
+    if (event.kind !== 'model_call') return []
+    const text = modelHttpActivityText(event)
+    if (!text) return []
+    return [{
+      id: `model-http-${event.id}`,
+      type: 'line',
+      kind: event.status === 'failed' ? 'error' : 'system',
+      text,
+      status: event.status,
+      createdAt: event.createdAt,
+      ...(modelEventDurationMs(event) !== undefined ? { durationMs: modelEventDurationMs(event) } : {}),
+      ...(event.roundIndex !== undefined ? { roundIndex: event.roundIndex } : {}),
+      ...(event.roundLabel ? { roundLabel: event.roundLabel } : {}),
+    }]
+  })
+}
+
+function modelHttpActivityText(event: ChatRunActivityEvent): string | undefined {
+  if (event.title === 'Model HTTP request sent') return '模型 HTTP 请求已发送'
+  if (event.title === 'Model HTTP response received') {
+    return compactLines([
+      `模型 HTTP 响应：${event.summary ?? '已完成'}`,
+      formatModelEventUsage(event),
+    ]).join('；')
+  }
+  if (event.title === 'Model HTTP call failed') {
+    return `模型 HTTP 失败${event.summary ? `：${event.summary}` : ''}`
+  }
+  if (event.title === 'Model retry scheduled' || event.title === 'Model HTTP retry scheduled') {
+    return `模型 HTTP 重试${event.summary ? `：${event.summary}` : ''}`
+  }
+  return undefined
+}
+
+function formatModelEventUsage(event: ChatRunActivityEvent): string | undefined {
+  const usage = modelEventUsage(event)
+  return usage ? formatTokenUsage(usage) : undefined
 }
 
 function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined {
@@ -355,6 +454,24 @@ function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined 
     }
     return reason ? `运行已取消：${reason}` : '运行已取消。'
   }
+  if (event.title === 'Run started') {
+    return event.summary ? `运行开始：${event.summary}` : '运行开始：agent 进入执行循环。'
+  }
+  if (event.title === 'Run finished') {
+    return event.summary ? `运行完成：${event.summary}` : '运行完成。'
+  }
+  if (event.title === 'Run failed') {
+    return event.summary ? `运行失败：${event.summary}` : '运行失败。'
+  }
+  if (event.title === 'Runtime status recorded') {
+    return event.summary ? `运行状态已记录：${event.summary}` : '运行状态已记录。'
+  }
+  if (event.title === 'Command handled locally') {
+    return event.summary ? `本地命令已处理：${event.summary}` : '本地命令已处理。'
+  }
+  if (event.title === 'Run context built') {
+    return event.summary ? `运行上下文已构建：${event.summary}` : '运行上下文已构建。'
+  }
   return undefined
 }
 
@@ -373,8 +490,29 @@ function activityItemOrder(item: AgentActivityItem): number {
 
 function activityRoundStatus(round: ConversationRunActivityRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
   if (round.failed) return 'failed'
-  if (items.length > 0) return 'tool_calls'
+  if (items.some(isToolCallRoundActivityItem)) return 'tool_calls'
+  if (items.some(isFailedRuntimeLineItem)) return 'failed'
+  if (items.some(isTerminalRuntimeLineItem)) return 'final'
   return round.finished ? 'final' : 'thinking'
+}
+
+function isToolCallRoundActivityItem(item: AgentActivityItem): boolean {
+  if (item.type === 'decision' || item.type === 'input_request' || item.type === 'approval_request') return true
+  if (item.type === 'block') return true
+  if (item.type === 'line') return item.kind !== 'system' && item.kind !== 'error'
+  return false
+}
+
+function isTerminalRuntimeLineItem(item: AgentActivityItem): boolean {
+  return item.type === 'line'
+    && item.kind === 'system'
+    && (item.text.startsWith('运行完成') || item.text.startsWith('运行已取消') || item.text.startsWith('运行状态已记录'))
+}
+
+function isFailedRuntimeLineItem(item: AgentActivityItem): boolean {
+  return item.type === 'line'
+    && item.kind === 'error'
+    && item.text.startsWith('运行失败')
 }
 
 function activityRoundLabel(
@@ -392,6 +530,10 @@ function activityRoundLabel(
     const suffix = details ? `（${details}）` : ''
     if (status === 'failed') return `最终回复：记录失败${suffix}`
     return `最终回复：形成回复${suffix}`
+  }
+  const runtimeSource = runtimeRoundSource(round)
+  if (runtimeSource) {
+    return runtimeRoundLabel(round.label, runtimeSource, status, telemetry)
   }
   if (round.index !== undefined) return roundLabel(round.index, status, telemetry, contentPreview)
   const prefix = `运行片段 ${position + 1}`
@@ -413,6 +555,36 @@ function roundLabel(index: number, status: AgentActivityRound['status'], telemet
   if (status === 'final') return `${prefix}：形成回复${suffix}`
   if (status === 'failed') return `${prefix}：请求失败${suffix}`
   return `${prefix}：请求模型中${suffix}`
+}
+
+type RuntimeActivityRoundSource = Extract<NonNullable<ConversationRunActivityRound['source']>, 'setup' | 'runtime_rule'>
+
+function runtimeRoundSource(round: { label?: string; source?: ConversationRunActivityRound['source'] }): RuntimeActivityRoundSource | undefined {
+  if (round.source === 'setup') return 'setup'
+  if (round.source !== 'runtime_rule') return undefined
+  return round.label !== undefined && !/^Model turn\b/i.test(round.label) ? 'runtime_rule' : undefined
+}
+
+function runtimeRoundLabel(
+  label: string | undefined,
+  source: RuntimeActivityRoundSource,
+  status: AgentActivityRound['status'],
+  telemetry?: Pick<RunActivityRoundSnapshot, 'durationMs' | 'usage'>,
+): string {
+  const base = label === 'Setup'
+    ? '运行准备'
+    : label === 'Runtime command'
+      ? '本地 runtime 命令'
+      : label?.trim() || (source === 'setup' ? '运行准备' : 'runtime 规则')
+  const details = compactLines([
+    telemetry?.durationMs !== undefined ? formatDuration(telemetry.durationMs) : undefined,
+    telemetry?.usage ? formatTokenUsage(telemetry.usage) : undefined,
+  ]).join(' · ')
+  const suffix = details ? `（${details}）` : ''
+  if (status === 'tool_calls') return `${base}：调用工具${suffix}`
+  if (status === 'final') return `${base}：完成${suffix}`
+  if (status === 'failed') return `${base}：失败${suffix}`
+  return `${base}：运行中${suffix}`
 }
 
 function modelRoundContentPreview(activity: ChatRunActivity, roundIndex: number | undefined): string | undefined {

@@ -24,6 +24,7 @@ export function buildAgentRuntimeSpawnEnv(input: SpawnAgentRuntimeInput, options
     MOVSCRIPT_AGENT_STARTED_BY: _inheritedStartedBy,
     MOVSCRIPT_AGENT_TRANSPORT: _inheritedTransport,
     MOVSCRIPT_AGENT_WORKSPACE_DIR: _inheritedWorkspaceDir,
+    MOVSCRIPT_AGENT_RUNTIME_DIR_NAME: _inheritedRuntimeDirName,
     MOVSCRIPT_AGENT_SESSION_ID: _inheritedSessionId,
     MOVSCRIPT_AGENT_CATALOG_STORE_DIR: _inheritedCatalogStoreDir,
     MOVSCRIPT_AGENT_SKILLS_DIR: _inheritedSkillsDir,
@@ -40,6 +41,7 @@ export function buildAgentRuntimeSpawnEnv(input: SpawnAgentRuntimeInput, options
     ...(input.transport.socketPath ? { MOVSCRIPT_AGENT_SOCKET_PATH: input.transport.socketPath } : {}),
     ...(input.session ? {
       MOVSCRIPT_AGENT_WORKSPACE_DIR: input.session.workspaceDir,
+      ...(input.session.agentRuntimeDirName ? { MOVSCRIPT_AGENT_RUNTIME_DIR_NAME: input.session.agentRuntimeDirName } : {}),
       MOVSCRIPT_AGENT_SESSION_ID: input.session.sessionId,
       MOVSCRIPT_AGENT_STARTED_BY: 'desktop',
     } : {}),

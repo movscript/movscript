@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { installAgentCatalogPack, resolveAgentCatalogPackStoreDirs } from '@movscript/agent-runtime'
-import { loadAgentPluginCatalog } from './loader.js'
+import { loadAgentPluginCatalog, resolveDefaultCodexSkillRoots } from './loader.js'
 
 test('loads target-state tool catalog but only enabled packs grant runtime access', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
@@ -61,7 +61,7 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
       tools: ['studio.script_outline'],
       skills: ['studio.writer'],
     })
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       packsDir,
@@ -156,7 +156,7 @@ test('enabled pack registration activates file-loaded skills and tools without c
       toolGrants: [],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       packsDir,
@@ -183,29 +183,30 @@ test('enabled pack registration activates file-loaded skills and tools without c
 test('loads built-in generic platform catalog by default', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
   try {
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       packsDir: join(dir, 'packs'),
       configFilesDir: join(dir, 'configFiles'),
     })
 
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'workspace.rules.lifecycle'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'workspace.lifecycle_support'))
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'workspace.rules.lifecycle'), false)
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'workspace.lifecycle_support'), false)
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'core.base.default'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'core.pack.agent'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'workspace.pack.lifecycle'))
+    assert.equal(catalog.packs.some((pack) => pack.id === 'workspace.pack.lifecycle'), false)
     assert.equal(catalog.packs.some((pack) => pack.id === 'movscript.pack.workspace'), false)
     assert.ok(catalog.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'generation_model_list'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_apply'))
+    assert.equal(catalog.layeredTools.some((tool) => tool.name === 'get_workspace_model'), false)
+    assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'), false)
+    assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'), false)
+    assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_apply'), false)
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'core_video_extract_frames'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'generation_model_list'))
-    assert.ok(catalog.registry.get('workspace_open'))
-    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'workspace_open'), true)
+    assert.equal(catalog.registry.get('workspace_open'), undefined)
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'workspace_open'), false)
     assert.equal(catalog.registry.get('movscript_project_create'), undefined)
     assert.equal(catalog.registry.get('movscript_focus_get'), undefined)
     assert.deepEqual(catalog.warnings, [])
@@ -214,19 +215,20 @@ test('loads built-in generic platform catalog by default', () => {
   }
 })
 
-test('does not load MovScript business workspace catalogs by default', () => {
-  const catalog = loadAgentPluginCatalog()
+test('does not load MovScript business or workspace lifecycle catalogs by default', () => {
+  const catalog = loadTestAgentPluginCatalog()
 
   const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.workspace')
   const workspacePack = catalog.packs.find((pack) => pack.id === 'workspace.pack.lifecycle')
 
   assert.equal(movscriptPack, undefined)
-  assert.ok(workspacePack)
-  assert.equal(workspacePack?.schemas.includes('movscript.content_unit_workspace.v1'), false)
-  assert.equal(workspacePack?.schemas.includes('movscript.content_unit_media_workspace.v1'), false)
+  assert.equal(workspacePack, undefined)
   assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'movscript.content_unit_workspace'), false)
-  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'))
-  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'))
+  assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'workspace.lifecycle_support'), false)
+  assert.equal(catalog.layeredTools.some((tool) => tool.name === 'get_workspace_model'), false)
+  assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_open'), false)
+  assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_validate'), false)
+  assert.equal(catalog.layeredTools.some((tool) => tool.name === 'workspace_apply'), false)
   assert.equal(catalog.registry.get('movscript_upsert_workspace_node'), undefined)
   assert.equal(catalog.registry.get('movscript_update_workspace_node'), undefined)
   assert.deepEqual(catalog.warnings, [])
@@ -259,7 +261,7 @@ test('pack loading ignores unreferenced local catalog files', () => {
       projectScoped: true,
       defaults: { grant: 'allow', approval: 'never' },
     })
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       builtinSkillsDir: skillsDir,
@@ -346,7 +348,7 @@ test('loads skills and tools only from pack-declared resource paths', () => {
       toolGrants: [],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       packsDir,
@@ -399,7 +401,7 @@ test('loads native layered skill instructions from pack-declared markdown files'
       skills: ['studio.review'],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       builtinSkillsDir: skillsDir,
       packsDir,
@@ -455,7 +457,7 @@ conflicts: [studio.director.marvel]
       skills: ['studio.director.jiangwen'],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       builtinSkillsDir: join(dir, 'builtin-skills'),
       packsDir,
@@ -499,7 +501,7 @@ aliases: [武指, 动作指导]
 拆解动作节拍、空间关系、危险动作替代方案和镜头可拍性。
 `, 'utf8')
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       builtinSkillsDir: join(dir, 'builtin-skills'),
       packsDir: join(dir, 'packs'),
@@ -514,6 +516,84 @@ aliases: [武指, 动作指导]
     assert.equal(skill?.loadMode, 'on_demand')
     assert.equal(catalog.configFiles.some((configFile) => configFile.skillIds.includes(skill!.id)), false)
     assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads Codex-style SKILL.md files from shared Codex skill roots', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-shared-codex-skill-'))
+  const skillsDir = join(dir, 'agent-catalog-skills')
+  const codexSkillRoot = join(dir, 'codex-skills')
+
+  try {
+    const skillDir = join(codexSkillRoot, 'story-polish')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), `---
+name: Story Polish
+description: Use when the user asks to tighten scene rhythm, clarity, or dialogue.
+aliases: [rewrite pass]
+useWhen:
+  - polish scenes
+---
+
+# Story Polish
+
+Tighten scene rhythm while preserving character intent.
+`, 'utf8')
+
+    const catalog = loadTestAgentPluginCatalog({
+      skillsDir,
+      codexSkillRoots: [codexSkillRoot],
+      builtinSkillsDir: join(dir, 'builtin-skills'),
+      packsDir: join(dir, 'packs'),
+      builtinPacksDir: join(dir, 'builtin-packs'),
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'builtin-tools'),
+    })
+    const skill = catalog.layeredRegistry.skills.get('codex.skill.story-polish')
+
+    assert.deepEqual(catalog.codexSkillRoots, [codexSkillRoot])
+    assert.ok(skill)
+    assert.equal(skill?.source, 'local')
+    assert.equal(skill?.metadata?.codexSkill, true)
+    assert.deepEqual(skill?.triggers, [{ kind: 'keyword', any: ['Story Polish', 'rewrite pass', 'polish scenes'] }])
+    assert.equal(catalog.resourcePaths.skills['codex.skill.story-polish'], join(skillDir, 'SKILL.md'))
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('resolves default Codex skill roots from CODEX_HOME, home, and project .agents directories', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-default-codex-roots-'))
+  const homeDir = join(dir, 'home')
+  const codexHome = join(dir, 'codex-home')
+  const projectRoot = join(dir, 'project')
+  const nestedCwd = join(projectRoot, 'packages', 'agent')
+
+  try {
+    for (const root of [
+      join(codexHome, 'skills'),
+      join(homeDir, '.codex', 'skills'),
+      join(homeDir, '.agents', 'skills'),
+      join(projectRoot, '.agents', 'skills'),
+      join(nestedCwd, '.agents', 'skills'),
+    ]) {
+      mkdirSync(root, { recursive: true })
+    }
+
+    assert.deepEqual(resolveDefaultCodexSkillRoots({
+      env: { CODEX_HOME: codexHome },
+      homeDir,
+      cwd: nestedCwd,
+    }), [
+      join(codexHome, 'skills'),
+      join(homeDir, '.codex', 'skills'),
+      join(homeDir, '.agents', 'skills'),
+      join(projectRoot, '.agents', 'skills'),
+      join(nestedCwd, '.agents', 'skills'),
+    ])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -565,7 +645,7 @@ test('catalog loading does not expose tools outside pack-declared resource paths
       projectScoped: false,
       defaults: { grant: 'allow', approval: 'never' },
     })
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       builtinSkillsDir: skillsDir,
@@ -615,7 +695,7 @@ test('local packs default their tools to local source', () => {
       reference: ['reference://studio/local-guide'],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir,
       toolsDir,
       packsDir,
@@ -679,7 +759,7 @@ test('indexes plugin pack resources installed by shared agent catalog pack store
       ],
     })
 
-    const catalog = loadAgentPluginCatalog({
+    const catalog = loadTestAgentPluginCatalog({
       skillsDir: dirs.skillsDir,
       toolsDir: dirs.toolsDir,
       packsDir: dirs.packsDir,
@@ -706,4 +786,11 @@ function writePluginFile(dir: string, filename: string, value: unknown): void {
   const filePath = join(dir, filename)
   mkdirSync(dir, { recursive: true })
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+function loadTestAgentPluginCatalog(options: Parameters<typeof loadAgentPluginCatalog>[0] = {}) {
+  return loadAgentPluginCatalog({
+    codexSkillRoots: [],
+    ...options,
+  })
 }

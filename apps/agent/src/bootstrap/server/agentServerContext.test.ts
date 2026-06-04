@@ -17,34 +17,36 @@ const agentRootDir = fileURLToPath(new URL('../../..', import.meta.url))
 const builtinCatalogDir = join(agentRootDir, 'catalog')
 
 test('catalog startup report summarizes pack-enabled skills and tools', () => {
-  const catalog = loadAgentPluginCatalog({
-    builtinSkillsDir: join(builtinCatalogDir, 'skills'),
-    builtinToolsDir: join(builtinCatalogDir, 'tools'),
-    builtinPacksDir: join(builtinCatalogDir, 'packs'),
-    builtinConfigFilesDir: join(builtinCatalogDir, 'config-files'),
-  })
-  const report = buildAgentCatalogStartupReport(catalog)
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-startup-report-'))
+  try {
+    const catalog = loadAgentPluginCatalog({
+      skillsDir: join(dir, 'skills'),
+      toolsDir: join(dir, 'tools'),
+      packsDir: join(dir, 'packs'),
+      configFilesDir: join(dir, 'config-files'),
+      builtinSkillsDir: join(builtinCatalogDir, 'skills'),
+      builtinToolsDir: join(builtinCatalogDir, 'tools'),
+      builtinPacksDir: join(builtinCatalogDir, 'packs'),
+      builtinConfigFilesDir: join(builtinCatalogDir, 'config-files'),
+    })
+    const report = buildAgentCatalogStartupReport(catalog)
 
-  assert.equal(report.configFileCount, 1)
-  assert.ok(report.packCount >= 2)
-  assert.ok(report.skillCount > 0)
-  assert.ok(report.toolCount > 0)
-  assert.ok(report.toolGrantCount > 0)
-  assert.ok(report.enabledPackIds.includes('core.pack.agent'))
-  assert.ok(report.enabledPackIds.includes('workspace.pack.lifecycle'))
-  assert.ok(report.enabledPackIds.includes('movscript.pack.workspace'))
-  assert.ok(report.enabledSkillCount > 0)
-  assert.ok(report.enabledToolCount > 0)
-  assert.equal(report.errorCount, 0)
-  assert.equal(report.issueCount, report.errorCount + report.warningCount)
-  assert.ok(report.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base' && configFile.toolGrants > 0))
-  const workspacePack = report.packs.find((pack) => pack.id === 'workspace.pack.lifecycle')
-  assert.equal(workspacePack?.status, 'enabled')
-  assert.ok(workspacePack?.filePath?.endsWith('catalog/packs/workspace.pack.json'))
-  assert.deepEqual(workspacePack?.missingSkills, [])
-  assert.deepEqual(workspacePack?.missingTools, [])
-  assert.ok(workspacePack?.skillRoots.includes('workspace/lifecycle_support'))
-  assert.ok(workspacePack?.toolRoots.includes('workspace'))
+    assert.equal(report.configFileCount, 1)
+    assert.ok(report.packCount >= 2)
+    assert.ok(report.skillCount > 0)
+    assert.ok(report.toolCount > 0)
+    assert.ok(report.toolGrantCount > 0)
+    assert.ok(report.enabledPackIds.includes('core.pack.agent'))
+    assert.ok(report.enabledPackIds.includes('generation.pack.media'))
+    assert.ok(report.enabledSkillCount > 0)
+    assert.ok(report.enabledToolCount > 0)
+    assert.equal(report.errorCount, 0)
+    assert.equal(report.issueCount, report.errorCount + report.warningCount)
+    assert.ok(report.configFiles.some((configFile) => configFile.id === 'movscript.config_file.base' && configFile.toolGrants > 0))
+    assert.equal(report.packs.some((pack) => pack.id === 'workspace.pack.lifecycle'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('session runtime applies workspace config defaults for environment, tool providers, and catalog directories', () => {
@@ -54,6 +56,7 @@ test('session runtime applies workspace config defaults for environment, tool pr
     MOVSCRIPT_AGENT_SESSION_ID: process.env.MOVSCRIPT_AGENT_SESSION_ID,
     MOVSCRIPT_AGENT_TEST_WORKSPACE_ENV: process.env.MOVSCRIPT_AGENT_TEST_WORKSPACE_ENV,
     MOVSCRIPT_AGENT_TEST_EXISTING_ENV: process.env.MOVSCRIPT_AGENT_TEST_EXISTING_ENV,
+    MOVSCRIPT_BACKEND_API_BASE_URL: process.env.MOVSCRIPT_BACKEND_API_BASE_URL,
   }
   try {
     const workspacePaths = resolveAgentWorkspaceRuntimePaths(workspaceDir)
@@ -95,6 +98,7 @@ test('session runtime applies workspace config defaults for environment, tool pr
     process.env.MOVSCRIPT_AGENT_WORKSPACE_DIR = workspaceDir
     process.env.MOVSCRIPT_AGENT_SESSION_ID = 'session_workspace_config'
     process.env.MOVSCRIPT_AGENT_TEST_EXISTING_ENV = 'from-explicit-env'
+    process.env.MOVSCRIPT_BACKEND_API_BASE_URL = 'http://backend.test'
     delete process.env.MOVSCRIPT_AGENT_TEST_WORKSPACE_ENV
 
     const context = createAgentServerContext()
@@ -119,6 +123,7 @@ test('session runtime applies workspace config defaults for environment, tool pr
     const capabilities = getAgentServerCapabilities(context)
     assert.equal(capabilities.paths.runtimeLogPath, context.paths.runtimeLogPath)
     assert.equal(capabilities.sessionRuntime?.runtimeLogPath, context.paths.runtimeLogPath)
+    assert.equal(capabilities.resourceFileDownloadEnabled, true)
 
     if (context.sessionRuntime) releaseAgentSessionLockFile(context.sessionRuntime.paths)
   } finally {
@@ -126,6 +131,7 @@ test('session runtime applies workspace config defaults for environment, tool pr
     restoreOptionalEnv('MOVSCRIPT_AGENT_SESSION_ID', previousEnv.MOVSCRIPT_AGENT_SESSION_ID)
     restoreOptionalEnv('MOVSCRIPT_AGENT_TEST_WORKSPACE_ENV', previousEnv.MOVSCRIPT_AGENT_TEST_WORKSPACE_ENV)
     restoreOptionalEnv('MOVSCRIPT_AGENT_TEST_EXISTING_ENV', previousEnv.MOVSCRIPT_AGENT_TEST_EXISTING_ENV)
+    restoreOptionalEnv('MOVSCRIPT_BACKEND_API_BASE_URL', previousEnv.MOVSCRIPT_BACKEND_API_BASE_URL)
     rmSync(workspaceDir, { recursive: true, force: true })
   }
 })

@@ -160,13 +160,14 @@ test('preflightToolExecutionPipeline owns skill activation repair checks', () =>
       requiresApprovalByDefault: false,
     },
     {
-      name: 'movscript_script_locate',
-      description: 'Read scripts.',
-      permission: 'project.script.read',
+      name: 'core_file_search',
+      description: 'Search files.',
+      permission: 'agent.file.read',
       risk: 'read',
       source: 'runtime',
       projectScoped: false,
       requiresApprovalByDefault: false,
+      requiresSkills: ['core.file_access'],
     },
   ])
   const repairManifest: AgentManifest = {
@@ -174,7 +175,7 @@ test('preflightToolExecutionPipeline owns skill activation repair checks', () =>
     tools: [{ name: 'core_skill_update', mode: 'allow', approval: 'never' }],
   }
   const preflight = preflightToolExecutionPipeline({
-    requestedCalls: [{ name: 'movscript_script_locate', args: { projectId: 1 } }],
+    requestedCalls: [{ name: 'core_file_search', args: { ref: 'agent://workspace/notes.md', query: 'scene' } }],
     runId: 'run_1',
     makeId: (prefix) => `${prefix}_1`,
     options: {
@@ -221,9 +222,9 @@ test('preflightToolExecutionPipeline owns skill activation repair checks', () =>
   })
 
   assert.equal(preflight.kind, 'repair')
-  assert.equal(preflight.kind === 'repair' ? preflight.permissions.blockedToolCalls[0]?.call.name : undefined, 'movscript_script_locate')
+  assert.equal(preflight.kind === 'repair' ? preflight.permissions.blockedToolCalls[0]?.call.name : undefined, 'core_file_search')
   assert.equal(preflight.kind === 'repair' ? preflight.repairCalls[0]?.name : undefined, 'core_skill_update')
-  assert.deepEqual(preflight.kind === 'repair' ? preflight.repairCalls[0]?.args?.load : undefined, ['movscript.script_reading'])
+  assert.deepEqual(preflight.kind === 'repair' ? preflight.repairCalls[0]?.args?.load : undefined, ['core.file_access'])
 })
 
 test('evaluateToolExecutionGate returns normalized allowed calls from the runtime permissions', () => {

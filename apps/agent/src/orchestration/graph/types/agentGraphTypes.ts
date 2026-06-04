@@ -3,9 +3,7 @@ import type { AgentCommandRuntime } from '../../../context/command/commandRouter
 import type { NormalizedClientInput } from '../../../context/input/client/normalizeClientInput.js'
 import type { RuntimeHistoricalVisionContext } from '../../../context/prompt/turn/runtimeHistoricalVisionTypes.js'
 import type { SkillDiscoverySummary } from '../../../context/prompt/registry/promptCandidateParts.js'
-import type { AgentWorkspaceStore } from '../../../workspaces/store/workspaceStore.js'
 import type { GenerationEvent } from '../../../generation/events/generationEvents.js'
-import type { ReferenceManager } from '../../../reference/manager/referenceManager.js'
 import type { AgentMemory } from '../../../memory/shared/types.js'
 import type { MemoryManager } from '../../../memory/manager/memoryManager.js'
 import type {
@@ -18,9 +16,6 @@ import type { AgentToolResultStore } from '../../../state/store/tool-results/too
 import type { CoreResourceFilePort } from '../../../ports/files/resourceFilePort.js'
 import type { CoreImageProcessingPort } from '../../../ports/media/imageProcessingPort.js'
 import type { CoreVideoFrameExtractionPort } from '../../../ports/media/videoFrameExtractionPort.js'
-import type { WorkspaceApplyPort } from '../../../ports/workspace/apply/workspaceApplyPort.js'
-import type { WorkspaceApplyPreviewPort } from '../../../ports/workspace/preview/workspaceApplyPreviewPort.js'
-import type { WorkspaceWorkspaceSnapshotHydrationPort } from '../../../ports/workspace/hydration/workspaceSnapshotHydrationPort.js'
 import type {
   AgentCatalogToolManager,
   RuntimeToolHandlerRegistry,
@@ -75,11 +70,7 @@ export interface AgentGraphInput {
   modelRouter?: RuntimeModelRouter
   auth: RuntimeModelAuthContext
   runtimeLimits: AgentRuntimeLimits
-  workspaceStore: AgentWorkspaceStore
   externalToolGatewayPort: ExternalToolGatewayPort
-  workspaceApplyPort: WorkspaceApplyPort
-  workspaceApplyPreviewPort: WorkspaceApplyPreviewPort
-  workspaceSnapshotHydrationPort: WorkspaceWorkspaceSnapshotHydrationPort
   resourceFilePort: CoreResourceFilePort
   imageProcessingPort?: CoreImageProcessingPort
   videoFrameExtractionPort: CoreVideoFrameExtractionPort
@@ -87,7 +78,6 @@ export interface AgentGraphInput {
   runtimeToolHandlers: RuntimeToolHandlerRegistry
   contractResolver?: AgentRuntimeContractResolver
   memoryManager?: MemoryManager
-  referenceManager?: ReferenceManager
   catalogManager?: AgentCatalogToolManager
   toolResultStore?: AgentToolResultStore
   forcedToolCalls?: ToolCall[]

@@ -6,7 +6,6 @@ import {
   canvasRuntimeOrderForNode,
   collectCanvasNodeInputs,
   inputResourceIdsFromValues,
-  outputResourceIdsFromUnknown,
   reusableCanvasNodeOutputValues,
   resourceIdsFromCanvasPrompt,
   runtimeResourceIdsForNode,
@@ -87,90 +86,7 @@ test('runtime resource ids keep inline prompt mentions before other canvas input
   }), [55, 42, 99, 77])
 })
 
-test('canvas node output reads generated plugin result resources', () => {
-  const node = {
-    id: 'plugin',
-    type: 'plugin_card',
-    position: { x: 0, y: 0 },
-    data: {
-      outputPorts: [{ id: 'result', type: 'image' }],
-      pluginResultData: {
-        output_resource_id: 88,
-        output_resource: { ID: 88, owner_id: 1, type: 'image', name: 'generated.png', url: '/resources/88/file', size: 1, mime_type: 'image/png' },
-      },
-    },
-  }
-
-  assert.deepEqual(outputResourceIdsFromUnknown(node.data.pluginResultData), [88])
-  assert.deepEqual(canvasNodeOutputValue(node, 'out:result'), {
-    type: 'image',
-    resource_id: 88,
-    resource: { ID: 88, owner_id: 1, type: 'image', name: 'generated.png', url: '/resources/88/file', size: 1, mime_type: 'image/png' },
-  })
-})
-
-test('canvas node output preserves audio resource port type', () => {
-  const node = {
-    id: 'plugin',
-    type: 'plugin_card',
-    position: { x: 0, y: 0 },
-    data: {
-      outputPorts: [{ id: 'voice', type: 'audio' }],
-      pluginResultData: {
-        output_resource_id: 91,
-        output_resource: { ID: 91, owner_id: 1, type: 'audio', name: 'voice.mp3', url: '/resources/91/file', size: 1, mime_type: 'audio/mpeg' },
-      },
-    },
-  }
-
-  assert.deepEqual(canvasNodeOutputValue(node, 'out:voice'), {
-    type: 'audio',
-    resource_id: 91,
-    resource: { ID: 91, owner_id: 1, type: 'audio', name: 'voice.mp3', url: '/resources/91/file', size: 1, mime_type: 'audio/mpeg' },
-  })
-})
-
-test('canvas node output maps plugin multi-port resource outputs', () => {
-  const node = {
-    id: 'voiceover',
-    type: 'plugin_card',
-    position: { x: 0, y: 0 },
-    data: {
-      outputPorts: [
-        { id: 'audio', type: 'audio' },
-        { id: 'subtitles', type: 'text' },
-        { id: 'timing', type: 'json' },
-      ],
-      pluginResultData: {
-        output_resource_ids: [91, 92, 93],
-        outputs: {
-          audio: {
-            type: 'audio',
-            resource_id: 91,
-            resource: { ID: 91, owner_id: 1, type: 'audio', name: 'voice.wav', url: '/resources/91/file', size: 1, mime_type: 'audio/wav' },
-          },
-          subtitles: {
-            type: 'text',
-            resource_id: 92,
-            resource: { ID: 92, owner_id: 1, type: 'text', name: 'voice.srt', url: '/resources/92/file', size: 1, mime_type: 'text/plain' },
-          },
-          timing: {
-            type: 'json',
-            resource_id: 93,
-            json: { duration: 1.2 },
-            resource: { ID: 93, owner_id: 1, type: 'text', name: 'voice.timing.json', url: '/resources/93/file', size: 1, mime_type: 'application/json' },
-          },
-        },
-      },
-    },
-  }
-
-  assert.equal(canvasNodeOutputValue(node, 'out:audio')?.resource_id, 91)
-  assert.equal(canvasNodeOutputValue(node, 'out:subtitles')?.resource_id, 92)
-  assert.deepEqual(canvasNodeOutputValue(node, 'out:timing')?.json, { duration: 1.2 })
-})
-
-test('runtime resource ids include connected plugin generated resources', () => {
+test('runtime resource ids ignore disabled plugin generated resources', () => {
   const nodes = [
     {
       id: 'plugin',
@@ -194,7 +110,7 @@ test('runtime resource ids include connected plugin generated resources', () => 
 
   const inputs = collectCanvasNodeInputs({ nodeId: 'gen', nodes, edges })
 
-  assert.deepEqual(runtimeResourceIdsForNode(nodes[1], inputs.values), [88])
+  assert.deepEqual(runtimeResourceIdsForNode(nodes[1], inputs.values), [])
 })
 
 test('reusable runtime outputs expose an existing generated image without rerunning the node', () => {
@@ -217,7 +133,7 @@ test('reusable runtime outputs expose an existing generated image without rerunn
   })
 })
 
-test('reusable runtime outputs preserve generated plugin resource ports', () => {
+test('reusable runtime outputs ignore disabled plugin resource ports', () => {
   const node = {
     id: 'plugin',
     type: 'plugin_card',
@@ -228,10 +144,5 @@ test('reusable runtime outputs preserve generated plugin resource ports', () => 
     },
   }
 
-  assert.deepEqual(reusableCanvasNodeOutputValues(node), {
-    result: { type: 'image', resource_id: 88, resource: undefined },
-    image: { type: 'image', resource_id: 88, resource: undefined },
-    value: { type: 'image', resource_id: 88, resource: undefined },
-    plugin: { type: 'image', resource_id: 88, resource: undefined },
-  })
+  assert.equal(reusableCanvasNodeOutputValues(node), undefined)
 })

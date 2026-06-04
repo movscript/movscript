@@ -61,9 +61,13 @@ export function AgentBrowserTabIcon({
   return <span className={cn("agent-browser-tab-icon", loading && "agent-browser-tab-icon--loading", className)} {...props} />;
 }
 
-export function AgentBrowserIconButton({ className, ...props }: ComponentProps<typeof Button>) {
-  return <Button type="button" size="icon-xs" variant="ghost" className={cn("agent-browser-icon-button", className)} {...props} />;
-}
+export const AgentBrowserIconButton = forwardRef<HTMLButtonElement, ComponentProps<typeof Button>>(
+  ({ className, ...props }, ref) => (
+    <Button ref={ref} type="button" size="icon-xs" variant="ghost" className={cn("agent-browser-icon-button", className)} {...props} />
+  ),
+);
+
+AgentBrowserIconButton.displayName = "AgentBrowserIconButton";
 
 export function AgentBrowserMenuItemIcon({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
   return <span className={cn("agent-browser-menu-item-icon", className)} {...props} />;

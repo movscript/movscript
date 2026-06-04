@@ -1,12 +1,8 @@
-import { useState } from 'react'
-import { Bot, ChevronRight, Route } from 'lucide-react'
+import { Bot, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   AgentChatMessage,
-  AgentRunActivityBubble,
-  AgentRunActivityBubbleButton,
-  AgentRunActivityBubbleFrame,
   AgentRunActivityChatBadge,
   AgentRunActivityCodeDisclosure,
   AgentRunActivityDetailButton,
@@ -19,12 +15,9 @@ import {
   AgentRunActivityItemRow,
   AgentRunActivityItemSummary,
   AgentRunActivityItemTitle,
-  AgentRunActivityMeta,
   AgentRunActivityNotice,
   AgentRunActivityStatusBadge,
   AgentRunActivityStatusDot,
-  AgentRunActivitySummaryText,
-  AgentRunActivityTitle,
 } from '@movscript/ui'
 import { agentRunActivityTimelineSummary, buildAgentRunActivityTimeline } from '@/features/agent/presentation/agentRunActivityTimeline'
 import { formatAgentDividerTime } from '@/features/agent/presentation/agentMessageDivider'
@@ -173,76 +166,6 @@ export function RunActivityPanel({
         </AgentRunActivityNotice>
       )}
     </AgentRunActivityDisclosure>
-  )
-}
-
-export function RunActivityTitleBubble({
-  activity,
-  run,
-  events,
-  title = '运行过程',
-  className,
-}: {
-  activity?: ChatRunActivity
-  run?: AgentRun | null
-  events?: ChatRunActivityEvent[]
-  title?: string
-  className?: string
-}) {
-  const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
-  const activityTimeline = buildAgentRunActivityTimeline({ activity, run, events })
-  if (!activityTimeline) return null
-  const runId = run?.id ?? activity?.runId ?? activityTimeline.runId
-  const activityTimelineStatusRecipe = agentRunStatusRecipe(activityTimeline.status)
-
-  const openCard = () => setOpen(true)
-  if (open) {
-    return (
-      <RunActivityPanel
-        activity={activity}
-        run={run}
-        events={events}
-        title={title}
-        defaultOpen
-        className={className}
-      />
-    )
-  }
-
-  return (
-    <AgentRunActivityBubble className={className}>
-      <AgentRunActivityBubbleFrame>
-        <AgentRunActivityBubbleButton
-          type="button"
-          onClick={openCard}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') openCard()
-          }}
-          title="展开运行过程"
-          aria-expanded={open}
-        >
-          <AgentRunActivityTitle icon={<ChevronRight size={12} />}>{title}</AgentRunActivityTitle>
-          <AgentRunActivityMeta>
-            <AgentRunActivityStatusBadge intent={activityTimelineStatusRecipe.intent} emphasis={activityTimelineStatusRecipe.emphasis}>
-              {genericRunStatusLabel(activityTimeline.status)}
-            </AgentRunActivityStatusBadge>
-            <AgentRunActivitySummaryText>{agentRunActivityTimelineSummary(activityTimeline)}</AgentRunActivitySummaryText>
-          </AgentRunActivityMeta>
-        </AgentRunActivityBubbleButton>
-        {runId && (
-          <AgentRunActivityDetailButton
-            type="button"
-            title="打开完整运行详情"
-            aria-label="打开完整运行详情"
-            onClick={() => navigate(agentRunPath(runId, { sessionId: run?.sessionId }))}
-          >
-            <Route size={10} />
-            详情
-          </AgentRunActivityDetailButton>
-        )}
-      </AgentRunActivityBubbleFrame>
-    </AgentRunActivityBubble>
   )
 }
 

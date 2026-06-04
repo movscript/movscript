@@ -2,7 +2,9 @@ import type { BackendStatus } from '../services/backend'
 import { registerAgentBrowserIpcHandlers } from './agentBrowserIpc'
 import { registerAgentCatalogPackStoreIpcHandlers } from './agentCatalogPackStoreIpc'
 import { registerAgentRuntimeIpcHandlers } from './agentRuntimeIpc'
+import { registerAgentWorkspaceFilesIpcHandlers } from './agentWorkspaceFilesIpc'
 import { registerBackendIpcHandlers } from './backendIpc'
+import { registerCodexAppServerIpcHandlers } from './codexAppServerIpc'
 import { registerDialogIpcHandlers } from './dialogIpc'
 import { registerMCPIpcHandlers } from './mcpIpc'
 import { registerSettingsIpcHandlers } from './settingsIpc'
@@ -23,5 +25,7 @@ export function registerIpcHandlers(deps: IpcHandlerDependencies): void {
   registerAgentCatalogPackStoreIpcHandlers()
   registerSettingsIpcHandlers(deps)
   registerAgentRuntimeIpcHandlers()
+  registerAgentWorkspaceFilesIpcHandlers()
+  registerCodexAppServerIpcHandlers()
   registerVideoIpcHandlers()
 }

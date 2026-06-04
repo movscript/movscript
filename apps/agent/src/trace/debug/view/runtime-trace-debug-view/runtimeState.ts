@@ -7,18 +7,18 @@ import type {
   AgentPromptContextLedgerStateView,
   AgentPromptDetailView,
   AgentPromptSkillStateView,
-  AgentRoundContextUpdateView,
-  AgentRoundContextChangeView,
+  AgentRuntimeContextProjectionView,
+  AgentRuntimeContextDiffWindowView,
   AgentRunRuntimeSummary,
   AgentRuntimeSkillOmissionView,
   AgentSkillTraceEntry,
-  AgentSkillTraceSummary,
+  AgentRuntimeSkillTraceSummary,
   AgentToolCallView,
 } from './types.js'
 import { arrayValue, firstNumber, numberValue, recordValue, stringList, stringValue, uniqueStrings } from './values.js'
 
-export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTraceSummary {
-  const timeline = events.flatMap((event): AgentSkillTraceEntry[] => {
+export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentRuntimeSkillTraceSummary {
+  const entries = events.flatMap((event): AgentSkillTraceEntry[] => {
     const data = recordValue(event.data)
     const skillData = skillTraceData(event, data)
     const eventType = stringValue(skillData?.skillEventType) ?? stringValue(skillData?.eventType)
@@ -36,9 +36,9 @@ export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTra
       omissions: runtimeSkillOmissionViews(skillData?.skillOmissions),
     }]
   })
-  const latest = timeline.at(-1)
+  const latest = entries.at(-1)
   return {
-    timeline,
+    entries,
     currentActiveSkillIds: latest?.activeSkillIds ?? [],
     currentLoadedSkillIds: latest?.loadedSkillIds ?? [],
     currentUnloadedSkillIds: latest?.unloadedSkillIds ?? [],
@@ -50,14 +50,14 @@ export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTra
 export function correlatePromptDetailsWithRuntimeState(input: {
   promptDetails: AgentPromptDetailView[]
   events: AgentTraceEvent[]
-  skillTimeline: AgentSkillTraceSummary
+  skillTrace: AgentRuntimeSkillTraceSummary
   contextMutations: AgentContextMutationView[]
 }): AgentPromptDetailView[] {
   const eventById = new Map(input.events.map((event) => [event.id, event]))
   return input.promptDetails.map((detail) => {
     const promptEvent = eventById.get(detail.eventId)
     if (!promptEvent) return detail
-    const skillState = promptSkillStateAt(promptEvent, input.skillTimeline.timeline)
+    const skillState = promptSkillStateAt(promptEvent, input.skillTrace.entries)
     const contextState = promptContextLedgerStateAt(promptEvent, input.contextMutations, eventById)
     return {
       ...detail,
@@ -102,15 +102,15 @@ function promptContextLedgerStateAt(
 export function buildRuntimeSummary(input: {
   events: AgentTraceEvent[]
   promptDetails: AgentPromptDetailView[]
-  skillTimeline: AgentSkillTraceSummary
+  skillTrace: AgentRuntimeSkillTraceSummary
   toolCalls: AgentToolCallView[]
   contextMutations: AgentContextMutationView[]
-  roundContextUpdates: AgentRoundContextUpdateView[]
+  contextProjections: AgentRuntimeContextProjectionView[]
   pendingActions: AgentPendingActionView[]
 }): AgentRunRuntimeSummary {
   const latestPrompt = input.promptDetails.at(-1)
-  const latestRoundContextUpdate = input.roundContextUpdates.at(-1)
-  const latestSkill = input.skillTimeline.timeline.at(-1)
+  const latestContextProjection = input.contextProjections.at(-1)
+  const latestSkill = input.skillTrace.entries.at(-1)
   const usedToolNames = uniqueStrings(input.toolCalls.map((toolCall) => toolCall.toolName))
   const failedToolNames = uniqueStrings(input.toolCalls.filter((toolCall) => toolCall.status === 'failed').map((toolCall) => toolCall.toolName))
   const blockedToolNames = uniqueStrings(input.toolCalls.filter((toolCall) => toolCall.status === 'blocked').map((toolCall) => toolCall.toolName))
@@ -123,12 +123,12 @@ export function buildRuntimeSummary(input: {
   const blockedToolCount = latestPrompt?.blockedToolCount !== undefined ? firstNumber(latestPrompt.blockedToolCount) : undefined
   return {
     skills: {
-      activeSkillIds: input.skillTimeline.currentActiveSkillIds,
-      loadedSkillIds: input.skillTimeline.currentLoadedSkillIds,
-      unloadedSkillIds: input.skillTimeline.currentUnloadedSkillIds,
-      availableSkillIds: input.skillTimeline.currentAvailableSkillIds,
+      activeSkillIds: input.skillTrace.currentActiveSkillIds,
+      loadedSkillIds: input.skillTrace.currentLoadedSkillIds,
+      unloadedSkillIds: input.skillTrace.currentUnloadedSkillIds,
+      availableSkillIds: input.skillTrace.currentAvailableSkillIds,
       contextProjection: latestPrompt?.skillContextProjection ?? [],
-      omissions: input.skillTimeline.currentOmissions,
+      omissions: input.skillTrace.currentOmissions,
       ...(latestSkill ? { sourceEventId: latestSkill.eventId } : {}),
     },
     tools: {
@@ -146,35 +146,35 @@ export function buildRuntimeSummary(input: {
     context: {
       ...(latestPrompt ? { promptEventId: latestPrompt.eventId } : {}),
       contextMutationCount: input.contextMutations.length,
-      roundContextUpdateCount: input.roundContextUpdates.length,
-      ...(latestRoundContextUpdate ? { latestRoundContextUpdate } : {}),
+      contextProjectionCount: input.contextProjections.length,
+      ...(latestContextProjection ? { latestContextProjection } : {}),
       ...(latestMutation?.reason ? { latestMutationReason: latestMutation.reason } : {}),
       ...(latestPrompt?.historyProjection ? { historyProjection: latestPrompt.historyProjection } : {}),
       ...(latestPrompt?.toolLoopProjection ? { toolLoopProjection: latestPrompt.toolLoopProjection } : {}),
-      ...(latestPrompt?.historicalVisualProjection ? { historicalVisualProjection: latestPrompt.historicalVisualProjection } : latestRoundContextUpdate?.historicalVisualProjection ? { historicalVisualProjection: latestRoundContextUpdate.historicalVisualProjection } : {}),
+      ...(latestPrompt?.historicalVisualProjection ? { historicalVisualProjection: latestPrompt.historicalVisualProjection } : latestContextProjection?.historicalVisualProjection ? { historicalVisualProjection: latestContextProjection.historicalVisualProjection } : {}),
       ...(latestPrompt?.attachmentProjection ? { attachmentProjection: latestPrompt.attachmentProjection } : {}),
     },
   }
 }
 
-export function buildRoundContextChangeViews(input: {
+export function buildRuntimeContextDiffWindowViews(input: {
   events: AgentTraceEvent[]
-  roundContextUpdates: AgentRoundContextUpdateView[]
+  contextProjections: AgentRuntimeContextProjectionView[]
   contextMutations: AgentContextMutationView[]
-}): AgentRoundContextChangeView[] {
+}): AgentRuntimeContextDiffWindowView[] {
   const eventById = new Map(input.events.map((event) => [event.id, event]))
   const mutationWithEvents = input.contextMutations
     .map((mutation) => ({ mutation, event: eventById.get(mutation.eventId) }))
     .filter((entry): entry is { mutation: AgentContextMutationView; event: AgentTraceEvent } => !!entry.event)
 
-  return input.roundContextUpdates.flatMap((round, index): AgentRoundContextChangeView[] => {
-    const roundEvent = eventById.get(round.eventId)
-    if (!roundEvent) return []
-    const previousRound = input.roundContextUpdates[index - 1]
-    const previousRoundEvent = previousRound ? eventById.get(previousRound.eventId) : undefined
-    const previousCreatedAt = previousRoundEvent?.createdAt
+  return input.contextProjections.flatMap((projection, index): AgentRuntimeContextDiffWindowView[] => {
+    const projectionEvent = eventById.get(projection.eventId)
+    if (!projectionEvent) return []
+    const previousProjection = input.contextProjections[index - 1]
+    const previousProjectionEvent = previousProjection ? eventById.get(previousProjection.eventId) : undefined
+    const previousCreatedAt = previousProjectionEvent?.createdAt
     const mutations = mutationWithEvents
-      .filter(({ event }) => (!previousCreatedAt || event.createdAt > previousCreatedAt) && event.createdAt <= roundEvent.createdAt)
+      .filter(({ event }) => (!previousCreatedAt || event.createdAt > previousCreatedAt) && event.createdAt <= projectionEvent.createdAt)
       .map(({ mutation }) => mutation)
     const affectedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.affectedContextKeys))
     const appendedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.appendedContextKeys))
@@ -182,8 +182,8 @@ export function buildRoundContextChangeViews(input: {
     const deletedContextKeys = uniqueStrings(mutations.flatMap((mutation) => mutation.deletedContextKeys))
     const latestMutationReason = mutations.at(-1)?.latest?.reason
     return [{
-      round,
-      ...(previousRound ? { previousRoundEventId: previousRound.eventId } : {}),
+      projection,
+      ...(previousProjection ? { previousContextProjectionEventId: previousProjection.eventId } : {}),
       mutationCount: mutations.length,
       appended: mutations.reduce((sum, mutation) => sum + mutation.appended, 0),
       amended: mutations.reduce((sum, mutation) => sum + mutation.amended, 0),

@@ -9,8 +9,20 @@ import {
   applyWorkspaceReview,
   previewApplyWorkspaceReview,
 } from '../workspaceReviewApply'
+import {
+  deleteAgentWorkspaceFile,
+  listAgentWorkspaceFiles,
+  readAgentWorkspaceFile,
+  writeAgentWorkspaceFile,
+} from '../../services/agentWorkspaceFiles'
 import { getWorkspaceModelContract } from '../workspaceModelContract'
 import { listModels } from '../modelCatalog'
+import {
+  generateImage,
+  generateVideo,
+  getImageGenerationJob,
+  getVideoGenerationJob,
+} from '../generationTools'
 import { createProject, listProjects } from '../projectTools'
 import { getObjectParam, getStringParam } from '../rpc/params'
 import { locateScriptPassages } from '../scriptLocate'
@@ -21,7 +33,6 @@ import {
 } from '../semanticQuery'
 import { toolText } from '../responseFormat'
 import type { MCPJSONValue } from '../types'
-import { callMCPPluginTool, findMCPPluginTool } from '../pluginTools'
 
 export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue> {
   const name = getStringParam(params, 'name')
@@ -37,6 +48,14 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'generation_model_list':
     case 'movscript_model_list':
       return toolText(await listModels(args))
+    case 'generation_image_generate':
+      return toolText(await generateImage(args))
+    case 'generation_image_job_get':
+      return toolText(await getImageGenerationJob(args))
+    case 'generation_video_generate':
+      return toolText(await generateVideo(args))
+    case 'generation_video_job_get':
+      return toolText(await getVideoGenerationJob(args))
     case 'movscript_script_locate':
       return toolText(await locateScriptPassages(args))
     case 'movscript_creative_reference_query':
@@ -47,6 +66,15 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await queryProductionContext(args))
     case 'get_workspace_model':
       return toolText(await getWorkspaceModelContract(args))
+    case 'workspace_file_list':
+      return toolText(await listAgentWorkspaceFiles(normalizeWorkspaceFileInput(args)))
+    case 'workspace_file_read':
+      return toolText(await readAgentWorkspaceFile(normalizeWorkspaceFileInput(args)))
+    case 'workspace_file_write':
+      return toolText(await writeAgentWorkspaceFile(normalizeWorkspaceFileWriteInput(args)))
+    case 'workspace_file_delete':
+      await deleteAgentWorkspaceFile(normalizeWorkspaceFileInput(args))
+      return toolText({ ok: true })
     case 'movscript_project_create':
       return toolText(await createProject(args))
     case 'candidate_asset_slot_attach':
@@ -58,17 +86,25 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
     case 'workspace_review_apply_preview':
       return toolText(await previewApplyWorkspaceReview(args))
     default:
-      {
-        const pluginTool = findMCPPluginTool(name)
-        if (pluginTool) {
-          return toolText(await callMCPPluginTool({
-            pluginId: pluginTool.pluginId,
-            toolName: name,
-            args,
-          }))
-        }
-      }
       throw new Error(`Unknown tool: ${name}`)
+  }
+}
+
+function normalizeWorkspaceFileInput(args: Record<string, unknown>): { workspaceDir?: string; path?: string } {
+  const path = typeof args.path === 'string' ? args.path : undefined
+  const workspaceDir = typeof args.workspaceDir === 'string' ? args.workspaceDir : undefined
+  return {
+    ...(workspaceDir ? { workspaceDir } : {}),
+    ...(path ? { path } : {}),
+  }
+}
+
+function normalizeWorkspaceFileWriteInput(args: Record<string, unknown>): { workspaceDir?: string; path?: string; content: string } {
+  const content = typeof args.content === 'string' ? args.content : undefined
+  if (content === undefined) throw new Error('content is required')
+  return {
+    ...normalizeWorkspaceFileInput(args),
+    content,
   }
 }
 

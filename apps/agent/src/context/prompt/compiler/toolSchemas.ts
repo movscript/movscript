@@ -12,8 +12,6 @@ export function resolveRuntimeToolParameters(
   if (tool.name === 'core_memory_get') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'core_memory_create') return CREATE_MEMORY_TOOL_SCHEMA
   if (tool.name === 'core_memory_delete') return MEMORY_ID_TOOL_SCHEMA
-  if (tool.name === 'workspace_open') return CREATE_WORKSPACE_TOOL_SCHEMA
-  if (tool.name === 'workspace_validate') return PREVIEW_WORKSPACE_APPLY_TOOL_SCHEMA
   if (tool.name === 'core_catalog_inspect') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'core_skill_update') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
   if (tool.name === 'core_update_plan') return UPDATE_PLAN_TOOL_SCHEMA
