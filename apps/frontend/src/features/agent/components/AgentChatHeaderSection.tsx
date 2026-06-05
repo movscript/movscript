@@ -55,9 +55,12 @@ export function AgentChatHeaderSection({
   showCollapse = true,
   showConversationControls = true,
   activeConversationRuntimeStatusLight,
+  historyOpen,
   onRenameConversation,
   onReorderConversation,
   onSelectConversation,
+  onNewConversation,
+  onToggleHistory,
 }: AgentChatHeaderSectionProps) {
   const { t } = useTranslation()
   const conversationTabs = useMemo(() => {
@@ -206,9 +209,12 @@ export function AgentChatHeaderSection({
               onCloseTabContextMenu={closeTabContextMenu}
               onOpenKeyboardMenu={openConversationTabKeyboardMenu}
               onOpenMenu={openConversationTabMenu}
+              onNewConversation={onNewConversation}
               onRenameConversation={onRenameConversation}
               onReorderConversation={onReorderConversation}
               onSelectConversation={onSelectConversation}
+              onToggleHistory={onToggleHistory}
+              historyOpen={historyOpen}
             />
           </div>
         )}

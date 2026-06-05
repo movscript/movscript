@@ -56,9 +56,10 @@ const navigationGroups: NavigationMenuGroup[] = [
     items: [
       { label: 'Workspace', route: '/org/select' },
       { label: 'Agent Console', route: '/agent', accelerator: 'CmdOrCtrl+5' },
-      { label: 'Agent Settings', route: '/agent/settings' },
-      { label: 'Agent Runs', route: '/agent/runs' },
-      { label: 'Plugins', route: '/agent/plugins' },
+      { label: 'Model Providers', route: '/model-providers' },
+      { label: 'Agents', route: '/agents/movscript' },
+      { label: 'Workspace Config', route: '/workspace/config' },
+      { label: 'Plugins', route: '/plugins' },
       { label: 'App Settings', route: '/app/settings' },
       { label: 'User Profile', route: '/user' },
     ],

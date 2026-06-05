@@ -9532,7 +9532,7 @@ test('page content layouts avoid fixed horizontal page widths', () => {
   assert.match(agentConsoleNavSource, /\bAgentConsoleNavMeta\b/)
   assert.doesNotMatch(agentConsoleNavSource, /\bAgentSurfaceBlock\b/)
   assert.doesNotMatch(agentConsoleNavSource, /\bAppInlineMeta\b/)
-  assert.match(agentConsoleNavSource, /agentConsoleSections\.map\(\(section\)[\s\S]*?<AgentConsoleNavItem[\s\S]*?active=\{isActive\}/)
+  assert.match(agentConsoleNavSource, /agentConsoleSections\.map\(\(section\)[\s\S]*?<AgentConsoleNavItem[\s\S]*?active=\{active\}/)
   assert.match(agentConsoleNavSource, /<AgentConsoleNavMeta icon=\{ClipboardList\}>/)
   assert.match(agentConsoleNavPackageSource, /function AgentConsoleNavShell[\s\S]*?<AgentSurfaceBlock[\s\S]*?variant="subtle"/)
   assert.match(agentConsoleNavPackageSource, /function AgentConsoleNavItem[\s\S]*?<AgentSurfaceBlock[\s\S]*?variant=\{active \? "card" : "surface"\}/)

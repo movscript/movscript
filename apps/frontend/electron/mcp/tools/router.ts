@@ -25,12 +25,25 @@ import {
 } from '../generationTools'
 import { createProject, listProjects } from '../projectTools'
 import { getObjectParam, getStringParam } from '../rpc/params'
+import { listScripts } from '../scriptList'
 import { locateScriptPassages } from '../scriptLocate'
 import {
   queryAssetSlots,
   queryCreativeReferences,
   queryProductionContext,
 } from '../semanticQuery'
+import { queryShotLibrary } from '../shotLibrary'
+import { queryResourceLibrary } from '../resourceLibrary'
+import {
+  annotateResourceImage,
+  extractResourceVideoFramesForVision,
+  readResourceImageForVision,
+  uploadAgentImageResource,
+} from '../resourceMedia'
+import {
+  listExternalResourceSources,
+  searchExternalResources,
+} from '../externalResources'
 import { toolText } from '../responseFormat'
 import type { MCPJSONValue } from '../types'
 
@@ -45,6 +58,8 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(getFocus())
     case 'movscript_project_list':
       return toolText(await listProjects(args))
+    case 'movscript_script_list':
+      return toolText(await listScripts(args))
     case 'generation_model_list':
     case 'movscript_model_list':
       return toolText(await listModels(args))
@@ -58,6 +73,22 @@ export async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSO
       return toolText(await getVideoGenerationJob(args))
     case 'movscript_script_locate':
       return toolText(await locateScriptPassages(args))
+    case 'movscript_resource_library_query':
+      return toolText(await queryResourceLibrary(args))
+    case 'movscript_resource_image_read':
+      return await readResourceImageForVision(args) as MCPJSONValue
+    case 'movscript_resource_video_extract_frames':
+      return await extractResourceVideoFramesForVision(args) as MCPJSONValue
+    case 'movscript_resource_image_annotate':
+      return await annotateResourceImage(args) as MCPJSONValue
+    case 'movscript_resource_upload':
+      return toolText(await uploadAgentImageResource(args))
+    case 'movscript_shot_library_query':
+      return toolText(await queryShotLibrary(args))
+    case 'movscript_external_resource_source_list':
+      return toolText(await listExternalResourceSources(args))
+    case 'movscript_external_resource_search':
+      return toolText(await searchExternalResources(args))
     case 'movscript_creative_reference_query':
       return toolText(await queryCreativeReferences(args))
     case 'movscript_asset_slot_query':

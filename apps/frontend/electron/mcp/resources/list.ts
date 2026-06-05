@@ -28,6 +28,30 @@ export function listResources(): MCPResource[] {
       description: 'All visible MovScript projects.',
       mimeType: 'text/markdown',
     },
+    {
+      uri: 'movscript://shot-library',
+      name: 'Shot reference library',
+      description: 'Searchable MovScript shot reference library for reusable camera, composition, movement, narrative, emotion, and production patterns.',
+      mimeType: 'text/markdown',
+    },
+    {
+      uri: 'movscript://resource-library',
+      name: 'MovScript resource library',
+      description: 'Internal MovScript RawResource library. Use the movscript_resource_library_query tool for search and generation-ready resource IDs.',
+      mimeType: 'text/markdown',
+    },
+    {
+      uri: 'movscript://resource-file/{resource_id}',
+      name: 'MovScript resource file',
+      description: 'Dynamic binary RawResource reader. Replace {resource_id} with an ID, for example movscript://resource-file/42?maxBytes=8388608. Use image/video media tools for Codex vision workflows.',
+      mimeType: 'application/octet-stream',
+    },
+    {
+      uri: 'movscript://external-resources',
+      name: 'External media search sources',
+      description: 'Configured external image/video providers. Use movscript_external_resource_search for provider search; import results before generation.',
+      mimeType: 'text/markdown',
+    },
   ]
 
   if (snapshot.project) {

@@ -5,6 +5,7 @@ import {
   makeError,
   readBody,
   setCORSHeaders,
+  writeAccepted,
   writeJSON,
 } from './transport'
 import { handleJSONRPC } from './jsonRpc'
@@ -50,9 +51,13 @@ export async function handleMCPHTTP(req: IncomingMessage, res: ServerResponse): 
     const payload = JSON.parse(body) as JSONRPCRequest | JSONRPCRequest[]
     if (Array.isArray(payload)) {
       const responses = await Promise.all(payload.map((item) => handleJSONRPC(item, requestId)))
-      writeJSON(res, 200, responses)
+      const responseBodies = responses.filter((item) => item !== undefined)
+      if (responseBodies.length > 0) writeJSON(res, 200, responseBodies)
+      else writeAccepted(res)
     } else {
-      writeJSON(res, 200, await handleJSONRPC(payload, requestId))
+      const responseBody = await handleJSONRPC(payload, requestId)
+      if (responseBody !== undefined) writeJSON(res, 200, responseBody)
+      else writeAccepted(res)
     }
   } catch (error) {
     console.error(`[mcp] http error requestId=${requestId} method=${req.method ?? ''} url=${req.url ?? ''} elapsedMs=${Date.now() - startedAt}`, error)

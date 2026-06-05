@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 
 import { applyWorkspaceReview, attachAssetSlotCandidate, attachKeyframeCandidate, getWorkspaceModelContract, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, summarizeModelContractForAgent, updateMCPContextSnapshot } from './server'
+import { handleJSONRPC } from './rpc/jsonRpc'
 
 const buildGenerationModelParamRules: any = undefined
 const buildGenerationParamValidationAudit: any = undefined
@@ -15,6 +16,69 @@ const preflightGenerationParams: any = undefined
 const setMCPGenerationToolsSettings: any = undefined
 const testMCPGenerationToolServer: any = undefined
 const waitGenerationJobs: any = undefined
+
+test('MCP initialize request returns a JSON-RPC result for Codex streamable HTTP', async () => {
+  const response = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'codex-init',
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      clientInfo: { name: 'codex', version: '0.1.0' },
+      capabilities: {},
+    },
+  })
+
+  assert.equal(response?.jsonrpc, '2.0')
+  assert.equal(response?.id, 'codex-init')
+  assert.deepEqual((response?.result as Record<string, unknown>)?.serverInfo, {
+    name: 'movscript-frontend-mcp',
+    version: '0.1.0',
+  })
+})
+
+test('MCP initialized notification does not produce a JSON-RPC response', async () => {
+  const response = await handleJSONRPC({
+    jsonrpc: '2.0',
+    method: 'initialized',
+    params: {},
+  })
+
+  assert.equal(response, undefined)
+})
+
+test('MCP discovery exposes MovScript resources, shot library, query, and generation capabilities', async () => {
+  const toolsResponse = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'tools',
+    method: 'tools/list',
+  })
+  const tools = ((toolsResponse?.result as any)?.tools ?? []).map((tool: any) => tool.name)
+  assert.ok(tools.includes('movscript_script_list'))
+  assert.ok(tools.includes('movscript_resource_library_query'))
+  assert.ok(tools.includes('movscript_resource_video_extract_frames'))
+  assert.ok(tools.includes('movscript_resource_image_annotate'))
+  assert.ok(tools.includes('movscript_resource_upload'))
+  assert.ok(tools.includes('movscript_shot_library_query'))
+  assert.ok(tools.includes('movscript_external_resource_source_list'))
+  assert.ok(tools.includes('movscript_external_resource_search'))
+  assert.ok(tools.includes('movscript_creative_reference_query'))
+  assert.ok(tools.includes('movscript_asset_slot_query'))
+  assert.ok(tools.includes('movscript_production_context_query'))
+  assert.ok(tools.includes('generation_image_generate'))
+  assert.ok(tools.includes('generation_video_generate'))
+
+  const resourcesResponse = await handleJSONRPC({
+    jsonrpc: '2.0',
+    id: 'resources',
+    method: 'resources/list',
+  })
+  const resources = ((resourcesResponse?.result as any)?.resources ?? []).map((resource: any) => resource.uri)
+  assert.ok(resources.includes('movscript://projects'))
+  assert.ok(resources.includes('movscript://resource-library'))
+  assert.ok(resources.includes('movscript://shot-library'))
+  assert.ok(resources.includes('movscript://external-resources'))
+})
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {

@@ -2,6 +2,22 @@
 
 This feature keeps runtime facts, timeline projection, and UI render surfaces on separate paths.
 
+## Unified Agent Chat Contract
+
+The unified Agent Chat is one UI over provider-specific protocols. Its domain layer must be the superset that the UI renders; provider protocols are adapted only at infrastructure boundaries.
+
+- Neutral item domain lives under `src/features/agent/domain/agentChat*.ts`. It owns thread items, notification events, pending server requests, display view models, and response intents. It must not import Codex, MovScript runtime, Claude, or UI component types.
+- UI renderers live under `src/features/agent/components/agent-chat-*` plus `AgentChatDataSourceShell`. They render only neutral domain values and helper view models. They must not branch on provider protocol types.
+- Codex mapping lives under `src/shared/infrastructure/codex-app-server/codexAgentChat*.ts`. It owns generated app-server protocol coverage, Codex thread item mapping, Codex notifications, and Codex server-request responses.
+- MovScript Agent mapping lives under `src/shared/infrastructure/local-agent-client/*AgentChat*.ts`. It owns runtime event coverage, run/message/step mapping, pending runtime interactions, and MCP approval recovery.
+- Claude mapping is not implemented in the current unified shell. Until a Claude adapter exists, the UI boundary tests must keep Claude protocol names out of the neutral shell and domain.
+
+Server-initiated requests are first-class chat state, not side effects hidden in a tool row. If a provider asks for approval, user input, elicitation, or a dynamic tool result, the adapter must emit an `AgentChatServerRequest` with enough scoped IDs to resolve it. If the protocol event lacks executable IDs, the adapter must recover them from authoritative pending state or expose the item as non-actionable instead of fabricating an approval path.
+
+Media inputs are neutral resources. Images can remain native image inputs; video, audio, and generic resources travel through mention/resource references with MIME, name, URL, and resource ID metadata preserved where the provider supports it.
+
+Do not remove old runtime timeline components only because the unified chat exists. They can be deleted only after their routes and owners no longer reference them. New unified-chat work should instead tighten adapter coverage and move render logic into neutral view helpers.
+
 ## Message Display Contract
 
 - Chat timeline renders only timeline items with `purpose: "transcript"` and `surface: "message_stream"` for one runtime thread. `purpose: "transcript"` means conversation text, not prompt eligibility; only `contentPromptEligibility: "include"` can enter model history. The chat view calls `useAgentTimeline` with `requireThread: true`; it must not fall back to session-level message aggregation.

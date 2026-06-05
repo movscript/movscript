@@ -7,15 +7,17 @@ import {
   CODEX_MOVSCRIPT_HOME_PROFILE_ID,
   CODEX_SYSTEM_AGENT_PROVIDER_ID,
   DEFAULT_AGENT_PROVIDER_SETTINGS,
+  MOVSCRIPT_AGENT_PROVIDER_ID,
   MOVSCRIPT_MANAGED_CODEX_HOME,
   agentThreadRefKey,
   createAgentThreadRef,
   normalizeAgentProviderSettings,
   resolveCodexAgentProvider,
   resolveCodexAppServerProfile,
+  resolveNewConversationAgentProvider,
 } from './agentProviderConfigStore'
 
-test('default Codex provider is a movscript-owned app-server profile using MovScript CODEX_HOME', () => {
+test('default Codex provider is a movscript-owned app-server profile using MovScript Codex home path', () => {
   const provider = resolveCodexAgentProvider(DEFAULT_AGENT_PROVIDER_SETTINGS)
 
   assert.equal(CODEX_AGENT_PROVIDER_ID, CODEX_SYSTEM_AGENT_PROVIDER_ID)
@@ -43,6 +45,20 @@ test('default settings expose one MovScript-managed Codex app-server provider', 
     codexHome: MOVSCRIPT_MANAGED_CODEX_HOME,
     lifecycle: 'movscript-owned',
   })
+})
+
+test('new conversations prefer MovScript Agent unless Codex is explicitly selected', () => {
+  const settings = normalizeAgentProviderSettings({
+    ...DEFAULT_AGENT_PROVIDER_SETTINGS,
+    defaultProviderId: CODEX_AGENT_PROVIDER_ID,
+  })
+  const explicitCodex = normalizeAgentProviderSettings({
+    ...settings,
+    newConversationProviderId: CODEX_AGENT_PROVIDER_ID,
+  })
+
+  assert.equal(resolveNewConversationAgentProvider(settings).id, MOVSCRIPT_AGENT_PROVIDER_ID)
+  assert.equal(resolveNewConversationAgentProvider(explicitCodex).id, CODEX_AGENT_PROVIDER_ID)
 })
 
 test('normalizes custom Codex profiles without falling back to endpoint-only configuration', () => {

@@ -68,9 +68,10 @@ const AgentModeCanvasListPage = React.lazy(() => import('./pages/agent-mode/Agen
 const ScriptsPage = React.lazy(() => import('./pages/scripts/ScriptsPage'))
 const DeliveryPage = React.lazy(() => import('./pages/project/delivery/DeliveryPage'))
 const DeliveryWorkbenchPage = React.lazy(() => import('./pages/project/delivery/DeliveryWorkbenchPage'))
-const AIWorkspacesPage = React.lazy(() => import('./pages/agent/AIWorkspacesPage'))
 const AgentConsolePage = React.lazy(() => import('./pages/agent/AgentConsolePage'))
 const AgentWorkspaceFilesPage = React.lazy(() => import('./pages/agent/AgentWorkspaceFilesPage'))
+const ModelProvidersPage = React.lazy(() => import('./pages/agent/ModelProvidersPage'))
+const AgentsPage = React.lazy(() => import('./pages/agent/AgentsPage'))
 const AIAgentRunPage = React.lazy(() => import('./pages/agent/AIAgentRunPage'))
 const AIAgentSettingsPage = React.lazy(() => import('./pages/agent/AIAgentSettingsPage'))
 const AgentRunsPage = React.lazy(() => import('./pages/agent/AgentRunsPage'))
@@ -631,7 +632,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const handleAgentModeContentPanelWidthChange = React.useCallback((width: number) => {
     setAgentModeContentPanelWidth(clampAgentModeContentPanelWidth(width))
   }, [])
-  const detailRightPaneOpen = detailAgentPanelOpen && hasOpenConversations
+  const detailRightPaneOpen = detailAgentPanelOpen
   const detailCenterContent = detailRouteHeaderTitle(pathname)
   React.useEffect(() => {
     if (detailSidebarHidden) return
@@ -976,14 +977,19 @@ export default function App() {
               <Route path={ROUTES.shotLibrary} element={<ShotLibraryPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
+              <Route path={ROUTES.legacyAgentPlugins} element={<Navigate to={ROUTES.plugins} replace />} />
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
-              <Route path={ROUTES.agentFiles} element={<AgentWorkspaceFilesPage />} />
-              <Route path={ROUTES.agentWorkspaces} element={<AIWorkspacesPage />} />
+              <Route path={ROUTES.modelProviders} element={<ModelProvidersPage />} />
+              <Route path={ROUTES.agents} element={<Navigate to={ROUTES.agentsMovscript} replace />} />
+              <Route path={ROUTES.agentsMovscript} element={<AgentsPage />} />
+              <Route path={ROUTES.agentsCodex} element={<AgentsPage />} />
+              <Route path={ROUTES.workspaceConfig} element={<AgentWorkspaceFilesPage />} />
+              <Route path={ROUTES.agentFiles} element={<Navigate to={ROUTES.workspaceConfig} replace />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
-              <Route path="/agents" element={<Navigate to={ROUTES.agentConsole} replace />} />
+              <Route path="/agent/model-providers" element={<Navigate to={ROUTES.modelProviders} replace />} />
                 </Routes>
               </ShellLayout>
             } />

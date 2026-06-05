@@ -23,6 +23,26 @@ export function workspaceTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_script_list',
+      description: 'List editable project scripts and immutable script versions without reading full screenplay text by default. Use this before locating passages when you need script IDs, scriptVersion IDs, titles, statuses, or readonly refs.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          project_id: { type: 'number', description: 'Snake-case alias for projectId.' },
+          scriptId: { type: 'number', description: 'Optional script ID filter.' },
+          script_id: { type: 'number', description: 'Snake-case alias for scriptId.' },
+          status: { type: 'string', description: 'Optional script-version status filter, e.g. workspace, active, archived.' },
+          query: { type: 'string', description: 'Optional local search over title, description, summary, status, and type fields.' },
+          q: { type: 'string', description: 'Alias for query.' },
+          limit: { type: 'number', description: 'Maximum scripts and versions to return per section. Defaults to 100.' },
+          include_content: { type: 'boolean', description: 'When true, include bounded content/raw_source previews. Defaults to false.' },
+          includeContent: { type: 'boolean', description: 'Camel-case alias for include_content.' },
+          contentLimit: { type: 'number', description: 'Maximum preview characters when include_content is true. Defaults to 500, max 5000.' },
+          content_limit: { type: 'number', description: 'Snake-case alias for contentLimit.' },
+        }
+      ),
+    },
+    {
       name: 'movscript_script_locate',
       description: 'Locate likely screenplay passages across project script-version files from a fuzzy user intent without reading full scripts. Supports multiple query terms, must/should/exclude terms, alias groups, scene-aware scoring, and returns readonly script file refs plus line ranges for core_file_read/search.',
       inputSchema: objectSchema(

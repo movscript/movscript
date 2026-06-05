@@ -261,6 +261,39 @@ export type ElectronCodexAppServerStatus = {
   executablePath?: string
   codexHome?: string
   workspaceDir?: string
+  codexConfig?: {
+    ok: boolean
+    sourceConfigPath: string
+    configTomlPath: string
+    authJsonPath: string
+    baseURL: string
+    apiKind: string
+    apiKeyConfigured: boolean
+    accountConfigured: boolean
+    accountSource: 'movscript-agent-account' | 'movscript-environment' | 'movscript-model-config' | 'local-codex-home' | 'codex-home' | 'custom-config' | 'none'
+    distributedAt: string
+    warning?: string
+  }
+  preflight?: {
+    ok: boolean
+    configTomlExists: boolean
+    authJsonExists: boolean
+    spawnEnvReady: boolean
+    accountConfigured: boolean
+    detail: string
+  }
+  codexPlugin?: {
+    ok: boolean
+    marketplaceName: string
+    pluginName: string
+    pluginKey: string
+    pluginSourcePath: string
+    marketplaceRoot: string
+    installedPluginRoot: string
+    version: string
+    hash: string
+    error?: string
+  }
   error?: string
 }
 
@@ -360,8 +393,10 @@ export type ElectronAgentWorkspaceConfig = {
   updatedAt: string
   modelConfig?: Record<string, unknown>
   toolProviders?: Array<Record<string, unknown>>
+  modelProviders?: Array<Record<string, unknown>>
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
+  agents?: Record<string, Record<string, unknown>>
 }
 
 export type ElectronAgentWorkspaceConfigSaveInput = {
@@ -369,8 +404,10 @@ export type ElectronAgentWorkspaceConfigSaveInput = {
   workspaceDir?: string
   modelConfig?: Record<string, unknown> | null
   toolProviders?: Array<Record<string, unknown>> | null
+  modelProviders?: Array<Record<string, unknown>> | null
   permissions?: Record<string, unknown> | null
   environment?: Record<string, string> | null
+  agents?: Record<string, Record<string, unknown>> | null
 }
 
 export type ElectronAgentWorkspaceFileEntry = {
@@ -488,6 +525,7 @@ export type ElectronAPI = {
   agentBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronAgentBrowserState>
   onAgentBrowserState?: (handler: (state: ElectronAgentBrowserState) => void) => () => void
   ensureAgentRuntime?: (input?: ElectronAgentRuntimeEnsureInput) => Promise<ElectronAgentRuntimeStatus>
+  stopAgentRuntime?: () => Promise<{ ok: true }>
   agentRuntimeRequest?: (input: ElectronAgentRuntimeRequestInput) => Promise<ElectronAgentRuntimeResponse>
   agentRuntimeOpenEventStream?: (input: ElectronAgentRuntimeStreamInput) => Promise<ElectronAgentRuntimeResponse>
   agentRuntimeCloseEventStream?: (input: ElectronAgentRuntimeStreamCloseInput) => Promise<void>

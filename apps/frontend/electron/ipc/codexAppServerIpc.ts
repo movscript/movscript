@@ -1,20 +1,13 @@
 import { ipcMain, type WebContents } from 'electron'
-import { spawn, type ChildProcess } from 'node:child_process'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
-import { dirname, isAbsolute, resolve } from 'node:path'
-import { createServer, Socket } from 'node:net'
-import {
-  CODEX_AGENT_RUNTIME_DIR_NAME,
-  resolveAgentWorkspaceRuntimePaths,
-} from '@movscript/agent-runtime'
+import { Socket } from 'node:net'
+import { codexAppServerManager } from '../services/codexAppServerManager'
 import type {
   ElectronCodexAppServerCloseInput,
   ElectronCodexAppServerConnectInput,
   ElectronCodexAppServerEnsureInput,
   ElectronCodexAppServerMessage,
   ElectronCodexAppServerSendInput,
-  ElectronCodexAppServerStatus,
   ElectronCodexAppServerStatusInput,
   ElectronCodexAppServerStopInput,
 } from '../../src/shared/contracts/electronApi'
@@ -35,31 +28,18 @@ type CodexAppServerConnection = {
 }
 
 const connections = new Map<string, CodexAppServerConnection>()
-const managedServers = new Map<string, ManagedCodexAppServer>()
-
-type ManagedCodexAppServer = {
-  profileId: string
-  label?: string
-  endpoint: string
-  executablePath: string
-  codexHome: string
-  workspaceDir?: string
-  child: ChildProcess
-  startedAt: number
-  lastError?: string
-}
 
 export function registerCodexAppServerIpcHandlers(): void {
   ipcMain.handle('codex:app-server-ensure', async (_event, input?: ElectronCodexAppServerEnsureInput) => {
-    return ensureCodexAppServer(input)
+    return codexAppServerManager.ensure(input)
   })
 
   ipcMain.handle('codex:app-server-status', (_event, input?: ElectronCodexAppServerStatusInput) => {
-    return codexAppServerStatus(input?.profileId)
+    return codexAppServerManager.status(input?.profileId)
   })
 
   ipcMain.handle('codex:app-server-stop', (_event, input?: ElectronCodexAppServerStopInput) => {
-    return stopCodexAppServer(input?.profileId)
+    return codexAppServerManager.stop(input?.profileId)
   })
 
   ipcMain.handle('codex:app-server-connect', async (event, input?: ElectronCodexAppServerConnectInput) => {
@@ -109,169 +89,6 @@ export function registerCodexAppServerIpcHandlers(): void {
   })
 }
 
-async function ensureCodexAppServer(input: ElectronCodexAppServerEnsureInput | undefined): Promise<ElectronCodexAppServerStatus> {
-  const profile = input?.profile
-  const profileId = profile?.id?.trim()
-  if (!profileId) return codexAppServerError('codex', 'Codex app-server profile id is required')
-  const label = profile?.label?.trim() || undefined
-
-  const existing = managedServers.get(profileId)
-  if (existing && existing.child.exitCode === null && !existing.child.killed) return codexAppServerStatus(profileId)
-
-  const executablePath = profile?.executablePath?.trim() || process.env.MOVSCRIPT_CODEX_BIN?.trim() || 'codex'
-  const workspaceDir = profile?.workspaceDir?.trim() || process.cwd()
-  const codexPaths = resolveAgentWorkspaceRuntimePaths(workspaceDir, { runtimeDirName: CODEX_AGENT_RUNTIME_DIR_NAME })
-  mkdirSync(codexPaths.agentDir, { recursive: true })
-  const codexHome = resolveCodexHome(profile?.codexHome?.trim(), workspaceDir, codexPaths.agentDir)
-  mkdirSync(codexHome, { recursive: true })
-  const port = await reserveLocalPort()
-  const endpoint = `ws://127.0.0.1:${port}`
-  const child = spawn(executablePath, ['app-server', '--listen', endpoint], {
-    cwd: workspaceDir,
-    env: {
-      ...process.env,
-      CODEX_HOME: codexHome,
-      MOVSCRIPT_CODEX_APP_SERVER_PROFILE_ID: profileId,
-    },
-    shell: process.platform === 'win32',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  const server: ManagedCodexAppServer = {
-    profileId,
-    ...(label ? { label } : {}),
-    endpoint,
-    executablePath,
-    codexHome,
-    workspaceDir,
-    child,
-    startedAt: Date.now(),
-  }
-  managedServers.set(profileId, server)
-  child.stdout?.on('data', (chunk) => console.info(`[codex:${profileId}] ${String(chunk).trimEnd()}`))
-  child.stderr?.on('data', (chunk) => console.info(`[codex:${profileId}] ${String(chunk).trimEnd()}`))
-  child.on('error', (error) => {
-    server.lastError = error.message
-    console.error(`[codex:${profileId}] app-server spawn error`, error)
-  })
-  child.on('exit', (code, signal) => {
-    server.lastError = code === 0 ? undefined : `Codex app-server exited code=${code ?? 'null'} signal=${signal ?? 'null'}`
-    console.info(`[codex:${profileId}] app-server exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
-  })
-
-  try {
-    await waitForCodexAppServerReady(endpoint)
-    return codexAppServerStatus(profileId)
-  } catch (error) {
-    server.lastError = errorMessage(error)
-    if (child.exitCode === null && !child.killed) child.kill()
-    return codexAppServerStatus(profileId)
-  }
-}
-
-function codexAppServerStatus(profileId?: string): ElectronCodexAppServerStatus {
-  const normalized = profileId?.trim()
-  const server = normalized
-    ? managedServers.get(normalized)
-    : Array.from(managedServers.values()).find((item) => item.child.exitCode === null && !item.child.killed)
-  if (!server) return codexAppServerError(normalized || 'codex', 'Codex app-server is not running')
-  const running = server.child.exitCode === null && !server.child.killed
-  return {
-    ok: running && !server.lastError,
-    running,
-    managed: true,
-    profileId: server.profileId,
-    ...(server.label ? { label: server.label } : {}),
-    endpoint: server.endpoint,
-    ...(server.child.pid ? { pid: server.child.pid } : {}),
-    executablePath: server.executablePath,
-    codexHome: server.codexHome,
-    ...(server.workspaceDir ? { workspaceDir: server.workspaceDir } : {}),
-    ...(server.lastError ? { error: server.lastError } : {}),
-  }
-}
-
-function stopCodexAppServer(profileId?: string): ElectronCodexAppServerStatus {
-  const normalized = profileId?.trim()
-  const server = normalized
-    ? managedServers.get(normalized)
-    : Array.from(managedServers.values()).find((item) => item.child.exitCode === null && !item.child.killed)
-  if (!server) return codexAppServerError(normalized || 'codex', 'Codex app-server is not running')
-  if (server.child.exitCode === null && !server.child.killed) server.child.kill()
-  managedServers.delete(server.profileId)
-  return {
-    ok: true,
-    running: false,
-    managed: true,
-    profileId: server.profileId,
-    ...(server.label ? { label: server.label } : {}),
-    endpoint: server.endpoint,
-    executablePath: server.executablePath,
-    codexHome: server.codexHome,
-    ...(server.workspaceDir ? { workspaceDir: server.workspaceDir } : {}),
-  }
-}
-
-function codexAppServerError(profileId: string, error: string): ElectronCodexAppServerStatus {
-  return {
-    ok: false,
-    running: false,
-    managed: false,
-    profileId,
-    error,
-  }
-}
-
-function resolveCodexHome(value: string | undefined, workspaceDir: string, defaultCodexAgentDir: string): string {
-  const input = value?.trim()
-  if (!input || input === '~' || input.startsWith('~/') || isAbsolute(input) || !isMovScriptManagedCodexHome(input)) {
-    return resolve(defaultCodexAgentDir)
-  }
-  if (input === '.movscript/codex/CODEX_HOME' || input.startsWith('.movscript/codex/CODEX_HOME/')) {
-    return resolve(defaultCodexAgentDir)
-  }
-  return resolve(workspaceDir || process.cwd(), input)
-}
-
-function isMovScriptManagedCodexHome(value: string): boolean {
-  return value === '.movscript/.codex'
-    || value.startsWith('.movscript/.codex/')
-    || value === '.movscript/codex/CODEX_HOME'
-    || value.startsWith('.movscript/codex/CODEX_HOME/')
-}
-
-async function reserveLocalPort(): Promise<number> {
-  return new Promise((resolvePort, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      const port = typeof address === 'object' && address ? address.port : undefined
-      server.close(() => {
-        if (typeof port === 'number') resolvePort(port)
-        else reject(new Error('Failed to reserve local Codex app-server port'))
-      })
-    })
-  })
-}
-
-async function waitForCodexAppServerReady(endpoint: string): Promise<void> {
-  const healthURL = endpoint.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:')
-  const readyURL = `${healthURL.replace(/\/+$/, '')}/readyz`
-  const deadline = Date.now() + 10_000
-  let lastError: unknown
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(readyURL)
-      if (response.ok) return
-      lastError = new Error(`Codex app-server readiness returned ${response.status}`)
-    } catch (error) {
-      lastError = error
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150))
-  }
-  throw new Error(`Timed out waiting for Codex app-server at ${readyURL}: ${errorMessage(lastError)}`)
-}
-
 function validateCodexAppServerURL(value: string | undefined): string {
   const trimmed = value?.trim()
   if (!trimmed) throw new Error('Codex app-server URL is required')
@@ -280,10 +97,6 @@ function validateCodexAppServerURL(value: string | undefined): string {
     throw new Error(`Codex app-server URL must use ws:// or wss://: ${trimmed}`)
   }
   return parsed.toString()
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 async function openCodexRelaySocket(url: string): Promise<CodexRelaySocket> {

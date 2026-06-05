@@ -7,8 +7,7 @@
   align-items: flex-end;
   gap: 0;
   flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
   overscroll-behavior-x: contain;
   border: 0;
   border-radius: 0;
@@ -20,4 +19,31 @@
 
 .ai-agent-panel-conversation-tabs::-webkit-scrollbar {
   display: none;
+}
+
+.ai-agent-panel-conversation-tabs__items {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.ai-agent-panel-conversation-tabs__items::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-agent-panel-conversation-tabs__end {
+  display: inline-flex;
+  height: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--ms-color-border) 76%, transparent);
+  border-bottom: 1px solid var(--ms-color-border);
+  background: var(--ms-color-background);
+  padding: 0 4px;
 }

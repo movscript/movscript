@@ -27,6 +27,7 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/features/agent/components/AgentMentionEditor'
+import { AgentProviderMark } from '@/features/agent/components/AgentProviderControls'
 import type { AgentPendingRuntimeInputQueueItem } from '@/features/agent/domain/agentRuntimeInputMessages'
 import type { AgentAttachment } from '@/features/agent/state/agentStore'
 
@@ -315,6 +316,7 @@ export function AgentComposerSection({
         </div>
         <AgentComposerToolbar>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <AgentProviderMark />
             {showAttachmentTools ? (
               <AgentComposerAction
                 onClick={() => fileRef.current?.click()}

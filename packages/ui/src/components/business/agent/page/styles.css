@@ -199,11 +199,14 @@
 }
 
 .project-agent-chat-shell .ms-agent-thread {
-  padding: 10px 5% 14px;
+  --ai-agent-panel-message-inline-margin: 5%;
+  --ai-agent-panel-user-message-max-width: min(78%, 680px);
+
+  padding: 10px var(--ai-agent-panel-message-inline-margin) 14px;
 }
 
 .project-agent-chat-shell.ms-agent-shell--compact .ms-agent-thread {
-  padding: 10px 5% 14px;
+  padding: 10px var(--ai-agent-panel-message-inline-margin) 14px;
 }
 
 .project-agent-chat-shell .agent-page-chat-composer {
@@ -212,6 +215,9 @@
 }
 
 .project-agent-chat-shell .ms-agent-message {
+  contain: none;
+  content-visibility: visible;
+  contain-intrinsic-size: none;
   gap: 0;
 }
 
@@ -232,19 +238,19 @@
 }
 
 .project-agent-chat-shell .ms-agent-message--user .ms-agent-message__body {
-  width: 100%;
-  max-width: 100%;
-  flex: 1 1 auto;
-  align-items: stretch;
-  margin-left: 0;
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
 .project-agent-chat-shell.ms-agent-shell--compact .ms-agent-message--user .ms-agent-message__body {
-  width: 100%;
-  max-width: 100%;
-  flex: 1 1 auto;
-  align-items: stretch;
-  margin-left: 0;
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
 .project-agent-chat-shell .ms-agent-message__content {
@@ -262,6 +268,7 @@
 }
 
 .project-agent-chat-shell .ms-agent-message--user .ms-agent-message__content {
+  width: auto;
   padding: 7px 10px;
 }
 

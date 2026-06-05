@@ -1,4 +1,5 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   AgentChatDataSourceShell,
   openAgentChatDataSourceThread,
@@ -6,6 +7,9 @@ import {
 } from '@/features/agent/components/AgentChatDataSourceShell'
 import { createCodexAgentChatDataSource } from '@/shared/infrastructure/codex-app-server/codexAgentChatDataSource'
 import { ensureCodexAppServerRpcClient } from '@/shared/infrastructure/codex-app-server/codexAppServerRpcClient'
+import { AGENT_BACKEND_MODEL_CAPABILITY_QUERY, fetchAgentBackendModels } from '@/features/agent/domain/agentModelCatalog'
+import { useAgentStore } from '@/features/agent/state/agentStore'
+import { publicModelId } from '@/shared/domain/modelDisplay'
 
 export const ACTIVE_CODEX_THREAD_STORAGE_KEY = 'movscript.codex.activeThreadId'
 export const CODEX_THREAD_OPEN_EVENT = 'movscript:codex-thread-open'
@@ -25,13 +29,25 @@ export function CodexThreadChatShell({
   showCollapse,
   onCollapse,
 }: CodexThreadChatShellProps) {
+  const settings = useAgentStore((state) => state.settings)
+  const { data: textModels = [] } = useQuery({
+    queryKey: ['models', 'agent-backend', AGENT_BACKEND_MODEL_CAPABILITY_QUERY],
+    queryFn: () => fetchAgentBackendModels(),
+  })
+  const selectedModel = useMemo(() => {
+    const modelId = settings.modelId ?? textModels[0]?.id ?? null
+    return textModels.find((model) => model.id === modelId)
+  }, [settings.modelId, textModels])
+  const resolveModelForRequest = useCallback(() => ({
+    ...(selectedModel ? { model: publicModelId(selectedModel) } : {}),
+  }), [selectedModel])
   const loadDataSource = useCallback(async (): Promise<AgentChatDataSourceShellLoadResult> => {
     const client = await ensureCodexAppServerRpcClient()
     return {
-      dataSource: client ? createCodexAgentChatDataSource(client) : undefined,
+      dataSource: client ? createCodexAgentChatDataSource(client, { resolveModelForRequest }) : undefined,
       endpoint: client?.url,
     }
-  }, [])
+  }, [resolveModelForRequest])
 
   return (
     <AgentChatDataSourceShell

@@ -1,4 +1,4 @@
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatNotification } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatModelSelection, AgentChatNotification } from '@/features/agent/domain/agentChatProtocol'
 import {
   codexUserInputFromAgentChat,
   agentChatNotificationFromCodex,
@@ -9,10 +9,15 @@ import {
 } from '@/shared/infrastructure/codex-app-server/codexAgentChatProtocolAdapter'
 import type { CodexAppServerRpcClient } from '@/shared/infrastructure/codex-app-server/codexAppServerRpcClient'
 
-export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient): AgentChatDataSource {
+export interface CodexAgentChatDataSourceOptions {
+  resolveModelForRequest?: () => AgentChatModelSelection
+}
+
+export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient, options: CodexAgentChatDataSourceOptions = {}): AgentChatDataSource {
   return {
     provider: 'codex',
     label: 'Codex app-server',
+    serverRequestSubscriptionMode: 'global',
     capabilities: createCodexAgentChatCapabilities(client),
     async listThreads(input = {}) {
       const response = await client.listThreads(input)
@@ -26,7 +31,10 @@ export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient):
       return agentChatThreadFromCodex(response.thread)
     },
     async startThread(input = {}) {
+      const modelSelection = modelSelectionForRequest(options, input)
       const response = await client.startThread({
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+        ...(modelSelection.modelProvider ? { modelProvider: modelSelection.modelProvider } : {}),
         threadSource: 'user',
       })
       return agentChatThreadFromCodex(response.thread)
@@ -51,10 +59,12 @@ export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient):
       return threadFromLifecycleResponse(response)
     },
     async startTurn(input) {
+      const modelSelection = modelSelectionForRequest(options, input)
       const response = await client.startTurn({
         threadId: input.threadId,
         clientUserMessageId: input.clientUserMessageId ?? undefined,
         input: input.inputs.map(codexUserInputFromAgentChat),
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
       })
       return agentChatTurnFromCodex(response.turn)
     },
@@ -73,7 +83,11 @@ export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient):
       })
     },
     async startTextTurn(input) {
-      const response = await client.startTextTurn(input)
+      const modelSelection = modelSelectionForRequest(options, input)
+      const response = await client.startTextTurn({
+        ...input,
+        ...(modelSelection.model ? { model: modelSelection.model } : {}),
+      })
       return agentChatTurnFromCodex(response.turn)
     },
     subscribeThread({ threadId, onNotification, onServerRequest }) {
@@ -94,6 +108,34 @@ export function createCodexAgentChatDataSource(client: CodexAppServerRpcClient):
         disposeServerRequest()
       }
     },
+    subscribeServerRequests({ onServerRequest, onNotification }) {
+      const disposeNotification = client.onNotification((notification) => {
+        if (notification.method === 'serverRequest/resolved') onNotification?.(agentChatNotificationFromCodex(notification))
+      })
+      const disposeServerRequest = client.onServerRequest((request) => {
+        const nextRequest = agentChatServerRequestFromCodex(request)
+        return Promise.resolve(onServerRequest?.(nextRequest)).then((nextResponse) => (
+          nextResponse ? codexServerRequestResponseFromAgentChat(nextRequest, nextResponse) : undefined
+        ))
+      })
+      return () => {
+        disposeNotification()
+        disposeServerRequest()
+      }
+    },
+  }
+}
+
+function modelSelectionForRequest(
+  options: CodexAgentChatDataSourceOptions,
+  input: AgentChatModelSelection,
+): { model?: string; modelProvider?: string } {
+  const resolved = options.resolveModelForRequest?.() ?? {}
+  const model = input.model?.trim() || resolved.model?.trim() || undefined
+  const modelProvider = input.modelProvider?.trim() || resolved.modelProvider?.trim() || undefined
+  return {
+    ...(model ? { model } : {}),
+    ...(modelProvider ? { modelProvider } : {}),
   }
 }
 

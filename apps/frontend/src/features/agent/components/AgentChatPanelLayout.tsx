@@ -5,12 +5,10 @@ import { Archive, Loader2 } from 'lucide-react'
 import { AgentConversationItem, AgentMain, Button, useResizablePanel } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/features/agent/components/AgentDebugPreviewDialog'
 import { ContextDiagnosticDialog } from '@/features/agent/components/ContextDiagnosticDialog'
-import { AgentChatHeaderActions } from '@/features/agent/components/AgentChatHeaderActions'
 import { AgentChatHeaderSection } from '@/features/agent/components/AgentChatHeaderSection'
 import { AgentConversationThreadSection } from '@/features/agent/components/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/features/agent/components/AgentComposerSection'
 import { hasAgentPinnedStatus } from '@/features/agent/components/AgentPinnedStatusShelf'
-import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
 import { conversationDisplayTitle, formatAgentDate, localThreadTitle } from '@/features/agent/presentation/agentConversationLabels'
 import { latestTranscriptChatMessage } from '@/features/agent/domain/agentMessageBoundaries'
 import { listRuntimeThreadPageFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
@@ -38,7 +36,6 @@ export function AgentChatPanelLayout({
   const [historyHeight, setHistoryHeight] = useState<number | null>(null)
   const [pinnedStatusExpanded, setPinnedStatusExpanded] = useState(false)
   const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
-  const setDetailHeaderActions = useAgentPanelUiStore((s) => s.setDetailHeaderActions)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const historyQuery = useInfiniteQuery({
     queryKey: ['local-agent-panel-thread-history', localAgentClient.baseURL],
@@ -134,20 +131,6 @@ export function AgentChatPanelLayout({
     if (conversationStarted) setHistoryOpen(false)
     if (conversationStarted) setHistoryHeight(null)
   }, [conversationStarted])
-
-  useEffect(() => {
-    setDetailHeaderActions(
-      <AgentChatHeaderActions
-        historyOpen={historyOpen}
-        pinnedStatusExpanded={pinnedStatusExpanded}
-        showPinnedStatusControl={hasPinnedStatus}
-        onNewConversation={header.onNewConversation}
-        onToggleHistory={() => setHistoryOpen((open) => !open)}
-        onTogglePinnedStatus={() => setPinnedStatusExpanded((expanded) => !expanded)}
-      />,
-    )
-    return () => setDetailHeaderActions(null)
-  }, [hasPinnedStatus, header.onNewConversation, historyOpen, pinnedStatusExpanded, setDetailHeaderActions])
 
   const historyPanel = historyOpen ? (
     <section

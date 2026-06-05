@@ -74,7 +74,7 @@ export const DEFAULT_CODEX_MOVSCRIPT_HOME_PROFILE: CodexAppServerProfile = {
 }
 
 export const DEFAULT_AGENT_PROVIDER_SETTINGS: AgentProviderSettings = {
-  defaultProviderId: CODEX_AGENT_PROVIDER_ID,
+  defaultProviderId: MOVSCRIPT_AGENT_PROVIDER_ID,
   newConversationProviderId: undefined,
   providers: [
     {
@@ -179,6 +179,7 @@ export function resolveDefaultAgentProvider(settings: AgentProviderSettings): Ag
 export function resolveNewConversationAgentProvider(settings: AgentProviderSettings): AgentProviderConfig {
   const normalized = normalizeAgentProviderSettings(settings)
   return normalized.providers.find((provider) => provider.id === normalized.newConversationProviderId)
+    ?? normalized.providers.find((provider) => provider.kind === 'movscript-agent' && provider.enabled)
     ?? resolveDefaultAgentProvider(normalized)
 }
 
@@ -215,7 +216,8 @@ function managedCodexHome(value: string): string {
   if (!trimmed || trimmed === '~/.codex' || trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('/')) {
     return MOVSCRIPT_MANAGED_CODEX_HOME
   }
-  return trimmed === MOVSCRIPT_MANAGED_CODEX_HOME || trimmed.startsWith(`${MOVSCRIPT_MANAGED_CODEX_HOME}/`)
+  return trimmed === MOVSCRIPT_MANAGED_CODEX_HOME
+    || trimmed.startsWith(`${MOVSCRIPT_MANAGED_CODEX_HOME}/`)
     ? trimmed
     : MOVSCRIPT_MANAGED_CODEX_HOME
 }

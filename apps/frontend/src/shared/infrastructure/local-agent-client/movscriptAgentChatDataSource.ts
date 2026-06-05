@@ -1,24 +1,30 @@
 import {
   isLocalAgentNotFoundError,
+  type AgentRuntimeEventV2,
   type AgentRuntimeSessionSummary,
   type AgentThread,
   type AgentThreadSummary,
   type LocalAgentClient,
 } from '@/shared/infrastructure/localAgentClient'
-import type { AgentChatCapabilities, AgentChatDataSource, AgentChatInput, AgentChatServerRequest, AgentChatServerRequestResponse } from '@/features/agent/domain/agentChatProtocol'
+import type { AgentChatCapabilities, AgentChatDataSource, AgentChatInput, AgentChatNotification, AgentChatServerRequest, AgentChatServerRequestResponse } from '@/features/agent/domain/agentChatProtocol'
 import {
   listRuntimeThreadPageFromWorkspace,
   startSharedProvisionalConversation,
 } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import {
+  agentChatNotificationsFromMovScriptRunMissingInteractionApprovals,
   agentChatNotificationFromMovScriptRuntimeEvent,
+  agentChatServerRequestsFromMovScriptMcpToolStepEvent,
+  agentChatServerRequestsFromMovScriptInteraction,
   agentChatServerRequestsFromMovScriptRun,
   agentChatThreadFromMovScriptAgent,
   agentChatTurnFromMovScriptRun,
 } from '@/shared/infrastructure/local-agent-client/movscriptAgentChatProtocolAdapter'
+import { agentRuntimeMcpToolFromStep } from '@/shared/infrastructure/local-agent-client/agentRuntimeChatThreadItems'
 
 export function createMovScriptAgentChatDataSource(client: LocalAgentClient): AgentChatDataSource {
   const threadRuntimeRefs = new Map<string, ThreadRuntimeRef>()
+  const requestedServerRequestIds = new Set<string>()
 
   async function sendTextTurn(input: {
     threadId: string
@@ -53,6 +59,7 @@ export function createMovScriptAgentChatDataSource(client: LocalAgentClient): Ag
   return {
     provider: 'movscript',
     label: 'MovScript Agent',
+    serverRequestSubscriptionMode: 'globalWithThreadFallback',
     capabilities: createMovScriptAgentChatCapabilities(client),
     async listThreads(input = {}) {
       const response = await listRuntimeThreadPageFromWorkspace({
@@ -128,24 +135,54 @@ export function createMovScriptAgentChatDataSource(client: LocalAgentClient): Ag
       })
     },
     startTextTurn,
-    subscribeThread({ threadId, onNotification, onServerRequest, signal }) {
-      const requestedIds = new Set<string>()
+    subscribeServerRequests({ onServerRequest, onNotification, signal }) {
+      const controller = new AbortController()
+      const abortFromExternal = () => {
+        if (!controller.signal.aborted) controller.abort(signal?.reason)
+      }
+      if (signal?.aborted) abortFromExternal()
+      else signal?.addEventListener('abort', abortFromExternal, { once: true })
       void (async () => {
-        const runtimeClient = await runtimeClientForThread(threadId)
+        const sessions = await client.listRuntimeSessionsFromWorkspace?.().catch(() => undefined)
+        const runningSessions = (sessions?.sessions ?? []).filter((summary) => summary.running && !summary.stale)
+        for (const summary of runningSessions) {
+          rememberRuntimeSessionThreadRefs(summary)
+          const sessionId = summary.session.id?.trim()
+          if (!sessionId) continue
+          const runtimeClient = runtimeClientForThreadRef({
+            sessionId,
+            ...(summary.workspaceDir?.trim() ? { workspaceDir: summary.workspaceDir.trim() } : {}),
+          })
+          void runtimeClient.streamSession(sessionId, {
+            signal: controller.signal,
+            onRuntimeEvent: (event) => {
+              const notification = agentChatNotificationFromMovScriptRuntimeEvent(event)
+              if (notification?.event?.type === 'serverRequestResolved') onNotification?.(notification)
+              emitMovScriptAgentChatServerRequestsFromRuntimeEvent(event, runtimeClient, requestedServerRequestIds, onServerRequest, onNotification)
+            },
+          }).catch((error) => {
+            if (controller.signal.aborted) return
+            console.error('[agent-chat] MovScript Agent session server request stream failed', error)
+          })
+        }
+      })().catch((error) => {
+        if (controller.signal.aborted) return
+        console.error('[agent-chat] MovScript Agent server request subscription failed', error)
+      })
+      return () => {
+        signal?.removeEventListener('abort', abortFromExternal)
+        controller.abort()
+      }
+    },
+    subscribeThread({ threadId, onNotification, onServerRequest, signal }) {
+      void (async () => {
+        const { client: runtimeClient } = await getThreadWithRuntimeClient(threadId)
         await runtimeClient.streamThread(threadId, {
           signal,
           onRuntimeEvent: (event) => {
             const notification = agentChatNotificationFromMovScriptRuntimeEvent(event)
             if (notification) onNotification?.(notification)
-            if (event.kind === 'run.upserted' && event.entity?.type === 'run') {
-              for (const request of agentChatServerRequestsFromMovScriptRun(event.entity.value)) {
-                if (requestedIds.has(request.id)) continue
-                requestedIds.add(request.id)
-                void Promise.resolve(onServerRequest?.(request))
-                  .then((response) => response ? resolveMovScriptAgentChatServerRequest(runtimeClient, request, response) : undefined)
-                  .catch((error) => console.error('[agent-chat] MovScript Agent server request resolution failed', error))
-              }
-            }
+            emitMovScriptAgentChatServerRequestsFromRuntimeEvent(event, runtimeClient, requestedServerRequestIds, onServerRequest, onNotification)
           },
         })
       })().catch((error) => {
@@ -223,6 +260,121 @@ export function createMovScriptAgentChatDataSource(client: LocalAgentClient): Ag
   }
 }
 
+function emitMovScriptAgentChatServerRequestsFromRuntimeEvent(
+  event: AgentRuntimeEventV2,
+  runtimeClient: LocalAgentClient,
+  requestedIds: Set<string>,
+  onServerRequest: ((request: AgentChatServerRequest) => AgentChatServerRequestResponse | undefined | Promise<AgentChatServerRequestResponse | undefined>) | undefined,
+  onNotification: ((notification: AgentChatNotification) => void) | undefined,
+): void {
+  const notification = agentChatNotificationFromMovScriptRuntimeEvent(event)
+  if (notification?.event?.type === 'serverRequestResolved') requestedIds.delete(notification.event.requestId)
+  if (event.kind === 'interaction.upserted' && event.entity?.type === 'interaction' && event.entity.value.status !== 'pending') {
+    releaseMovScriptAgentChatResolvedInteractionRequestIds(requestedIds, event.entity.value)
+  }
+  const requests = event.kind === 'run.upserted' && event.entity?.type === 'run'
+    ? agentChatServerRequestsFromMovScriptRun(event.entity.value)
+    : event.kind === 'interaction.upserted' && event.entity?.type === 'interaction'
+      ? agentChatServerRequestsFromMovScriptInteraction(event.entity.value)
+      : event.kind === 'step.upserted'
+        ? agentChatServerRequestsFromMovScriptMcpToolStepEvent(event)
+        : []
+  emitMovScriptAgentChatServerRequests(requests, runtimeClient, requestedIds, onServerRequest)
+  if (!requests.length) {
+    emitMovScriptAgentChatServerRequestsFromPendingRun(event, runtimeClient, requestedIds, onServerRequest, onNotification)
+  }
+}
+
+function emitMovScriptAgentChatServerRequests(
+  requests: AgentChatServerRequest[],
+  runtimeClient: LocalAgentClient,
+  requestedIds: Set<string>,
+  onServerRequest: ((request: AgentChatServerRequest) => AgentChatServerRequestResponse | undefined | Promise<AgentChatServerRequestResponse | undefined>) | undefined,
+): void {
+  for (const request of requests) {
+    const requestKeys = movScriptAgentChatServerRequestDedupeKeys(request)
+    if (requestKeys.some((key) => requestedIds.has(key))) continue
+    for (const key of requestKeys) requestedIds.add(key)
+    void Promise.resolve(onServerRequest?.(request))
+      .then((response) => {
+        if (!response) {
+          for (const key of requestKeys) requestedIds.delete(key)
+          return undefined
+        }
+        return resolveMovScriptAgentChatServerRequest(runtimeClient, request, response)
+      })
+      .catch((error) => {
+        for (const key of requestKeys) requestedIds.delete(key)
+        console.error('[agent-chat] MovScript Agent server request resolution failed', error)
+      })
+  }
+}
+
+function emitMovScriptAgentChatServerRequestsFromPendingRun(
+  event: AgentRuntimeEventV2,
+  runtimeClient: LocalAgentClient,
+  requestedIds: Set<string>,
+  onServerRequest: ((request: AgentChatServerRequest) => AgentChatServerRequestResponse | undefined | Promise<AgentChatServerRequestResponse | undefined>) | undefined,
+  onNotification: ((notification: AgentChatNotification) => void) | undefined,
+): void {
+  if (event.kind !== 'step.upserted' || event.entity?.type !== 'step') return
+  const step = event.entity.value
+  if (step.type !== 'tool_call' || step.status !== 'in_progress' || !step.runId) return
+  if (!agentRuntimeMcpToolFromStep(step)) return
+  if (typeof runtimeClient.getRun !== 'function') return
+  void runtimeClient.getRun(step.runId)
+    .then((run) => {
+      for (const notification of agentChatNotificationsFromMovScriptRunMissingInteractionApprovals(run)) {
+        onNotification?.(notification)
+      }
+      emitMovScriptAgentChatServerRequests(
+        agentChatServerRequestsFromMovScriptRun(run),
+        runtimeClient,
+        requestedIds,
+        onServerRequest,
+      )
+    })
+    .catch((error) => {
+      console.error('[agent-chat] MovScript Agent pending run server request lookup failed', error)
+    })
+}
+
+function movScriptAgentChatServerRequestDedupeKeys(request: AgentChatServerRequest): string[] {
+  const params = isRecord(request.params) ? request.params : {}
+  return uniqueStrings([
+    request.id ? scopedMovScriptServerRequestDedupeKey('request', request.id, request) : '',
+    readString(params, 'interactionId') ? scopedMovScriptServerRequestDedupeKey('interaction', readString(params, 'interactionId') ?? '', request) : '',
+  ])
+}
+
+function releaseMovScriptAgentChatResolvedInteractionRequestIds(
+  requestedIds: Set<string>,
+  interaction: { id: string; threadId?: string; displayThreadId?: string | null; displayAnchor?: { threadId?: string; runId?: string } | null; runId?: string; originRunId?: string | null; payload?: unknown },
+): void {
+  const payload = isRecord(interaction.payload) ? interaction.payload : {}
+  const requestScope = {
+    threadId: interaction.displayThreadId ?? interaction.displayAnchor?.threadId ?? interaction.threadId,
+    turnId: interaction.displayAnchor?.runId ?? interaction.originRunId ?? interaction.runId,
+  }
+  requestedIds.delete(scopedMovScriptServerRequestDedupeKey('interaction', interaction.id, requestScope))
+  for (const key of ['approvalId', 'requestId', 'inputId', 'id']) {
+    const requestId = readString(payload, key)
+    if (requestId) requestedIds.delete(scopedMovScriptServerRequestDedupeKey('request', requestId, requestScope))
+  }
+}
+
+function scopedMovScriptServerRequestDedupeKey(
+  kind: 'request' | 'interaction',
+  id: string,
+  scope: { threadId?: string; turnId?: string },
+): string {
+  return `${kind}:${scope.threadId ?? ''}:${scope.turnId ?? ''}:${id}`
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return values.filter((value, index, keys) => value && keys.indexOf(value) === index)
+}
+
 type ThreadRuntimeRef = {
   sessionId: string
   workspaceDir?: string
@@ -245,15 +397,31 @@ async function resolveMovScriptAgentChatServerRequest(
       : client.rejectInteraction(interactionId)
   }
   if (request.method === 'item/tool/requestUserInput') {
-    if (!request.turnId) throw new Error(`MovScript input request has no run id: ${request.id}`)
-    const answer = response.action === 'answer' ? response : { action: 'answer' as const, text: response.action === 'reject' ? response.reason ?? 'Rejected.' : undefined }
-    return client.answerRunInput(request.turnId, {
+    const runId = inputRunIdFromRequest(request)
+    if (!runId) throw new Error(`MovScript input request has no run id: ${request.id}`)
+    const answer = movScriptInputAnswerFromServerRequestResponse(response)
+    return client.answerRunInput(runId, {
       requestId: request.id,
       ...(answer.choiceIds && answer.choiceIds.length > 0 ? { choiceIds: answer.choiceIds } : {}),
       ...(typeof answer.text === 'string' && answer.text.trim() ? { text: answer.text.trim() } : {}),
     })
   }
   return undefined
+}
+
+function movScriptInputAnswerFromServerRequestResponse(
+  response: AgentChatServerRequestResponse,
+): { choiceIds?: string[]; text?: string } {
+  if (response.action === 'answer') return response
+  if (response.action === 'reject') return { text: response.reason ?? 'Rejected.' }
+  if (response.action === 'cancel') return { text: response.reason ?? 'Cancelled.' }
+  return {}
+}
+
+function inputRunIdFromRequest(request: AgentChatServerRequest): string | undefined {
+  const raw = isRecord(request.raw) ? request.raw : {}
+  const params = isRecord(request.params) ? request.params : {}
+  return readString(params, 'runId') ?? readString(raw, 'runId') ?? request.turnId
 }
 
 function interactionIdFromRequest(request: AgentChatServerRequest): string | undefined {
@@ -272,12 +440,31 @@ async function activeRunIdForThread(client: LocalAgentClient, threadId: string):
 function agentChatInputsToMovScriptText(inputs: AgentChatInput[]): string {
   const parts = inputs.map((input) => {
     if (input.type === 'text') return input.text
-    if (input.type === 'image') return `[image: ${input.url}]`
+    if (input.type === 'image') return movScriptImageText(input)
     if (input.type === 'localImage') return `[local image: ${input.path}]`
     if (input.type === 'skill') return `@[skill:${input.name}] ${input.path}`
-    return `@[mention:${input.name}] ${input.path}`
+    return movScriptMentionText(input)
   })
   return parts.join('\n').trim()
+}
+
+function movScriptImageText(input: Extract<AgentChatInput, { type: 'image' }>): string {
+  return [
+    `[image: ${input.url}]`,
+    input.resourceId !== undefined ? `resource: ${input.resourceId}` : '',
+    input.name ? `name: ${input.name}` : '',
+    input.mimeType ? `mime: ${input.mimeType}` : '',
+  ].filter(Boolean).join(' ')
+}
+
+function movScriptMentionText(input: Extract<AgentChatInput, { type: 'mention' }>): string {
+  return [
+    `@[mention:${input.name}]`,
+    input.path,
+    input.url && input.url !== input.path ? `url: ${input.url}` : '',
+    input.kind ? `kind: ${input.kind}` : '',
+    input.mimeType ? `mime: ${input.mimeType}` : '',
+  ].filter(Boolean).join(' ')
 }
 
 function createMovScriptAgentChatCapabilities(client: LocalAgentClient): AgentChatCapabilities {

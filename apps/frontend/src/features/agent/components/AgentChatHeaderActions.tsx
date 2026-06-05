@@ -1,4 +1,4 @@
-import { Activity, History, Plus } from 'lucide-react'
+import { Activity, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AppWindowIconButton } from '@movscript/ui'
 
@@ -6,7 +6,6 @@ export interface AgentChatHeaderActionsProps {
   historyOpen: boolean
   pinnedStatusExpanded: boolean
   showPinnedStatusControl: boolean
-  onNewConversation: () => void
   onToggleHistory: () => void
   onTogglePinnedStatus: () => void
 }
@@ -15,7 +14,6 @@ export function AgentChatHeaderActions({
   historyOpen,
   pinnedStatusExpanded,
   showPinnedStatusControl,
-  onNewConversation,
   onToggleHistory,
   onTogglePinnedStatus,
 }: AgentChatHeaderActionsProps) {
@@ -23,14 +21,6 @@ export function AgentChatHeaderActions({
 
   return (
     <div className="ai-agent-program-header-actions">
-      <AppWindowIconButton
-        type="button"
-        onClick={onNewConversation}
-        aria-label={t('agents.chat.newConversation')}
-        title={t('agents.chat.newConversation')}
-      >
-        <Plus size={12} />
-      </AppWindowIconButton>
       {showPinnedStatusControl ? (
         <AppWindowIconButton
           type="button"

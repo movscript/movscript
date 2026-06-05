@@ -19,6 +19,7 @@ test('codex app-server rpc client sends codex-native thread and turn requests', 
 
     const socket = await waitFor(() => sockets[0])
     const initialize = await waitForSent(socket, 'initialize')
+    assert.deepEqual(initialize.params?.capabilities, { experimentalApi: true, requestAttestation: true })
     socket.respond(initialize.id, { userAgent: 'codex-test', codexHome: '/tmp/codex' })
     const initialized = await waitForSent(socket, 'initialized')
     assert.equal(initialized.id, undefined)
@@ -162,10 +163,104 @@ test('codex app-server rpc client sends codex-native thread and turn requests', 
   }
 })
 
+test('codex app-server rpc client returns protocol-shaped fallback server request responses', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new CodexAppServerRpcClient('ws://127.0.0.1:48766', 0)
+    const initializePromise = client.initialize()
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respond(initialize.id, { userAgent: 'codex-test', codexHome: '/tmp/codex' })
+    await initializePromise
+
+    socket.serverRequest('request_permissions_1', 'item/permissions/requestApproval', {
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      itemId: 'call_1',
+      permissions: { network: null, fileSystem: null },
+    })
+
+    const permissionsResponse = await waitForResponse(socket, 'request_permissions_1')
+    assert.deepEqual(permissionsResponse.result, {
+      permissions: {},
+      scope: 'turn',
+      strictAutoReview: true,
+    })
+
+    socket.serverRequest('request_input_1', 'item/tool/requestUserInput', { threadId: 'thread_1' })
+    const inputResponse = await waitForResponse(socket, 'request_input_1')
+    assert.deepEqual(inputResponse.result, { answers: {} })
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
+test('codex app-server rpc client defers early server requests until the UI handler is registered', async () => {
+  const originalWebSocket = globalThis.WebSocket
+  const sockets: FakeWebSocket[] = []
+  ;(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = class extends FakeWebSocket {
+    constructor(url: string) {
+      super(url)
+      sockets.push(this)
+    }
+  } as unknown as typeof WebSocket
+
+  try {
+    const client = new CodexAppServerRpcClient('ws://127.0.0.1:48767')
+    const initializePromise = client.initialize()
+    const socket = await waitFor(() => sockets[0])
+    const initialize = await waitForSent(socket, 'initialize')
+    socket.respond(initialize.id, { userAgent: 'codex-test', codexHome: '/tmp/codex' })
+    await initializePromise
+
+    socket.serverRequest('approval_1', 'item/commandExecution/requestApproval', {
+      threadId: 'thread_1',
+      turnId: 'turn_1',
+      itemId: 'call_1',
+      command: 'pnpm test',
+      cwd: '/repo',
+    })
+    await nextTick()
+    assert.equal(socket.sent.some((message) => message.id === 'approval_1'), false)
+
+    const seenRequests: unknown[] = []
+    const dispose = client.onServerRequest((request) => {
+      seenRequests.push(request)
+      return { decision: 'accept' }
+    })
+
+    const approvalResponse = await waitForResponse(socket, 'approval_1')
+    assert.deepEqual(seenRequests, [{
+      id: 'approval_1',
+      method: 'item/commandExecution/requestApproval',
+      params: {
+        threadId: 'thread_1',
+        turnId: 'turn_1',
+        itemId: 'call_1',
+        command: 'pnpm test',
+        cwd: '/repo',
+      },
+    }])
+    assert.deepEqual(approvalResponse.result, { decision: 'accept' })
+    dispose()
+  } finally {
+    if (originalWebSocket) globalThis.WebSocket = originalWebSocket
+  }
+})
+
 interface SentMessage {
-  id?: number
-  method: string
+  id?: number | string
+  method?: string
   params?: Record<string, unknown>
+  result?: unknown
 }
 
 class FakeWebSocket {
@@ -198,9 +293,13 @@ class FakeWebSocket {
     this.emit('close', {})
   }
 
-  respond(id: number | undefined, result: unknown): void {
-    assert.equal(typeof id, 'number')
+  respond(id: number | string | undefined, result: unknown): void {
+    assert.ok(typeof id === 'number' || typeof id === 'string')
     this.emit('message', { data: JSON.stringify({ id, result }) })
+  }
+
+  serverRequest(id: string, method: string, params: unknown): void {
+    this.emit('message', { data: JSON.stringify({ id, method, params }) })
   }
 
   private emit(type: string, event: unknown): void {
@@ -220,4 +319,12 @@ async function waitFor<T>(read: () => T | undefined): Promise<T> {
 
 async function waitForSent(socket: FakeWebSocket, method: string): Promise<SentMessage> {
   return waitFor(() => socket.sent.find((message) => message.method === method))
+}
+
+async function waitForResponse(socket: FakeWebSocket, id: string): Promise<SentMessage> {
+  return waitFor(() => socket.sent.find((message) => message.id === id))
+}
+
+function nextTick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }

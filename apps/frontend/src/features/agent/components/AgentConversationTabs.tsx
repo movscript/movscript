@@ -5,6 +5,7 @@ import { conversationDisplayTitle } from '@/features/agent/presentation/agentCon
 import { transcriptMessageCount } from '@/features/agent/domain/agentMessageBoundaries'
 import type { AgentRuntimeStatusLight } from '@/features/agent/domain/agentRuntimeStatusLight'
 import type { Conversation } from '@/features/agent/state/agentStore'
+import { AgentProviderControls } from '@/features/agent/components/AgentProviderControls'
 
 export interface AgentConversationTabsProps {
   activeConversationId: string
@@ -13,9 +14,12 @@ export interface AgentConversationTabsProps {
   onCloseTabContextMenu: () => void
   onOpenKeyboardMenu: (event: KeyboardEvent, conversationId: string) => void
   onOpenMenu: (event: MouseEvent, conversationId: string) => void
+  onNewConversation: () => void
   onRenameConversation: (id: string, title: string) => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
+  onToggleHistory?: () => void
+  historyOpen?: boolean
   runtimeStatusLights?: Partial<Record<string, AgentRuntimeStatusLight>>
 }
 
@@ -26,9 +30,12 @@ export function AgentConversationTabs({
   onCloseTabContextMenu,
   onOpenKeyboardMenu,
   onOpenMenu,
+  onNewConversation,
   onRenameConversation,
   onReorderConversation,
   onSelectConversation,
+  onToggleHistory,
+  historyOpen,
   runtimeStatusLights,
 }: AgentConversationTabsProps) {
   const { t } = useTranslation()
@@ -50,6 +57,13 @@ export function AgentConversationTabs({
     <AgentConversationTabsPanel
       activeConversationId={activeConversationId}
       conversations={mappedConversations}
+      endAccessory={(
+        <AgentProviderControls
+          historyOpen={historyOpen}
+          onNewConversation={onNewConversation}
+          onToggleHistory={onToggleHistory}
+        />
+      )}
       onCloseConversation={onCloseConversation}
       onCloseTabContextMenu={onCloseTabContextMenu}
       onOpenKeyboardMenu={onOpenKeyboardMenu}

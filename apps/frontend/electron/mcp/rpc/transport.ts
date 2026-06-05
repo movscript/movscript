@@ -41,6 +41,13 @@ export function writeJSON(res: ServerResponse, status: number, body: unknown): v
   res.end(JSON.stringify(body))
 }
 
+export function writeAccepted(res: ServerResponse): void {
+  res.writeHead(202, {
+    Connection: 'close',
+  })
+  res.end()
+}
+
 export function setCORSHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')

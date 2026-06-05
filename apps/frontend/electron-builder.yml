@@ -25,6 +25,14 @@ extraResources:
       - dist/**
       - catalog/**
       - package.json
+  - from: ../../plugins/movscript
+    to: codex-plugins/movscript
+    filter:
+      - .codex-plugin/**
+      - .mcp.json
+      - bin/**
+      - skills/**
+      - README.md
   - from: vendor/ffmpeg
     to: ffmpeg
     filter:

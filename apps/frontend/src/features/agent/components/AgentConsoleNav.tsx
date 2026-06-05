@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { BarChart3, Blocks, ClipboardList, FileSearch, FolderTree, ListTree, Settings } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { BarChart3, Blocks, Bot, ClipboardList, Database, FileCog } from 'lucide-react'
 import {
   AgentConsoleNavItem,
   AgentConsoleNavLinkWrapper,
@@ -9,67 +9,70 @@ import {
   AgentConsoleNavShell,
 } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
+import { enabledAgentProviders, normalizeAgentProviderSettings, useAgentProviderConfigStore } from '@/features/agent/state/agentProviderConfigStore'
 
 const agentConsoleSections = [
   {
     to: ROUTES.agentConsole,
-    label: '概览',
-    description: '健康状态与待关注事项',
+    label: 'Overview',
+    description: '全局状态、健康检查和待关注事项',
     icon: BarChart3,
     end: true,
   },
   {
-    to: ROUTES.agentSettings,
-    label: '配置文件与能力设置',
-    description: '配置文件、已安装能力、Skills、Tools、模型与运行限制',
-    icon: Settings,
+    to: ROUTES.modelProviders,
+    label: 'Model Providers',
+    description: '本地模型供应商、Base URL、API Key',
+    icon: Database,
+  },
+  {
+    to: ROUTES.agentsMovscript,
+    label: 'Agents',
+    description: 'MovScript Agent、Codex 启用与生命周期',
+    icon: Bot,
+    match: ['/agents', ROUTES.agentSettings, ROUTES.agentRuns],
   },
   {
     to: ROUTES.plugins,
-    label: 'Pack / 插件市场',
-    description: 'Pack 安装来源、应用插件与工具扩展',
+    label: 'Plugins',
+    description: '全局插件、Pack、Skills/Tools 贡献',
     icon: Blocks,
+    match: [ROUTES.plugins, ROUTES.legacyAgentPlugins],
   },
   {
-    to: ROUTES.agentRuns,
-    label: '运行记录',
-    description: 'Run 列表与 trace 入口',
-    icon: ListTree,
-  },
-  {
-    to: ROUTES.agentFiles,
-    label: 'MovScript 文件',
-    description: '.movscript 文件浏览与文本编辑',
-    icon: FolderTree,
-  },
-  {
-    to: ROUTES.agentWorkspaces,
-    label: '工作区索引',
-    description: 'Agent 产物查询与业务审阅跳转',
-    icon: FileSearch,
+    to: ROUTES.workspaceConfig,
+    label: 'Workspace Config',
+    description: '.movscript workspace 配置文件',
+    icon: FileCog,
+    match: [ROUTES.workspaceConfig, ROUTES.agentFiles],
   },
 ] as const
 
 export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
+  const location = useLocation()
+  const savedSettings = useAgentProviderConfigStore((state) => state.settings)
+  const enabledCount = enabledAgentProviders(normalizeAgentProviderSettings(savedSettings)).length
   return (
     <AgentConsoleNavShell compact={compact}>
-      <nav aria-label="Agent 控制台导航">
+      <nav aria-label="Agent 控制台全局导航">
         <AgentConsoleNavList>
           {agentConsoleSections.map((section) => {
             const Icon = section.icon
+            const active = sectionIsActive(section, location.pathname)
+            const description = section.label === 'Agents'
+              ? `${enabledCount} 个 Agent 启用`
+              : section.description
             return (
               <AgentConsoleNavLinkWrapper key={section.to}>
-                <NavLink to={section.to} end={'end' in section ? section.end : undefined}>
-                  {({ isActive }) => (
-                    <AgentConsoleNavItem
-                      active={isActive}
-                      compact={compact}
-                      icon={<Icon size={14} />}
-                      title={section.label}
-                      description={section.description}
-                    />
-                  )}
-                </NavLink>
+                <Link to={section.to}>
+                  <AgentConsoleNavItem
+                    active={active}
+                    compact={compact}
+                    icon={<Icon size={14} />}
+                    title={section.label}
+                    description={description}
+                  />
+                </Link>
               </AgentConsoleNavLinkWrapper>
             )
           })}
@@ -77,14 +80,20 @@ export function AgentConsoleNav({ compact = false }: { compact?: boolean }) {
         {!compact && (
           <AgentConsoleNavMetaRow>
             <AgentConsoleNavMeta icon={ClipboardList}>
-              业务审阅仍在各业务页面完成
+              插件和 workspace 配置是全局入口
             </AgentConsoleNavMeta>
             <AgentConsoleNavMeta>
-              控制台只负责配置文件、已安装能力、工具权限、运行和索引
+              Agent 页面只负责 MovScript / Codex 的启用、关闭、配置和运行状态
             </AgentConsoleNavMeta>
           </AgentConsoleNavMetaRow>
         )}
       </nav>
     </AgentConsoleNavShell>
   )
+}
+
+function sectionIsActive(section: (typeof agentConsoleSections)[number], pathname: string): boolean {
+  if ('end' in section && section.end) return pathname === section.to
+  if ('match' in section) return section.match.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+  return pathname === section.to || pathname.startsWith(`${section.to}/`)
 }

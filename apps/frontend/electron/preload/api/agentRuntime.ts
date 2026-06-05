@@ -6,7 +6,7 @@ import type {
 
 type AgentRuntimeStreamMessageHandler = (message: ElectronAgentRuntimeStreamMessage) => void
 
-export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage' | 'listAgentRuntimeSessions' | 'getAgentWorkspaceConfig' | 'saveAgentWorkspaceConfig' | 'listAgentWorkspaceFiles' | 'readAgentWorkspaceFile' | 'writeAgentWorkspaceFile' | 'deleteAgentWorkspaceFile'> {
+export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAgentRuntime' | 'stopAgentRuntime' | 'agentRuntimeRequest' | 'agentRuntimeOpenEventStream' | 'agentRuntimeCloseEventStream' | 'onAgentRuntimeStreamMessage' | 'listAgentRuntimeSessions' | 'getAgentWorkspaceConfig' | 'saveAgentWorkspaceConfig' | 'listAgentWorkspaceFiles' | 'readAgentWorkspaceFile' | 'writeAgentWorkspaceFile' | 'deleteAgentWorkspaceFile'> {
   const streamMessageHandlers = new Set<AgentRuntimeStreamMessageHandler>()
   let streamMessageListenerInstalled = false
   const streamMessageListener = (_event: unknown, message: ElectronAgentRuntimeStreamMessage) => {
@@ -25,6 +25,7 @@ export function createAgentRuntimeAPI(ipcRenderer: IpcRenderer): Pick<ElectronAP
 
   return {
     ensureAgentRuntime: (input) => ipcRenderer.invoke('agent:ensure-running', input),
+    stopAgentRuntime: () => ipcRenderer.invoke('agent:stop-running'),
     agentRuntimeRequest: (input) => ipcRenderer.invoke('agent:runtime-request', input),
     agentRuntimeOpenEventStream: (input) => ipcRenderer.invoke('agent:runtime-open-event-stream', input),
     agentRuntimeCloseEventStream: (input) => ipcRenderer.invoke('agent:runtime-close-event-stream', input),

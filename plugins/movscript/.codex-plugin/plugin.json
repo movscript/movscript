@@ -1,9 +1,18 @@
 {
   "name": "movscript",
-  "version": "0.1.0",
-  "description": "MovScript workspace skills backed by the frontend MCP server.",
+  "version": "0.1.2",
+  "description": "MovScript project, script, workspace, media query, and generation tools backed by the frontend MCP server.",
   "keywords": [
     "workspace",
+    "project",
+    "script",
+    "generation",
+    "image",
+    "video",
+    "query",
+    "resources",
+    "shot-library",
+    "external-media",
     "files",
     "frontend-mcp",
     "movscript"
@@ -12,15 +21,28 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "MovScript",
-    "shortDescription": "Edit MovScript workspace files.",
-    "longDescription": "Installs MovScript workspace editing guidance and connects to the MovScript frontend MCP server. Workspace content lives as files under the frontend-owned .movscript directory; review/apply remains a UI boundary.",
+    "shortDescription": "Use MovScript projects, scripts, workspaces, media queries, and generation.",
+    "longDescription": "Installs MovScript project/script/workspace guidance and connects to the MovScript frontend MCP server. The MCP bridge exposes current focus, project listing and creation, script listing, script passage location, workspace files, project queries, MovScript resource-library search, shot-library search, external media search, model discovery, image generation, video generation, job polling, and candidate attachment. Workspace review/apply remains a UI boundary.",
     "developerName": "MovScript",
     "category": "Productivity",
     "capabilities": [
+      "current focus",
+      "project list",
+      "project creation",
+      "script list",
+      "script passage location",
       "workspace files",
       "workspace model contract",
+      "resource library query",
+      "shot library query",
+      "external media search",
+      "project context query",
+      "image generation",
+      "video generation",
+      "generation job polling",
+      "candidate attachment",
       "review handoff"
     ],
-    "defaultPrompt": "Use MovScript's frontend workspace model contract, edit the workspace file, then hand off review/apply to the MovScript UI."
+    "defaultPrompt": "Use MovScript's MCP tools for current focus, project/script context, resource-library lookup, shot-library search, external media search, model discovery, image/video generation, and workspace edits. Treat generation input_resource_ids/reference_resource_ids as MovScript RawResource IDs only, and keep review/apply handoff in the MovScript UI."
   }
 }

@@ -38,13 +38,9 @@ import {
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { useTheme } from '@/features/app-shell/application/useTheme'
 import { canvasRouteSourceFromSearch, getAppRouteSurface, routeForWorkMode, workModeForRoute } from '@/routes/appRouteModel'
-import { openAgentPanelNewConversation } from '@/features/agent/application/agentPanelBridge'
-import { listRuntimeSessionSummariesFromWorkspace } from '@/features/agent/application/agentRuntimeThreadQueryCache'
 import { useAgentPanelUiStore } from '@/features/agent/presentation/agentPanelUiStore'
-import { useHasOpenAgentConversations } from '@/features/agent/presentation/useHasOpenAgentConversations'
 import { projectListQueryKey } from '@/features/project/application/projectQueries'
 import { api } from '@/shared/infrastructure/api'
-import { localAgentClient } from '@/shared/infrastructure/localAgentClient'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useAppShellDialogStore } from '@/features/app-shell/application/appShellDialogStore'
 import { useProjectStore } from '@/shared/infrastructure/session/projectStore'
@@ -68,9 +64,7 @@ export function AppTopControls({
   const { pathname, search } = useLocation()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
-  const currentUser = useUserStore((s) => s.currentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
-  const userId = currentUser ? String(currentUser.ID) : ''
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const openAccountSettings = useAppShellDialogStore((s) => s.openAccountSettings)
@@ -79,7 +73,6 @@ export function AppTopControls({
   const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
   const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
-  const conversationCount = useHasOpenAgentConversations(userId) ? 1 : 0
   const { theme, selectTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
@@ -119,35 +112,14 @@ export function AppTopControls({
   }
 
   function handleAssistantShortcut() {
-    if (!hasAssistantShortcutTarget) return
     setAgentPanelOpen(!agentPanelOpen)
-  }
-
-  function handleHistoryConversationShortcut() {
-    setAgentPanelOpen(true)
-  }
-
-  function handleNewConversationShortcut() {
-    setAgentPanelOpen(true)
-    window.setTimeout(() => {
-      openAgentPanelNewConversation({
-        ...(current?.ID ? { projectId: current.ID } : {}),
-      })
-    }, 0)
   }
 
   const density = compact ? 'compact' : 'default'
   const iconSize = compact ? 11 : 16
   const showAssistantShortcut = routeSurface === 'detail' && showAssistantShortcutProp
   const showAgentContentPanelShortcut = routeSurface === 'agent' && showAgentContentPanelShortcutProp
-  const { data: agentWorkspaceSessions = [] } = useQuery({
-    queryKey: ['local-agent-sessions', localAgentClient.baseURL, 'app-top-controls'],
-    queryFn: () => listRuntimeSessionSummariesFromWorkspace(),
-    enabled: showAssistantShortcut,
-    retry: false,
-  })
-  const hasAssistantShortcutTarget = conversationCount > 0 || agentWorkspaceSessions.length > 0
-  const AssistantShortcutIcon = agentPanelOpen ? PanelRightClose : PanelRightOpen
+  const AssistantShortcutIcon = MessageSquare
   const assistantShortcutTitle = agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
   const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
   const agentContentPanelTitle = agentModeContentPanelCollapsed
@@ -184,33 +156,11 @@ export function AppTopControls({
           variant="ghost"
           density={density}
           onClick={handleAssistantShortcut}
-          active={agentPanelOpen && hasAssistantShortcutTarget}
+          active={agentPanelOpen}
           title={assistantShortcutTitle}
           aria-label={assistantShortcutTitle}
         >
           <AssistantShortcutIcon size={iconSize} />
-        </AppTopControlButton>
-      )}
-      {showAssistantShortcut && conversationCount === 0 && agentWorkspaceSessions.length > 0 && (
-        <AppTopControlButton
-          variant="ghost"
-          density={density}
-          onClick={handleHistoryConversationShortcut}
-          title={t('agents.chat.conversationHistory')}
-          aria-label={t('agents.chat.conversationHistory')}
-        >
-          <MessageSquare size={iconSize} />
-        </AppTopControlButton>
-      )}
-      {showAssistantShortcut && conversationCount === 0 && agentWorkspaceSessions.length === 0 && (
-        <AppTopControlButton
-          variant="ghost"
-          density={density}
-          onClick={handleNewConversationShortcut}
-          title={t('agents.chat.newConversation')}
-          aria-label={t('agents.chat.newConversation')}
-        >
-          <Plus size={iconSize} />
         </AppTopControlButton>
       )}
       {showAgentContentPanelShortcut && (

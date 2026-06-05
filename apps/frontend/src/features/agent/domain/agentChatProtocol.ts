@@ -1,13 +1,23 @@
-export type AgentChatProviderKind = 'codex' | 'movscript' | (string & {})
+import type {
+  AgentChatInput,
+  AgentChatThreadItem,
+} from '@/features/agent/domain/agentChatThreadItems'
 
-export type AgentChatInput =
-  | { type: 'text'; text: string; textElements: AgentChatTextElement[] }
-  | { type: 'image'; url: string; detail?: string }
-  | { type: 'localImage'; path: string; detail?: string }
-  | { type: 'skill'; name: string; path: string }
-  | { type: 'mention'; name: string; path: string }
+export {
+  agentChatInputFromAttachment,
+  agentChatInputsFromTextAndAttachments,
+  agentChatTextInput,
+} from '@/features/agent/domain/agentChatThreadItems'
+export type {
+  AgentChatCollabAgentState,
+  AgentChatCommandAction,
+  AgentChatHookPromptFragment,
+  AgentChatInput,
+  AgentChatTextElement,
+  AgentChatThreadItem,
+} from '@/features/agent/domain/agentChatThreadItems'
 
-export type AgentChatTextElement = Record<string, unknown>
+export type AgentChatProviderKind = 'codex' | 'movscript' | 'movscript-agent' | (string & {})
 
 export type AgentChatThreadStatus = 'notLoaded' | 'idle' | 'running' | 'failed' | 'completed' | 'cancelled' | 'unknown'
 export type AgentChatTurnStatus = 'completed' | 'interrupted' | 'failed' | 'inProgress' | (string & {})
@@ -37,32 +47,6 @@ export interface AgentChatTurn {
   durationMs: number | null
   raw?: unknown
 }
-
-export type AgentChatThreadItem =
-  | { type: 'userMessage'; id: string; clientId: string | null; content: AgentChatInput[]; raw?: unknown }
-  | { type: 'agentMessage'; id: string; text: string; phase: string | null; memoryCitation: unknown | null; raw?: unknown }
-  | { type: 'plan'; id: string; text: string; raw?: unknown }
-  | { type: 'reasoning'; id: string; summary: string[]; content: string[]; raw?: unknown }
-  | {
-    type: 'commandExecution'
-    id: string
-    command: string
-    cwd?: string
-    status?: string
-    aggregatedOutput: string | null
-    exitCode?: number | null
-    durationMs?: number | null
-    raw?: unknown
-  }
-  | { type: 'fileChange'; id: string; status?: string; changes?: unknown[]; raw?: unknown }
-  | { type: 'mcpToolCall'; id: string; server: string; tool: string; status?: string; result?: unknown; error?: unknown; raw?: unknown }
-  | { type: 'dynamicToolCall'; id: string; namespace: string | null; tool: string; status?: string; success?: boolean | null; raw?: unknown }
-  | { type: 'webSearch'; id: string; query: string; action?: unknown; raw?: unknown }
-  | { type: 'imageView'; id: string; path: string; raw?: unknown }
-  | { type: 'imageGeneration'; id: string; status: string; result: string; savedPath?: string; raw?: unknown }
-  | { type: 'reviewMode'; id: string; action: 'entered' | 'exited'; review: string; raw?: unknown }
-  | { type: 'contextCompaction'; id: string; raw?: unknown }
-  | { type: 'unknown'; id: string; providerType: string; raw: unknown }
 
 export interface AgentChatNotification {
   method: string
@@ -123,7 +107,9 @@ export type AgentChatNotificationEvent =
     threadId?: string
     event: 'started' | 'itemAdded' | 'transcriptDelta' | 'transcriptDone' | 'outputAudioDelta' | 'sdp' | 'error' | 'closed' | (string & {})
     realtimeSessionId?: string | null
+    version?: string | null
     role?: string | null
+    item?: unknown
     text?: string | null
     delta?: string | null
     audio?: unknown
@@ -148,8 +134,10 @@ export type AgentChatNotificationEvent =
   | {
     type: 'systemNotice'
     level: 'info' | 'warning' | 'error'
+    id?: string
     code?: string
     threadId?: string
+    turnId?: string
     title: string
     detail?: string | null
     raw?: unknown
@@ -162,6 +150,10 @@ export type AgentChatServerRequestMethod =
   | 'item/tool/requestUserInput'
   | 'mcpServer/elicitation/request'
   | 'item/tool/call'
+  | 'account/chatgptAuthTokens/refresh'
+  | 'attestation/generate'
+  | 'applyPatchApproval'
+  | 'execCommandApproval'
   | (string & {})
 
 export interface AgentChatServerRequest {
@@ -175,33 +167,52 @@ export interface AgentChatServerRequest {
 }
 
 export type AgentChatServerRequestResponse =
-  | { action: 'approve'; scope?: 'turn' | 'session'; permissions?: Record<string, unknown>; strictAutoReview?: boolean }
+  | {
+    action: 'approve'
+    scope?: 'turn' | 'session'
+    permissions?: Record<string, unknown>
+    strictAutoReview?: boolean
+    execPolicyAmendment?: unknown
+    networkPolicyAmendment?: unknown
+  }
   | { action: 'reject'; reason?: string }
+  | { action: 'cancel'; reason?: string }
   | { action: 'answer'; answers?: Record<string, unknown>; choiceIds?: string[]; text?: string }
   | { action: 'toolResult'; success: boolean; contentItems?: unknown[] }
   | { action: 'elicitation'; accepted: boolean; content?: unknown; meta?: unknown }
 
 export type AgentChatServerRequestHandler = (request: AgentChatServerRequest) => AgentChatServerRequestResponse | undefined | Promise<AgentChatServerRequestResponse | undefined>
 
+export interface AgentChatModelSelection {
+  model?: string | null
+  modelProvider?: string | null
+}
+
 export interface AgentChatDataSource {
   provider: AgentChatProviderKind
   label: string
+  serverRequestSubscriptionMode?: 'global' | 'globalWithThreadFallback'
   capabilities?: AgentChatCapabilities
   listThreads(input?: { limit?: number; cursor?: string | null }): Promise<{ threads: AgentChatThread[]; nextCursor?: string | null }>
   readThread(threadId: string, input?: { includeTurns?: boolean }): Promise<AgentChatThread>
-  startThread(input?: { title?: string; projectId?: number }): Promise<AgentChatThread>
+  startThread(input?: { title?: string; projectId?: number } & AgentChatModelSelection): Promise<AgentChatThread>
   renameThread?(input: { threadId: string; name: string }): Promise<AgentChatThread | unknown>
   archiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   unarchiveThread?(input: { threadId: string }): Promise<AgentChatThread | unknown>
   deleteThread?(input: { threadId: string }): Promise<unknown>
-  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null }): Promise<AgentChatTurn>
+  startTurn?(input: { threadId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null } & AgentChatModelSelection): Promise<AgentChatTurn>
   steerTurn?(input: { threadId: string; turnId: string; inputs: AgentChatInput[]; clientUserMessageId?: string | null }): Promise<unknown>
   interruptTurn?(input: { threadId: string; turnId: string; reason?: string | null }): Promise<unknown>
-  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null }): Promise<AgentChatTurn>
+  startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null } & AgentChatModelSelection): Promise<AgentChatTurn>
   subscribeThread?(input: {
     threadId: string
     onNotification?: (notification: AgentChatNotification) => void
     onServerRequest?: AgentChatServerRequestHandler
+    signal?: AbortSignal
+  }): Promise<void | (() => void)> | void | (() => void)
+  subscribeServerRequests?(input: {
+    onServerRequest?: AgentChatServerRequestHandler
+    onNotification?: (notification: AgentChatNotification) => void
     signal?: AbortSignal
   }): Promise<void | (() => void)> | void | (() => void)
 }
@@ -323,8 +334,4 @@ export interface AgentChatRealtimeCapability {
     onNotification: (notification: AgentChatNotification) => void
     signal?: AbortSignal
   }): Promise<void | (() => void)> | void | (() => void)
-}
-
-export function agentChatTextInput(text: string): AgentChatInput {
-  return { type: 'text', text, textElements: [] }
 }

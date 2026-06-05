@@ -63,8 +63,10 @@ export interface AgentWorkspaceConfig {
     configFilesDir?: string
   }
   toolProviders?: Array<Record<string, unknown>>
+  modelProviders?: Array<Record<string, unknown>>
   permissions?: Record<string, unknown>
   environment?: Record<string, string>
+  agents?: Record<string, Record<string, unknown>>
 }
 
 export interface AgentSessionRecord {
@@ -267,8 +269,10 @@ export function readAgentWorkspaceConfig(configPath: string): AgentWorkspaceConf
     ...(isRecord(parsed.modelConfig) ? { modelConfig: parsed.modelConfig } : {}),
     ...(normalizeWorkspaceCatalogConfig(parsed.catalog) ? { catalog: normalizeWorkspaceCatalogConfig(parsed.catalog) } : {}),
     ...(Array.isArray(parsed.toolProviders) ? { toolProviders: parsed.toolProviders.filter(isRecord) } : {}),
+    ...(Array.isArray(parsed.modelProviders) ? { modelProviders: parsed.modelProviders.filter(isRecord) } : {}),
     ...(isRecord(parsed.permissions) ? { permissions: parsed.permissions } : {}),
     ...(isStringRecord(parsed.environment) ? { environment: parsed.environment } : {}),
+    ...(isRecordOfRecords(parsed.agents) ? { agents: parsed.agents } : {}),
   }
 }
 
@@ -803,6 +807,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStringRecord(value: unknown): value is Record<string, string> {
   return isRecord(value) && Object.values(value).every((item) => typeof item === 'string')
+}
+
+function isRecordOfRecords(value: unknown): value is Record<string, Record<string, unknown>> {
+  return isRecord(value) && Object.values(value).every(isRecord)
 }
 
 function normalizeWorkspaceCatalogConfig(value: unknown): AgentWorkspaceConfig['catalog'] | undefined {

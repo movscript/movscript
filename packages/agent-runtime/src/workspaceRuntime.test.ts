@@ -283,3 +283,77 @@ test('workspace config persists catalog runtime directories', () => {
     rmSync(workspaceDir, { force: true, recursive: true })
   }
 })
+
+test('workspace config persists agent account configuration records', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-agents-config-'))
+  try {
+    const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir)
+    writeAgentWorkspaceConfig(paths.configPath, {
+      schema: 'movscript.agent.workspace-config.v1',
+      updatedAt: '2026-06-03T09:00:00.000Z',
+      agents: {
+        codex: {
+          auth: {
+            mode: 'apiKey',
+            apiKey: 'sk-test',
+          },
+        },
+        claude: {
+          auth: {
+            mode: 'oauth',
+          },
+        },
+      },
+    })
+
+    assert.deepEqual(readAgentWorkspaceConfig(paths.configPath).agents, {
+      codex: {
+        auth: {
+          mode: 'apiKey',
+          apiKey: 'sk-test',
+        },
+      },
+      claude: {
+        auth: {
+          mode: 'oauth',
+        },
+      },
+    })
+  } finally {
+    rmSync(workspaceDir, { force: true, recursive: true })
+  }
+})
+
+test('workspace config persists model provider records', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-model-providers-config-'))
+  try {
+    const paths = resolveAgentWorkspaceRuntimePaths(workspaceDir)
+    writeAgentWorkspaceConfig(paths.configPath, {
+      schema: 'movscript.agent.workspace-config.v1',
+      updatedAt: '2026-06-03T09:00:00.000Z',
+      modelProviders: [
+        {
+          id: 'openai-compatible',
+          label: 'OpenAI Compatible',
+          baseURL: 'https://gateway.example/v1',
+          apiKind: 'openai_responses',
+          apiKey: 'sk-test',
+          enabled: true,
+        },
+      ],
+    })
+
+    assert.deepEqual(readAgentWorkspaceConfig(paths.configPath).modelProviders, [
+      {
+        id: 'openai-compatible',
+        label: 'OpenAI Compatible',
+        baseURL: 'https://gateway.example/v1',
+        apiKind: 'openai_responses',
+        apiKey: 'sk-test',
+        enabled: true,
+      },
+    ])
+  } finally {
+    rmSync(workspaceDir, { force: true, recursive: true })
+  }
+})

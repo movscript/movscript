@@ -1,48 +1,13 @@
 {
   "mcpServers": {
     "movscript_workspace": {
-      "type": "streamable-http",
-      "url": "${MOVSCRIPT_MCP_ENDPOINT}",
-      "endpointEnv": "MOVSCRIPT_MCP_ENDPOINT",
-      "label": "MovScript Workspace",
-      "startup_timeout_sec": 5,
-      "tool_timeout_sec": 30,
-      "tools": [
-        {
-          "name": "get_workspace_model",
-          "description": "Read the frontend-owned WorkspaceModel contract and hydrated initial content."
-        },
-        {
-          "name": "workspace_file_list",
-          "description": "List files under the frontend-owned .movscript workspace directory."
-        },
-        {
-          "name": "workspace_file_read",
-          "description": "Read a UTF-8 workspace file from the frontend-owned .movscript directory."
-        },
-        {
-          "name": "workspace_file_write",
-          "description": "Write a UTF-8 workspace file to the frontend-owned .movscript directory."
-        },
-        {
-          "name": "workspace_file_delete",
-          "description": "Delete a workspace file from the frontend-owned .movscript directory."
-        },
-        {
-          "name": "workspace_review_apply_preview",
-          "description": "Preview backend effects for an approved workspace review."
-        },
-        {
-          "name": "workspace_review_apply",
-          "description": "Apply an approved workspace review through the MovScript UI boundary."
-        }
+      "command": "node",
+      "args": [
+        "./bin/mcp-stdio-bridge.mjs"
       ],
-      "resources": [
-        {
-          "uri": "agent://workspace/{workspaceId}/content",
-          "description": "Canonical editable workspace file ref used by Agent file tools."
-        }
-      ]
+      "cwd": ".",
+      "startup_timeout_sec": 5,
+      "tool_timeout_sec": 30
     }
   }
 }

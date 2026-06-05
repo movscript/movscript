@@ -374,7 +374,7 @@ export function ProjectAgentModeSidebar({ headerActions }: { headerActions?: Rea
   const { data: codexThreads = [], isLoading: codexThreadsLoading, refetch: refetchCodexThreads } = useQuery<AgentChatThread[]>({
     queryKey: ['codex-agent-threads', newConversationProvider.id, 'agent-mode-sidebar'],
     queryFn: async () => {
-      const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider)
+      const dataSource = await createAgentChatDataSourceForProvider(newConversationProvider, { codexAppServerPolicy: 'status-only' })
       const page = await dataSource.listThreads({ limit: 50 })
       return page.threads
     },

@@ -14,18 +14,24 @@ import { listTools } from '../toolRegistry'
 
 const MCP_DEBUG = process.env.MOVSCRIPT_MCP_DEBUG === '1'
 
-export async function handleJSONRPC(req: JSONRPCRequest, httpRequestId?: number): Promise<JSONRPCResponse> {
+export async function handleJSONRPC(req: JSONRPCRequest, httpRequestId?: number): Promise<JSONRPCResponse | undefined> {
   const startedAt = Date.now()
-  const id = req.id ?? null
+  const isNotification = !Object.prototype.hasOwnProperty.call(req, 'id')
+  const id = isNotification ? null : req.id ?? null
   if (MCP_DEBUG) {
     console.info(`[mcp] rpc start httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method ?? ''}`)
   }
   if (req.jsonrpc !== '2.0' || !req.method) {
+    if (isNotification) return undefined
     return makeError(id, -32600, 'Invalid Request')
   }
 
   try {
     switch (req.method) {
+      case 'initialized':
+      case 'notifications/cancelled':
+      case 'notifications/progress':
+        return undefined
       case 'initialize':
         return makeResult(id, {
           protocolVersion: '2025-06-18',
@@ -44,10 +50,12 @@ export async function handleJSONRPC(req: JSONRPCRequest, httpRequestId?: number)
       case 'tools/call':
         return makeResult(id, await callTool(req.params))
       default:
+        if (isNotification) return undefined
         return makeError(id, -32601, `Method not found: ${req.method}`)
     }
   } catch (error) {
     console.error(`[mcp] rpc error httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method} elapsedMs=${Date.now() - startedAt}`, error)
+    if (isNotification) return undefined
     return makeError(id, -32000, error instanceof Error ? error.message : String(error), errorData(error))
   } finally {
     if (MCP_DEBUG) {

@@ -29,6 +29,11 @@ type PendingRequest = {
   reject: (error: Error) => void
 }
 
+type DeferredServerRequest = {
+  request: CodexJsonRpcServerRequest
+  timer: ReturnType<typeof globalThis.setTimeout>
+}
+
 type CodexAppServerTransport = {
   send(payload: string): void | Promise<void>
   close(): void | Promise<void>
@@ -36,6 +41,7 @@ type CodexAppServerTransport = {
 
 let configuredClient: CodexAppServerRpcClient | undefined
 const CODEX_APP_SERVER_WS_URL_STORAGE_KEY = 'movscript.codexAppServerWsUrl'
+const SERVER_REQUEST_HANDLER_GRACE_MS = 30_000
 
 export function codexAppServerURL(): string | undefined {
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
@@ -52,6 +58,10 @@ export function isCodexAppServerEnabled(): boolean {
 export function codexAppServerRpcClient(): CodexAppServerRpcClient | undefined {
   const url = codexAppServerURL()
   if (!url) return undefined
+  return codexAppServerRpcClientForURL(url)
+}
+
+export function codexAppServerRpcClientForURL(url: string): CodexAppServerRpcClient {
   if (!configuredClient || configuredClient.url !== url) configuredClient = new CodexAppServerRpcClient(url)
   return configuredClient
 }
@@ -74,8 +84,7 @@ export async function ensureCodexAppServerURL(provider?: AgentProviderConfig): P
 export async function ensureCodexAppServerRpcClient(provider?: AgentProviderConfig): Promise<CodexAppServerRpcClient | undefined> {
   const url = await ensureCodexAppServerURL(provider)
   if (!url) return undefined
-  if (!configuredClient || configuredClient.url !== url) configuredClient = new CodexAppServerRpcClient(url)
-  return configuredClient
+  return codexAppServerRpcClientForURL(url)
 }
 
 export class CodexAppServerRpcClient {
@@ -86,8 +95,12 @@ export class CodexAppServerRpcClient {
   private readonly pending = new Map<CodexJsonRpcId, PendingRequest>()
   private readonly listeners = new Set<CodexNotificationHandler>()
   private readonly serverRequestHandlers = new Set<CodexServerRequestHandler>()
+  private readonly deferredServerRequests = new Map<CodexJsonRpcId, DeferredServerRequest>()
 
-  constructor(readonly url: string) {}
+  constructor(
+    readonly url: string,
+    private readonly serverRequestHandlerGraceMs = SERVER_REQUEST_HANDLER_GRACE_MS,
+  ) {}
 
   async initialize(): Promise<void> {
     await this.connect()
@@ -100,6 +113,7 @@ export class CodexAppServerRpcClient {
       },
       capabilities: {
         experimentalApi: true,
+        requestAttestation: true,
       },
     })
     await this.notify('initialized')
@@ -146,11 +160,12 @@ export class CodexAppServerRpcClient {
     return this.request<CodexTurnInterruptResponse>('turn/interrupt', params)
   }
 
-  async startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null }) {
+  async startTextTurn(input: { threadId: string; text: string; clientUserMessageId?: string | null; model?: string | null }) {
     return this.startTurn({
       threadId: input.threadId,
       clientUserMessageId: input.clientUserMessageId ?? undefined,
       input: [codexTextInput(input.text)],
+      ...(input.model?.trim() ? { model: input.model.trim() } : {}),
     })
   }
 
@@ -171,6 +186,7 @@ export class CodexAppServerRpcClient {
 
   onServerRequest(handler: CodexServerRequestHandler): () => void {
     this.serverRequestHandlers.add(handler)
+    this.flushDeferredServerRequests()
     return () => this.serverRequestHandlers.delete(handler)
   }
 
@@ -179,6 +195,7 @@ export class CodexAppServerRpcClient {
     this.connectPromise = undefined
     for (const pending of this.pending.values()) pending.reject(new Error(`Codex app-server disconnected: ${this.url}`))
     this.pending.clear()
+    this.clearDeferredServerRequests()
     const transport = this.transport
     this.transport = undefined
     await transport?.close()
@@ -290,6 +307,14 @@ export class CodexAppServerRpcClient {
   }
 
   private async handleServerRequest(request: CodexJsonRpcServerRequest): Promise<void> {
+    if (this.serverRequestHandlers.size === 0) {
+      this.deferServerRequest(request)
+      return
+    }
+    await this.dispatchServerRequest(request)
+  }
+
+  private async dispatchServerRequest(request: CodexJsonRpcServerRequest): Promise<void> {
     try {
       for (const handler of Array.from(this.serverRequestHandlers)) {
         const result = await handler(request)
@@ -310,12 +335,33 @@ export class CodexAppServerRpcClient {
     }
   }
 
+  private deferServerRequest(request: CodexJsonRpcServerRequest): void {
+    const existing = this.deferredServerRequests.get(request.id)
+    if (existing) globalThis.clearTimeout(existing.timer)
+    const timer = globalThis.setTimeout(() => {
+      this.deferredServerRequests.delete(request.id)
+      void this.dispatchServerRequest(request)
+    }, this.serverRequestHandlerGraceMs)
+    this.deferredServerRequests.set(request.id, { request, timer })
+  }
+
+  private flushDeferredServerRequests(): void {
+    if (this.serverRequestHandlers.size === 0 || this.deferredServerRequests.size === 0) return
+    const deferred = Array.from(this.deferredServerRequests.values())
+    this.deferredServerRequests.clear()
+    for (const item of deferred) {
+      globalThis.clearTimeout(item.timer)
+      void this.dispatchServerRequest(item.request)
+    }
+  }
+
+  private clearDeferredServerRequests(): void {
+    for (const item of this.deferredServerRequests.values()) globalThis.clearTimeout(item.timer)
+    this.deferredServerRequests.clear()
+  }
+
   private resolveServerRequest(id: CodexJsonRpcId, method: string): void {
-    const result = method.includes('Approval')
-      ? { decision: 'denied' }
-      : method.includes('userInput')
-        ? { input: [] }
-        : null
+    const result = fallbackServerRequestResult(method)
     void this.transport?.send(JSON.stringify({ id, result }))
   }
 
@@ -347,6 +393,19 @@ function compactProtocolParams(params: unknown): unknown {
   if (params === undefined) return undefined
   if (!isRecord(params) || Array.isArray(params)) return params
   return compactRecord(params)
+}
+
+function fallbackServerRequestResult(method: string): unknown {
+  if (method === 'item/permissions/requestApproval') return { permissions: {}, scope: 'turn', strictAutoReview: true }
+  if (method === 'item/tool/requestUserInput') return { answers: {} }
+  if (method === 'item/tool/call') return { contentItems: [], success: false }
+  if (method === 'mcpServer/elicitation/request') return { action: 'decline', content: null, _meta: null }
+  if (method === 'item/commandExecution/requestApproval' || method === 'item/fileChange/requestApproval') return { decision: 'decline' }
+  if (method === 'applyPatchApproval' || method === 'execCommandApproval') return { decision: 'denied' }
+  if (method === 'account/chatgptAuthTokens/refresh' || method === 'attestation/generate') {
+    return { action: 'decline', reason: 'No Agent Chat request handler is available.' }
+  }
+  return null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

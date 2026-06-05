@@ -108,10 +108,10 @@ export default function AgentWorkspaceFilesPage() {
             <div>
               <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <Folder size={18} />
-                MovScript 文件
+                Workspace Config
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                {filesQuery.data?.rootPath ?? '加载 .movscript'}
+                {filesQuery.data?.rootPath ?? '加载 .movscript workspace 配置'}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -223,7 +223,7 @@ function StateRow({ icon, text, tone = 'muted' }: { icon?: ReactNode; text: stri
 function requireWorkspaceFilesAPI() {
   const api = window.api
   if (!api?.listAgentWorkspaceFiles || !api.readAgentWorkspaceFile || !api.writeAgentWorkspaceFile || !api.deleteAgentWorkspaceFile) {
-    throw new Error('当前窗口没有 MovScript 文件管理能力')
+    throw new Error('当前窗口没有 Workspace Config 文件管理能力')
   }
   return {
     list: api.listAgentWorkspaceFiles,

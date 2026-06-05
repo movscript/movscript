@@ -41,6 +41,7 @@ export interface AgentConversationTabItem {
 export interface AgentConversationTabsPanelProps {
   activeConversationId: string;
   conversations: AgentConversationTabItem[];
+  endAccessory?: React.ReactNode;
   onCloseConversation: (id: string) => void;
   onCloseTabContextMenu: () => void;
   onOpenKeyboardMenu: (event: React.KeyboardEvent, conversationId: string) => void;

@@ -13,6 +13,7 @@ export { getMCPServerStatus, stopMCPServer } from './serverLifecycle'
 export { listTools } from './toolRegistry'
 export { summarizeModelContractForAgent } from './modelContracts'
 export { listModels } from './modelCatalog'
+export { listScripts } from './scriptList'
 export { locateScriptPassages } from './scriptLocate'
 export { getWorkspaceModelContract } from './workspaceModelContract'
 export { applyWorkspaceReview } from './workspaceReviewApply'
@@ -25,6 +26,7 @@ export {
   queryCreativeReferences,
   queryProductionContext,
 } from './semanticQuery'
+export { queryShotLibrary } from './shotLibrary'
 
 export async function startMCPServer(): Promise<number> {
   return startMCPHTTPServer(handleMCPHTTP)

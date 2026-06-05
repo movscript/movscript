@@ -14,6 +14,7 @@ function dropPositionForEvent(event: React.DragEvent<HTMLElement>): "before" | "
 export function AgentConversationTabsPanel({
   activeConversationId,
   conversations,
+  endAccessory,
   onCloseConversation,
   onCloseTabContextMenu,
   onOpenKeyboardMenu,
@@ -40,60 +41,67 @@ export function AgentConversationTabsPanel({
       aria-label={conversationTabsLabel}
       data-density={conversations.length > 4 ? "scroll" : "fit"}
     >
-      {conversations.map((item) => (
-        <AgentConversationTab
-          key={item.id}
-          item={item}
-          isActive={item.id === activeConversationId}
-          isDragging={draggingConversationId === item.id}
-          isEditing={editingConversationId === item.id}
-          dropPosition={dropTarget?.conversationId === item.id ? dropTarget.position : undefined}
-          tabLabel={item.runtimeState ? `${item.title}，Runtime ${item.runtimeState}` : item.title}
-          conversationTabsLabel={conversationTabsLabel}
-          closeConversationLabel={closeConversationLabel}
-          renameConversationLabel={renameConversationLabel}
-          onCloseConversation={onCloseConversation}
-          onCloseTabContextMenu={onCloseTabContextMenu}
-          onEditingChange={(editing) => setEditingConversationId(editing ? item.id : null)}
-          onOpenKeyboardMenu={onOpenKeyboardMenu}
-          onOpenMenu={onOpenMenu}
-          onSelectConversation={onSelectConversation}
-          onDragStart={(event) => {
-            if ((event.target as HTMLElement).closest(".ai-agent-panel-conversation-tab-close")) {
+      <div className="ai-agent-panel-conversation-tabs__items">
+        {conversations.map((item) => (
+          <AgentConversationTab
+            key={item.id}
+            item={item}
+            isActive={item.id === activeConversationId}
+            isDragging={draggingConversationId === item.id}
+            isEditing={editingConversationId === item.id}
+            dropPosition={dropTarget?.conversationId === item.id ? dropTarget.position : undefined}
+            tabLabel={item.runtimeState ? `${item.title}，Runtime ${item.runtimeState}` : item.title}
+            conversationTabsLabel={conversationTabsLabel}
+            closeConversationLabel={closeConversationLabel}
+            renameConversationLabel={renameConversationLabel}
+            onCloseConversation={onCloseConversation}
+            onCloseTabContextMenu={onCloseTabContextMenu}
+            onEditingChange={(editing) => setEditingConversationId(editing ? item.id : null)}
+            onOpenKeyboardMenu={onOpenKeyboardMenu}
+            onOpenMenu={onOpenMenu}
+            onSelectConversation={onSelectConversation}
+            onDragStart={(event) => {
+              if ((event.target as HTMLElement).closest(".ai-agent-panel-conversation-tab-close")) {
+                event.preventDefault();
+                return;
+              }
+              onCloseTabContextMenu();
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", item.id);
+              setDraggingConversationId(item.id);
+            }}
+            onDragOver={(event) => {
+              const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
+              if (!draggedId || draggedId === item.id) {
+                setDropTarget(null);
+                return;
+              }
               event.preventDefault();
-              return;
-            }
-            onCloseTabContextMenu();
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", item.id);
-            setDraggingConversationId(item.id);
-          }}
-          onDragOver={(event) => {
-            const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
-            if (!draggedId || draggedId === item.id) {
-              setDropTarget(null);
-              return;
-            }
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            setDropTarget({ conversationId: item.id, position: dropPositionForEvent(event) });
-          }}
-          onDragLeave={(event) => {
-            const nextTarget = event.relatedTarget;
-            if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-            if (dropTarget?.conversationId === item.id) setDropTarget(null);
-          }}
-          onDrop={(event) => {
-            const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
-            const position = dropPositionForEvent(event);
-            event.preventDefault();
-            clearDragState();
-            if (!draggedId || draggedId === item.id) return;
-            onReorderConversation(draggedId, item.id, position);
-          }}
-          onDragEnd={clearDragState}
-        />
-      ))}
+              event.dataTransfer.dropEffect = "move";
+              setDropTarget({ conversationId: item.id, position: dropPositionForEvent(event) });
+            }}
+            onDragLeave={(event) => {
+              const nextTarget = event.relatedTarget;
+              if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+              if (dropTarget?.conversationId === item.id) setDropTarget(null);
+            }}
+            onDrop={(event) => {
+              const draggedId = draggingConversationId ?? event.dataTransfer.getData("text/plain");
+              const position = dropPositionForEvent(event);
+              event.preventDefault();
+              clearDragState();
+              if (!draggedId || draggedId === item.id) return;
+              onReorderConversation(draggedId, item.id, position);
+            }}
+            onDragEnd={clearDragState}
+          />
+        ))}
+      </div>
+      {endAccessory ? (
+        <div className="ai-agent-panel-conversation-tabs__end">
+          {endAccessory}
+        </div>
+      ) : null}
     </div>
   );
 }

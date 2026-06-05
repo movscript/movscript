@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import test from 'node:test'
 
 import { runtimeInputDeliveryBadge } from '@/features/agent/presentation/agentRuntimeInputDeliveryBadge'
+import { AGENT_RUNTIME_CHAT_INPUT_DELIVERY_STATUS_COVERAGE } from '@/shared/infrastructure/local-agent-client/agentRuntimeChatTimelineCoverage'
 import type { ChatMessage } from '@/features/agent/state/agentStore'
 
 test('runtimeInputDeliveryBadge projects runtime input delivery state for message bubbles', () => {
@@ -48,6 +51,20 @@ test('runtimeInputDeliveryBadge projects runtime input delivery state for messag
   })
 })
 
+test('runtime input delivery coverage matches every MovScript delivery status', () => {
+  const protocol = readFileSync(resolve('../../packages/protocol/src/index.ts'), 'utf8')
+  const statuses = Object.keys(AGENT_RUNTIME_CHAT_INPUT_DELIVERY_STATUS_COVERAGE).sort() as Array<keyof typeof AGENT_RUNTIME_CHAT_INPUT_DELIVERY_STATUS_COVERAGE>
+  const badges = statuses.map((status) => runtimeInputDeliveryBadge(message({
+    meta: {
+      runtimeInput: { deliveryStatus: status },
+    },
+  })))
+
+  assert.deepEqual(statuses, protocolStringUnion(protocol, 'AgentRuntimeInputDeliveryStatus'))
+  assert.deepEqual(badges.map((badge) => badge?.status), statuses.map((status) => AGENT_RUNTIME_CHAT_INPUT_DELIVERY_STATUS_COVERAGE[status].displayStatus))
+  assert.deepEqual(badges.map((badge) => badge?.tone), statuses.map((status) => AGENT_RUNTIME_CHAT_INPUT_DELIVERY_STATUS_COVERAGE[status].badgeTone))
+})
+
 function message(patch: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: 'message_1',
@@ -56,4 +73,10 @@ function message(patch: Partial<ChatMessage> = {}): ChatMessage {
     timestamp: 1,
     ...patch,
   }
+}
+
+function protocolStringUnion(protocol: string, typeName: string): string[] {
+  const unionType = protocol.match(new RegExp(`export type ${typeName} = ([^\\n]+)`))
+  assert.ok(unionType)
+  return Array.from(unionType[1].matchAll(/'([^']+)'/g), (match) => match[1]).sort()
 }

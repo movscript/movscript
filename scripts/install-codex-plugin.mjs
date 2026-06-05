@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pluginName = 'movscript'
+const defaultMcpEndpoint = 'http://127.0.0.1:18765/mcp'
 
 const options = parseArgs(process.argv.slice(2))
 const rawHomeDir = options.home ?? process.env.HOME ?? process.env.USERPROFILE
@@ -48,6 +49,9 @@ if (!options.noAdd) {
 console.info(`MovScript Codex plugin source: ${pluginDest}`)
 console.info(`MovScript Codex marketplace: ${marketplacePath}`)
 console.info(`MovScript Codex home: ${codexHome}`)
+console.info(`MovScript MCP transport: ${readPluginMcpTransport(pluginDest) ?? `http ${defaultMcpEndpoint}`}`)
+console.info(`MovScript Desktop MCP endpoint used by bridge: ${process.env.MOVSCRIPT_MCP_ENDPOINT || defaultMcpEndpoint}`)
+console.info('Start MovScript Desktop before using workspace tools so the bridge can reach the frontend MCP server.')
 
 function parseArgs(args) {
   const parsed = {
@@ -125,6 +129,22 @@ function validatePluginSource(source) {
   if (manifest.name !== pluginName) {
     fail(`${manifestPath} must declare "name": "${pluginName}"`)
   }
+  const mcpTransport = readPluginMcpTransport(source)
+  if (!mcpTransport) fail(`${mcpPath} must declare mcpServers.movscript_workspace.command or .url`)
+}
+
+function readPluginMcpTransport(source) {
+  const mcpPath = join(source, '.mcp.json')
+  if (!existsSync(mcpPath)) return undefined
+  const config = JSON.parse(readFileSync(mcpPath, 'utf8'))
+  const server = config?.mcpServers?.movscript_workspace
+  const command = server?.command
+  if (typeof command === 'string' && command.trim()) {
+    const args = Array.isArray(server.args) ? server.args.filter((arg) => typeof arg === 'string') : []
+    return ['stdio', command.trim(), ...args].join(' ')
+  }
+  const endpoint = server?.url
+  return typeof endpoint === 'string' && endpoint.trim() ? `http ${endpoint.trim()}` : undefined
 }
 
 function installPluginSource(source, destination, input) {

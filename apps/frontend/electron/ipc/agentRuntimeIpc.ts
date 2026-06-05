@@ -7,7 +7,7 @@ import {
   writeAgentWorkspaceConfig,
   type AgentWorkspaceConfig,
 } from '@movscript/agent-runtime'
-import { ensureAgentRuntimeRunning } from '../services/agentRuntime'
+import { ensureAgentRuntimeRunning, stopAgentRuntime } from '../services/agentRuntime'
 import { resolveDesktopDefaultAgentWorkspaceDir } from '../services/agentRuntime/sessionTransport'
 import { agentRuntimeRequest } from './agent-runtime/request'
 import { agentRuntimeOpenEventStream, closeAgentRuntimeEventStream, pumpAgentRuntimeStream } from './agent-runtime/stream'
@@ -22,6 +22,10 @@ import type {
 export function registerAgentRuntimeIpcHandlers(): void {
   ipcMain.handle('agent:ensure-running', async (_e, input?: ElectronAgentRuntimeEnsureInput) => {
     return ensureAgentRuntimeRunning(input)
+  })
+  ipcMain.handle('agent:stop-running', async () => {
+    await stopAgentRuntime()
+    return { ok: true as const }
   })
   ipcMain.handle('agent:runtime-request', async (_e, input?: ElectronAgentRuntimeRequestInput) => {
     return agentRuntimeRequest(input)
@@ -68,8 +72,10 @@ function saveWorkspaceConfig(input: ElectronAgentWorkspaceConfigSaveInput): Agen
   }
   applyNullableField(next, 'modelConfig', input.modelConfig)
   applyNullableField(next, 'toolProviders', input.toolProviders)
+  applyNullableField(next, 'modelProviders', input.modelProviders)
   applyNullableField(next, 'permissions', input.permissions)
   applyNullableField(next, 'environment', input.environment)
+  applyNullableField(next, 'agents', input.agents)
   writeAgentWorkspaceConfig(configPath, next)
   return readAgentWorkspaceConfig(configPath)
 }

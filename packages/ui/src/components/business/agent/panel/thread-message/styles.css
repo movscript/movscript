@@ -1,21 +1,27 @@
 .ai-agent-panel-shell .ms-agent-thread {
+  --ai-agent-panel-message-inline-margin: 5%;
+  --ai-agent-panel-user-message-max-width: min(78%, 620px);
+
   gap: 4px;
   overflow-x: hidden;
   background: transparent;
-  padding: 4px 5% 8px;
+  padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
 }
 
 .ai-agent-panel-shell[data-agent-chat-host="dock-panel"] .ms-agent-thread {
   gap: 4px;
-  padding: 4px 5% 8px;
+  padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
 }
 
 .ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-thread {
   gap: 4px;
-  padding: 4px 5% 8px;
+  padding: 4px var(--ai-agent-panel-message-inline-margin) 8px;
 }
 
 .ai-agent-panel-shell .ms-agent-message {
+  contain: none;
+  content-visibility: visible;
+  contain-intrinsic-size: none;
   width: 100%;
   gap: 0;
 }
@@ -59,20 +65,20 @@
 }
 
 .ai-agent-panel-shell .ms-agent-message--user .ms-agent-message__body {
-  width: 100%;
-  max-width: 100%;
-  flex: 1 1 auto;
-  align-items: stretch;
-  margin-left: 0;
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
   padding-right: 0;
 }
 
 .ai-agent-panel-shell.ms-agent-shell--compact .ms-agent-message--user .ms-agent-message__body {
-  width: 100%;
-  max-width: 100%;
-  flex: 1 1 auto;
-  align-items: stretch;
-  margin-left: 0;
+  width: fit-content;
+  max-width: var(--ai-agent-panel-user-message-max-width);
+  flex: 0 1 auto;
+  align-items: flex-end;
+  margin-left: auto;
   padding-right: 0;
 }
 
@@ -127,6 +133,7 @@
 }
 
 .ai-agent-panel-shell .ms-agent-message--user .ms-agent-message__content {
+  width: auto;
   border-radius: var(--ms-radius-md);
   border-top-right-radius: 3px;
   background: var(--ms-color-primary);
@@ -248,9 +255,9 @@
 }
 
 .ai-agent-panel-run-group {
-  contain: layout paint style;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 360px;
+  contain: none;
+  content-visibility: visible;
+  contain-intrinsic-size: none;
   display: grid;
   gap: 6px;
   min-width: 0;
