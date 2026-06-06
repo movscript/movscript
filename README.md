@@ -90,22 +90,26 @@ MOVSCRIPT_WORKSPACE_DIR=/tmp/movscript-debug pnpm --filter @movscript/desktop de
 
 ## Workspace Model
 
-MovScript treats the selected launch directory as the workspace root. The `.movscript/` directory inside that root is the MovScript control directory, not a generic cache folder.
+MovScript treats each project Git repository as the project workspace. Business source files live under `edit/`; successful builds write the current effective state under `.build/`. The `.movscript/` directory inside the repo is only the local control directory for app/provider configuration and backend auth.
 
 ```text
+project.json
+workspace.json
+edit/                       Editable business files
+.build/
+├── current/                Last successful build state
+├── indexes/                Built domain indexes
+├── reviews/                Review evidence
+└── manifests/              Build manifests
 .movscript/
-├── manifest.json          Workspace root contract
-├── data/                  Database-backed project projections
-├── reviews/               Preview and frontend-review evidence
-├── sync/                  Projection hashes and conflict metadata
-├── providers/             Provider configs, sessions, runs, and cache
-├── .mova/                 Managed Mova provider home
-└── .codex/                Managed Codex provider home for compatibility
+├── manifest.json           Local workspace control contract
+├── providers/              Provider configs, sessions, runs, and cache
+└── backend/                Local backend auth and connection config
 ```
 
-The MovScript workspace root is the local folder selected by the desktop client or provided through `MOVSCRIPT_WORKSPACE_DIR`; `.movscript/` is its control directory. Business files such as `production_workspace`, `setting_workspace`, `project_standards_workspace`, `content_unit_workspace`, `asset_workspace`, `project.json`, script `script.md` files, and the read-only user `projects.index.json` live under `.movscript/data`. Production-scoped files live under `users/{userId}/projects/{projectId}/productions/{productionId}`, with content unit files separated by `scene_moments/{sceneMomentId}/content_units/{contentUnitId}` when a single unit is targeted. Workspace tools operate on namespaces, not individual paths: `workspace_fetch(namespace)`, `workspace_status(namespace)`, `workspace_review(namespace)`, and `workspace_submit(namespace)` return Git-canonical handoffs for a namespace such as `movscript.project:123`; actual synchronization, inspection, review, commit, and submit use standard git fetch/status/diff/commit/push. A project namespace maps internally to `data/users/{userId}/projects/{projectId}` and contains project metadata, references, assets, scripts, productions, and future project-owned data groups. Provider sessions use the selected `.movscript/data/...` folder as their real `cwd` so file editing tools modify the same files that git review/submit flows inspect. When `namespace` is omitted, tools infer the current project namespace from MCP focus. Review evidence may be written under `.movscript/reviews`. Provider configuration, cache/run directories, and provider session indexes live under `.movscript/providers/{profile}`; older `.movscript/{profile}/config.json` files are copied forward when a profile is initialized. Provider homes such as `.movscript/.mova` and `.movscript/.codex` are app-server compatibility homes only; they do not own MovScript business files or workspace-level session indexes.
+Workspace tools are `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_build`. Review compares `.build/current` to `edit/`; build validates `edit/`, updates `.build/current`, and writes indexes/manifests. Git commit/push persists a successful build in repo history.
 
-See [docs/movscript-workspace-topology.md](docs/movscript-workspace-topology.md) for the current naming and directory invariants used by the codebase. The target design for path-first provider-session editing is documented in [docs/workdir-file-projection-design.zh-CN.md](docs/workdir-file-projection-design.zh-CN.md).
+See [docs/workspace-ontology.zh-CN.md](docs/workspace-ontology.zh-CN.md) for the current workspace ontology.
 
 The desktop UI connects to configured assistant providers. Normal development does not require starting a standalone local provider service.
 
@@ -116,7 +120,7 @@ pnpm run test
 pnpm run build
 pnpm run typecheck
 pnpm --filter @movscript/backend test
-pnpm --filter @movscript/cli dev -- workspace status --namespace movscript.project:123
+pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
 pnpm --filter "./plugins/*" build
 ```
 

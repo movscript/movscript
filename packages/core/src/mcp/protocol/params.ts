@@ -1,4 +1,4 @@
-import type { MCPJSONValue } from './types'
+import type { MCPJSONValue } from './types.js'
 import { isRecord } from '../tools/shared/record.js'
 
 export function getStringParam(params: MCPJSONValue | undefined, key: string): string {

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import type { ChildProcess } from 'node:child_process'
 import { MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA, resolveMovScriptWorkspacePaths, writeMovScriptWorkspaceConfig } from '@movscript/core/workspace/node'
+import { writeMovScriptBackendConfig } from '@movscript/core/backend/node'
 import { AppServerManager, resolveAppServerExecutablePath, resolveAppServerExecutableResolution } from './appServerManager'
 import { distributeAppServerConfigFromMovScriptWorkspace } from './appServerConfigDistribution'
 import type { AppServerConfigDistribution } from './appServerConfigDistribution'
@@ -162,6 +163,109 @@ test('app-server manager reuses running app-server across timestamp-only config 
   assert.equal(spawnCount, 1)
 })
 
+test('app-server manager distributes config without launching app-server', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-manager-distribute-'))
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+    environment: {
+      MOVSCRIPT_APP_SERVER_API_KEY: 'sk-backend-managed-key',
+    },
+    providers: {
+      codex: {
+        providerRef: 'backend:1',
+        authSource: 'model-provider',
+        baseURL: 'http://localhost:8765/v1',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+      },
+    },
+  })
+  let spawnCount = 0
+  let pluginBootstrapCount = 0
+  const manager = new AppServerManager({
+    distributeConfig: (input) => distributeAppServerConfigFromMovScriptWorkspace({ ...input, now: new Date('2026-06-06T01:02:03.000Z') }),
+    ensurePlugin: () => {
+      pluginBootstrapCount += 1
+      return appServerPluginFixture()
+    },
+    reservePort: async () => 41234,
+    waitReady: async () => undefined,
+    spawnProcess: (() => {
+      spawnCount += 1
+      return fakeChildProcess()
+    }) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+  })
+
+  const status = manager.distribute({
+    profile: {
+      id: 'codex-movscript-home',
+      providerKey: 'codex',
+      executablePath: 'codex',
+      home: '.movscript/.codex',
+    },
+  })
+
+  assert.equal(status.ok, true)
+  assert.equal(status.running, false)
+  assert.equal(status.config?.baseURL, 'http://localhost:8765/v1')
+  assert.equal(status.config?.sourceConfigPath, paths.configPath)
+  assert.equal(spawnCount, 0)
+  assert.equal(pluginBootstrapCount, 0)
+})
+
+test('app-server manager resolves dot workspaceDir against the managed workspace root', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-dot-workspace-'))
+  const providerPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
+  writeMovScriptBackendConfig(workspaceDir, {
+    schema: 'movscript.backend-config.v1',
+    baseURL: 'http://localhost:8765',
+    updatedAt: '2026-06-06T00:00:00.000Z',
+  })
+  writeMovScriptWorkspaceConfig(providerPaths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+    providers: {
+      codex: {
+        enabled: true,
+        providerRef: 'backend:1',
+        authSource: 'model-provider',
+        home: '.movscript/.codex',
+        workspaceDir: '.',
+        baseURL: 'http://localhost:8765/v1',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+      },
+    },
+  })
+  const manager = new AppServerManager({
+    distributeConfig: (input) => distributeAppServerConfigFromMovScriptWorkspace({ ...input, now: new Date('2026-06-06T01:02:03.000Z') }),
+    ensurePlugin: () => appServerPluginFixture(),
+    reservePort: async () => 41234,
+    waitReady: async () => undefined,
+    spawnProcess: (() => fakeChildProcess()) as never,
+    defaultWorkspaceDir: () => workspaceDir,
+  })
+
+  const status = manager.distribute({
+    profile: {
+      id: 'codex-movscript-home',
+      providerKey: 'codex',
+      executablePath: 'codex',
+      home: '.movscript/.codex',
+      workspaceDir: '.',
+    },
+  })
+
+  assert.equal(status.ok, false)
+  assert.equal(status.home, join(workspaceDir, '.movscript', '.codex'))
+  assert.equal(status.config?.baseURL, 'http://localhost:8765/v1')
+  assert.equal(status.config?.sourceConfigPath, providerPaths.configPath)
+  assert.match(readFileSync(join(workspaceDir, '.movscript', '.codex', 'config.toml'), 'utf8'), /base_url = "http:\/\/localhost:8765\/v1"/)
+})
+
 test('app-server manager records running provider sessions under the provider profile key', async () => {
   const workspaceDir = fakeWorkspaceDir()
   const records: Array<Record<string, unknown>> = []
@@ -187,8 +291,8 @@ test('app-server manager records running provider sessions under the provider pr
   assert.equal(records[0]?.providerKey, 'mova')
   assert.equal(records[0]?.status, 'running')
   assert.equal(records[0]?.workspaceDir, workspaceDir)
-  assert.deepEqual(records[0]?.workspaceContext, { scope: 'global', userId: 'local' })
-  assert.equal(records[0]?.providerSessionCwd, join(workspaceDir, '.movscript', 'data', 'users', 'local'))
+  assert.deepEqual(records[0]?.workspaceContext, { scope: 'global' })
+  assert.equal(records[0]?.providerSessionCwd, workspaceDir)
 })
 
 test('app-server manager keeps multiple profiles for one provider key isolated by profile id', async () => {
@@ -406,7 +510,7 @@ test('app-server manager does not infer provider keys from arbitrary provider na
   assert.equal(records[0]?.providerKey, 'mova')
 })
 
-test('app-server manager launches with a project-scoped MovScript projection cwd', async () => {
+test('app-server manager launches with the project workspace cwd', async () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mova-project-cwd-'))
   let spawnCwd = ''
   const manager = new AppServerManager({
@@ -437,7 +541,7 @@ test('app-server manager launches with a project-scoped MovScript projection cwd
     },
   })
 
-  const expected = join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42')
+  const expected = workspaceDir
   assert.equal(spawnCwd, expected)
   assert.equal(status.providerSessionCwd, expected)
   assert.deepEqual(status.workspaceContext, { scope: 'project', userId: '7', projectId: '42' })
@@ -525,12 +629,12 @@ test('app-server protocol manager launches Mova with an isolated provider home',
     assert.equal(status.ok, true)
     assert.equal(spawnCommand, '/opt/mova/mova-app-server')
     assert.deepEqual(spawnArgs, ['--listen', 'ws://127.0.0.1:41234'])
-    assert.equal(spawnCwd, join(workspaceDir, '.movscript', 'data', 'users', 'local'))
+    assert.equal(spawnCwd, workspaceDir)
     assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_PROVIDER, 'mova')
     assert.equal(spawnEnv.MOVSCRIPT_APP_SERVER_HOME, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(spawnEnv.MOVA_HOME, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(spawnEnv.CODEX_HOME, join(workspaceDir, '.movscript', '.mova'))
-    assert.equal(status.providerSessionCwd, join(workspaceDir, '.movscript', 'data', 'users', 'local'))
+    assert.equal(status.providerSessionCwd, workspaceDir)
     assert.equal(status.home, join(workspaceDir, '.movscript', '.mova'))
     assert.equal(status.config?.accountConfigured, true)
   } finally {

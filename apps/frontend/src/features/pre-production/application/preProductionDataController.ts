@@ -84,6 +84,13 @@ export function buildWorkspaceAssetSlotCandidates(slots: AssetSlotRecord[]): Ass
     })
 }
 
+export function buildWorkspaceAssetSlotCandidateRecords(candidates: AssetSlotCandidateRecord[]): AssetSlotCandidateRecord[] {
+  return candidates.map((candidate) => ({
+    ...candidate,
+    status: candidate.status ?? 'candidate',
+  }))
+}
+
 function requirePreProductionProjectId(projectId?: number) {
   if (!projectId) throw new Error('请先选择项目')
   return projectId
@@ -102,7 +109,10 @@ export function usePreProductionWorkbenchData(projectId?: number) {
 
   const settings = workspaceDataQuery.data?.settings ?? []
   const slots = workspaceDataQuery.data?.assetSlots ?? []
-  const candidates = useMemo(() => buildWorkspaceAssetSlotCandidates(slots), [slots])
+  const candidates = useMemo(() => [
+    ...buildWorkspaceAssetSlotCandidates(slots),
+    ...buildWorkspaceAssetSlotCandidateRecords(workspaceDataQuery.data?.candidates ?? []),
+  ], [slots, workspaceDataQuery.data?.candidates])
   const visibleSlots = useMemo(() => slots.filter((slot) => !isInternalPreProductionCandidateSlot(slot)), [slots])
   const slotById = useMemo(() => new Map(slots.map((slot) => [slot.ID, slot])), [slots])
   const rows = useMemo(() => buildPreProductionAssetRows(visibleSlots, candidates, slotById), [candidates, slotById, visibleSlots])

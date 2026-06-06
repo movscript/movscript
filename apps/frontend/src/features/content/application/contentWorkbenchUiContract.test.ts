@@ -435,7 +435,7 @@ test('content workbench keeps the simplified scene-first workspace hooks', () =>
   assert.match(canvasLaunchSource, /description: contentUnitGenerationCanvasDescription\(input\.unit\)/)
   assert.match(editModelSource, /当前制作项视觉调度/)
   assert.match(editModelSource, /当前制作项故事板简述/)
-  assert.match(unitEditCardsSource, /saveContentUnitWorkspaceProjection\(projectId, unit, contentUnitEditPayload\(workspace\)\)/)
+  assert.match(unitEditCardsSource, /saveContentUnitWorkspaceEdit\(projectId, unit, contentUnitEditPayload\(workspace\)\)/)
   assert.doesNotMatch(unitEditCardsSource, /updateSemanticEntity\(projectId, contentUnitConfig, unit\.ID/)
   assert.match(unitEditCardsSource, /deleteSemanticEntity\(projectId, contentUnitConfig, unit\.ID\)/)
   assert.match(unitEditCardsSource, /data-testid="content-workbench-unit-edit-delete"/)

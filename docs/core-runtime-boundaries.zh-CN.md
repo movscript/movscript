@@ -1,44 +1,53 @@
 # MovScript Core Runtime Boundaries
 
-本文定义 `@movscript/core`、Electron、renderer app、backend 和 CLI 之间的运行时边界。目标是让共享业务能力可以复用，同时避免浏览器端 bundle 引入 `node:fs`、`node:path`、`process` 等 Node-only 能力。
+本文定义 `@movscript/core` 的最终运行时边界。目标是让业务能力按领域正交拆分，同时让 browser-safe 代码和 Node runtime adapter 在 import 路径上可见、可检查、可维护。
 
 ## 核心结论
 
-`@movscript/core` 不应该表示“所有核心代码”。它应该表示“所有运行时都能安全使用的共享核心”。
+`@movscript/core/node` 这种大桶入口不是最终形态。最终形态按两个维度拆分：
 
-需要拆成两个明确层次：
+```text
+领域能力：workspace / mcp / backend / plugins
+运行时：shared / node
+```
+
+最终 public imports：
 
 ```text
 @movscript/core
-  browser-safe shared core
-
-@movscript/core/node
-  Node runtime adapter
+@movscript/core/workspace
+@movscript/core/workspace/node
+@movscript/core/mcp
+@movscript/core/mcp/node
+@movscript/core/backend
+@movscript/core/backend/node
+@movscript/core/plugins
+@movscript/core/plugins/node
 ```
 
-Electron 和 app 都可以依赖 core，但依赖方式不同：
+禁止新增：
 
 ```text
-React renderer -> @movscript/core
-Electron main  -> @movscript/core + @movscript/core/node
-Backend/CLI    -> @movscript/core + @movscript/core/node
+@movscript/core/node
+@movscript/core/workspace-contracts
 ```
 
-React renderer 即使运行在 Electron 里，也按浏览器环境处理。renderer 不直接访问本地文件系统，而是通过 Electron preload/IPC 或 HTTP API 请求能力。
+根入口 `@movscript/core` 只聚合 shared/browser-safe 能力，不能导出任何 `/node` adapter。
 
 ## 运行时边界
 
-### React renderer
+### React Renderer
 
-renderer 是浏览器环境，负责 UI、交互、展示、本地状态和调用能力接口。
+renderer 按浏览器环境处理，即使运行在 Electron 中也不能直接访问 Node 能力。
 
 允许：
 
 ```text
 @movscript/core
-@movscript/core/workspace-contracts
+@movscript/core/workspace
+@movscript/core/mcp
+@movscript/core/backend
 @movscript/core/plugins
-app 内 browser-safe modules
 window.api exposed by Electron preload
 fetch/http client
 ```
@@ -46,7 +55,7 @@ fetch/http client
 禁止：
 
 ```text
-@movscript/core/node
+@movscript/core/*/node
 node:fs
 node:path
 node:crypto
@@ -56,189 +65,176 @@ process.env as runtime dependency
 Electron ipcRenderer direct import
 ```
 
-renderer 需要本地 workspace 能力时，只调用窄接口：
+renderer 需要本地 workspace 能力时，通过 preload/IPC：
 
 ```ts
 const file = await window.api.readMovScriptWorkspaceFile?.({ path })
 ```
 
-### Electron preload
+### Electron Preload
 
-preload 是 renderer 和 Electron main 之间的安全桥。它不承载业务逻辑，只暴露经过挑选的 API。
-
-职责：
+preload 只暴露安全、窄口径 API：
 
 ```text
 contextBridge.exposeInMainWorld
 ipcRenderer.invoke wrapper
-订阅事件并返回 unsubscribe
-限制 renderer 可见能力范围
+event subscribe/unsubscribe wrapper
 ```
 
-preload API 应该是稳定 contract，不应该把 Node 实现细节暴露给 renderer。
+preload 不承载业务实现，也不把 Node 实现细节暴露给 renderer。
 
-### Electron main
+### Electron Main
 
 Electron main 是桌面端本地能力执行层。
 
 允许：
 
 ```text
-@movscript/core/node
+@movscript/core/workspace/node
+@movscript/core/mcp/node
+@movscript/core/backend/node
+@movscript/core/plugins/node
 node:fs
 node:path
 child_process
 Electron ipcMain
-local app server lifecycle
-workspace root/config/files
-plugin install/uninstall
 ```
 
 职责：
 
 ```text
 注册 IPC handler
-调用 @movscript/core/node 的本地实现
+调用具体领域的 Node adapter
 做路径边界、安全校验和错误归一化
 把结果转换成 ElectronAPI contract
 ```
 
 ### Backend 和 CLI
 
-backend 和 CLI 是 Node 环境，可以直接使用 `@movscript/core/node`。
-
-它们和 Electron main 的区别不是能力范围，而是 transport 不同：
+backend/CLI 是 Node 环境，但也应导入具体领域入口，而不是大桶入口：
 
 ```text
-Electron main -> IPC
-Backend       -> HTTP/RPC
-CLI           -> command invocation
+@movscript/core/backend/node
+@movscript/core/workspace/node
+@movscript/core/mcp/node
+@movscript/core/plugins/node
 ```
 
-核心业务模型和协议应尽量复用 `@movscript/core`，本地文件、进程和配置实现放在 `@movscript/core/node`。
+## Core 入口职责
 
-## Core 分层
+### `@movscript/core/workspace`
 
-### `@movscript/core`
-
-根入口必须 browser-safe。
-
-适合放入：
+browser-safe workspace domain：
 
 ```text
-domain types
-DTO/request/response types
-schema id/constants
-workspace contracts
-pure domain index/query functions
+workspace ontology
+workspace contracts/schema ids
+workspace config types
+domain index/query pure functions
 repository interfaces
-pure validators
-JSON-RPC shape helpers without process/env dependency
-plugin manifest types and pure parsing
+repository implementations that depend only on injected interfaces
+candidate record pure builders/writers through repository interface
 ```
 
-不应放入：
+### `@movscript/core/workspace/node`
+
+Node workspace adapter：
 
 ```text
-filesystem repository implementation
-workspace root creation
-home/config file read/write
-MCP server listen/start/stop
-resource media ffmpeg processing
-backend config stored on disk
-plugin catalog pack store on disk
-anything importing node:* modules
-```
-
-根入口示例：
-
-```ts
-export * from './workspace/domain/index.js'
-export * from './workspace/contracts/index.js'
-export * from './workspace/ontology.js'
-export * from './workspace/repository/types.js'
-export * from './workspace/repository/domainRepository.js'
-export * from './workspace/repository/candidates.js'
-```
-
-### `@movscript/core/node`
-
-Node 入口承载所有本地运行时实现。
-
-适合放入：
-
-```text
-home paths/config
 workspace fs repository
-workspace root manifest read/write
-backend config read/write
-MCP server lifecycle
-resource media file processing
-ffmpeg path resolution
-plugin catalog pack store
+workspace review/build implementation when it uses Node crypto
+workspace root/config path resolution and file read/write
+provider workspace context paths
 ```
 
-入口示例：
+### `@movscript/core/mcp`
 
-```ts
-export * from './index.js'
-export * from './home/node.js'
-export * from './workspace/node.js'
-export * from './backend/index.js'
-export * from './mcp/node.js'
-export * from './plugins-node.js'
-```
-
-`@movscript/core/node` 可以 re-export browser-safe core，但 browser-safe core 不能反向依赖 node 入口。
-
-## Electron Contract
-
-Electron API 类型应该是 renderer-safe contract。
-
-当前 app 已经存在 preload/IPC 层，这个方向是正确的：
+browser-safe MCP contract：
 
 ```text
-electron/preload/api/*
-electron/ipc/*
-src/shared/contracts/electronApi.ts
+JSON-RPC/MCP types
+MCP response content formatting
+tool schemas/definitions
+model contract pure helpers
 ```
 
-需要注意的是，`electronApi.ts` 属于 renderer contract，不应该 import `@movscript/core/node`。如果 contract 需要共享类型，应把类型移动到 browser-safe core 入口，例如：
+### `@movscript/core/mcp/node`
+
+Node MCP runtime：
 
 ```text
-@movscript/core
-@movscript/core/workspace-contracts
-@movscript/core/electron-contracts
+HTTP server
+JSON-RPC handler bound to server registries
+tool actions
+resource readers
+resource media/ffmpeg helpers
+MCP context persistence
 ```
 
-推荐方向：
+### `@movscript/core/backend`
 
-```ts
-// renderer-safe
-import type { MovScriptWorkspaceConfig } from '@movscript/core'
+browser-safe backend contract:
 
-export type ElectronAPI = {
-  getMovScriptWorkspaceConfig?: (
-    input?: { workspaceDir?: string; providerProfileKey?: string }
-  ) => Promise<MovScriptWorkspaceConfig>
-}
+```text
+backend error types
+error normalization
+request/response types when needed
 ```
 
-Electron main 实现：
+### `@movscript/core/backend/node`
 
-```ts
-import { readMovScriptWorkspaceConfig } from '@movscript/core/node'
+Node backend adapter:
 
-ipcMain.handle('movscript:workspace-config-get', (_event, input) => {
-  return readMovScriptWorkspaceConfig(input?.workspaceDir)
-})
+```text
+backend config/auth files
+runtime default workspace/env handling
+backend client that reads workspace auth
+```
+
+### `@movscript/core/plugins`
+
+browser-safe plugin contract:
+
+```text
+provider plugin manifest
+archive contribution parsing
+catalog file mapping
+pure validation
+```
+
+### `@movscript/core/plugins/node`
+
+Node plugin adapter:
+
+```text
+plugin catalog pack install/uninstall/list
+plugin store directory resolution
+filesystem writes/removal
+```
+
+## Dependency Rules
+
+允许方向：
+
+```text
+@movscript/core -> shared entries only
+@movscript/core/*/node -> corresponding shared entry
+Electron main -> @movscript/core/*/node
+renderer -> @movscript/core/* shared entries
+```
+
+禁止方向：
+
+```text
+shared entry -> any /node entry
+shared entry -> node:* / fs / path / process / NodeJS runtime types
+renderer -> @movscript/core/*/node
+renderer -> @movscript/core/node
 ```
 
 ## Transport 抽象
 
-业务层不应该关心能力来自 Electron IPC 还是 HTTP。
-
-推荐用 gateway/repository interface 隔离 transport：
+业务层不关心能力来自 Electron IPC 还是 HTTP。用 gateway/repository interface 隔离 transport：
 
 ```ts
 export interface MovScriptWorkspaceFileRepository {
@@ -259,213 +255,32 @@ Backend/CLI       -> Node fs repository
 Tests             -> memory repository
 ```
 
-业务查询和索引构建依赖 interface，而不是依赖 `fs`：
+## 当前强制检查
 
-```ts
-createMovScriptWorkspaceDomainRepository({
-  fileRepository,
-})
-```
-
-这是正确的抽象方向，应继续保留。
-
-## 当前代码中的主要问题
-
-当前 `packages/core/src/index.ts` 导出了 Node-only 链路：
-
-```ts
-export * from './backend/index.js'
-export * from './workspace/build.js'
-export * from './mcp/index.js'
-```
-
-这些模块会间接触达：
+边界检查应覆盖：
 
 ```text
-node:fs
-node:path
-node:crypto
-node:child_process
-process
-```
-
-因此 renderer 中只要 import `@movscript/core`，Vite 就可能把 Node-only 模块纳入浏览器分析，出现类似错误：
-
-```text
-Module "node:fs" has been externalized for browser compatibility.
-Cannot access "node:fs.mkdirSync" in client code.
-```
-
-这不是 React 问题，而是 package boundary 问题。
-
-## 推荐迁移步骤
-
-### 1. 收紧根入口
-
-先把 `packages/core/src/index.ts` 改成 browser-safe 入口。
-
-从根入口移出：
-
-```text
-backend/index
-mcp/index
-workspace/build if it imports node:crypto
-workspace/projectRepository
-home/*
-plugins-node
-```
-
-保留：
-
-```text
-workspace/domain
-workspace/contracts
-workspace/ontology
-workspace/repository/types
-workspace/repository/domainRepository
-workspace/repository/candidates
-browser-safe plugin types
-```
-
-### 2. 拆 MCP 入口
-
-`mcp/index.ts` 当前同时包含协议、server、tools、resources 和 workspace apply。建议拆分：
-
-```text
-mcp/contracts.ts
-mcp/client.ts
-mcp/node.ts
-```
-
-renderer 只能依赖 contracts/client 中 browser-safe 的部分。server、listen、resource media、workspace apply、ffmpeg 都归入 node。
-
-### 3. 拆 workspace build
-
-`workspace/build.ts` 目前依赖 `node:crypto`。有两种处理方式：
-
-1. 如果 build 只在 Node 执行，把它移动到 `@movscript/core/node`。
-2. 如果 build 需要 browser 复用，把 hash 实现注入：
-
-```ts
-type HashContent = (content: string) => string | Promise<string>
-```
-
-Node 侧用 `node:crypto`，browser 侧用 Web Crypto 或调用后端/Electron。
-
-### 4. 清理 renderer imports
-
-renderer 中避免根入口大而全的 import。
-
-推荐：
-
-```ts
-import { createMovScriptWorkspaceDomainRepository } from '@movscript/core'
-import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/core/workspace-contracts'
-```
-
-如果根入口仍然容易变宽，则更严格地使用子入口：
-
-```ts
-import { createMovScriptWorkspaceDomainRepository } from '@movscript/core/workspace-domain'
-```
-
-禁止：
-
-```ts
-import type { MovScriptWorkspaceConfig } from '@movscript/core/node'
-```
-
-### 5. 加边界测试
-
-建议增加静态边界测试：
-
-```text
+apps/frontend/src 禁止 @movscript/core/*/node
 apps/frontend/src 禁止 @movscript/core/node
-apps/frontend/src 禁止 node:* imports
-apps/frontend/src 限制 @movscript/core 根入口使用
-packages/core/src/index.ts 禁止导出 node-only module
-browser-safe core files 禁止 node:* imports
+apps/frontend/src 禁止 node built-in runtime imports
+shared core entry graph 禁止 Node-only imports
 ```
 
-这类测试比靠约定更可靠。
-
-## 允许的依赖方向
+`@movscript/core` package exports 不应包含：
 
 ```text
-apps/frontend/src
-  -> @movscript/core
-  -> @movscript/core/workspace-contracts
-  -> app shared contracts
-
-apps/frontend/electron/preload
-  -> renderer-safe ElectronAPI types
-  -> electron ipcRenderer
-
-apps/frontend/electron/ipc
-  -> @movscript/core/node
-  -> Electron ipcMain
-
-apps/backend
-  -> @movscript/core/node
-
-apps/cli
-  -> @movscript/core/node
-
-packages/core/src/node.ts
-  -> packages/core/src/index.ts
-  -> node-only modules
-
-packages/core/src/index.ts
-  -> browser-safe modules only
+./node
+./workspace-contracts
 ```
 
-禁止的依赖方向：
+如需 workspace schema/contract，使用：
 
-```text
-packages/core/src/index.ts -> packages/core/src/node.ts
-packages/core/src/index.ts -> home/paths
-packages/core/src/index.ts -> backend/config
-apps/frontend/src -> @movscript/core/node
-apps/frontend/src -> electron
-apps/frontend/src -> node:fs
+```ts
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/core/workspace'
 ```
 
-## 判断一个模块放在哪里
+如需 Node workspace 能力，使用：
 
-可以用以下问题判断：
-
-1. 这个模块 import 了 `node:*`、`fs`、`path`、`process`、`child_process` 吗？
-   - 是：放 `@movscript/core/node`。
-2. 这个模块会读写本地磁盘、启动服务、开端口、调用 ffmpeg 吗？
-   - 是：放 `@movscript/core/node`。
-3. 这个模块只处理 JSON、类型、schema、纯函数、业务查询吗？
-   - 是：可以放 `@movscript/core`。
-4. renderer 是否需要直接 import 它？
-   - 是：必须 browser-safe。
-5. Electron main/backend/CLI 是否是唯一调用者？
-   - 是：优先放 node 入口。
-
-## 目标状态
-
-最终应该可以做到：
-
-```text
-renderer bundle never includes node:fs
-@movscript/core root is browser-safe
-Electron main owns local desktop capability
-preload exposes narrow API
-workspace domain logic is shared through interfaces
-Node implementations are replaceable by IPC/HTTP/memory implementations
+```ts
+import { createNodeMovScriptWorkspaceFileRepository } from '@movscript/core/workspace/node'
 ```
-
-这能同时支持：
-
-```text
-Electron desktop app
-future web app
-backend services
-CLI tools
-agent/MCP local runtime
-```
-
-而不会把 UI、文件系统、本地进程和协议实现混在同一个 import 入口里。

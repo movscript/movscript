@@ -1,4 +1,4 @@
-import type { MCPJSONValue } from '../protocol/types'
+import type { MCPJSONValue } from '../protocol/types.js'
 
 export function objectSchema(properties: Record<string, MCPJSONValue>, required?: string[]) {
   return {

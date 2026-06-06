@@ -27,6 +27,7 @@ import { routeForWorkMode } from '@/routes/appRouteModel'
 import { isLocalLaunchMode } from '@/shared/infrastructure/config'
 import { openAdminConsole } from '@/shared/infrastructure/adminConsole'
 import { projectListQueryKey, projectProgressQueryKey } from '@/features/project/application/projectQueries'
+import { initializeProjectGitWorkspace } from '@/features/project/application/projectGitWorkspace'
 import { useAppSettingsStore } from '@/shared/infrastructure/appSettingsStore'
 import { useUserStore } from '@/shared/infrastructure/session/userStore'
 import { projectStatusRecipe } from '@/features/project/presentation/projectSemanticUi'
@@ -265,6 +266,7 @@ export default function ProjectsPage() {
     mutationFn: (p: Partial<Project>) => api.post('/projects', p).then((r) => r.data),
     onSuccess: (newProject: Project) => {
       qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      void initializeProjectGitWorkspace(newProject, currentOrgID)
       setCurrent(newProject)
       navigate(routeForWorkMode(settings.workMode, true))
     },

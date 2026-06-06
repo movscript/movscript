@@ -8,11 +8,13 @@ import type {
 import type { SemanticEntityPayload, SemanticEntityRecord } from '@/shared/infrastructure/api/semanticEntities'
 import type {
   AssetSlotRecord,
+  AssetSlotCandidateRecord,
   SettingRecord,
 } from '@/features/pre-production/domain/preProductionAssetRows'
 
 const SETTING_SCHEMA = 'movscript.setting.v1'
 const ASSET_SLOT_SCHEMA = 'movscript.asset_slot.v1'
+const CANDIDATE_SCHEMA = 'movscript.candidate.v1'
 
 export interface PreProductionWorkspaceFilesAPI {
   root(input?: { workspaceDir?: string }): Promise<ElectronMovScriptWorkspaceRootResult>
@@ -30,6 +32,7 @@ export interface PreProductionWorkspaceRecord<TRecord extends SemanticEntityReco
 export interface PreProductionWorkspaceData {
   settings: SettingRecord[]
   assetSlots: AssetSlotRecord[]
+  candidates: AssetSlotCandidateRecord[]
   source: 'workspace'
   projectPath: string
 }
@@ -60,14 +63,16 @@ export async function loadPreProductionWorkspaceData(projectId: number): Promise
   const api = requirePreProductionWorkspaceAPI()
   const projectPath = await resolvePreProductionWorkspaceProjectPath(api, projectId)
   const [editableReferences, editableSlots] = await Promise.all([
-    listWorkspaceRecords(api, `${projectPath}/setting`, settingRecordFromProjection, /^setting_[^/\\]+\.json$/),
-    listWorkspaceRecords(api, `${projectPath}/assets`, assetSlotRecordFromProjection, /^asset_slot_[^/\\]+\.json$/),
+    listWorkspaceRecords(api, `${projectPath}/setting`, settingRecordFromFile, /^setting_[^/\\]+\.json$/),
+    listWorkspaceRecords(api, `${projectPath}/assets`, assetSlotRecordFromFile, /^asset_slot_[^/\\]+\.json$/),
   ])
+  const candidateRows = await listAssetCandidateRecords(api, `${projectPath}/assets`)
   return {
     source: 'workspace',
     projectPath,
     settings: editableReferences.map((item) => item.record),
     assetSlots: editableSlots.map((item) => item.record),
+    candidates: candidateRows.map((item) => item.record),
   }
 }
 
@@ -78,13 +83,13 @@ export async function savePreProductionWorkspaceSetting(
 ): Promise<SettingRecord> {
   const api = requirePreProductionWorkspaceAPI()
   const projectPath = await resolvePreProductionWorkspaceProjectPath(api, projectId)
-  const local = normalizeSettingProjection(projectId, record, payload)
-  const fileKey = projectionFileKey(record, local)
+  const local = normalizeSettingFile(projectId, record, payload)
+  const fileKey = workspaceFileKey(record, local)
   const path = positiveId(record?.ID)
     ? `${projectPath}/setting/setting_${fileKey}.json`
     : `${projectPath}/setting/setting_${local.client_id}.json`
-  await api.write({ path, content: serializeProjection(local) })
-  return settingRecordFromProjection(local, path)
+  await api.write({ path, content: serializeWorkspaceFile(local) })
+  return settingRecordFromFile(local, path)
 }
 
 export async function savePreProductionWorkspaceAssetSlot(
@@ -94,33 +99,47 @@ export async function savePreProductionWorkspaceAssetSlot(
 ): Promise<AssetSlotRecord> {
   const api = requirePreProductionWorkspaceAPI()
   const projectPath = await resolvePreProductionWorkspaceProjectPath(api, projectId)
-  const local = normalizeAssetSlotProjection(projectId, record, payload)
-  const fileKey = projectionFileKey(record, local)
+  const local = normalizeAssetSlotFile(projectId, record, payload)
+  const fileKey = workspaceFileKey(record, local)
   const path = positiveId(record?.ID)
     ? `${projectPath}/assets/asset_slot_${fileKey}.json`
     : `${projectPath}/assets/asset_slot_${local.client_id}.json`
-  await api.write({ path, content: serializeProjection(local) })
-  return assetSlotRecordFromProjection(local, path)
+  await api.write({ path, content: serializeWorkspaceFile(local) })
+  return assetSlotRecordFromFile(local, path)
 }
 
 export async function deletePreProductionWorkspaceSetting(projectId: number, record: SettingRecord): Promise<void> {
   const api = requirePreProductionWorkspaceAPI()
   const projectPath = await resolvePreProductionWorkspaceProjectPath(api, projectId)
-  await api.delete({ path: `${projectPath}/setting/setting_${projectionFileKey(record)}.json` })
+  await api.delete({ path: `${projectPath}/setting/setting_${workspaceFileKey(record)}.json` })
 }
 
 export async function deletePreProductionWorkspaceAssetSlot(projectId: number, record: AssetSlotRecord): Promise<void> {
   const api = requirePreProductionWorkspaceAPI()
   const projectPath = await resolvePreProductionWorkspaceProjectPath(api, projectId)
-  await api.delete({ path: `${projectPath}/assets/asset_slot_${projectionFileKey(record)}.json` })
+  await api.delete({ path: `${projectPath}/assets/asset_slot_${workspaceFileKey(record)}.json` })
 }
 
-export function preProductionWorkspaceProjectPath(userId: string | number, projectId: string | number): string {
-  return `edit/projects/${String(projectId)}`
+export async function savePreProductionWorkspaceAssetCandidate(
+  projectId: number,
+  record: AssetSlotCandidateRecord,
+  payload: SemanticEntityPayload,
+): Promise<AssetSlotCandidateRecord> {
+  const api = requirePreProductionWorkspaceAPI()
+  await resolvePreProductionWorkspaceProjectPath(api, projectId)
+  const path = stringValue(record.__workspace_path)
+  if (!path) throw new Error('候选缺少工作区路径')
+  const local = candidateRecordFromFile({ ...record, ...payload, schema: CANDIDATE_SCHEMA, project_id: projectId }, path)
+  await api.write({ path, content: serializeWorkspaceFile(stripWorkspacePrivateFields(local)) })
+  return local
 }
 
-export function preProductionWorkspacePath(projectId: string | number): string {
-  return preProductionWorkspaceProjectPath('local', projectId)
+export function preProductionWorkspaceEditPath(): string {
+  return 'edit'
+}
+
+export function preProductionWorkspacePath(_projectId: string | number): string {
+  return preProductionWorkspaceEditPath()
 }
 
 async function listWorkspaceRecords<TRecord extends SemanticEntityRecord>(
@@ -140,23 +159,23 @@ async function listWorkspaceRecords<TRecord extends SemanticEntityRecord>(
   return rows.filter((item): item is PreProductionWorkspaceRecord<TRecord> => Boolean(item))
 }
 
-async function readWorkspaceSnapshotRecords<TRecord extends SemanticEntityRecord>(
+async function listAssetCandidateRecords(
   api: PreProductionWorkspaceFilesAPI,
-  path: string,
-  workspaceKeys: string[],
-  mapRecord: WorkspaceRecordMapper<TRecord>,
-): Promise<Array<PreProductionWorkspaceRecord<TRecord>>> {
+  directory: string,
+): Promise<Array<PreProductionWorkspaceRecord<AssetSlotCandidateRecord>>> {
+  let listed: ElectronMovScriptWorkspaceFilesListResult
   try {
-    const file = await api.read({ path })
-    const value = JSON.parse(file.content) as unknown
-    const rows = workspaceSnapshotRows(value, workspaceKeys)
-    return rows.map((row, index) => ({
-      path: `${path}#${index}`,
-      record: mapRecord(row, `${path}#${index}`),
-    }))
+    listed = await api.list({ path: directory })
   } catch {
     return []
   }
+  const rows: Array<PreProductionWorkspaceRecord<AssetSlotCandidateRecord>> = []
+  for (const entry of listed.entries) {
+    if (entry.kind === 'directory' && /\.candidates$/.test(entry.name)) {
+      rows.push(...await listWorkspaceRecords(api, entry.path, candidateRecordFromFile, /^candidate_[^/\\]+\.json$/))
+    }
+  }
+  return rows
 }
 
 async function readWorkspaceRecord<TRecord extends SemanticEntityRecord>(
@@ -174,26 +193,12 @@ async function readWorkspaceRecord<TRecord extends SemanticEntityRecord>(
   }
 }
 
-async function resolvePreProductionWorkspaceProjectPath(api: PreProductionWorkspaceFilesAPI, projectId: number): Promise<string> {
+async function resolvePreProductionWorkspaceProjectPath(api: PreProductionWorkspaceFilesAPI, _projectId: number): Promise<string> {
   await api.root()
-  return preProductionWorkspaceProjectPath('local', projectId)
+  return preProductionWorkspaceEditPath()
 }
 
-function workspaceSnapshotRows(value: unknown, workspaceKeys: string[]): Array<Record<string, unknown>> {
-  const envelope = isRecord(value) ? value : {}
-  const workspace = isRecord(envelope.workspace)
-    ? envelope.workspace
-    : isRecord(envelope.data)
-      ? envelope.data
-      : envelope
-  for (const key of workspaceKeys) {
-    const rows = workspace[key]
-    if (Array.isArray(rows)) return rows.filter(isRecord)
-  }
-  return []
-}
-
-function normalizeSettingProjection(
+function normalizeSettingFile(
   projectId: number,
   record: SettingRecord | null | undefined,
   payload: SemanticEntityPayload,
@@ -214,7 +219,7 @@ function normalizeSettingProjection(
   })
 }
 
-function normalizeAssetSlotProjection(
+function normalizeAssetSlotFile(
   projectId: number,
   record: AssetSlotRecord | null | undefined,
   payload: SemanticEntityPayload,
@@ -242,7 +247,7 @@ function normalizeAssetSlotProjection(
   })
 }
 
-function settingRecordFromProjection(value: Record<string, unknown>, path: string): SettingRecord {
+function settingRecordFromFile(value: Record<string, unknown>, path: string): SettingRecord {
   const id = workspaceRecordId(value, path)
   return pruneUndefined({
     ...value,
@@ -253,7 +258,7 @@ function settingRecordFromProjection(value: Record<string, unknown>, path: strin
   }) as SettingRecord
 }
 
-function assetSlotRecordFromProjection(value: Record<string, unknown>, path: string): AssetSlotRecord {
+function assetSlotRecordFromFile(value: Record<string, unknown>, path: string): AssetSlotRecord {
   const id = workspaceRecordId(value, path)
   return pruneUndefined({
     ...value,
@@ -270,6 +275,35 @@ function assetSlotRecordFromProjection(value: Record<string, unknown>, path: str
   }) as AssetSlotRecord
 }
 
+function candidateRecordFromFile(value: Record<string, unknown>, path: string): AssetSlotCandidateRecord {
+  const id = workspaceRecordId(value, path)
+  const target = isRecord(value.target) ? value.target : undefined
+  const assetSlotId = numberValue(value.asset_slot_id ?? value.assetSlotId ?? target?.id)
+  return pruneUndefined({
+    ...value,
+    ID: id,
+    id,
+    project_id: numberValue(value.project_id),
+    asset_slot_id: assetSlotId,
+    candidate_asset_slot_id: numberValue(value.candidate_asset_slot_id),
+    resource_id: numberValue(value.resource_id),
+    source_id: numberValue(value.source_id),
+    score: numberValue(value.score),
+    status: stringValue(value.status),
+    __workspace_path: path,
+    __workspace_entity_type: 'candidate',
+  }) as AssetSlotCandidateRecord
+}
+
+function stripWorkspacePrivateFields(record: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith('__workspace_')) continue
+    output[key] = value
+  }
+  return output
+}
+
 function workspaceRecordId(value: Record<string, unknown>, path: string): number {
   const id = positiveId(value.id) ?? positiveId(value.ID)
   if (id) return id
@@ -277,7 +311,7 @@ function workspaceRecordId(value: Record<string, unknown>, path: string): number
   return -stablePositiveHash(clientId)
 }
 
-function projectionFileKey(record: SemanticEntityRecord | null | undefined, fallback?: Record<string, unknown>): string {
+function workspaceFileKey(record: SemanticEntityRecord | null | undefined, fallback?: Record<string, unknown>): string {
   const id = positiveId(record?.ID) ?? positiveId(record?.id)
   if (id) return String(id)
   return stringValue(record?.client_id)
@@ -315,7 +349,7 @@ function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
   return output as T
 }
 
-function serializeProjection(value: Record<string, unknown>): string {
+function serializeWorkspaceFile(value: Record<string, unknown>): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 

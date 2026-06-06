@@ -11,7 +11,7 @@ export async function mockGenerationCandidateTargets(page: Page) {
     const state = window as WorkspaceStateWindow
     const globalState = state as unknown as Record<string, unknown>
     state.__movscriptWorkspaceFiles = {
-      'data/users/local/projects/123/assets/asset_slot_77.json': JSON.stringify({
+      'edit/assets/asset_slot_77.json': JSON.stringify({
         schema: 'movscript.asset_slot.v1',
         id: 77,
         ID: 77,
@@ -20,7 +20,7 @@ export async function mockGenerationCandidateTargets(page: Page) {
         status: 'open',
         description: '需要一张可审阅的生成图',
       }),
-      'data/users/local/projects/123/productions/production_10/keyframes/keyframe_88.json': JSON.stringify({
+      'edit/productions/production_10/keyframes/keyframe_88.json': JSON.stringify({
         schema: 'movscript.keyframe.v1',
         id: 88,
         ID: 88,
@@ -51,13 +51,29 @@ export async function mockGenerationCandidateTargets(page: Page) {
       ...currentApi,
       getMovScriptWorkspaceRoot: async () => ({
         workspaceDir: '/tmp/movscript-e2e-workspace',
+        rootDir: '/tmp/movscript-e2e-workspace',
         controlDir: '/tmp/movscript-e2e-workspace/.movscript',
-        manifestPath: '/tmp/movscript-e2e-workspace/.movscript/workspace.json',
-        projectionRootDir: '/tmp/movscript-e2e-workspace/data',
-        reviewsDir: '/tmp/movscript-e2e-workspace/reviews',
-        configDir: '/tmp/movscript-e2e-workspace/config',
-        logsDir: '/tmp/movscript-e2e-workspace/logs',
-        manifest: { schema: 'movscript.workspace_root.v1', activeUserId: 'local' },
+        manifestPath: '/tmp/movscript-e2e-workspace/.movscript/manifest.json',
+        editDir: '/tmp/movscript-e2e-workspace/edit',
+        buildDir: '/tmp/movscript-e2e-workspace/.build',
+        buildCurrentDir: '/tmp/movscript-e2e-workspace/.build/current',
+        buildIndexesDir: '/tmp/movscript-e2e-workspace/.build/indexes',
+        buildReviewsDir: '/tmp/movscript-e2e-workspace/.build/reviews',
+        buildManifestsDir: '/tmp/movscript-e2e-workspace/.build/manifests',
+        providersDir: '/tmp/movscript-e2e-workspace/.movscript/providers',
+        backendDir: '/tmp/movscript-e2e-workspace/.movscript/backend',
+        manifest: {
+          schema: 'movscript.project-workspace.v1',
+          workspaceId: 'e2e',
+          activeUserId: 1,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          layout: {
+            editableRoot: 'edit',
+            buildRoot: '.build',
+            providerConfigRoot: 'providers',
+          },
+        },
       }),
       listMovScriptWorkspaceFiles: async ({ path }: { path?: string } = {}) => {
         const directory = normalizePath(path)

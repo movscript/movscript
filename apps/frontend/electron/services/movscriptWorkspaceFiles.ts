@@ -86,7 +86,7 @@ async function resolveMovScriptWorkspaceFilePath(input?: ElectronMovScriptWorksp
   const workspaceDir = input?.workspaceDir?.trim() || await resolveDefaultMovScriptWorkspaceDir()
   const workspaceRoot = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   ensureMovScriptWorkspaceRoot(workspaceRoot)
-  const rootPath = workspaceRoot.controlDir
+  const rootPath = workspaceRoot.rootDir
   const rawRelativePath = typeof input?.path === 'string' ? input.path : ''
   const normalizedRelativePath = rawRelativePath.replace(/^[/\\]+/, '')
   const absolutePath = resolve(rootPath, normalizedRelativePath)

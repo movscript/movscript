@@ -23,36 +23,25 @@ const workspaceTools = [
     }, ['name']),
   },
   {
-    name: 'workspace_fetch',
-    description: 'Return the Git-canonical workspace fetch handoff for a MovScript namespace. A namespace is a project-level working repository such as movscript.project:123; use standard git fetch/pull for actual synchronization.',
+    name: 'movscript_workspace_get_model',
+    description: 'Return the domain workspace model for editing one MovScript entity: workspace kind, editable paths, context paths, schema ids, and agent instructions. This does not write files.',
     inputSchema: objectSchema({
-      namespace: { type: 'string', description: 'Workspace namespace, for example movscript.project:123. Defaults to the current project focus.' },
-      mode: { type: 'string', enum: ['safe', 'merge', 'overwrite'], description: 'Legacy compatibility hint; Git canonical workspaces use standard git commands.' },
+      entityType: { type: 'string', description: 'Domain entity type, for example setting, asset_slot, production, content_unit, or keyframe.' },
+      entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
+    }, ['entityType']),
+  },
+  {
+    name: 'movscript_workspace_review',
+    description: 'Review current workspace edits by comparing .build/current with edit/. Reports changed files, changed entities, schema/domain issues, and whether build is ready. This does not make edits effective.',
+    inputSchema: objectSchema({
+      workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
     }),
   },
   {
-    name: 'workspace_status',
-    description: 'Return the Git-canonical workspace status handoff for a MovScript namespace. Use standard git status/diff to inspect local changes.',
+    name: 'movscript_workspace_build',
+    description: 'Build current edit/ files into .build/current and .build/indexes. Build must succeed before edits become the current effective workspace state.',
     inputSchema: objectSchema({
-      namespace: { type: 'string', description: 'Workspace namespace, for example movscript.project:123. Defaults to the current project focus.' },
-    }),
-  },
-  {
-    name: 'workspace_review',
-    description: 'Return the Git-canonical workspace review handoff for a MovScript namespace. Use standard git diff/review artifacts to inspect local changes before commit.',
-    inputSchema: objectSchema({
-      namespace: { type: 'string', description: 'Workspace namespace, for example movscript.project:123. Defaults to the current project focus.' },
-      userId: { type: 'number' },
-    }),
-  },
-  {
-    name: 'workspace_submit',
-    description: 'Return the Git-canonical workspace submit handoff for a MovScript namespace. Use standard git commit/push when the user explicitly asks to submit or sync local drafts.',
-    inputSchema: objectSchema({
-      namespace: { type: 'string', description: 'Workspace namespace, for example movscript.project:123. Defaults to the current project focus.' },
-      reviewPath: { type: 'string', description: 'Optional review artifact path from workspace_review.' },
-      mode: { type: 'string', enum: ['review_required', 'path_compat'], description: 'Legacy compatibility hint; Git canonical workspaces use standard git commands.' },
-      userId: { type: 'number' },
+      workspaceDir: { type: 'string', description: 'Optional project workspace root. Defaults to the current MovScript workspace dir.' },
     }),
   },
 ]

@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -17,24 +21,52 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@movscript/core": ["../../packages/core/src/index.ts"],
-      "@movscript/core/node": ["../../packages/core/src/node.ts"],
-      "@movscript/core/workspace": ["../../packages/core/src/workspace/index.ts"],
-      "@movscript/core/workspace/node": ["../../packages/core/src/workspace/node/index.ts"],
-      "@movscript/core/mcp": ["../../packages/core/src/mcp/index.ts"],
-      "@movscript/core/mcp/node": ["../../packages/core/src/mcp/node/index.ts"],
-      "@movscript/core/backend": ["../../packages/core/src/backend/index.ts"],
-      "@movscript/core/backend/node": ["../../packages/core/src/backend/node/index.ts"],
-      "@movscript/core/workspace-contracts": ["../../packages/core/src/workspace-contracts.ts"],
-      "@movscript/core/plugins": ["../../packages/core/src/plugins.ts"],
-      "@movscript/core/plugins/node": ["../../packages/core/src/plugins-node.ts"],
-      "@movscript/theme": ["../../packages/theme/src/index.ts"],
-      "@movscript/ui/style-system": ["../../packages/ui/src/style-system.ts"],
-      "@movscript/ui": ["../../packages/ui/src/index.ts"],
-      "@movscript/ui/*": ["../../packages/ui/src/*"],
-      "@runtime": ["./src/runtime/community.tsx"],
-      "@/*": ["./src/*"]
+      "@movscript/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@movscript/core/workspace": [
+        "../../packages/core/src/workspace/index.ts"
+      ],
+      "@movscript/core/workspace/node": [
+        "../../packages/core/src/workspace/node/index.ts"
+      ],
+      "@movscript/core/mcp": [
+        "../../packages/core/src/mcp/index.ts"
+      ],
+      "@movscript/core/mcp/node": [
+        "../../packages/core/src/mcp/node/index.ts"
+      ],
+      "@movscript/core/backend": [
+        "../../packages/core/src/backend/index.ts"
+      ],
+      "@movscript/core/backend/node": [
+        "../../packages/core/src/backend/node/index.ts"
+      ],
+      "@movscript/core/plugins": [
+        "../../packages/core/src/plugins/index.ts"
+      ],
+      "@movscript/theme": [
+        "../../packages/theme/src/index.ts"
+      ],
+      "@movscript/ui/style-system": [
+        "../../packages/ui/src/style-system.ts"
+      ],
+      "@movscript/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@movscript/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "@runtime": [
+        "./src/runtime/community.tsx"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src", "electron"]
+  "include": [
+    "src",
+    "electron"
+  ]
 }

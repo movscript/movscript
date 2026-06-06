@@ -125,7 +125,9 @@ function CandidateRow({
   busy: boolean
 }) {
   const slot = candidate.candidate_asset_slot
-  const canLock = selected || assetSlotHasLoadedResource(slot)
+  const hasCandidateResource = Boolean(candidate.resource_id) || assetSlotHasLoadedResource(slot)
+  const canLock = selected || hasCandidateResource
+  const canMutate = Boolean(candidate.candidate_asset_slot_id || candidate.__workspace_path)
   return (
     <ResourceAssetCandidateCard active={selected}>
       <ResourceAssetCandidateContent>
@@ -133,18 +135,18 @@ function CandidateRow({
           <SlotThumb slot={slot} fit="contain" />
         </ResourceAssetCandidateThumb>
         <ResourceAssetCandidateBody>
-          <ResourceAssetCandidateTitle>{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</ResourceAssetCandidateTitle>
+          <ResourceAssetCandidateTitle>{slot?.name || candidate.name || `候选素材 #${candidate.resource_id ?? candidate.candidate_asset_slot_id ?? candidate.ID}`}</ResourceAssetCandidateTitle>
           <ResourceAssetCandidateMeta>{candidate.note || sourceTypeLabel(candidate.source_type)}</ResourceAssetCandidateMeta>
-          {slot && !assetSlotHasLoadedResource(slot) ? (
+          {!hasCandidateResource ? (
             <ResourceAssetCandidateStatus {...preProductionCandidateAvailabilityRecipe(false)} label="候选资源不存在或未加载，暂不能锁定" />
           ) : null}
         </ResourceAssetCandidateBody>
       </ResourceAssetCandidateContent>
       <ResourceAssetCandidateActions>
-        <ResourceAssetCandidateActionButton disabled={selected || busy || !candidate.candidate_asset_slot_id || !canLock} onClick={onConfirm}>
+        <ResourceAssetCandidateActionButton disabled={selected || busy || !canMutate || !canLock} onClick={onConfirm}>
           {selected ? '已选定' : canLock ? '锁定此候选' : '缺资源'}
         </ResourceAssetCandidateActionButton>
-        <ResourceAssetCandidateActionButton variant="outline" disabled={selected || busy || !candidate.candidate_asset_slot_id} onClick={onReject}>
+        <ResourceAssetCandidateActionButton variant="outline" disabled={selected || busy || !canMutate} onClick={onReject}>
           拒绝
         </ResourceAssetCandidateActionButton>
       </ResourceAssetCandidateActions>

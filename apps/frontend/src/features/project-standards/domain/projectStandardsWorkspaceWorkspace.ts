@@ -1,4 +1,4 @@
-import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace-contracts'
+import { WORKSPACE_CONTENT_SCHEMA_IDS, WORKSPACE_SCOPES } from '@movscript/core/workspace'
 
 export const PROJECT_STANDARDS_WORKSPACE_WORKSPACE_SCHEMA = WORKSPACE_CONTENT_SCHEMA_IDS.projectStandardsWorkspace
 export const PROJECT_STANDARDS_WORKSPACE_SCOPE = WORKSPACE_SCOPES.projectStandardsWorkspace

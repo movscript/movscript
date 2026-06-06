@@ -49,7 +49,7 @@ export async function listWorkspaceScripts(projectId: number): Promise<Script[]>
 export async function saveWorkspaceScript(projectId: number, scriptId: number, workspace: Partial<Script>): Promise<Script> {
   const api = requireScriptWorkspaceAPI()
   const projectPath = await resolveScriptWorkspaceProjectPath(api, projectId)
-  const scriptDir = `${projectPath}/scripts/${scriptId}`
+  const scriptDir = `${projectPath}/scripts/script_${scriptId}`
   const existing = await readWorkspaceScriptFromDir(api, projectId, scriptDir, scriptId)
   const script = normalizeScript({
     ...existing,
@@ -66,8 +66,8 @@ export async function saveWorkspaceScript(projectId: number, scriptId: number, w
   return script
 }
 
-export function scriptWorkspaceProjectPath(userId: string | number, projectId: string | number): string {
-  return `edit/projects/${String(projectId)}`
+export function scriptWorkspaceProjectPath(_userId: string | number, _projectId: string | number): string {
+  return 'edit'
 }
 
 async function readWorkspaceScript(
@@ -75,7 +75,7 @@ async function readWorkspaceScript(
   projectId: number,
   entry: ElectronMovScriptWorkspaceFileEntry,
 ): Promise<Script | null> {
-  const scriptId = Number(entry.name)
+  const scriptId = Number(entry.name.replace(/^script_/, ''))
   if (!scriptId) return null
   return readWorkspaceScriptFromDir(api, projectId, entry.path, scriptId)
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
-import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/core/workspace-contracts'
+import { WORKSPACE_CONTENT_SCHEMA_IDS } from '@movscript/core/workspace'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/shared/infrastructure/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -192,10 +192,10 @@ async function mockProductionOrchestrationEntities(page: Page) {
     })
   })
 
-  await page.route(/\/core\/workspace-contracts(?:[\/?#]|$)/, async (route) => {
+  await page.route(/\/core\/workspace(?:[\/?#]|$)/, async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
-    if (pathname === '/core/workspace-contracts' || pathname === '/core/workspace-contracts/') {
+    if (pathname === '/core/workspace' || pathname === '/core/workspace/') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -8,7 +8,7 @@ import { mergeMetadataJSON, metadataObject, parseMetadataJSON } from '@/features
 
 const CONTENT_UNIT_WORKSPACE_SCHEMA = 'movscript.content_unit_workspace.v1'
 
-export type ContentUnitWorkspaceProjectionRecord = {
+export type ContentUnitWorkspaceEditRecord = {
   ID: number
   client_id?: unknown
   project_id?: unknown
@@ -65,12 +65,12 @@ export function requireContentUnitWorkspaceAPI(): ContentUnitWorkspaceFilesAPI {
   }
 }
 
-export async function saveContentUnitWorkspaceProjection(
+export async function saveContentUnitWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   payload: SemanticEntityPayload,
   options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
-): Promise<ContentUnitWorkspaceProjectionRecord> {
+): Promise<ContentUnitWorkspaceEditRecord> {
   const api = requireContentUnitWorkspaceAPI()
   const root = await api.root()
   const path = contentUnitWorkspaceFilePath(root.manifest.activeUserId ?? 'local', projectId, unit)
@@ -82,17 +82,17 @@ export async function saveContentUnitWorkspaceProjection(
   return next
 }
 
-export async function createContentUnitWorkspaceProjection(
+export async function createContentUnitWorkspaceEdit(
   projectId: number,
   input: {
     moment: ContentUnitWorkspaceSceneMomentRecord
     segment?: { ID?: unknown; production_id?: unknown; script_block_id?: unknown } | null
     productionIds: number[]
-    selectedUnit?: ContentUnitWorkspaceProjectionRecord | null
-    units: ContentUnitWorkspaceProjectionRecord[]
+    selectedUnit?: ContentUnitWorkspaceEditRecord | null
+    units: ContentUnitWorkspaceEditRecord[]
     payload: SemanticEntityPayload
   },
-): Promise<ContentUnitWorkspaceProjectionRecord> {
+): Promise<ContentUnitWorkspaceEditRecord> {
   const api = requireContentUnitWorkspaceAPI()
   const root = await api.root()
   const productionId = positiveNumber(input.selectedUnit?.production_id)
@@ -102,7 +102,7 @@ export async function createContentUnitWorkspaceProjection(
   if (!productionId) throw new Error('当前情节未绑定制作，无法写入工作区')
   const now = Date.now()
   const clientId = `content_unit_local_${now}`
-  const nextUnit: ContentUnitWorkspaceProjectionRecord = contentUnitRecordFromPayload({
+  const nextUnit: ContentUnitWorkspaceEditRecord = contentUnitRecordFromPayload({
     ID: -now,
     client_id: clientId,
     project_id: projectId,
@@ -111,7 +111,7 @@ export async function createContentUnitWorkspaceProjection(
     scene_moment_id: input.moment.ID,
     script_block_id: positiveNumber(input.selectedUnit?.script_block_id) ?? positiveNumber(input.moment.script_block_id) ?? positiveNumber(input.segment?.script_block_id) ?? null,
     status: 'candidate',
-  } as ContentUnitWorkspaceProjectionRecord, input.payload)
+  } as ContentUnitWorkspaceEditRecord, input.payload)
   const units = [...input.units, nextUnit].sort((left, right) => (positiveNumber(left.order) ?? left.ID) - (positiveNumber(right.order) ?? right.ID))
   await api.write({
     path: contentUnitsWorkspaceFilePath(root.manifest.activeUserId ?? 'local', projectId, { production_id: productionId, scene_moment_id: input.moment.ID }),
@@ -125,9 +125,9 @@ export async function createContentUnitWorkspaceProjection(
   return nextUnit
 }
 
-export async function createContentUnitKeyframeWorkspaceProjection(
+export async function createContentUnitKeyframeWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   payload: SemanticEntityPayload,
 ): Promise<ContentUnitWorkspaceKeyframeRecord> {
@@ -139,39 +139,39 @@ export async function createContentUnitKeyframeWorkspaceProjection(
     status: 'candidate',
   }, payload)
   const nextKeyframes = [...keyframes, nextKeyframe].sort((left, right) => (positiveNumber(left.order) ?? left.ID) - (positiveNumber(right.order) ?? right.ID))
-  await writeContentUnitWorkspaceProjection(projectId, unit, { keyframes: nextKeyframes })
+  await writeContentUnitWorkspaceEdit(projectId, unit, { keyframes: nextKeyframes })
   return nextKeyframe
 }
 
-export async function saveContentUnitKeyframeWorkspaceProjection(
+export async function saveContentUnitKeyframeWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   keyframe: ContentUnitWorkspaceKeyframeRecord,
   payload: SemanticEntityPayload,
 ): Promise<ContentUnitWorkspaceKeyframeRecord> {
   const nextKeyframe = contentUnitKeyframeRecordFromPayload(keyframe, payload)
   const nextKeyframes = keyframes.map((item) => item.ID === keyframe.ID ? nextKeyframe : item)
-  await writeContentUnitWorkspaceProjection(projectId, unit, { keyframes: nextKeyframes })
+  await writeContentUnitWorkspaceEdit(projectId, unit, { keyframes: nextKeyframes })
   return nextKeyframe
 }
 
-export async function deleteContentUnitWorkspaceProjection(
+export async function deleteContentUnitWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[] = [],
-): Promise<ContentUnitWorkspaceProjectionRecord> {
+): Promise<ContentUnitWorkspaceEditRecord> {
   const nextUnit = { ...unit, __delete: true }
-  await writeContentUnitWorkspaceProjection(projectId, nextUnit, { keyframes })
+  await writeContentUnitWorkspaceEdit(projectId, nextUnit, { keyframes })
   return nextUnit
 }
 
-export async function saveContentUnitTimingWorkspaceProjection(
+export async function saveContentUnitTimingWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   timing: { localStartSec: number; localDurationSec?: number; order?: number },
-): Promise<ContentUnitWorkspaceProjectionRecord> {
+): Promise<ContentUnitWorkspaceEditRecord> {
   const currentTiming = metadataObject(parseMetadataJSON(unit.metadata_json).timing)
   const nextTiming = pruneUndefined({
     ...currentTiming,
@@ -183,25 +183,25 @@ export async function saveContentUnitTimingWorkspaceProjection(
     ...(positiveNumber(timing.order) ? { order: positiveNumber(timing.order) } : {}),
     metadata_json: JSON.stringify(mergeMetadataJSON(unit.metadata_json, { timing: nextTiming })),
   }
-  await writeContentUnitWorkspaceProjection(projectId, nextUnit, { keyframes })
+  await writeContentUnitWorkspaceEdit(projectId, nextUnit, { keyframes })
   return nextUnit
 }
 
-export async function deleteContentUnitKeyframeWorkspaceProjection(
+export async function deleteContentUnitKeyframeWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   keyframe: ContentUnitWorkspaceKeyframeRecord,
 ): Promise<ContentUnitWorkspaceKeyframeRecord> {
   const nextKeyframe = { ...keyframe, __delete: true } as ContentUnitWorkspaceKeyframeRecord & { __delete: true }
   const nextKeyframes = keyframes.map((item) => item.ID === keyframe.ID ? nextKeyframe : item)
-  await writeContentUnitWorkspaceProjection(projectId, unit, { keyframes: nextKeyframes })
+  await writeContentUnitWorkspaceEdit(projectId, unit, { keyframes: nextKeyframes })
   return nextKeyframe
 }
 
-export async function reorderContentUnitKeyframesWorkspaceProjection(
+export async function reorderContentUnitKeyframesWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   patches: Array<{ keyframeId: number; order: number }>,
 ): Promise<ContentUnitWorkspaceKeyframeRecord[]> {
@@ -209,31 +209,31 @@ export async function reorderContentUnitKeyframesWorkspaceProjection(
   const nextKeyframes = keyframes
     .map((keyframe) => orderById.has(keyframe.ID) ? { ...keyframe, order: orderById.get(keyframe.ID) } : keyframe)
     .sort((left, right) => (positiveNumber(left.order) ?? left.ID) - (positiveNumber(right.order) ?? right.ID))
-  await writeContentUnitWorkspaceProjection(projectId, unit, { keyframes: nextKeyframes })
+  await writeContentUnitWorkspaceEdit(projectId, unit, { keyframes: nextKeyframes })
   return nextKeyframes
 }
 
-export async function reorderContentUnitsWorkspaceProjection(
+export async function reorderContentUnitsWorkspaceEdit(
   projectId: number,
-  units: ContentUnitWorkspaceProjectionRecord[],
+  units: ContentUnitWorkspaceEditRecord[],
   keyframes: ContentUnitWorkspaceKeyframeRecord[],
   patches: Array<{ unitId: number; order: number }>,
-): Promise<ContentUnitWorkspaceProjectionRecord[]> {
+): Promise<ContentUnitWorkspaceEditRecord[]> {
   const orderById = new Map(patches.map((patch) => [patch.unitId, patch.order]))
   const nextUnits = units
     .map((unit) => orderById.has(unit.ID) ? { ...unit, order: orderById.get(unit.ID) } : unit)
     .sort((left, right) => (positiveNumber(left.order) ?? left.ID) - (positiveNumber(right.order) ?? right.ID))
   await Promise.all(nextUnits
     .filter((unit) => orderById.has(unit.ID))
-    .map((unit) => writeContentUnitWorkspaceProjection(projectId, unit, {
+    .map((unit) => writeContentUnitWorkspaceEdit(projectId, unit, {
       keyframes: keyframes.filter((keyframe) => Number((keyframe as { content_unit_id?: unknown }).content_unit_id) === unit.ID),
     })))
   return nextUnits
 }
 
-async function writeContentUnitWorkspaceProjection(
+async function writeContentUnitWorkspaceEdit(
   projectId: number,
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
 ): Promise<void> {
   const api = requireContentUnitWorkspaceAPI()
@@ -248,7 +248,7 @@ async function writeContentUnitWorkspaceProjection(
 export function contentUnitWorkspaceFilePath(
   _userId: string | number,
   projectId: string | number,
-  unit: Pick<ContentUnitWorkspaceProjectionRecord, 'ID' | 'production_id' | 'scene_moment_id'>,
+  unit: Pick<ContentUnitWorkspaceEditRecord, 'ID' | 'production_id' | 'scene_moment_id'>,
 ): string {
   const productionId = positiveNumber(unit.production_id)
   const sceneMomentId = positiveNumber(unit.scene_moment_id)
@@ -258,8 +258,6 @@ export function contentUnitWorkspaceFilePath(
     'edit',
     'productions',
     `production_${String(productionId)}`,
-    'scene_moments',
-    `scene_moment_${String(sceneMomentId)}`,
     'content_units',
     `content_unit_${String(unit.ID)}.json`,
   ].join('/')
@@ -278,17 +276,15 @@ export function contentUnitsWorkspaceFilePath(
     'edit',
     'productions',
     `production_${String(productionId)}`,
-    'scene_moments',
-    `scene_moment_${String(sceneMomentId)}`,
     'content_units',
     `content_units_${String(sceneMomentId)}.json`,
   ].join('/')
 }
 
 function contentUnitRecordFromPayload(
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   payload: SemanticEntityPayload,
-): ContentUnitWorkspaceProjectionRecord {
+): ContentUnitWorkspaceEditRecord {
   return {
     ...unit,
     ...payload,
@@ -301,7 +297,7 @@ function contentUnitRecordFromPayload(
 }
 
 function contentUnitWorkspaceEnvelope(
-  unit: ContentUnitWorkspaceProjectionRecord,
+  unit: ContentUnitWorkspaceEditRecord,
   options: { keyframes?: ContentUnitWorkspaceKeyframeRecord[] } = {},
 ): Record<string, unknown> {
   const metadata = parseMetadataJSON(unit.metadata_json)
@@ -342,7 +338,7 @@ function contentUnitsWorkspaceEnvelope(input: {
   productionId: number
   sceneMomentId: number
   segmentId?: number
-  units: ContentUnitWorkspaceProjectionRecord[]
+  units: ContentUnitWorkspaceEditRecord[]
 }): Record<string, unknown> {
   return {
     schema: CONTENT_UNIT_WORKSPACE_SCHEMA,
@@ -357,7 +353,7 @@ function contentUnitsWorkspaceEnvelope(input: {
   }
 }
 
-function contentUnitNode(unit: ContentUnitWorkspaceProjectionRecord): Record<string, unknown> {
+function contentUnitNode(unit: ContentUnitWorkspaceEditRecord): Record<string, unknown> {
   const metadata = parseMetadataJSON(unit.metadata_json)
   return pruneUndefined({
     ...(positiveNumber(unit.ID) ? { id: unit.ID } : {}),

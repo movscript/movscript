@@ -14,11 +14,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./node": {
-      "types": "./dist/node.d.ts",
-      "import": "./dist/node.js",
-      "require": "./dist/node.cjs"
-    },
     "./workspace": {
       "types": "./dist/workspace/index.d.ts",
       "import": "./dist/workspace/index.js",
@@ -48,11 +43,6 @@
       "types": "./dist/backend/node/index.d.ts",
       "import": "./dist/backend/node/index.js",
       "require": "./dist/backend/node/index.cjs"
-    },
-    "./workspace-contracts": {
-      "types": "./dist/workspace-contracts.d.ts",
-      "import": "./dist/workspace-contracts.js",
-      "require": "./dist/workspace-contracts.cjs"
     },
     "./plugins": {
       "types": "./dist/plugins/index.d.ts",

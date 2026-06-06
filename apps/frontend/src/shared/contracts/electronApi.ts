@@ -1,7 +1,7 @@
 import type { AppSettings } from './appSettings'
 import type { GenerationToolServer, GenerationToolsSettings } from './generationTools'
 import type { MCPContextUpdate } from './mcpContext'
-import type { MovScriptWorkspaceConfig } from '@movscript/core/workspace'
+import type { MovScriptWorkspaceConfig, MovScriptWorkspaceRootManifest } from '@movscript/core/workspace'
 
 export type ElectronBackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
@@ -367,32 +367,21 @@ export type ElectronMovScriptWorkspaceConfigSaveInput = {
   providers?: Record<string, Record<string, unknown>> | null
 }
 
-export type ElectronMovScriptWorkspaceRootManifest = {
-  schema: 'movscript.workspace-root.v1'
-  workspaceId: string
-  createdAt: string
-  updatedAt: string
-  backend?: {
-    kind?: 'local' | 'cloud' | 'custom'
-    baseURL?: string
-  }
-  activeUserId?: number
-  layout: {
-    projectionRoot: 'data'
-    reviewsRoot: 'reviews'
-    syncRoot: 'sync'
-    providerConfigRoot: 'providers'
-  }
-}
+export type ElectronMovScriptWorkspaceRootManifest = MovScriptWorkspaceRootManifest
 
 export type ElectronMovScriptWorkspaceRootResult = {
   workspaceDir: string
+  rootDir: string
   controlDir: string
   manifestPath: string
-  projectionRootDir: string
-  reviewsDir: string
-  syncDir: string
+  editDir: string
+  buildDir: string
+  buildCurrentDir: string
+  buildIndexesDir: string
+  buildReviewsDir: string
+  buildManifestsDir: string
   providersDir: string
+  backendDir: string
   manifest: ElectronMovScriptWorkspaceRootManifest
 }
 
@@ -427,12 +416,8 @@ export type ElectronMovScriptWorkspaceFileWriteInput = ElectronMovScriptWorkspac
   content: string
 }
 
-export type ElectronMovScriptWorkspaceCloudActionInput = {
-  namespace?: string
-  path?: string
-  cwd?: string
-  reviewPath?: string
-  mode?: 'safe' | 'merge' | 'overwrite' | 'review_required' | 'path_compat'
+export type ElectronMovScriptWorkspaceBuildActionInput = {
+  workspaceDir?: string
   userId?: number | string
 }
 
@@ -445,7 +430,7 @@ export type ElectronProjectGitActionInput = {
 
 export type ElectronProjectGitActionResult = {
   ok: boolean
-  operation: 'push'
+  operation: 'commit' | 'init' | 'pull' | 'push'
   projectId: number
   workspaceDir: string
   path: string
@@ -539,6 +524,7 @@ export type ElectronAPI = {
   embeddedBrowserReload?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
   embeddedBrowserStop?: (input?: { tabId?: string }) => Promise<ElectronEmbeddedBrowserState>
   onEmbeddedBrowserState?: (handler: (state: ElectronEmbeddedBrowserState) => void) => () => void
+  distributeAppServerConfig?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
   ensureAppServer?: (input: ElectronAppServerEnsureInput) => Promise<ElectronAppServerStatus>
   getAppServerStatus?: (input?: ElectronAppServerStatusInput) => Promise<ElectronAppServerStatus>
   stopAppServer?: (input?: ElectronAppServerStopInput) => Promise<ElectronAppServerStatus>
@@ -554,9 +540,11 @@ export type ElectronAPI = {
   readMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   writeMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFileWriteInput) => Promise<ElectronMovScriptWorkspaceFileReadResult>
   deleteMovScriptWorkspaceFile?: (input: ElectronMovScriptWorkspaceFilesInput) => Promise<{ ok: true }>
-  updateMovScriptWorkspaceProjection?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
-  previewMovScriptWorkspaceApply?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
-  applyMovScriptWorkspaceProjection?: (input?: ElectronMovScriptWorkspaceCloudActionInput) => Promise<unknown>
+  reviewMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceBuildActionInput) => Promise<unknown>
+  buildMovScriptWorkspace?: (input?: ElectronMovScriptWorkspaceBuildActionInput) => Promise<unknown>
+  initProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
+  commitProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
+  pullProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   pushProjectGitWorkspace?: (input: ElectronProjectGitActionInput) => Promise<ElectronProjectGitActionResult>
   listPluginCatalogPackPlugins?: () => Promise<{ dirs: ElectronPluginCatalogPackStoreDirs; plugins: ElectronPluginCatalogPackPlugin[] }>
   installPluginCatalogPack?: (input: ElectronPluginCatalogPackInstallInput) => Promise<ElectronPluginCatalogPackInstallResult>

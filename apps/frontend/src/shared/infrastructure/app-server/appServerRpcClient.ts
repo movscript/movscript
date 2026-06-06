@@ -97,6 +97,10 @@ export function getAppServerStatus(input?: ElectronAppServerStatusInput): Promis
   return window.api?.getAppServerStatus?.(input) ?? Promise.resolve(undefined)
 }
 
+export function distributeAppServerConfig(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
+  return window.api?.distributeAppServerConfig?.(input) ?? Promise.resolve(undefined)
+}
+
 export function ensureAppServer(input: ElectronAppServerEnsureInput): Promise<ElectronAppServerStatus | undefined> {
   return window.api?.ensureAppServer?.(input) ?? Promise.resolve(undefined)
 }

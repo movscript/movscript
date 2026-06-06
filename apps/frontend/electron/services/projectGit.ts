@@ -2,14 +2,14 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
-import { resolveMovScriptProjectProjectionPaths } from '@movscript/core/workspace/node'
+import { resolveMovScriptProjectWorkspacePaths } from '@movscript/core/workspace/node'
 import { resolveDesktopDefaultMovScriptWorkspaceDir } from './movscriptWorkspaceDefaults'
 import type {
   ElectronProjectGitActionInput,
   ElectronProjectGitActionResult,
 } from '../../src/shared/contracts/electronApi'
 
-type ProjectGitOperation = 'push'
+type ProjectGitOperation = 'commit' | 'init' | 'pull' | 'push'
 
 type WorkspaceMetadata = {
   projectId?: number
@@ -21,6 +21,18 @@ type WorkspaceMetadata = {
 
 export async function pushProjectGitWorkspace(input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
   return runProjectGitOperation('push', input)
+}
+
+export async function initProjectGitWorkspace(input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
+  return runProjectGitOperation('init', input)
+}
+
+export async function commitProjectGitWorkspace(input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
+  return runProjectGitOperation('commit', input)
+}
+
+export async function pullProjectGitWorkspace(input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
+  return runProjectGitOperation('pull', input)
 }
 
 async function runProjectGitOperation(operation: ProjectGitOperation, input: ElectronProjectGitActionInput): Promise<ElectronProjectGitActionResult> {
@@ -40,7 +52,7 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
   }
   const metadata = await fetchWorkspaceMetadata(session, projectId, orgId)
   const userId = input?.userId ?? session.userId ?? 'local'
-  const projectPaths = resolveMovScriptProjectProjectionPaths({ workspaceDir, userId, projectId })
+  const projectPaths = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId, projectId })
   const branch = metadata.defaultBranch || 'main'
   const remoteURL = absoluteRemoteURL(session.baseURL, metadata.gitRemoteUrl || `/api/v1/projects/${projectId}/git/${metadata.repo || `movscript-project-${projectId}`}.git`)
 
@@ -60,7 +72,24 @@ async function runProjectGitOperation(operation: ProjectGitOperation, input: Ele
       error: setupOutput.stderr || setupOutput.stdout || 'Git repository setup failed.',
     }
   }
-  const result = await gitPush(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
+  if (operation === 'init') {
+    return {
+      ok: true,
+      operation,
+      projectId,
+      workspaceDir,
+      path: projectPaths.projectDir,
+      remoteURL,
+      branch,
+      stdout: setupOutput.stdout,
+      stderr: setupOutput.stderr,
+    }
+  }
+  const result = operation === 'pull'
+    ? await gitPull(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
+    : operation === 'commit'
+      ? await gitCommit(projectPaths.projectDir)
+      : await gitPush(projectPaths.projectDir, remoteURL, branch, session.token, orgId)
 
   return {
     ok: result.code === 0,
@@ -125,14 +154,24 @@ async function ensureGitIdentity(cwd: string): Promise<void> {
 }
 
 async function gitPush(cwd: string, remoteURL: string, branch: string, token: string, orgId?: string): Promise<GitResult> {
+  const commit = await gitCommit(cwd)
+  if (commit.code !== 0) return commit
+  return gitWithAuth(cwd, remoteURL, token, orgId, ['push', 'movscript', `HEAD:${branch}`])
+}
+
+async function gitCommit(cwd: string): Promise<GitResult> {
   const status = await git(cwd, ['status', '--porcelain'])
   if (status.code !== 0) return status
-  if (status.stdout.trim()) {
-    const add = await git(cwd, ['add', '-A'])
-    if (add.code !== 0) return add
-    const commit = await git(cwd, ['commit', '-m', 'Update MovScript project workspace'])
-    if (commit.code !== 0) return commit
+  if (!status.stdout.trim()) {
+    const hasHead = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
+    if (hasHead.code === 0) {
+      return { code: 0, stdout: 'No local changes to commit.', stderr: '' }
+    }
   }
+  const add = await git(cwd, ['add', '-A'])
+  if (add.code !== 0) return add
+  const commit = await git(cwd, ['commit', '-m', 'Update MovScript project workspace'])
+  if (commit.code !== 0) return commit
   const hasHead = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
   if (hasHead.code !== 0) {
     return {
@@ -141,7 +180,22 @@ async function gitPush(cwd: string, remoteURL: string, branch: string, token: st
       stderr: hasHead.stderr || 'No Git commit exists for this project workspace.',
     }
   }
-  return gitWithAuth(cwd, remoteURL, token, orgId, ['push', 'movscript', `HEAD:${branch}`])
+  return commit
+}
+
+async function gitPull(cwd: string, remoteURL: string, branch: string, token: string, orgId?: string): Promise<GitResult> {
+  const hasHead = await git(cwd, ['rev-parse', '--verify', 'HEAD'])
+  if (hasHead.code !== 0) {
+    const fetch = await gitWithAuth(cwd, remoteURL, token, orgId, ['fetch', 'movscript', branch])
+    if (fetch.code !== 0) return fetch
+    const checkout = await git(cwd, ['checkout', '-B', branch, 'FETCH_HEAD'])
+    return {
+      code: checkout.code,
+      stdout: [fetch.stdout, checkout.stdout].filter(Boolean).join('\n'),
+      stderr: [fetch.stderr, checkout.stderr].filter(Boolean).join('\n'),
+    }
+  }
+  return gitWithAuth(cwd, remoteURL, token, orgId, ['pull', '--ff-only', 'movscript', branch])
 }
 
 function gitWithAuth(cwd: string, remoteURL: string, token: string, orgId: string | undefined, args: string[]): Promise<GitResult> {

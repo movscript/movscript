@@ -37,11 +37,11 @@ import {
   hasStructuredText,
 } from '@/features/content/domain/contentUnitPlanningMetadata'
 import {
-  deleteContentUnitWorkspaceProjection,
-  deleteContentUnitKeyframeWorkspaceProjection,
-  reorderContentUnitKeyframesWorkspaceProjection,
-  saveContentUnitKeyframeWorkspaceProjection,
-  saveContentUnitWorkspaceProjection,
+  deleteContentUnitWorkspaceEdit,
+  deleteContentUnitKeyframeWorkspaceEdit,
+  reorderContentUnitKeyframesWorkspaceEdit,
+  saveContentUnitKeyframeWorkspaceEdit,
+  saveContentUnitWorkspaceEdit,
 } from '@/features/content/application/contentUnitWorkspaceRepository'
 import { publicModelId } from '@/shared/domain/modelDisplay'
 import { toast } from '@/shared/ui/toastStore'
@@ -192,7 +192,7 @@ export function ContentUnitEditCards({
   const saveUnit = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit) throw new Error('缺少制作项')
-      return saveContentUnitWorkspaceProjection(projectId, unit, contentUnitEditPayload(workspace), { keyframes })
+      return saveContentUnitWorkspaceEdit(projectId, unit, contentUnitEditPayload(workspace), { keyframes })
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -208,7 +208,7 @@ export function ContentUnitEditCards({
   const deleteUnit = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit) throw new Error('缺少制作项')
-      return deleteContentUnitWorkspaceProjection(projectId, unit, keyframes)
+      return deleteContentUnitWorkspaceEdit(projectId, unit, keyframes)
     },
     onSuccess: async () => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -224,7 +224,7 @@ export function ContentUnitEditCards({
   const saveKeyframe = useMutation({
     mutationFn: async () => {
       if (!projectId || !unit || !selectedKeyframe) throw new Error('缺少关键帧')
-      return saveContentUnitKeyframeWorkspaceProjection(projectId, unit, keyframes, selectedKeyframe, keyframeEditPayload(keyframeWorkspace))
+      return saveContentUnitKeyframeWorkspaceEdit(projectId, unit, keyframes, selectedKeyframe, keyframeEditPayload(keyframeWorkspace))
     },
     onSuccess: async (saved) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -241,7 +241,7 @@ export function ContentUnitEditCards({
   const deleteKeyframe = useMutation({
     mutationFn: async (keyframe: ContentUnitEditRecord) => {
       if (!projectId || !unit) throw new Error('缺少项目')
-      return deleteContentUnitKeyframeWorkspaceProjection(projectId, unit, keyframes, keyframe)
+      return deleteContentUnitKeyframeWorkspaceEdit(projectId, unit, keyframes, keyframe)
     },
     onSuccess: async (_result, keyframe) => {
       if (queryKey) await queryClient.invalidateQueries({ queryKey })
@@ -266,7 +266,7 @@ export function ContentUnitEditCards({
       const currentOrder = numberOf(keyframe.order) || index + 1
       const swapOrder = numberOf(swap.order) || swapIndex + 1
       if (!unit) throw new Error('缺少制作项')
-      return reorderContentUnitKeyframesWorkspaceProjection(projectId, unit, keyframes, [
+      return reorderContentUnitKeyframesWorkspaceEdit(projectId, unit, keyframes, [
         { keyframeId: keyframe.ID, order: swapOrder },
         { keyframeId: swap.ID, order: currentOrder },
       ])

@@ -2,69 +2,78 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  buildMovScriptWorkspace,
   buildMovScriptWorkspaceDomainIndex,
   createMovScriptWorkspaceDomainRepository,
+  createMovScriptWorkspaceAssetSlotCandidate,
+  createMovScriptWorkspaceKeyframeCandidate,
   getMovScriptWorkspaceModel,
   queryMovScriptWorkspaceAssetSlots,
   queryMovScriptWorkspaceSettings,
   queryMovScriptWorkspaceProductionContext,
+} from '../dist/workspace/index.js'
+import {
+  buildMovScriptWorkspace,
   reviewMovScriptBuildWorkspace,
-} from '../dist/node.js'
+} from '../dist/workspace/node/index.js'
 
-test('workspace domain indexes current build snapshots for frontend queries', () => {
+test('workspace domain indexes current build edit files for frontend queries', () => {
   const index = buildMovScriptWorkspaceDomainIndex([
     {
-      path: 'data/users/local/projects/123/settings/setting.workspace.json',
+      path: 'edit/setting/setting_1.json',
       data: {
-        schema: 'movscript.setting_workspace.v1',
-        workspace: {
-          settings: [
-            { ID: 1, kind: 'person', name: 'Mia', status: 'confirmed' },
-          ],
-        },
+        schema: 'movscript.setting.v1',
+        id: 1,
+        kind: 'person',
+        name: 'Mia',
+        status: 'confirmed',
       },
     },
     {
-      path: 'data/users/local/projects/123/assets/asset.workspace.json',
+      path: 'edit/assets/asset_slot_2.json',
       data: {
-        schema: 'movscript.asset_workspace.v1',
-        workspace: {
-          asset_slots: [
-            { ID: 2, owner_type: 'setting', owner_id: 1, name: 'Mia portrait', status: 'missing' },
-          ],
-          candidates: [
-            { id: 'candidate_1', target: { type: 'asset_slot', id: 2 }, resource_id: 'resource_1', status: 'proposed' },
-          ],
-        },
+        schema: 'movscript.asset_slot.v1',
+        id: 2,
+        owner_type: 'setting',
+        owner_id: 1,
+        name: 'Mia portrait',
+        status: 'missing',
       },
     },
     {
-      path: 'data/users/local/projects/123/productions/9/production.workspace.json',
+      path: 'edit/assets/asset_slot_2.candidates/candidate_1.json',
       data: {
-        schema: 'movscript.production_workspace.v1',
-        workspace: {
-          segments: [
-            {
-              ID: 3,
-              production_id: 9,
-              title: 'Opening',
-              scene_moments: [
-                {
-                  ID: 4,
-                  title: 'Morning',
-                  content_units: [
-                    {
-                      ID: 5,
-                      title: 'Wake up shot',
-                      keyframes: [{ ID: 6, title: 'First frame', content_unit_id: 5 }],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
+        schema: 'movscript.candidate.v1',
+        id: 'candidate_1',
+        target: { type: 'asset_slot', id: 2 },
+        resource_id: 'resource_1',
+        status: 'proposed',
+      },
+    },
+    {
+      path: 'edit/productions/production_9/production.json',
+      data: {
+        schema: 'movscript.production.v1',
+        id: 9,
+        segments: [
+          {
+            ID: 3,
+            production_id: 9,
+            title: 'Opening',
+            scene_moments: [
+              {
+                ID: 4,
+                title: 'Morning',
+                content_units: [
+                  {
+                    ID: 5,
+                    title: 'Wake up shot',
+                    keyframes: [{ ID: 6, title: 'First frame', content_unit_id: 5 }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
     },
   ])
@@ -78,6 +87,56 @@ test('workspace domain indexes current build snapshots for frontend queries', ()
   assert.equal(context.scene_moments.length, 1)
   assert.equal(context.content_units.length, 1)
   assert.equal(context.keyframes.length, 1)
+})
+
+test('workspace candidate writer stores asset slot candidates under candidate files', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const result = await createMovScriptWorkspaceAssetSlotCandidate({
+    fileRepository: repository,
+    projectPath: 'edit',
+    projectId: 7,
+    nonce: 'fixed',
+    payload: {
+      asset_slot_id: 2,
+      resource_id: 99,
+      source_type: 'upload',
+      note: 'Uploaded candidate',
+    },
+  })
+
+  assert.equal(result.entityType, 'candidate')
+  assert.equal(result.path, 'edit/assets/asset_slot_2.candidates/candidate_asset_slot_candidate_2_99_fixed.json')
+  assert.equal(result.record.schema, 'movscript.candidate.v1')
+  assert.deepEqual(result.record.target, { type: 'asset_slot', id: 2 })
+  assert.equal(result.record.asset_slot_id, 2)
+  assert.equal(result.record.resource_id, 99)
+  assert.equal(files.has(result.path), true)
+})
+
+test('workspace candidate writer stores keyframe candidates under target keyframe files', async () => {
+  const files = new Map()
+  const repository = memoryWorkspaceFileRepository(files)
+
+  const result = await createMovScriptWorkspaceKeyframeCandidate({
+    fileRepository: repository,
+    projectPath: 'edit',
+    projectId: 7,
+    nonce: 'fixed',
+    payload: {
+      production_id: 9,
+      resource_id: 99,
+      metadata_json: JSON.stringify({ target_keyframe_id: 6 }),
+    },
+  })
+
+  assert.equal(result.entityType, 'candidate')
+  assert.equal(result.path, 'edit/productions/production_9/keyframes/keyframe_6.candidates/candidate_keyframe_candidate_6_99_fixed.json')
+  assert.equal(result.record.schema, 'movscript.candidate.v1')
+  assert.deepEqual(result.record.target, { type: 'keyframe', id: 6 })
+  assert.equal(result.record.keyframe_id, 6)
+  assert.equal(files.has(result.path), true)
 })
 
 test('workspace domain repository loads files through a repository boundary', async () => {

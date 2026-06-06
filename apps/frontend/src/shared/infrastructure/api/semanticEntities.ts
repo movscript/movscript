@@ -590,7 +590,7 @@ const semanticEntityTypeByKind: Record<SemanticEntityKind, MovScriptWorkspaceEnt
   settingUsages: 'setting_usage',
   creativeRelationships: 'creative_relationship',
   assetSlots: 'asset_slot',
-  assetSlotCandidates: 'asset_slot_candidate',
+  assetSlotCandidates: 'candidate',
   candidateDecisions: 'candidate_decision',
   reviewEvents: 'review_event',
   workItems: 'work_item',

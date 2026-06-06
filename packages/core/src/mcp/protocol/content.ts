@@ -1,4 +1,4 @@
-import type { MCPJSONValue } from './types'
+import type { MCPJSONValue } from './types.js'
 import { toMCPJSONValue } from './jsonValue.js'
 import { renderMarkdown } from './markdown.js'
 

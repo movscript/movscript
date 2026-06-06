@@ -200,6 +200,37 @@ export class AppServerManager {
     return promise
   }
 
+  distribute(input: ElectronAppServerEnsureInput | undefined): ElectronAppServerStatus {
+    const launch = this.resolveLaunch(input, { bootstrapPlugin: false })
+    if ('status' in launch) return launch.status
+    const existing = this.managedServers.get(launch.profileId)
+    if (existing && existing.child.exitCode === null && !existing.child.killed) {
+      existing.configDistribution = launch.configDistribution
+      const config = appServerConfigStatusFromDistribution(launch.configDistribution)
+      return {
+        ...this.status(launch.profileId),
+        config,
+        preflight: appServerPreflightFromDistribution(launch.configDistribution),
+      }
+    }
+    return {
+      ok: launch.configDistribution.accountConfigured,
+      running: false,
+      managed: true,
+      profileId: launch.profileId,
+      ...(launch.label ? { label: launch.label } : {}),
+      executablePath: launch.executablePath,
+      home: launch.home,
+      workspaceDir: launch.workspaceDir,
+      workspaceContext: launch.workspaceContext,
+      providerSessionCwd: launch.providerSessionCwd,
+      config: appServerConfigStatusFromDistribution(launch.configDistribution),
+      preflight: appServerPreflightFromDistribution(launch.configDistribution),
+      ...(launch.executableDiagnostic ? { executableDiagnostic: launch.executableDiagnostic } : {}),
+      ...(!launch.configDistribution.accountConfigured ? { error: 'app-server account is not configured in MovScript.' } : {}),
+    }
+  }
+
   status(profileId?: string): ElectronAppServerStatus {
     const normalized = profileId?.trim()
     const server = normalized
@@ -376,7 +407,7 @@ export class AppServerManager {
     }
   }
 
-  private resolveLaunch(input: ElectronAppServerEnsureInput | undefined): ResolvedAppServerLaunch | { status: ElectronAppServerStatus } {
+  private resolveLaunch(input: ElectronAppServerEnsureInput | undefined, options: { bootstrapPlugin?: boolean } = {}): ResolvedAppServerLaunch | { status: ElectronAppServerStatus } {
     const profile = input?.profile
     const profileId = profile?.id?.trim()
     if (!profileId) return { status: appServerError('app-server', 'app-server profile id is required') }
@@ -387,7 +418,7 @@ export class AppServerManager {
       : defaultAppServerExecutableResolution(providerKey, profile)
     const executablePath = executableResolution.executablePath
     const executableDiagnostic = executableResolution.diagnostic ?? fallbackAppServerExecutableDiagnostic(providerKey, executablePath, profile)
-    const workspaceDir = resolve(profile?.workspaceDir?.trim() || this.dependencies.defaultWorkspaceDir())
+    const workspaceDir = resolveAppServerWorkspaceDir(profile?.workspaceDir?.trim(), this.dependencies.defaultWorkspaceDir())
     const workspaceContextPaths = ensureMovScriptWorkspaceContext(resolveMovScriptWorkspaceContextPaths({
       workspaceDir,
       ...profile?.workspaceContext,
@@ -404,7 +435,9 @@ export class AppServerManager {
         }),
       }
     }
-    const pluginBootstrap = this.dependencies.ensurePlugin({ home })
+    const pluginBootstrap = options.bootstrapPlugin === false
+      ? appServerPluginNotBootstrapped()
+      : this.dependencies.ensurePlugin({ home })
     if (!pluginBootstrap.ok) {
       const config = appServerConfigStatusFromDistribution(configDistribution)
       return {
@@ -543,6 +576,20 @@ function appServerRecentExitOutputExcerpt(exit: RecentAppServerExit): string {
   return stdout ? `stdout: ${stdout}` : ''
 }
 
+function appServerPluginNotBootstrapped(): AppServerPluginBootstrap {
+  return {
+    ok: true,
+    marketplaceName: 'movscript-bundled',
+    pluginName: 'movscript',
+    pluginKey: 'movscript@movscript-bundled',
+    pluginSourcePath: '',
+    marketplaceRoot: '',
+    installedPluginRoot: '',
+    version: 'not-bootstrapped',
+    hash: 'not-bootstrapped',
+  }
+}
+
 function resolveAppServerHome(value: string | undefined, workspaceDir: string, providerKey: AppServerProviderKey): string {
   const defaultHome = defaultManagedAppServerHomePath(providerKey)
   const input = value?.trim() || defaultHome
@@ -559,6 +606,13 @@ function resolveAppServerHome(value: string | undefined, workspaceDir: string, p
     throw new Error(`app-server home must stay inside the MovScript workspace: ${input}`)
   }
   return resolved
+}
+
+function resolveAppServerWorkspaceDir(value: string | undefined, defaultWorkspaceDir: string): string {
+  const root = resolve(defaultWorkspaceDir)
+  const input = value?.trim()
+  if (!input || input === '.') return root
+  return isAbsolute(input) ? resolve(input) : resolve(root, input)
 }
 
 function resolveAppServerKey(profile: ElectronAppServerEnsureInput['profile'] | undefined): AppServerProviderKey {

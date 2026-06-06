@@ -48,16 +48,17 @@ pnpm --filter @movscript/cli dev -- --workspace /path/to/workspace auth status
 
 ## Workspace Commands
 
-Inspect a local workspace namespace:
+Inspect a local workspace model:
 
 ```bash
-pnpm --filter @movscript/cli dev -- workspace status --workspace /path/to/workspace --namespace movscript.project:123
+pnpm --filter @movscript/cli dev -- workspace get-model setting --entity-id hero --workspace /path/to/project-repo
 ```
 
-Preview local changes and persist a review artifact:
+Review and build local edits:
 
 ```bash
-pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/workspace --namespace movscript.project:123 --write
+pnpm --filter @movscript/cli dev -- workspace review --workspace /path/to/project-repo
+pnpm --filter @movscript/cli dev -- workspace build --workspace /path/to/project-repo
 ```
 
 Plugin scaffolding and packaging commands have been removed.

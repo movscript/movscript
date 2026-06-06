@@ -244,7 +244,7 @@
     "savedReloading": "已保存，正在重新加载客户端…",
     "saved": "已保存。",
     "movScriptWorkspaceTitle": "MovScript 工作区",
-    "movScriptWorkspaceHint": "选择本机 MovScript 工作区根目录；.movscript/data、reviews、sync 和 agents 都会写入这里。",
+    "movScriptWorkspaceHint": "选择本机 MovScript 项目仓库根目录；业务文件在 edit/，构建结果在 .build/，本机配置在 .movscript/。",
     "movScriptWorkspaceDir": "工作区目录",
     "movScriptWorkspaceDirHelp": "留空时使用桌面端默认目录；填写后，该目录本身就是工作区根，.movscript 会在其中创建。",
     "movScriptWorkspaceDirPlaceholder": "/Users/me/Projects/story-workspace",

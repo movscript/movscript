@@ -48,7 +48,7 @@ const agentConsoleSections = [
   {
     to: ROUTES.workspaceConfig,
     label: 'Workspace',
-    description: '.movscript/data、reviews、sync、agents',
+    description: 'edit、.build、.movscript/providers',
     icon: FileCog,
     match: [ROUTES.workspaceConfig, ROUTES.agentFiles],
   },

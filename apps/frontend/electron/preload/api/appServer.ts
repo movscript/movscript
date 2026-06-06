@@ -6,10 +6,11 @@ import type {
 
 type AppServerMessageHandler = (message: ElectronAppServerMessage) => void
 
-export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerConnect' | 'appServerSend' | 'appServerClose' | 'onAppServerMessage'> {
+export function createAppServerAPI(ipcRenderer: IpcRenderer): Pick<ElectronAPI, 'distributeAppServerConfig' | 'ensureAppServer' | 'getAppServerStatus' | 'stopAppServer' | 'appServerConnect' | 'appServerSend' | 'appServerClose' | 'onAppServerMessage'> {
   const appServerMessages = createMessageSubscription<ElectronAppServerMessage, AppServerMessageHandler>(ipcRenderer, 'app-server:message')
 
   return {
+    distributeAppServerConfig: (input) => ipcRenderer.invoke('app-server:distribute', input),
     ensureAppServer: (input) => ipcRenderer.invoke('app-server:ensure', input),
     getAppServerStatus: (input) => ipcRenderer.invoke('app-server:status', input),
     stopAppServer: (input) => ipcRenderer.invoke('app-server:stop', input),

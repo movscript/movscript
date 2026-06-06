@@ -13,7 +13,7 @@ export interface WorkspaceChangeHandoffIntent {
   workspaceId?: string
   workspacePath?: string
   target?: Record<string, unknown>
-  projection?: Record<string, unknown>
+  entityFile?: Record<string, unknown>
   businessReviewPath?: string
 }
 
@@ -28,10 +28,10 @@ export function buildWorkspaceChangeHandoffNavigation(input: {
   workspaceKind?: string
   workspaceId?: string
   target?: Record<string, unknown>
-  projection?: Record<string, unknown>
+  entityFile?: Record<string, unknown>
 }): WorkspaceChangeHandoffNavigation {
   const params = new URLSearchParams()
-  const workspacePath = input.workspacePath ?? stringValue(input.projection?.workspacePath)
+  const workspacePath = input.workspacePath ?? stringValue(input.entityFile?.workspacePath)
   if (input.reviewPath) params.set('path', input.reviewPath)
   if (workspacePath) params.set('workspacePath', workspacePath)
   if (input.workspaceKind) params.set('kind', input.workspaceKind)
@@ -62,7 +62,7 @@ export function workspaceChangeHandoffPathFromEventDetail(detail: unknown): stri
     workspaceKind: stringValue(detail.workspaceKind) ?? stringValue(detail.kind),
     workspaceId: stringValue(detail.workspaceId),
     target: isRecord(detail.target) ? detail.target : undefined,
-    projection: isRecord(detail.projection) ? detail.projection : undefined,
+    entityFile: isRecord(detail.entityFile) ? detail.entityFile : undefined,
   }).path
 }
 

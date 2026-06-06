@@ -9,11 +9,11 @@ import {
   fallbackUserMovScriptWorkspaceDir,
   MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA,
   readMovScriptWorkspaceRootManifest,
+  resolveMovScriptContentUnitWorkspacePaths,
+  resolveMovScriptProductionWorkspacePaths,
+  resolveMovScriptProjectWorkspacePaths,
+  resolveMovScriptScriptWorkspacePaths,
   resolveMovScriptWorkspaceContextPaths,
-  resolveMovScriptContentUnitProjectionPaths,
-  resolveMovScriptProductionProjectionPaths,
-  resolveMovScriptProjectProjectionPaths,
-  resolveMovScriptScriptProjectionPaths,
   resolveMovScriptWorkspacePaths,
   resolveMovScriptWorkspaceRootPaths,
   writeMovScriptWorkspaceRootManifest,
@@ -31,9 +31,11 @@ test('workspace config initialization creates the MovScript workspace root manif
 
   const root = resolveMovScriptWorkspaceRootPaths(workspaceDir)
   assert.equal(existsSync(root.manifestPath), true)
-  assert.equal(existsSync(root.projectionRootDir), true)
-  assert.equal(existsSync(root.reviewsDir), true)
-  assert.equal(existsSync(root.syncDir), true)
+  assert.equal(existsSync(root.editDir), true)
+  assert.equal(existsSync(root.buildCurrentDir), true)
+  assert.equal(existsSync(root.buildIndexesDir), true)
+  assert.equal(existsSync(root.buildReviewsDir), true)
+  assert.equal(existsSync(root.buildManifestsDir), true)
   assert.equal(existsSync(root.providersDir), true)
   assert.equal(existsSync(paths.configPath), true)
   assert.equal(paths.providerConfigsDir, root.providersDir)
@@ -41,7 +43,8 @@ test('workspace config initialization creates the MovScript workspace root manif
 
   const manifest = readMovScriptWorkspaceRootManifest(root.manifestPath)
   assert.equal(manifest?.schema, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA)
-  assert.equal(manifest?.layout.projectionRoot, 'data')
+  assert.equal(manifest?.layout.editableRoot, 'edit')
+  assert.equal(manifest?.layout.buildRoot, '.build')
   assert.equal(manifest?.layout.providerConfigRoot, 'providers')
 })
 
@@ -65,48 +68,53 @@ test('workspace root initialization preserves an existing manifest identity', ()
   assert.equal(second.activeUserId, 7)
 })
 
-test('project projection paths separate business files from workspace config homes', () => {
-  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-projection-paths-'))
-  const project = resolveMovScriptProjectProjectionPaths({ workspaceDir, userId: 7, projectId: 42 })
-  const script = resolveMovScriptScriptProjectionPaths(project, 11)
-  const production = resolveMovScriptProductionProjectionPaths(project, 99)
-  const sceneContentUnits = resolveMovScriptContentUnitProjectionPaths(production, { sceneMomentId: 12 })
-  const scopedContentUnit = resolveMovScriptContentUnitProjectionPaths(production, { sceneMomentId: 12, contentUnitId: 34 })
+test('project workspace paths keep business files in edit and build at the repo root', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-workspace-paths-'))
+  const project = resolveMovScriptProjectWorkspacePaths({ workspaceDir, userId: 7, projectId: 42 })
+  const script = resolveMovScriptScriptWorkspacePaths(project, 11)
+  const production = resolveMovScriptProductionWorkspacePaths(project, 99)
+  const contentUnits = resolveMovScriptContentUnitWorkspacePaths(production, {})
+  const scopedContentUnit = resolveMovScriptContentUnitWorkspacePaths(production, { contentUnitId: 34 })
 
-  assert.equal(project.projectFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'project.json'))
-  assert.equal(project.projectStandardsWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'standards', 'project_standards.workspace.json'))
-  assert.equal(project.settingWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'settings', 'setting.workspace.json'))
-  assert.equal(project.assetWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'assets', 'asset.workspace.json'))
-  assert.equal(script.scriptFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'scripts', '11', 'script.md'))
-  assert.equal(script.versionsDir, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'scripts', '11', 'versions'))
-  assert.equal(production.productionWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'productions', '99', 'production.workspace.json'))
-  assert.equal(sceneContentUnits.contentUnitWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'productions', '99', 'scene_moments', '12', 'content_units', 'content_units.workspace.json'))
-  assert.equal(scopedContentUnit.contentUnitWorkspaceFile, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'productions', '99', 'scene_moments', '12', 'content_units', '34', 'content_unit.workspace.json'))
+  assert.equal(project.projectFile, join(workspaceDir, 'project.json'))
+  assert.equal(project.projectStandardsFile, join(workspaceDir, 'edit', 'standards', 'project_standards.json'))
+  assert.equal(project.settingDir, join(workspaceDir, 'edit', 'setting'))
+  assert.equal(project.assetsDir, join(workspaceDir, 'edit', 'assets'))
+  assert.equal(script.scriptFile, join(workspaceDir, 'edit', 'scripts', 'script_11', 'script.md'))
+  assert.equal(production.productionFile, join(workspaceDir, 'edit', 'productions', 'production_99', 'production.json'))
+  assert.equal(contentUnits.contentUnitsDir, join(workspaceDir, 'edit', 'productions', 'production_99', 'content_units'))
+  assert.equal(scopedContentUnit.contentUnitFile, join(workspaceDir, 'edit', 'productions', 'production_99', 'content_units', 'content_unit_34.json'))
   assert.doesNotMatch(project.projectFile, /\/\.movscript\/(?:\.codex|\.mova|agent)\//)
 })
 
-test('workspace context paths use projection directories as provider session cwd', () => {
+test('workspace context paths use the project repo as provider session cwd', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-context-paths-'))
   const global = resolveMovScriptWorkspaceContextPaths({ workspaceDir })
   const project = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'project', userId: 7, projectId: 42 })
   const production = resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42, productionId: 99 })
 
-  assert.equal(global.providerSessionCwd, join(workspaceDir, '.movscript', 'data', 'users', 'local'))
-  assert.equal(global.projectionBaseDir, join(workspaceDir, '.movscript', 'data', 'users', 'local'))
-  assert.equal(project.providerSessionCwd, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42'))
-  assert.equal(project.projectionBaseDir, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42'))
-  assert.equal(production.providerSessionCwd, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'productions', '99'))
-  assert.equal(production.projectionBaseDir, join(workspaceDir, '.movscript', 'data', 'users', '7', 'projects', '42', 'productions', '99'))
+  assert.equal(global.providerSessionCwd, workspaceDir)
+  assert.equal(global.editableBaseDir, join(workspaceDir, 'edit'))
+  assert.equal(project.providerSessionCwd, workspaceDir)
+  assert.equal(project.editableBaseDir, join(workspaceDir, 'edit'))
+  assert.equal(production.providerSessionCwd, workspaceDir)
+  assert.equal(production.editableBaseDir, join(workspaceDir, 'edit', 'productions', 'production_99'))
   assert.throws(
     () => resolveMovScriptWorkspaceContextPaths({ workspaceDir, scope: 'production', userId: 7, projectId: 42 }),
     /requires productionId/,
   )
 })
 
-test('project projection ids reject path traversal segments', () => {
+test('workspace context ids reject path traversal segments', () => {
   assert.throws(
-    () => resolveMovScriptProjectProjectionPaths({ workspaceDir: '/tmp/workspace', userId: '../7', projectId: 42 }),
-    /invalid MovScript workspace projection id segment/,
+    () => resolveMovScriptWorkspaceContextPaths({
+      workspaceDir: '/tmp/workspace',
+      scope: 'production',
+      userId: 7,
+      projectId: 42,
+      productionId: '../99',
+    }),
+    /invalid MovScript workspace id segment/,
   )
 })
 
@@ -119,9 +127,8 @@ test('workspace root manifest is stored as the top-level .movscript contract', (
   assert.equal(raw.schema, MOVSCRIPT_WORKSPACE_MANIFEST_SCHEMA)
   assert.equal(raw.workspaceId, manifest.workspaceId)
   assert.deepEqual(raw.layout, {
-    projectionRoot: 'data',
-    reviewsRoot: 'reviews',
-    syncRoot: 'sync',
+    editableRoot: 'edit',
+    buildRoot: '.build',
     providerConfigRoot: 'providers',
   })
 })

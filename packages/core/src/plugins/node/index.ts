@@ -1,2 +1,2 @@
 export * from '../index.js'
-export * from '../pluginCatalogPackStore.js'
+export * from './pluginCatalogPackStore.js'

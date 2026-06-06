@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ClipboardList, Database, FileText, Folder, HardDrive, Loader2, Plus, RefreshCw, Save, Settings2, Trash2 } from 'lucide-react'
+import { ChevronLeft, ClipboardList, FileText, Folder, HardDrive, Loader2, Plus, RefreshCw, Save, Settings2, Trash2 } from 'lucide-react'
 import {
   AgentPageShell,
   AgentPageShellBody,
@@ -314,10 +314,10 @@ function workspaceRootLinks(root?: ElectronMovScriptWorkspaceRootResult) {
   const layout = root?.manifest.layout
   return [
     { label: 'Manifest', path: 'manifest.json', icon: Settings2 },
-    { label: 'Data', path: layout?.projectionRoot ?? 'data', icon: Database },
-    { label: 'Reviews', path: layout?.reviewsRoot ?? 'reviews', icon: ClipboardList },
-    { label: 'Sync', path: layout?.syncRoot ?? 'sync', icon: RefreshCw },
-    { label: 'Agents', path: layout?.providerConfigRoot ?? 'agents', icon: Folder },
+    { label: 'Edit', path: layout?.editableRoot ?? 'edit', icon: FileText },
+    { label: 'Build', path: layout?.buildRoot ?? '.build', icon: HardDrive },
+    { label: 'Reviews', path: `${layout?.buildRoot ?? '.build'}/reviews`, icon: ClipboardList },
+    { label: 'Providers', path: layout?.providerConfigRoot ?? 'providers', icon: Folder },
   ] as const
 }
 

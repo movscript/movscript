@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { DownloadCloud, PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
+import { PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 
 import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/shared/ui/SemanticEntityInlineEditor'
 import { EmptyPreview, SlotStatusBadge } from '@/features/pre-production/components/PreProductionAssetBoard'
@@ -132,7 +132,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const [referenceCreateKey, setReferenceCreateKey] = useState<string | number | null>(null)
   const [assetCreateOpen, setAssetCreateOpen] = useState(false)
   const [assetCreateReferenceId, setAssetCreateReferenceId] = useState<string>('')
-  const [workspaceSubmitPreview, setWorkspaceSubmitPreview] = useState<unknown>(null)
+  const [workspaceBuildReview, setWorkspaceBuildReview] = useState<unknown>(null)
   const resourceLibrary = usePreProductionResourceLibrary()
   const reviewController = usePreProductionReviewController({ projectId, searchParams, setSearchParams })
   const { workspaceView, assetWorkspaceArtifactsQuery, settingWorkspaceArtifactsQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
@@ -147,7 +147,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     referenceById,
     clusters,
   } = preProductionData
-  const workspaceActionNamespace = projectId ? `movscript.project:${projectId}` : ''
   const referenceLookupOptions = useMemo(() => ({
     setting_id: settings.map((reference) => ({
       value: String(reference.ID),
@@ -251,30 +250,19 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     getRow: () => selected,
     onSettled: uploadInput.resetUpload,
   }))
-  const pullWorkspaceMutation = useMutation({
-    mutationFn: () => requireWorkspaceCloudAPI().update({ namespace: workspaceActionNamespace }),
-    onSuccess: async () => {
-      await refreshPreProduction()
-      toast.success('已获取团队更新')
-    },
-    onError: (error) => toast.error(apiErrorMessage(error, '获取团队更新失败')),
-  })
   const previewWorkspaceMutation = useMutation({
-    mutationFn: () => requireWorkspaceCloudAPI().preview({ namespace: workspaceActionNamespace }),
-    onSuccess: (preview) => setWorkspaceSubmitPreview(preview),
-    onError: (error) => toast.error(apiErrorMessage(error, '提交预览失败')),
+    mutationFn: () => requireWorkspaceBuildAPI().review(),
+    onSuccess: (preview) => setWorkspaceBuildReview(preview),
+    onError: (error) => toast.error(apiErrorMessage(error, '工作区检查失败')),
   })
   const applyWorkspaceMutation = useMutation({
-    mutationFn: () => requireWorkspaceCloudAPI().apply({
-      namespace: workspaceActionNamespace,
-      reviewPath: workspaceReviewPath(workspaceSubmitPreview),
-    }),
+    mutationFn: () => requireWorkspaceBuildAPI().build(),
     onSuccess: async () => {
-      setWorkspaceSubmitPreview(null)
+      setWorkspaceBuildReview(null)
       await refreshPreProduction()
-      toast.success('工作区已提交到团队')
+      toast.success('工作区已构建生效')
     },
-    onError: (error) => toast.error(apiErrorMessage(error, '提交工作区失败')),
+    onError: (error) => toast.error(apiErrorMessage(error, '工作区构建失败')),
   })
 
   const missingCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'missing').length
@@ -302,18 +290,13 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     startCreate(referenceId)
   }
 
-  function pullWorkspaceFromCloud() {
-    if (!workspaceActionNamespace || pullWorkspaceMutation.isPending) return
-    pullWorkspaceMutation.mutate()
-  }
-
   function openWorkspaceSubmitPreview() {
-    if (!workspaceActionNamespace || previewWorkspaceMutation.isPending) return
+    if (previewWorkspaceMutation.isPending) return
     previewWorkspaceMutation.mutate()
   }
 
   function submitWorkspaceToCloud() {
-    if (!workspaceActionNamespace || !workspaceReviewPath(workspaceSubmitPreview) || applyWorkspaceMutation.isPending) return
+    if (!workspaceReviewReady(workspaceBuildReview) || applyWorkspaceMutation.isPending) return
     applyWorkspaceMutation.mutate()
   }
 
@@ -473,20 +456,20 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     </Dialog>
   )
   const workspaceSubmitDialog = (
-    <Dialog open={Boolean(workspaceSubmitPreview)} onOpenChange={(open) => { if (!open) setWorkspaceSubmitPreview(null) }}>
+    <Dialog open={Boolean(workspaceBuildReview)} onOpenChange={(open) => { if (!open) setWorkspaceBuildReview(null) }}>
       <ResourcePrepCreateReferenceDialogContent>
-        <ResourcePrepDialogHeader title="提交工作区" description="提交前请确认当前工作区将写入团队云端的变更。" />
+        <ResourcePrepDialogHeader title="构建工作区" description="构建前请确认当前 edit/ 修改可以成为新的有效业务状态。" />
         <ResourcePrepDialogBody>
           <pre className="max-h-[420px] overflow-auto rounded border border-border bg-muted p-3 text-xs leading-5 text-muted-foreground">
-            {workspacePreviewText(workspaceSubmitPreview)}
+            {workspacePreviewText(workspaceBuildReview)}
           </pre>
         </ResourcePrepDialogBody>
         <ResourcePrepDialogActions>
-          <ResourcePrepActionButton type="button" variant="outline" onClick={() => setWorkspaceSubmitPreview(null)} disabled={applyWorkspaceMutation.isPending}>
+          <ResourcePrepActionButton type="button" variant="outline" onClick={() => setWorkspaceBuildReview(null)} disabled={applyWorkspaceMutation.isPending}>
             取消
           </ResourcePrepActionButton>
-          <ResourcePrepActionButton type="button" onClick={submitWorkspaceToCloud} loading={applyWorkspaceMutation.isPending} disabled={!workspaceReviewPath(workspaceSubmitPreview)}>
-            提交到团队
+          <ResourcePrepActionButton type="button" onClick={submitWorkspaceToCloud} loading={applyWorkspaceMutation.isPending} disabled={!workspaceReviewReady(workspaceBuildReview)}>
+            构建生效
           </ResourcePrepActionButton>
         </ResourcePrepDialogActions>
       </ResourcePrepCreateReferenceDialogContent>
@@ -564,13 +547,9 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     ),
     actions: (
       <div className="flex flex-wrap items-center gap-2">
-        <ResourcePrepActionButton type="button" variant="outline" onClick={pullWorkspaceFromCloud} loading={pullWorkspaceMutation.isPending} disabled={!workspaceActionNamespace}>
-          <DownloadCloud size={14} />
-          获取团队更新
-        </ResourcePrepActionButton>
-        <ResourcePrepActionButton type="button" variant="outline" onClick={openWorkspaceSubmitPreview} loading={previewWorkspaceMutation.isPending} disabled={!workspaceActionNamespace}>
+        <ResourcePrepActionButton type="button" variant="outline" onClick={openWorkspaceSubmitPreview} loading={previewWorkspaceMutation.isPending}>
           <UploadCloud size={14} />
-          提交工作区
+          检查工作区
         </ResourcePrepActionButton>
         <ResourcePrepViewTabs>
           <ResourcePrepViewButton active={workbenchView === 'setting'} count={filteredClusters.length} onClick={() => setWorkbenchView('setting')}>
@@ -1650,15 +1629,14 @@ function SettingAssetList({
   )
 }
 
-function requireWorkspaceCloudAPI() {
+function requireWorkspaceBuildAPI() {
   const api = window.api
-  if (!api?.updateMovScriptWorkspaceProjection || !api.previewMovScriptWorkspaceApply || !api.applyMovScriptWorkspaceProjection) {
-    throw new Error('当前窗口没有 MovScript 工作区同步能力')
+  if (!api?.reviewMovScriptWorkspace || !api.buildMovScriptWorkspace) {
+    throw new Error('当前窗口没有 MovScript 工作区构建能力')
   }
   return {
-    update: api.updateMovScriptWorkspaceProjection,
-    preview: api.previewMovScriptWorkspaceApply,
-    apply: api.applyMovScriptWorkspaceProjection,
+    review: api.reviewMovScriptWorkspace,
+    build: api.buildMovScriptWorkspace,
   }
 }
 
@@ -1671,15 +1649,10 @@ function workspacePreviewText(value: unknown): string {
   }
 }
 
-function workspaceReviewPath(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object') return undefined
+function workspaceReviewReady(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
-  const reviewPath = record.reviewPath
-  if (typeof reviewPath === 'string' && reviewPath.trim()) return reviewPath
-  const reviewFile = record.reviewFile
-  if (!reviewFile || typeof reviewFile !== 'object') return undefined
-  const path = (reviewFile as Record<string, unknown>).path
-  return typeof path === 'string' && path.trim() ? path : undefined
+  return record.readyToBuild === true
 }
 
 function referenceForRow(clusters: ReferenceAssetCluster[], row: AssetSlotViewModel) {

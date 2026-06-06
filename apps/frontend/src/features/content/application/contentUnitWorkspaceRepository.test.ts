@@ -2,26 +2,26 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  createContentUnitKeyframeWorkspaceProjection,
-  createContentUnitWorkspaceProjection,
-  deleteContentUnitWorkspaceProjection,
-  deleteContentUnitKeyframeWorkspaceProjection,
+  createContentUnitKeyframeWorkspaceEdit,
+  createContentUnitWorkspaceEdit,
+  deleteContentUnitWorkspaceEdit,
+  deleteContentUnitKeyframeWorkspaceEdit,
   contentUnitWorkspaceFilePath,
   contentUnitsWorkspaceFilePath,
-  reorderContentUnitsWorkspaceProjection,
-  reorderContentUnitKeyframesWorkspaceProjection,
-  saveContentUnitTimingWorkspaceProjection,
-  saveContentUnitKeyframeWorkspaceProjection,
-  saveContentUnitWorkspaceProjection,
-  type ContentUnitWorkspaceProjectionRecord,
+  reorderContentUnitsWorkspaceEdit,
+  reorderContentUnitKeyframesWorkspaceEdit,
+  saveContentUnitTimingWorkspaceEdit,
+  saveContentUnitKeyframeWorkspaceEdit,
+  saveContentUnitWorkspaceEdit,
+  type ContentUnitWorkspaceEditRecord,
 } from './contentUnitWorkspaceRepository'
 
-test('content unit workspace repository saves unit edits into a project repository projection', async () => {
+test('content unit workspace repository saves unit edits into the edit workspace file', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    const saved = await saveContentUnitWorkspaceProjection(9, unitRecord(), {
+    const saved = await saveContentUnitWorkspaceEdit(9, unitRecord(), {
       title: '新的镜头',
       description: '更新后的描述',
       prompt: '更新后的提示词',
@@ -36,7 +36,7 @@ test('content unit workspace repository saves unit edits into a project reposito
     })
 
     assert.equal(saved.title, '新的镜头')
-    const path = 'data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json'
+    const path = 'edit/productions/production_7/content_units/content_unit_33.json'
     const content = files.get(path)
     assert.ok(content)
     const projection = JSON.parse(content)
@@ -55,14 +55,14 @@ test('content unit workspace repository saves unit edits into a project reposito
   }
 })
 
-test('content unit workspace repository creates a unit in scene aggregate projection', async () => {
+test('content unit workspace repository creates a unit in the scene aggregate edit file', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>()
   const originalDateNow = Date.now
   Date.now = () => 123456
   setWorkspaceTestWindow(files)
   try {
-    const saved = await createContentUnitWorkspaceProjection(9, {
+    const saved = await createContentUnitWorkspaceEdit(9, {
       moment: { ID: 21, production_id: 7, script_block_id: 90 },
       segment: { ID: 11, production_id: 7 },
       productionIds: [7],
@@ -79,7 +79,7 @@ test('content unit workspace repository creates a unit in scene aggregate projec
 
     assert.equal(saved.ID, -123456)
     assert.equal(saved.client_id, 'content_unit_local_123456')
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_units_21.json') ?? '{}')
     assert.equal(projection.workspace.units[1].client_id, 'content_unit_local_123456')
     assert.equal(projection.workspace.units[1].id, undefined)
     assert.equal(projection.workspace.units[1].title, '新镜头')
@@ -95,7 +95,7 @@ test('content unit workspace repository saves keyframe edits in unit snapshot', 
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    const saved = await saveContentUnitKeyframeWorkspaceProjection(9, unitRecord(), keyframes(), keyframes()[0], {
+    const saved = await saveContentUnitKeyframeWorkspaceEdit(9, unitRecord(), keyframes(), keyframes()[0], {
       title: '新首帧',
       description: '新的描述',
       prompt: '新的提示词',
@@ -104,7 +104,7 @@ test('content unit workspace repository saves keyframe edits in unit snapshot', 
     })
 
     assert.equal(saved.title, '新首帧')
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     const frame = projection.workspace.units[0].keyframes.find((item: { id: number }) => item.id === 70)
     assert.equal(frame.id, 70)
     assert.equal(frame.title, '新首帧')
@@ -121,7 +121,7 @@ test('content unit workspace repository creates a keyframe in unit snapshot', as
   Date.now = () => 234567
   setWorkspaceTestWindow(files)
   try {
-    const saved = await createContentUnitKeyframeWorkspaceProjection(9, unitRecord(), keyframes(), {
+    const saved = await createContentUnitKeyframeWorkspaceEdit(9, unitRecord(), keyframes(), {
       title: '中间帧',
       prompt: '中间动作',
       order: 3,
@@ -131,7 +131,7 @@ test('content unit workspace repository creates a keyframe in unit snapshot', as
 
     assert.equal(saved.ID, -234567)
     assert.equal(saved.client_id, 'keyframe_local_234567')
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     const frame = projection.workspace.units[0].keyframes.find((item: { client_id?: string }) => item.client_id === 'keyframe_local_234567')
     assert.equal(frame.id, undefined)
     assert.equal(frame.title, '中间帧')
@@ -147,16 +147,16 @@ test('content unit workspace repository deletes and reorders keyframes in unit s
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await deleteContentUnitKeyframeWorkspaceProjection(9, unitRecord(), keyframes(), keyframes()[0])
-    let projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    await deleteContentUnitKeyframeWorkspaceEdit(9, unitRecord(), keyframes(), keyframes()[0])
+    let projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     assert.equal(projection.workspace.units[0].keyframes[0].id, 70)
     assert.equal(projection.workspace.units[0].keyframes[0].__delete, true)
 
-    await reorderContentUnitKeyframesWorkspaceProjection(9, unitRecord(), keyframes(), [
+    await reorderContentUnitKeyframesWorkspaceEdit(9, unitRecord(), keyframes(), [
       { keyframeId: 70, order: 2 },
       { keyframeId: 71, order: 1 },
     ])
-    projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     assert.deepEqual(projection.workspace.units[0].keyframes.map((frame: { id: number }) => frame.id), [71, 70])
   } finally {
     restoreWindow(previousWindow)
@@ -168,8 +168,8 @@ test('content unit workspace repository deletes a unit with its keyframe context
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await deleteContentUnitWorkspaceProjection(9, unitRecord(), keyframes())
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    await deleteContentUnitWorkspaceEdit(9, unitRecord(), keyframes())
+    const projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     const unit = projection.workspace.units[0]
     assert.equal(unit.id, 33)
     assert.equal(unit.__delete, true)
@@ -184,7 +184,7 @@ test('content unit workspace repository saves local timing in unit snapshot', as
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    const saved = await saveContentUnitTimingWorkspaceProjection(9, unitRecord({
+    const saved = await saveContentUnitTimingWorkspaceEdit(9, unitRecord({
       metadata_json: JSON.stringify({ timing: { rhythm_role: 'beat' } }),
     }), keyframes(), {
       localStartSec: 2.34,
@@ -193,7 +193,7 @@ test('content unit workspace repository saves local timing in unit snapshot', as
     })
 
     assert.equal(saved.order, 3)
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
     assert.equal(projection.workspace.units[0].timing.rhythm_role, 'beat')
     assert.equal(projection.workspace.units[0].timing.local_start_sec, 2.3)
     assert.equal(projection.workspace.units[0].timing.local_duration_sec, 4)
@@ -203,12 +203,12 @@ test('content unit workspace repository saves local timing in unit snapshot', as
   }
 })
 
-test('content unit workspace repository reorders units across their projection files', async () => {
+test('content unit workspace repository reorders units across their edit files', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await reorderContentUnitsWorkspaceProjection(9, [
+    await reorderContentUnitsWorkspaceEdit(9, [
       unitRecord({ ID: 33, order: 1 }),
       unitRecord({ ID: 34, order: 2 }),
     ], keyframes(), [
@@ -216,8 +216,8 @@ test('content unit workspace repository reorders units across their projection f
       { unitId: 34, order: 1 },
     ])
 
-    const first = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json') ?? '{}')
-    const second = JSON.parse(files.get('data/users/u1/projects/9/productions/7/scene_moments/21/content_units/34/content_unit.workspace.json') ?? '{}')
+    const first = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_33.json') ?? '{}')
+    const second = JSON.parse(files.get('edit/productions/production_7/content_units/content_unit_34.json') ?? '{}')
     assert.equal(first.workspace.units[0].id, 33)
     assert.equal(first.workspace.units[0].order, 2)
     assert.equal(first.workspace.units[0].keyframes[0].id, 70)
@@ -231,15 +231,15 @@ test('content unit workspace repository reorders units across their projection f
 test('content unit workspace file path uses production as the project repository subspace', () => {
   assert.equal(
     contentUnitWorkspaceFilePath('local', 9, { ID: 33, production_id: 7, scene_moment_id: 21 }),
-    'data/users/local/projects/9/productions/7/scene_moments/21/content_units/33/content_unit.workspace.json',
+    'edit/productions/production_7/content_units/content_unit_33.json',
   )
   assert.equal(
     contentUnitsWorkspaceFilePath('local', 9, { production_id: 7, scene_moment_id: 21 }),
-    'data/users/local/projects/9/productions/7/scene_moments/21/content_units.workspace.json',
+    'edit/productions/production_7/content_units/content_units_21.json',
   )
 })
 
-function unitRecord(overrides: Partial<ContentUnitWorkspaceProjectionRecord> = {}): ContentUnitWorkspaceProjectionRecord {
+function unitRecord(overrides: Partial<ContentUnitWorkspaceEditRecord> = {}): ContentUnitWorkspaceEditRecord {
   return {
     ID: 33,
     project_id: 9,
@@ -269,22 +269,26 @@ function setWorkspaceTestWindow(files: Map<string, string>): void {
       api: {
         getMovScriptWorkspaceRoot: async () => ({
           workspaceDir: '/tmp/movscript',
+          rootDir: '/tmp/movscript',
           controlDir: '/tmp/movscript/.movscript',
           manifestPath: '/tmp/movscript/.movscript/manifest.json',
-          projectionRootDir: '/tmp/movscript/.movscript/data',
-          reviewsDir: '/tmp/movscript/.movscript/reviews',
-          syncDir: '/tmp/movscript/.movscript/sync',
+          editDir: '/tmp/movscript/edit',
+          buildDir: '/tmp/movscript/.build',
+          buildCurrentDir: '/tmp/movscript/.build/current',
+          buildIndexesDir: '/tmp/movscript/.build/indexes',
+          buildReviewsDir: '/tmp/movscript/.build/reviews',
+          buildManifestsDir: '/tmp/movscript/.build/manifests',
           providersDir: '/tmp/movscript/.movscript/providers',
+          backendDir: '/tmp/movscript/.movscript/backend',
           manifest: {
-            schema: 'movscript.workspace-root.v1',
+            schema: 'movscript.project-workspace.v1',
             workspaceId: 'test',
-            activeUserId: 'u1',
+            activeUserId: 1,
             createdAt: '2026-01-01T00:00:00.000Z',
             updatedAt: '2026-01-01T00:00:00.000Z',
             layout: {
-              projectionRoot: 'data',
-              reviewsRoot: 'reviews',
-              syncRoot: 'sync',
+              editableRoot: 'edit',
+              buildRoot: '.build',
               providerConfigRoot: 'providers',
             },
           },

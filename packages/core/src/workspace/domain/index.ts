@@ -258,8 +258,8 @@ function indexedEntitiesFromDocument(document: MovScriptWorkspaceDocument): MovS
     ? document.data.workspace
     : isRecord(document.data.data)
       ? document.data.data
-      : undefined
-  if (workspace) {
+      : document.data
+  if (isRecord(workspace)) {
     collectWorkspaceRows(out, path, workspace)
     collectProductionTreeRows(out, path, workspace)
     collectContentUnitWorkspaceRows(out, path, workspace)

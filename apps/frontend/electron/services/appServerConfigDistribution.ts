@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { resolveMovScriptBackendSession } from '@movscript/core/backend/node'
 import {
   ensureMovScriptWorkspace,
   readMovScriptWorkspaceConfig,
@@ -38,12 +39,12 @@ type AppServerModelConfig = {
   baseURL?: string
 }
 
-type AppServerAccountProjection =
+type AppServerMaterializedAccount =
   | { kind: 'apiKey'; apiKey: string; source: AppServerConfigDistribution['accountSource']; baseURL?: string }
   | { kind: 'authJson'; authJson: Record<string, unknown>; source: AppServerConfigDistribution['accountSource'] }
   | { kind: 'none'; source: 'none' }
 
-type AppServerProjectionMode = 'auto' | 'local-home' | 'movscript-api-key' | 'custom-api-key' | 'custom-config' | 'none'
+type AppServerDistributionMode = 'auto' | 'local-home' | 'movscript-api-key' | 'custom-api-key' | 'custom-config' | 'none'
 
 export function distributeAppServerConfigFromMovScriptWorkspace(input: {
   workspaceDir: string
@@ -51,31 +52,37 @@ export function distributeAppServerConfigFromMovScriptWorkspace(input: {
   providerKey?: string
   now?: Date
 }): AppServerConfigDistribution {
-  const providerKey = input.providerKey ?? inferAppServerKeyFromHome(input.home)
+  const providerKey = resolveDistributionProviderKey(input.providerKey, input.home)
   const home = input.home
   const workspaceConfigSource = readAppServerWorkspaceConfigSource(input.workspaceDir, providerKey)
   const workspaceConfig = workspaceConfigSource.config
   const homeEnvNames = providerHomeEnvironmentVariables(providerKey, workspaceConfig)
   const modelConfig = normalizeAppServerModelConfig(workspaceConfig)
   const existingAuthJsonPath = join(home, APP_SERVER_AUTH_FILE_NAME)
-  const projectionMode = resolveAppServerProjectionMode(workspaceConfig, providerKey)
+  const distributionMode = resolveAppServerDistributionMode(workspaceConfig, providerKey)
   const localHome = resolveLocalAppServerHome(workspaceConfig, providerKey)
-  const account = resolveAppServerAccountProjection(workspaceConfig, {
+  const account = resolveAppServerMaterializedAccount(workspaceConfig, {
     providerKey,
     managedAuthJsonPath: existingAuthJsonPath,
     localHome,
-    projectionMode,
+    distributionMode,
   })
-  const baseURL = account.kind === 'apiKey' && account.baseURL ? normalizeBaseURL(account.baseURL) : modelConfig.baseURL || DEFAULT_OPENAI_BASE_URL
+  const baseURL = resolveAppServerBaseURL(workspaceConfig, {
+    account,
+    modelConfig,
+    providerKey,
+    workspaceDir: input.workspaceDir,
+  })
+  const backendProviderSelected = usesBackendProvider(workspaceConfig, providerKey)
   const apiKind = modelConfig.apiKind || 'openai_responses'
   const distributedAt = (input.now ?? new Date()).toISOString()
   const warning = apiKind === 'openai_responses'
     ? undefined
-    : `app-server projection uses Responses API; MovScript modelConfig.apiKind is ${apiKind}.`
+    : `app-server distribution uses Responses API; MovScript modelConfig.apiKind is ${apiKind}.`
 
   const configToml = renderAppServerConfigToml({
     baseURL,
-    accountKind: account.kind,
+    accountKind: account.kind === 'none' && backendProviderSelected ? 'apiKey' : account.kind,
     generatedAt: distributedAt,
     sourceConfigPath: workspaceConfigSource.sourceConfigPath,
   })
@@ -84,20 +91,21 @@ export function distributeAppServerConfigFromMovScriptWorkspace(input: {
   const authJsonPath = join(home, APP_SERVER_AUTH_FILE_NAME)
   if (account.kind === 'none') {
     if (isExplicitNoAppServerAccount(workspaceConfig, providerKey)) rmSync(authJsonPath, { force: true })
+    else if (backendProviderSelected) writeTextFileAtomic(configTomlPath, configToml)
   } else {
-    if (projectionMode === 'custom-config') {
+    if (distributionMode === 'custom-config') {
       ensureManualAppServerConfigFiles(configTomlPath, configToml)
-    } else if (projectionMode === 'local-home') {
+    } else if (distributionMode === 'local-home') {
       const localConfigTomlPath = join(localHome, APP_SERVER_CONFIG_FILE_NAME)
       if (existsSync(localConfigTomlPath)) {
         writeTextFileAtomic(configTomlPath, stripTopLevelAppServerModel(readFileSync(localConfigTomlPath, 'utf8')))
       } else {
         writeTextFileAtomic(configTomlPath, configToml)
       }
-      writeAppServerAuthProjection(authJsonPath, account)
+      writeAppServerAuthMaterialization(authJsonPath, account)
     } else {
       writeTextFileAtomic(configTomlPath, configToml)
-      writeAppServerAuthProjection(authJsonPath, account)
+      writeAppServerAuthMaterialization(authJsonPath, account)
     }
   }
 
@@ -106,7 +114,7 @@ export function distributeAppServerConfigFromMovScriptWorkspace(input: {
     .update('\0')
     .update(accountHashMaterial(account))
     .update('\0')
-    .update(projectionMode)
+    .update(distributionMode)
     .digest('hex')
 
   return {
@@ -198,9 +206,59 @@ function normalizeAppServerModelConfig(config: MovScriptWorkspaceConfig): AppSer
   }
 }
 
+function resolveAppServerBaseURL(
+  config: MovScriptWorkspaceConfig,
+  input: {
+    account: AppServerMaterializedAccount
+    modelConfig: AppServerModelConfig
+    providerKey: string
+    workspaceDir: string
+  },
+): string {
+  const accountBaseURL = input.account.kind === 'apiKey' ? input.account.baseURL : undefined
+  const providerBaseURL = providerRecordBaseURL(config, input.providerKey)
+  const backendBaseURL = usesBackendProvider(config, input.providerKey)
+    ? `${resolveMovScriptBackendSession({ workspaceDir: input.workspaceDir }).baseURL}/v1`
+    : undefined
+  return normalizeProviderBaseURL(accountBaseURL)
+    ?? normalizeProviderBaseURL(providerBaseURL)
+    ?? normalizeProviderBaseURL(backendBaseURL)
+    ?? input.modelConfig.baseURL
+    ?? DEFAULT_OPENAI_BASE_URL
+}
+
+function providerRecordBaseURL(config: MovScriptWorkspaceConfig, providerKey: string): string | undefined {
+  const provider = providerConfigRecord(config, providerKey)
+  return stringField(provider?.baseURL)
+    ?? stringField(provider?.baseUrl)
+    ?? stringField(recordField(provider, 'config')?.baseURL)
+    ?? stringField(recordField(provider, 'config')?.baseUrl)
+}
+
+function usesBackendProvider(config: MovScriptWorkspaceConfig, providerKey: string): boolean {
+  const provider = providerConfigRecord(config, providerKey)
+  const mode = stringField(recordField(provider, 'config')?.mode)
+    ?? stringField(recordField(provider, 'auth')?.mode)
+  const providerRef = stringField(provider?.providerRef)
+    ?? stringField(recordField(provider, 'config')?.modelProviderRef)
+    ?? stringField(recordField(provider, 'auth')?.modelProviderRef)
+  return mode === 'backendKey'
+    || mode === 'backend-api-key'
+    || providerRef?.startsWith('backend:') === true
+}
+
+function normalizeProviderBaseURL(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const normalized = normalizeBaseURL(value)
+  if (normalized.endsWith('/api/v1')) {
+    return `${normalized.slice(0, -'/api/v1'.length)}/v1`
+  }
+  return normalized
+}
+
 function renderAppServerConfigToml(input: {
   baseURL: string
-  accountKind: AppServerAccountProjection['kind']
+  accountKind: AppServerMaterializedAccount['kind']
   generatedAt: string
   sourceConfigPath: string
 }): string {
@@ -248,22 +306,22 @@ function stripTopLevelAppServerModel(configToml: string): string {
     .join('\n')
 }
 
-function resolveAppServerAccountProjection(
+function resolveAppServerMaterializedAccount(
   config: MovScriptWorkspaceConfig,
   input: {
     providerKey: string
     managedAuthJsonPath: string
     localHome: string
-    projectionMode: AppServerProjectionMode
+    distributionMode: AppServerDistributionMode
   },
-): AppServerAccountProjection {
-  if (input.projectionMode === 'none') return { kind: 'none', source: 'none' }
+): AppServerMaterializedAccount {
+  if (input.distributionMode === 'none') return { kind: 'none', source: 'none' }
 
-  if (input.projectionMode === 'local-home') {
+  if (input.distributionMode === 'local-home') {
     return resolveExistingAppServerAccount(join(input.localHome, APP_SERVER_AUTH_FILE_NAME), 'local-home')
   }
 
-  if (input.projectionMode === 'custom-config') {
+  if (input.distributionMode === 'custom-config') {
     const existingManual = resolveExistingAppServerAccount(input.managedAuthJsonPath, 'custom-config')
     return existingManual.kind === 'none'
       ? { kind: 'none', source: 'none' }
@@ -271,7 +329,7 @@ function resolveAppServerAccountProjection(
   }
 
   const explicitAuth = appServerAuthRecord(config, input.providerKey)
-  if (input.projectionMode === 'custom-api-key') return explicitAuth ?? { kind: 'none', source: 'none' }
+  if (input.distributionMode === 'custom-api-key') return explicitAuth ?? { kind: 'none', source: 'none' }
   if (explicitAuth) return explicitAuth
 
   const envAPIKey = stringField(config.environment?.MOVSCRIPT_APP_SERVER_API_KEY)
@@ -281,7 +339,7 @@ function resolveAppServerAccountProjection(
   const legacyModelAPIKey = stringField(config.modelConfig?.apiKey)
   if (legacyModelAPIKey) return { kind: 'apiKey', apiKey: legacyModelAPIKey, source: 'movscript-model-config' }
 
-  if (input.projectionMode === 'movscript-api-key') return { kind: 'none', source: 'none' }
+  if (input.distributionMode === 'movscript-api-key') return { kind: 'none', source: 'none' }
 
   const existingManaged = resolveExistingAppServerAccount(input.managedAuthJsonPath, 'managed-home')
   if (existingManaged.kind !== 'none') return existingManaged
@@ -292,7 +350,7 @@ function resolveAppServerAccountProjection(
   return { kind: 'none', source: 'none' }
 }
 
-function appServerAuthRecord(config: MovScriptWorkspaceConfig, providerKey: string): AppServerAccountProjection | undefined {
+function appServerAuthRecord(config: MovScriptWorkspaceConfig, providerKey: string): AppServerMaterializedAccount | undefined {
   const raw = providerConfigRecord(config, providerKey)?.auth
   if (!isRecord(raw)) return undefined
   const mode = stringField(raw.mode)
@@ -312,7 +370,7 @@ function isExplicitNoAppServerAccount(config: MovScriptWorkspaceConfig, provider
   return isRecord(raw) && stringField(raw.mode) === 'none'
 }
 
-function resolveAppServerProjectionMode(config: MovScriptWorkspaceConfig, providerKey: string): AppServerProjectionMode {
+function resolveAppServerDistributionMode(config: MovScriptWorkspaceConfig, providerKey: string): AppServerDistributionMode {
   const provider = providerConfigRecord(config, providerKey)
   const rawMode = stringField(recordField(provider, 'config')?.mode)
     ?? stringField(recordField(provider, 'auth')?.mode)
@@ -352,6 +410,12 @@ function inferAppServerKeyFromHome(home: string): string {
   const match = normalized.match(/(?:^|\/)\.movscript\/\.([a-z0-9_-]+)(?:\/|$)/i)
   if (match?.[1]) return match[1]
   return 'mova'
+}
+
+function resolveDistributionProviderKey(providerKey: string | undefined, home: string): string {
+  const fromHome = inferAppServerKeyFromHome(home)
+  const normalized = providerKey?.trim().toLowerCase()
+  return normalized && normalized !== 'default' ? normalized : fromHome
 }
 
 function hasAppServerProviderConfig(config: MovScriptWorkspaceConfig, providerKey: string): boolean {
@@ -430,7 +494,7 @@ function normalizeAppServerKey(providerKey: string): string {
   return /^[a-z0-9][a-z0-9_-]*$/.test(normalized) ? normalized : 'mova'
 }
 
-function resolveExistingAppServerAccount(authJsonPath: string, source: Exclude<AppServerConfigDistribution['accountSource'], 'none'>): AppServerAccountProjection {
+function resolveExistingAppServerAccount(authJsonPath: string, source: Exclude<AppServerConfigDistribution['accountSource'], 'none'>): AppServerMaterializedAccount {
   const existingAuth = readRawAuthJson(authJsonPath)
   if (!existingAuth) return { kind: 'none', source: 'none' }
   const existingAPIKey = stringField(existingAuth.OPENAI_API_KEY)
@@ -438,7 +502,7 @@ function resolveExistingAppServerAccount(authJsonPath: string, source: Exclude<A
   return { kind: 'authJson', authJson: existingAuth, source }
 }
 
-function writeAppServerAuthProjection(authJsonPath: string, account: AppServerAccountProjection): void {
+function writeAppServerAuthMaterialization(authJsonPath: string, account: AppServerMaterializedAccount): void {
   if (account.kind === 'apiKey') {
     writeTextFileAtomic(authJsonPath, `${JSON.stringify({ auth_mode: 'apikey', OPENAI_API_KEY: account.apiKey, tokens: null, last_refresh: null }, null, 2)}\n`, 0o600)
   } else if (account.kind === 'authJson') {
@@ -505,7 +569,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function accountHashMaterial(account: AppServerAccountProjection): string {
+function accountHashMaterial(account: AppServerMaterializedAccount): string {
   if (account.kind === 'apiKey') return `apiKey:${account.apiKey}`
   if (account.kind === 'authJson') return `authJson:${JSON.stringify(account.authJson)}`
   return 'none'

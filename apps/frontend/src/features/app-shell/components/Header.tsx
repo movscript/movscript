@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AppTopControls } from '@/features/app-shell/components/AppTopControls'
+import { ProjectGitHeaderActions } from '@/features/app-shell/components/ProjectGitHeaderActions'
 import { useTranslation } from 'react-i18next'
 import {
   AppTopControlButton,
@@ -43,6 +44,7 @@ export function Header({
   const controls = (
     <AppWindowControls>
       {appControls}
+      <ProjectGitHeaderActions compact />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <AppTopControlButton

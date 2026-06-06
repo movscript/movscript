@@ -9,7 +9,7 @@ export function workspaceTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           entityType: { type: 'string', description: 'Domain entity type, for example setting, asset_slot, production, content_unit, or keyframe.' },
-          entityId: { type: ['string', 'number'], description: 'Optional entity id used to materialize editable path hints.' },
+          entityId: { type: ['string', 'number'], description: 'Optional entity id used to expand editable path hints.' },
         },
         ['entityType']
       ),

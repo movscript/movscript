@@ -163,7 +163,7 @@ export function getMovScriptWorkspaceModel(input: MovScriptWorkspaceGetModelInpu
     workspaceKind,
     entityType,
     ...(input.entityId !== undefined ? { entityId: input.entityId } : {}),
-    editablePaths: materializePathPatterns(model.editablePathPatterns, input),
+    editablePaths: expandPathPatterns(model.editablePathPatterns, input),
     contextPaths: model.contextPathPatterns,
     schemaIds: model.schemaIds,
     instructions: model.instructions,
@@ -184,7 +184,7 @@ export function normalizeWorkspacePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
 }
 
-function materializePathPatterns(patterns: string[], input: MovScriptWorkspaceGetModelInput): string[] {
+function expandPathPatterns(patterns: string[], input: MovScriptWorkspaceGetModelInput): string[] {
   const id = input.entityId === undefined ? '{id}' : safePathToken(input.entityId)
   return patterns.map((pattern) => pattern
     .replaceAll('{id}', id)

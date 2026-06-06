@@ -9,8 +9,8 @@ import {
   type SemanticEntityRecord,
 } from '@/shared/infrastructure/api/semanticEntities'
 import {
-  createContentUnitKeyframeWorkspaceProjection,
-  createContentUnitWorkspaceProjection,
+  createContentUnitKeyframeWorkspaceEdit,
+  createContentUnitWorkspaceEdit,
 } from '@/features/content/application/contentUnitWorkspaceRepository'
 import { contentUnitKindOptions, trackKindLabel } from '@/features/content/domain/contentWorkbenchLabels'
 import {
@@ -96,7 +96,7 @@ export function CreateContentUnitQuickCard({
         script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.moment.script_block_id ?? selected.segment?.script_block_id),
         order,
       }
-      return createContentUnitWorkspaceProjection(projectId, {
+      return createContentUnitWorkspaceEdit(projectId, {
         moment: selected.moment,
         segment: selected.segment,
         productionIds: selected.productionIds,
@@ -109,7 +109,7 @@ export function CreateContentUnitQuickCard({
       await queryClient.invalidateQueries({ queryKey })
       if (projectId) queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
       toast.success('制作项工作区已创建')
-      onSaved(semanticRecordFromWorkspaceProjection(record))
+      onSaved(semanticRecordFromWorkspaceEdit(record))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '创建制作项失败'))
@@ -187,7 +187,7 @@ export function CreateKeyframeQuickCard({
     mutationFn: () => {
       if (!projectId) throw new Error('missing project id')
       const order = keyframeOrderForRole(frameRole, existingKeyframes)
-      return createContentUnitKeyframeWorkspaceProjection(projectId, selectedUnit, existingKeyframes, {
+      return createContentUnitKeyframeWorkspaceEdit(projectId, selectedUnit, existingKeyframes, {
         ...defaults,
         title: keyframeTitleForRole(frameRole, selectedUnit, title),
         order,
@@ -202,7 +202,7 @@ export function CreateKeyframeQuickCard({
       await queryClient.invalidateQueries({ queryKey })
       if (projectId) queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
       toast.success('关键帧已创建')
-      onSaved(semanticRecordFromWorkspaceProjection(record))
+      onSaved(semanticRecordFromWorkspaceEdit(record))
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '创建关键帧失败'))
@@ -254,7 +254,7 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(num) && num > 0 ? num : null
 }
 
-function semanticRecordFromWorkspaceProjection(record: Record<string, unknown> & { ID: number }): SemanticEntityRecord {
+function semanticRecordFromWorkspaceEdit(record: Record<string, unknown> & { ID: number }): SemanticEntityRecord {
   return {
     ...record,
     ID: record.ID,

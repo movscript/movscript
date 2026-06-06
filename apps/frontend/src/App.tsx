@@ -45,6 +45,7 @@ import { AppBackendBootActionButton, AppBackendBootOverlay, AppContentLayout, Ap
 import { useAppShellDialogStore, type AccountSettingsDialogTab } from './features/app-shell/application/appShellDialogStore'
 import { api } from './shared/infrastructure/api'
 import { projectListQueryKey } from './features/project/application/projectQueries'
+import { initializeProjectGitWorkspace } from './features/project/application/projectGitWorkspace'
 import type { Project } from './types'
 
 const AIAgentPanel = React.lazy(() => import('./features/agent/components/AIAgentPanel').then((module) => ({ default: module.AIAgentPanel })))
@@ -334,6 +335,7 @@ function ProjectRequiredDialog() {
     mutationFn: (input: { name: string; description: string }) => api.post('/projects', input).then((response) => response.data as Project),
     onSuccess: (project) => {
       queryClient.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
+      void initializeProjectGitWorkspace(project, currentOrgID)
       selectProject(project)
       setProjectName('')
       setProjectDescription('')

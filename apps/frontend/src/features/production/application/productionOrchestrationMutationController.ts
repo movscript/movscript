@@ -19,17 +19,17 @@ import {
   type ProductionOrchestrationDropPosition,
 } from '@/features/production/domain/productionOrchestrationWorkspaceModel'
 import {
-  createProductionWritingExpressionWorkspaceProjection,
-  deleteProductionSceneMomentWorkspaceProjection,
-  deleteProductionSegmentWorkspaceProjection,
-  deleteProductionWritingExpressionWorkspaceProjection,
-  linkProductionSceneMomentReferenceWorkspaceProjection,
-  saveProductionSceneMomentOrderWorkspaceProjection,
-  saveProductionSceneMomentWorkspaceProjection,
-  saveProductionSegmentOrderWorkspaceProjection,
-  saveProductionSegmentWorkspaceProjection,
-  saveProductionWritingExpressionWorkspaceProjection,
-  unlinkProductionSceneMomentReferenceWorkspaceProjection,
+  createProductionWritingExpressionWorkspaceEdit,
+  deleteProductionSceneMomentWorkspaceEdit,
+  deleteProductionSegmentWorkspaceEdit,
+  deleteProductionWritingExpressionWorkspaceEdit,
+  linkProductionSceneMomentReferenceWorkspaceEdit,
+  saveProductionSceneMomentOrderWorkspaceEdit,
+  saveProductionSceneMomentWorkspaceEdit,
+  saveProductionSegmentOrderWorkspaceEdit,
+  saveProductionSegmentWorkspaceEdit,
+  saveProductionWritingExpressionWorkspaceEdit,
+  unlinkProductionSceneMomentReferenceWorkspaceEdit,
   type ProductionWorkspaceSnapshot,
 } from '@/features/production/application/productionWorkspaceRepository'
 import { toast } from '@/shared/ui/toastStore'
@@ -147,7 +147,7 @@ export function buildUpdateSegmentMutationOptions(input: ProductionOrchestration
       payload: SemanticEntityPayload
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return saveProductionSegmentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, segmentId, payload })
+      return saveProductionSegmentWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, segmentId, payload })
     },
     onSuccess: () => {
       toast.success('编排段已更新')
@@ -167,7 +167,7 @@ export function buildDeleteSegmentMutationOptions(input: ProductionOrchestration
       segmentId: number
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return deleteProductionSegmentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, segmentId })
+      return deleteProductionSegmentWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, segmentId })
     },
     onSuccess: () => {
       toast.success('编排段已删除')
@@ -191,7 +191,7 @@ export function buildReorderProductionSegmentsMutationOptions(input: ProductionO
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
       const patches = buildProductionSegmentReorderPatches(segments, draggedSegmentId, targetSegmentId, position)
-      await saveProductionSegmentOrderWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, patches })
+      await saveProductionSegmentOrderWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, patches })
       return { draggedSegmentId }
     },
     onSuccess: () => {
@@ -213,7 +213,7 @@ export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestra
       payload: SemanticEntityPayload
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return saveProductionSceneMomentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, payload })
+      return saveProductionSceneMomentWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, momentId, payload })
     },
     onSuccess: () => {
       toast.success('情节已更新')
@@ -244,7 +244,7 @@ export function buildReorderProductionSceneMomentsMutationOptions(input: Product
         targetMomentId,
         position,
       })
-      await saveProductionSceneMomentOrderWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, patches })
+      await saveProductionSceneMomentOrderWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, patches })
       return { draggedMomentId }
     },
     onSuccess: () => {
@@ -265,7 +265,7 @@ export function buildDeleteSceneMomentMutationOptions(input: ProductionOrchestra
       momentId: number
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return deleteProductionSceneMomentWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId })
+      return deleteProductionSceneMomentWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, momentId })
     },
     onSuccess: () => {
       toast.success('情节已删除')
@@ -290,7 +290,7 @@ export function buildLinkSceneMomentReferenceMutationOptions(input: ProductionOr
       if (!input.projectId) throw new Error('请先选择项目')
       const reference = settings.find((item) => item.ID === referenceId)
       if (!reference) throw new Error('未找到设定')
-      return linkProductionSceneMomentReferenceWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, reference, role })
+      return linkProductionSceneMomentReferenceWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, momentId, reference, role })
     },
     onSuccess: () => {
       toast.success('情节设定已绑定')
@@ -311,7 +311,7 @@ export function buildUnlinkSceneMomentReferenceMutationOptions(input: Production
       referenceId: number
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return unlinkProductionSceneMomentReferenceWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, referenceId })
+      return unlinkProductionSceneMomentReferenceWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, momentId, referenceId })
     },
     onSuccess: () => {
       toast.success('情节设定已移除')
@@ -332,7 +332,7 @@ export function buildUpdateWritingExpressionMutationOptions(input: ProductionOrc
       payload: ProductionWritingExpressionSavePayload
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return saveProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, target, payload })
+      return saveProductionWritingExpressionWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, target, payload })
     },
     onSuccess: () => {
       toast.success('表达条目已更新')
@@ -352,7 +352,7 @@ export function buildDeleteWritingExpressionMutationOptions(input: ProductionOrc
       expressionId: number
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return deleteProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, expressionId })
+      return deleteProductionWritingExpressionWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, expressionId })
     },
     onSuccess: () => {
       toast.success('表达条目已删除')
@@ -374,7 +374,7 @@ export function buildCreateWritingExpressionMutationOptions(input: ProductionOrc
       scriptBlockId?: number | null
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      return createProductionWritingExpressionWorkspaceProjection({ projectId: input.projectId, productionId, currentSnapshot, momentId, order, scriptBlockId })
+      return createProductionWritingExpressionWorkspaceEdit({ projectId: input.projectId, productionId, currentSnapshot, momentId, order, scriptBlockId })
     },
     onSuccess: () => {
       toast.success('已新增表达条目')

@@ -59,7 +59,7 @@ export async function saveProductionWorkspaceSnapshot(input: {
   return input.snapshot
 }
 
-export async function saveProductionSegmentWorkspaceProjection(input: {
+export async function saveProductionSegmentWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -73,7 +73,7 @@ export async function saveProductionSegmentWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function deleteProductionSegmentWorkspaceProjection(input: {
+export async function deleteProductionSegmentWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -86,7 +86,7 @@ export async function deleteProductionSegmentWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function saveProductionSceneMomentWorkspaceProjection(input: {
+export async function saveProductionSceneMomentWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -100,7 +100,7 @@ export async function saveProductionSceneMomentWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function deleteProductionSceneMomentWorkspaceProjection(input: {
+export async function deleteProductionSceneMomentWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -113,7 +113,7 @@ export async function deleteProductionSceneMomentWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function saveProductionSegmentOrderWorkspaceProjection(input: {
+export async function saveProductionSegmentOrderWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -127,7 +127,7 @@ export async function saveProductionSegmentOrderWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function saveProductionSceneMomentOrderWorkspaceProjection(input: {
+export async function saveProductionSceneMomentOrderWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -167,7 +167,7 @@ export async function saveProductionSceneMomentOrderWorkspaceProjection(input: {
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function saveProductionWritingExpressionWorkspaceProjection(input: {
+export async function saveProductionWritingExpressionWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -202,7 +202,7 @@ export async function saveProductionWritingExpressionWorkspaceProjection(input: 
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function createProductionWritingExpressionWorkspaceProjection(input: {
+export async function createProductionWritingExpressionWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -228,7 +228,7 @@ export async function createProductionWritingExpressionWorkspaceProjection(input
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function deleteProductionWritingExpressionWorkspaceProjection(input: {
+export async function deleteProductionWritingExpressionWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -241,7 +241,7 @@ export async function deleteProductionWritingExpressionWorkspaceProjection(input
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function linkProductionSceneMomentReferenceWorkspaceProjection(input: {
+export async function linkProductionSceneMomentReferenceWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot
@@ -264,7 +264,7 @@ export async function linkProductionSceneMomentReferenceWorkspaceProjection(inpu
   return saveProductionWorkspaceSnapshot({ ...input, snapshot })
 }
 
-export async function unlinkProductionSceneMomentReferenceWorkspaceProjection(input: {
+export async function unlinkProductionSceneMomentReferenceWorkspaceEdit(input: {
   projectId: number
   productionId: number
   currentSnapshot: ProductionWorkspaceSnapshot

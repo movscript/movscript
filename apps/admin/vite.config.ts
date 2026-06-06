@@ -12,10 +12,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@movscript/core/node': resolve(__dirname, '../../packages/core/src/node.ts'),
-      '@movscript/core/workspace-contracts': resolve(__dirname, '../../packages/core/src/workspace-contracts.ts'),
-      '@movscript/core/plugins': resolve(__dirname, '../../packages/core/src/plugins.ts'),
-      '@movscript/core/plugins/node': resolve(__dirname, '../../packages/core/src/plugins-node.ts'),
+      '@movscript/core/workspace': resolve(__dirname, '../../packages/core/src/workspace/index.ts'),
+      '@movscript/core/mcp': resolve(__dirname, '../../packages/core/src/mcp/index.ts'),
+      '@movscript/core/backend': resolve(__dirname, '../../packages/core/src/backend/index.ts'),
+      '@movscript/core/plugins': resolve(__dirname, '../../packages/core/src/plugins/index.ts'),
       '@movscript/core': resolve(__dirname, '../../packages/core/src/index.ts'),
       '@movscript/theme/theme.css': resolve(__dirname, '../../packages/theme/src/theme.css'),
       '@movscript/ui/styles.css': resolve(__dirname, '../../packages/ui/src/styles.css'),

@@ -7,11 +7,11 @@ import {
   scriptWorkspaceProjectPath,
 } from './scriptWorkspaceRepository'
 
-test('script workspace repository reads scripts from local script projections', async () => {
+test('script workspace repository reads scripts from edit workspace files', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>([
-    ['data/users/local/projects/9/scripts/12/script.md', 'Scene one text'],
-    ['data/users/local/projects/9/scripts/12/script.meta.json', JSON.stringify({
+    ['edit/scripts/script_12/script.md', 'Scene one text'],
+    ['edit/scripts/script_12/script.meta.json', JSON.stringify({
       ID: 12,
       project_id: 9,
       title: 'Opening Draft',
@@ -37,11 +37,11 @@ test('script workspace repository reads scripts from local script projections', 
   }
 })
 
-test('script workspace repository saves script body and metadata into local projections', async () => {
+test('script workspace repository saves script body and metadata into edit workspace files', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>([
-    ['data/users/local/projects/9/scripts/12/script.md', 'Old text'],
-    ['data/users/local/projects/9/scripts/12/script.meta.json', JSON.stringify({
+    ['edit/scripts/script_12/script.md', 'Old text'],
+    ['edit/scripts/script_12/script.meta.json', JSON.stringify({
       ID: 12,
       project_id: 9,
       title: 'Old Title',
@@ -60,8 +60,8 @@ test('script workspace repository saves script body and metadata into local proj
     })
     assert.equal(saved.title, 'New Title')
     assert.equal(saved.content, 'New local text')
-    assert.equal(files.get('data/users/local/projects/9/scripts/12/script.md'), 'New local text')
-    const meta = JSON.parse(files.get('data/users/local/projects/9/scripts/12/script.meta.json') ?? '{}')
+    assert.equal(files.get('edit/scripts/script_12/script.md'), 'New local text')
+    const meta = JSON.parse(files.get('edit/scripts/script_12/script.meta.json') ?? '{}')
     assert.equal(meta.title, 'New Title')
     assert.equal(meta.script_type, 'finale')
     assert.equal(meta.content, undefined)
@@ -72,7 +72,7 @@ test('script workspace repository saves script body and metadata into local proj
 })
 
 test('script workspace project path follows the current workspace layout', () => {
-  assert.equal(scriptWorkspaceProjectPath('local', 9), 'data/users/local/projects/9')
+  assert.equal(scriptWorkspaceProjectPath('local', 9), 'edit')
 })
 
 function setWorkspaceTestWindow(files: Map<string, string>): void {
@@ -82,21 +82,25 @@ function setWorkspaceTestWindow(files: Map<string, string>): void {
       api: {
         getMovScriptWorkspaceRoot: async () => ({
           workspaceDir: '/tmp/movscript',
+          rootDir: '/tmp/movscript',
           controlDir: '/tmp/movscript/.movscript',
           manifestPath: '/tmp/movscript/.movscript/manifest.json',
-          projectionRootDir: '/tmp/movscript/.movscript/data',
-          reviewsDir: '/tmp/movscript/.movscript/reviews',
-          syncDir: '/tmp/movscript/.movscript/sync',
+          editDir: '/tmp/movscript/edit',
+          buildDir: '/tmp/movscript/.build',
+          buildCurrentDir: '/tmp/movscript/.build/current',
+          buildIndexesDir: '/tmp/movscript/.build/indexes',
+          buildReviewsDir: '/tmp/movscript/.build/reviews',
+          buildManifestsDir: '/tmp/movscript/.build/manifests',
           providersDir: '/tmp/movscript/.movscript/providers',
+          backendDir: '/tmp/movscript/.movscript/backend',
           manifest: {
-            schema: 'movscript.workspace-root.v1',
+            schema: 'movscript.project-workspace.v1',
             workspaceId: 'test',
             createdAt: '2026-01-01T00:00:00.000Z',
             updatedAt: '2026-01-01T00:00:00.000Z',
             layout: {
-              projectionRoot: 'data',
-              reviewsRoot: 'reviews',
-              syncRoot: 'sync',
+              editableRoot: 'edit',
+              buildRoot: '.build',
               providerConfigRoot: 'providers',
             },
           },

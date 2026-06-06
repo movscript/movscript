@@ -19,7 +19,7 @@ test('app-server launch identity reuses only matching config and runtime inputs'
     executablePath: 'mova',
     home: '/workspace/.movscript/.mova',
     workspaceDir: '/workspace',
-    providerSessionCwd: '/workspace/.movscript/data/users/local',
+    providerSessionCwd: '/workspace',
     configDistribution: distribution,
   })
 
@@ -27,21 +27,21 @@ test('app-server launch identity reuses only matching config and runtime inputs'
     executablePath: 'mova',
     home: '/workspace/.movscript/.mova',
     workspaceDir: '/workspace',
-    providerSessionCwd: '/workspace/.movscript/data/users/local',
+    providerSessionCwd: '/workspace',
     configDistribution: distribution,
   }, target), true)
   assert.equal(appServerLaunchCanReuse({
     executablePath: 'mova',
     home: '/workspace/.movscript/.mova',
     workspaceDir: '/workspace',
-    providerSessionCwd: '/workspace/.movscript/data/users/local',
+    providerSessionCwd: '/workspace',
     configDistribution: appServerDistributionFixture({ hash: 'hash-b' }),
   }, target), false)
   assert.equal(appServerLaunchCanReuse({
     executablePath: '/usr/local/bin/mova',
     home: '/workspace/.movscript/.mova',
     workspaceDir: '/workspace',
-    providerSessionCwd: '/workspace/.movscript/data/users/local',
+    providerSessionCwd: '/workspace',
     configDistribution: distribution,
   }, target), false)
 })

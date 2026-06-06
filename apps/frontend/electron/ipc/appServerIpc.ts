@@ -31,6 +31,7 @@ type AppServerConnection = {
 const connections = new Map<string, AppServerConnection>()
 
 type AppServerIpcChannels = {
+  distribute: string
   ensure: string
   status: string
   stop: string
@@ -41,6 +42,7 @@ type AppServerIpcChannels = {
 }
 
 const APP_SERVER_IPC_CHANNELS: AppServerIpcChannels = {
+  distribute: 'app-server:distribute',
   ensure: 'app-server:ensure',
   status: 'app-server:status',
   stop: 'app-server:stop',
@@ -55,6 +57,10 @@ export function registerAppServerIpcHandlers(): void {
 }
 
 function registerAppServerIpcChannelHandlers(channels: AppServerIpcChannels): void {
+  ipcMain.handle(channels.distribute, (_event, input?: ElectronAppServerEnsureInput) => {
+    return appServerManager.distribute(input)
+  })
+
   ipcMain.handle(channels.ensure, async (_event, input?: ElectronAppServerEnsureInput) => {
     return appServerManager.ensure(input)
   })

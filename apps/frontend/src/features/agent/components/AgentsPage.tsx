@@ -56,8 +56,10 @@ import {
   type ProviderConfig,
 } from '@/shared/infrastructure/providerConfigStore'
 import { publicModelId } from '@/shared/domain/modelDisplay'
+import { getAPIBaseURL } from '@/shared/infrastructure/config'
 import { ProviderSessionClient, providerSessionClient, type MovScriptWorkspaceConfig } from '@/shared/infrastructure/providerSessionClient'
 import {
+  distributeAppServerConfig,
   ensureAppServer as ensureAppServerService,
   getAppServerStatus,
   stopAppServer as stopAppServerService,
@@ -383,6 +385,14 @@ function AppServerPanel({
       const providerOption = providerOptions.find((option) => option.id === draft.providerRef)
       await saveProviderConfig(providerSessionClient, providerKey, buildAppServerRecord(draft, providerOption, resolved.enabled, resolved.appServerProfile), workspaceConfig)
       onConfigSaved()
+      await distributeAppServerConfig({
+        profile: {
+          ...profile,
+          workspaceDir: draft.workspaceDir || profile.workspaceDir,
+          home: draft.home || profile.home,
+        },
+      })
+      await statusQuery.refetch()
       setSaved(true)
       window.setTimeout(() => setSaved(false), 1800)
     } catch (saveError) {
@@ -645,6 +655,7 @@ function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOpti
       }
       return {
         ...base,
+        baseURL: resolveBackendProviderBaseURL(),
         config: { mode: 'backendKey', modelProviderRef: draft.providerRef },
         auth: { mode: 'backendKey', modelProviderRef: draft.providerRef },
       }
@@ -661,6 +672,10 @@ function buildAppServerRecord(draft: ProviderConfigDraft, provider: ProviderOpti
         auth: { mode: 'none' },
       }
   }
+}
+
+function resolveBackendProviderBaseURL(): string {
+  return `${getAPIBaseURL()}/v1`
 }
 
 function appServerAuthSourceFromRecord(record: Record<string, unknown>): AppServerAuthSource {

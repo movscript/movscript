@@ -4,16 +4,14 @@ import { resolve } from 'path'
 import type { Plugin } from 'vite'
 
 const alias = {
-  '@movscript/core/node': resolve('../../packages/core/src/node.ts'),
   '@movscript/core/workspace': resolve('../../packages/core/src/workspace/index.ts'),
   '@movscript/core/workspace/node': resolve('../../packages/core/src/workspace/node/index.ts'),
   '@movscript/core/mcp': resolve('../../packages/core/src/mcp/index.ts'),
   '@movscript/core/mcp/node': resolve('../../packages/core/src/mcp/node/index.ts'),
   '@movscript/core/backend': resolve('../../packages/core/src/backend/index.ts'),
   '@movscript/core/backend/node': resolve('../../packages/core/src/backend/node/index.ts'),
-  '@movscript/core/workspace-contracts': resolve('../../packages/core/src/workspace-contracts.ts'),
-  '@movscript/core/plugins': resolve('../../packages/core/src/plugins.ts'),
-  '@movscript/core/plugins/node': resolve('../../packages/core/src/plugins-node.ts'),
+  '@movscript/core/plugins': resolve('../../packages/core/src/plugins/index.ts'),
+  '@movscript/core/plugins/node': resolve('../../packages/core/src/plugins/node/index.ts'),
   '@movscript/core': resolve('../../packages/core/src/index.ts'),
   '@movscript/theme/theme.css': resolve('../../packages/theme/src/theme.css'),
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
@@ -28,6 +26,10 @@ const alias = {
 
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
+const ignoredMovScriptRuntimeWatchPaths = [
+  '**/.movscript/**/.tmp/**',
+  '**/.movscript-dev/**/.movscript/**/.tmp/**',
+]
 
 function isAliasSource(source: string) {
   return Object.keys(alias).some((key) => source === key || source.startsWith(`${key}/`))
@@ -80,6 +82,9 @@ export default defineConfig(() => {
         port: rendererPort,
         strictPort: true,
         hmr: disableRendererHmr ? false : undefined,
+        watch: {
+          ignored: ignoredMovScriptRuntimeWatchPaths,
+        },
       },
       optimizeDeps: {
         force: true,

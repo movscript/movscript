@@ -3,9 +3,9 @@ import {
 } from '@/shared/infrastructure/api/semanticEntities'
 import { buildContentUnitWorkspacePatch, buildContentUnitReorderPatchTaskGraph, buildContentUnitTimelineMoveTaskGraph } from '@/features/content/domain/contentWorkbenchWriteModel'
 import {
-  reorderContentUnitsWorkspaceProjection,
-  saveContentUnitTimingWorkspaceProjection,
-  saveContentUnitWorkspaceProjection,
+  reorderContentUnitsWorkspaceEdit,
+  saveContentUnitTimingWorkspaceEdit,
+  saveContentUnitWorkspaceEdit,
 } from '@/features/content/application/contentUnitWorkspaceRepository'
 import { apiErrorMessage } from '@/features/content/domain/contentWorkbenchStatus'
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from '@/features/content/domain/contentWorkbenchModel'
@@ -89,7 +89,7 @@ export function buildApplyContentUnitWorkspaceMutationOptions(input: {
       if (!input.projectId) throw new Error('缺少项目')
       const current = input.contentUnits.find((unit) => unit.ID === unitId)
       if (!current) throw new Error('未找到制作项')
-      return saveContentUnitWorkspaceProjection(input.projectId, current, buildContentUnitWorkspacePatch(current, workspace)) as Promise<ContentWorkbenchRecord>
+      return saveContentUnitWorkspaceEdit(input.projectId, current, buildContentUnitWorkspacePatch(current, workspace)) as Promise<ContentWorkbenchRecord>
     },
     onSuccess: async (saved: ContentWorkbenchRecord) => {
       input.selectContentUnit(saved.ID)
@@ -120,7 +120,7 @@ export function buildReorderContentUnitsMutationOptions(input: {
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
       const taskGraph = buildContentUnitReorderPatchTaskGraph(row, draggedUnitId, targetUnitId, position)
-      await reorderContentUnitsWorkspaceProjection(input.projectId, row.units, row.keyframes, taskGraph.patches.map((patch) => ({
+      await reorderContentUnitsWorkspaceEdit(input.projectId, row.units, row.keyframes, taskGraph.patches.map((patch) => ({
         unitId: patch.unitId,
         order: Number(patch.payload.order),
       })))
@@ -164,7 +164,7 @@ export function buildMoveContentUnitOnTimelineMutationOptions(input: {
       const unit = row.units.find((item) => item.ID === unitId)
       if (!unit) throw new Error('未找到制作项')
       const timingPayload = taskGraph.kind === 'update_item' ? taskGraph.payload : taskGraph.itemPayload
-      await saveContentUnitTimingWorkspaceProjection(input.projectId, unit, row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unitId), {
+      await saveContentUnitTimingWorkspaceEdit(input.projectId, unit, row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unitId), {
         localStartSec: Number(timingPayload.start_sec),
         localDurationSec: Number(timingPayload.duration_sec),
         order: Number(timingPayload.order),

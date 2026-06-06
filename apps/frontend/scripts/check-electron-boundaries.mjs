@@ -42,6 +42,11 @@ const staleImportPatterns = [
     roots: ['src'],
   },
   {
+    label: 'renderer importing removed MovScript workspace contracts entry',
+    pattern: /(?:from|import)\s*['"]@movscript\/core\/workspace-contracts['"]/,
+    roots: ['src'],
+  },
+  {
     label: 'renderer importing Node-only MovScript core entry',
     pattern: /(?:from|import)\s*['"]@movscript\/core\/(?:node|[^'"]+\/node)['"]/,
     roots: ['src'],
@@ -195,6 +200,10 @@ function walkCoreSharedFile(file, sourceRoot, seen, failures) {
   const nodeImport = source.match(/(?:from|import)\s*['"](?:node:[^'"]+|fs|path|crypto|child_process|http|os)['"]|process\.|NodeJS\./)
   if (nodeImport) {
     failures.push(`shared @movscript/core entry reaches Node-only code: ${rel}`)
+    return
+  }
+  if (toPosix(relative(sourceRoot, file)).split('/').includes('node')) {
+    failures.push(`shared @movscript/core entry reaches /node adapter: ${rel}`)
     return
   }
 

@@ -9,15 +9,15 @@ MovScript keeps a provider-neutral manifest and also ships the upstream compatib
 - `skills/workspace/SKILL.md`
 - `.mcp.json`
 
-The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business files under `.movscript/data`; provider-facing workspace tools operate on workspace namespaces, such as `movscript.project:123`, which map internally to project-level working trees.
+The `.mcp.json` file starts a small app-server stdio bridge at `bin/mcp-stdio-bridge.mjs`. The bridge exposes MovScript tools to app-server providers and forwards tool calls to the MovScript core MCP server over local HTTP. MovScript keeps business files in the project Git workspace under `edit/`; successful builds write `.build/current`, indexes, reviews, and manifests.
 
-Inside a MovScript workspace, the selected local folder is the workspace root and `.movscript/manifest.json` is the root contract. Business projections live under `.movscript/data`: `data/users/{userId}/projects.index.json` lists visible projects for the current user, `data/users/{userId}/projects/{projectId}/project.json` stores project metadata, project-level workspace JSON files store settings/assets/standards, and `scripts/{scriptId}/script.md` stores editable script text. Preview/apply evidence lives under `.movscript/reviews`, sync metadata under `.movscript/sync`, and provider config/cache/run/session indexes under `.movscript/providers/{profile}`. Production projections live under `productions/{productionId}`; unit-scoped content projections include `scene_moments/{sceneMomentId}/content_units/{contentUnitId}`. Sync records mirror projection paths and store content hashes plus the latest dirty, preview, materialized, and conflict state. `.movscript/.mova`, `.movscript/.codex`, and other `.movscript/.{provider}` directories are managed app-server provider homes for compatibility; they are not business workspace roots and must not contain MovScript project, script, production, asset projection files, or workspace-level session indexes.
+Inside a MovScript project workspace, the selected local folder is the project repo root. `.movscript/manifest.json` is the local control contract. Agent/UI edits target `edit/setting`, `edit/standards`, `edit/scripts`, `edit/productions`, and `edit/assets`. The current effective state is read from `.build/current` and `.build/indexes` after `movscript_workspace_build` succeeds. Provider config/cache/run/session indexes live under `.movscript/providers/{profile}`.
 
 The bridge now exposes these MCP surfaces to app-server providers:
 
 - MCP resources: `resources/list` and `resources/read` are forwarded to MovScript Desktop when it is running. These are read-only context/catalog entries, not generation input resources.
-- Project tools: current focus and project creation. Project/script data should be read from local workspace files after fetching the project namespace.
-- Workspace tools: `workspace_fetch`, `workspace_status`, `workspace_review`, and `workspace_submit`. A workspace namespace is a project-level working repository, for example `movscript.project:123`, containing project metadata, references, assets, scripts, productions, and future project-owned business object groups. These MCP tools return Git-canonical handoffs; actual synchronization, review, and submit happen through standard git fetch/status/diff/commit/push.
+- Project tools: current focus and project creation. Project/script data should be read from local workspace files under `edit/` and `.build/`.
+- Workspace tools: `movscript_workspace_get_model`, `movscript_workspace_review`, and `movscript_workspace_build`. Review checks `.build/current -> edit/`; build validates `edit/` and updates `.build/`.
 - Query tools: MovScript resource-library search, shot-library search, and external media search.
 - Vision and guidance tools: `movscript_resource_image_read` returns image RawResources as MCP image content, `movscript_resource_video_extract_frames` extracts video frames with fine-grained sampling, `movscript_resource_image_annotate` creates simple SVG guidance images with structured marks, and `movscript_resource_upload` stores provider-created image artifacts as RawResources for generation.
 - Generation tools: `generation_model_list`, `generation_image_generate`, `generation_image_job_get`, `generation_video_generate`, and `generation_video_job_get`.
@@ -32,7 +32,7 @@ MovScript uses three separate media concepts in the plugin contract:
 
 For `tools/list`, the bridge asks MovScript Desktop for the full dynamic tool list. If Desktop is not reachable during provider startup, the bridge still advertises a static fallback set for project, workspace, resource/query, and image/video generation tools so the provider can discover the intended interface. Actual tool calls still require MovScript Desktop MCP to be reachable.
 
-The app-server provider starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using `movscript_workspace` tools, project/script tools, or generation tools.
+The app-server provider starts the bridge by itself, but it does not start MovScript Desktop. Start MovScript Desktop first, or otherwise run the core MCP server, before using workspace, project/script, or generation tools.
 
 By default the bridge forwards tool calls to:
 

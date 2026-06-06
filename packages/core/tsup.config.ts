@@ -3,7 +3,6 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: [
     'src/index.ts',
-    'src/node.ts',
     'src/workspace/index.ts',
     'src/workspace/node/index.ts',
     'src/mcp/index.ts',
@@ -12,9 +11,6 @@ export default defineConfig({
     'src/backend/node/index.ts',
     'src/plugins/index.ts',
     'src/plugins/node/index.ts',
-    'src/workspace-contracts.ts',
-    'src/plugins.ts',
-    'src/plugins-node.ts',
   ],
   format: ['esm', 'cjs'],
   dts: true,

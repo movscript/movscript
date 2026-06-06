@@ -16,36 +16,34 @@ test('listing the MovScript workspace root initializes core control directories'
     const listed = await listMovScriptWorkspaceFiles({ workspaceDir })
     const entryNames = listed.entries.map((entry) => entry.name).sort()
     assert.equal(listed.path, '')
-    assert.ok(entryNames.includes('manifest.json'))
-    assert.ok(entryNames.includes('data'))
-    assert.ok(entryNames.includes('reviews'))
-    assert.ok(entryNames.includes('sync'))
-    assert.ok(entryNames.includes('providers'))
+    assert.ok(entryNames.includes('.build'))
+    assert.ok(entryNames.includes('.movscript'))
+    assert.ok(entryNames.includes('edit'))
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
-test('manages MovScript workspace files under .movscript', async () => {
+test('manages MovScript workspace files under the project workspace root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-'))
   try {
     const written = await writeMovScriptWorkspaceFile({
       workspaceDir,
-      path: 'drafts/project.workspace.json',
+      path: 'edit/project.json',
       content: '{"title":"Project"}',
     })
 
-    assert.equal(written.path, 'drafts/project.workspace.json')
+    assert.equal(written.path, 'edit/project.json')
     assert.equal(written.content, '{"title":"Project"}')
 
-    const read = await readMovScriptWorkspaceFile({ workspaceDir, path: 'drafts/project.workspace.json' })
+    const read = await readMovScriptWorkspaceFile({ workspaceDir, path: 'edit/project.json' })
     assert.equal(read.content, '{"title":"Project"}')
 
-    const listed = await listMovScriptWorkspaceFiles({ workspaceDir, path: 'drafts' })
-    assert.deepEqual(listed.entries.map((entry) => entry.path), ['drafts/project.workspace.json'])
+    const listed = await listMovScriptWorkspaceFiles({ workspaceDir, path: 'edit' })
+    assert.deepEqual(listed.entries.map((entry) => entry.path), ['edit/project.json'])
 
-    await deleteMovScriptWorkspaceFile({ workspaceDir, path: 'drafts/project.workspace.json' })
-    const afterDelete = await listMovScriptWorkspaceFiles({ workspaceDir, path: 'drafts' })
+    await deleteMovScriptWorkspaceFile({ workspaceDir, path: 'edit/project.json' })
+    const afterDelete = await listMovScriptWorkspaceFiles({ workspaceDir, path: 'edit' })
     assert.deepEqual(afterDelete.entries, [])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
@@ -57,17 +55,17 @@ test('listing a missing MovScript workspace folder returns an empty directory vi
   try {
     const listed = await listMovScriptWorkspaceFiles({
       workspaceDir,
-      path: 'data/users/local/projects/1/references',
+      path: 'edit/setting',
     })
 
-    assert.equal(listed.path, 'data/users/local/projects/1/references')
+    assert.equal(listed.path, 'edit/setting')
     assert.deepEqual(listed.entries, [])
   } finally {
     await rm(workspaceDir, { recursive: true, force: true })
   }
 })
 
-test('rejects workspace file paths outside .movscript root', async () => {
+test('rejects workspace file paths outside the project workspace root', async () => {
   const workspaceDir = await mkdtemp(join(tmpdir(), 'movscript-workspace-files-'))
   try {
     await assert.rejects(

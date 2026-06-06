@@ -8,6 +8,7 @@ import {
   resolveMovScriptWorkspacePaths,
   writeMovScriptWorkspaceConfig,
 } from '@movscript/core/workspace/node'
+import { writeMovScriptBackendConfig } from '@movscript/core/backend/node'
 import {
   appServerSpawnEnvironmentFromDistribution,
   distributeAppServerConfigFromMovScriptWorkspace,
@@ -125,6 +126,141 @@ test('distributes Mova account config from its own provider record into the Mova
   assert.equal(env.MOVA_HOME, movaHome)
   assert.equal(env.CODEX_HOME, movaHome)
   assert.equal(env.OPENAI_API_KEY, 'sk-mova-key')
+})
+
+test('uses backend provider base URL for backendKey app-server config', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-provider-config-'))
+  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir)
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+    environment: {
+      MOVSCRIPT_APP_SERVER_API_KEY: 'sk-backend-managed-key',
+    },
+    providers: {
+      codex: {
+        providerRef: 'backend:501',
+        authSource: 'model-provider',
+        baseURL: 'http://localhost:8766/api/v1',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:501' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:501' },
+      },
+    },
+  })
+
+  const distribution = distributeAppServerConfigFromMovScriptWorkspace({
+    workspaceDir,
+    home: codexHome,
+    now: new Date('2026-06-06T01:02:03.000Z'),
+  })
+
+  assert.equal(distribution.ok, true)
+  assert.equal(distribution.accountSource, 'movscript-environment')
+  assert.equal(distribution.baseURL, 'http://localhost:8766/v1')
+  assert.match(readFileSync(distribution.configTomlPath, 'utf8'), /base_url = "http:\/\/localhost:8766\/v1"/)
+})
+
+test('falls back to workspace backend base URL for existing backendKey app-server config', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-provider-existing-config-'))
+  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir)
+  writeMovScriptBackendConfig(workspaceDir, { baseURL: 'https://backend.example/api/v1' })
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+    environment: {
+      MOVSCRIPT_APP_SERVER_API_KEY: 'sk-backend-managed-key',
+    },
+    providers: {
+      codex: {
+        providerRef: 'backend:501',
+        authSource: 'model-provider',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:501' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:501' },
+      },
+    },
+  })
+
+  const distribution = distributeAppServerConfigFromMovScriptWorkspace({
+    workspaceDir,
+    home: codexHome,
+    now: new Date('2026-06-06T01:02:03.000Z'),
+  })
+
+  assert.equal(distribution.ok, true)
+  assert.equal(distribution.baseURL, 'https://backend.example/v1')
+  assert.match(readFileSync(distribution.configTomlPath, 'utf8'), /base_url = "https:\/\/backend\.example\/v1"/)
+})
+
+test('uses managed home provider when caller passes default provider key', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-default-key-config-'))
+  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const defaultPaths = resolveMovScriptWorkspacePaths(workspaceDir)
+  const codexPaths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
+  writeMovScriptWorkspaceConfig(defaultPaths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+  })
+  writeMovScriptWorkspaceConfig(codexPaths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:01.000Z',
+    environment: {
+      MOVSCRIPT_APP_SERVER_API_KEY: 'sk-backend-managed-key',
+    },
+    providers: {
+      codex: {
+        providerRef: 'backend:1',
+        authSource: 'model-provider',
+        baseURL: 'http://localhost:8765/v1',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+      },
+    },
+  })
+
+  const distribution = distributeAppServerConfigFromMovScriptWorkspace({
+    workspaceDir,
+    home: codexHome,
+    providerKey: 'default',
+    now: new Date('2026-06-06T01:02:03.000Z'),
+  })
+
+  assert.equal(distribution.providerKey, 'codex')
+  assert.equal(distribution.sourceConfigPath, codexPaths.configPath)
+  assert.equal(distribution.baseURL, 'http://localhost:8765/v1')
+  assert.match(readFileSync(distribution.configTomlPath, 'utf8'), /base_url = "http:\/\/localhost:8765\/v1"/)
+})
+
+test('overwrites backend provider config.toml even when backend account is missing', () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-codex-backend-no-account-config-'))
+  const codexHome = join(workspaceDir, '.movscript', '.codex')
+  const paths = resolveMovScriptWorkspacePaths(workspaceDir, { configDirName: 'codex' })
+  writeMovScriptWorkspaceConfig(paths.configPath, {
+    schema: MOVSCRIPT_WORKSPACE_CONFIG_SCHEMA,
+    updatedAt: '2026-06-06T00:00:00.000Z',
+    providers: {
+      codex: {
+        providerRef: 'backend:1',
+        authSource: 'model-provider',
+        baseURL: 'http://localhost:8765/v1',
+        config: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+        auth: { mode: 'backendKey', modelProviderRef: 'backend:1' },
+      },
+    },
+  })
+
+  const distribution = distributeAppServerConfigFromMovScriptWorkspace({
+    workspaceDir,
+    home: codexHome,
+    providerKey: 'codex',
+    now: new Date('2026-06-06T01:02:03.000Z'),
+  })
+
+  assert.equal(distribution.ok, false)
+  assert.equal(distribution.accountSource, 'none')
+  assert.match(readFileSync(distribution.configTomlPath, 'utf8'), /model_provider = "movscript"/)
+  assert.match(readFileSync(distribution.configTomlPath, 'utf8'), /base_url = "http:\/\/localhost:8765\/v1"/)
 })
 
 test('distributes a custom app-server provider from its own managed provider profile config', () => {
@@ -518,7 +654,7 @@ test('inherits local app-server home provider config and auth without copying a 
   assert.equal(appServerSpawnEnvironmentFromDistribution(distribution, { OPENAI_API_KEY: 'external-key' }).OPENAI_API_KEY, undefined)
 })
 
-test('maps legacy local provider home mode to Mova local-home projection', () => {
+test('maps legacy local provider home mode to Mova local-home distribution', () => {
   const workspaceDir = mkdtempSync(join(tmpdir(), 'movscript-mova-config-legacy-local-'))
   const localHome = mkdtempSync(join(tmpdir(), 'movscript-legacy-local-home-'))
   const movaHome = join(workspaceDir, '.movscript', '.mova')

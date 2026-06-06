@@ -90,8 +90,8 @@ export async function resolveMovScriptWorkspaceProjectPath(
   return movScriptWorkspaceProjectPath('local', projectId)
 }
 
-export function movScriptWorkspaceProjectPath(userId: string | number, projectId: string | number): string {
-  return `edit/projects/${String(projectId)}`
+export function movScriptWorkspaceProjectPath(_userId: string | number, _projectId: string | number): string {
+  return 'edit'
 }
 
 export function movScriptWorkspaceProjectEditPath(projectId: string | number): string {
@@ -122,6 +122,8 @@ async function requireWorkspaceRoot(
 
 async function readBuiltDomainIndex(api: WorkspaceElectronAPI): Promise<MovScriptWorkspaceDomainIndex | null> {
   try {
+    const indexList = await api.listMovScriptWorkspaceFiles?.({ path: '.build/indexes' })
+    if (!indexList?.entries.some((entry) => entry.kind === 'file' && entry.name === 'domain-index.json')) return null
     const file = await api.readMovScriptWorkspaceFile?.({ path: '.build/indexes/domain-index.json' })
     if (!file) return null
     const parsed = JSON.parse(file.content) as unknown

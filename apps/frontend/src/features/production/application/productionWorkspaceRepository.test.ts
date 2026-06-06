@@ -2,23 +2,23 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  createProductionWritingExpressionWorkspaceProjection,
-  deleteProductionWritingExpressionWorkspaceProjection,
-  linkProductionSceneMomentReferenceWorkspaceProjection,
+  createProductionWritingExpressionWorkspaceEdit,
+  deleteProductionWritingExpressionWorkspaceEdit,
+  linkProductionSceneMomentReferenceWorkspaceEdit,
   productionWorkspaceFilePath,
-  saveProductionSceneMomentOrderWorkspaceProjection,
-  saveProductionSegmentWorkspaceProjection,
-  saveProductionWritingExpressionWorkspaceProjection,
-  unlinkProductionSceneMomentReferenceWorkspaceProjection,
+  saveProductionSceneMomentOrderWorkspaceEdit,
+  saveProductionSegmentWorkspaceEdit,
+  saveProductionWritingExpressionWorkspaceEdit,
+  unlinkProductionSceneMomentReferenceWorkspaceEdit,
   type ProductionWorkspaceSnapshot,
 } from './productionWorkspaceRepository'
 
-test('production workspace repository saves segment edits into the project namespace projection', async () => {
+test('production workspace repository saves segment edits into the edit workspace file', async () => {
   const previousWindow = globalThis.window
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await saveProductionSegmentWorkspaceProjection({
+    await saveProductionSegmentWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -31,7 +31,7 @@ test('production workspace repository saves segment edits into the project names
       },
     })
 
-    const content = files.get('data/users/u1/projects/9/productions/7/production.workspace.json')
+    const content = files.get('edit/productions/production_7/production.json')
     assert.ok(content)
     const projection = JSON.parse(content)
     assert.equal(projection.schema, 'movscript.production_workspace.v1')
@@ -50,7 +50,7 @@ test('production workspace repository saves scene moment reorder across segments
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await saveProductionSceneMomentOrderWorkspaceProjection({
+    await saveProductionSceneMomentOrderWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -60,7 +60,7 @@ test('production workspace repository saves scene moment reorder across segments
       ],
     })
 
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     assert.deepEqual(projection.workspace.segments[0].scene_moments.map((moment: { id: number }) => moment.id), [11])
     assert.deepEqual(projection.workspace.segments[1].scene_moments.map((moment: { id: number }) => moment.id), [20, 10])
     assert.equal(projection.workspace.segments[1].scene_moments[1].order, 2)
@@ -74,7 +74,7 @@ test('production workspace repository saves writing expression changes into prod
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await saveProductionWritingExpressionWorkspaceProjection({
+    await saveProductionWritingExpressionWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -88,7 +88,7 @@ test('production workspace repository saves writing expression changes into prod
       },
     })
 
-    const projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    const projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     const expression = projection.workspace.segments[0].scene_moments[0].writing_expressions[0]
     assert.equal(expression.id, 100)
     assert.equal(expression.speaker, '林夏')
@@ -106,7 +106,7 @@ test('production workspace repository creates and deletes writing expressions in
   const originalDateNow = Date.now
   Date.now = () => 123456
   try {
-    await createProductionWritingExpressionWorkspaceProjection({
+    await createProductionWritingExpressionWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -114,19 +114,19 @@ test('production workspace repository creates and deletes writing expressions in
       order: 2,
       scriptBlockId: null,
     })
-    let projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    let projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     let expressions = projection.workspace.segments[0].scene_moments[1].writing_expressions
     assert.equal(expressions[0].client_id, 'writing_expression_local_123456')
     assert.equal(expressions[0].kind, 'dialogue')
     assert.equal(expressions[0].order, 2)
 
-    await deleteProductionWritingExpressionWorkspaceProjection({
+    await deleteProductionWritingExpressionWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
       expressionId: 100,
     })
-    projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     expressions = projection.workspace.segments[0].scene_moments[0].writing_expressions
     assert.equal(expressions[0].id, 100)
     assert.equal(expressions[0].__delete, true)
@@ -141,7 +141,7 @@ test('production workspace repository links and unlinks scene moment references 
   const files = new Map<string, string>()
   setWorkspaceTestWindow(files)
   try {
-    await linkProductionSceneMomentReferenceWorkspaceProjection({
+    await linkProductionSceneMomentReferenceWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
@@ -149,20 +149,20 @@ test('production workspace repository links and unlinks scene moment references 
       reference: { ID: 501, name: '林夏', kind: 'person' },
       role: 'lead',
     })
-    let projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    let projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     let references = projection.workspace.segments[0].scene_moments[1].settings
     assert.equal(references[0].id, 501)
     assert.equal(references[0].name, '林夏')
     assert.equal(references[0].role, 'lead')
 
-    await unlinkProductionSceneMomentReferenceWorkspaceProjection({
+    await unlinkProductionSceneMomentReferenceWorkspaceEdit({
       projectId: 9,
       productionId: 7,
       currentSnapshot: snapshot(),
       momentId: 10,
       referenceId: 500,
     })
-    projection = JSON.parse(files.get('data/users/u1/projects/9/productions/7/production.workspace.json') ?? '{}')
+    projection = JSON.parse(files.get('edit/productions/production_7/production.json') ?? '{}')
     references = projection.workspace.segments[0].scene_moments[0].settings
     assert.equal(references[0].id, 500)
     assert.equal(references[0].__delete, true)
@@ -174,7 +174,7 @@ test('production workspace repository links and unlinks scene moment references 
 test('production workspace file path follows the project repository layout', () => {
   assert.equal(
     productionWorkspaceFilePath('local', 9, 7),
-    'data/users/local/projects/9/productions/7/production.workspace.json',
+    'edit/productions/production_7/production.json',
   )
 })
 
@@ -221,22 +221,26 @@ function setWorkspaceTestWindow(files: Map<string, string>): void {
       api: {
         getMovScriptWorkspaceRoot: async () => ({
           workspaceDir: '/tmp/movscript',
+          rootDir: '/tmp/movscript',
           controlDir: '/tmp/movscript/.movscript',
           manifestPath: '/tmp/movscript/.movscript/manifest.json',
-          projectionRootDir: '/tmp/movscript/.movscript/data',
-          reviewsDir: '/tmp/movscript/.movscript/reviews',
-          syncDir: '/tmp/movscript/.movscript/sync',
+          editDir: '/tmp/movscript/edit',
+          buildDir: '/tmp/movscript/.build',
+          buildCurrentDir: '/tmp/movscript/.build/current',
+          buildIndexesDir: '/tmp/movscript/.build/indexes',
+          buildReviewsDir: '/tmp/movscript/.build/reviews',
+          buildManifestsDir: '/tmp/movscript/.build/manifests',
           providersDir: '/tmp/movscript/.movscript/providers',
+          backendDir: '/tmp/movscript/.movscript/backend',
           manifest: {
-            schema: 'movscript.workspace-root.v1',
+            schema: 'movscript.project-workspace.v1',
             workspaceId: 'test',
-            activeUserId: 'u1',
+            activeUserId: 1,
             createdAt: '2026-01-01T00:00:00.000Z',
             updatedAt: '2026-01-01T00:00:00.000Z',
             layout: {
-              projectionRoot: 'data',
-              reviewsRoot: 'reviews',
-              syncRoot: 'sync',
+              editableRoot: 'edit',
+              buildRoot: '.build',
               providerConfigRoot: 'providers',
             },
           },

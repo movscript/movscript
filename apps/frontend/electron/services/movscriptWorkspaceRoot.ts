@@ -18,12 +18,17 @@ function workspaceRootResult(
 ): ElectronMovScriptWorkspaceRootResult {
   return {
     workspaceDir: paths.workspaceDir,
+    rootDir: paths.rootDir,
     controlDir: paths.controlDir,
     manifestPath: paths.manifestPath,
-    projectionRootDir: paths.projectionRootDir,
-    reviewsDir: paths.reviewsDir,
-    syncDir: paths.syncDir,
+    editDir: paths.editDir,
+    buildDir: paths.buildDir,
+    buildCurrentDir: paths.buildCurrentDir,
+    buildIndexesDir: paths.buildIndexesDir,
+    buildReviewsDir: paths.buildReviewsDir,
+    buildManifestsDir: paths.buildManifestsDir,
     providersDir: paths.providersDir,
+    backendDir: paths.backendDir,
     manifest,
   }
 }

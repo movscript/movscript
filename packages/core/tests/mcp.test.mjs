@@ -8,14 +8,16 @@ import test from 'node:test'
 import {
   annotateResourceImage,
   buildMCPFrameSamplingPlan,
-  getMovScriptBackendAPIBaseURL,
   getMCPFocusSnapshot,
   handleJSONRPC,
   listTools,
-  setMovScriptBackendAPIBaseURL,
   updateMCPContextSnapshot,
   uploadAgentImageResource,
-} from '../dist/index.js'
+} from '../dist/mcp/node/index.js'
+import {
+  getMovScriptBackendAPIBaseURL,
+  setMovScriptBackendAPIBaseURL,
+} from '../dist/backend/node/index.js'
 
 const onePixelPNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lgn+9QAAAABJRU5ErkJggg=='
 

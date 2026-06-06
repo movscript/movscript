@@ -27,7 +27,7 @@ test('pre-production data controller filters internal candidate slots', () => {
   assert.equal(isInternalPreProductionCandidateSlot({ ID: 12 } as AssetSlotRecord), false)
 })
 
-test('pre-production data controller derives candidates from local asset slot projections', () => {
+test('pre-production data controller derives candidates from local asset slot edit records', () => {
   const candidates = buildWorkspaceAssetSlotCandidates([
     { ID: 10, name: 'Parent', locked_asset_slot_id: 11 } as AssetSlotRecord,
     { ID: 11, name: 'Selected Candidate', owner_type: 'asset_slot', owner_id: 10, resource_id: 99 } as AssetSlotRecord,

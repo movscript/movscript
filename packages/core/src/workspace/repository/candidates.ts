@@ -1,7 +1,6 @@
 import type { MovScriptWorkspaceFileRepository } from './types.js'
 
-const ASSET_SLOT_SCHEMA = 'movscript.asset_slot.v1'
-const KEYFRAME_SCHEMA = 'movscript.keyframe.v1'
+const CANDIDATE_SCHEMA = 'movscript.candidate.v1'
 
 export interface MovScriptWorkspaceCandidateWriteInput {
   fileRepository: MovScriptWorkspaceFileRepository
@@ -14,7 +13,7 @@ export interface MovScriptWorkspaceCandidateWriteInput {
 
 export interface MovScriptWorkspaceCandidateWriteResult {
   path: string
-  entityType: 'asset_slot' | 'keyframe'
+  entityType: 'candidate'
   record: Record<string, unknown>
 }
 
@@ -22,9 +21,11 @@ export async function createMovScriptWorkspaceAssetSlotCandidate(
   input: MovScriptWorkspaceCandidateWriteInput,
 ): Promise<MovScriptWorkspaceCandidateWriteResult> {
   const record = buildMovScriptWorkspaceAssetSlotCandidateRecord(input)
-  const path = `${normalizeProjectPath(input.projectPath)}/assets/asset_slot_${workspaceCandidateFileKey(record)}.json`
+  const parentSlotId = positiveNumber(record.asset_slot_id)
+  if (!parentSlotId) throw new Error('候选缺少父素材需求')
+  const path = `${normalizeProjectPath(input.projectPath)}/assets/asset_slot_${parentSlotId}.candidates/candidate_${workspaceCandidateFileKey(record)}.json`
   await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
-  return { path, entityType: 'asset_slot', record }
+  return { path, entityType: 'candidate', record }
 }
 
 export async function createMovScriptWorkspaceKeyframeCandidate(
@@ -32,12 +33,13 @@ export async function createMovScriptWorkspaceKeyframeCandidate(
 ): Promise<MovScriptWorkspaceCandidateWriteResult> {
   const record = buildMovScriptWorkspaceKeyframeCandidateRecord(input)
   const productionId = positiveNumber(record.production_id)
-  const directory = productionId
-    ? `${normalizeProjectPath(input.projectPath)}/productions/production_${productionId}/keyframes`
-    : `${normalizeProjectPath(input.projectPath)}/productions/keyframes`
-  const path = `${directory}/keyframe_${workspaceCandidateFileKey(record)}.json`
+  if (!productionId) throw new Error('候选缺少制作 ID')
+  const targetKeyframeId = positiveNumber(record.keyframe_id)
+  if (!targetKeyframeId) throw new Error('候选缺少目标关键帧')
+  const directory = `${normalizeProjectPath(input.projectPath)}/productions/production_${productionId}/keyframes/keyframe_${targetKeyframeId}.candidates`
+  const path = `${directory}/candidate_${workspaceCandidateFileKey(record)}.json`
   await input.fileRepository.write({ path, content: serializeWorkspaceRecord(record) })
-  return { path, entityType: 'keyframe', record }
+  return { path, entityType: 'candidate', record }
 }
 
 export function buildMovScriptWorkspaceAssetSlotCandidateRecord(input: {
@@ -55,13 +57,13 @@ export function buildMovScriptWorkspaceAssetSlotCandidateRecord(input: {
   const sourceType = stringValue(input.payload.source_type ?? input.payload.sourceType) ?? 'manual'
   const sourceId = positiveNumber(input.payload.source_id ?? input.payload.sourceId)
   return pruneUndefined({
-    schema: ASSET_SLOT_SCHEMA,
+    schema: CANDIDATE_SCHEMA,
     ID: -stablePositiveHash(clientId),
     id: -stablePositiveHash(clientId),
     client_id: clientId,
     project_id: numericOrString(input.projectId),
-    owner_type: 'asset_slot',
-    owner_id: parentSlotId,
+    target: { type: 'asset_slot', id: parentSlotId },
+    asset_slot_id: parentSlotId,
     kind: stringValue(input.payload.kind) ?? stringValue(input.targetRecord?.kind) ?? 'image',
     name: note ?? `候选素材 #${resourceId}`,
     description: note,
@@ -90,14 +92,17 @@ export function buildMovScriptWorkspaceKeyframeCandidateRecord(input: {
   const resourceId = positiveNumber(input.payload.resource_id ?? input.payload.resourceId)
   if (!resourceId) throw new Error('resource_id required')
   const targetKeyframeId = keyframeCandidateTargetId(input.payload)
+  if (!targetKeyframeId) throw new Error('候选缺少目标关键帧')
   const clientId = localClientId('keyframe_candidate', targetKeyframeId ?? 'target', resourceId, input.nonce)
   return pruneUndefined({
     ...input.payload,
-    schema: KEYFRAME_SCHEMA,
+    schema: CANDIDATE_SCHEMA,
     ID: -stablePositiveHash(clientId),
     id: -stablePositiveHash(clientId),
     client_id: clientId,
     project_id: numericOrString(input.projectId),
+    target: { type: 'keyframe', id: targetKeyframeId },
+    keyframe_id: targetKeyframeId,
     resource_id: resourceId,
     production_id: numberValue(input.payload.production_id ?? input.payload.productionId),
     scene_moment_id: numberValue(input.payload.scene_moment_id ?? input.payload.sceneMomentId),
